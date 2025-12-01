@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCcw, Upload } from "lucide-react";
 
 import { useChatContext } from "@/lib/hooks";
 import type { SkillGroup, SkillGroupSummary } from "@/lib/types/skills";
 import { Button, EmptyState, Header } from "@/lib/components";
-import { SkillGroupCards, SkillImportDialog } from "@/lib/components/skills";
+import { SkillGroupCards, SkillImportDialog, SkillDeleteConfirmDialog } from "@/lib/components/skills";
 import { authenticatedFetch, downloadBlob } from "@/lib/utils";
 import * as versionedSkillsApi from "@/lib/services/versionedSkillsApi";
 
@@ -22,6 +22,8 @@ export const SkillsPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showImportDialog, setShowImportDialog] = useState(false);
+    const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; name: string } | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Fetch skills
     const fetchSkills = async () => {
@@ -117,6 +119,29 @@ export const SkillsPage: React.FC = () => {
         await fetchSkills();
     };
 
+    // Handle delete skill
+    const handleDelete = useCallback((id: string, name: string) => {
+        setDeleteConfirmation({ id, name });
+    }, []);
+
+    // Confirm delete
+    const confirmDelete = async () => {
+        if (!deleteConfirmation) return;
+
+        setIsDeleting(true);
+        try {
+            await versionedSkillsApi.deleteSkillGroup(deleteConfirmation.id);
+            addNotification(`Skill "${deleteConfirmation.name}" deleted successfully`, "success");
+            setDeleteConfirmation(null);
+            await fetchSkills();
+        } catch (err) {
+            console.error("Failed to delete skill:", err);
+            addNotification(err instanceof Error ? err.message : "Failed to delete skill", "error");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     return (
         <div className="flex h-full w-full flex-col">
             <Header
@@ -150,12 +175,15 @@ export const SkillsPage: React.FC = () => {
                 />
             ) : (
                 <div className="relative flex-1 p-4">
-                    <SkillGroupCards skills={skills} onUseInChat={handleUseInChat} onViewVersions={handleViewVersions} onExport={handleExport} />
+                    <SkillGroupCards skills={skills} onUseInChat={handleUseInChat} onViewVersions={handleViewVersions} onExport={handleExport} onDelete={handleDelete} />
                 </div>
             )}
 
             {/* Import Dialog */}
             <SkillImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
+
+            {/* Delete Confirmation Dialog */}
+            <SkillDeleteConfirmDialog open={deleteConfirmation !== null} skillName={deleteConfirmation?.name || ""} isDeleting={isDeleting} onConfirm={confirmDelete} onCancel={() => setDeleteConfirmation(null)} />
         </div>
     );
 };

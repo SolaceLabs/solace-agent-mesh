@@ -182,6 +182,8 @@ class VersionedSkillService:
         """
         Get a skill group by ID.
         
+        Checks both database and static skills cache.
+        
         Args:
             group_id: The group ID
             include_versions: Whether to load all versions
@@ -189,7 +191,21 @@ class VersionedSkillService:
         Returns:
             The skill group or None
         """
-        return self.repository.get_group(group_id, include_versions=include_versions)
+        # First check database
+        group = self.repository.get_group(group_id, include_versions=include_versions)
+        if group:
+            return group
+        
+        # Check static skills cache
+        if self.static_loader:
+            if not self._static_skills_loaded:
+                self._load_static_skills()
+            
+            if group_id in self._static_skills_cache:
+                log.debug(f"Found skill {group_id} in static skills cache")
+                return self._static_skills_cache[group_id]
+        
+        return None
     
     def get_skill_by_name(
         self,

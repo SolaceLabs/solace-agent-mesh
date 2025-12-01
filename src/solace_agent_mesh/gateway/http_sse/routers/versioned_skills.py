@@ -9,14 +9,22 @@ Provides endpoints for:
 - Creating new versions
 - Rollback to previous versions
 - Managing skill sharing
+- Import/Export skills
 """
 
 import logging
-from typing import Optional, List
+import re
+import yaml
+import json
+import zipfile
+import base64
+from io import BytesIO
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
 from fastapi import Request as FastAPIRequest
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as DBSession
 
@@ -144,6 +152,24 @@ class ShareSkillRequest(BaseModel):
     role: str = "viewer"  # viewer, editor
 
 
+class SkillImportRequest(BaseModel):
+    """Request to import a skill from markdown content."""
+    markdown_content: str
+    scope: str = "user"  # user, shared, global, agent
+    owner_agent: Optional[str] = None
+
+
+class SkillImportResponse(BaseModel):
+    """Response after importing a skill."""
+    skill_id: str
+    name: str
+    message: str
+    warnings: List[str] = Field(default_factory=list)
+    references_count: int = 0
+    scripts_count: int = 0
+    assets_count: int = 0
+
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -246,6 +272,547 @@ def _group_to_summary(group) -> SkillGroupSummaryDTO:
 
 # ============================================================================
 # Endpoints
+# ============================================================================
+
+# NOTE: Routes with literal path segments (like /skills/agent/{agent_name} and
+# /skills/search/semantic) MUST be defined BEFORE routes with path parameters
+# (like /skills/{group_id}) to ensure correct route matching in FastAPI.
+
+# ============================================================================
+# Agent-specific Endpoints (must be before /skills/{group_id})
+# ============================================================================
+
+@router.get("/skills/agent/{agent_name}", response_model=SkillGroupListResponse, tags=["Skills"])
+async def get_agent_skills(
+    agent_name: str,
+    request: FastAPIRequest,
+    include_global: bool = Query(True, description="Include global skills"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Page size"),
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+):
+    """
+    Get skills available to a specific agent.
+    
+    Returns agent-specific skills and optionally global skills.
+    
+    Note: Returns empty list if skill learning service is not configured.
+    """
+    log_prefix = f"[GET /api/v1/skills/agent/{agent_name}] "
+    log.info("%sRequest from user %s", log_prefix, user_id)
+    
+    try:
+        service = get_versioned_skill_service()
+        if service is None:
+            # Return empty results when skill service is not configured
+            log.debug("%sSkill service not configured, returning empty results", log_prefix)
+            return SkillGroupListResponse(
+                skills=[],
+                total=0,
+                page=page,
+                page_size=page_size,
+            )
+        
+        groups = service.get_skills_for_agent(
+            agent_name=agent_name,
+            user_id=user_id,
+            include_global=include_global,
+            limit=page_size,
+        )
+        
+        return SkillGroupListResponse(
+            skills=[_group_to_summary(g) for g in groups],
+            total=len(groups),
+            page=page,
+            page_size=page_size,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("%sError getting agent skills: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while getting agent skills.",
+        )
+
+
+# ============================================================================
+# Search Endpoints (must be before /skills/{group_id})
+# ============================================================================
+
+@router.get("/skills/search/semantic", response_model=SkillGroupListResponse, tags=["Skills"])
+async def semantic_search_skills(
+    request: FastAPIRequest,
+    query: str = Query(..., description="Search query"),
+    agent: Optional[str] = Query(None, description="Filter by agent name"),
+    limit: int = Query(10, ge=1, le=50, description="Maximum results"),
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+):
+    """
+    Semantic search for skills using embeddings.
+    
+    Uses vector similarity to find skills that match the query semantically.
+    
+    Note: Returns empty list if skill learning service is not configured.
+    """
+    log_prefix = "[GET /api/v1/skills/search/semantic] "
+    log.info("%sRequest from user %s, query: %s", log_prefix, user_id, query)
+    
+    try:
+        service = get_versioned_skill_service()
+        if service is None:
+            # Return empty results when skill service is not configured
+            log.debug("%sSkill service not configured, returning empty results", log_prefix)
+            return SkillGroupListResponse(
+                skills=[],
+                total=0,
+                page=1,
+                page_size=limit,
+            )
+        
+        results = service.semantic_search(
+            query=query,
+            agent_name=agent,
+            user_id=user_id,
+            limit=limit,
+        )
+        
+        groups = [group for group, _ in results]
+        
+        return SkillGroupListResponse(
+            skills=[_group_to_summary(g) for g in groups],
+            total=len(groups),
+            page=1,
+            page_size=limit,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("%sError in semantic search: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during semantic search.",
+        )
+
+
+# ============================================================================
+# Import Endpoints (must be before /skills/{group_id})
+# ============================================================================
+
+def _parse_skill_markdown(content: str) -> dict:
+    """
+    Parse a .SKILL.md file content into skill data.
+    
+    Expected format:
+    ---
+    name: skill-name
+    description: Skill description
+    summary: Short summary
+    involved_agents:
+      - Agent1
+      - Agent2
+    complexity_score: 30
+    ---
+    
+    # Skill Title
+    
+    Markdown content...
+    """
+    # Split frontmatter from content
+    import re as re_module
+    frontmatter_match = re_module.match(r'^---\s*\n(.*?)\n---\s*\n(.*)$', content, re_module.DOTALL)
+    
+    if not frontmatter_match:
+        raise ValueError("Invalid skill format: missing YAML frontmatter (---)")
+    
+    frontmatter_str = frontmatter_match.group(1)
+    markdown_body = frontmatter_match.group(2).strip()
+    
+    try:
+        frontmatter = yaml.safe_load(frontmatter_str)
+    except yaml.YAMLError as e:
+        raise ValueError(f"Invalid YAML frontmatter: {e}")
+    
+    if not isinstance(frontmatter, dict):
+        raise ValueError("Invalid frontmatter: expected a YAML dictionary")
+    
+    # Validate required fields
+    if not frontmatter.get("name"):
+        raise ValueError("Missing required field: name")
+    if not frontmatter.get("description"):
+        raise ValueError("Missing required field: description")
+    
+    return {
+        "name": frontmatter.get("name"),
+        "description": frontmatter.get("description"),
+        "summary": frontmatter.get("summary"),
+        "involved_agents": frontmatter.get("involved_agents", []),
+        "complexity_score": frontmatter.get("complexity_score"),
+        "markdown_content": markdown_body,
+        "metadata": {
+            k: v for k, v in frontmatter.items()
+            if k not in ["name", "description", "summary", "involved_agents", "complexity_score"]
+        }
+    }
+
+
+def _parse_skill_zip(zip_buffer: BytesIO) -> Dict[str, Any]:
+    """
+    Parse a Skill Package ZIP file.
+    
+    A skill package is a folder containing:
+    - SKILL.md: Main skill file with YAML frontmatter for metadata and instructions
+    - scripts/: Executable code (Python scripts, shell scripts, etc.)
+    - resources/: Data files, templates, and other supporting files
+    
+    Expected structure:
+    skill-name/
+    ├── SKILL.md              (required - instructions with YAML frontmatter)
+    ├── scripts/              (optional - executable code)
+    │   └── *.py, *.sh files
+    └── resources/            (optional - data files, templates)
+        └── any files
+    
+    Also supports legacy 'references/' and 'assets/' directories.
+    
+    Returns dict with:
+    - skill_data: parsed SKILL.md data
+    - scripts: dict of filename -> content
+    - resources: dict of filename -> content (text) or base64 (binary)
+    """
+    try:
+        with zipfile.ZipFile(zip_buffer, 'r') as zip_ref:
+            namelist = zip_ref.namelist()
+            
+            # Find SKILL.md - could be at root or in a subdirectory
+            skill_md_path = None
+            base_dir = ""
+            
+            for name in namelist:
+                if name.endswith('SKILL.md'):
+                    skill_md_path = name
+                    # Get base directory (everything before SKILL.md)
+                    base_dir = name.rsplit('SKILL.md', 1)[0]
+                    break
+            
+            if not skill_md_path:
+                raise ValueError("Invalid skill ZIP: missing SKILL.md file")
+            
+            # Read and parse SKILL.md
+            skill_md_content = zip_ref.read(skill_md_path).decode('utf-8')
+            skill_data = _parse_skill_markdown(skill_md_content)
+            
+            # Read bundled resources
+            scripts = {}
+            resources = {}
+            
+            for name in namelist:
+                # Skip directories and SKILL.md itself
+                if name.endswith('/') or name == skill_md_path:
+                    continue
+                
+                # Get relative path from base directory
+                if base_dir and name.startswith(base_dir):
+                    rel_path = name[len(base_dir):]
+                else:
+                    rel_path = name
+                
+                # Categorize by directory
+                # Support both 'scripts/' and legacy naming
+                if rel_path.startswith('scripts/'):
+                    filename = rel_path[len('scripts/'):]
+                    if filename:
+                        try:
+                            scripts[filename] = zip_ref.read(name).decode('utf-8')
+                        except UnicodeDecodeError:
+                            log.warning(f"Skipping non-text script file: {filename}")
+                
+                # Support 'resources/', 'references/', and 'assets/' directories
+                elif rel_path.startswith('resources/') or rel_path.startswith('references/') or rel_path.startswith('assets/'):
+                    # Extract directory prefix
+                    dir_prefix = rel_path.split('/')[0] + '/'
+                    filename = rel_path[len(dir_prefix):]
+                    if filename:
+                        try:
+                            resources[filename] = zip_ref.read(name).decode('utf-8')
+                        except UnicodeDecodeError:
+                            # Binary files stored as base64
+                            resources[filename] = base64.b64encode(zip_ref.read(name)).decode('ascii')
+            
+            return {
+                "skill_data": skill_data,
+                "scripts": scripts,
+                "resources": resources,
+            }
+            
+    except zipfile.BadZipFile:
+        raise ValueError("Invalid ZIP file")
+
+
+@router.post("/skills/import", response_model=SkillImportResponse, tags=["Skills"])
+async def import_skill(
+    request: FastAPIRequest,
+    payload: SkillImportRequest,
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+):
+    """
+    Import a skill from markdown content.
+    
+    Accepts .SKILL.md format with YAML frontmatter.
+    """
+    log_prefix = "[POST /api/v1/skills/import] "
+    log.info("%sRequest from user %s", log_prefix, user_id)
+    
+    try:
+        service = get_versioned_skill_service()
+        if service is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Skill learning service is not available",
+            )
+        
+        # Parse the markdown content
+        try:
+            skill_data = _parse_skill_markdown(payload.markdown_content)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+        
+        from ....services.skill_learning import SkillType, SkillScope
+        
+        # Map scope string to enum
+        scope_map = {
+            "user": SkillScope.USER,
+            "shared": SkillScope.SHARED,
+            "global": SkillScope.GLOBAL,
+            "agent": SkillScope.AGENT,
+        }
+        scope = scope_map.get(payload.scope, SkillScope.USER)
+        
+        warnings = []
+        
+        # Create the skill
+        created_group = service.create_skill(
+            name=skill_data["name"],
+            description=skill_data["description"],
+            skill_type=SkillType.AUTHORED,
+            scope=scope,
+            owner_agent_name=payload.owner_agent or (skill_data["involved_agents"][0] if skill_data["involved_agents"] else None),
+            owner_user_id=user_id,
+            markdown_content=skill_data["markdown_content"],
+            summary=skill_data.get("summary"),
+            created_by_user_id=user_id,
+        )
+        
+        return SkillImportResponse(
+            skill_id=created_group.id,
+            name=created_group.name,
+            message="Skill imported successfully",
+            warnings=warnings,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("%sError importing skill: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while importing the skill.",
+        )
+
+
+@router.post("/skills/import/file", response_model=SkillImportResponse, tags=["Skills"])
+async def import_skill_file(
+    request: FastAPIRequest,
+    file: UploadFile = File(..., description="Skill file (.zip, .SKILL.md, or .json)"),
+    scope: str = Query("user", description="Skill scope: user, shared, global, agent"),
+    owner_agent: Optional[str] = Query(None, description="Owner agent name"),
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+):
+    """
+    Import a skill from an uploaded file.
+    
+    Accepts:
+    - .zip files (skill package with SKILL.md + scripts/ + resources/)
+    - .SKILL.md files (single skill file)
+    - .json files (exported skill format)
+    """
+    log_prefix = "[POST /api/v1/skills/import/file] "
+    log.info("%sRequest from user %s, filename: %s", log_prefix, user_id, file.filename)
+    
+    try:
+        service = get_versioned_skill_service()
+        if service is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Skill learning service is not available",
+            )
+        
+        # Read file content
+        content = await file.read()
+        
+        # Determine file type
+        filename = file.filename or ""
+        is_zip = filename.endswith(".zip")
+        is_markdown = filename.endswith(".SKILL.md") or filename.endswith(".md")
+        is_json = filename.endswith(".json")
+        
+        if not is_zip and not is_markdown and not is_json:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unsupported file type. Please upload a .zip, .SKILL.md, or .json file.",
+            )
+        
+        from ....services.skill_learning import SkillType, SkillScope
+        
+        # Map scope string to enum
+        scope_map = {
+            "user": SkillScope.USER,
+            "shared": SkillScope.SHARED,
+            "global": SkillScope.GLOBAL,
+            "agent": SkillScope.AGENT,
+        }
+        scope_enum = scope_map.get(scope, SkillScope.USER)
+        
+        warnings = []
+        references_count = 0
+        scripts_count = 0
+        assets_count = 0
+        
+        if is_zip:
+            # Parse ZIP file (skill package format)
+            try:
+                zip_data = _parse_skill_zip(BytesIO(content))
+                skill_data = zip_data["skill_data"]
+                scripts = zip_data.get("scripts", {})
+                resources = zip_data.get("resources", {})
+                
+                scripts_count = len(scripts)
+                references_count = len(resources)
+                
+                # Build bundled_resources dict
+                bundled_resources = {}
+                if scripts:
+                    bundled_resources["scripts"] = scripts
+                if resources:
+                    bundled_resources["resources"] = resources
+                
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e),
+                )
+            
+            # Create the skill
+            # Note: bundled_resources are not currently stored in the versioned skill system
+            # They would need to be added to the SkillVersion entity if needed
+            created_group = service.create_skill(
+                name=skill_data["name"],
+                description=skill_data["description"],
+                skill_type=SkillType.AUTHORED,
+                scope=scope_enum,
+                owner_agent_name=owner_agent or (skill_data["involved_agents"][0] if skill_data.get("involved_agents") else None),
+                owner_user_id=user_id,
+                markdown_content=skill_data["markdown_content"],
+                summary=skill_data.get("summary"),
+                created_by_user_id=user_id,
+            )
+            
+            if scripts_count > 0:
+                warnings.append(f"Imported {scripts_count} script file(s)")
+            if references_count > 0:
+                warnings.append(f"Imported {references_count} resource file(s)")
+                
+        elif is_markdown:
+            content_str = content.decode("utf-8")
+            # Parse markdown content
+            try:
+                skill_data = _parse_skill_markdown(content_str)
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e),
+                )
+            
+            # Create the skill
+            created_group = service.create_skill(
+                name=skill_data["name"],
+                description=skill_data["description"],
+                skill_type=SkillType.AUTHORED,
+                scope=scope_enum,
+                owner_agent_name=owner_agent or (skill_data["involved_agents"][0] if skill_data.get("involved_agents") else None),
+                owner_user_id=user_id,
+                markdown_content=skill_data["markdown_content"],
+                summary=skill_data.get("summary"),
+                created_by_user_id=user_id,
+            )
+        else:
+            content_str = content.decode("utf-8")
+            # Parse JSON content
+            try:
+                json_data = json.loads(content_str)
+            except json.JSONDecodeError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid JSON: {e}",
+                )
+            
+            # Validate JSON format
+            if "skill" not in json_data:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid export format: missing 'skill' field",
+                )
+            
+            skill_json = json_data["skill"]
+            
+            # Get markdown content from production_version if available
+            markdown_content = None
+            if "production_version" in json_data and json_data["production_version"]:
+                markdown_content = json_data["production_version"].get("markdown_content")
+            
+            # Create the skill from JSON data
+            created_group = service.create_skill(
+                name=skill_json.get("name"),
+                description=skill_json.get("description") or (json_data.get("production_version", {}).get("description")),
+                skill_type=SkillType.AUTHORED,
+                scope=scope_enum,
+                owner_agent_name=owner_agent or skill_json.get("owner_agent_name"),
+                owner_user_id=user_id,
+                markdown_content=markdown_content,
+                created_by_user_id=user_id,
+            )
+        
+        return SkillImportResponse(
+            skill_id=created_group.id,
+            name=created_group.name,
+            message="Skill imported successfully",
+            warnings=warnings,
+            references_count=references_count,
+            scripts_count=scripts_count,
+            assets_count=assets_count,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("%sError importing skill file: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while importing the skill file.",
+        )
+
+
+# ============================================================================
+# Main Skill Endpoints
 # ============================================================================
 
 @router.get("/skills", response_model=SkillGroupListResponse, tags=["Skills"])
@@ -508,22 +1075,44 @@ async def delete_skill(
                 detail="Skill learning service is not available",
             )
         
-        group = service.get_skill(group_id)
+        # First check if the skill exists in the database (not just static cache)
+        # We need to check the repository directly to distinguish database vs static skills
+        db_group = service.repository.get_group(group_id)
         
-        if not group:
+        if not db_group:
+            # Check if it's a static skill
+            group = service.get_skill(group_id)
+            if group:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="This is a static skill loaded from the filesystem. Static skills cannot be deleted via the API. To remove it, delete the .SKILL.md file from the skills/ directory.",
+                )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Skill with ID '{group_id}' not found.",
             )
         
-        # Check ownership
-        if group.owner_user_id != user_id:
+        # Check ownership - allow deletion if:
+        # 1. User is the owner
+        # 2. Skill has no owner (e.g., learned skills without explicit owner)
+        # 3. User has edit permission
+        if db_group.owner_user_id and db_group.owner_user_id != user_id:
+            # Check if user has edit permission
+            if not service.can_user_edit(group_id, user_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You do not have permission to delete this skill.",
+                )
+        
+        deleted = service.delete_skill(group_id)
+        if not deleted:
+            log.error("%sUnexpected: Skill %s was in database but delete returned False", log_prefix, group_id)
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to delete this skill.",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete skill from database.",
             )
         
-        service.delete_skill(group_id)
+        log.info("%sSuccessfully deleted skill %s", log_prefix, group_id)
         return None
         
     except HTTPException:
@@ -887,121 +1476,208 @@ async def unshare_skill(
 
 
 # ============================================================================
-# Agent-specific Endpoints
+# Export Endpoints
 # ============================================================================
 
-@router.get("/skills/agent/{agent_name}", response_model=SkillGroupListResponse, tags=["Skills"])
-async def get_agent_skills(
-    agent_name: str,
+def _skill_to_markdown(group, version) -> str:
+    """
+    Convert a skill group and version to .SKILL.md format.
+    """
+    # Build frontmatter
+    frontmatter = {
+        "name": group.name,
+        "description": group.description or version.description,
+    }
+    
+    if version.summary:
+        frontmatter["summary"] = version.summary
+    
+    # Add involved agents from agent_chain or version
+    if version.involved_agents:
+        frontmatter["involved_agents"] = version.involved_agents
+    elif version.agent_chain:
+        frontmatter["involved_agents"] = [node.agent_name for node in version.agent_chain]
+    elif group.owner_agent_name:
+        frontmatter["involved_agents"] = [group.owner_agent_name]
+    
+    if version.complexity_score:
+        frontmatter["complexity_score"] = version.complexity_score
+    
+    # Build markdown content
+    yaml_str = yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    
+    # Use existing markdown content or generate from steps
+    if version.markdown_content:
+        body = version.markdown_content
+    else:
+        # Generate markdown from steps
+        body = f"# {group.name}\n\n{version.description}\n"
+        
+        if version.tool_steps:
+            body += "\n## Steps\n\n"
+            for step in version.tool_steps:
+                step_num = step.sequence_number if hasattr(step, 'sequence_number') else 1
+                action = step.action if hasattr(step, 'action') else ""
+                body += f"{step_num}. {action}\n"
+    
+    return f"---\n{yaml_str}---\n\n{body}"
+
+
+def _create_skill_zip(group, version, scripts: Dict[str, str] = None,
+                      resources: Dict[str, Any] = None) -> BytesIO:
+    """
+    Create a Skill Package ZIP file from a skill group and version.
+    
+    Structure:
+    skill-name/
+    ├── SKILL.md              (instructions with YAML frontmatter)
+    ├── scripts/              (executable code)
+    └── resources/            (data files, templates)
+    """
+    zip_buffer = BytesIO()
+    
+    # Sanitize skill name for directory
+    safe_name = re.sub(r'[^\w\-]', '-', group.name)
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # Add SKILL.md (main skill file with YAML frontmatter)
+        skill_md_content = _skill_to_markdown(group, version)
+        zip_file.writestr(f'{safe_name}/SKILL.md', skill_md_content)
+        
+        # Add scripts (executable code)
+        if scripts:
+            for filename, content in scripts.items():
+                zip_file.writestr(f'{safe_name}/scripts/{filename}', content)
+        
+        # Add resources (data files, templates)
+        if resources:
+            import base64
+            for filename, content in resources.items():
+                if isinstance(content, str):
+                    # Check if it's base64 encoded binary
+                    try:
+                        # Try to decode as base64
+                        decoded = base64.b64decode(content)
+                        zip_file.writestr(f'{safe_name}/resources/{filename}', decoded)
+                    except Exception:
+                        # It's plain text
+                        zip_file.writestr(f'{safe_name}/resources/{filename}', content)
+                else:
+                    zip_file.writestr(f'{safe_name}/resources/{filename}', content)
+    
+    zip_buffer.seek(0)
+    return zip_buffer
+
+
+@router.get("/skills/{group_id}/export", tags=["Skills"])
+async def export_skill(
+    group_id: str,
     request: FastAPIRequest,
-    include_global: bool = Query(True, description="Include global skills"),
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Page size"),
+    format: str = Query("zip", description="Export format: zip, json, or markdown"),
+    version_id: Optional[str] = Query(None, description="Specific version to export (default: production)"),
     db: DBSession = Depends(get_db),
     user_id: UserId = Depends(get_user_id),
 ):
     """
-    Get skills available to a specific agent.
+    Export a skill.
     
-    Returns agent-specific skills and optionally global skills.
-    
-    Note: Returns empty list if skill learning service is not configured.
+    Formats:
+    - zip: Skill Package ZIP format (folder with SKILL.md + scripts/ + resources/)
+    - json: JSON export with metadata
+    - markdown: SKILL.md file only
     """
-    log_prefix = f"[GET /api/v1/skills/agent/{agent_name}] "
-    log.info("%sRequest from user %s", log_prefix, user_id)
+    log_prefix = f"[GET /api/v1/skills/{group_id}/export] "
+    log.info("%sRequest from user %s, format: %s", log_prefix, user_id, format)
     
     try:
         service = get_versioned_skill_service()
         if service is None:
-            # Return empty results when skill service is not configured
-            log.debug("%sSkill service not configured, returning empty results", log_prefix)
-            return SkillGroupListResponse(
-                skills=[],
-                total=0,
-                page=page,
-                page_size=page_size,
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Skill learning service is not available",
             )
         
-        groups = service.get_skills_for_agent(
-            agent_name=agent_name,
-            user_id=user_id,
-            include_global=include_global,
-            limit=page_size,
-        )
+        group = service.get_skill(group_id, include_versions=True)
         
-        return SkillGroupListResponse(
-            skills=[_group_to_summary(g) for g in groups],
-            total=len(groups),
-            page=page,
-            page_size=page_size,
-        )
+        if not group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Skill with ID '{group_id}' not found.",
+            )
+        
+        # Get the version to export
+        version = None
+        if version_id:
+            version = service.get_version(version_id)
+            if not version or version.group_id != group_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Version '{version_id}' not found.",
+                )
+        else:
+            # Use production version
+            version = group.production_version
+            if not version:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No production version available for this skill.",
+                )
+        
+        if format == "zip":
+            # Export as Skill Package ZIP
+            # Get bundled resources if available from version entity
+            scripts = None
+            resources = None
+            
+            if hasattr(version, 'bundled_resources') and version.bundled_resources:
+                scripts = version.bundled_resources.get('scripts', {})
+                # Combine references, assets, and resources into resources
+                resources = {}
+                for key in ['resources', 'references', 'assets']:
+                    if version.bundled_resources.get(key):
+                        resources.update(version.bundled_resources[key])
+            
+            zip_buffer = _create_skill_zip(group, version, scripts, resources)
+            safe_name = re.sub(r'[^\w\-]', '-', group.name)
+            filename = f"{safe_name}.skill.zip"
+            
+            return StreamingResponse(
+                zip_buffer,
+                media_type="application/zip",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"'
+                }
+            )
+            
+        elif format == "markdown":
+            # Export as SKILL.md file only
+            markdown_content = _skill_to_markdown(group, version)
+            filename = f"{group.name}.SKILL.md"
+            
+            return StreamingResponse(
+                BytesIO(markdown_content.encode("utf-8")),
+                media_type="text/markdown",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"'
+                }
+            )
+        else:
+            # Export as JSON
+            group_dto = _group_to_dto(group)
+            version_dto = _version_to_dto(version)
+            export_data = {
+                "version": "1.0",
+                "exported_at": int(datetime.now(timezone.utc).timestamp() * 1000),
+                "skill": group_dto.model_dump(),
+                "production_version": version_dto.model_dump(),
+            }
+            return export_data
         
     except HTTPException:
         raise
     except Exception as e:
-        log.exception("%sError getting agent skills: %s", log_prefix, e)
+        log.exception("%sError exporting skill: %s", log_prefix, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while getting agent skills.",
-        )
-
-
-# ============================================================================
-# Search Endpoints
-# ============================================================================
-
-@router.get("/skills/search/semantic", response_model=SkillGroupListResponse, tags=["Skills"])
-async def semantic_search_skills(
-    request: FastAPIRequest,
-    query: str = Query(..., description="Search query"),
-    agent: Optional[str] = Query(None, description="Filter by agent name"),
-    limit: int = Query(10, ge=1, le=50, description="Maximum results"),
-    db: DBSession = Depends(get_db),
-    user_id: UserId = Depends(get_user_id),
-):
-    """
-    Semantic search for skills using embeddings.
-    
-    Uses vector similarity to find skills that match the query semantically.
-    
-    Note: Returns empty list if skill learning service is not configured.
-    """
-    log_prefix = "[GET /api/v1/skills/search/semantic] "
-    log.info("%sRequest from user %s, query: %s", log_prefix, user_id, query)
-    
-    try:
-        service = get_versioned_skill_service()
-        if service is None:
-            # Return empty results when skill service is not configured
-            log.debug("%sSkill service not configured, returning empty results", log_prefix)
-            return SkillGroupListResponse(
-                skills=[],
-                total=0,
-                page=1,
-                page_size=limit,
-            )
-        
-        results = service.semantic_search(
-            query=query,
-            agent_name=agent,
-            user_id=user_id,
-            limit=limit,
-        )
-        
-        groups = [group for group, _ in results]
-        
-        return SkillGroupListResponse(
-            skills=[_group_to_summary(g) for g in groups],
-            total=len(groups),
-            page=1,
-            page_size=limit,
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.exception("%sError in semantic search: %s", log_prefix, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during semantic search.",
+            detail="An error occurred while exporting the skill.",
         )
