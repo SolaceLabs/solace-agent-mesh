@@ -28,7 +28,7 @@ const ConditionalNode: React.FC<NodeProps<ConditionalNodeType>> = ({ data }) => 
     };
 
     return (
-        <div className="relative flex items-center justify-center" style={{ width: "120px", height: "80px" }}>
+        <div className="relative flex items-center justify-center" style={{ width: "120px", height: "80px" }} title={data.description}>
             {/* Diamond Shape using rotation */}
             <div
                 className={`absolute h-12 w-12 rotate-45 border-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${getStatusColor()}`}
@@ -36,7 +36,7 @@ const ConditionalNode: React.FC<NodeProps<ConditionalNodeType>> = ({ data }) => 
 
             {/* Content (unrotated) */}
             <div className="z-10 flex flex-col items-center justify-center text-center pointer-events-none px-1">
-                <div className="text-[10px] font-bold text-gray-800 dark:text-gray-200 max-w-[100px] truncate" title={data.label}>
+                <div className="text-[10px] font-bold text-gray-800 dark:text-gray-200 max-w-[100px] truncate">
                     {data.label}
                 </div>
             </div>
