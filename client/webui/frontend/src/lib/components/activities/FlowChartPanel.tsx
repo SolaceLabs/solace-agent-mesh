@@ -154,13 +154,6 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         }
     }, [memoizedFlowData.nodes, computedEdges, setNodes, setEdges]);
 
-    const findEdgeBySourceAndHandle = useCallback(
-        (sourceNodeId: string, sourceHandleId?: string): Edge | null => {
-            return edges.find(edge => edge.source === sourceNodeId && (sourceHandleId ? edge.sourceHandle === sourceHandleId : true)) || null;
-        },
-        [edges]
-    );
-
     const handleEdgeClick = useCallback(
         (_event: React.MouseEvent, edge: Edge) => {
             setHasUserInteracted(true);
@@ -184,40 +177,6 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         [processedSteps, isRightPanelVisible, setHighlightedStepId]
     );
 
-    const getNodeSourceHandles = useCallback((node: Node): string[] => {
-        switch (node.type) {
-            case "userNode": {
-                const userData = node.data as { isTopNode?: boolean; isBottomNode?: boolean };
-                if (userData?.isTopNode) return ["user-bottom-output"];
-                if (userData?.isBottomNode) return ["user-top-input"];
-                return ["user-right-output"];
-            }
-            case "orchestratorNode":
-            case "genericAgentNode": {
-                const handles = ["peer-bottom-output", "orch-bottom-output"];
-                // Add dynamic tool handles if present
-                if (node.data.toolSlots && Array.isArray(node.data.toolSlots)) {
-                    node.data.toolSlots.forEach((slot: any) => {
-                        handles.push(`agent-out-${slot.id}`);
-                    });
-                }
-                return handles;
-            }
-
-            case "llmNode":
-                return ["llm-bottom-output"];
-
-            case "genericToolNode":
-                return [`${node.id}-tool-bottom-output`];
-
-            case "conditionalNode":
-                return ["cond-bottom-output", "cond-right-output"];
-
-            default:
-                return [];
-        }
-    }, []);
-
     const handlePopoverClose = useCallback(() => {
         setIsPopoverOpen(false);
         setSelectedStep(null);
@@ -235,28 +194,18 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                 return;
             }
 
-            const sourceHandles = getNodeSourceHandles(node);
+            const startStepId = node.data?.visualizerStepId as string;
+            if (!startStepId) return;
 
-            let targetEdge: Edge | null = null;
-            for (const handleId of sourceHandles) {
-                targetEdge = findEdgeBySourceAndHandle(node.id, handleId);
+            const startStep = processedSteps.find(s => s.id === startStepId);
+            if (!startStep) return;
 
-                if (targetEdge) break;
-            }
-
-            // Special case for bottom UserNode - check for incoming edges instead
-            if (!targetEdge && node.type === "userNode") {
-                const userData = node.data as { isBottomNode?: boolean };
-                if (userData?.isBottomNode) {
-                    targetEdge = edges.find(edge => edge.target === node.id) || null;
-                }
-            }
-
-            if (targetEdge) {
-                handleEdgeClick(_event, targetEdge);
-            }
+            setHighlightedStepId(startStepId);
+            setSelectedStep(startStep);
+            setIsPopoverOpen(true);
+            setSelectedEdgeId(null);
         },
-        [getNodeSourceHandles, setHighlightedStepId, handlePopoverClose, findEdgeBySourceAndHandle, edges, handleEdgeClick]
+        [processedSteps, setHighlightedStepId, handlePopoverClose]
     );
 
     const handleUserMove = useCallback((event: MouseEvent | TouchEvent | null) => {
