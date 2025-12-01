@@ -460,7 +460,7 @@ export class BlockBuilder {
             style: {
                 width: 0,
                 height: 0,
-                backgroundColor: "rgba(220, 220, 255, 0.08)",
+                backgroundColor: "rgba(220, 220, 255, 0.1)",
                 border: "1px solid #aac",
                 borderRadius: "8px",
             }
@@ -508,7 +508,11 @@ export class BlockBuilder {
 
         // Add the "Agent" node representing this group at the top of the stack
         if (type === "workflow") {
-            this.addNode("genericAgentNode", step, "Start", { variant: "pill" }, newTaskId);
+            // The Start node belongs to the workflow task ID
+            const startNodeId = this.addNode("genericAgentNode", step, "Start", { variant: "pill" }, newTaskId);
+            
+            // Explicitly set this as the last node for this task so subsequent nodes connect to it
+            this.lastNodeByTaskId.set(newTaskId, startNodeId);
         } else if (type === "subflow") {
             // For subflows, we want to connect to the caller agent with a slot
             // Note: addNode will handle the creation of InteractionRow and ToolsStack for this new agent

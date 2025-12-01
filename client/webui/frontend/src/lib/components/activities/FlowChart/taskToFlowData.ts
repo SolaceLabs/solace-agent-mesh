@@ -696,6 +696,9 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
                     edgeLabel = meta.condition_result ? "True" : "False";
                 }
             }
+        } else if (prevNodeObj?.data?.label === "Start") {
+             // If connecting from Start node
+             sourceHandle = "peer-bottom-output";
         }
 
         // Determine target handle based on new node type
@@ -725,7 +728,7 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
     // If this node execution corresponds to a sub-task (agent execution), create a nested subflow context
     // This allows internal events (LLM calls, tools) to be visualized "inside" or attached to this node
     const subTaskId = step.data.workflowNodeExecutionStart?.subTaskId;
-    if (subTaskId && newNode) {
+    if (subTaskId && newNode && step.data.workflowNodeExecutionStart?.nodeType === "agent") {
         const currentPhase = getCurrentPhase(manager);
         if (currentPhase) {
             const nestedSubflow: any = {

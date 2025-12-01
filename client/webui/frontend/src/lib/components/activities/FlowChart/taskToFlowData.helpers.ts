@@ -77,6 +77,7 @@ export interface SubflowContext {
     lastNodeId?: string; // ID of the last node added to this subflow (for connecting Finish node)
     finishNodeId?: string; // ID of the Finish node (if created)
     lastResultStep?: VisualizerStep; // The result step of the last executed node, used for edge data
+    isWorkflow?: boolean; // Flag to indicate this is a workflow container
 }
 
 export interface ParallelFlowContext {
@@ -545,39 +546,35 @@ export function startNewWorkflowContext(manager: TimelineLayoutManager, workflow
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return null;
 
-    // For workflows, we assume sequential for now unless we detect parallel context
-    // We can enhance this later if workflows are launched in parallel
     const isParallel = false;
-
     manager.indentationLevel++;
 
     // Use executionId as the subflow ID
     const subflowId = step.data.workflowExecutionStart?.executionId || step.owningTaskId;
-    const workflowAgentNodeId = generateNodeId(manager, `${workflowName}_${subflowId}`);
+    const startNodeId = generateNodeId(manager, `Start_${workflowName}`);
     const groupNodeId = generateNodeId(manager, `group_${workflowName}_${subflowId}`);
 
-    // Workflows don't necessarily have a functionCallId in the start event, but we can try to find it
     const invocationFunctionCallId = functionCallIdOverride || step.functionCallId || "";
 
     let groupNodeX: number;
     let groupNodeY: number;
-    let peerAgentY: number;
+    let startNodeY: number;
 
     // Standard sequential flow positioning
-    peerAgentY = manager.nextAvailableGlobalY;
+    startNodeY = manager.nextAvailableGlobalY;
     const baseX = LANE_X_POSITIONS.MAIN_FLOW - 50;
     groupNodeX = baseX + manager.indentationLevel * manager.indentationStep;
-    groupNodeY = peerAgentY - GROUP_PADDING_Y;
+    groupNodeY = startNodeY - GROUP_PADDING_Y;
 
     const displayName = resolveAgentDisplayName(workflowName, manager.agentNameMap);
 
-    // Create the Workflow Start Node (acts as the entry point)
-    const workflowAgentNode: Node = {
-        id: workflowAgentNodeId,
+    // 1. Create the Workflow Start Node (Pill shape)
+    const startNode: Node = {
+        id: startNodeId,
         type: "genericAgentNode",
         position: {
-            x: 50,
-            y: GROUP_PADDING_Y,
+            x: 50, // Relative to Group
+            y: GROUP_PADDING_Y, // Relative to Group
         },
         data: {
             label: "Start",
@@ -588,40 +585,42 @@ export function startNewWorkflowContext(manager: TimelineLayoutManager, workflow
         parentId: groupNodeId,
     };
 
+    // 2. Create the Group Node (Bounding Box)
     const groupNode: Node = {
         id: groupNodeId,
         type: "group",
         position: { x: groupNodeX, y: groupNodeY },
-        data: { label: displayName }, // The box is the Workflow itself
+        data: { label: displayName }, // The box is labeled with the Workflow Name
         style: {
-            backgroundColor: "rgba(240, 240, 255, 0.15)", // Slightly different color for workflows
-            border: "2px dashed #88a", // Dashed border to distinguish workflows
+            backgroundColor: "rgba(240, 240, 255, 0.15)",
+            border: "2px dashed #88a",
             borderRadius: "8px",
             minHeight: `${NODE_HEIGHT + 2 * GROUP_PADDING_Y}px`,
         },
     };
 
     addNode(nodes, manager.allCreatedNodeIds, groupNode);
-    addNode(nodes, manager.allCreatedNodeIds, workflowAgentNode);
-    manager.nodePositions.set(workflowAgentNodeId, workflowAgentNode.position);
+    addNode(nodes, manager.allCreatedNodeIds, startNode);
+    manager.nodePositions.set(startNodeId, startNode.position);
     manager.nodePositions.set(groupNodeId, groupNode.position);
 
-    const workflowAgentInstance: NodeInstance = {
-        id: workflowAgentNodeId,
+    const startNodeInstance: NodeInstance = {
+        id: startNodeId,
         xPosition: LANE_X_POSITIONS.MAIN_FLOW,
-        yPosition: peerAgentY,
+        yPosition: startNodeY,
         height: NODE_HEIGHT,
         width: 150, // Start node is pill
     };
 
+    // Register the workflow itself as an agent so it can be found if needed
     const agentInfo: AgentNodeInfo = {
-        id: workflowAgentNodeId,
+        id: startNodeId,
         name: workflowName,
-        type: "peer", // Treat as peer for now
+        type: "peer",
         phaseId: currentPhase.id,
         subflowId: subflowId,
         context: "subflow",
-        nodeInstance: workflowAgentInstance,
+        nodeInstance: startNodeInstance,
     };
     manager.agentRegistry.registerAgent(agentInfo);
 
@@ -629,15 +628,16 @@ export function startNewWorkflowContext(manager: TimelineLayoutManager, workflow
         id: subflowId,
         functionCallId: invocationFunctionCallId,
         isParallel: isParallel,
-        peerAgent: workflowAgentInstance,
+        peerAgent: startNodeInstance, // The "peerAgent" of this subflow is the Start node
         groupNode: { id: groupNodeId, xPosition: groupNodeX, yPosition: groupNodeY, height: NODE_HEIGHT + 2 * GROUP_PADDING_Y, width: 0 },
         toolInstances: [],
         currentToolYOffset: 0,
-        maxY: peerAgentY + NODE_HEIGHT,
-        maxContentXRelative: workflowAgentNode.position.x + 150,
+        maxY: startNodeY + NODE_HEIGHT,
+        maxContentXRelative: startNode.position.x + 150,
         callingPhaseId: currentPhase.id,
         parentSubflowId: getCurrentSubflow(manager)?.id,
-        lastNodeId: workflowAgentNodeId, // Initialize lastNodeId with the Start node
+        lastNodeId: startNodeId, // Initialize lastNodeId with the Start node so the first real node connects to it
+        isWorkflow: true,
     };
 
     currentPhase.subflows.push(newSubflow);
@@ -676,30 +676,24 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
     // Check if this is a child of a map node (parallel iteration)
     if (parentNodeId && manager.mapLayouts.has(parentNodeId)) {
         const mapContext = manager.mapLayouts.get(parentNodeId)!;
-
-        // Position horizontally based on current offset in map context
         nodeX_relative = mapContext.baseX + mapContext.currentXOffset;
         nodeY_relative = mapContext.baseY;
         nodeY_absolute = subflow.groupNode.yPosition + nodeY_relative;
 
-        // Estimate width for spacing
         let childWidth = NODE_WIDTH;
         if (variant === "pill") childWidth = 150;
-
-        // Update map context for next sibling
         mapContext.currentXOffset += childWidth + GROUP_PADDING_X;
     } else {
         // Standard vertical stacking
-        // Relative to peer agent (Start node) + current offset
-        nodeY_absolute = subflow.peerAgent.yPosition + NODE_HEIGHT + VERTICAL_SPACING + subflow.currentToolYOffset;
-
-        // Update offset for the next node
+        // We stack relative to the *last node* in the workflow, or the Start node
+        // subflow.maxY tracks the absolute bottom of the content
+        
+        // Add spacing from the previous element
         let spacing = VERTICAL_SPACING;
-        if (nodeType === "conditional") {
-            spacing += 20;
-        }
-        subflow.currentToolYOffset += NODE_HEIGHT + spacing;
-
+        if (nodeType === "conditional") spacing += 20;
+        
+        // Calculate new Y based on the group's current max Y
+        nodeY_absolute = subflow.maxY + spacing;
         nodeY_relative = nodeY_absolute - subflow.groupNode.yPosition;
     }
 
