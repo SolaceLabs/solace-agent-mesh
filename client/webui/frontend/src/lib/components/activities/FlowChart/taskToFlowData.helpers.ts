@@ -209,9 +209,17 @@ export function findSubflowByFunctionCallId(context: TimelineLayoutManager, func
 
 export function findSubflowBySubTaskId(context: TimelineLayoutManager, subTaskId: string | undefined): SubflowContext | null {
     if (!subTaskId) return null;
-    const phase = getCurrentPhase(context);
-    if (!phase) return null;
-    return phase.subflows.findLast(sf => sf.id === subTaskId) || null;
+    
+    // Search all phases in reverse order to find the most recent instance of the subflow
+    // This is critical because the current phase might have advanced (e.g. to a new orchestrator phase)
+    // while we still need to look up a subflow from a previous phase.
+    for (let i = context.phases.length - 1; i >= 0; i--) {
+        const phase = context.phases[i];
+        const subflow = phase.subflows.findLast(sf => sf.id === subTaskId);
+        if (subflow) return subflow;
+    }
+    
+    return null;
 }
 
 // Enhanced context resolution with multiple fallback strategies

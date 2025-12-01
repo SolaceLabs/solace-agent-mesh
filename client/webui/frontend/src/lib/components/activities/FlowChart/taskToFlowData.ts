@@ -1044,6 +1044,19 @@ function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLa
     
     // Update global Y tracker
     manager.nextAvailableGlobalY = currentSubflow.maxY + VERTICAL_SPACING;
+
+    // Fix up return edge if it was already created from Start Node (due to event ordering)
+    // The return edge targets the parent agent's slot for this workflow.
+    // The slot ID is the Start Node ID (peerAgent.id).
+    // So the targetHandle on the parent agent is `agent-in-${currentSubflow.peerAgent.id}`.
+    const startNodeId = currentSubflow.peerAgent.id;
+    const returnEdge = edges.find(e => e.targetHandle === `agent-in-${startNodeId}`);
+    
+    if (returnEdge && returnEdge.source === startNodeId) {
+        console.log(`[Timeline] Redirecting return edge source from ${returnEdge.source} to ${finishNodeId}`);
+        returnEdge.source = finishNodeId;
+        // sourceHandle "peer-bottom-output" is valid for both Start and Finish nodes (genericAgentNode)
+    }
 }
 
 function handleTaskFailed(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[]): void {
