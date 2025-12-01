@@ -636,7 +636,7 @@ export class BlockBuilder {
         const nodeType = step.data.workflowNodeExecutionStart?.nodeType;
         const nodeId = step.data.workflowNodeExecutionStart?.nodeId || "unknown";
         const label = step.data.workflowNodeExecutionStart?.agentPersona || nodeId;
-        const taskId = step.owningTaskId;
+        const taskId = step.owningTaskId; // This is the Workflow Execution ID
         const container = this.getBlockForTask(taskId);
 
         // If we are currently in a HorizontalStack (Map/Fork container),
@@ -725,11 +725,35 @@ export class BlockBuilder {
             // Regular node
             let variant = "default";
             if (nodeType === "conditional") variant = "pill";
+            if (nodeType === "map" || nodeType === "fork") variant = "pill";
 
             let nodeTypeStr = "genericAgentNode";
             if (nodeType === "conditional") nodeTypeStr = "conditionalNode";
 
-            this.addNode(nodeTypeStr, step, label, { variant }, taskId);
+            // Add the node to the workflow container
+            // connectToLast=true ensures it connects to the previous node (Start node or previous step)
+            const newNodeId = this.addNode(nodeTypeStr, step, label, { variant }, taskId, true);
+
+            // If this node is an Agent, it will have its own sub-task ID for execution.
+            // We need to register the ToolsStack of this new node to that sub-task ID
+            // so that LLM calls inside it are placed correctly.
+            const subTaskId = step.data.workflowNodeExecutionStart?.subTaskId;
+            if (subTaskId && nodeType === "agent") {
+                // addNode creates a HorizontalStack (Row) -> VerticalStack (Tools) for agents.
+                // We need to find that ToolsStack and map it to subTaskId.
+                
+                // The container (innerStack of Group) has children. The last child is the Row we just added.
+                const lastChild = container.children[container.children.length - 1];
+                if (lastChild instanceof HorizontalStackBlock) {
+                    // The second child of the Row is the ToolsStack
+                    if (lastChild.children.length > 1 && lastChild.children[1] instanceof VerticalStackBlock) {
+                        const toolsStack = lastChild.children[1];
+                        this.taskToolStackMap.set(subTaskId, toolsStack);
+                        // Also map the main block map for good measure, though tools usually look up tool stack
+                        this.taskBlockMap.set(subTaskId, toolsStack);
+                    }
+                }
+            }
         }
     }
 
