@@ -21,7 +21,6 @@ interface ProjectDetailViewProps {
 
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
     const { data } = useProjects();
-    const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(project.name);
@@ -36,15 +35,13 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
 
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
         setError(null);
-        setIsSaving(true);
         const updateData: UpdateProjectData = { systemPrompt };
-        updateProject.mutate(updateData, { onSettled: () => setIsSaving(false) });
+        updateProject.mutate(updateData);
     };
 
     const handleSaveDefaultAgent = async (defaultAgentId: string | null) => {
-        setIsSaving(true);
         const updateData: UpdateProjectData = { defaultAgentId };
-        updateProject.mutate(updateData, { onSettled: () => setIsSaving(false) });
+        updateProject.mutate(updateData);
     };
 
     const handleSave = async () => {
@@ -60,7 +57,6 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
         }
 
         setNameError(null);
-        setIsSaving(true);
         const updateData: UpdateProjectData = {};
         if (trimmedName !== project.name) {
             updateData.name = trimmedName;
@@ -70,7 +66,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
         }
 
         if (Object.keys(updateData).length > 0) {
-            updateProject.mutate(updateData, { onSettled: () => setIsSaving(false) });
+            updateProject.mutate(updateData);
         }
         setIsEditing(false);
     };
@@ -132,9 +128,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
 
                 {/* Right Panel - Metadata Sidebar */}
                 <div className="bg-muted/30 w-[40%] overflow-y-auto">
-                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
+                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={updateProject.isPending} error={error} />
 
-                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />
+                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={updateProject.isPending} />
 
                     <KnowledgeSection project={project} />
                 </div>
@@ -157,20 +153,20 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Name*</label>
-                            <Input value={editedName} onChange={e => setEditedName(e.target.value)} placeholder="Project name" disabled={isSaving} maxLength={255} autoFocus={false} />
+                            <Input value={editedName} onChange={e => setEditedName(e.target.value)} placeholder="Project name" disabled={updateProject.isPending} maxLength={255} autoFocus={false} />
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Description*</label>
-                            <Textarea value={editedDescription} onChange={e => setEditedDescription(e.target.value)} placeholder="Project description" rows={4} disabled={isSaving} maxLength={1000} />
+                            <Textarea value={editedDescription} onChange={e => setEditedDescription(e.target.value)} placeholder="Project description" rows={4} disabled={updateProject.isPending} maxLength={1000} />
                             <div className="text-muted-foreground text-right text-xs">{editedDescription.length}/1000 characters</div>
                         </div>
                         {nameError && <MessageBanner variant="error" message={nameError} />}
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
+                        <Button variant="outline" onClick={handleCancelEdit} disabled={updateProject.isPending}>
                             Discard Changes
                         </Button>
-                        <Button onClick={handleSave} disabled={isSaving}>
+                        <Button onClick={handleSave} disabled={updateProject.isPending}>
                             Save
                         </Button>
                     </DialogFooter>
