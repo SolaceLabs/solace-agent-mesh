@@ -79,7 +79,7 @@ export class BlockBuilder {
                 }
                 break;
             case "WORKFLOW_EXECUTION_RESULT":
-                // No-op in stateless model, group structure is defined by start events
+                this.handleWorkflowExecutionResult(step);
                 break;
             case "WORKFLOW_NODE_EXECUTION_START":
                 this.handleWorkflowNodeStart(step);
@@ -632,10 +632,10 @@ export class BlockBuilder {
         const groupBlock = this.findLastSubflowGroup(container);
 
         if (agentBlock && groupBlock) {
-            // We need the peer agent node ID inside the group.
-            // Structure: Group -> VerticalStack (innerStack) -> HorizontalStack (Row) -> Leaf (Agent)
+            let startNodeId: string | undefined;
+            let finishNodeId: string | undefined;
 
-            let peerAgentId: string | undefined;
+            // Find Start Node (first node in group)
             if (groupBlock.children.length > 0 && groupBlock.children[0] instanceof VerticalStackBlock) {
                 const stack = groupBlock.children[0];
                 if (stack.children.length > 0) {
@@ -643,22 +643,27 @@ export class BlockBuilder {
                     if (firstChild instanceof HorizontalStackBlock) {
                         // New structure with Interaction Row
                         if (firstChild.children.length > 0 && firstChild.children[0] instanceof LeafBlock) {
-                            peerAgentId = firstChild.children[0].id;
+                            startNodeId = firstChild.children[0].id;
                         }
                     } else if (firstChild instanceof LeafBlock) {
                         // Old/Fallback structure
-                        peerAgentId = firstChild.id;
+                        startNodeId = firstChild.id;
                     }
                 }
             }
 
-            if (peerAgentId) {
+            // Find Finish Node
+            finishNodeId = this.findNodeIdByLabel(groupBlock, "Finish");
+
+            const sourceNodeId = finishNodeId || startNodeId;
+
+            if (sourceNodeId && startNodeId) {
                 const sourceHandle = "peer-left-output";
                 
-                // Check if the agent block has a slot for this peer agent
-                let targetHandle = `agent-in-${peerAgentId}`;
+                // Check if the agent block has a slot for the START node (which represents the subflow/workflow)
+                let targetHandle = `agent-in-${startNodeId}`;
                 const agentNodeData = agentBlock.nodePayload?.data;
-                const hasSlot = agentNodeData?.toolSlots?.some((slot: any) => slot.id === peerAgentId);
+                const hasSlot = agentNodeData?.toolSlots?.some((slot: any) => slot.id === startNodeId);
                 
                 if (!hasSlot) {
                     // Fallback to standard input handle if no slot exists (e.g. for workflows where tool invocation was skipped)
@@ -669,7 +674,7 @@ export class BlockBuilder {
                     }
                 }
 
-                this.createEdge(peerAgentId, agentBlock.id, step.id, sourceHandle, targetHandle);
+                this.createEdge(sourceNodeId, agentBlock.id, step.id, sourceHandle, targetHandle);
 
                 // Reset lastNodeId to the Agent
                 this.lastNodeId = agentBlock.id;
@@ -678,9 +683,20 @@ export class BlockBuilder {
                     this.lastNodeByTaskId.set(taskId, agentBlock.id);
                 }
             } else {
-                console.log(`[BlockBuilder] handlePeerResponse: Could not find peerAgentId in group ${groupBlock.id}`);
+                console.log(`[BlockBuilder] handlePeerResponse: Could not find source/start nodes in group ${groupBlock.id}`);
             }
         }
+    }
+
+    private findNodeIdByLabel(block: LayoutBlock, label: string): string | undefined {
+        if (block instanceof LeafBlock && block.nodePayload?.data?.label === label) {
+            return block.id;
+        }
+        for (const child of block.children) {
+            const found = this.findNodeIdByLabel(child, label);
+            if (found) return found;
+        }
+        return undefined;
     }
 
     private findLastSubflowGroup(container: LayoutBlock): LayoutBlock | null {
@@ -842,6 +858,12 @@ export class BlockBuilder {
             // Optional: Add a "Join" node after the parallel block
             this.addNode("genericAgentNode", step, "Join", { variant: "pill" }, taskId);
         }
+    }
+
+    private handleWorkflowExecutionResult(step: VisualizerStep) {
+        const taskId = step.owningTaskId;
+        // Add Finish node
+        this.addNode("genericAgentNode", step, "Finish", { variant: "pill" }, taskId);
     }
 
     private handleTaskCompleted(step: VisualizerStep) {
