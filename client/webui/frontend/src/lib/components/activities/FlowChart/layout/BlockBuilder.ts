@@ -90,7 +90,12 @@ export class BlockBuilder {
     }
 
     private handleLLMCall(step: VisualizerStep) {
-        this.addNode("llmNode", step, "LLM", {}, step.owningTaskId);
+        const taskId = step.owningTaskId;
+        const container = this.getBlockForTask(taskId);
+        const agentBlock = this.findActiveAgentNode(container);
+        const sourceId = agentBlock ? agentBlock.id : undefined;
+
+        this.addNode("llmNode", step, "LLM", {}, taskId, true, sourceId);
     }
 
     private handleLLMResponse(step: VisualizerStep) {
@@ -468,7 +473,12 @@ export class BlockBuilder {
             this.startGroup("subflow", step, displayName);
         } else {
             const toolName = step.data.toolInvocationStart?.toolName || target;
-            this.addNode("genericToolNode", step, toolName, {}, step.owningTaskId);
+            const taskId = step.owningTaskId;
+            const container = this.getBlockForTask(taskId);
+            const agentBlock = this.findActiveAgentNode(container);
+            const sourceId = agentBlock ? agentBlock.id : undefined;
+
+            this.addNode("genericToolNode", step, toolName, {}, taskId, true, sourceId);
         }
     }
 
