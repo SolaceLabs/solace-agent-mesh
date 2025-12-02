@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 
-import { PanelLeftIcon, PanelRightIcon, Edit, Bot, FolderOpen, NotepadText, MessageCircle, Tag, FileBox, Workflow, HelpCircle, Library, User } from "lucide-react";
+import { PanelLeftIcon, PanelRightIcon, Edit, Bot, FolderOpen, NotepadText, MessageCircle, Tag, FileBox, Workflow, HelpCircle, Library, User, ChevronUp } from "lucide-react";
 
 import {
     Button,
@@ -24,10 +24,12 @@ import { useProjectContext } from "@/lib/providers";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { SessionSearch } from "@/lib/components/chat/SessionSearch";
+import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
+import { authenticatedFetch } from "@/lib/utils/api";
 import { cn } from "@/lib/utils";
+import type { Session } from "@/lib/types";
 
 import { ChatSessions } from "./ChatSessions";
-import { SessionList } from "./SessionList";
 
 interface NavItem {
     id: string;
@@ -63,13 +65,59 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, cu
     const [expandedAccordions, setExpandedAccordions] = useState<string[]>(["recent-chats"]);
     const [showAllChats, setShowAllChats] = useState(false);
     const [selectedProject, setSelectedProject] = useState<string>("all");
-    const { handleNewSession, handleSwitchSession } = useChatContext();
-    const { configFeatureEnablement, persistenceEnabled } = useConfigContext();
+    const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+    const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
+    const { handleNewSession, handleSwitchSession, addNotification } = useChatContext();
+    const { configFeatureEnablement, persistenceEnabled, configServerUrl } = useConfigContext();
     const { projects } = useProjectContext();
 
     // Feature flags
     const projectsEnabled = configFeatureEnablement?.projects ?? false;
     const promptLibraryEnabled = configFeatureEnablement?.promptLibrary ?? false;
+
+    // Handle move session dialog event
+    const handleOpenMoveDialog = useCallback((event: CustomEvent<{ session: Session }>) => {
+        setSessionToMove(event.detail.session);
+        setIsMoveDialogOpen(true);
+    }, []);
+
+    useEffect(() => {
+        window.addEventListener("open-move-session-dialog", handleOpenMoveDialog as EventListener);
+        return () => {
+            window.removeEventListener("open-move-session-dialog", handleOpenMoveDialog as EventListener);
+        };
+    }, [handleOpenMoveDialog]);
+
+    const handleMoveConfirm = async (targetProjectId: string | null) => {
+        if (!sessionToMove) return;
+
+        const response = await authenticatedFetch(`${configServerUrl}/api/v1/sessions/${sessionToMove.id}/project`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ projectId: targetProjectId }),
+            credentials: "include",
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to move session");
+        }
+
+        // Dispatch event to notify other components
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(
+                new CustomEvent("session-moved", {
+                    detail: {
+                        sessionId: sessionToMove.id,
+                        projectId: targetProjectId,
+                    },
+                })
+            );
+            // Also trigger session-updated to refresh the list
+            window.dispatchEvent(new CustomEvent("session-updated", { detail: { sessionId: sessionToMove.id } }));
+        }
+
+        addNotification?.("Session moved successfully", "success");
+    };
 
     // Update active item when current page changes
     useEffect(() => {
@@ -213,8 +261,18 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, cu
                         {/* Divider */}
                         <div className="border-border my-1 w-8 border-t" />
 
-                        {/* Recent Chats */}
-                        <Button variant={activeItem === "chats" ? "default" : "ghost"} onClick={() => handleItemClick("chats", { id: "chats", label: "Chats", icon: MessageCircle })} className="h-10 w-10 p-2" tooltip="Recent Chats">
+                        {/* Recent Chats - Expand panel to show chat list */}
+                        <Button
+                            variant={activeItem === "chats" ? "default" : "ghost"}
+                            onClick={() => {
+                                // Expand the side panel to show recent chats
+                                onToggle();
+                                // Ensure the recent-chats accordion is expanded
+                                setExpandedAccordions(prev => (prev.includes("recent-chats") ? prev : [...prev, "recent-chats"]));
+                            }}
+                            className="h-10 w-10 p-2"
+                            tooltip="Recent Chats"
+                        >
                             <MessageCircle className="size-5" />
                         </Button>
                     </div>
@@ -338,10 +396,20 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, cu
                                     <div className="mb-2 px-2">
                                         <SessionSearch onSessionSelect={handleSwitchSession} projectId={selectedProjectId} />
                                     </div>
+
                                     {/* Chat Sessions List */}
-                                    <div className={`px-2 ${showAllChats ? "max-h-[400px] overflow-y-auto" : ""}`}>
-                                        {showAllChats ? <SessionList projects={projects} /> : <ChatSessions compact={true} maxItems={5} onShowAll={() => setShowAllChats(true)} projectFilter={selectedProject} />}
+                                    <div className={`px-2 ${showAllChats ? "max-h-[350px] overflow-y-auto" : ""}`}>
+                                        <ChatSessions compact={true} maxItems={showAllChats ? 100 : 5} onShowAll={() => setShowAllChats(true)} projectFilter={selectedProject} />
                                     </div>
+                                    {/* Show Less Button - Sticky at bottom */}
+                                    {showAllChats && (
+                                        <div className="bg-background sticky bottom-0 border-t px-2 pt-2">
+                                            <Button variant="ghost" size="sm" onClick={() => setShowAllChats(false)} className="text-muted-foreground hover:text-foreground w-full justify-center text-xs">
+                                                <ChevronUp className="mr-1 size-3" />
+                                                Show less
+                                            </Button>
+                                        </div>
+                                    )}
                                 </AccordionContent>
                             </AccordionItem>
                         </Accordion>
@@ -371,6 +439,19 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, cu
                     </div>
                 </>
             )}
+
+            {/* Move Session Dialog - rendered at top level to avoid z-index issues */}
+            <MoveSessionDialog
+                isOpen={isMoveDialogOpen}
+                onClose={() => {
+                    setIsMoveDialogOpen(false);
+                    setSessionToMove(null);
+                }}
+                onConfirm={handleMoveConfirm}
+                session={sessionToMove}
+                projects={projects}
+                currentProjectId={sessionToMove?.projectId}
+            />
         </div>
     );
 };

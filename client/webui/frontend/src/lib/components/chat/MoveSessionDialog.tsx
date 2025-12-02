@@ -25,11 +25,8 @@ export const MoveSessionDialog = ({ isOpen, onClose, onConfirm, session, project
         }
     }, [isOpen]);
 
-    if (!isOpen || !session) {
-        return null;
-    }
-
     const handleConfirm = async () => {
+        if (!session) return;
         setIsMoving(true);
         try {
             await onConfirm(selectedProjectId);
@@ -44,11 +41,13 @@ export const MoveSessionDialog = ({ isOpen, onClose, onConfirm, session, project
     // Filter out the current project from the list
     const availableProjects = projects.filter(p => p.id !== currentProjectId);
 
+    const sessionName = session?.name || "Untitled Session";
+
     const getDescription = () => {
         if (currentProjectId) {
-            return `Move "${session.name || "Untitled Session"}" to a different project or remove it from the current project.`;
+            return `Move "${sessionName}" to a different project or remove it from the current project.`;
         }
-        return `Move "${session.name || "Untitled Session"}" to a project.`;
+        return `Move "${sessionName}" to a project.`;
     };
 
     const getNoProjectLabel = () => {
@@ -75,8 +74,8 @@ export const MoveSessionDialog = ({ isOpen, onClose, onConfirm, session, project
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={open => !open && handleClose()}>
-            <DialogContent>
+        <Dialog open={isOpen && !!session} onOpenChange={open => !open && handleClose()}>
+            <DialogContent onPointerDownOutside={e => isMoving && e.preventDefault()} onEscapeKeyDown={e => isMoving && e.preventDefault()}>
                 <DialogHeader>
                     <DialogTitle>Move Chat Session</DialogTitle>
                     <DialogDescription>{getDescription()}</DialogDescription>
