@@ -348,7 +348,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         if (isSubmittingEnabled) {
             let fullMessage = inputValue.trim();
             if (contextText && showContextBadge) {
-                fullMessage = `${fullMessage}\n\nContext: "${contextText}"`;
+                fullMessage = `Context: "${contextText}"\n\n${fullMessage}`;
             }
 
             const artifactFiles: File[] = pastedArtifactItems

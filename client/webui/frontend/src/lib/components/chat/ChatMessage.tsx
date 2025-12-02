@@ -73,14 +73,14 @@ const MessageActions: React.FC<{
     return (
         <>
             <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-start gap-1">
+                <div className="flex items-center justify-start">
                     {showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}
                     {shouldShowFeedback && (
-                        <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`} onClick={() => handleThumbClick("up")} disabled={!!submittedFeedbackType}>
+                        <div className="flex items-center">
+                            <Button tooltip="Like" variant="ghost" size="sm" className={`${submittedFeedbackType ? "!opacity-100" : ""}`} onClick={() => handleThumbClick("up")} disabled={!!submittedFeedbackType}>
                                 <ThumbsUp className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] !opacity-100" : ""}`} />
                             </Button>
-                            <Button variant="ghost" size="icon" className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`} onClick={() => handleThumbClick("down")} disabled={!!submittedFeedbackType}>
+                            <Button tooltip="Dislike" variant="ghost" size="sm" className={`${submittedFeedbackType ? "!opacity-100" : ""}`} onClick={() => handleThumbClick("down")} disabled={!!submittedFeedbackType}>
                                 <ThumbsDown className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] opacity-100" : ""}`} />
                             </Button>
                         </div>
