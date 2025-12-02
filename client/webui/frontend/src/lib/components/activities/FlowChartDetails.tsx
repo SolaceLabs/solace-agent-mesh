@@ -94,8 +94,8 @@ export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) =
 
             <div>
                 {taskLoggingEnabled && (
-                    <Button variant="ghost" size="icon" onClick={handleDownloadStim} tooltip="Download Task Log (.stim)">
-                        <Download className="size-4" />
+                    <Button variant="ghost" size="icon" onClick={handleDownloadStim} tooltip="Download Task Log (.stim)" disabled={!task.taskId}>
+                        <Download />
                     </Button>
                 )}
             </div>
