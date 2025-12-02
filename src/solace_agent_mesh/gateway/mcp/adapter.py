@@ -27,7 +27,6 @@ from pydantic import BaseModel, Field
 from ...common.utils.mime_helpers import is_text_based_file
 from ..adapter.base import GatewayAdapter
 from ..adapter.types import (
-    AuthClaims,
     GatewayContext,
     ResponseContext,
     SamDataPart,
@@ -769,6 +768,7 @@ class McpAdapter(GatewayAdapter):
 
                 # Validate PKCE (required when require_pkce is enabled)
                 code_challenge = code_data.get('code_challenge')
+                config: McpAdapterConfig = self.context.adapter_config
 
                 if config.require_pkce:
                     # PKCE is mandatory
