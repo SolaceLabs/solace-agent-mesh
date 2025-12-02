@@ -19,3 +19,4 @@ export * from "./useThemeContext";
 export * from "./useProjectSessions";
 export * from "./useAgentSelection";
 export * from "./useNavigationBlocker";
+export * from "./useErrorDialog";
