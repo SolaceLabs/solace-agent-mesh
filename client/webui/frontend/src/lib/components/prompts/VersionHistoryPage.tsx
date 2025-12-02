@@ -103,8 +103,14 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
     const handleEditVersion = () => {
         // Pass the group with the selected version as the production prompt
         // This allows editing any version, not just the active one
+        // Use versioned metadata from the selected version, falling back to group values
         const groupWithSelectedVersion: PromptGroup = {
             ...currentGroup,
+            // Override group metadata with version-specific values for editing
+            name: selectedVersion?.name || currentGroup.name,
+            description: selectedVersion?.description || currentGroup.description,
+            category: selectedVersion?.category || currentGroup.category,
+            command: selectedVersion?.command || currentGroup.command,
             productionPrompt: selectedVersion
                 ? {
                       id: selectedVersion.id,
@@ -112,6 +118,10 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                       groupId: selectedVersion.groupId,
                       userId: selectedVersion.userId,
                       version: selectedVersion.version,
+                      name: selectedVersion.name,
+                      description: selectedVersion.description,
+                      category: selectedVersion.category,
+                      command: selectedVersion.command,
                       createdAt: selectedVersion.createdAt,
                       updatedAt: selectedVersion.updatedAt,
                   }
@@ -259,37 +269,37 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                     </DropdownMenu>
                                 </div>
 
-                                {/* Read-only version details */}
+                                {/* Read-only version details - use versioned fields from selectedVersion, fallback to group */}
                                 <div className="space-y-6">
                                     {/* Template Name */}
                                     <div className="space-y-2">
                                         <Label className="text-[var(--color-secondaryText-wMain)]">Name</Label>
-                                        <div className="rounded p-3 text-sm">{currentGroup.name}</div>
+                                        <div className="rounded p-3 text-sm">{selectedVersion.name || currentGroup.name}</div>
                                     </div>
 
                                     {/* Description */}
-                                    {currentGroup.description && (
+                                    {(selectedVersion.description || currentGroup.description) && (
                                         <div className="space-y-2">
                                             <Label className="text-[var(--color-secondaryText-wMain)]">Description</Label>
-                                            <div className="rounded p-3 text-sm">{currentGroup.description}</div>
+                                            <div className="rounded p-3 text-sm">{selectedVersion.description || currentGroup.description}</div>
                                         </div>
                                     )}
 
                                     {/* Chat Shortcut */}
-                                    {currentGroup.command && (
+                                    {(selectedVersion.command || currentGroup.command) && (
                                         <div className="space-y-2">
                                             <Label className="text-[var(--color-secondaryText-wMain)]">Chat Shortcut</Label>
                                             <div className="rounded p-3 text-sm">
-                                                <span className="text-primary font-mono">/{currentGroup.command}</span>
+                                                <span className="text-primary font-mono">/{selectedVersion.command || currentGroup.command}</span>
                                             </div>
                                         </div>
                                     )}
 
                                     {/* Tag */}
-                                    {currentGroup.category && (
+                                    {(selectedVersion.category || currentGroup.category) && (
                                         <div className="space-y-2">
                                             <Label className="text-[var(--color-secondaryText-wMain)]">Tag</Label>
-                                            <div className="rounded p-3 text-sm">{currentGroup.category}</div>
+                                            <div className="rounded p-3 text-sm">{selectedVersion.category || currentGroup.category}</div>
                                         </div>
                                     )}
 

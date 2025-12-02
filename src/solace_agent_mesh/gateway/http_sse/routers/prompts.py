@@ -224,6 +224,10 @@ async def get_all_prompt_groups(
                             "group_id": prod_prompt.group_id,
                             "user_id": prod_prompt.user_id,
                             "version": prod_prompt.version,
+                            "name": prod_prompt.name,
+                            "description": prod_prompt.description,
+                            "category": prod_prompt.category,
+                            "command": prod_prompt.command,
                             "created_at": prod_prompt.created_at,
                             "updated_at": prod_prompt.updated_at,
                         }
@@ -329,6 +333,10 @@ async def list_prompt_groups(
                             "group_id": prod_prompt.group_id,
                             "user_id": prod_prompt.user_id,
                             "version": prod_prompt.version,
+                            "name": prod_prompt.name,
+                            "description": prod_prompt.description,
+                            "category": prod_prompt.category,
+                            "command": prod_prompt.command,
                             "created_at": prod_prompt.created_at,
                             "updated_at": prod_prompt.updated_at,
                         }
@@ -402,6 +410,10 @@ async def get_prompt_group(
                     "group_id": prod_prompt.group_id,
                     "user_id": prod_prompt.user_id,
                     "version": prod_prompt.version,
+                    "name": prod_prompt.name,
+                    "description": prod_prompt.description,
+                    "category": prod_prompt.category,
+                    "command": prod_prompt.command,
                     "created_at": prod_prompt.created_at,
                     "updated_at": prod_prompt.updated_at,
                 }
@@ -463,11 +475,15 @@ async def create_prompt_group(
         db.add(new_group)
         db.flush()
         
-        # Create initial prompt
+        # Create initial prompt with versioned metadata
         prompt_id = str(uuid.uuid4())
         new_prompt = PromptModel(
             id=prompt_id,
             prompt_text=group_data.initial_prompt,
+            name=group_data.name,
+            description=group_data.description,
+            category=group_data.category,
+            command=group_data.command,
             group_id=group_id,
             user_id=user_id,
             version=1,
@@ -504,6 +520,10 @@ async def create_prompt_group(
                 group_id=new_prompt.group_id,
                 user_id=new_prompt.user_id,
                 version=new_prompt.version,
+                name=new_prompt.name,
+                description=new_prompt.description,
+                category=new_prompt.category,
+                command=new_prompt.command,
                 created_at=new_prompt.created_at,
                 updated_at=new_prompt.updated_at,
             ),
@@ -575,9 +595,14 @@ async def update_prompt_group(
             prompt_id = str(uuid.uuid4())
             now_ms = now_epoch_ms()
             
+            # Create new prompt version with current metadata
             new_prompt = PromptModel(
                 id=prompt_id,
                 prompt_text=group_data.initial_prompt,
+                name=group_data.name if group_data.name else group.name,
+                description=group_data.description if group_data.description is not None else group.description,
+                category=group_data.category if group_data.category is not None else group.category,
+                command=group_data.command if group_data.command is not None else group.command,
                 group_id=group_id,
                 user_id=user_id,
                 version=next_version,
@@ -623,6 +648,10 @@ async def update_prompt_group(
                     "group_id": prod_prompt.group_id,
                     "user_id": prod_prompt.user_id,
                     "version": prod_prompt.version,
+                    "name": prod_prompt.name,
+                    "description": prod_prompt.description,
+                    "category": prod_prompt.category,
+                    "command": prod_prompt.command,
                     "created_at": prod_prompt.created_at,
                     "updated_at": prod_prompt.updated_at,
                 }
@@ -697,6 +726,10 @@ async def toggle_pin_prompt(
                     "group_id": prod_prompt.group_id,
                     "user_id": prod_prompt.user_id,
                     "version": prod_prompt.version,
+                    "name": prod_prompt.name,
+                    "description": prod_prompt.description,
+                    "category": prod_prompt.category,
+                    "command": prod_prompt.command,
                     "created_at": prod_prompt.created_at,
                     "updated_at": prod_prompt.updated_at,
                 }
@@ -790,6 +823,10 @@ async def list_prompts_in_group(
                 group_id=p.group_id,
                 user_id=p.user_id,
                 version=p.version,
+                name=p.name,
+                description=p.description,
+                category=p.category,
+                command=p.command,
                 created_at=p.created_at,
                 updated_at=p.updated_at,
             )
@@ -839,9 +876,14 @@ async def create_prompt_version(
         prompt_id = str(uuid.uuid4())
         now_ms = now_epoch_ms()
         
+        # Get current group metadata for the new version
         new_prompt = PromptModel(
             id=prompt_id,
             prompt_text=prompt_data.prompt_text,
+            name=group.name,
+            description=group.description,
+            category=group.category,
+            command=group.command,
             group_id=group_id,
             user_id=user_id,
             version=next_version,
@@ -858,6 +900,10 @@ async def create_prompt_version(
             group_id=new_prompt.group_id,
             user_id=new_prompt.user_id,
             version=new_prompt.version,
+            name=new_prompt.name,
+            description=new_prompt.description,
+            category=new_prompt.category,
+            command=new_prompt.command,
             created_at=new_prompt.created_at,
             updated_at=new_prompt.updated_at,
         )
@@ -909,6 +955,10 @@ async def update_prompt(
             group_id=prompt.group_id,
             user_id=prompt.user_id,
             version=prompt.version,
+            name=prompt.name,
+            description=prompt.description,
+            category=prompt.category,
+            command=prompt.command,
             created_at=prompt.created_at,
             updated_at=prompt.updated_at,
         )
@@ -963,6 +1013,10 @@ async def make_prompt_production(
             group_id=prompt.group_id,
             user_id=prompt.user_id,
             version=prompt.version,
+            name=prompt.name,
+            description=prompt.description,
+            category=prompt.category,
+            command=prompt.command,
             created_at=prompt.created_at,
             updated_at=prompt.updated_at,
         )
@@ -1319,11 +1373,15 @@ async def import_prompt(
         db.add(new_group)
         db.flush()
         
-        # Create prompt version
+        # Create prompt version with versioned metadata
         prompt_id = str(uuid.uuid4())
         new_prompt = PromptModel(
             id=prompt_id,
             prompt_text=prompt_text,
+            name=name,
+            description=description,
+            category=category,
+            command=command,
             group_id=group_id,
             user_id=user_id,
             version=1,  # Start at version 1 for imported prompts
