@@ -74,8 +74,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // Determine if this should auto-expand based on context
     const shouldAutoExpand = useMemo(() => {
         const renderType = getRenderType(fileName, fileMimeType);
-        const isAutoRenderType = renderType === "image" || renderType === "audio";
-        // Only auto-expand images/audio in chat context, never in list context
+        const isAutoRenderType = renderType === "image" || renderType === "audio" || renderType === "text" || renderType === "markdown";
+        // Only auto-expand images/audio/text/markdown in chat context, never in list context
         return isAutoRenderType && context === "chat";
     }, [fileName, fileMimeType, context]);
 
@@ -165,6 +165,12 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const isImage = useMemo(() => {
         const renderType = getRenderType(fileName, fileMimeType);
         return renderType === "image";
+    }, [fileName, fileMimeType]);
+
+    // Check if this is text or markdown for no-scroll expansion
+    const isTextOrMarkdown = useMemo(() => {
+        const renderType = getRenderType(fileName, fileMimeType);
+        return renderType === "text" || renderType === "markdown";
     }, [fileName, fileMimeType]);
 
     // Update fetched content when accumulated content changes (for progressive rendering during streaming)
@@ -350,13 +356,35 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             });
 
             if (finalContent) {
+                // Determine max height and overflow behavior based on content type
+                let maxHeight: string;
+                let overflowY: "visible" | "auto";
+
+                if (isImage) {
+                    // Images: no height limit, no scroll
+                    maxHeight = "none";
+                    overflowY = "visible";
+                } else if (isTextOrMarkdown) {
+                    // Text/Markdown: safety max height of 4000px, no scroll
+                    maxHeight = "4000px";
+                    overflowY = "visible";
+                } else if (shouldRenderInline) {
+                    // Audio: 300px with scroll
+                    maxHeight = "300px";
+                    overflowY = "auto";
+                } else {
+                    // Other types: 400px with scroll
+                    maxHeight = "400px";
+                    overflowY = "auto";
+                }
+
                 expandedContent = (
                     <div className="group relative max-w-full overflow-hidden">
                         {renderError && <MessageBanner variant="error" message={renderError} />}
                         <div
                             style={{
-                                maxHeight: shouldRenderInline && !isImage ? "300px" : isImage ? "none" : "400px",
-                                overflowY: isImage ? "visible" : "auto",
+                                maxHeight,
+                                overflowY,
                             }}
                             className={isImage ? "drop-shadow-md" : ""}
                         >
