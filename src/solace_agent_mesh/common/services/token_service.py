@@ -132,41 +132,16 @@ class TokenService:
 
 
 class TokenServiceRegistry:
-    """
-    Registry for token service implementations.
-
-    Allows enterprise repository to bind custom token service.
-    """
+    """Registry for token service implementations."""
 
     _token_service_class: type = TokenService
 
     @classmethod
     def bind_token_service(cls, service_class: type) -> None:
-        """
-        Bind a custom token service implementation.
-
-        Args:
-            service_class: Token service class (must extend TokenService)
-        """
-        if not issubclass(service_class, TokenService):
-            raise TypeError(
-                f"Token service must extend TokenService, got {service_class}"
-            )
-
+        """Bind a custom token service implementation."""
         cls._token_service_class = service_class
-        log.info("TokenServiceRegistry: Bound custom token service: %s", service_class.__name__)
 
     @classmethod
     def get_token_service_class(cls) -> type:
-        """
-        Get the bound token service class.
-
-        Returns:
-            Token service class (TokenService or custom implementation)
-        """
+        """Get the bound token service class."""
         return cls._token_service_class
-
-    @classmethod
-    def reset(cls) -> None:
-        """Reset to default token service (for testing)."""
-        cls._token_service_class = TokenService
