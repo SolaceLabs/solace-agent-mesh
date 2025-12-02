@@ -55,6 +55,36 @@ class TokenService:
         )
         return idp_access_token
 
+    async def get_access_token(
+        self,
+        idp_access_token: str,
+        user_claims: Optional[Dict[str, Any]],
+        task_id: Optional[str] = None,
+    ) -> str:
+        """
+        Determine and return the appropriate access token for the user.
+
+        Encapsulates the decision of which token to use:
+        - Base implementation: always returns IdP token (passthrough)
+        - Enterprise implementation: may mint and return SAM token
+
+        The router should call this method instead of directly calling mint_token()
+        and comparing results. This centralizes the token selection logic.
+
+        Args:
+            idp_access_token: IdP access token from OAuth provider
+            user_claims: User claims from id_token (None if validation failed)
+            task_id: Optional task ID for SAM token binding
+
+        Returns:
+            Access token string (either IdP token or SAM token)
+        """
+        log.debug(
+            "%s Base TokenService: Returning IdP access token (passthrough mode)",
+            self.log_identifier
+        )
+        return idp_access_token
+
     def validate_token(
         self,
         token: str,

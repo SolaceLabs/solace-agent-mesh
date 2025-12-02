@@ -74,10 +74,6 @@ async def auth_callback(
     config: dict = Depends(get_api_config),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ):
-    """
-    Handles the callback from the OIDC provider by calling an external exchange service.
-    Now supports SAM token minting based on id_token claims.
-    """
     code = request.query_params.get("code")
 
     if not code:
@@ -115,67 +111,33 @@ async def auth_callback(
     # Extract ALL fields from OAuth2 response
     access_token = token_data.get("access_token")
     refresh_token = token_data.get("refresh_token")
-    id_token = token_data.get("id_token")  # NEW: May be None if validation failed
-    user_claims = token_data.get("user_claims")  # NEW: Decoded id_token claims
+    id_token = token_data.get("id_token")  # May be None if validation failed
+    user_claims = token_data.get("user_claims")  # May be None if validation failed
 
     if not access_token:
         raise HTTPException(
             status_code=400, detail="Access token not in response from exchange service"
         )
 
-    # Determine which token to return to client based on feature flag
-    access_token_enabled = config.get("access_token_enabled", False)
-    token_to_return = access_token  # Default: return IdP token
+    # Extract user identity for task_id
+    user_id = user_claims.get("sub") or user_claims.get("email") or "unknown" if user_claims else "unknown"
+    auth_task_id = f"auth-{user_id}-{int(time.time())}"
 
-    # If SAM token feature is enabled AND we have user_claims, try to mint token
-    if access_token_enabled and user_claims:
-        log.info("SAM token minting enabled and user_claims available. Attempting to mint token...")
+    # Token service handles all decision logic (feature flag, claims check, fallback)
+    token_to_return = await component.token_service.get_access_token(
+        idp_access_token=access_token,
+        user_claims=user_claims,
+        task_id=auth_task_id,
+    )
 
-        try:
-            # Extract user identity from claims
-            user_id = user_claims.get("sub") or user_claims.get("email") or "unknown"
-
-            # Create task_id for this auth session
-            auth_task_id = f"auth-{user_id}-{int(time.time())}"
-
-            # Use token service to mint token
-            # - Base implementation: returns IdP token unchanged
-            # - Enterprise implementation: mints self-signed SAM token
-            minted_token = await component.token_service.mint_token(
-                user_claims=user_claims,
-                idp_access_token=access_token,
-                task_id=auth_task_id,
-            )
-
-            # Check if a different token was minted (enterprise behavior)
-            if minted_token != access_token:
-                # SAM token was minted
-                log.info(f"Successfully minted SAM token for user {user_id}")
-                request.session["sam_token"] = minted_token
-                request.session["sam_token_task_id"] = auth_task_id
-                request.session["token_type"] = "sam"
-                token_to_return = minted_token
-            else:
-                # Base implementation returned IdP token
-                log.debug("Token service returned IdP token (base mode)")
-                request.session["token_type"] = "idp"
-                token_to_return = access_token
-
-        except Exception as e:
-            # If token minting fails, fall back to IdP token
-            log.error(f"Failed to mint token: {e}. Falling back to IdP access_token.")
-            token_to_return = access_token
-            request.session["token_type"] = "idp"
-
+    # Store in session based on token type
+    if token_to_return != access_token:
+        # SAM token was returned
+        request.session["sam_token"] = token_to_return
+        request.session["sam_token_task_id"] = auth_task_id
+        request.session["token_type"] = "sam"
     else:
-        # SAM token feature disabled or no user_claims available
-        if not access_token_enabled:
-            log.debug("SAM token feature disabled (access_token_enabled=false). Using IdP access_token.")
-        elif not user_claims:
-            log.warning(
-                "SAM token feature enabled but no user_claims in OAuth2 response. "
-                "Using IdP access_token. Check OAuth2 service id_token validation."
-            )
+        # IdP token returned (base mode or fallback)
         request.session["token_type"] = "idp"
 
     # Store IdP tokens in session (always keep these for refresh flow)
@@ -270,47 +232,25 @@ async def refresh_token(
             status_code=400, detail="Access token not in response from refresh service"
         )
 
-    token_to_return = access_token
+    # Extract user identity for task_id
+    user_id = user_claims.get("sub") or user_claims.get("email") or "unknown" if user_claims else "unknown"
+    auth_task_id = f"auth-{user_id}-{int(time.time())}"
 
-    # If SAM token feature is enabled AND we have user_claims, re-mint token
-    access_token_enabled = config.get("access_token_enabled", False)
-    if access_token_enabled and user_claims:
-        log.info("Re-minting token with refreshed claims...")
+    # Token service handles all decision logic
+    token_to_return = await component.token_service.get_access_token(
+        idp_access_token=access_token,
+        user_claims=user_claims,
+        task_id=auth_task_id,
+    )
 
-        try:
-            user_id = user_claims.get("sub") or user_claims.get("email") or "unknown"
-            auth_task_id = f"auth-{user_id}-{int(time.time())}"
-
-            # Use token service to re-mint token
-            # - Base implementation: returns IdP token unchanged
-            # - Enterprise implementation: re-mints SAM token with fresh claims
-            minted_token = await component.token_service.mint_token(
-                user_claims=user_claims,
-                idp_access_token=access_token,
-                task_id=auth_task_id,
-            )
-
-            # Check if a different token was minted (enterprise behavior)
-            if minted_token != access_token:
-                # SAM token was re-minted
-                log.info(f"Successfully re-minted SAM token for user {user_id}")
-                request.session["sam_token"] = minted_token
-                request.session["sam_token_task_id"] = auth_task_id
-                request.session["token_type"] = "sam"
-                token_to_return = minted_token
-            else:
-                # Base implementation returned IdP token
-                log.debug("Token service returned IdP token (base mode)")
-                request.session["token_type"] = "idp"
-                token_to_return = access_token
-
-        except Exception as e:
-            log.error(f"Failed to re-mint token: {e}. Using IdP access_token.")
-            token_to_return = access_token
-            request.session["token_type"] = "idp"
+    # Store in session based on token type
+    if token_to_return != access_token:
+        # SAM token was returned
+        request.session["sam_token"] = token_to_return
+        request.session["sam_token_task_id"] = auth_task_id
+        request.session["token_type"] = "sam"
     else:
-        if not access_token_enabled:
-            log.debug("SAM token feature disabled. Using IdP access_token.")
+        # IdP token returned
         request.session["token_type"] = "idp"
 
     # Update session with new IdP tokens

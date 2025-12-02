@@ -118,20 +118,6 @@ async def _get_user_info(
 async def _validate_token(
     token: str, component: "WebUIBackendComponent", task_id: str
 ) -> dict:
-    """
-    Validate access token and extract claims.
-
-    Uses token service to validate. Returns None if validation not supported
-    (base mode) or if validation fails.
-
-    Args:
-        token: Access token string
-        component: WebUIBackendComponent instance
-        task_id: Expected task ID for binding verification
-
-    Returns:
-        Verified claims dict if valid, None otherwise
-    """
     if not hasattr(component, 'token_service') or not component.token_service:
         log.warning("Token service not available")
         return None
