@@ -48,8 +48,25 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages, handleNewSession } =
-        useChatContext();
+    const {
+        isResponding,
+        isCancelling,
+        selectedAgentName,
+        sessionId,
+        setSessionId,
+        handleSubmit,
+        handleCancel,
+        uploadArtifactFile,
+        artifactsRefetch,
+        addNotification,
+        artifacts,
+        setPreviewArtifact,
+        openSidePanelTab,
+        messages,
+        startNewChatWithPrompt,
+        pendingPrompt,
+        clearPendingPrompt,
+    } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
@@ -91,67 +108,67 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
     const prevSessionIdRef = useRef<string | null>(sessionId);
 
-    // Track pending prompt template data to apply after new session is created
-    const pendingPromptDataRef = useRef<{ promptText: string; groupId: string; groupName: string } | null>(null);
+    // Flag to track if we've already processed the current location state
+    const processedLocationStateRef = useRef<string | null>(null);
 
-    // Flag to indicate we're waiting for a new session to be created for a prompt template
-    const waitingForNewSessionRef = useRef(false);
-
-    // Handle pending prompt use from router state
+    // Handle pending prompt use from router state - delegate to ChatProvider
     useEffect(() => {
-        if (location.state?.promptText) {
+        if (location.state?.promptText && processedLocationStateRef.current !== location.state.groupId) {
             const { promptText, groupId, groupName } = location.state;
 
-            // Store the prompt data for use after session is created
-            pendingPromptDataRef.current = { promptText, groupId, groupName };
-            waitingForNewSessionRef.current = true;
+            // Mark this state as being processed to prevent re-triggering
+            processedLocationStateRef.current = groupId;
 
-            // Clear the location state immediately to prevent re-triggering
+            // Clear the location state immediately
             navigate(location.pathname, { replace: true, state: {} });
 
-            // Start a new chat session and apply prompt after it's ready
-            (async () => {
-                await handleNewSession();
+            // Delegate to ChatProvider to handle the new session with prompt
+            startNewChatWithPrompt({ promptText, groupId, groupName });
 
-                // Apply the prompt data after session is created
-                if (pendingPromptDataRef.current) {
-                    const { promptText: pt, groupId: gId, groupName: gName } = pendingPromptDataRef.current;
-
-                    // Check if prompt has variables
-                    const variables = detectVariables(pt);
-                    if (variables.length > 0) {
-                        // Show variable dialog
-                        setPendingPromptGroup({
-                            id: gId,
-                            name: gName,
-                            productionPrompt: { promptText: pt },
-                        } as PromptGroup);
-                        setShowVariableDialog(true);
-                    } else {
-                        setInputValue(pt);
-                        setTimeout(() => {
-                            chatInputRef.current?.focus();
-                        }, 100);
-                    }
-
-                    // Clear the pending data
-                    pendingPromptDataRef.current = null;
-                }
-                waitingForNewSessionRef.current = false;
-            })();
+            // Reset the processed state ref after a delay to allow for future uses
+            setTimeout(() => {
+                processedLocationStateRef.current = null;
+            }, 1000);
         }
-    }, [location.state, location.pathname, navigate, handleNewSession]);
+    }, [location.state, location.pathname, navigate, startNewChatWithPrompt]);
+
+    // Apply pending prompt from ChatProvider when session is ready
+    useEffect(() => {
+        if (pendingPrompt && selectedAgentName) {
+            const { promptText, groupId, groupName } = pendingPrompt;
+
+            // Check if prompt has variables
+            const variables = detectVariables(promptText);
+            if (variables.length > 0) {
+                // Show variable dialog
+                setPendingPromptGroup({
+                    id: groupId,
+                    name: groupName,
+                    productionPrompt: { promptText },
+                } as PromptGroup);
+                setShowVariableDialog(true);
+            } else {
+                setInputValue(promptText);
+                setTimeout(() => {
+                    chatInputRef.current?.focus();
+                }, 100);
+            }
+
+            // Clear the pending prompt from provider
+            clearPendingPrompt();
+        }
+    }, [pendingPrompt, selectedAgentName, clearPendingPrompt]);
 
     // Handle session changes (for normal session switching, not prompt template usage)
     useEffect(() => {
-        // Skip if we're waiting for a new session for a prompt template
-        if (waitingForNewSessionRef.current) {
+        // Skip if there's a pending prompt being processed
+        if (pendingPrompt) {
             prevSessionIdRef.current = sessionId;
             return;
         }
 
         // Only clear if session actually changed (not just initialized) and no pending prompt
-        if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId && !pendingPromptDataRef.current) {
+        if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId) {
             setInputValue("");
             setShowPromptsCommand(false);
             setPastedArtifactItems([]);
@@ -599,7 +616,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             {/* Pending Pasted Text Items (not yet saved as artifacts) */}
             {pendingPastedTextItems.length > 0 && (
-                <div className="mb-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto">
+                <div className="mb-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto pt-2 pl-2">
                     {pendingPastedTextItems.map(item => (
                         <PendingPastedTextBadge key={item.id} id={item.id} content={item.content} onClick={() => handlePendingPasteClick(item.id)} onRemove={() => handleRemovePendingPaste(item.id)} />
                     ))}

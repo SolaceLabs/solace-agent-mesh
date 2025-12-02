@@ -6,7 +6,7 @@ import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog } from "@
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 
 import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
-import { ChatContext, type ChatContextValue } from "@/lib/contexts";
+import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import type {
     ArtifactInfo,
     ArtifactRenderingState,
@@ -154,6 +154,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Feedback State
     const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
+
+    // Pending prompt state for starting new chat with a prompt template
+    const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
 
     // Notification Helper
     // Note: "error" type is deprecated in favor of useErrorDialog
@@ -1313,6 +1316,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
     );
 
+    // Start a new chat session with a prompt template pre-filled
+    const startNewChatWithPrompt = useCallback(
+        (promptData: PendingPromptData) => {
+            // Store the pending prompt - it will be applied after the session is ready
+            setPendingPrompt(promptData);
+            // Start a new session
+            handleNewSession();
+        },
+        [handleNewSession]
+    );
+
+    // Clear the pending prompt (called after it's been applied)
+    const clearPendingPrompt = useCallback(() => {
+        setPendingPrompt(null);
+    }, []);
+
     const handleSwitchSession = useCallback(
         async (newSessionId: string) => {
             const log_prefix = "ChatProvider.handleSwitchSession:";
@@ -2132,6 +2151,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         /** Artifact Display and Cache Management */
         markArtifactAsDisplayed,
         downloadAndResolveArtifact,
+
+        /** Pending prompt for starting new chat */
+        pendingPrompt,
+        startNewChatWithPrompt,
+        clearPendingPrompt,
     };
 
     return (
