@@ -17,6 +17,10 @@
 # - SOLACE_BROKER_PASSWORD: Password for the Solace broker
 # - SOLACE_BROKER_VPN: VPN name for the Solace broker
 #
+# Dependencies:
+# First install the sam-mcp-server-gateway-adapter plugin
+# > sam plugin install sam-mcp-server-gateway-adapter
+#
 # Usage:
 #   sam run examples/gateways/mcp_gateway_example.yaml
 #
@@ -43,7 +47,7 @@ apps:
       namespace: ${NAMESPACE}
 
       # --- Generic Adapter Framework Config ---
-      gateway_adapter: solace_agent_mesh.gateway.mcp.adapter.McpAdapter
+      gateway_adapter: sam_mcp_server_gateway_adapter.McpAdapter
 
       # --- MCP Adapter Config ---
       adapter_config:
@@ -72,7 +76,7 @@ apps:
         # Authentication
         # Default user identity for MCP requests
         # In production, you might want to implement token-based auth
-        default_user_identity: "mcp_user"
+        default_user_identity: "sam_dev_user"
 
         # Streaming configuration
         # Enable real-time streaming of agent responses back to MCP client
@@ -101,7 +105,7 @@ apps:
         artifact_scope: "namespace"
 
       # --- Optional with Defaults ---
-      default_user_identity: "mcp_user"
+      default_user_identity: "sam_dev_user"
 
       # --- System Purpose ---
       system_purpose: >
