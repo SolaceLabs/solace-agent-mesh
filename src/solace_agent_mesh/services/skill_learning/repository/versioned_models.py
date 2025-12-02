@@ -146,6 +146,12 @@ class SkillVersionModel(Base):
     # Quality metrics
     complexity_score = Column(Integer, default=0)
     
+    # Bundled resources (scripts, data files)
+    # URI reference to storage location (s3:// or file://)
+    bundled_resources_uri = Column(String(500), nullable=True)
+    # Manifest of included files: {"scripts": [...], "resources": [...]}
+    bundled_resources_manifest = Column(JSON, nullable=True)
+    
     # Version metadata
     created_by_user_id = Column(String(255), nullable=True, index=True)
     creation_reason = Column(Text, nullable=True)

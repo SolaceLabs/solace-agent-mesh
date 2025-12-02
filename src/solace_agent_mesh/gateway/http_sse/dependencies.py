@@ -653,6 +653,7 @@ def get_user_display_name(
 
 # Global skill service instance
 _skill_service_instance = None
+_skill_resource_storage_instance = None
 
 
 def init_skill_service(
@@ -782,3 +783,53 @@ def get_versioned_skill_service():
         SkillService instance or None if not initialized
     """
     return _skill_service_instance
+
+
+def init_skill_resource_storage(config: dict = None):
+    """
+    Initialize the skill resource storage.
+    
+    Called during application startup to configure resource storage.
+    
+    Args:
+        config: Storage configuration dictionary with format:
+            {
+                "type": "filesystem" or "s3",
+                "filesystem": {"base_path": "./data/skill_resources"},
+                "s3": {"bucket_name": "...", "prefix": "", ...}
+            }
+    """
+    global _skill_resource_storage_instance
+    
+    if _skill_resource_storage_instance is not None:
+        log.warning("Skill resource storage already initialized")
+        return
+    
+    if not config:
+        log.debug("No skill resource storage configuration provided")
+        return
+    
+    try:
+        from ...services.skill_learning import create_skill_resource_storage
+        
+        _skill_resource_storage_instance = create_skill_resource_storage(config)
+        
+        if _skill_resource_storage_instance:
+            log.info(f"Skill resource storage initialized: {type(_skill_resource_storage_instance).__name__}")
+        else:
+            log.debug("Skill resource storage not configured")
+            
+    except ImportError as e:
+        log.warning(f"Skill resource storage not available: {e}")
+    except Exception as e:
+        log.error(f"Failed to initialize skill resource storage: {e}")
+
+
+def get_skill_resource_storage():
+    """
+    FastAPI dependency to get the skill resource storage.
+    
+    Returns:
+        BaseSkillResourceStorage instance or None if not initialized
+    """
+    return _skill_resource_storage_instance

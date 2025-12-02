@@ -485,6 +485,34 @@ class VersionedSkillRepository:
             session.commit()
             return True
     
+    def update_version(self, version_id: str, updates: dict) -> Optional[SkillVersion]:
+        """
+        Update a skill version.
+        
+        Args:
+            version_id: The version ID
+            updates: Dictionary of fields to update
+            
+        Returns:
+            The updated skill version or None
+        """
+        with self._get_session() as session:
+            model = session.query(SkillVersionModel).filter(
+                SkillVersionModel.id == version_id
+            ).first()
+            
+            if not model:
+                return None
+            
+            # Apply updates
+            for key, value in updates.items():
+                if hasattr(model, key):
+                    setattr(model, key, value)
+            
+            session.commit()
+            session.refresh(model)
+            return self._model_to_version(model)
+    
     # =========================================================================
     # Search Operations
     # =========================================================================
@@ -744,7 +772,7 @@ class VersionedSkillRepository:
     
     def _model_to_version(self, model: SkillVersionModel) -> SkillVersion:
         """Convert SQLAlchemy model to domain entity."""
-        return SkillVersion(
+        version = SkillVersion(
             id=model.id,
             group_id=model.group_id,
             version=model.version,
@@ -762,6 +790,12 @@ class VersionedSkillRepository:
             creation_reason=model.creation_reason,
             created_at=model.created_at,
         )
+        # Add bundled resources fields if they exist on the model
+        if hasattr(model, 'bundled_resources_uri'):
+            version.bundled_resources_uri = model.bundled_resources_uri
+        if hasattr(model, 'bundled_resources_manifest'):
+            version.bundled_resources_manifest = model.bundled_resources_manifest
+        return version
     
     def _model_to_group_user(self, model: SkillGroupUserModel) -> SkillGroupUser:
         """Convert SQLAlchemy model to domain entity."""

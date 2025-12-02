@@ -74,6 +74,9 @@ class SkillVersionDTO(BaseModel):
     created_by_user_id: Optional[str] = None
     creation_reason: Optional[str] = None
     created_at: str
+    # Bundled resources info
+    bundled_resources_uri: Optional[str] = None
+    bundled_resources_manifest: Optional[Dict[str, List[str]]] = None
 
 
 class SkillGroupDTO(BaseModel):
@@ -180,6 +183,12 @@ def get_versioned_skill_service():
     return _get_service()
 
 
+def get_skill_resource_storage():
+    """Get the skill resource storage instance."""
+    from ..dependencies import get_skill_resource_storage as _get_storage
+    return _get_storage()
+
+
 def _epoch_to_iso(epoch_ms: int) -> str:
     """Convert epoch milliseconds to ISO string."""
     if not epoch_ms:
@@ -226,6 +235,8 @@ def _version_to_dto(version) -> SkillVersionDTO:
         created_by_user_id=version.created_by_user_id,
         creation_reason=version.creation_reason,
         created_at=_epoch_to_iso(version.created_at),
+        bundled_resources_uri=getattr(version, 'bundled_resources_uri', None),
+        bundled_resources_manifest=getattr(version, 'bundled_resources_manifest', None),
     )
 
 
@@ -698,13 +709,6 @@ async def import_skill_file(
                 scripts_count = len(scripts)
                 references_count = len(resources)
                 
-                # Build bundled_resources dict
-                bundled_resources = {}
-                if scripts:
-                    bundled_resources["scripts"] = scripts
-                if resources:
-                    bundled_resources["resources"] = resources
-                
             except ValueError as e:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -712,8 +716,6 @@ async def import_skill_file(
                 )
             
             # Create the skill
-            # Note: bundled_resources are not currently stored in the versioned skill system
-            # They would need to be added to the SkillVersion entity if needed
             created_group = service.create_skill(
                 name=skill_data["name"],
                 description=skill_data["description"],
@@ -725,6 +727,47 @@ async def import_skill_file(
                 summary=skill_data.get("summary"),
                 created_by_user_id=user_id,
             )
+            
+            # Store bundled resources if present
+            if scripts or resources:
+                resource_storage = get_skill_resource_storage()
+                if resource_storage:
+                    try:
+                        from ....services.skill_learning import BundledResources
+                        
+                        bundled = BundledResources.from_text_dict(
+                            scripts=scripts,
+                            resources=resources,
+                        )
+                        
+                        # Save resources to storage
+                        resource_uri = await resource_storage.save_resources(
+                            skill_group_id=created_group.id,
+                            version_id=created_group.production_version_id,
+                            resources=bundled,
+                        )
+                        
+                        # Update version with resource reference
+                        if resource_uri:
+                            service.update_version_resources(
+                                version_id=created_group.production_version_id,
+                                bundled_resources_uri=resource_uri,
+                                bundled_resources_manifest=bundled.get_manifest(),
+                            )
+                            log.info(
+                                "%sStored bundled resources at %s",
+                                log_prefix,
+                                resource_uri,
+                            )
+                    except Exception as e:
+                        log.warning(
+                            "%sFailed to store bundled resources: %s",
+                            log_prefix,
+                            e,
+                        )
+                        warnings.append(f"Warning: Failed to store bundled resources: {e}")
+                else:
+                    warnings.append("Warning: Resource storage not configured, bundled resources not saved")
             
             if scripts_count > 0:
                 warnings.append(f"Imported {scripts_count} script file(s)")
@@ -1625,17 +1668,36 @@ async def export_skill(
         
         if format == "zip":
             # Export as Skill Package ZIP
-            # Get bundled resources if available from version entity
+            # Get bundled resources from storage if available
             scripts = None
             resources = None
             
-            if hasattr(version, 'bundled_resources') and version.bundled_resources:
-                scripts = version.bundled_resources.get('scripts', {})
-                # Combine references, assets, and resources into resources
-                resources = {}
-                for key in ['resources', 'references', 'assets']:
-                    if version.bundled_resources.get(key):
-                        resources.update(version.bundled_resources[key])
+            # Check if version has bundled resources URI
+            resource_uri = getattr(version, 'bundled_resources_uri', None)
+            if resource_uri:
+                resource_storage = get_skill_resource_storage()
+                if resource_storage:
+                    try:
+                        bundled = await resource_storage.load_resources(
+                            skill_group_id=group_id,
+                            version_id=version.id,
+                        )
+                        if bundled:
+                            # Convert bytes to strings for ZIP creation
+                            scripts = {k: v.decode('utf-8') for k, v in bundled.scripts.items()}
+                            resources = {}
+                            for k, v in bundled.resources.items():
+                                try:
+                                    resources[k] = v.decode('utf-8')
+                                except UnicodeDecodeError:
+                                    # Binary file - keep as bytes, will be base64 encoded
+                                    resources[k] = base64.b64encode(v).decode('ascii')
+                    except Exception as e:
+                        log.warning(
+                            "%sFailed to load bundled resources: %s",
+                            log_prefix,
+                            e,
+                        )
             
             zip_buffer = _create_skill_zip(group, version, scripts, resources)
             safe_name = re.sub(r'[^\w\-]', '-', group.name)

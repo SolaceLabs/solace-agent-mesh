@@ -49,6 +49,16 @@ from .repository.versioned_repository import VersionedSkillRepository
 # Skill extractor
 from .extraction.skill_extractor import SkillExtractor
 
+# Resource storage
+from .storage import (
+    BaseSkillResourceStorage,
+    BundledResources,
+    ResourceFile,
+    FilesystemSkillResourceStorage,
+    S3SkillResourceStorage,
+    create_skill_resource_storage,
+)
+
 __all__ = [
     # Legacy entities
     "Skill",
@@ -78,4 +88,11 @@ __all__ = [
     # Repositories
     "SkillRepository",
     "VersionedSkillRepository",
+    # Resource storage
+    "BaseSkillResourceStorage",
+    "BundledResources",
+    "ResourceFile",
+    "FilesystemSkillResourceStorage",
+    "S3SkillResourceStorage",
+    "create_skill_resource_storage",
 ]

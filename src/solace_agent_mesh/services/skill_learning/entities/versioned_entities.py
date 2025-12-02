@@ -93,6 +93,10 @@ class SkillVersion:
     created_by_user_id: Optional[str] = None
     creation_reason: Optional[str] = None
     
+    # Bundled resources (scripts, files, etc.)
+    bundled_resources_uri: Optional[str] = None
+    bundled_resources_manifest: Optional[dict] = None
+    
     # Timestamps (epoch ms)
     created_at: int = field(default_factory=now_epoch_ms)
     
@@ -131,6 +135,8 @@ class SkillVersion:
             "complexity_score": self.complexity_score,
             "created_by_user_id": self.created_by_user_id,
             "creation_reason": self.creation_reason,
+            "bundled_resources_uri": self.bundled_resources_uri,
+            "bundled_resources_manifest": self.bundled_resources_manifest,
             "created_at": self.created_at,
         }
 

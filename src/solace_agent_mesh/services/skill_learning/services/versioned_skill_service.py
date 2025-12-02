@@ -876,3 +876,41 @@ class VersionedSkillService:
         # Check role
         role = self.repository.get_user_role(group_id, user_id)
         return role in (SkillGroupRole.OWNER, SkillGroupRole.EDITOR)
+    
+    # =========================================================================
+    # Bundled Resources Operations
+    # =========================================================================
+    
+    def update_version_resources(
+        self,
+        version_id: str,
+        bundled_resources_uri: Optional[str] = None,
+        bundled_resources_manifest: Optional[dict] = None,
+    ) -> Optional[SkillVersion]:
+        """
+        Update a version's bundled resources reference.
+        
+        This is called after storing bundled resources to object storage
+        to update the version with the storage URI and manifest.
+        
+        Args:
+            version_id: The version ID
+            bundled_resources_uri: URI to the stored resources (s3:// or file://)
+            bundled_resources_manifest: Manifest of included files
+            
+        Returns:
+            The updated version or None if not found
+        """
+        updates = {}
+        if bundled_resources_uri is not None:
+            updates["bundled_resources_uri"] = bundled_resources_uri
+        if bundled_resources_manifest is not None:
+            updates["bundled_resources_manifest"] = bundled_resources_manifest
+        
+        if not updates:
+            return self.repository.get_version(version_id)
+        
+        updated = self.repository.update_version(version_id, updates)
+        if updated:
+            log.info(f"Updated version {version_id} with bundled resources: {bundled_resources_uri}")
+        return updated
