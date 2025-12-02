@@ -977,7 +977,7 @@ def _generate_inline_template_instruction() -> str:
 Use inline Liquid templates to dynamically render data from artifacts for user-friendly display. This is faster and more accurate than reading the artifact and reformatting it yourself.
 
 IMPORTANT: Template Format
-- Templates use Liquid template syntax (same as Shopify/Jekyll templates)
+- Templates use Liquid template syntax (same as Shopify templates - NOTE that Jekyll extensions are NOT supported).
 
 When to Use Inline Templates:
 - Formatting CSV, JSON, or YAML data into tables or lists.
@@ -1004,6 +1004,7 @@ Negative Examples
 Use {{ issues.size }} instead of {{ issues|length }}
 Use {{ forloop.index }} instead of {{ loop.index }} (Liquid uses forloop not loop)
 Use {{ issue.fields.description | truncate: 200 }} instead of slicing with [:200]
+Do not use Jekyll-specific tags or filters (e.g., `{{% assign %}}`, `{{% capture %}}`, `where`, `sort`, `where_exp`, etc.)
 
 The rendered output will appear inline in your response automatically.
 """
@@ -1138,6 +1139,8 @@ def _generate_embed_instruction(
     modifier_list = ", ".join([f"`{prefix}`" for prefix in modifier_list])
 
     base_instruction = f"""\
+**Using Dynamic Embeds in Responses:**
+
 You can use dynamic embeds in your text responses and tool parameters using the syntax {open_delim}type:expression {chain_delim} format{close_delim}. NOTE that this differs from 'save_artifact', which has  different delimiters. This allows you to
 always have correct information in your output. Specifically, make sure you always use embeds for math, even if it is simple. You will make mistakes if you try to do math yourself.
 Use HTML entities to escape the delimiters.
@@ -1185,6 +1188,43 @@ The following embeds are resolved *late* (by the gateway before final display):
 Ensure the syntax is exactly `{open_delim}type:expression{close_delim}` or `{open_delim}type:expression {chain_delim} ... {chain_delim} format:output_format{close_delim}` with no extra spaces around delimiters (`{open_delim}`, `{close_delim}`, `{chain_delim}`, `:`, `|`). Malformed directives will be ignored."""
 
     return final_instruction
+
+
+def _generate_conversation_flow_instruction() -> str:
+    """Generates instruction text for conversation flow and response formatting."""
+    open_delim = EMBED_DELIMITER_OPEN
+    close_delim = EMBED_DELIMITER_CLOSE
+    return f"""\
+**Conversation Flow and Response Formatting:**
+
+Responses from the agent should be meaningful and directly address the user's questions or requests. Frequent status updates on progress are encouraged, especially when calling
+tools or other agents/workflows. However, do not place these updates in visible response text; instead, use status_update embeds for interim feedback. One exception
+is when creating a plan for complex tasks. That plan should be visible to the user.
+
+Response Content Rules:
+1. Visible responses should contain ONLY:
+   - Direct answers to the user's question
+   - Analysis and insights
+   - Results and data
+   - Follow-up questions when needed
+
+2. Invisible status updates (via embedded status_updates) should contain:
+   - "Searching for..."
+   - "Analyzing..."
+   - "Creating..."
+   - "Querying..."
+   
+3. NEVER mix these - keep process narration invisible and results visible. If you use a status_update embed, do NOT repeat that information in visible text.
+
+Example:
+
+Good:
+"{open_delim}status_update:Retrieving sales data...{close_delim} [then calls tool]"
+
+Bad:
+"I am retrieving sales data: {open_delim}status_update:Retrieving sales data...{close_delim} [then calls tool]"
+
+"""
 
 
 def _generate_tool_instructions_from_registry(
@@ -1354,6 +1394,11 @@ If a plan is created:
                 log_identifier,
                 include_artifact_content_instr,
             )
+
+        instruction = _generate_conversation_flow_instruction()
+        if instruction:
+            injected_instructions.append(instruction)
+            log.debug("%s Prepared conversation flow instructions.", log_identifier)
 
     if active_builtin_tools:
         instruction = _generate_tool_instructions_from_registry(

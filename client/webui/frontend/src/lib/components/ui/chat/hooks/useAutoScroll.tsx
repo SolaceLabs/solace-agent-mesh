@@ -17,6 +17,9 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const lastContentHeight = useRef(0);
     const userHasScrolled = useRef(false);
+    const lastScrollTop = useRef(0);
+    const recentUpwardScroll = useRef(false);
+    const isProgrammaticScroll = useRef(false);
 
     const [scrollState, setScrollState] = useState<ScrollState>({
         isAtBottom: true,
@@ -36,6 +39,9 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
         (instant?: boolean) => {
             if (!scrollRef.current) return;
 
+            // Mark as programmatic scroll to prevent interference
+            isProgrammaticScroll.current = true;
+
             const targetScrollTop = scrollRef.current.scrollHeight - scrollRef.current.clientHeight;
 
             if (instant) {
@@ -47,11 +53,23 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
                 });
             }
 
+            // Clear upward scroll flag - we're going to bottom, re-enable auto-scroll
+            recentUpwardScroll.current = false;
+
             setScrollState({
                 isAtBottom: true,
                 autoScrollEnabled: true,
             });
             userHasScrolled.current = false;
+
+            // Clear the programmatic scroll flag after animation completes
+            // Update lastScrollTop after the animation to prevent false detection
+            setTimeout(() => {
+                if (scrollRef.current) {
+                    lastScrollTop.current = scrollRef.current.scrollTop;
+                }
+                isProgrammaticScroll.current = false;
+            }, instant ? 50 : 500);
         },
         [smooth]
     );
@@ -59,13 +77,50 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
     const handleScroll = useCallback(() => {
         if (!scrollRef.current) return;
 
+        // Ignore scroll events during programmatic scrolling
+        if (isProgrammaticScroll.current) {
+            return;
+        }
+
+        const currentScrollTop = scrollRef.current.scrollTop;
         const atBottom = checkIsAtBottom(scrollRef.current);
 
-        setScrollState(prev => ({
-            isAtBottom: atBottom,
-            // Re-enable auto-scroll if at the bottom
-            autoScrollEnabled: atBottom ? true : prev.autoScrollEnabled,
-        }));
+        // Detect scroll direction (only if we have a previous position)
+        const isScrollingUp = lastScrollTop.current > 0 && currentScrollTop < lastScrollTop.current;
+
+        // Simple rule: upward scroll = disable, at bottom = enable
+        if (isScrollingUp) {
+            // User scrolled up - disable auto-scroll
+            recentUpwardScroll.current = true;
+        }
+
+        // Update last scroll position
+        lastScrollTop.current = currentScrollTop;
+
+        // Determine auto-scroll state:
+        // - If at bottom: always enable (clear the upward scroll flag)
+        // - If not at bottom and user scrolled up recently: disable
+        // - Otherwise: keep previous state
+        if (atBottom) {
+            // At bottom - always enable and clear the flag
+            recentUpwardScroll.current = false;
+            setScrollState(prev => ({
+                isAtBottom: true,
+                autoScrollEnabled: true,
+            }));
+        } else if (recentUpwardScroll.current) {
+            // Not at bottom and user has scrolled up - disable
+            setScrollState(prev => ({
+                isAtBottom: false,
+                autoScrollEnabled: false,
+            }));
+        } else {
+            // Not at bottom but no recent upward scroll - just update position
+            setScrollState(prev => ({
+                ...prev,
+                isAtBottom: false,
+            }));
+        }
     }, [checkIsAtBottom]);
 
     useEffect(() => {
