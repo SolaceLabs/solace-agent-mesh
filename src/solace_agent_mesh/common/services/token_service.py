@@ -34,7 +34,6 @@ class TokenService:
         self,
         idp_access_token: str,
         user_claims: Optional[Dict[str, Any]],
-        task_id: Optional[str] = None,
     ) -> str:
         """
         Determine and return the appropriate access token for the user.
@@ -49,7 +48,6 @@ class TokenService:
         Args:
             idp_access_token: IdP access token from OAuth provider
             user_claims: User claims from id_token (None if validation failed)
-            task_id: Optional task ID for SAM token binding
 
         Returns:
             Access token string (either IdP token or SAM token)
@@ -99,7 +97,6 @@ class TokenService:
     async def validate_token_with_fallback(
         self,
         token: str,
-        task_id: Optional[str] = None,
         auth_service_url: Optional[str] = None,
         auth_provider: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
@@ -111,7 +108,6 @@ class TokenService:
 
         Args:
             token: Access token to validate
-            task_id: Optional task ID for SAM token binding verification
             auth_service_url: External auth service URL (required for IdP validation)
             auth_provider: Auth provider name (required for IdP validation)
 

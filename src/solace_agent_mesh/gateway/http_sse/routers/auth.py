@@ -4,7 +4,6 @@ Router for handling authentication-related endpoints.
 
 import logging
 import secrets
-import time
 from urllib.parse import urlencode
 
 import httpx
@@ -119,15 +118,10 @@ async def auth_callback(
             status_code=400, detail="Access token not in response from exchange service"
         )
 
-    # Extract user identity for task_id
-    user_id = user_claims.get("sub") or user_claims.get("email") or "unknown" if user_claims else "unknown"
-    auth_task_id = f"auth-{user_id}-{int(time.time())}"
-
     # Token service handles all decision logic (feature flag, claims check, fallback)
     ui_access_token = await component.token_service.get_access_token(
         idp_access_token=access_token,
         user_claims=user_claims,
-        task_id=auth_task_id,
     )
 
     # Store the token to use for authorization (SAM token if enabled, otherwise IdP token)
@@ -222,15 +216,10 @@ async def refresh_token(
             status_code=400, detail="Access token not in response from refresh service"
         )
 
-    # Extract user identity for task_id
-    user_id = user_claims.get("sub") or user_claims.get("email") or "unknown" if user_claims else "unknown"
-    auth_task_id = f"auth-{user_id}-{int(time.time())}"
-
     # Token service handles all decision logic
     ui_access_token = await component.token_service.get_access_token(
         idp_access_token=access_token,
         user_claims=user_claims,
-        task_id=auth_task_id,
     )
 
     # Update session with new tokens (SAM token if enabled, otherwise IdP token)

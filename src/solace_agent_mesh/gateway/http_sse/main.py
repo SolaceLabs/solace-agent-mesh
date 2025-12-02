@@ -265,18 +265,10 @@ def _create_auth_middleware(component):
                 await response(scope, receive, send)
                 return
 
-            # Get task_id from session if available (for SAM token validation)
-            task_id = None
-            try:
-                task_id = request.session.get("sam_token_task_id")
-            except AssertionError:
-                pass
-
             # Validate token using token service (handles SAM + IdP with fallback)
             try:
                 user_info_from_token = await self.component.token_service.validate_token_with_fallback(
                     token=access_token,
-                    task_id=task_id,
                     auth_service_url=auth_service_url,
                     auth_provider=auth_provider,
                 )
