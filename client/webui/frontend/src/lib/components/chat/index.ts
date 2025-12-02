@@ -8,4 +8,5 @@ export { MoveSessionDialog } from "./MoveSessionDialog";
 export { VariableDialog } from "./VariableDialog";
 export { SessionSearch } from "./SessionSearch";
 export { MessageHoverButtons } from "./MessageHoverButtons";
+export { RecentChatsList } from "./RecentChatsList";
 export * from "./selection";

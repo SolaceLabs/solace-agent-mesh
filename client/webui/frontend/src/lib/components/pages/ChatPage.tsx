@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { PanelLeftIcon } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
 import type { TextPart } from "@/lib/types";
-import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui";
+import { ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui";
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
@@ -208,18 +207,7 @@ export function ChatPage() {
                         </div>
                     }
                     breadcrumbs={breadcrumbs}
-                    leadingAction={
-                        isSessionSidePanelCollapsed ? (
-                            <div className="flex items-center gap-2">
-                                <Button data-testid="showSessionsPanel" variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
-                                    <PanelLeftIcon className="size-5" />
-                                </Button>
-                                <div className="h-6 border-r"></div>
-
-                                <ChatSessionDialog />
-                            </div>
-                        ) : null
-                    }
+                    leadingAction={<ChatSessionDialog />}
                 />
             </div>
             <div className="flex min-h-0 flex-1">

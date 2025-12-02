@@ -29,9 +29,11 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick 
 
 interface SettingsDialogProps {
     iconOnly?: boolean;
+    /** Variant style for the trigger button */
+    variant?: "default" | "nav-item";
 }
 
-export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false }) => {
+export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false, variant = "default" }) => {
     const { configFeatureEnablement } = useConfigContext();
     const [open, setOpen] = useState(false);
     const [activeSection, setActiveSection] = useState<SettingsSection>("general");
@@ -80,6 +82,13 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                     </TooltipTrigger>
                     <TooltipContent side="right">Settings</TooltipContent>
                 </Tooltip>
+            ) : variant === "nav-item" ? (
+                <DialogTrigger asChild>
+                    <Button variant="ghost" className="h-9 w-full justify-start px-2 text-sm font-normal">
+                        <Settings className="mr-2 size-4" />
+                        Settings
+                    </Button>
+                </DialogTrigger>
             ) : (
                 <DialogTrigger asChild>
                     <Button variant="outline" className="w-full justify-start gap-2">

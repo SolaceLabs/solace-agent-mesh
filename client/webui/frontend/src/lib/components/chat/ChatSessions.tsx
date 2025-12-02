@@ -1,13 +1,32 @@
 import { SessionList } from "./SessionList";
+import { RecentChatsList } from "./RecentChatsList";
 import { useConfigContext, useChatContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 
-export const ChatSessions = () => {
+interface ChatSessionsProps {
+    /** Maximum number of items to show (for compact view). If not provided, shows all. */
+    maxItems?: number;
+    /** Callback when "Show All" is clicked */
+    onShowAll?: () => void;
+    /** Whether to show in compact mode (uses RecentChatsList) */
+    compact?: boolean;
+    /** Project filter - "all" for all projects, project name to filter */
+    projectFilter?: string;
+}
+
+export const ChatSessions: React.FC<ChatSessionsProps> = ({ maxItems, onShowAll, compact = false, projectFilter = "all" }) => {
     const { persistenceEnabled } = useConfigContext();
     const { sessionName } = useChatContext();
     const { projects } = useProjectContext();
 
-    if (persistenceEnabled) return <SessionList projects={projects} />;
+    if (persistenceEnabled) {
+        // Use compact RecentChatsList when in compact mode
+        if (compact) {
+            return <RecentChatsList maxItems={maxItems} onShowAll={onShowAll} projectFilter={projectFilter} />;
+        }
+        // Use full SessionList - it has its own search/filter UI
+        return <SessionList projects={projects} />;
+    }
 
     // When persistence is disabled, show simple single-session view like in main
     return (
