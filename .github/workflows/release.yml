@@ -19,23 +19,15 @@ permissions:
   pull-requests: read
 
 jobs:
-  release:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_pypi.yml@main
+  # Run security checks first via reusable workflow
+  security-checks:
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
     with:
-      ENVIRONMENT: pypi
-      version: ${{ github.event.inputs.version }}
       whitesource_project_name: "solace-agent-mesh"
       whitesource_product_name: "solaceai"
       prisma_check: true
       sonarqube_hotspot_check: true
-      npm_package_path: client/webui/frontend
-      node_version: 20
-      npm_lock_file: package-lock.json
-      pypi-project: solace-agent-mesh
-
     secrets:
-      COMMIT_KEY: ${{ secrets.COMMIT_KEY }}
-      PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
       PRISMA_DOCKER_IMAGE_TO_CHECK: ${{ secrets.DOCKER_IMAGE_TO_CHECK }}
       PRISMA_ACCESS_KEY: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
       PRISMA_ACCESS_KEY_SECRET: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
@@ -47,6 +39,57 @@ jobs:
       MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
       MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
       MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+
+  # Release to PyPI using Trusted Publishing
+  release:
+    name: Release to PyPI
+    needs: security-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: pypi
+    outputs:
+      new_version: ${{ steps.prep.outputs.new_version }}
+      commit_hash: ${{ steps.prep.outputs.commit_hash }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.COMMIT_KEY }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: client/webui/frontend/package-lock.json
+
+      - name: Install and Build Frontend
+        run: |
+          cd client/webui/frontend
+          npm ci
+          npm run build
+
+      - name: Prepare Release
+        id: prep
+        uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-prep@main
+        with:
+          version: ${{ github.event.inputs.version }}
+
+      # Publish using Trusted Publishing - must be directly in workflow, not in composite action
+      # See: https://docs.pypi.org/trusted-publishers/using-a-publisher/
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+
+      - name: Finalize Release
+        uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-post@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          new_version: ${{ steps.prep.outputs.new_version }}
+          current_version: ${{ steps.prep.outputs.current_version }}
+          skip_bump: ${{ steps.prep.outputs.skip_bump }}
 
   build_and_push_docker:
     name: Build and Push to DockerHub
