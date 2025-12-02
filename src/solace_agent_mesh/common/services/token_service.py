@@ -30,32 +30,6 @@ class TokenService:
         self.component = component
         self.log_identifier = getattr(component, 'log_identifier', 'TokenService')
 
-    async def mint_token(
-        self,
-        user_claims: Dict[str, Any],
-        idp_access_token: str,
-        task_id: Optional[str] = None,
-    ) -> str:
-        """
-        Mint an access token for the user.
-
-        Base implementation returns the IdP access token unchanged.
-        Enterprise implementation returns a self-signed SAM token.
-
-        Args:
-            user_claims: Claims from id_token (sub, email, name, groups, etc.)
-            idp_access_token: IdP access token (fallback if minting fails)
-            task_id: Optional task ID for token binding
-
-        Returns:
-            Access token string (IdP token in base, SAM token in enterprise)
-        """
-        log.debug(
-            "%s Base TokenService: Returning IdP access token (passthrough mode)",
-            self.log_identifier
-        )
-        return idp_access_token
-
     async def get_access_token(
         self,
         idp_access_token: str,
@@ -85,30 +59,6 @@ class TokenService:
             self.log_identifier
         )
         return idp_access_token
-
-    def validate_token(
-        self,
-        token: str,
-        task_id: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Validate an access token and return claims.
-
-        Base implementation cannot validate IdP tokens locally (returns None).
-        Enterprise implementation validates SAM token signatures.
-
-        Args:
-            token: Access token string
-            task_id: Optional task ID for binding verification
-
-        Returns:
-            Verified claims dict if valid, None if cannot validate
-        """
-        log.debug(
-            "%s Base TokenService: Cannot validate IdP tokens locally",
-            self.log_identifier
-        )
-        return None
 
     def extract_token_claims(
         self,
