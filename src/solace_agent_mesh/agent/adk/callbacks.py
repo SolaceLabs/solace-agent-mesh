@@ -693,7 +693,7 @@ async def process_artifact_blocks_callback(
                         await _publish_data_part_status_update(
                             host_component, a2a_context, completed_data
                         )
-                        log.info(
+                        log.debug(
                             "%s Published completion signal for fenced block: %s (function_call_id=%s)",
                             log_identifier,
                             block_info["filename"],
