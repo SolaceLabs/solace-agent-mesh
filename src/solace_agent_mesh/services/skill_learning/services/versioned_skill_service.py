@@ -798,6 +798,65 @@ class VersionedSkillService:
             threshold=threshold,
         )
     
+    def get_skill_summaries_for_prompt(
+        self,
+        agent_name: str,
+        user_id: Optional[str] = None,
+        task_context: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[dict]:
+        """
+        Get skill summaries for prompt injection (Level 1 disclosure).
+        
+        If task_context is provided, returns skills most relevant to the task
+        using semantic search. Otherwise, returns top skills.
+        
+        This method provides compatibility with AgentSkillInjector.
+        
+        Args:
+            agent_name: The agent name
+            user_id: Optional user ID
+            task_context: Optional task context for relevance filtering (semantic search)
+            limit: Maximum skills to return
+            
+        Returns:
+            List of skill summary dictionaries
+        """
+        if task_context:
+            # Use semantic search to find relevant skills
+            results = self.semantic_search(
+                query=task_context,
+                agent_name=agent_name,
+                user_id=user_id,
+                limit=limit,
+                threshold=0.3,  # Lower threshold for broader results
+            )
+            groups = [group for group, _ in results]
+        else:
+            # Get top skills for the agent
+            groups = self.list_skills(
+                agent_name=agent_name,
+                user_id=user_id,
+                include_global=True,
+                limit=limit,
+            )
+        
+        # Convert to summary dictionaries
+        summaries = []
+        for group in groups:
+            summary = {
+                "id": group.id,
+                "name": group.name,
+                "description": group.description or "",
+            }
+            
+            # Add success rate if we have metrics (future enhancement)
+            # For now, we don't track success rate in versioned skills
+            
+            summaries.append(summary)
+        
+        return summaries
+    
     # =========================================================================
     # User Access Operations
     # =========================================================================

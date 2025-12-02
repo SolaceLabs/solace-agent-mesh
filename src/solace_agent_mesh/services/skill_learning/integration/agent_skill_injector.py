@@ -9,12 +9,39 @@ system and the agent execution pipeline. It:
 """
 
 import logging
-from typing import Optional, List, Dict, Any, Callable
+from typing import Optional, List, Dict, Any, Callable, Union, Protocol, runtime_checkable
 
-from ..services import SkillService
 from ..tools import SkillReadTool, create_skill_read_tool
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class SkillServiceProtocol(Protocol):
+    """Protocol for skill services that can be used with AgentSkillInjector."""
+    
+    def get_skill_summaries_for_prompt(
+        self,
+        agent_name: str,
+        user_id: Optional[str] = None,
+        task_context: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Get skill summaries for prompt injection."""
+        ...
+    
+    def get_skill(self, skill_id: str) -> Optional[Any]:
+        """Get a skill by ID."""
+        ...
+    
+    def get_skill_by_name(
+        self,
+        name: str,
+        agent_name: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> Optional[Any]:
+        """Get a skill by name."""
+        ...
 
 
 class AgentSkillInjector:
@@ -25,11 +52,13 @@ class AgentSkillInjector:
     - Get skill summaries for system prompt injection
     - Create skill_read tool instances for agents
     - Track which skills are used during execution
+    
+    Works with both SkillService (legacy) and VersionedSkillService.
     """
     
     def __init__(
         self,
-        skill_service: SkillService,
+        skill_service: SkillServiceProtocol,
         max_skills_in_prompt: int = 10,
         enable_skill_tools: bool = True,
     ):
@@ -37,7 +66,7 @@ class AgentSkillInjector:
         Initialize the agent skill injector.
         
         Args:
-            skill_service: The skill service instance
+            skill_service: The skill service instance (SkillService or VersionedSkillService)
             max_skills_in_prompt: Maximum skills to inject in prompt
             enable_skill_tools: Whether to enable skill_read tool
         """

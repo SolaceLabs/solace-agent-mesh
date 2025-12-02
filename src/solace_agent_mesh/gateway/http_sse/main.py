@@ -710,9 +710,59 @@ def _setup_skill_service(component: "WebUIBackendComponent", database_url: str) 
         
         log.info("Skill learning service initialized successfully")
         
+        # Initialize skill resource storage for bundled resources (scripts, data files)
+        _setup_skill_resource_storage(app_config)
+        
     except Exception as e:
         log.error(f"Failed to initialize skill learning service: {e}")
         log.warning("Skills feature will be unavailable")
+
+
+def _setup_skill_resource_storage(app_config: dict) -> None:
+    """
+    Initialize the skill resource storage for bundled resources (scripts, data files).
+    
+    This storage is used for Claude-type skills that have folder structures with
+    scripts and resources that need to be stored alongside the skill definition.
+    
+    Args:
+        app_config: Application configuration dictionary
+    """
+    storage_config = app_config.get("skill_resource_storage", {})
+    storage_type = storage_config.get("type", "filesystem")
+    
+    try:
+        if storage_type == "s3":
+            bucket = storage_config.get("bucket")
+            if not bucket:
+                log.warning("S3 skill resource storage configured but no bucket specified - using filesystem fallback")
+                storage_type = "filesystem"
+            else:
+                log.info(f"Initializing S3 skill resource storage (bucket: {bucket})")
+                dependencies.init_skill_resource_storage(
+                    storage_type="s3",
+                    bucket=bucket,
+                    prefix=storage_config.get("prefix", "skills"),
+                    endpoint_url=storage_config.get("endpoint_url"),
+                    access_key_id=storage_config.get("access_key_id"),
+                    secret_access_key=storage_config.get("secret_access_key"),
+                    region_name=storage_config.get("region_name"),
+                )
+                log.info("S3 skill resource storage initialized successfully")
+                return
+        
+        # Default to filesystem storage
+        base_path = storage_config.get("base_path", "./data/skill_resources")
+        log.info(f"Initializing filesystem skill resource storage (path: {base_path})")
+        dependencies.init_skill_resource_storage(
+            storage_type="filesystem",
+            base_path=base_path,
+        )
+        log.info("Filesystem skill resource storage initialized successfully")
+        
+    except Exception as e:
+        log.error(f"Failed to initialize skill resource storage: {e}")
+        log.warning("Skill bundled resources feature will be unavailable")
 
 
 def _setup_static_files() -> None:

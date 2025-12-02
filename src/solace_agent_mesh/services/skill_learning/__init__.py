@@ -49,6 +49,9 @@ from .repository.versioned_repository import VersionedSkillRepository
 # Skill extractor
 from .extraction.skill_extractor import SkillExtractor
 
+# Integration (agent skill injector)
+from .integration.agent_skill_injector import AgentSkillInjector
+
 # Resource storage
 from .storage import (
     BaseSkillResourceStorage,
@@ -88,6 +91,8 @@ __all__ = [
     # Repositories
     "SkillRepository",
     "VersionedSkillRepository",
+    # Integration
+    "AgentSkillInjector",
     # Resource storage
     "BaseSkillResourceStorage",
     "BundledResources",

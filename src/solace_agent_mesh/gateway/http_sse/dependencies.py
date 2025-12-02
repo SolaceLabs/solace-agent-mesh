@@ -785,19 +785,30 @@ def get_versioned_skill_service():
     return _skill_service_instance
 
 
-def init_skill_resource_storage(config: dict = None):
+def init_skill_resource_storage(
+    storage_type: str = "filesystem",
+    base_path: str = "./data/skill_resources",
+    bucket: str = None,
+    prefix: str = "skills",
+    endpoint_url: str = None,
+    access_key_id: str = None,
+    secret_access_key: str = None,
+    region_name: str = None,
+):
     """
     Initialize the skill resource storage.
     
     Called during application startup to configure resource storage.
     
     Args:
-        config: Storage configuration dictionary with format:
-            {
-                "type": "filesystem" or "s3",
-                "filesystem": {"base_path": "./data/skill_resources"},
-                "s3": {"bucket_name": "...", "prefix": "", ...}
-            }
+        storage_type: Storage type ("filesystem" or "s3")
+        base_path: Base path for filesystem storage
+        bucket: S3 bucket name (required for S3 storage)
+        prefix: S3 key prefix
+        endpoint_url: Custom S3 endpoint URL (for MinIO, etc.)
+        access_key_id: AWS access key ID
+        secret_access_key: AWS secret access key
+        region_name: AWS region name
     """
     global _skill_resource_storage_instance
     
@@ -805,12 +816,31 @@ def init_skill_resource_storage(config: dict = None):
         log.warning("Skill resource storage already initialized")
         return
     
-    if not config:
-        log.debug("No skill resource storage configuration provided")
-        return
-    
     try:
         from ...services.skill_learning import create_skill_resource_storage
+        
+        # Build config dict for the factory function
+        config = {
+            "type": storage_type,
+        }
+        
+        if storage_type == "s3":
+            config["s3"] = {
+                "bucket_name": bucket,
+                "prefix": prefix,
+            }
+            if endpoint_url:
+                config["s3"]["endpoint_url"] = endpoint_url
+            if access_key_id:
+                config["s3"]["access_key_id"] = access_key_id
+            if secret_access_key:
+                config["s3"]["secret_access_key"] = secret_access_key
+            if region_name:
+                config["s3"]["region_name"] = region_name
+        else:
+            config["filesystem"] = {
+                "base_path": base_path,
+            }
         
         _skill_resource_storage_instance = create_skill_resource_storage(config)
         

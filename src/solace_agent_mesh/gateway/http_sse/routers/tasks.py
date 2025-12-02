@@ -374,10 +374,11 @@ async def _inject_skill_context(
         skills_injected = []
 
         for skill_id in skill_ids:
-            skill = skill_service.get_skill(skill_id)
-            log.info("%sSkill found for id %s: %s", log_prefix, skill_id, skill is not None)
+            # Get skill group with versions to access markdown content
+            skill_group = skill_service.get_skill(skill_id, include_versions=True)
+            log.info("%sSkill found for id %s: %s", log_prefix, skill_id, skill_group is not None)
             
-            if not skill:
+            if not skill_group:
                 log.warning(
                     "%sSkill context injection skipped: skill '%s' not found",
                     log_prefix,
@@ -385,29 +386,43 @@ async def _inject_skill_context(
                 )
                 continue
             
+            # Get the production version for markdown content and summary
+            production_version = None
+            if skill_group.production_version_id and skill_group.versions:
+                for version in skill_group.versions:
+                    if version.id == skill_group.production_version_id:
+                        production_version = version
+                        break
+            # Fallback to latest version if no production version set
+            if not production_version and skill_group.versions:
+                production_version = skill_group.versions[0]  # versions are ordered by version desc
+            
+            markdown_content = production_version.markdown_content if production_version else None
+            summary = production_version.summary if production_version else None
+            
             log.info("%sSkill details - name: %s, has_description: %s, has_markdown: %s, has_summary: %s",
-                     log_prefix, skill.name, bool(skill.description), bool(skill.markdown_content), bool(skill.summary))
+                     log_prefix, skill_group.name, bool(skill_group.description), bool(markdown_content), bool(summary))
 
             # Build skill context from markdown content or description
             skill_context_parts = []
 
             # Add skill name and description
-            skill_context_parts.append(f'You are using the skill: "{skill.name}"')
+            skill_context_parts.append(f'You are using the skill: "{skill_group.name}"')
 
-            if skill.description:
-                skill_context_parts.append(f"Skill Description: {skill.description}")
+            if skill_group.description:
+                skill_context_parts.append(f"Skill Description: {skill_group.description}")
 
             # Add markdown content if available (contains detailed instructions)
-            if skill.markdown_content:
-                skill_context_parts.append(f"\nSkill Instructions:\n{skill.markdown_content}")
+            if markdown_content:
+                skill_context_parts.append(f"\nSkill Instructions:\n{markdown_content}")
 
             # Add summary if available
-            if skill.summary:
-                skill_context_parts.append(f"\nSkill Summary: {skill.summary}")
+            if summary:
+                skill_context_parts.append(f"\nSkill Summary: {summary}")
 
             if skill_context_parts:
                 all_skill_context_parts.append("\n".join(skill_context_parts))
-                skills_injected.append(f"{skill.name} ({skill_id})")
+                skills_injected.append(f"{skill_group.name} ({skill_id})")
 
         # Inject all skill contexts into the message
         if all_skill_context_parts:

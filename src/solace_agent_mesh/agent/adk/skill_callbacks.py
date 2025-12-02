@@ -33,49 +33,99 @@ def _get_skill_injector(host_component: "SamAgentComponent"):
     
     Returns None if skill learning is not enabled.
     """
+    log_identifier = "[SkillInjector:Init]"
+    
     # Check if skill learning is enabled
     skill_config = host_component.get_config("skill_learning", {})
     if not skill_config.get("enabled", False):
+        log.debug("%s Skill learning not enabled", log_identifier)
         return None
     
     # Check if injector is already cached
     if hasattr(host_component, "_skill_injector"):
+        log.debug("%s Returning cached skill injector", log_identifier)
         return host_component._skill_injector
     
     try:
         from ...services.skill_learning import (
             AgentSkillInjector,
-            SkillService,
-            SkillRepository,
+            VersionedSkillService,
+            VersionedSkillRepository,
             EmbeddingService,
+            StaticSkillLoader,
         )
+        
+        log.info("%s Creating new skill injector...", log_identifier)
         
         # Get database session factory
         db_session_factory = host_component.get_agent_specific_state("db_session_factory")
         if not db_session_factory:
             log.warning(
-                "%s Skill learning enabled but no database session factory available.",
-                host_component.log_identifier,
+                "%s Skill learning enabled but no database session factory available. "
+                "Make sure agent_init_function is configured with skill_learning_init.",
+                log_identifier,
             )
             return None
         
-        # Create repository
-        repository = SkillRepository(db_session_factory)
+        log.info("%s Got database session factory", log_identifier)
+        
+        # Create versioned repository (uses skill_groups and skill_versions tables)
+        repository = VersionedSkillRepository(db_session_factory)
         
         # Create embedding service if configured
         embedding_service = None
         embedding_config = skill_config.get("embedding", {})
         if embedding_config.get("enabled", True):
-            embedding_service = EmbeddingService(
-                model=embedding_config.get("model", "text-embedding-3-small"),
-                api_key=embedding_config.get("api_key"),
-                use_litellm=embedding_config.get("use_litellm", True),
-            )
+            use_litellm = embedding_config.get("use_litellm", True)
+            model = embedding_config.get("model", "text-embedding-3-small")
+            api_key = embedding_config.get("api_key")
+            
+            if use_litellm:
+                # Use LiteLLM provider
+                embedding_service = EmbeddingService(
+                    provider_type="litellm",
+                    model=model,
+                    api_key=api_key,
+                    api_base=embedding_config.get("api_base"),
+                )
+            else:
+                # Use OpenAI provider directly
+                embedding_service = EmbeddingService(
+                    provider_type="openai",
+                    model=model,
+                    api_key=api_key,
+                    base_url=embedding_config.get("base_url"),
+                )
         
-        # Create skill service
-        skill_service = SkillService(
+        # Create static skill loader if configured
+        static_loader = None
+        static_config = skill_config.get("static_skills", {})
+        log.info("%s Static skills config: %s", log_identifier, static_config)
+        if static_config.get("enabled", True):
+            skills_directory = static_config.get("directory", "skills")
+            log.info("%s Loading static skills from: %s", log_identifier, skills_directory)
+            try:
+                static_loader = StaticSkillLoader(skills_directory)
+                # Try to load skills immediately to verify
+                all_skills = static_loader.load_all_skills()
+                log.info(
+                    "%s Static skill loader initialized for %s, found %d skills",
+                    log_identifier,
+                    skills_directory,
+                    len(all_skills),
+                )
+            except Exception as e:
+                log.warning(
+                    "%s Failed to initialize static skill loader: %s",
+                    log_identifier,
+                    e,
+                )
+        
+        # Create versioned skill service (compatible with gateway's skill storage)
+        skill_service = VersionedSkillService(
             repository=repository,
             embedding_service=embedding_service,
+            static_loader=static_loader,
         )
         
         # Create injector
@@ -88,7 +138,7 @@ def _get_skill_injector(host_component: "SamAgentComponent"):
         # Cache it
         host_component._skill_injector = injector
         log.info(
-            "%s Initialized skill learning injector.",
+            "%s Initialized skill learning injector with versioned skill service.",
             host_component.log_identifier,
         )
         
@@ -131,7 +181,7 @@ def inject_skills_callback(
         None (modifies llm_request in place)
     """
     log_identifier = "[Callback:InjectSkills]"
-    log.debug("%s Running skill injection callback...", log_identifier)
+    log.info("%s Running skill injection callback...", log_identifier)
     
     if not host_component:
         log.error(
@@ -143,11 +193,16 @@ def inject_skills_callback(
     # Check if skill learning is enabled
     skill_config = host_component.get_config("skill_learning", {})
     if not skill_config.get("enabled", False):
-        log.debug(
+        log.info(
             "%s Skill learning not enabled.",
             log_identifier,
         )
         return None
+    
+    log.info(
+        "%s Skill learning is enabled, proceeding with skill injection...",
+        log_identifier,
+    )
     
     try:
         # Get context from callback
@@ -172,11 +227,28 @@ def inject_skills_callback(
         
         # Try to get skill summaries from injector (if available)
         injector = _get_skill_injector(host_component)
+        log.info(
+            "%s Got skill injector: %s",
+            log_identifier,
+            "yes" if injector else "no",
+        )
         if injector:
+            log.info(
+                "%s Calling get_skills_for_prompt with agent=%s, user=%s, task_context=%s",
+                log_identifier,
+                agent_name,
+                user_id,
+                task_context[:100] if task_context else None,
+            )
             skill_section = injector.get_skills_for_prompt(
                 agent_name=agent_name,
                 user_id=user_id,
                 task_context=task_context,
+            )
+            log.info(
+                "%s Got skill section: %s",
+                log_identifier,
+                skill_section[:200] if skill_section else "empty",
             )
             if skill_section:
                 skill_sections.append(skill_section)

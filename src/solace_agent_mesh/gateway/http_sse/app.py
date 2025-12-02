@@ -316,6 +316,63 @@ class WebUIBackendApp(BaseGatewayApp):
                 },
             },
         },
+        {
+            "name": "skill_resource_storage",
+            "required": False,
+            "type": "dict",
+            "description": "Configuration for skill bundled resources storage (scripts, data files).",
+            "dict_schema": {
+                "type": {
+                    "type": "string",
+                    "required": False,
+                    "default": "filesystem",
+                    "allowed": ["filesystem", "s3"],
+                    "description": "Storage backend type: 'filesystem' for local storage, 's3' for S3-compatible object storage.",
+                },
+                "base_path": {
+                    "type": "string",
+                    "required": False,
+                    "default": "./data/skill_resources",
+                    "description": "Base path for filesystem storage. Only used when type is 'filesystem'.",
+                },
+                "bucket": {
+                    "type": "string",
+                    "required": False,
+                    "default": None,
+                    "description": "S3 bucket name. Required when type is 's3'.",
+                },
+                "prefix": {
+                    "type": "string",
+                    "required": False,
+                    "default": "skills",
+                    "description": "S3 key prefix for skill resources. Only used when type is 's3'.",
+                },
+                "endpoint_url": {
+                    "type": "string",
+                    "required": False,
+                    "default": None,
+                    "description": "Custom S3 endpoint URL (for MinIO or other S3-compatible services). Only used when type is 's3'.",
+                },
+                "access_key_id": {
+                    "type": "string",
+                    "required": False,
+                    "default": None,
+                    "description": "AWS access key ID. If not provided, uses default AWS credential chain. Only used when type is 's3'.",
+                },
+                "secret_access_key": {
+                    "type": "string",
+                    "required": False,
+                    "default": None,
+                    "description": "AWS secret access key. If not provided, uses default AWS credential chain. Only used when type is 's3'.",
+                },
+                "region_name": {
+                    "type": "string",
+                    "required": False,
+                    "default": None,
+                    "description": "AWS region name. Only used when type is 's3'.",
+                },
+            },
+        },
     ]
 
     def __init__(self, app_info: Dict[str, Any], **kwargs):
