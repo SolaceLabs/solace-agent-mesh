@@ -10,6 +10,7 @@ import type { MessageFE, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { VariableDialog } from "./VariableDialog";
 import { fetchJsonWithError } from "@/lib/utils/api";
+import { useConfigContext } from "@/lib/hooks";
 
 export type ChatCommand = "create-template";
 
@@ -40,6 +41,7 @@ interface PromptsCommandProps {
 
 export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose, textAreaRef, onPromptSelect, messages = [], onReservedCommand }) => {
     const navigate = useNavigate();
+    const { configServerUrl } = useConfigContext();
     const [searchValue, setSearchValue] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
@@ -59,7 +61,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
         const fetchPromptGroups = async () => {
             setIsLoading(true);
             try {
-                const data = await fetchJsonWithError("/api/v1/prompts/groups/all");
+                const data = await fetchJsonWithError(`${configServerUrl}/api/v1/prompts/groups/all`);
                 setPromptGroups(data);
             } catch (error) {
                 console.error("Failed to fetch prompt groups:", error);

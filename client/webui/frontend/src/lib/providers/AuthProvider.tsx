@@ -9,7 +9,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-    const { frontend_use_authorization: useAuthorization, configAuthLoginUrl: authLoginUrl } = useConfigContext();
+    const { frontend_use_authorization: useAuthorization, configAuthLoginUrl: authLoginUrl, configServerUrl } = useConfigContext();
     const { fetchCsrfToken, clearCsrfToken } = useCsrfContext();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -28,7 +28,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
 
             try {
-                const userResponse = await authenticatedFetch("/api/v1/users/me", {
+                const userResponse = await authenticatedFetch(`${configServerUrl}/api/v1/users/me`, {
                     credentials: "include",
                     headers: { Accept: "application/json" },
                 });
@@ -82,7 +82,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             isMounted = false;
             window.removeEventListener("storage", handleStorageChange);
         };
-    }, [useAuthorization, authLoginUrl, fetchCsrfToken]);
+    }, [useAuthorization, authLoginUrl, fetchCsrfToken, configServerUrl]);
 
     const login = () => {
         window.location.href = authLoginUrl;

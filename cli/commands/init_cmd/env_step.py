@@ -25,6 +25,8 @@ ENV_DEFAULTS = {
     "S3_BUCKET_NAME": "",
     "S3_ENDPOINT_URL": "",
     "S3_REGION": "us-east-1",
+    "FRONTEND_SERVER_URL": "",
+    "ENTERPRISE_API_URL": "",
     "LLM_SERVICE_OAUTH_TOKEN_URL": "YOUR_LLM_SERVICE_OAUTH_TOKEN_URL_HERE",
     "LLM_SERVICE_OAUTH_CLIENT_ID": "YOUR_LLM_SERVICE_OAUTH_CLIENT_ID_HERE",
     "LLM_SERVICE_OAUTH_CLIENT_SECRET": "YOUR_LLM_SERVICE_OAUTH_CLIENT_SECRET_HERE",
@@ -200,6 +202,20 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             "Enter S3 Region (for S3 artifact service)",
             False,
             "S3_REGION",
+        ),
+        (
+            "frontend_server_url",
+            "FRONTEND_SERVER_URL",
+            "Enter Frontend Server URL (leave empty for same-origin)",
+            False,
+            "FRONTEND_SERVER_URL",
+        ),
+        (
+            "enterprise_api_url",
+            "ENTERPRISE_API_URL",
+            "Enter Enterprise API URL (leave empty if not using enterprise features)",
+            False,
+            "ENTERPRISE_API_URL",
         ),
     ]
 

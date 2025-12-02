@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
 import { authenticatedFetch } from "@/lib/utils/api";
+import { useConfigContext } from "./useConfigContext";
 
 interface UseSpeechToTextOptions {
     onTranscriptionComplete?: (text: string) => void;
@@ -108,6 +109,7 @@ function getFileExtension(mimeType: string): string {
 export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeechToTextReturn {
     const { onTranscriptionComplete, onTranscriptionUpdate, onError } = options;
     const { settings, updateSetting } = useAudioSettings();
+    const { configServerUrl } = useConfigContext();
 
     const [isListening, setIsListening] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -234,7 +236,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
     const startExternalRecording = useCallback(async () => {
         // Check if external STT is configured
         try {
-            const configResponse = await authenticatedFetch("/api/v1/speech/config");
+            const configResponse = await authenticatedFetch(`${configServerUrl}/api/v1/speech/config`);
             if (configResponse.ok) {
                 const config = await configResponse.json();
 
@@ -298,7 +300,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                         formData.append("language", settings.languageSTT);
                     }
 
-                    const response = await authenticatedFetch("/api/v1/speech/stt", {
+                    const response = await authenticatedFetch(`${configServerUrl}/api/v1/speech/stt`, {
                         method: "POST",
                         body: formData,
                     });

@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { detectVariables, validatePromptText } from "@/lib/utils/promptUtils";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useConfigContext } from "@/lib/hooks";
 import type { PromptGroup, TemplateConfig } from "@/lib/types/prompts";
 import { isReservedCommand } from "@/lib/constants/reservedCommands";
 import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
@@ -14,6 +14,7 @@ export interface ValidationErrors {
 
 export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
     const { addNotification } = useChatContext();
+    const { configServerUrl } = useConfigContext();
     const [config, setConfig] = useState<TemplateConfig>(() => {
         if (editingGroup) {
             return {
@@ -120,7 +121,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             };
 
             // Call API to create prompt group
-            const createdGroup = await fetchJsonWithError("/api/v1/prompts/groups", {
+            const createdGroup = await fetchJsonWithError(`${configServerUrl}/api/v1/prompts/groups`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -177,7 +178,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                     if (config.command !== editingGroup?.command) updateData.command = config.command;
                     updateData.initial_prompt = config.promptText;
 
-                    await fetchWithError(`/api/v1/prompts/groups/${groupId}`, {
+                    await fetchWithError(`${configServerUrl}/api/v1/prompts/groups/${groupId}`, {
                         method: "PATCH",
                         headers: {
                             "Content-Type": "application/json",
@@ -202,7 +203,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                         if (config.category !== editingGroup?.category) updateData.category = config.category;
                         if (config.command !== editingGroup?.command) updateData.command = config.command;
 
-                        await fetchWithError(`/api/v1/prompts/groups/${groupId}`, {
+                        await fetchWithError(`${configServerUrl}/api/v1/prompts/groups/${groupId}`, {
                             method: "PATCH",
                             headers: {
                                 "Content-Type": "application/json",
@@ -213,7 +214,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
 
                     // Then update prompt text if it changed
                     if (promptTextChanged && editingPromptId) {
-                        await fetchWithError(`/api/v1/prompts/${editingPromptId}`, {
+                        await fetchWithError(`${configServerUrl}/api/v1/prompts/${editingPromptId}`, {
                             method: "PATCH",
                             headers: {
                                 "Content-Type": "application/json",
