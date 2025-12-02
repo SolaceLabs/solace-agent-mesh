@@ -482,23 +482,34 @@ function handleArtifactNotification(step: VisualizerStep, manager: TimelineLayou
     let artifactX: number;
     let artifactY: number;
 
-    if (sourceToolNode) {
-        const ARTIFACT_X_OFFSET = 300; // Horizontal distance from tool to artifact
+    const ARTIFACT_X_OFFSET = 300; // Horizontal distance from tool to artifact
+    const ARTIFACT_DIFFERENCE_X = 100;
 
-        if (subflow) {
-            const toolNode = nodes.find(n => n.id === sourceToolNode.id);
-            if (toolNode) {
-                artifactX = toolNode.position.x + ARTIFACT_X_OFFSET;
-                artifactY = toolNode.position.y;
-            } else {
-                artifactX = (sourceToolNode.xPosition ?? LANE_X_POSITIONS.TOOLS) + ARTIFACT_X_OFFSET;
-                artifactY = sourceToolNode.yPosition ?? manager.nextAvailableGlobalY;
-            }
+    if (subflow) {
+        // For artifacts in a subflow, position relative to the group (like tools do)
+        const toolNode = nodes.find(n => n.id === sourceToolNode.id);
+        let relativeToolX: number;
+        let relativeToolY: number;
+
+        if (toolNode) {
+            // toolNode.position is already relative to the group
+            relativeToolX = toolNode.position.x;
+            relativeToolY = toolNode.position.y;
         } else {
-            artifactX = (sourceToolNode.xPosition ?? LANE_X_POSITIONS.TOOLS) + ARTIFACT_X_OFFSET;
-            artifactY = sourceToolNode.yPosition ?? manager.nextAvailableGlobalY;
+            // Fallback: calculate relative position from absolute position
+            const groupX = subflow.groupNode.xPosition ?? LANE_X_POSITIONS.TOOLS;
+            relativeToolX = (sourceToolNode.xPosition ?? LANE_X_POSITIONS.TOOLS) - groupX;
+            relativeToolY = (sourceToolNode.yPosition ?? manager.nextAvailableGlobalY) - (subflow.groupNode.yPosition ?? manager.nextAvailableGlobalY);
         }
-    } else return; // Cannot create artifact node without a source tool
+
+        // Position artifact relative to group, offset from the tool node
+        artifactX = relativeToolX + ARTIFACT_X_OFFSET;
+        artifactY = relativeToolY;
+    } else {
+        // For main flow, use absolute positioning (like tools do)
+        artifactX = (sourceToolNode.xPosition ?? LANE_X_POSITIONS.TOOLS) + ARTIFACT_X_OFFSET;
+        artifactY = sourceToolNode.yPosition ?? manager.nextAvailableGlobalY;
+    }
 
     const artifactNode: Node = {
         id: artifactNodeId,
@@ -526,13 +537,13 @@ function handleArtifactNotification(step: VisualizerStep, manager: TimelineLayou
 
     // Update maxY and maxContentXRelative to ensure group accommodates the artifact
     const artifactBottom = artifactY + NODE_HEIGHT;
-    const artifactRight = artifactX + NODE_WIDTH / 2;
+    const artifactRight = artifactX + NODE_WIDTH;
 
     if (subflow) {
         subflow.maxY = Math.max(subflow.maxY, artifactBottom);
 
         // Update maxContentXRelative to include artifact node
-        subflow.maxContentXRelative = Math.max(subflow.maxContentXRelative, artifactRight);
+        subflow.maxContentXRelative = Math.max(subflow.maxContentXRelative, artifactRight - ARTIFACT_DIFFERENCE_X);
 
         // Update group dimensions
         const requiredGroupWidth = subflow.maxContentXRelative + GROUP_PADDING_X;
