@@ -37,11 +37,12 @@ from ..tools.tool_definition import BuiltinTool
 from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
     EMBED_DELIMITER_CLOSE,
-)
-
-from ...common.utils.embeds import (
     EMBED_CHAIN_DELIMITER,
+    EARLY_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
 )
+from ...common.utils.embeds.types import ResolutionMode
 
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
@@ -115,6 +116,77 @@ async def _publish_data_part_status_update(
         )
 
 
+async def _resolve_early_embeds_in_chunk(
+    chunk: str,
+    callback_context: CallbackContext,
+    host_component: "SamAgentComponent",
+    log_identifier: str,
+) -> str:
+    """
+    Resolves early embeds in an artifact chunk before streaming to the browser.
+
+    Args:
+        chunk: The text chunk containing potential embeds
+        callback_context: The ADK callback context with services
+        host_component: The host component instance
+        log_identifier: Identifier for logging
+
+    Returns:
+        The chunk with early embeds resolved
+    """
+    if not chunk or EMBED_DELIMITER_OPEN not in chunk:
+        return chunk
+
+    try:
+        # Build resolution context from callback_context (pattern from EmbedResolvingMCPToolset)
+        invocation_context = callback_context._invocation_context
+        if not invocation_context:
+            log.warning("%s No invocation context available for embed resolution", log_identifier)
+            return chunk
+
+        session_context = invocation_context.session
+        if not session_context:
+            log.warning("%s No session context available for embed resolution", log_identifier)
+            return chunk
+
+        resolution_context = {
+            "artifact_service": invocation_context.artifact_service,
+            "session_context": {
+                "session_id": get_original_session_id(invocation_context),
+                "user_id": session_context.user_id,
+                "app_name": session_context.app_name,
+            },
+        }
+
+        # Resolve only early embeds (math, datetime, uuid, artifact_meta)
+        resolved_text, processed_until, _ = await resolve_embeds_in_string(
+            text=chunk,
+            context=resolution_context,
+            resolver_func=evaluate_embed,
+            types_to_resolve=EARLY_EMBED_TYPES,  # Only resolve early embeds
+            resolution_mode=ResolutionMode.ARTIFACT_STREAMING,  # New mode
+            log_identifier=log_identifier,
+            config=None,  # Could pass host_component config if needed
+        )
+
+        # SAFETY CHECK: If resolver buffered something, parser has a bug
+        if processed_until < len(chunk):
+            log.error(
+                "%s PARSER BUG DETECTED: Resolver buffered partial embed. "
+                "Chunk ends with: %r. Returning unresolved chunk to avoid corruption.",
+                log_identifier,
+                chunk[-50:] if len(chunk) > 50 else chunk,
+            )
+            # Fallback: return original unresolved chunk (degraded but not corrupted)
+            return chunk
+
+        return resolved_text
+
+    except Exception as e:
+        log.error("%s Error resolving embeds in chunk: %s", log_identifier, e, exc_info=True)
+        return chunk  # Return original chunk on error
+
+
 async def process_artifact_blocks_callback(
     callback_context: CallbackContext,
     llm_response: LlmResponse,
@@ -132,7 +204,7 @@ async def process_artifact_blocks_callback(
     parser: FencedBlockStreamParser = session.state.get(parser_state_key)
     if parser is None:
         log.debug("%s New turn. Creating new FencedBlockStreamParser.", log_identifier)
-        parser = FencedBlockStreamParser(progress_update_interval_bytes=250)
+        parser = FencedBlockStreamParser(progress_update_interval_bytes=50)
         session.state[parser_state_key] = parser
         session.state["completed_artifact_blocks_list"] = []
         session.state["completed_template_blocks_list"] = []
@@ -227,12 +299,20 @@ async def process_artifact_blocks_callback(
                                 log_identifier,
                             )
                         if a2a_context:
+                            # Resolve early embeds in the chunk before streaming
+                            resolved_chunk = await _resolve_early_embeds_in_chunk(
+                                chunk=event.chunk,
+                                callback_context=callback_context,
+                                host_component=host_component,
+                                log_identifier=f"{log_identifier}[ResolveChunk]",
+                            )
+
                             progress_data = ArtifactCreationProgressData(
                                 filename=filename,
                                 description=params.get("description"),
                                 status="in-progress",
                                 bytes_transferred=event.buffered_size,
-                                artifact_chunk=event.chunk,
+                                artifact_chunk=resolved_chunk,  # Resolved chunk
                             )
 
                             # Track the cumulative character count of what we've sent
@@ -365,12 +445,20 @@ async def process_artifact_blocks_callback(
                                     # There's unsent content - send it as a final progress update
                                     final_chunk = event.content[chars_already_sent:]
 
+                                    # Resolve embeds in final chunk
+                                    resolved_final_chunk = await _resolve_early_embeds_in_chunk(
+                                        chunk=final_chunk,
+                                        callback_context=callback_context,
+                                        host_component=host_component,
+                                        log_identifier=f"{log_identifier}[ResolveFinalChunk]",
+                                    )
+
                                     final_progress_data = ArtifactCreationProgressData(
                                         filename=filename,
                                         description=params.get("description"),
                                         status="in-progress",
                                         bytes_transferred=total_bytes,
-                                        artifact_chunk=final_chunk,
+                                        artifact_chunk=resolved_final_chunk,  # Resolved final chunk
                                     )
 
                                     await _publish_data_part_status_update(

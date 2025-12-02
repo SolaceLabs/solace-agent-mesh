@@ -40,6 +40,7 @@ export interface ArtifactBarProps {
 
 export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description, mimeType, size, status, expandable = false, expanded = false, onToggleExpand, actions, bytesTransferred, error, expandedContent, context = "chat", isDeleted = false, version, source }) => {
     const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
+    const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
 
     useEffect(() => {
         if (expandedContent) {
@@ -52,6 +53,20 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
             return () => clearTimeout(timer);
         }
     }, [expandedContent]);
+
+    // Track dark mode changes
+    useEffect(() => {
+        const observer = new MutationObserver(() => {
+            setIsDarkMode(document.documentElement.classList.contains('dark'));
+        });
+
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+
+        return () => observer.disconnect();
+    }, []);
 
     // Validate required props
     if (!filename || typeof filename !== "string") {
@@ -135,9 +150,34 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
         }
     };
 
+    // Define shadow colors based on theme
+    const restingShadow = isDarkMode
+        ? '0px 1px 4px 0px rgba(255, 255, 255, 0.15)'
+        : '0px 1px 4px 0px var(--color-secondary-w8040)';
+    const hoverShadow = isDarkMode
+        ? '0px 2px 8px 0px rgba(255, 255, 255, 0.25)'
+        : '0px 2px 8px 0px var(--color-secondary-w8040)';
+
     return (
         <div
-            className={`dark:bg-muted/30 w-full ${status === "completed" && actions?.onPreview && !isDeleted ? "cursor-pointer transition-all duration-200 ease-in-out hover:shadow-md" : ""} ${context === "list" ? "border-b" : "border-border rounded-md border"} ${isDeleted ? "opacity-60" : ""}`}
+            className={`w-full ${status === "completed" && actions?.onPreview && !isDeleted ? "cursor-pointer transition-all duration-200 ease-in-out" : ""} ${context === "list" ? "border-b" : "border-border rounded border"} ${isDeleted ? "opacity-60" : ""}`}
+            style={{
+                backgroundColor: 'var(--card)',
+                boxShadow: status === "completed" && actions?.onPreview && !isDeleted
+                    ? restingShadow
+                    : undefined,
+                borderRadius: context === "list" ? undefined : '4px',
+            }}
+            onMouseEnter={(e) => {
+                if (status === "completed" && actions?.onPreview && !isDeleted) {
+                    e.currentTarget.style.boxShadow = hoverShadow;
+                }
+            }}
+            onMouseLeave={(e) => {
+                if (status === "completed" && actions?.onPreview && !isDeleted) {
+                    e.currentTarget.style.boxShadow = restingShadow;
+                }
+            }}
             onClick={isDeleted ? undefined : handleBarClick}
         >
             <div className="flex min-h-[60px] items-center gap-3 p-3">

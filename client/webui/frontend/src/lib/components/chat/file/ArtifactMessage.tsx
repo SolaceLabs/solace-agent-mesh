@@ -165,12 +165,6 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         };
     }, [shouldRender, artifact?.filename, markArtifactAsDisplayed]);
 
-    // Check if we should render content inline (for images and audio)
-    const shouldRenderInline = useMemo(() => {
-        const renderType = getRenderType(fileName, fileMimeType);
-        return renderType === "image" || renderType === "audio";
-    }, [fileName, fileMimeType]);
-
     // Check if this is specifically an image for special styling
     const isImage = useMemo(() => {
         const renderType = getRenderType(fileName, fileMimeType);
@@ -375,21 +369,21 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                     // Images: no height limit, no scroll
                     maxHeight = "none";
                     overflowY = "visible";
-                } else if (renderType === "html") {
-                    // HTML: fixed height of 1000px
-                    height = "1000px";
-                    maxHeight = "1000px";
-                    overflowY = "auto";
                 } else if (isTextOrMarkdown) {
-                    // Text/Markdown: safety max height of 6000px, scroll if overflow
+                    // Text/Markdown: safety max height of 6000px, scroll if overflow (auto-expanded)
                     maxHeight = "6000px";
                     overflowY = "auto";
-                } else if (shouldRenderInline) {
-                    // Audio: 300px with scroll
+                } else if (renderType === "audio") {
+                    // Audio: 300px with scroll (auto-expanded)
                     maxHeight = "300px";
                     overflowY = "auto";
+                } else if (renderType === "html") {
+                    // HTML: fixed height of 900px (iframes need explicit height, not maxHeight)
+                    height = "600px";
+                    maxHeight = "600px";
+                    overflowY = "auto";
                 } else {
-                    // Other types: 400px with scroll
+                    // All other types (CSV, JSON, YAML, Mermaid, etc.): 900px with scroll
                     maxHeight = "600px";
                     overflowY = "auto";
                 }
@@ -397,11 +391,6 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 expandedContent = (
                     <div className="group relative max-w-full overflow-hidden">
                         {renderError && <MessageBanner variant="error" message={renderError} />}
-                        {props.status === "in-progress" && (
-                            <div className="bg-muted/50 border-border text-muted-foreground mb-2 rounded border px-3 py-2 text-xs">
-                                Note: Links and embedded content directives will be resolved when the artifact is complete
-                            </div>
-                        )}
                         <div
                             style={{
                                 height,
