@@ -131,7 +131,7 @@ async def auth_callback(
 
     # Store user info from claims (if available)
     if user_claims:
-        user_id = user_claims.get("sub") or user_claims.get("email") or "authenticated_user"
+        user_id = user_claims.get("email") or "authenticated_user"
         if user_id:
             session_manager = component.get_session_manager()
             session_manager.store_user_id(request, user_id)
