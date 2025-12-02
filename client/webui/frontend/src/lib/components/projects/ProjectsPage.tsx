@@ -8,7 +8,7 @@ import { ProjectImportDialog } from "./ProjectImportDialog";
 import { ProjectCards } from "./ProjectCards";
 import { ProjectDetailView } from "./ProjectDetailView";
 import { useProjectContext } from "@/lib/providers";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useConfigContext } from "@/lib/hooks";
 import type { Project } from "@/lib/types/projects";
 import { Header } from "@/lib/components/header";
 import { Button } from "@/lib/components/ui";
@@ -28,6 +28,7 @@ export const ProjectsPage: React.FC = () => {
 
     const { projects, isLoading, createProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
     const { handleNewSession, handleSwitchSession, addNotification, displayError } = useChatContext();
+    const { configServerUrl } = useConfigContext();
     const selectedProject = useMemo(() => projects.find(p => p.id === loaderData?.projectId) || null, [projects, loaderData?.projectId]);
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
@@ -102,7 +103,7 @@ export const ProjectsPage: React.FC = () => {
 
     const handleExport = async (project: Project) => {
         try {
-            const response = await fetchWithError(`/api/v1/projects/${project.id}/export`);
+            const response = await fetchWithError(`${configServerUrl}/api/v1/projects/${project.id}/export`);
             const blob = await response.blob();
             const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
             downloadBlob(blob, filename);
@@ -120,7 +121,7 @@ export const ProjectsPage: React.FC = () => {
             formData.append("file", file);
             formData.append("options", JSON.stringify(options));
 
-            const result = await fetchJsonWithError("/api/v1/projects/import", {
+            const result = await fetchJsonWithError(`${configServerUrl}/api/v1/projects/import`, {
                 method: "POST",
                 body: formData,
             });

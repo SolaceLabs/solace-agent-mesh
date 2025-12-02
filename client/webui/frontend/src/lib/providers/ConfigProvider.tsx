@@ -6,6 +6,7 @@ import { EmptyState } from "../components";
 
 interface BackendConfig {
     frontend_server_url: string;
+    frontend_enterprise_server_url: string;
     frontend_auth_login_url: string;
     frontend_use_authorization: boolean;
     frontend_welcome_message: string;
@@ -99,6 +100,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
                     configServerUrl: data.frontend_server_url,
+                    configEnterpriseServerUrl: data.frontend_enterprise_server_url,
                     configAuthLoginUrl: data.frontend_auth_login_url,
                     configUseAuthorization: effectiveUseAuthorization,
                     configWelcomeMessage: data.frontend_welcome_message,

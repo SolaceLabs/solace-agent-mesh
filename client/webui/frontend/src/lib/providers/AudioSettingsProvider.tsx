@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authenticatedFetch } from "@/lib/utils/api";
+import { useConfigContext } from "@/lib/hooks/useConfigContext";
 
 export interface SpeechSettings {
     // STT Settings
@@ -112,6 +113,7 @@ function loadSettingsFromStorage(): SpeechSettings {
 }
 
 export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { configServerUrl } = useConfigContext();
     const [settings, setSettings] = useState<SpeechSettings>(loadSettingsFromStorage);
     const [isInitialized, setIsInitialized] = useState(false);
     const [isTTSPlaying, setIsTTSPlaying] = useState(false);
@@ -121,7 +123,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         const fetchServerConfig = async () => {
             try {
                 // Fetch main config
-                const response = await authenticatedFetch("/api/v1/config");
+                const response = await authenticatedFetch(`${configServerUrl}/api/v1/config`);
                 if (response.ok) {
                     const config = await response.json();
                     const ttsSettings = config.tts_settings || {};
@@ -130,7 +132,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
                     let sttExternal = false;
                     let ttsExternal = false;
                     try {
-                        const speechResponse = await authenticatedFetch("/api/v1/speech/config");
+                        const speechResponse = await authenticatedFetch(`${configServerUrl}/api/v1/speech/config`);
                         if (speechResponse.ok) {
                             const speechConfig = await speechResponse.json();
                             sttExternal = speechConfig.sttExternal || false;
@@ -172,14 +174,14 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
                     });
                 }
             } catch (error) {
-                console.error("Error fetching TTS config from /api/v1/config:", error);
+                console.error("Error fetching TTS config from config endpoint:", error);
             } finally {
                 setIsInitialized(true);
             }
         };
 
         fetchServerConfig();
-    }, []);
+    }, [configServerUrl]);
 
     const updateSetting = useCallback(<K extends keyof SpeechSettings>(key: K, value: SpeechSettings[K]) => {
         setSettings(prev => {
