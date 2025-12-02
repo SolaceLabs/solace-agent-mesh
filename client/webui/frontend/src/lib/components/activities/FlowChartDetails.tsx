@@ -69,11 +69,6 @@ export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) =
     }, [messages, task]);
 
     const handleDownloadStim = async () => {
-        if (!task.taskId) {
-            console.error("Failed to download .stim file: Task ID is missing.");
-            return;
-        }
-
         try {
             const response = await fetchWithError(`/api/v1/tasks/${task.taskId}`);
             const blob = await response.blob();
