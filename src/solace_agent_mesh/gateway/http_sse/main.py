@@ -233,12 +233,6 @@ def _create_auth_middleware(component):
             await self.app(scope, receive, send)
 
         async def _handle_authenticated_request(self, request, scope, receive, send):
-            """
-            Handle authenticated request using token service for validation.
-
-            Delegates all token validation logic to the token service, which handles
-            SAM tokens (local validation) and IdP tokens (HTTP validation) with fallback.
-            """
             access_token = _extract_access_token(request)
 
             if not access_token:

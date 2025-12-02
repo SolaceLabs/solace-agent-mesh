@@ -21,12 +21,6 @@ class TokenService:
     """
 
     def __init__(self, component: Any):
-        """
-        Initialize the token service.
-
-        Args:
-            component: The gateway component instance
-        """
         self.component = component
         self.log_identifier = getattr(component, 'log_identifier', 'TokenService')
 
@@ -36,21 +30,10 @@ class TokenService:
         user_claims: Optional[Dict[str, Any]],
     ) -> str:
         """
-        Determine and return the appropriate access token for the user.
+        Return the appropriate access token.
 
-        Encapsulates the decision of which token to use:
-        - Base implementation: always returns IdP token (passthrough)
-        - Enterprise implementation: may mint and return SAM token
-
-        The router should call this method instead of directly calling mint_token()
-        and comparing results. This centralizes the token selection logic.
-
-        Args:
-            idp_access_token: IdP access token from OAuth provider
-            user_claims: User claims from id_token (None if validation failed)
-
-        Returns:
-            Access token string (either IdP token or SAM token)
+        Base: returns IdP token (passthrough)
+        Enterprise: may mint and return SAM token
         """
         log.debug(
             "%s Base TokenService: Returning IdP access token (passthrough mode)",
@@ -62,15 +45,7 @@ class TokenService:
         self,
         verified_claims: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """
-        Extract standardized claims from verified token.
-
-        Args:
-            verified_claims: Claims dict from validate_token()
-
-        Returns:
-            Standardized claims dict with user info and permissions
-        """
+        """Extract standardized claims (sub, email, name, roles, scopes)."""
         return {
             "sub": verified_claims.get("sub"),
             "email": verified_claims.get("email"),
@@ -81,16 +56,10 @@ class TokenService:
 
     def is_sam_token(self, token: str) -> bool:
         """
-        Check if the given token is a SAM token.
+        Check if token is a SAM token.
 
-        Base implementation always returns False since it only uses IdP tokens.
-        Enterprise implementation can override to check SAM token signatures.
-
-        Args:
-            token: Access token string
-
-        Returns:
-            True if token is a SAM token, False otherwise
+        Base: always False (only uses IdP tokens)
+        Enterprise: can override to check SAM signatures
         """
         return False
 
@@ -101,20 +70,13 @@ class TokenService:
         auth_provider: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
-        Validate a token with automatic fallback strategy.
+        Validate token with automatic fallback.
 
-        Base implementation validates IdP tokens via HTTP call to external auth service.
-        Enterprise implementation validates SAM tokens locally and falls back to IdP validation.
+        Base: validates IdP tokens via HTTP to external auth service
+        Enterprise: validates SAM tokens locally, falls back to IdP validation
 
-        Args:
-            token: Access token to validate
-            auth_service_url: External auth service URL (required for IdP validation)
-            auth_provider: Auth provider name (required for IdP validation)
-
-        Returns:
-            User claims dict if valid, None if invalid or validation failed
+        Returns user claims dict if valid, None otherwise.
         """
-        # Base implementation: validate IdP token via HTTP
         if not auth_service_url or not auth_provider:
             log.warning(
                 "%s Cannot validate token: auth_service_url and auth_provider required",
@@ -123,7 +85,6 @@ class TokenService:
             return None
 
         try:
-            # Validate token via HTTP call
             async with httpx.AsyncClient() as client:
                 validation_response = await client.post(
                     f"{auth_service_url}/is_token_valid",
@@ -139,7 +100,6 @@ class TokenService:
                 )
                 return None
 
-            # Get user info via HTTP call
             async with httpx.AsyncClient() as client:
                 userinfo_response = await client.get(
                     f"{auth_service_url}/user_info?provider={auth_provider}",
@@ -184,10 +144,8 @@ class TokenServiceRegistry:
 
     @classmethod
     def bind_token_service(cls, service_class: type) -> None:
-        """Bind a custom token service implementation."""
         cls._token_service_class = service_class
 
     @classmethod
     def get_token_service_class(cls) -> type:
-        """Get the bound token service class."""
         return cls._token_service_class
