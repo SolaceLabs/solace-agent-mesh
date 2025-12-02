@@ -58,7 +58,16 @@ def mock_component():
     
     # Mock CORS origins
     component.get_cors_origins.return_value = ["http://localhost:3000"]
-    
+
+    # Mock token service
+    mock_token_service = MagicMock()
+    mock_token_service.validate_token_with_fallback = AsyncMock(return_value={
+        "sub": "test_user",
+        "email": "test@example.com",
+        "name": "Test User"
+    })
+    component.token_service = mock_token_service
+
     # Mock get_app
     mock_app = MagicMock()
     mock_app.app_config = {
@@ -69,7 +78,7 @@ def mock_component():
         "frontend_redirect_url": "http://localhost:3000"
     }
     component.get_app.return_value = mock_app
-    
+
     return component
 
 
@@ -85,16 +94,6 @@ def mock_request():
     request.method = "GET"
     request.state = MagicMock()
     return request
-
-
-@pytest.fixture
-def mock_httpx_client():
-    """Create a mock httpx AsyncClient."""
-    with patch('solace_agent_mesh.gateway.http_sse.main.httpx.AsyncClient') as mock_client:
-        client_instance = AsyncMock()
-        mock_client.return_value.__aenter__.return_value = client_instance
-        mock_client.return_value.__aexit__.return_value = None
-        yield client_instance
 
 
 @pytest.fixture(autouse=True)
@@ -184,108 +183,8 @@ class TestTokenExtraction:
         assert token is None
 
 
-class TestTokenValidation:
-    """Test _validate_token function."""
-    
-    @pytest.mark.asyncio
-    async def test_validate_token_success(self, mock_httpx_client):
-        """Test successful token validation."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_httpx_client.post.return_value = mock_response
-
-        result = await main._validate_token_http(
-            "http://auth-service",
-            "azure",
-            "valid_token"
-        )
-
-        assert result is True
-        mock_httpx_client.post.assert_called_once_with(
-            "http://auth-service/is_token_valid",
-            json={"provider": "azure"},
-            headers={"Authorization": "Bearer valid_token"}
-        )
-
-    @pytest.mark.asyncio
-    async def test_validate_token_failure(self, mock_httpx_client):
-        """Test failed token validation."""
-        mock_response = MagicMock()
-        mock_response.status_code = 401
-        mock_httpx_client.post.return_value = mock_response
-
-        result = await main._validate_token_http(
-            "http://auth-service",
-            "azure",
-            "invalid_token"
-        )
-
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_validate_token_with_different_providers(self, mock_httpx_client):
-        """Test token validation with different auth providers."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_httpx_client.post.return_value = mock_response
-
-        providers = ["azure", "okta", "auth0", "keycloak"]
-
-        for provider in providers:
-            await main._validate_token_http(
-                "http://auth-service",
-                provider,
-                "test_token"
-            )
-
-        assert mock_httpx_client.post.call_count == len(providers)
-
-
-class TestUserInfoRetrieval:
-    """Test _get_user_info function."""
-    
-    @pytest.mark.asyncio
-    async def test_get_user_info_success(self, mock_httpx_client):
-        """Test successful user info retrieval."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "sub": "user123",
-            "email": "user@example.com",
-            "name": "Test User"
-        }
-        mock_httpx_client.get.return_value = mock_response
-        
-        user_info = await main._get_user_info(
-            "http://auth-service",
-            "azure",
-            "valid_token"
-        )
-        
-        assert user_info == {
-            "sub": "user123",
-            "email": "user@example.com",
-            "name": "Test User"
-        }
-        mock_httpx_client.get.assert_called_once_with(
-            "http://auth-service/user_info?provider=azure",
-            headers={"Authorization": "Bearer valid_token"}
-        )
-    
-    @pytest.mark.asyncio
-    async def test_get_user_info_failure(self, mock_httpx_client):
-        """Test failed user info retrieval."""
-        mock_response = MagicMock()
-        mock_response.status_code = 401
-        mock_httpx_client.get.return_value = mock_response
-        
-        user_info = await main._get_user_info(
-            "http://auth-service",
-            "azure",
-            "invalid_token"
-        )
-        
-        assert user_info is None
+# Token validation tests removed - logic moved to TokenService.validate_token_with_fallback()
+# See tests/unit/common/services/test_token_service.py for token validation tests
 
 
 class TestUserIdentifierExtraction:
