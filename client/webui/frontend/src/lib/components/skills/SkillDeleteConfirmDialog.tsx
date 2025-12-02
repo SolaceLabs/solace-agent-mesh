@@ -17,7 +17,7 @@ export const SkillDeleteConfirmDialog: React.FC<SkillDeleteConfirmDialogProps> =
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <AlertTriangle className="text-destructive h-5 w-5" />
+                        <AlertTriangle className="h-5 w-5" />
                         Delete Skill
                     </DialogTitle>
                 </DialogHeader>
@@ -30,10 +30,10 @@ export const SkillDeleteConfirmDialog: React.FC<SkillDeleteConfirmDialogProps> =
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={onCancel} disabled={isDeleting}>
+                    <Button variant="ghost" onClick={onCancel} disabled={isDeleting}>
                         Cancel
                     </Button>
-                    <Button variant="destructive" onClick={onConfirm} disabled={isDeleting}>
+                    <Button variant="outline" onClick={onConfirm} disabled={isDeleting}>
                         {isDeleting ? "Deleting..." : "Delete"}
                     </Button>
                 </DialogFooter>
