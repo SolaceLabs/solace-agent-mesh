@@ -225,9 +225,8 @@ export const PromptsPage: React.FC = () => {
                 // Revert on error
                 setPromptGroups(prev => prev.map(p => (p.id === id ? { ...p, isPinned: currentStatus } : p)));
                 addNotification("Failed to update pin status", "error");
-            } else {
-                addNotification(currentStatus ? "Template unpinned" : "Template pinned", "success");
             }
+            // No toast notification on success - the star icon change provides visual feedback
         } catch (error) {
             // Revert on error
             setPromptGroups(prev => prev.map(p => (p.id === id ? { ...p, isPinned: currentStatus } : p)));
