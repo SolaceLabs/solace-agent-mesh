@@ -102,7 +102,7 @@ jobs:
 
       - name: Install Playwright browsers
         if: steps.restore-playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium --with-deps
+        run: ./node_modules/.bin/playwright install chromium --with-deps
 
       - name: Save Playwright cache
         if: steps.restore-playwright-cache.outputs.cache-hit != 'true'
@@ -115,7 +115,7 @@ jobs:
         run: npm run lint
 
       - name: Run Storybook Tests
-        run: npm run ci:storybook 
+        run: npm run ci:storybook
 
       - name: Build UI package
         run: npm run build-package

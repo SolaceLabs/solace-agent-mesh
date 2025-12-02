@@ -64,7 +64,7 @@ class CustomBuildHook(BuildHookInterface):
         log(">>> Building Solace Agent Mesh Config Portal\n")
         os.chdir("config_portal/frontend")
         try:
-            log("### npm install")
+            log("### npm ci")
             subprocess.run(
                 [npm, "ci"], check=True, stdout=log_file, stderr=subprocess.STDOUT
             )
@@ -83,7 +83,7 @@ class CustomBuildHook(BuildHookInterface):
         log(">>> Building Solace Agent Mesh Web UI\n")
         os.chdir("client/webui/frontend")
         try:
-            log("### npm install")
+            log("### npm ci")
             subprocess.run(
                 [npm, "ci"], check=True, stdout=log_file, stderr=subprocess.STDOUT
             )
@@ -104,7 +104,7 @@ class CustomBuildHook(BuildHookInterface):
         log(">>> Building Solace Agent Mesh Documentation\n")
         os.chdir("docs")
         try:
-            log("### npm install")
+            log("### npm ci")
             subprocess.run(
                 [npm, "ci"], check=True, stdout=log_file, stderr=subprocess.STDOUT
             )
