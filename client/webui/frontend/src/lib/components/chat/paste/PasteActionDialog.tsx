@@ -229,8 +229,8 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
         <Dialog open={isOpen} onOpenChange={handleCancel}>
             <DialogContent className="flex max-h-[80vh] flex-col sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Create Artifact</DialogTitle>
-                    <DialogDescription>Save this text as an artifact that the agent can access</DialogDescription>
+                    <DialogTitle>Create File</DialogTitle>
+                    <DialogDescription>Save this text as a file that the agent can access</DialogDescription>
                 </DialogHeader>
 
                 <div className="flex-1 space-y-4 overflow-y-auto py-4">
@@ -249,13 +249,13 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                             }}
                         />
                         {showOverwriteWarning && (
-                            <p className="text-sm text-yellow-600 dark:text-yellow-500">⚠️ An artifact with this name already exists. {userConfirmedOverwrite ? "Click again to confirm overwrite." : "Saving will create a new version."}</p>
+                            <p className="text-sm text-yellow-600 dark:text-yellow-500">⚠️ A file with this name already exists. {userConfirmedOverwrite ? "Click again to confirm overwrite." : "Saving will create a new version."}</p>
                         )}
                     </div>
 
                     <div className="space-y-2">
                         <Label htmlFor="description">Description (optional)</Label>
-                        <Input id="description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief description of this artifact" />
+                        <Input id="description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief description of this file" />
                     </div>
 
                     <div className="space-y-2">
@@ -301,7 +301,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                         Cancel
                     </Button>
                     <Button onClick={handleSaveArtifact} disabled={isSaving || !title.trim()}>
-                        {isSaving ? "Saving..." : titleExists && userConfirmedOverwrite ? "Overwrite & Save" : titleExists ? "Confirm Overwrite" : "Save Artifact"}
+                        {isSaving ? "Saving..." : titleExists && userConfirmedOverwrite ? "Overwrite & Save" : titleExists ? "Confirm Overwrite" : "Save File"}
                     </Button>
                 </DialogFooter>
             </DialogContent>
