@@ -6,6 +6,7 @@ Enterprise can override to provide self-signed SAM tokens.
 """
 import logging
 from typing import Optional, Dict, Any
+import httpx
 
 log = logging.getLogger(__name__)
 
@@ -129,6 +130,105 @@ class TokenService:
             "roles": verified_claims.get("roles", []),
             "scopes": verified_claims.get("scopes", []),
         }
+
+    def is_sam_token(self, token: str) -> bool:
+        """
+        Check if the given token is a SAM token.
+
+        Base implementation always returns False since it only uses IdP tokens.
+        Enterprise implementation can override to check SAM token signatures.
+
+        Args:
+            token: Access token string
+
+        Returns:
+            True if token is a SAM token, False otherwise
+        """
+        return False
+
+    async def validate_token_with_fallback(
+        self,
+        token: str,
+        task_id: Optional[str] = None,
+        auth_service_url: Optional[str] = None,
+        auth_provider: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Validate a token with automatic fallback strategy.
+
+        Base implementation validates IdP tokens via HTTP call to external auth service.
+        Enterprise implementation validates SAM tokens locally and falls back to IdP validation.
+
+        Args:
+            token: Access token to validate
+            task_id: Optional task ID for SAM token binding verification
+            auth_service_url: External auth service URL (required for IdP validation)
+            auth_provider: Auth provider name (required for IdP validation)
+
+        Returns:
+            User claims dict if valid, None if invalid or validation failed
+        """
+        # Base implementation: validate IdP token via HTTP
+        if not auth_service_url or not auth_provider:
+            log.warning(
+                "%s Cannot validate token: auth_service_url and auth_provider required",
+                self.log_identifier
+            )
+            return None
+
+        try:
+            # Validate token via HTTP call
+            async with httpx.AsyncClient() as client:
+                validation_response = await client.post(
+                    f"{auth_service_url}/is_token_valid",
+                    json={"provider": auth_provider},
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+
+            if validation_response.status_code != 200:
+                log.debug(
+                    "%s IdP token validation failed (HTTP %d)",
+                    self.log_identifier,
+                    validation_response.status_code
+                )
+                return None
+
+            # Get user info via HTTP call
+            async with httpx.AsyncClient() as client:
+                userinfo_response = await client.get(
+                    f"{auth_service_url}/user_info?provider={auth_provider}",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+
+            if userinfo_response.status_code != 200:
+                log.warning(
+                    "%s Failed to get user info from auth service (HTTP %d)",
+                    self.log_identifier,
+                    userinfo_response.status_code
+                )
+                return None
+
+            user_info = userinfo_response.json()
+            log.debug(
+                "%s IdP token validated successfully via HTTP",
+                self.log_identifier
+            )
+            return user_info
+
+        except httpx.RequestError as exc:
+            log.error(
+                "%s HTTP error during token validation: %s",
+                self.log_identifier,
+                exc
+            )
+            return None
+        except Exception as exc:
+            log.error(
+                "%s Unexpected error during token validation: %s",
+                self.log_identifier,
+                exc
+            )
+            return None
 
 
 class TokenServiceRegistry:

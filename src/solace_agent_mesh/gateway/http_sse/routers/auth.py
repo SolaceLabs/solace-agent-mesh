@@ -124,24 +124,14 @@ async def auth_callback(
     auth_task_id = f"auth-{user_id}-{int(time.time())}"
 
     # Token service handles all decision logic (feature flag, claims check, fallback)
-    token_to_return = await component.token_service.get_access_token(
+    ui_access_token = await component.token_service.get_access_token(
         idp_access_token=access_token,
         user_claims=user_claims,
         task_id=auth_task_id,
     )
 
-    # Store in session based on token type
-    if token_to_return != access_token:
-        # SAM token was returned
-        request.session["sam_token"] = token_to_return
-        request.session["sam_token_task_id"] = auth_task_id
-        request.session["token_type"] = "sam"
-    else:
-        # IdP token returned (base mode or fallback)
-        request.session["token_type"] = "idp"
-
-    # Store IdP tokens in session (always keep these for refresh flow)
-    request.session["access_token"] = access_token
+    # Store the token to use for authorization (SAM token if enabled, otherwise IdP token)
+    request.session["access_token"] = ui_access_token
     if refresh_token:
         request.session["refresh_token"] = refresh_token
 
@@ -174,7 +164,7 @@ async def auth_callback(
 
     # Return token to frontend
     frontend_base_url = config.get("frontend_redirect_url", "http://localhost:3000")
-    hash_params = {"access_token": token_to_return}
+    hash_params = {"access_token": ui_access_token}
     if refresh_token:
         hash_params["refresh_token"] = refresh_token
 
@@ -237,29 +227,19 @@ async def refresh_token(
     auth_task_id = f"auth-{user_id}-{int(time.time())}"
 
     # Token service handles all decision logic
-    token_to_return = await component.token_service.get_access_token(
+    ui_access_token = await component.token_service.get_access_token(
         idp_access_token=access_token,
         user_claims=user_claims,
         task_id=auth_task_id,
     )
 
-    # Store in session based on token type
-    if token_to_return != access_token:
-        # SAM token was returned
-        request.session["sam_token"] = token_to_return
-        request.session["sam_token_task_id"] = auth_task_id
-        request.session["token_type"] = "sam"
-    else:
-        # IdP token returned
-        request.session["token_type"] = "idp"
-
-    # Update session with new IdP tokens
+    # Update session with new tokens (SAM token if enabled, otherwise IdP token)
     session_manager = component.get_session_manager()
-    session_manager.store_auth_tokens(request, access_token, new_refresh_token)
+    session_manager.store_auth_tokens(request, ui_access_token, new_refresh_token)
     log.info("Successfully refreshed and updated tokens in session.")
 
     return {
-        "access_token": token_to_return,
+        "access_token": ui_access_token,
         "refresh_token": new_refresh_token,
     }
 
