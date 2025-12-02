@@ -120,7 +120,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             };
 
             // Call API to create prompt group
-            const data = await fetchJsonWithError("/api/v1/prompts/groups", {
+            const createdGroup = await fetchJsonWithError("/api/v1/prompts/groups", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -131,7 +131,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             setSaveStatus("success");
             addNotification("Template saved", "success");
             setIsLoading(false);
-            return data.id;
+            return createdGroup.id;
         } catch (error) {
             console.error("Error saving template:", error);
             setSaveStatus("error");

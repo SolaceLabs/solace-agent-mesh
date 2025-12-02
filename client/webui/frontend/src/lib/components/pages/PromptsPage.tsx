@@ -193,8 +193,6 @@ export const PromptsPage: React.FC = () => {
             await fetchWithError(`/api/v1/prompts/groups/${id}/pin`, {
                 method: "PATCH",
             });
-
-            addNotification(currentStatus ? "Template unpinned" : "Template pinned", "success");
         } catch (error) {
             // Revert on error
             setPromptGroups(prev => prev.map(p => (p.id === id ? { ...p, isPinned: currentStatus } : p)));
@@ -245,7 +243,7 @@ export const PromptsPage: React.FC = () => {
                 },
             };
 
-            const data = await fetchJsonWithError("/api/v1/prompts/import", {
+            const result = await fetchJsonWithError("/api/v1/prompts/import", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -254,8 +252,8 @@ export const PromptsPage: React.FC = () => {
             });
 
             // Show warnings if any (combine into single notification for better UX)
-            if (data.warnings && data.warnings.length > 0) {
-                const warningMessage = data.warnings.length === 1 ? data.warnings[0] : `Import completed with ${data.warnings.length} warnings:\n${data.warnings.join("\n")}`;
+            if (result.warnings && result.warnings.length > 0) {
+                const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
                 addNotification(warningMessage, "info");
             }
 
@@ -267,7 +265,7 @@ export const PromptsPage: React.FC = () => {
 
             // Refresh prompts and select the newly imported one
             await fetchPromptGroups();
-            setNewlyCreatedPromptId(data.prompt_group_id);
+            setNewlyCreatedPromptId(result.prompt_group_id);
 
             addNotification("Prompt imported successfully", "success");
         } catch (error) {

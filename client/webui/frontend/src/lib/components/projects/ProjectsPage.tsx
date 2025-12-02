@@ -107,7 +107,7 @@ export const ProjectsPage: React.FC = () => {
             const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
             downloadBlob(blob, filename);
 
-            addNotification("Project exported successfully", "success");
+            addNotification("Project exported", "success");
         } catch (error) {
             console.error("Failed to export project:", error);
             displayError({ title: "Failed to Export Project", error: getErrorMessage(error, "An unknown error occurred while exporting the project.") });
@@ -134,7 +134,7 @@ export const ProjectsPage: React.FC = () => {
             // Refresh projects and navigate to the newly imported one
             await refetch();
             navigate(`/projects/${result.projectId}`);
-            addNotification(`Project imported successfully with ${result.artifactsImported} artifacts`, "success");
+            addNotification(`Project imported with ${result.artifactsImported} artifacts`, "success");
         } catch (error) {
             console.error("Failed to import project:", error);
             throw error; // Re-throw to let dialog handle it

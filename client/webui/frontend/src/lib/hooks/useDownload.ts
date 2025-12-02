@@ -25,10 +25,9 @@ const downloadArtifactFile = async (apiPrefix: string, sessionId: string | null,
     else if (activeProjectId) {
         url = `${apiPrefix}/api/v1/artifacts/null/${encodeURIComponent(artifact.filename)}?project_id=${activeProjectId}`;
     }
-    // No valid context - log and ignore
+    // No valid context
     else {
-        console.error("No valid session or project context for downloading artifact.");
-        return;
+        throw new Error("No valid session or project context for downloading artifact.");
     }
 
     const response = await fetchWithError(url);
