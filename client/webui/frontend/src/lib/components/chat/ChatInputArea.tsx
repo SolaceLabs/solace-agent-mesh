@@ -266,7 +266,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             if (result) {
                 // Type guard: check if result is an error
                 if ("error" in result) {
-                    displayError({ title: "Failed to Create artifact", error: result.error });
+                    displayError({ title: "Failed to Create Artifact", error: result.error });
                     return;
                 }
 
@@ -294,7 +294,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 throw new Error("Artifact upload returned no result");
             }
         } catch (error) {
-            displayError({ title: "Error creating artifact", error: getErrorMessage(error, "An unknown error occurred.") });
+            displayError({ title: "Failed to Create Artifact", error: getErrorMessage(error, "An unknown error occurred.") });
         } finally {
             setPendingPasteContent(null);
             setShowArtifactForm(false);
