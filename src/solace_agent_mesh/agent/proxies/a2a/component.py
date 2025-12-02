@@ -269,7 +269,7 @@ class A2AProxyComponent(BaseProxyComponent):
         max_auth_retries: int = 1
         auth_retry_count: int = 0
 
-        # Step 2: Check for OAuth2 authorization code flow (complex case - checked last)
+        # Step 2: Check for OAuth2 authorization code flow
         # This auth type requires user interaction and can pause the task,
         # so we check it before attempting normal request flow
         agent_config = self._get_agent_config(agent_name)
@@ -813,6 +813,7 @@ class A2AProxyComponent(BaseProxyComponent):
         - static_bearer: Static bearer token authentication
         - static_apikey: Static API key authentication
         - oauth2_client_credentials: OAuth 2.0 Client Credentials flow with automatic token refresh
+        - oauth2_authorization_code: OAuth 2.0 Authorization Code flow
 
         For backward compatibility, legacy configurations without a 'type' field
         will have their type inferred from the 'scheme' field.
@@ -982,9 +983,28 @@ class A2AProxyComponent(BaseProxyComponent):
                             "User authorization should have completed in _forward_request()."
                         )
 
+                    # Find the OAuth2 authorization code scheme name from agent card
+                    oauth_scheme_name = None
+                    if agent_card and agent_card.security_schemes:
+                        for scheme_name, scheme_wrapper in agent_card.security_schemes.items():
+                            scheme = scheme_wrapper.root
+                            if (hasattr(scheme, 'type') and scheme.type.lower() == 'oauth2' and
+                                    hasattr(scheme, 'flows') and scheme.flows and
+                                    scheme.flows.authorization_code):
+                                oauth_scheme_name = scheme_name
+                                break
+
+                    # Fallback if not found
+                    if not oauth_scheme_name:
+                        oauth_scheme_name = "oauth2_authorization_code"
+                        log.warning(
+                            "%s No OAuth2 authorization code scheme found in agent card, using default name",
+                            self.log_identifier
+                        )
+
                     # Store in credential store for AuthInterceptor
                     await self._credential_store.set_credentials(
-                        session_id, "bearer", access_token
+                        session_id, oauth_scheme_name, access_token
                     )
 
                 except ImportError:
