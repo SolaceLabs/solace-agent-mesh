@@ -1233,12 +1233,39 @@ async def import_prompt(
                     detail=f"Invalid export format: missing required field '{field}'"
                 )
         
-        # Extract fields
+        # Extract fields with validation
         name = prompt_info["name"]
+        # Truncate name if it exceeds max length (255 chars)
+        if len(name) > 255:
+            original_name = name
+            name = name[:252] + "..."
+            warnings.append(
+                f"Name was truncated from {len(original_name)} to 255 characters"
+            )
+        
         description = prompt_info.get("description")
+        # Truncate description if it exceeds max length (1000 chars)
+        if description and len(description) > 1000:
+            description = description[:997] + "..."
+            warnings.append("Description was truncated to 1000 characters")
+        
         category = prompt_info.get("category") if options.preserve_category else None
+        # Truncate category if it exceeds max length (100 chars)
+        if category and len(category) > 100:
+            category = category[:97] + "..."
+            warnings.append("Category was truncated to 100 characters")
+        
         command = prompt_info.get("command") if options.preserve_command else None
+        # Truncate command if it exceeds max length (50 chars)
+        if command and len(command) > 50:
+            command = command[:50]
+            warnings.append("Command was truncated to 50 characters")
+        
         prompt_text = prompt_info["prompt_text"]
+        # Truncate prompt_text if it exceeds max length (10000 chars)
+        if len(prompt_text) > 10000:
+            prompt_text = prompt_text[:9997] + "..."
+            warnings.append("Prompt text was truncated to 10000 characters")
         
         # Handle command conflicts
         if command:
