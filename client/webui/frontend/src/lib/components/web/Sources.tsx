@@ -27,7 +27,7 @@ interface SourcesProps {
 }
 
 export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchClick }: SourcesProps & { ragMetadata?: { sources?: RAGSource[] } }) {
-    // Process and filter web sources only (exclude images)
+    // Process all sources including images (use source page link for images, not the image URL)
     const webSources = useMemo(() => {
         if (!ragMetadata?.sources) {
             return [];
@@ -39,15 +39,22 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
         ragMetadata.sources.forEach((s: RAGSource) => {
             const sourceType = s.sourceType || "web";
 
-            // Skip image sources
+            // For image sources, use the source page link (not the image URL)
+            let link: string;
+            let title: string;
+
             if (sourceType === "image") {
-                return;
+                link = s.sourceUrl || s.metadata?.link || "";
+                title = s.metadata?.title || s.filename || "Image source";
+            } else {
+                // Handle regular web sources
+                link = s.sourceUrl || s.metadata?.link || "";
+                title = s.metadata?.title || s.filename || "";
             }
 
-            // Handle regular web sources
             const source: SearchSource = {
-                link: s.sourceUrl || s.metadata?.link || "",
-                title: s.metadata?.title || s.filename || "",
+                link,
+                title,
                 snippet: s.contentPreview || "",
                 attribution: s.filename || "",
                 processed: false,
@@ -57,8 +64,8 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
             // Create a unique key for deduplication
             const uniqueKey = `${sourceType}:${source.link}:${source.title}`;
 
-            // Skip duplicates
-            if (seenSources.has(uniqueKey)) {
+            // Skip duplicates or sources without links
+            if (!source.link || seenSources.has(uniqueKey)) {
                 return;
             }
             seenSources.add(uniqueKey);

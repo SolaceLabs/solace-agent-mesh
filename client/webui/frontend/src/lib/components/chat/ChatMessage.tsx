@@ -502,18 +502,25 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                     ? (() => {
                           const allSources = taskRagData.flatMap(r => r.sources);
 
-                          // For deep research: filter to only show fetched sources (not snippets or images)
-                          // For web search: show only web sources (exclude images)
+                          // For deep research: filter to only show fetched sources (not snippets)
+                          // For web search: show all sources including images (images with source links will be shown)
                           const sourcesToShow = isDeepResearchComplete
                               ? allSources.filter(source => {
                                     const sourceType = source.sourceType || "web";
-                                    if (sourceType === "image") return false;
+                                    // For images in deep research: include if they have a source link
+                                    if (sourceType === "image") {
+                                        return source.sourceUrl || source.metadata?.link;
+                                    }
                                     const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
                                     return wasFetched;
                                 })
                               : allSources.filter(source => {
                                     const sourceType = source.sourceType || "web";
-                                    return sourceType !== "image";
+                                    // For images in web search: include if they have a source link
+                                    if (sourceType === "image") {
+                                        return source.sourceUrl || source.metadata?.link;
+                                    }
+                                    return true;
                                 });
 
                           console.log("[ChatMessage] Rendering Sources component:", {
@@ -523,7 +530,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                               sampleSource: sourcesToShow[0],
                           });
 
-                          // Only render if we have non-image sources
+                          // Only render if we have sources
                           if (sourcesToShow.length === 0) return null;
 
                           return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleSourcesClick} />;

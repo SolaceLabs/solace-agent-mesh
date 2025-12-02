@@ -77,6 +77,8 @@ apps:
           tool_config:    
             # API keys for web search
             tavily_api_key: "${TAVILY_API_KEY}"
+            exa_api_key: "${EXA_API_KEY}"
+            brave_api_key: "${BRAVE_API_KEY}"
             google_search_api_key: "${GOOGLE_SEARCH_API_KEY}"
             google_cse_id: "${GOOGLE_CSE_ID}"
 

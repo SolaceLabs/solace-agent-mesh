@@ -49,6 +49,19 @@ const SourceCard: React.FC<{
 }> = ({ source }) => {
     const [isExpanded, setIsExpanded] = React.useState(false);
     const contentPreview = source.contentPreview;
+    const sourceType = source.sourceType || "web";
+
+    // For image sources, use the source page link (not the imageUrl)
+    let sourceUrl: string;
+    let displayTitle: string;
+
+    if (sourceType === "image") {
+        sourceUrl = source.sourceUrl || source.metadata?.link || "";
+        displayTitle = source.metadata?.title || source.filename || "Image source";
+    } else {
+        sourceUrl = source.sourceUrl || source.url || "";
+        displayTitle = source.title || source.filename || extractFilename(source.fileId);
+    }
 
     // Don't show content preview if it's just "Reading..." placeholder
     const hasRealContent = contentPreview && contentPreview !== "Reading...";
@@ -64,9 +77,15 @@ const SourceCard: React.FC<{
             <div className="mb-2 flex flex-shrink-0 items-center justify-between">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                     <FileText className="text-muted-foreground h-3 w-3 flex-shrink-0" />
-                    <span className="truncate text-xs font-medium" title={source.title || source.filename || extractFilename(source.fileId)}>
-                        {source.title || source.filename || extractFilename(source.fileId)}
-                    </span>
+                    {sourceUrl ? (
+                        <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="text-primary truncate text-xs font-medium hover:underline" title={displayTitle}>
+                            {displayTitle}
+                        </a>
+                    ) : (
+                        <span className="truncate text-xs font-medium" title={displayTitle}>
+                            {displayTitle}
+                        </span>
+                    )}
                 </div>
                 {showScore && (
                     <div className="ml-2 flex flex-shrink-0 items-center gap-1 text-xs font-medium">
@@ -144,19 +163,35 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
 
     const isAllDeepResearch = ragData.every(search => search.searchType === "deep_research" || search.searchType === "web_search");
 
-    // Calculate total sources across all searches (excluding images)
+    // Calculate total sources across all searches (including images with valid source links)
     const totalSources = ragData.reduce((sum, search) => {
-        const nonImageSources = search.sources.filter(s => {
+        const validSources = search.sources.filter(s => {
             const sourceType = s.sourceType || "web";
-            return sourceType !== "image";
+            // For images, only count if they have a source link (not just imageUrl)
+            if (sourceType === "image") {
+                return s.sourceUrl || s.metadata?.link;
+            }
+            return true;
         });
-        return sum + nonImageSources.length;
+        return sum + validSources.length;
     }, 0);
 
     // Simple source item component for deep research
     const SimpleSourceItem: React.FC<{ source: RAGSearchResult["sources"][0] }> = ({ source }) => {
-        const url = source.url || source.sourceUrl;
-        const title = source.title || source.filename || "Unknown";
+        const sourceType = source.sourceType || "web";
+
+        // For image sources, use the source page link (not the imageUrl)
+        let url: string;
+        let title: string;
+
+        if (sourceType === "image") {
+            url = source.sourceUrl || source.metadata?.link || "";
+            title = source.metadata?.title || source.filename || "Image source";
+        } else {
+            url = source.url || source.sourceUrl || "";
+            title = source.title || source.filename || "Unknown";
+        }
+
         const favicon = source.metadata?.favicon || (url ? `https://www.google.com/s2/favicons?domain=${url}&sz=32` : "");
 
         return (
@@ -184,7 +219,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         );
     };
 
-    // Get all unique sources (for deep research: filter out snippets, for web_search: show all)
+    // Get all unique sources (for deep research: filter out snippets, for web_search: show all including images)
     const allUniqueSources = (() => {
         if (!isAllDeepResearch) return [];
         const sourceMap = new Map<string, RAGSearchResult["sources"][0]>();
@@ -194,9 +229,18 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
 
         ragData.forEach(search => {
             search.sources.forEach(source => {
-                // Always exclude image sources from the panel
                 const sourceType = source.sourceType || "web";
+
+                // For image sources: include if they have a source link (not just imageUrl)
                 if (sourceType === "image") {
+                    const sourceLink = source.sourceUrl || source.metadata?.link;
+                    if (!sourceLink) {
+                        return; // Skip images without source links
+                    }
+                    // Use the source link as the key for deduplication
+                    if (!sourceMap.has(sourceLink)) {
+                        sourceMap.set(sourceLink, source);
+                    }
                     return;
                 }
 
@@ -227,6 +271,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                 title: s.title,
                 fetched: s.metadata?.fetched,
                 fetch_status: s.metadata?.fetch_status,
+                sourceType: s.sourceType,
             })),
         });
 
@@ -377,7 +422,11 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                 search.sources
                                     .filter(source => {
                                         const sourceType = source.sourceType || "web";
-                                        return sourceType !== "image";
+                                        // Include images only if they have a source link
+                                        if (sourceType === "image") {
+                                            return source.sourceUrl || source.metadata?.link;
+                                        }
+                                        return true;
                                     })
                                     .map((source, sourceIdx) => <SourceCard key={`${searchIdx}-${sourceIdx}`} source={source} />)
                             )}
