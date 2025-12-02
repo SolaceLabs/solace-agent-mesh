@@ -24,8 +24,8 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
     [&_a:hover]:text-[var(--color-primary-w100)] [&_a:hover]:decoration-[var(--color-primary-w100)] dark:[&_a:hover]:text-[var(--color-primary-w10)] dark:[&_a:hover]:decoration-[var(--color-primary-w10)]
 
     /* Lists */
-    [&_ul]:mb-4 [&_ul]:pl-6 [&_ul]:list-disc [&_ul]:space-y-1
-    [&_ol]:mb-4 [&_ol]:pl-6 [&_ol]:list-decimal [&_ol]:space-y-1
+    [&_ul]:mt-3 [&_ul]:mb-4 [&_ul]:pl-6 [&_ul]:list-disc [&_ul]:space-y-1
+    [&_ol]:mt-3 [&_ol]:mb-4 [&_ol]:pl-6 [&_ol]:list-decimal [&_ol]:space-y-1
     [&_li]:text-foreground [&_li]:leading-[24px]
     [&_ul_ul]:mt-1 [&_ul_ul]:mb-1
     [&_ol_ol]:mt-1 [&_ol_ol]:mb-1

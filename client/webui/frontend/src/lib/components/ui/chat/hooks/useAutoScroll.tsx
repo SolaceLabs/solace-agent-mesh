@@ -10,10 +10,11 @@ interface UseAutoScrollOptions {
     smooth?: boolean;
     content?: React.ReactNode;
     autoScrollOnNewContent?: boolean;
+    contentRef?: React.RefObject<HTMLElement>;
 }
 
 export function useAutoScroll(options: UseAutoScrollOptions = {}) {
-    const { offset = 20, smooth = false, content, autoScrollOnNewContent = false } = options;
+    const { offset = 20, smooth = false, content, autoScrollOnNewContent = false, contentRef } = options;
     const scrollRef = useRef<HTMLDivElement>(null);
     const lastContentHeight = useRef(0);
     const userHasScrolled = useRef(false);
@@ -149,7 +150,9 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
     }, [content, scrollState.autoScrollEnabled, scrollToBottom, autoScrollOnNewContent]);
 
     useEffect(() => {
-        const element = scrollRef.current;
+        // Observe the content element (where messages are) instead of scroll container
+        // This ensures we detect when artifacts expand/collapse and adjust scroll
+        const element = contentRef?.current || scrollRef.current;
         if (!element) return;
 
         const resizeObserver = new ResizeObserver(() => {
@@ -160,7 +163,7 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
 
         resizeObserver.observe(element);
         return () => resizeObserver.disconnect();
-    }, [scrollState.autoScrollEnabled, scrollToBottom]);
+    }, [scrollState.autoScrollEnabled, scrollToBottom, contentRef]);
 
     const disableAutoScroll = useCallback(() => {
         const atBottom = scrollRef.current ? checkIsAtBottom(scrollRef.current) : false;

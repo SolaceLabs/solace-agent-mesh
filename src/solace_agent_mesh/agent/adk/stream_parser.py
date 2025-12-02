@@ -115,6 +115,7 @@ class FencedBlockStreamParser:
         self._block_params: Dict[str, Any] = {}
         self._progress_update_interval = progress_update_interval_bytes
         self._last_progress_update_size = 0
+        self._last_progress_chunk_end = 0  # Character position in buffer where last chunk ended
         # Track block type and nesting for template handling
         self._current_block_type: str = None  # "save_artifact" or "template"
         self._nesting_depth = 0  # Track if we're inside a block
@@ -127,6 +128,7 @@ class FencedBlockStreamParser:
         self._artifact_buffer = ""
         self._block_params = {}
         self._last_progress_update_size = 0
+        self._last_progress_chunk_end = 0
         self._current_block_type = None
         self._nesting_depth = 0
         self._previous_state = None
@@ -342,18 +344,26 @@ class FencedBlockStreamParser:
         else:
             # Check if we should emit a progress update (only for save_artifact blocks)
             if self._current_block_type == "save_artifact":
-                current_size = len(self._artifact_buffer.encode("utf-8"))
+                # Calculate current total size in bytes (for threshold check)
+                current_size_bytes = len(self._artifact_buffer.encode("utf-8"))
+
+                # Check if we've accumulated enough new bytes since last update
                 if (
-                    current_size - self._last_progress_update_size
+                    current_size_bytes - self._last_progress_update_size
                 ) >= self._progress_update_interval:
-                    new_chunk = self._artifact_buffer[
-                        self._last_progress_update_size : current_size
-                    ]
+                    # Extract all new content since last progress update
+                    # Slice by character position (not bytes) to avoid UTF-8 issues
+                    current_char_position = len(self._artifact_buffer)
+                    new_chunk = self._artifact_buffer[self._last_progress_chunk_end:]
+
                     events.append(
                         BlockProgressedEvent(
                             params=self._block_params,
-                            buffered_size=current_size,
-                            chunk=new_chunk,
+                            buffered_size=current_size_bytes,  # Total bytes accumulated so far
+                            chunk=new_chunk,  # All new content since last update
                         )
                     )
-                    self._last_progress_update_size = current_size
+
+                    # Update tracking: character position for slicing, bytes for threshold
+                    self._last_progress_chunk_end = current_char_position
+                    self._last_progress_update_size = current_size_bytes

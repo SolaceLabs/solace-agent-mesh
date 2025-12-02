@@ -136,6 +136,7 @@ async def process_artifact_blocks_callback(
         session.state[parser_state_key] = parser
         session.state["completed_artifact_blocks_list"] = []
         session.state["completed_template_blocks_list"] = []
+        session.state["artifact_chars_sent"] = 0  # Reset character tracking for new turn
 
     stream_chunks_were_processed = callback_context.state.get(
         A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY, False
@@ -167,6 +168,9 @@ async def process_artifact_blocks_callback(
                             log_identifier,
                             event.params,
                         )
+                        # Reset character tracking for this new artifact block
+                        session.state["artifact_chars_sent"] = 0
+
                         filename = event.params.get("filename", "unknown_artifact")
                         if filename == "unknown_artifact":
                             log.warning(
@@ -199,6 +203,7 @@ async def process_artifact_blocks_callback(
                                 bytes_transferred=0,
                                 artifact_chunk=None,
                             )
+
                             await _publish_data_part_status_update(
                                 host_component, a2a_context, artifact_progress_data
                             )
@@ -229,6 +234,13 @@ async def process_artifact_blocks_callback(
                                 bytes_transferred=event.buffered_size,
                                 artifact_chunk=event.chunk,
                             )
+
+                            # Track the cumulative character count of what we've sent
+                            # We need character count (not bytes) to slice correctly later
+                            previous_char_count = session.state.get("artifact_chars_sent", 0)
+                            new_char_count = previous_char_count + len(event.chunk)
+                            session.state["artifact_chars_sent"] = new_char_count
+
                             await _publish_data_part_status_update(
                                 host_component, a2a_context, progress_data
                             )
@@ -342,6 +354,29 @@ async def process_artifact_blocks_callback(
                                     log_identifier,
                                     e_track,
                                 )
+
+                            # Send final progress update with any remaining content not yet sent
+                            if a2a_context:
+                                # Check if there's unsent content (content after last progress event)
+                                total_bytes = len(event.content.encode("utf-8"))
+                                chars_already_sent = session.state.get("artifact_chars_sent", 0)
+
+                                if chars_already_sent < len(event.content):
+                                    # There's unsent content - send it as a final progress update
+                                    final_chunk = event.content[chars_already_sent:]
+
+                                    final_progress_data = ArtifactCreationProgressData(
+                                        filename=filename,
+                                        description=params.get("description"),
+                                        status="in-progress",
+                                        bytes_transferred=total_bytes,
+                                        artifact_chunk=final_chunk,
+                                    )
+
+                                    await _publish_data_part_status_update(
+                                        host_component, a2a_context, final_progress_data
+                                    )
+
                             # Publish completion status immediately via SSE
                             if a2a_context:
                                 progress_data = ArtifactCreationProgressData(
@@ -352,6 +387,7 @@ async def process_artifact_blocks_callback(
                                     mime_type=params.get("mime_type"),
                                     version=version_for_tool,
                                 )
+
                                 await _publish_data_part_status_update(
                                     host_component, a2a_context, progress_data
                                 )
@@ -1044,8 +1080,7 @@ def _generate_examples_instruction() -> str:
     - User: "Create a markdown file with your two csv files as tables."
     <note>There are two csv files already uploaded: data1.csv and data2.csv</note>
     - OrchestratorAgent:
-    {embed_open_delim}status_update:Creating the Markdown tables...{embed_close_delim}
-    I'll create a Markdown file with the CSV data formatted as tables.
+    {embed_open_delim}status_update:Creating Markdown tables from CSV files...{embed_close_delim}
     {open_delim}save_artifact: filename="data_tables.md" mime_type="text/markdown" description="Markdown tables from CSV files"
     # Data Tables
     ## Data 1
@@ -1068,8 +1103,7 @@ def _generate_examples_instruction() -> str:
     Example 2:
     - User: "Create a text file with the result of sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680)."
     - OrchestratorAgent:
-    {embed_open_delim}status_update:Calculating the result and creating the text file...{embed_close_delim}
-    I'll put the result into a text file for you.
+    {embed_open_delim}status_update:Calculating and creating text file...{embed_close_delim}
     {open_delim}save_artifact: filename="math.txt" mime_type="text/plain" description="Result of sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680)"
     result = {embed_open_delim}math: sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680) | .2f{embed_close_delim}
     {close_delim}
@@ -1077,8 +1111,7 @@ def _generate_examples_instruction() -> str:
     Example 3:
     - User: "Show me the first 10 entries from data1.csv"
     - OrchestratorAgent:
-    {embed_open_delim}status_update:Loading and filtering the CSV data...{embed_close_delim}
-    Here are the first 10 entries from data1.csv.
+    {embed_open_delim}status_update:Loading CSV data...{embed_close_delim}
     {open_delim}template_liquid: data="data1.csv" limit="10"
     """
         + """| {% for h in headers %}{{ h }} | {% endfor %}
@@ -1088,10 +1121,17 @@ def _generate_examples_instruction() -> str:
         + f"""{close_delim}
 
     Example 4:
+    - User: "Search the database for all orders from last month"
+    - OrchestratorAgent:
+    {embed_open_delim}status_update:Querying order database...{embed_close_delim}
+    [calls search_database tool with no visible text]
+    [After getting results:]
+    Found 247 orders from last month totaling $45,231.
+
+    Example 5:
     - User: "Create an HTML with the chart image you just generated with the customer data."
     - OrchestratorAgent:
-    {embed_open_delim}status_update:Generating the HTML report with the chart...{embed_close_delim}
-
+    {embed_open_delim}status_update:Generating HTML report with chart...{embed_close_delim}
     {open_delim}save_artifact: filename="customer_analysis.html" mime_type="text/html" description="Interactive customer analysis dashboard"
     <!DOCTYPE html>
     <html>
@@ -1197,33 +1237,54 @@ def _generate_conversation_flow_instruction() -> str:
     return f"""\
 **Conversation Flow and Response Formatting:**
 
-Responses from the agent should be meaningful and directly address the user's questions or requests. Frequent status updates on progress are encouraged, especially when calling
-tools or other agents/workflows. However, do not place these updates in visible response text; instead, use status_update embeds for interim feedback. One exception
-is when creating a plan for complex tasks. That plan should be visible to the user.
+**CRITICAL: Minimize Narration - Maximize Results**
+
+You do NOT need to produce visible text on every turn. Many turns should contain ONLY status updates and tool calls, with NO visible text at all.
+Only produce visible text when you have actual results, answers, or insights to share with the user.
 
 Response Content Rules:
 1. Visible responses should contain ONLY:
    - Direct answers to the user's question
-   - Analysis and insights
-   - Results and data
+   - Analysis and insights derived from tool results
+   - Final results and data
    - Follow-up questions when needed
+   - Plans for complex multi-step tasks
 
-2. Invisible status updates (via embedded status_updates) should contain:
+2. DO NOT include visible text for:
+   - Process narration ("Let me...", "I'll...", "Now I will...")
+   - Acknowledgments of tool calls ("I'm calling...", "Searching...")
+   - Descriptions of what you're about to do
+   - Play-by-play commentary on your actions
+   - Transitional phrases between tool calls
+
+3. Use invisible status_update embeds for ALL process updates:
    - "Searching for..."
    - "Analyzing..."
    - "Creating..."
    - "Querying..."
-   
-3. NEVER mix these - keep process narration invisible and results visible. If you use a status_update embed, do NOT repeat that information in visible text.
+   - "Calling agent X..."
 
-Example:
+4. NEVER mix process narration with status updates - if you use a status_update embed, do NOT repeat that information in visible text.
 
-Good:
-"{open_delim}status_update:Retrieving sales data...{close_delim} [then calls tool]"
+Examples:
 
-Bad:
-"I am retrieving sales data: {open_delim}status_update:Retrieving sales data...{close_delim} [then calls tool]"
+**Excellent (no visible text, just status and tools):**
+"{open_delim}status_update:Retrieving sales data...{close_delim}" [then calls tool, no visible text]
 
+**Good (visible text only contains results):**
+"{open_delim}status_update:Analyzing Q4 sales...{close_delim}" [calls tool]
+"Sales increased 23% in Q4, driven primarily by enterprise accounts."
+
+**Bad (unnecessary narration):**
+"Let me retrieve the sales data for you." [then calls tool]
+
+**Bad (narration mixed with results):**
+"I've analyzed the data and found that sales increased 23% in Q4."
+
+**Bad (play-by-play commentary):**
+"Now I'll search for the information. After that I'll analyze it."
+
+Remember: The user can see status updates and tool calls. You don't need to announce them in visible text.
 """
 
 
@@ -1297,13 +1358,18 @@ Parallel Tool Calling:
 The system is capable of calling multiple tools in parallel to speed up processing. Please try to run tools in parallel when they don't depend on each other. This saves money and time, providing faster results to the user.
 
 **Response Formatting - CRITICAL**:
-When calling tools or using invisible embeds (like status_update), do NOT end your text with a colon (":"). Since tool calls and certain embeds produce no 
-visible output in your response, ending with a colon leaves it hanging with nothing following it. Instead, end with a period (".") or ellipsis ("...").
- 
+In most cases when calling tools, you should produce NO visible text at all - only status_update embeds and the tool calls themselves.
+The user can see your tool calls and status updates, so narrating your actions is redundant and creates noise.
+
+If you do include visible text:
+- It must contain actual results, insights, or answers - NOT process narration
+- Do NOT end with a colon (":") before tool calls, as this leaves it hanging
+- Prefer ending with a period (".") if you must include visible text
+
 Examples:
- - BAD: "Let me search for that information:" [then calls tool]
- - GOOD: "Let me search for that information." [then calls tool]
- - GOOD: "Searching for information..." [then calls tool]
+ - BEST: "{open_delim}status_update:Searching database...{close_delim}" [then calls tool, NO visible text]
+ - BAD: "Let me search for that information." [then calls tool]
+ - BAD: "Searching for information..." [then calls tool]
 
 Embeds in responses from agents:
 To be efficient, peer agents may respond with artifact_content in their responses. These will not be resolved until they are sent back to a gateway. If it makes

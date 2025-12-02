@@ -73,11 +73,21 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     // Determine if this should auto-expand based on context
     const shouldAutoExpand = useMemo(() => {
+        // Don't auto-expand deleted artifacts
+        if (isDeleted) {
+            return false;
+        }
+
         const renderType = getRenderType(fileName, fileMimeType);
-        const isAutoRenderType = renderType === "image" || renderType === "audio" || renderType === "text" || renderType === "markdown";
-        // Only auto-expand images/audio/text/markdown in chat context, never in list context
-        return isAutoRenderType && context === "chat";
-    }, [fileName, fileMimeType, context]);
+        const isAutoRenderType = renderType === "image" || renderType === "audio" || renderType === "markdown";
+
+        // Check if it's specifically a .txt file (not other text-based files like code, XML, etc.)
+        const isTxtFile = fileName.toLowerCase().endsWith(".txt") || fileName.toLowerCase().endsWith(".text");
+        const shouldAutoExpandText = renderType === "text" && isTxtFile;
+
+        // Only auto-expand images/audio/markdown/.txt files in chat context, never in list context
+        return (isAutoRenderType || shouldAutoExpandText) && context === "chat";
+    }, [fileName, fileMimeType, context, isDeleted]);
 
     // Use the artifact rendering hook to determine rendering behavior
     // This uses local state, so each component instance has its own expansion state
@@ -352,37 +362,49 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 // @ts-expect-error - Add flag to indicate if content is plain text from streaming
                 // Content is plain text if: (1) it's from accumulated content during streaming, OR (2) we're in progress state
                 isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) ||
-                             (props.status === "in-progress" && !!fetchedContent)
+                    (props.status === "in-progress" && !!fetchedContent)
             });
 
             if (finalContent) {
                 // Determine max height and overflow behavior based on content type
                 let maxHeight: string;
+                let height: string | undefined;
                 let overflowY: "visible" | "auto";
 
                 if (isImage) {
                     // Images: no height limit, no scroll
                     maxHeight = "none";
                     overflowY = "visible";
+                } else if (renderType === "html") {
+                    // HTML: fixed height of 1000px
+                    height = "1000px";
+                    maxHeight = "1000px";
+                    overflowY = "auto";
                 } else if (isTextOrMarkdown) {
-                    // Text/Markdown: safety max height of 4000px, no scroll
-                    maxHeight = "4000px";
-                    overflowY = "visible";
+                    // Text/Markdown: safety max height of 6000px, scroll if overflow
+                    maxHeight = "6000px";
+                    overflowY = "auto";
                 } else if (shouldRenderInline) {
                     // Audio: 300px with scroll
                     maxHeight = "300px";
                     overflowY = "auto";
                 } else {
                     // Other types: 400px with scroll
-                    maxHeight = "400px";
+                    maxHeight = "600px";
                     overflowY = "auto";
                 }
 
                 expandedContent = (
                     <div className="group relative max-w-full overflow-hidden">
                         {renderError && <MessageBanner variant="error" message={renderError} />}
+                        {props.status === "in-progress" && (
+                            <div className="bg-muted/50 border-border text-muted-foreground mb-2 rounded border px-3 py-2 text-xs">
+                                Note: Links and embedded content directives will be resolved when the artifact is complete
+                            </div>
+                        )}
                         <div
                             style={{
+                                height,
                                 maxHeight,
                                 overflowY,
                             }}
