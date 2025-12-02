@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Pencil, Trash2, MoreHorizontal, Check } from "lucide-react";
-import type { PromptGroup, Prompt } from "@/lib/types/prompts";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Check, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import type { Prompt, PromptGroup } from "@/lib/types/prompts";
 import { Header } from "@/lib/components/header";
-import { Button, Label } from "@/lib/components/ui";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Label } from "@/lib/components/ui";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { MessageBanner } from "@/lib/components/common";
 import { authenticatedFetch } from "@/lib/utils/api";
 
@@ -20,6 +19,7 @@ interface VersionHistoryPageProps {
 
 export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, onBack, onEdit, onDeleteAll, onRestoreVersion }) => {
     const { addNotification } = useChatContext();
+    const { configServerUrl } = useConfigContext();
     const [versions, setVersions] = useState<Prompt[]>([]);
     const [selectedVersion, setSelectedVersion] = useState<Prompt | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -36,7 +36,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         async (preserveSelection = false) => {
             setIsLoading(true);
             try {
-                const response = await authenticatedFetch(`/api/v1/prompts/groups/${group.id}/prompts`, {
+                const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/groups/${group.id}/prompts`, {
                     credentials: "include",
                 });
 
@@ -82,7 +82,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
 
     const fetchGroupData = useCallback(async () => {
         try {
-            const response = await authenticatedFetch(`/api/v1/prompts/groups/${group.id}`, {
+            const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/groups/${group.id}`, {
                 credentials: "include",
             });
 
@@ -136,7 +136,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         }
 
         try {
-            const response = await authenticatedFetch(`/api/v1/prompts/${selectedVersion.id}`, {
+            const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/${selectedVersion.id}`, {
                 method: "DELETE",
                 credentials: "include",
             });

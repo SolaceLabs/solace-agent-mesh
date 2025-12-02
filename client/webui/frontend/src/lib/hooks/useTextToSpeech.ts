@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
 import { authenticatedFetch } from "@/lib/utils/api";
+import { useConfigContext } from "./useConfigContext";
 
 interface UseTextToSpeechOptions {
     messageId?: string;
@@ -28,6 +29,7 @@ export interface VoiceOption {
 export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextToSpeechReturn {
     const { messageId, onStart, onEnd, onError } = options;
     const { settings } = useAudioSettings();
+    const { configServerUrl } = useConfigContext();
 
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -95,7 +97,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
             try {
                 // Include provider in query to get provider-specific voices
                 const provider = settings.ttsProvider || "gemini";
-                const response = await authenticatedFetch(`/api/v1/speech/voices?provider=${provider}`);
+                const response = await authenticatedFetch(`${configServerUrl}/api/v1/speech/voices?provider=${provider}`);
                 if (response.ok) {
                     const data = await response.json();
                     const voiceOptions: VoiceOption[] = (data.voices || []).map((voice: string) => ({
@@ -294,7 +296,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 }
 
                 // Use streaming endpoint - play chunks as they arrive
-                const response = await authenticatedFetch("/api/v1/speech/tts/stream", {
+                const response = await authenticatedFetch(`${configServerUrl}/api/v1/speech/tts/stream`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",

@@ -9,6 +9,9 @@ export default defineConfig(({ mode }) => {
     const backendPort = env.VITE_BACKEND_PORT || process.env.FASTAPI_PORT || "8000";
     const backendTarget = `http://localhost:${backendPort}`;
 
+    const enterprisePort = env.VITE_ENTERPRISE_PORT || "8001";
+    const enterpriseTarget = `http://localhost:${enterprisePort}`;
+
     return {
         plugins: [react(), tailwindcss()],
         resolve: {
@@ -33,6 +36,14 @@ export default defineConfig(({ mode }) => {
         },
         server: {
             proxy: {
+                // IMPORTANT: Enterprise endpoints must come first for specificity
+                // More specific routes must be defined before general routes
+                "/api/v1/enterprise": {
+                    target: enterpriseTarget,
+                    changeOrigin: true,
+                    secure: false,
+                },
+                // Community endpoints - catch-all for remaining /api routes
                 "/api": {
                     target: backendTarget,
                     changeOrigin: true,

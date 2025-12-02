@@ -40,7 +40,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
     // Speech-to-text support
     const { settings } = useAudioSettings();
-    const { configFeatureEnablement } = useConfigContext();
+    const { configFeatureEnablement, configServerUrl } = useConfigContext();
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
     const [sttError, setSttError] = useState<string | null>(null);
     const [isRecording, setIsRecording] = useState(false);
@@ -62,7 +62,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
         const initChat = async () => {
             try {
-                const response = await authenticatedFetch("/api/v1/prompts/chat/init");
+                const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/chat/init`);
                 const data = await response.json();
 
                 // Use different greeting message for editing mode
@@ -90,7 +90,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
                     // Send the message to the API
                     try {
-                        const chatResponse = await authenticatedFetch("/api/v1/prompts/chat", {
+                        const chatResponse = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/chat`, {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",
@@ -227,7 +227,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
         setHasUserMessage(true);
 
         try {
-            const response = await authenticatedFetch("/api/v1/prompts/chat", {
+            const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/chat`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

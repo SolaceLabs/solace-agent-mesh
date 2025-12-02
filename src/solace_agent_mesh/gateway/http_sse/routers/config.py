@@ -3,12 +3,13 @@ API Router for providing frontend configuration.
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any
-
-from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
-from ..routers.dto.requests.project_requests import CreateProjectRequest, UpdateProjectRequest
 from typing import TYPE_CHECKING
+
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from ..routers.dto.requests.project_requests import CreateProjectRequest
+from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -268,7 +269,12 @@ async def get_app_config(
         }
 
         config_data = {
-            "frontend_server_url": "",
+            "frontend_server_url": component.get_config(
+                "frontend_server_url", ""
+            ),
+            "frontend_enterprise_server_url": component.get_config(
+                "frontend_enterprise_server_url", ""
+            ),
             "frontend_auth_login_url": component.get_config(
                 "frontend_auth_login_url", ""
             ),

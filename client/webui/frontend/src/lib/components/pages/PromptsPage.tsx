@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
 import { RefreshCcw, Upload } from "lucide-react";
 
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useConfigContext } from "@/lib/hooks";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { Button, EmptyState, Header, VariableDialog } from "@/lib/components";
 import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage, PromptImportDialog } from "@/lib/components/prompts";
@@ -17,6 +17,7 @@ export const PromptsPage: React.FC = () => {
     const loaderData = useLoaderData<{ promptId?: string; view?: string; mode?: string }>();
 
     const { addNotification } = useChatContext();
+    const { configServerUrl } = useConfigContext();
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [showBuilder, setShowBuilder] = useState(false);
@@ -35,7 +36,7 @@ export const PromptsPage: React.FC = () => {
     const fetchPromptGroups = async () => {
         setIsLoading(true);
         try {
-            const response = await authenticatedFetch("/api/v1/prompts/groups/all", {
+            const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/groups/all`, {
                 credentials: "include",
             });
             if (response.ok) {
@@ -61,7 +62,7 @@ export const PromptsPage: React.FC = () => {
                 // Load the prompt group for editing
                 const loadPromptForEdit = async () => {
                     try {
-                        const response = await authenticatedFetch(`/api/v1/prompts/groups/${loaderData.promptId}`);
+                        const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/groups/${loaderData.promptId}`);
                         if (response.ok) {
                             const group = await response.json();
                             setEditingGroup(group);
@@ -90,7 +91,7 @@ export const PromptsPage: React.FC = () => {
             // Load the prompt group for version history
             const loadPromptGroup = async () => {
                 try {
-                    const response = await authenticatedFetch(`/api/v1/prompts/groups/${loaderData.promptId}`);
+                    const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/groups/${loaderData.promptId}`);
                     if (response.ok) {
                         const group = await response.json();
                         setVersionHistoryGroup(group);
@@ -116,7 +117,7 @@ export const PromptsPage: React.FC = () => {
         if (!deletingPrompt) return;
 
         try {
-            const response = await authenticatedFetch(`/api/v1/prompts/groups/${deletingPrompt.id}`, {
+            const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/groups/${deletingPrompt.id}`, {
                 method: "DELETE",
             });
             if (response.ok) {
@@ -143,7 +144,7 @@ export const PromptsPage: React.FC = () => {
 
     const handleRestoreVersion = async (promptId: string) => {
         try {
-            const response = await authenticatedFetch(`/api/v1/prompts/${promptId}/make-production`, {
+            const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/${promptId}/make-production`, {
                 method: "PATCH",
             });
 
@@ -216,7 +217,7 @@ export const PromptsPage: React.FC = () => {
             // Optimistic update
             setPromptGroups(prev => prev.map(p => (p.id === id ? { ...p, isPinned: !currentStatus } : p)));
 
-            const response = await authenticatedFetch(`/api/v1/prompts/groups/${id}/pin`, {
+            const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/groups/${id}/pin`, {
                 method: "PATCH",
                 credentials: "include",
             });
@@ -239,7 +240,7 @@ export const PromptsPage: React.FC = () => {
     // Handle export
     const handleExport = async (prompt: PromptGroup) => {
         try {
-            const response = await authenticatedFetch(`/api/v1/prompts/groups/${prompt.id}/export`);
+            const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/groups/${prompt.id}/export`);
 
             if (response.ok) {
                 const exportData = await response.json();
@@ -290,7 +291,7 @@ export const PromptsPage: React.FC = () => {
                 },
             };
 
-            const response = await authenticatedFetch("/api/v1/prompts/import", {
+            const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/import`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

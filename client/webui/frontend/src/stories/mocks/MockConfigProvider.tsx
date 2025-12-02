@@ -4,6 +4,7 @@ import React from "react";
 // Default mock values for ConfigContext
 const defaultMockConfigContext: ConfigContextValue = {
     configServerUrl: "http://localhost:8000",
+    configEnterpriseServerUrl: "http://localhost:8001",
     configAuthLoginUrl: "http://localhost:8000/auth/login",
     configUseAuthorization: false,
     configWelcomeMessage: "Welcome to the mock Solace Agent Mesh!",

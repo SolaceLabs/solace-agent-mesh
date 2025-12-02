@@ -181,7 +181,7 @@ def setup_dependencies(component: "PlatformServiceComponent", database_url: str)
         log.warning("No database URL provided - platform service will not function")
 
     # Setup middleware
-    # _setup_middleware(component)
+    _setup_middleware(component)
 
     # Setup routers
     _setup_routers()
@@ -200,8 +200,23 @@ def _setup_middleware(component: "PlatformServiceComponent"):
     Args:
         component: PlatformServiceComponent instance for configuration access.
     """
-    # CORS middleware
-    allowed_origins = component.get_cors_origins()
+    # CORS middleware - automatically trust configured UI origins
+    configured_origins = component.get_cors_origins().copy()
+
+    # Automatically add frontend and enterprise URLs as trusted origins
+    # These are admin-controlled values that should always be trusted
+    frontend_url = os.getenv("FRONTEND_SERVER_URL", "").strip()
+    enterprise_url = os.getenv("ENTERPRISE_API_URL", "").strip()
+
+    auto_trusted_origins = []
+    if frontend_url:
+        auto_trusted_origins.append(frontend_url)
+    if enterprise_url:
+        auto_trusted_origins.append(enterprise_url)
+
+    # Combine and deduplicate
+    allowed_origins = list(set(auto_trusted_origins + configured_origins))
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
@@ -210,6 +225,8 @@ def _setup_middleware(component: "PlatformServiceComponent"):
         allow_headers=["*"],
     )
     log.info(f"CORS middleware added with origins: {allowed_origins}")
+    if auto_trusted_origins:
+        log.info(f"  Auto-added trusted origins: {auto_trusted_origins}")
 
     # OAuth2 middleware - try enterprise implementation first, fall back to stub
     try:
