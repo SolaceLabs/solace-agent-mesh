@@ -1666,7 +1666,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputText?: string | null) => {
+        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null) => {
             event.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
@@ -1687,7 +1687,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 metadata: {
                     messageId: `msg-${v4()}`,
-                    sessionId: sessionId,
+                    sessionId: overrideSessionId || sessionId,
                     lastProcessedEventSequence: 0,
                 },
             };
@@ -1700,7 +1700,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const successfullyUploadedFiles: Array<{ filename: string; sessionId: string }> = []; // Track large files for cleanup
 
                 // Track the effective session ID for this message (may be updated if large file upload)
-                let effectiveSessionId = sessionId;
+                // Use overrideSessionId if provided (e.g., from artifact upload that created a session)
+                let effectiveSessionId = overrideSessionId || sessionId;
 
                 console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
 

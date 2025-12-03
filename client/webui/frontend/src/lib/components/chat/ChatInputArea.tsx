@@ -414,18 +414,72 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 fullMessage = `Context: "${contextText}"\n\n${fullMessage}`;
             }
 
-            // Include pending pasted text content in the message
-            if (pendingPastedTextItems.length > 0) {
-                const pastedTextContent = pendingPastedTextItems.map((item, index) => `--- Pasted Text #${index + 1} ---\n${item.content}`).join("\n\n");
+            // Upload pending pasted text items as artifacts first, then create references
+            const uploadedPastedArtifacts: PastedArtifactItem[] = [];
+            let effectiveSessionId = sessionId;
 
-                if (fullMessage) {
-                    fullMessage = `${fullMessage}\n\n${pastedTextContent}`;
-                } else {
-                    fullMessage = pastedTextContent;
+            // Build list of existing artifact filenames for uniqueness check
+            // Include both session artifacts and any artifacts we've already uploaded in this batch
+            const existingFilenames = new Set(artifacts.map(a => a.filename));
+
+            for (let i = 0; i < pendingPastedTextItems.length; i++) {
+                const item = pendingPastedTextItems[i];
+                try {
+                    // Generate a unique filename using the same pattern as the dialog (snippet.txt, snippet-2.txt, etc.)
+                    const mimeType = "text/plain";
+                    const extension = "txt";
+                    let filename = `snippet.${extension}`;
+
+                    // Check if filename already exists and generate unique name
+                    if (existingFilenames.has(filename)) {
+                        let counter = 2;
+                        while (existingFilenames.has(`snippet-${counter}.${extension}`)) {
+                            counter++;
+                        }
+                        filename = `snippet-${counter}.${extension}`;
+                    }
+
+                    // Add this filename to the set so subsequent items in this batch get unique names
+                    existingFilenames.add(filename);
+
+                    // Create a File object from the text content
+                    const blob = new Blob([item.content], { type: mimeType });
+                    const file = new File([blob], filename, { type: mimeType });
+
+                    // Upload the artifact via HTTP API (this creates proper metadata)
+                    const result = await uploadArtifactFile(file, effectiveSessionId);
+
+                    if (result && !("error" in result)) {
+                        // Update effective session ID if a new session was created
+                        if (result.sessionId && result.sessionId !== effectiveSessionId) {
+                            effectiveSessionId = result.sessionId;
+                            setSessionId(result.sessionId);
+                        }
+
+                        // Create an artifact reference for this uploaded file
+                        const now = Date.now();
+                        uploadedPastedArtifacts.push({
+                            id: `auto-paste-artifact-${now}-${i}`,
+                            artifactId: result.uri,
+                            filename: filename,
+                            mimeType: mimeType,
+                            timestamp: now,
+                        });
+                    } else {
+                        console.error("Failed to upload pasted text as artifact:", result);
+                        addNotification(`Failed to save pasted text as artifact`, "error");
+                    }
+                } catch (error) {
+                    console.error("Error uploading pasted text:", error);
+                    addNotification(`Error saving pasted text: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
                 }
             }
 
-            const artifactFiles: File[] = pastedArtifactItems
+            // Combine existing pasted artifacts with newly uploaded ones
+            const allPastedArtifacts = [...pastedArtifactItems, ...uploadedPastedArtifacts];
+
+            // Create artifact reference files for all pasted artifacts
+            const artifactFiles: File[] = allPastedArtifacts
                 .filter(item => item.artifactId && item.mimeType) // Skip invalid items early
                 .map(item => {
                     // Create a special File object that contains the artifact URI
@@ -444,7 +498,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Combine regular files with artifact references
             const allFiles = [...selectedFiles, ...artifactFiles];
 
-            await handleSubmit(event, allFiles, fullMessage);
+            // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
+            // as the uploaded artifacts (avoids React state timing issues)
+            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null);
             setSelectedFiles([]);
             setPastedArtifactItems([]);
             setPendingPastedTextItems([]);

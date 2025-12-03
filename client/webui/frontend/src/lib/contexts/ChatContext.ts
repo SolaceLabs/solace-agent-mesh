@@ -67,7 +67,7 @@ export interface ChatActions {
     /** Clear the pending prompt (called after it's been applied) */
     clearPendingPrompt: () => void;
     handleSwitchSession: (sessionId: string) => Promise<void>;
-    handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null) => Promise<void>;
+    handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null, overrideSessionId?: string | null) => Promise<void>;
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "error") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
