@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from "@/lib/components/ui";
-import { MessageBanner } from "@/lib/components/common";
+import { MessageBanner, ConfirmationDialog } from "@/lib/components/common";
 
 import { generateArtifactDescription } from "./pasteUtils";
 
@@ -128,13 +128,13 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
     const [description, setDescription] = useState("");
     const [fileType, setFileType] = useState("auto");
     const [isSaving, setIsSaving] = useState(false);
-    const [userConfirmedOverwrite, setUserConfirmedOverwrite] = useState(false);
     const [editableContent, setEditableContent] = useState("");
     const [contentError, setContentError] = useState<string | null>(null);
+    const [showOverwriteConfirmDialog, setShowOverwriteConfirmDialog] = useState(false);
 
     // Check if current title exists in artifacts
     const titleExists = existingArtifacts.includes(title);
-    // Show warning whenever title exists (even after confirmation)
+    // Show warning whenever title exists
     const showOverwriteWarning = titleExists;
 
     // Auto-detect file type and generate description when dialog opens
@@ -171,11 +171,6 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
         }
     }, [fileType, title]);
 
-    // Reset confirmation when title changes
-    useEffect(() => {
-        setUserConfirmedOverwrite(false);
-    }, [title]);
-
     const handleSaveArtifact = async () => {
         // Check if content is empty
         if (!editableContent.trim()) {
@@ -186,14 +181,17 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
         // Clear any previous error
         setContentError(null);
 
-        // Check if artifact already exists and user hasn't confirmed
-        if (titleExists && !userConfirmedOverwrite) {
-            // First click on duplicate name - show warning and require confirmation
-            setUserConfirmedOverwrite(true);
+        // Check if artifact already exists - show confirmation dialog
+        if (titleExists) {
+            setShowOverwriteConfirmDialog(true);
             return;
         }
 
-        // Either no conflict OR user has confirmed overwrite - proceed with save
+        // No conflict - proceed with save
+        await performSave();
+    };
+
+    const performSave = async () => {
         setIsSaving(true);
         try {
             await onSaveAsArtifact(title, fileType, editableContent, description.trim() || undefined);
@@ -206,6 +204,11 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
         }
     };
 
+    const handleConfirmOverwrite = async () => {
+        setShowOverwriteConfirmDialog(false);
+        await performSave();
+    };
+
     const handleCancel = () => {
         resetForm();
         onCancel();
@@ -216,9 +219,9 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
         setDescription("");
         setFileType("auto");
         setIsSaving(false);
-        setUserConfirmedOverwrite(false);
         setEditableContent("");
         setContentError(null);
+        setShowOverwriteConfirmDialog(false);
     };
 
     const charCount = editableContent.length;
@@ -248,9 +251,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                                 }, 0);
                             }}
                         />
-                        {showOverwriteWarning && (
-                            <p className="text-sm text-yellow-600 dark:text-yellow-500">⚠️ A file with this name already exists. {userConfirmedOverwrite ? "Click again to confirm overwrite." : "Saving will create a new version."}</p>
-                        )}
+                        {showOverwriteWarning && <p className="text-sm text-yellow-600 dark:text-yellow-500">⚠️ A file with this name already exists. Saving will create a new version.</p>}
                     </div>
 
                     <div className="space-y-2">
@@ -301,10 +302,20 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                         Cancel
                     </Button>
                     <Button onClick={handleSaveArtifact} disabled={isSaving || !title.trim()}>
-                        {isSaving ? "Saving..." : titleExists && userConfirmedOverwrite ? "Overwrite & Save" : titleExists ? "Confirm Overwrite" : "Save File"}
+                        {isSaving ? "Saving..." : "Save File"}
                     </Button>
                 </DialogFooter>
             </DialogContent>
+
+            {/* Overwrite Confirmation Dialog */}
+            <ConfirmationDialog
+                open={showOverwriteConfirmDialog}
+                title="Overwrite existing file?"
+                description={`A file named "${title}" already exists. This will create a new version of the file. The previous version will still be accessible.`}
+                actionLabels={{ cancel: "Cancel", confirm: "Overwrite" }}
+                onOpenChange={setShowOverwriteConfirmDialog}
+                onConfirm={handleConfirmOverwrite}
+            />
         </Dialog>
     );
 };
