@@ -14,7 +14,6 @@ interface PasteActionDialogProps {
 }
 
 const FILE_TYPES = [
-    { value: "auto", label: "Auto Detect Type" },
     { value: "text/plain", label: "Plain Text" },
     { value: "text/markdown", label: "Markdown" },
     { value: "text/csv", label: "CSV" },
@@ -27,65 +26,6 @@ const FILE_TYPES = [
     { value: "text/yaml", label: "YAML" },
     { value: "text/xml", label: "XML" },
 ];
-
-// Helper function to detect if content is CSV
-const isCSV = (content: string): boolean => {
-    const lines = content.trim().split("\n");
-    if (lines.length < 2) return false;
-
-    // Check if lines have consistent comma-separated values
-    const firstLineCommas = (lines[0].match(/,/g) || []).length;
-    if (firstLineCommas === 0) return false;
-
-    // Check at least first 3 lines (or all if less) have similar comma count
-    const linesToCheck = Math.min(lines.length, 5);
-    for (let i = 1; i < linesToCheck; i++) {
-        const commas = (lines[i].match(/,/g) || []).length;
-        // Allow some variance but should be close to first line
-        if (Math.abs(commas - firstLineCommas) > 1) return false;
-    }
-
-    return true;
-};
-
-// Helper function to detect file type from content
-const detectFileType = (content: string): string => {
-    // Check for CSV first (common paste format)
-    if (isCSV(content)) {
-        return "text/csv";
-    }
-    // Check for common code patterns
-    if (content.includes("def ") || (content.includes("import ") && content.includes("from "))) {
-        return "text/python";
-    }
-    if (content.includes("function ") || content.includes("const ") || content.includes("let ") || content.includes("=>")) {
-        return "text/javascript";
-    }
-    if (content.includes("interface ") || (content.includes("type ") && content.includes(":"))) {
-        return "text/typescript";
-    }
-    if (content.includes("<!DOCTYPE") || content.includes("<html")) {
-        return "text/html";
-    }
-    if (content.includes("{") && content.includes("}") && content.includes(":")) {
-        try {
-            JSON.parse(content);
-            return "application/json";
-        } catch {
-            // Not valid JSON
-        }
-    }
-    if (content.includes("---") && (content.includes("apiVersion:") || content.includes("kind:"))) {
-        return "text/yaml";
-    }
-    if (content.includes("<?xml") || (content.includes("<") && content.includes("/>"))) {
-        return "text/xml";
-    }
-    if (content.includes("#") && (content.includes("##") || content.includes("```"))) {
-        return "text/markdown";
-    }
-    return "text/plain";
-};
 
 // Helper function to get file extension from MIME type
 const getExtensionFromMimeType = (mimeType: string): string => {
@@ -123,10 +63,13 @@ const generateUniqueFilename = (baseName: string, extension: string, existingArt
     return `${baseName}-${counter}.${extension}`;
 };
 
+// Default MIME type - always use text/plain for safety and readability
+const DEFAULT_MIME_TYPE = "text/plain";
+
 export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, content, onSaveAsArtifact, onCancel, existingArtifacts = [] }) => {
     const [title, setTitle] = useState("snippet.txt");
     const [description, setDescription] = useState("");
-    const [fileType, setFileType] = useState("auto");
+    const [fileType, setFileType] = useState(DEFAULT_MIME_TYPE);
     const [isSaving, setIsSaving] = useState(false);
     const [editableContent, setEditableContent] = useState("");
     const [contentError, setContentError] = useState<string | null>(null);
@@ -137,15 +80,14 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
     // Show warning whenever title exists
     const showOverwriteWarning = titleExists;
 
-    // Auto-detect file type and generate description when dialog opens
+    // Initialize form when dialog opens - always default to text/plain for safety
     useEffect(() => {
         if (isOpen && content) {
             setEditableContent(content);
-            const detectedType = detectFileType(content);
-            setFileType(detectedType);
-            // Update title with appropriate extension, ensuring uniqueness
-            const extension = getExtensionFromMimeType(detectedType);
-            const uniqueFilename = generateUniqueFilename("snippet", extension, existingArtifacts);
+            // Always default to text/plain - user can change if needed
+            setFileType(DEFAULT_MIME_TYPE);
+            // Update title with .txt extension, ensuring uniqueness
+            const uniqueFilename = generateUniqueFilename("snippet", "txt", existingArtifacts);
             setTitle(uniqueFilename);
             // Generate and set description
             const generatedDescription = generateArtifactDescription(content);
@@ -153,20 +95,18 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
         }
     }, [isOpen, content, existingArtifacts]);
 
-    // Update title when file type changes
+    // Update title extension when user explicitly changes file type
     useEffect(() => {
-        if (fileType !== "auto") {
-            const extension = getExtensionFromMimeType(fileType);
-            // Only update if the current title is still the default pattern (snippet or snippet-N)
-            if (title.match(/^snippet(-\d+)?\.[\w]+$/)) {
-                // Extract the base name (snippet or snippet-N)
-                const baseMatch = title.match(/^(snippet(-\d+)?)\./);
-                const baseName = baseMatch ? baseMatch[1] : "snippet";
-                const newFilename = `${baseName}.${extension}`;
-                // Only change if the new filename is different
-                if (newFilename !== title) {
-                    setTitle(newFilename);
-                }
+        const extension = getExtensionFromMimeType(fileType);
+        // Only update if the current title is still the default pattern (snippet or snippet-N)
+        if (title.match(/^snippet(-\d+)?\.[\w]+$/)) {
+            // Extract the base name (snippet or snippet-N)
+            const baseMatch = title.match(/^(snippet(-\d+)?)\./);
+            const baseName = baseMatch ? baseMatch[1] : "snippet";
+            const newFilename = `${baseName}.${extension}`;
+            // Only change if the new filename is different
+            if (newFilename !== title) {
+                setTitle(newFilename);
             }
         }
     }, [fileType, title]);
@@ -217,7 +157,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
     const resetForm = () => {
         setTitle("snippet.txt");
         setDescription("");
-        setFileType("auto");
+        setFileType(DEFAULT_MIME_TYPE);
         setIsSaving(false);
         setEditableContent("");
         setContentError(null);
@@ -302,7 +242,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                         Cancel
                     </Button>
                     <Button onClick={handleSaveArtifact} disabled={isSaving || !title.trim()}>
-                        {isSaving ? "Saving..." : "Save File"}
+                        Save File
                     </Button>
                 </DialogFooter>
             </DialogContent>

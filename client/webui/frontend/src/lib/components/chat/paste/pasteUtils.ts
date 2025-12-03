@@ -24,36 +24,6 @@ export const isLargeText = (text: string): boolean => {
 };
 
 /**
- * Generates a descriptive title from pasted content
- * @param content - The pasted text content
- * @returns A descriptive filename with appropriate extension
- */
-export const generateArtifactTitle = (content: string): string => {
-    // Detect file type
-    const mimeType = detectContentType(content);
-    const extension = getExtensionFromMimeType(mimeType);
-
-    // Try to extract a meaningful name from the first line
-    const firstLine = content.split("\n")[0].trim();
-    let baseName = "pasted-content";
-
-    if (firstLine.length > 0 && firstLine.length <= 50) {
-        // Use first line as base name if it's reasonable
-        baseName = firstLine
-            .replace(/[^a-zA-Z0-9-_\s]/g, "") // Remove special chars
-            .replace(/\s+/g, "-") // Replace spaces with hyphens
-            .toLowerCase()
-            .substring(0, 30); // Limit length
-
-        if (baseName.length < 3) {
-            baseName = "pasted-content";
-        }
-    }
-
-    return `${baseName}.${extension}`;
-};
-
-/**
  * Generates a descriptive description from pasted content
  * @param content - The pasted text content
  * @returns A description summarizing the content
@@ -61,117 +31,12 @@ export const generateArtifactTitle = (content: string): string => {
 export const generateArtifactDescription = (content: string): string => {
     const charCount = content.length;
     const lineCount = content.split("\n").length;
-    const contentType = detectContentType(content);
 
     // Get a shorter preview of the content (50 chars instead of 100)
     const preview = content.substring(0, 50).replace(/\n/g, " ").trim();
     const previewText = preview.length < content.length ? `${preview}...` : preview;
 
-    const typeLabel = getTypeLabel(contentType);
-
-    return `Pasted ${typeLabel} (${charCount} chars, ${lineCount} lines): ${previewText}`;
-};
-
-/**
- * Helper function to detect if content is CSV
- */
-const isCSV = (content: string): boolean => {
-    const lines = content.trim().split("\n");
-    if (lines.length < 2) return false;
-
-    // Check if lines have consistent comma-separated values
-    const firstLineCommas = (lines[0].match(/,/g) || []).length;
-    if (firstLineCommas === 0) return false;
-
-    // Check at least first 3 lines (or all if less) have similar comma count
-    const linesToCheck = Math.min(lines.length, 5);
-    for (let i = 1; i < linesToCheck; i++) {
-        const commas = (lines[i].match(/,/g) || []).length;
-        // Allow some variance but should be close to first line
-        if (Math.abs(commas - firstLineCommas) > 1) return false;
-    }
-
-    return true;
-};
-
-/**
- * Detects the content type from text
- */
-const detectContentType = (content: string): string => {
-    // Check for CSV first (common paste format)
-    if (isCSV(content)) {
-        return "text/csv";
-    }
-    if (content.includes("def ") || (content.includes("import ") && content.includes("from "))) {
-        return "text/python";
-    }
-    if (content.includes("function ") || content.includes("const ") || content.includes("let ") || content.includes("=>")) {
-        return "text/javascript";
-    }
-    if (content.includes("interface ") || (content.includes("type ") && content.includes(":"))) {
-        return "text/typescript";
-    }
-    if (content.includes("<!DOCTYPE") || content.includes("<html")) {
-        return "text/html";
-    }
-    if (content.includes("{") && content.includes("}") && content.includes(":")) {
-        try {
-            JSON.parse(content);
-            return "application/json";
-        } catch {
-            // Not valid JSON
-        }
-    }
-    if (content.includes("---") && (content.includes("apiVersion:") || content.includes("kind:"))) {
-        return "text/yaml";
-    }
-    if (content.includes("<?xml") || (content.includes("<") && content.includes("/>"))) {
-        return "text/xml";
-    }
-    if (content.includes("#") && (content.includes("##") || content.includes("```"))) {
-        return "text/markdown";
-    }
-    return "text/plain";
-};
-
-/**
- * Gets file extension from MIME type
- */
-const getExtensionFromMimeType = (mimeType: string): string => {
-    const extensionMap: Record<string, string> = {
-        "text/plain": "txt",
-        "text/markdown": "md",
-        "text/csv": "csv",
-        "application/json": "json",
-        "text/html": "html",
-        "text/css": "css",
-        "text/javascript": "js",
-        "text/typescript": "ts",
-        "text/python": "py",
-        "text/yaml": "yaml",
-        "text/xml": "xml",
-    };
-    return extensionMap[mimeType] || "txt";
-};
-
-/**
- * Gets human-readable type label
- */
-const getTypeLabel = (mimeType: string): string => {
-    const labelMap: Record<string, string> = {
-        "text/plain": "text",
-        "text/markdown": "Markdown",
-        "text/csv": "CSV",
-        "application/json": "JSON",
-        "text/html": "HTML",
-        "text/css": "CSS",
-        "text/javascript": "JavaScript",
-        "text/typescript": "TypeScript",
-        "text/python": "Python code",
-        "text/yaml": "YAML",
-        "text/xml": "XML",
-    };
-    return labelMap[mimeType] || "text";
+    return `Pasted text (${charCount} chars, ${lineCount} lines): ${previewText}`;
 };
 
 /**
