@@ -749,8 +749,8 @@ async def import_project(
     except ValueError as e:
         error_msg = str(e)
         log.warning(f"Validation error importing project: {error_msg}")
-        # Check if this is a file size error
-        if "exceeds maximum" in error_msg.lower() and "bytes" in error_msg.lower():
+        # Check if this is a file size error 
+        if "exceeds maximum" in error_msg.lower():
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=error_msg

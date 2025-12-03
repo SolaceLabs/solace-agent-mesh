@@ -14,6 +14,8 @@ from ....agent.utils.artifact_helpers import get_artifact_info_list, save_artifa
 
 # Default max upload size (50MB) - matches gateway_max_upload_size_bytes default
 DEFAULT_MAX_UPLOAD_SIZE_BYTES = 52428800
+# Default max ZIP upload size (100MB) - for project import ZIP files
+DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 104857600
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -46,6 +48,17 @@ class ProjectService:
         self.max_upload_size_bytes = (
             component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_UPLOAD_SIZE_BYTES)
             if component else DEFAULT_MAX_UPLOAD_SIZE_BYTES
+        )
+        # Get max ZIP upload size from component config, with fallback to default (100MB)
+        self.max_zip_upload_size_bytes = (
+            component.get_config("gateway_max_zip_upload_size_bytes", DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES)
+            if component else DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES
+        )
+        self.logger.info(
+            f"[ProjectService] Initialized with max_upload_size_bytes={self.max_upload_size_bytes:,} "
+            f"({self.max_upload_size_bytes / (1024*1024):.2f} MB), "
+            f"max_zip_upload_size_bytes={self.max_zip_upload_size_bytes:,} "
+            f"({self.max_zip_upload_size_bytes / (1024*1024):.2f} MB)"
         )
 
     def _get_repositories(self, db):
@@ -737,10 +750,22 @@ class ProjectService:
         log_prefix = f"[ProjectService:import_project] User {user_id}:"
         warnings = []
         
-        # Validate ZIP file size before reading
-        self.logger.info(f"{log_prefix} Validating ZIP file size")
-        zip_content = await self._validate_file_size(zip_file, log_prefix)
-        self.logger.info(f"{log_prefix} ZIP file size validated: {len(zip_content):,} bytes")
+        # Read ZIP file content with size validation
+        self.logger.info(f"{log_prefix} Reading ZIP file")
+        zip_content = await zip_file.read()
+        zip_size = len(zip_content)
+        self.logger.info(f"{log_prefix} ZIP file read: {zip_size:,} bytes")
+        
+        # Validate ZIP file size (separate, larger limit than individual artifacts)
+        if zip_size > self.max_zip_upload_size_bytes:
+            max_size_mb = self.max_zip_upload_size_bytes / (1024 * 1024)
+            file_size_mb = zip_size / (1024 * 1024)
+            error_msg = (
+                f"ZIP file '{zip_file.filename}' rejected: size ({file_size_mb:.2f} MB) "
+                f"exceeds maximum allowed ({max_size_mb:.2f} MB)"
+            )
+            self.logger.warning(f"{log_prefix} {error_msg}")
+            raise ValueError(error_msg)
         
         zip_buffer = BytesIO(zip_content)
         
@@ -811,15 +836,17 @@ class ProjectService:
                             filename = artifact_path.replace('artifacts/', '')
                             content_bytes = zip_ref.read(artifact_path)
                             
-                            # Validate individual artifact size within ZIP
+                            # Skip oversized artifacts with a warning (don't fail the entire import)
                             if len(content_bytes) > self.max_upload_size_bytes:
-                                error_msg = (
-                                    f"Artifact '{filename}' in ZIP exceeds maximum size "
-                                    f"({len(content_bytes):,} bytes > {self.max_upload_size_bytes:,} bytes)"
+                                max_size_mb = self.max_upload_size_bytes / (1024 * 1024)
+                                file_size_mb = len(content_bytes) / (1024 * 1024)
+                                skip_msg = (
+                                    f"Skipped '{filename}': size ({file_size_mb:.2f} MB) "
+                                    f"exceeds maximum allowed ({max_size_mb:.2f} MB)"
                                 )
-                                self.logger.warning(f"{log_prefix} {error_msg}")
-                                warnings.append(error_msg)
-                                continue  # Skip this artifact but continue with others
+                                self.logger.warning(f"{log_prefix} {skip_msg}")
+                                warnings.append(skip_msg)
+                                continue  # Skip this artifact, continue with others
                             
                             # Find metadata from project.json
                             artifact_meta = next(
