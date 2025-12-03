@@ -98,6 +98,8 @@ export interface ChatActions {
     updateSessionName: (sessionId: string, newName: string, showNotification?: boolean) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
     handleFeedbackSubmit: (taskId: string, feedbackType: "up" | "down", feedbackText: string) => Promise<void>;
+
+    displayError: ({ title, error }: { title: string; error: string }) => void;
 }
 
 export type ChatContextValue = ChatState & ChatActions;
