@@ -6,7 +6,7 @@ import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Pop
 import type { MenuAction } from "@/lib/components/ui/menu";
 import type { Project } from "@/lib/types/projects";
 import { formatTimestamp } from "@/lib/utils/format";
-import { DeleteProjectDialog, downloadBlob, useChatContext } from "@/lib";
+import { DeleteProjectDialog, downloadBlob, getErrorMessage, useChatContext } from "@/lib";
 import { useExportProject } from "@/features/projects/api/hooks";
 
 interface ProjectCardProps {
@@ -18,7 +18,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) =>
     const [menuOpen, setMenuOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const { refetch } = useExportProject(project.id);
-    const { addNotification } = useChatContext();
+    const { addNotification, displayError } = useChatContext();
 
     const handleExport = async () => {
         try {
@@ -27,11 +27,11 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) =>
             if (blob.data) {
                 const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
                 downloadBlob(blob.data, filename);
-                addNotification("Project exported successfully", "success");
+                addNotification("Project exported", "success");
             }
         } catch (error) {
             console.error("Failed to export project:", error);
-            addNotification("Failed to export project", "error");
+            displayError({ title: "Failed to Export Project", error: getErrorMessage(error, "An unknown error occurred while exporting the project.") });
         }
     };
 

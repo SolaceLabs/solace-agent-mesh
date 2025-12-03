@@ -9,7 +9,7 @@ import { Search, FileText, Plus } from "lucide-react";
 import type { MessageFE, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { VariableDialog } from "./VariableDialog";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { fetchJsonWithError } from "@/lib/utils/api";
 
 export type ChatCommand = "create-template";
 
@@ -59,13 +59,8 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
         const fetchPromptGroups = async () => {
             setIsLoading(true);
             try {
-                const response = await authenticatedFetch("/api/v1/prompts/groups/all", {
-                    credentials: "include",
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    setPromptGroups(data);
-                }
+                const data = await fetchJsonWithError("/api/v1/prompts/groups/all");
+                setPromptGroups(data);
             } catch (error) {
                 console.error("Failed to fetch prompt groups:", error);
             } finally {

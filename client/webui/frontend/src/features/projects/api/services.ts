@@ -1,6 +1,6 @@
 import type { ArtifactInfo, CreateProjectRequest, Project, UpdateProjectData } from "@/lib";
 import type { PaginatedSessionsResponse } from "@/lib/components/chat/SessionList";
-import { authenticatedFetch } from "@/lib/utils";
+import { authenticatedFetch, fetchJsonWithError, fetchWithError } from "@/lib/utils";
 
 export const handleAPIError = async (response: Response, defaultMessageLabel: string) => {
     if (response.ok) return;
@@ -134,9 +134,8 @@ export const getProjectSessions = async (projectId: string) => {
 
 export const exportProject = async (projectId: string) => {
     const url = `/api/v1/projects/${projectId}/export`;
-    const response = await authenticatedFetch(url);
 
-    await handleAPIError(response, "Failed to export project");
+    const response = await fetchWithError(url);
 
     return await response.blob();
 };
@@ -147,13 +146,10 @@ export const importProject = async (file: File, options: { preserveName: boolean
     formData.append("options", JSON.stringify(options));
 
     const url = "/api/v1/projects/import";
-    const response = await authenticatedFetch(url, {
+    const result = await fetchJsonWithError(url, {
         method: "POST",
         body: formData,
-        credentials: "include",
     });
 
-    await handleAPIError(response, "Failed to import project");
-
-    return await response.json();
+    return result;
 };

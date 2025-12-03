@@ -49,13 +49,8 @@ const MessageActions: React.FC<{
     const handleModalSubmit = async (feedbackText: string) => {
         if (!feedbackType || !taskId) return;
 
-        try {
-            await handleFeedbackSubmit(taskId, feedbackType, feedbackText);
-            addNotification("Feedback submitted successfully", "success");
-        } catch (error) {
-            addNotification("Failed to submit feedback. Please try again.", "error");
-            throw error; // Re-throw to prevent modal from closing
-        }
+        await handleFeedbackSubmit(taskId, feedbackType, feedbackText);
+        addNotification("Feedback submitted successfully", "success");
     };
 
     const shouldShowFeedback = showFeedbackActions && configCollectFeedback;
