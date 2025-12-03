@@ -8396,7 +8396,7 @@ webui_config = {
         "session_secret_key": "a-very-secret-key",
         "fastapi_host": "0.0.0.0",
         "fastapi_port": 8080,
-        "artifact_service": {"type": "local_file", "base_path": "./artifacts"}
+        "artifact_service": {"type": "filesystem", "base_path": "./artifacts"}
     }
 }
 webui_app = WebUIBackendApp(webui_config)

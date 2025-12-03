@@ -39,7 +39,7 @@ my-plugin/
 
 ### 2. Implement Tools
 
-Edit `src/my_plugin/tools.py`. See `references/tool-patterns.md` for the three implementation patterns:
+Edit `src/my_plugin/tools.py`. See `skills/references/tool-patterns.md` for the three implementation patterns:
 
 **Pattern 1: Simple Function** (recommended for most cases)
 ```python
@@ -56,7 +56,7 @@ async def my_tool(
 **Pattern 2: DynamicTool Class** (for complex logic)
 **Pattern 3: DynamicToolProvider** (for multiple related tools)
 
-See `references/tool-patterns.md` for detailed examples.
+See `skills/references/tool-patterns.md` for detailed examples.
 
 ### 3. Configure Agent
 
@@ -78,7 +78,7 @@ app_config:
         param1: "value1"
 ```
 
-See `references/configuration-reference.md` for complete options.
+See `skills/references/configuration-reference.md` for complete options.
 
 ### 4. Add Dependencies
 
@@ -163,7 +163,7 @@ Tools can save/load files via the artifact service:
 - **Save**: Use `save_artifact_with_metadata` helper
 - **Load**: Handle `filename:version` format, check async/sync methods
 
-See `references/artifact-handling.md` for examples.
+See `skills/references/artifact-handling.md` for examples.
 
 ### Lifecycle Functions
 
@@ -171,7 +171,7 @@ Optional init/cleanup functions in `lifecycle.py`:
 - **init_function** - Runs on agent start (database connections, etc.)
 - **cleanup_function** - Runs on shutdown (close connections, save state)
 
-See `references/lifecycle-functions.md` for patterns.
+See `skills/references/lifecycle-functions.md` for patterns.
 
 ## Tool Implementation Patterns
 
@@ -220,7 +220,7 @@ tools:
 
 ### Working with Files
 
-For tools that need to load/save files, see the complete pattern in `references/artifact-handling.md`.
+For tools that need to load/save files, see the complete pattern in `skills/references/artifact-handling.md`.
 
 Key points:
 - Parse `filename:version` format
@@ -315,7 +315,7 @@ Changes take effect immediately.
 
 ## Templates
 
-All template files are in `assets/templates/`:
+All template files are in `skills/assets/templates/`:
 
 - `config_template.yaml` - Complete agent configuration
 - `pyproject_template.toml` - Python package metadata

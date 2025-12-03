@@ -73,7 +73,7 @@ class MyGatewayApp(BaseGatewayApp):
 #   namespace: "myorg/prod"
 #   gateway_id: "my-gateway-instance-01"
 #   artifact_service:
-#     type: "local_file"
+#     type: "filesystem"
 #     base_path: "/data/artifacts"
 #   my_platform_api_key: "secret-key-here"
 ```
