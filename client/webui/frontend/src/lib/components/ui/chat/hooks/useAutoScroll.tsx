@@ -10,7 +10,7 @@ interface UseAutoScrollOptions {
     smooth?: boolean;
     content?: React.ReactNode;
     autoScrollOnNewContent?: boolean;
-    contentRef?: React.RefObject<HTMLElement>;
+    contentRef?: React.RefObject<HTMLElement | null>;
 }
 
 export function useAutoScroll(options: UseAutoScrollOptions = {}) {
@@ -105,13 +105,13 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
         if (atBottom) {
             // At bottom - always enable and clear the flag
             recentUpwardScroll.current = false;
-            setScrollState(prev => ({
+            setScrollState(() => ({
                 isAtBottom: true,
                 autoScrollEnabled: true,
             }));
         } else if (recentUpwardScroll.current) {
             // Not at bottom and user has scrolled up - disable
-            setScrollState(prev => ({
+            setScrollState(() => ({
                 isAtBottom: false,
                 autoScrollEnabled: false,
             }));

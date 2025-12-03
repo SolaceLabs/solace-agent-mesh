@@ -150,31 +150,35 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
         }
     };
 
-    // Define shadow colors based on theme
+    // Define shadow and background colors based on theme
+    // Light mode: background-w10, shadow using secondary-w8040
+    // Dark mode: background-wMain, shadow using primary-w90 (darker shadows)
+    const backgroundColor = isDarkMode ? 'var(--color-background-wMain)' : 'var(--color-background-w10)';
     const restingShadow = isDarkMode
-        ? '0px 1px 4px 0px rgba(255, 255, 255, 0.15)'
+        ? '0px 1px 4px 0px var(--color-primary-w90)'
         : '0px 1px 4px 0px var(--color-secondary-w8040)';
     const hoverShadow = isDarkMode
-        ? '0px 2px 8px 0px rgba(255, 255, 255, 0.25)'
+        ? '0px 2px 8px 0px var(--color-primary-w90)'
         : '0px 2px 8px 0px var(--color-secondary-w8040)';
+
+    // Determine if this artifact is clickable
+    const isClickable = status === "completed" && actions?.onPreview && !isDeleted;
 
     return (
         <div
-            className={`w-full ${status === "completed" && actions?.onPreview && !isDeleted ? "cursor-pointer transition-all duration-200 ease-in-out" : ""} ${context === "list" ? "border-b" : "border-border rounded border"} ${isDeleted ? "opacity-60" : ""}`}
+            className={`w-full ${isClickable ? "cursor-pointer" : ""} ${context === "list" ? "border-b" : ""} ${isDeleted ? "opacity-60" : ""} transition-shadow duration-200 ease-in-out`}
             style={{
-                backgroundColor: 'var(--card)',
-                boxShadow: status === "completed" && actions?.onPreview && !isDeleted
-                    ? restingShadow
-                    : undefined,
+                backgroundColor,
+                boxShadow: isClickable ? restingShadow : undefined,
                 borderRadius: context === "list" ? undefined : '4px',
             }}
             onMouseEnter={(e) => {
-                if (status === "completed" && actions?.onPreview && !isDeleted) {
+                if (isClickable) {
                     e.currentTarget.style.boxShadow = hoverShadow;
                 }
             }}
             onMouseLeave={(e) => {
-                if (status === "completed" && actions?.onPreview && !isDeleted) {
+                if (isClickable) {
                     e.currentTarget.style.boxShadow = restingShadow;
                 }
             }}
