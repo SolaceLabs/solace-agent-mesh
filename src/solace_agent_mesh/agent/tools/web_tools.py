@@ -33,6 +33,10 @@ log = logging.getLogger(__name__)
 CATEGORY_NAME = "Web Access"
 CATEGORY_DESCRIPTION = "Access the web to find information to complete user requests."
 
+# Response size limits (in bytes)
+DEFAULT_MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10 MB default
+ABSOLUTE_MAX_RESPONSE_SIZE = 50 * 1024 * 1024  # 50 MB hard cap (cannot be exceeded even via config)
+
 def _is_safe_url(url: str) -> bool:
     """
     Checks if a URL is safe to request by resolving its hostname and checking
@@ -84,7 +88,9 @@ async def web_request(
         body: Optional request body string for methods like POST/PUT. If sending JSON, this should be a valid JSON string.
         output_artifact_filename: Optional. Desired filename for the output artifact.
         tool_context: The context provided by the ADK framework.
-        tool_config: Optional. Configuration passed by the ADK, generally not used by this simplified tool.
+        tool_config: Optional. Configuration passed by the ADK. Supports:
+            - allow_loopback: bool - Allow requests to loopback addresses (for testing)
+            - max_response_size_bytes: int - Maximum response size in bytes (default: 10MB, max: 50MB)
         max_retries: Maximum number of retry attempts for failed requests. Defaults to 2.
 
     Returns:
@@ -97,8 +103,15 @@ async def web_request(
 
     # Check if loopback URLs are allowed (for testing)
     allow_loopback = False
+    max_response_size = DEFAULT_MAX_RESPONSE_SIZE
+    
     if tool_config:
         allow_loopback = tool_config.get("allow_loopback", False)
+        # Get max response size from config, but enforce hard cap
+        configured_size = tool_config.get("max_response_size_bytes")
+        if configured_size is not None:
+            max_response_size = min(int(configured_size), ABSOLUTE_MAX_RESPONSE_SIZE)
+            log.debug(f"{log_identifier} Using configured max_response_size: {max_response_size} bytes")
     
     if not allow_loopback and not _is_safe_url(url):
         log.error(f"{log_identifier} URL is not safe to request: {url}")
@@ -145,21 +158,64 @@ async def web_request(
 
         # Retry logic with exponential backoff
         last_error = None
+        response = None
         for attempt in range(1, max_retries + 1):
             try:
                 async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
                     log.info(
                         f"{log_identifier} Attempt {attempt}/{max_retries}: Making {method} request to {url}"
                     )
-                    response = await client.request(
+                    
+                    # Use streaming to check Content-Length and limit response size
+                    async with client.stream(
                         method=method.upper(),
                         url=url,
                         headers=headers,
                         content=request_body_bytes,
-                    )
-                    log.info(
-                        f"{log_identifier} Received response with status code: {response.status_code}"
-                    )
+                    ) as stream_response:
+                        # Check Content-Length header if available
+                        content_length = stream_response.headers.get("content-length")
+                        if content_length:
+                            content_length_int = int(content_length)
+                            if content_length_int > max_response_size:
+                                log.warning(
+                                    f"{log_identifier} Response Content-Length ({content_length_int} bytes) exceeds "
+                                    f"max_response_size ({max_response_size} bytes). Rejecting request."
+                                )
+                                return {
+                                    "status": "error",
+                                    "message": f"Response too large: {content_length_int} bytes exceeds limit of {max_response_size} bytes ({max_response_size // (1024*1024)} MB). "
+                                               f"Consider using a more specific URL or a different approach."
+                                }
+                        
+                        # Read response with size limit using streaming
+                        chunks = []
+                        total_size = 0
+                        async for chunk in stream_response.aiter_bytes():
+                            total_size += len(chunk)
+                            if total_size > max_response_size:
+                                log.warning(
+                                    f"{log_identifier} Response size ({total_size} bytes) exceeded "
+                                    f"max_response_size ({max_response_size} bytes) during streaming. Truncating."
+                                )
+                                # Keep what we have so far but stop reading
+                                break
+                            chunks.append(chunk)
+                        
+                        # Create a response-like object with the data we need
+                        class StreamedResponse:
+                            def __init__(self, stream_resp, content_bytes):
+                                self.status_code = stream_resp.status_code
+                                self.headers = stream_resp.headers
+                                self.content = content_bytes
+                        
+                        response = StreamedResponse(stream_response, b"".join(chunks))
+                        
+                        log.info(
+                            f"{log_identifier} Received response with status code: {response.status_code}, "
+                            f"size: {len(response.content)} bytes"
+                        )
+                    
                     # Success - break out of retry loop
                     break
                     

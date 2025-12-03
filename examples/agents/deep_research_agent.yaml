@@ -182,6 +182,9 @@ apps:
             max_runtime_seconds: 300       # Default: 5 minutes (can use duration_minutes: 5)
             sources: ["web"]               # Default sources
       
+            # Web request limits (used when fetching full content from web sources)
+            max_response_size_bytes: 5242880  # 5 MB limit for fetched web pages (can be increased upto 50MB)
+      
             # API keys for web search
             tavily_api_key: "${TAVILY_API_KEY}"
             google_search_api_key: "${GOOGLE_SEARCH_API_KEY}"
