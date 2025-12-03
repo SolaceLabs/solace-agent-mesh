@@ -1,8 +1,9 @@
 import React from "react";
 
 import { NavigationButton } from "@/lib/components/navigation";
+import { UserMenu } from "@/lib/components/navigation/UserMenu";
+import { useConfigContext } from "@/lib/hooks";
 import type { NavigationItem } from "@/lib/types";
-import { SettingsDialog } from "@/lib/components/settings";
 
 interface NavigationListProps {
     items: NavigationItem[];
@@ -10,6 +11,13 @@ interface NavigationListProps {
     activeItem: string | null;
     onItemClick: (itemId: string) => void;
 }
+
+// Wrapper component to inject user info from config
+const UserMenuWithConfig: React.FC<{ onUsageClick: () => void }> = ({ onUsageClick }) => {
+    const { user } = useConfigContext();
+
+    return <UserMenu userName={user?.name || "Username not found"} userEmail={user?.email || "Email not found"} onUsageClick={onUsageClick} />;
+};
 
 export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomItems, activeItem, onItemClick }) => {
     return (
@@ -36,9 +44,9 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                             <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
                         </li>
                     ))}
-                {/* Settings Dialog */}
+                {/* User Menu with Settings and Token Usage */}
                 <li className="my-4 flex justify-center">
-                    <SettingsDialog iconOnly={true} />
+                    <UserMenuWithConfig onUsageClick={() => onItemClick("usage")} />
                 </li>
             </ul>
         </nav>
