@@ -18,21 +18,27 @@ export const PROMPT_FIELD_LIMITS = {
  * to match the existing interface in PromptsPage
  */
 const promptMetadataSchema = z.object({
-    authorName: z.string().max(PROMPT_FIELD_LIMITS.AUTHOR_NAME_MAX, `Author name must be ${PROMPT_FIELD_LIMITS.AUTHOR_NAME_MAX} characters or less`).optional(),
+    authorName: z.union([z.string().max(PROMPT_FIELD_LIMITS.AUTHOR_NAME_MAX, `Author name must be ${PROMPT_FIELD_LIMITS.AUTHOR_NAME_MAX} characters or less`), z.null()]).optional(),
     originalVersion: z.number().int().positive(),
     originalCreatedAt: z.number().int().positive(),
 });
 
 /**
+ * Helper to create an optional string field that accepts null, undefined, or a valid string
+ */
+const optionalString = (maxLength: number, fieldName: string) => z.union([z.string().max(maxLength, `${fieldName} must be ${maxLength} characters or less`), z.null()]).optional();
+
+/**
  * Schema for the prompt data within the import file
+ * Note: Optional fields use union with z.null() to accept both undefined and null values
  */
 const promptDataSchema = z.object({
     name: z.string().min(1, "Name is required").max(PROMPT_FIELD_LIMITS.NAME_MAX, `Name must be ${PROMPT_FIELD_LIMITS.NAME_MAX} characters or less`),
-    description: z.string().max(PROMPT_FIELD_LIMITS.DESCRIPTION_MAX, `Description must be ${PROMPT_FIELD_LIMITS.DESCRIPTION_MAX} characters or less`).optional(),
-    category: z.string().max(PROMPT_FIELD_LIMITS.CATEGORY_MAX, `Category must be ${PROMPT_FIELD_LIMITS.CATEGORY_MAX} characters or less`).optional(),
-    command: z.string().max(PROMPT_FIELD_LIMITS.COMMAND_MAX, `Command must be ${PROMPT_FIELD_LIMITS.COMMAND_MAX} characters or less`).optional(),
+    description: optionalString(PROMPT_FIELD_LIMITS.DESCRIPTION_MAX, "Description"),
+    category: optionalString(PROMPT_FIELD_LIMITS.CATEGORY_MAX, "Category"),
+    command: optionalString(PROMPT_FIELD_LIMITS.COMMAND_MAX, "Command"),
     promptText: z.string().min(1, "Prompt text is required"),
-    metadata: promptMetadataSchema.optional(),
+    metadata: z.union([promptMetadataSchema, z.null()]).optional(),
 });
 
 /**
