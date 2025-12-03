@@ -1255,6 +1255,7 @@ async def deep_research(
     max_iterations: Optional[int] = None,
     max_sources_per_iteration: int = 5,
     kb_ids: Optional[List[str]] = None,
+    max_runtime_minutes: Optional[int] = None,
     max_runtime_seconds: Optional[int] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
@@ -1263,7 +1264,7 @@ async def deep_research(
     Performs comprehensive, iterative research across multiple sources.
     
     Configuration Priority (highest to lowest):
-    1. Explicit parameters (max_iterations, max_runtime_seconds)
+    1. Explicit parameters (max_iterations, max_runtime_minutes/max_runtime_seconds)
     2. Tool config (tool_config.max_iterations, tool_config.max_runtime_seconds)
     3. Research type translation ("quick" or "in-depth")
     
@@ -1274,7 +1275,8 @@ async def deep_research(
         max_iterations: Maximum research iterations (overrides tool_config and research_type)
         max_sources_per_iteration: Max results per source per iteration (default: 5)
         kb_ids: Specific knowledge base IDs to search
-        max_runtime_seconds: Maximum runtime in seconds (overrides tool_config and research_type)
+        max_runtime_minutes: Maximum runtime in minutes (1-10). Converted to seconds internally.
+        max_runtime_seconds: Maximum runtime in seconds (60-600). Overrides tool_config and research_type.
         tool_context: ADK tool context
         tool_config: Tool configuration with optional max_iterations, max_runtime_seconds, sources
     
@@ -1303,8 +1305,15 @@ async def deep_research(
     else:
         log.info("%s Using explicit max_iterations parameter: %d", log_identifier, max_iterations)
     
-    # Resolve max_runtime_seconds
-    if max_runtime_seconds is None:
+    # Resolve max_runtime_seconds (with priority: max_runtime_minutes > max_runtime_seconds > tool_config > research_type)
+    # First, check if max_runtime_minutes was provided (LLM-friendly parameter)
+    if max_runtime_minutes is not None:
+        max_runtime_seconds = max_runtime_minutes * 60
+        log.info("%s Using explicit max_runtime_minutes parameter: %d minutes (%d seconds)",
+                log_identifier, max_runtime_minutes, max_runtime_seconds)
+    elif max_runtime_seconds is not None:
+        log.info("%s Using explicit max_runtime_seconds parameter: %d", log_identifier, max_runtime_seconds)
+    else:
         # Check tool_config (support both seconds and minutes)
         config_duration = config.get("max_runtime_seconds") or config.get("duration_seconds")
         config_duration_minutes = config.get("duration_minutes")
@@ -1326,8 +1335,6 @@ async def deep_research(
                 max_runtime_seconds = 300  # 5 minutes
                 log.info("%s Using max_runtime_seconds from research_type 'quick': %d seconds",
                         log_identifier, max_runtime_seconds)
-    else:
-        log.info("%s Using explicit max_runtime_seconds parameter: %d", log_identifier, max_runtime_seconds)
     
     # Resolve sources
     if sources is None:
@@ -1564,34 +1571,58 @@ async def deep_research(
         log.info("%s Research complete: %d total sources, report length: %d chars",
                 log_identifier, len(all_findings), len(report))
         
-        # Create artifact for the research report
-        from ..tools.builtin_artifact_tools import _internal_create_artifact
-        from ..adk.tool_wrapper import ADKToolWrapper
+        from ..utils.artifact_helpers import (
+            save_artifact_with_metadata,
+            decode_and_get_bytes,
+            sanitize_to_filename,
+        )
+        from ..utils.context_helpers import get_original_session_id
         
-        # Generate filename from research question
-        import re
-        safe_filename = re.sub(r'[^\w\s-]', '', research_question.lower())
-        safe_filename = re.sub(r'[-\s]+', '_', safe_filename)
-        safe_filename = safe_filename[:50]  # Limit length
-        artifact_filename = f"{safe_filename}_report.md"
-        
-        # Create the artifact - IMPORTANT: Use original tool_context to preserve state
-        wrapped_creator = ADKToolWrapper(
-            original_func=_internal_create_artifact,
-            tool_config=None,
-            tool_name="_internal_create_artifact",
-            origin="internal",
-            resolution_type="early",
+        # Generate filename from research question using utility function
+        artifact_filename = sanitize_to_filename(
+            research_question,
+            max_length=50,
+            suffix="_report.md"
         )
         
-        # Use the ORIGINAL tool_context, not a new one, to preserve a2a_context
-        artifact_result = await wrapped_creator(
-            filename=artifact_filename,
-            content=report,
-            mime_type="text/markdown",
-            description=f"Deep research report on: {research_question}",
-            tool_context=tool_context,
-        )
+        # Get artifact service from invocation context
+        inv_context = tool_context._invocation_context
+        artifact_service = inv_context.artifact_service
+        if not artifact_service:
+            log.warning("%s ArtifactService not available, cannot save research report artifact", log_identifier)
+            artifact_result = {"status": "error", "message": "ArtifactService not available"}
+        else:
+            # Prepare content bytes and metadata
+            artifact_bytes, final_mime_type = decode_and_get_bytes(
+                report, "text/markdown", f"{log_identifier}[CreateArtifact]"
+            )
+            
+            # Get timestamp from session
+            session_last_update_time = inv_context.session.last_update_time
+            if isinstance(session_last_update_time, datetime):
+                timestamp_for_artifact = session_last_update_time
+            elif isinstance(session_last_update_time, (int, float)):
+                try:
+                    timestamp_for_artifact = datetime.fromtimestamp(session_last_update_time, timezone.utc)
+                except Exception:
+                    timestamp_for_artifact = datetime.now(timezone.utc)
+            else:
+                timestamp_for_artifact = datetime.now(timezone.utc)
+            
+            # Save artifact directly using artifact service
+            artifact_result = await save_artifact_with_metadata(
+                artifact_service=artifact_service,
+                app_name=inv_context.app_name,
+                user_id=inv_context.user_id,
+                session_id=get_original_session_id(inv_context),
+                filename=artifact_filename,
+                content_bytes=artifact_bytes,
+                mime_type=final_mime_type,
+                metadata_dict={"description": f"Deep research report on: {research_question}"},
+                timestamp=timestamp_for_artifact,
+                schema_max_keys=50,  # Default schema max keys
+                tool_context=tool_context,
+            )
         
         if artifact_result.get("status") not in ["success", "partial_success"]:
             log.warning("%s Failed to create artifact for research report", log_identifier)
@@ -1614,41 +1645,6 @@ async def deep_research(
                 max_runtime_seconds=max_runtime_seconds or 0
             )
             
-            # Explicitly register the artifact in task context AND signal it for return
-            try:
-                a2a_context = tool_context.state.get("a2a_context")
-                if a2a_context:
-                    logical_task_id = a2a_context.get("logical_task_id")
-                    if logical_task_id:
-                        inv_context = tool_context._invocation_context
-                        agent = getattr(inv_context, 'agent', None)
-                        if agent:
-                            host_component = getattr(agent, 'host_component', None)
-                            if host_component:
-                                with host_component.active_tasks_lock:
-                                    task_context = host_component.active_tasks.get(logical_task_id)
-                                if task_context:
-                                    task_context.register_produced_artifact(artifact_filename, artifact_version)
-                                    log.info("%s Explicitly registered artifact '%s' v%d in task context",
-                                            log_identifier, artifact_filename, artifact_version)
-                                    
-                                    # CRITICAL: Signal the artifact for return to chat
-                                    # This triggers the artifact to be sent as a message part via _handle_artifact_return_signals
-                                    task_context.add_artifact_signal({
-                                        "filename": artifact_filename,
-                                        "version": artifact_version
-                                    })
-                                    log.info("%s Signaled artifact '%s' v%d for return to chat",
-                                            log_identifier, artifact_filename, artifact_version)
-                                    
-                                    # Also add to state_delta to trigger the signal handler
-                                    if hasattr(tool_context, 'actions') and hasattr(tool_context.actions, 'state_delta'):
-                                        tool_context.actions.state_delta[f"temp:a2a_return_artifact:{artifact_filename}"] = artifact_version
-                                        log.info("%s Added artifact signal to state_delta for '%s' v%d",
-                                                log_identifier, artifact_filename, artifact_version)
-            except Exception as e_track:
-                log.warning("%s Failed to explicitly register/signal artifact: %s",
-                           log_identifier, e_track)
         
         # Build the response artifact reference for the embed pattern
         artifact_version = artifact_result.get("data_version", 1) if artifact_result.get("status") in ["success", "partial_success"] else None
@@ -1729,9 +1725,14 @@ Configuration:
                 description="Maximum number of research iterations (1-10). Overrides tool_config and research_type if provided.",
                 nullable=True
             ),
+            "max_runtime_minutes": adk_types.Schema(
+                type=adk_types.Type.INTEGER,
+                description="Maximum runtime in minutes (1-10). The software converts this to seconds internally. Overrides tool_config and research_type if provided.",
+                nullable=True
+            ),
             "max_runtime_seconds": adk_types.Schema(
                 type=adk_types.Type.INTEGER,
-                description="Maximum runtime in seconds (60-600). Overrides tool_config and research_type if provided.",
+                description="Maximum runtime in seconds (60-600). Use max_runtime_minutes instead for easier specification. Overrides tool_config and research_type if provided.",
                 nullable=True
             ),
             "sources": adk_types.Schema(
