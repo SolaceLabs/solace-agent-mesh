@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, FileText, Plus } from "lucide-react";
+import { Search, NotepadText, Plus } from "lucide-react";
 import type { MessageFE, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { VariableDialog } from "./VariableDialog";
@@ -17,7 +17,7 @@ interface ReservedCommand {
     command: ChatCommand;
     name: string;
     description: string;
-    icon: typeof FileText;
+    icon: typeof NotepadText;
 }
 
 const RESERVED_COMMANDS: ReservedCommand[] = [
@@ -25,7 +25,7 @@ const RESERVED_COMMANDS: ReservedCommand[] = [
         command: "create-template",
         name: "Create Template from Session",
         description: "Create a reusable prompt template from this conversation",
-        icon: FileText,
+        icon: NotepadText,
     },
 ];
 
@@ -286,7 +286,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
                                             className={`w-full rounded-md p-3 text-left transition-colors ${index === activeIndex ? "bg-[var(--accent)]" : !isKeyboardMode ? "hover:bg-[var(--accent)]" : ""}`}
                                         >
                                             <div className="flex items-start gap-3">
-                                                <FileText className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
+                                                <NotepadText className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         {group.command && <span className="font-mono text-xs text-[var(--primary)]">/{group.command}</span>}
