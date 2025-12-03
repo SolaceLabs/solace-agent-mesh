@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 
 import type { AgentCard, AgentExtension, AgentCardInfo, AgentSkill } from "@/lib/types";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { fetchJsonWithError } from "@/lib/utils/api";
 
 import { useConfigContext } from "./useConfigContext";
 
@@ -65,12 +65,7 @@ export const useAgentCards = (): useAgentCardsReturn => {
         setError(null);
         try {
             const apiPrefix = `${configServerUrl}/api/v1`;
-            const response = await authenticatedFetch(`${apiPrefix}/agentCards`, { credentials: "include" });
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: `Failed to fetch agents: ${response.statusText}` }));
-                throw new Error(errorData.message || `Failed to fetch agents: ${response.statusText}`);
-            }
-            const data: AgentCard[] = await response.json();
+            const data: AgentCard[] = await fetchJsonWithError(`${apiPrefix}/agentCards`);
             const transformedAgents = data.map(transformAgentCard);
             setAgents(transformedAgents);
         } catch (err: unknown) {

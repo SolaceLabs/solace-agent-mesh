@@ -5,7 +5,7 @@ import { v4 } from "uuid";
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 
-import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
+import { authenticatedFetch, fetchJsonWithError, fetchWithError, getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
 import type {
     ArtifactInfo,
@@ -284,14 +284,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Helper function to load session tasks and reconstruct messages
     const loadSessionTasks = useCallback(
         async (sessionId: string) => {
-            const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/chat-tasks`);
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: "Failed to load session tasks" }));
-                throw new Error(errorData.message || `HTTP error ${response.status}`);
-            }
-
-            const data = await response.json();
+            const data = await fetchJsonWithError(`${apiPrefix}/sessions/${sessionId}/chat-tasks`);
 
             // Check if this session is still active before processing
             if (currentSessionIdRef.current !== sessionId) {
@@ -369,43 +362,47 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",
                     body: formData,
-                    credentials: "include",
                 });
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: `Failed to upload ${file.name}` }));
 
-                    // Enhanced error handling for file size errors
-                    if (response.status === 413) {
-                        // Extract file size information if available
-                        const actualSize = errorData.actual_size_bytes;
-                        const maxSize = errorData.max_size_bytes;
+                // Special handling for 413 status before checking response.ok
+                if (response.status === 413) {
+                    const errorData = await response.json().catch(() => ({ message: `Failed to upload ${file.name}.` }));
+                    // Extract file size information if available
+                    const actualSize = errorData.actual_size_bytes;
+                    const maxSize = errorData.max_size_bytes;
 
-                        let errorMessage;
-                        if (actualSize && maxSize) {
-                            const actualSizeMB = (actualSize / (1024 * 1024)).toFixed(2);
-                            const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(2);
-                            errorMessage = `File "${file.name}" is too large: ${actualSizeMB} MB exceeds the maximum allowed size of ${maxSizeMB} MB`;
-                        } else {
-                            errorMessage = errorData.message || `File "${file.name}" exceeds the maximum allowed size`;
-                        }
-
-                        setError({ title: "File Upload Failed", error: errorMessage });
-                        return { error: errorMessage };
+                    let errorMessage;
+                    if (actualSize && maxSize) {
+                        const actualSizeMB = (actualSize / (1024 * 1024)).toFixed(2);
+                        const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(2);
+                        errorMessage = `File "${file.name}" is too large: ${actualSizeMB} MB exceeds the maximum allowed size of ${maxSizeMB} MB.`;
+                    } else {
+                        errorMessage = errorData.message || `File "${file.name}" exceeds the maximum allowed size.`;
                     }
 
-                    // Default error handling for other errors
-                    const errorMessage = errorData.message || `HTTP error ${response.status}`;
-                    throw new Error(errorMessage);
+                    setError({ title: "File Upload Failed", error: errorMessage });
+                    return { error: errorMessage };
                 }
+
+                // For all other errors, use be error
+                if (!response.ok) {
+                    throw new Error(
+                        await response
+                            .json()
+                            .then(d => d.message)
+                            .catch(() => `Failed to upload ${file.name}.`)
+                    );
+                }
+
                 const result = await response.json();
                 addNotification(`File "${file.name}" uploaded.`, "success");
                 await artifactsRefetch();
                 // Return both URI and sessionId (backend may have created a new session)
                 return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
             } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : "";
+                const errorMessage = getErrorMessage(error, `Failed to upload "${file.name}".`);
                 setError({ title: "File Upload Failed", error: errorMessage });
-                return { error: `Failed to upload "${file.name}": ${errorMessage}` };
+                return { error: errorMessage };
             }
         },
         [apiPrefix, sessionId, addNotification, artifactsRefetch, setError]
@@ -419,18 +416,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const deleteArtifactInternal = useCallback(
         async (filename: string) => {
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
+                await fetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
-                    credentials: "include",
                 });
-                if (!response.ok && response.status !== 204) {
-                    const errorData = await response.json().catch(() => ({ message: `Failed to delete ${filename}` }));
-                    throw new Error(errorData.message || `HTTP error ${response.status}`);
-                }
                 addNotification(`File "${filename}" deleted.`, "success");
                 artifactsRefetch();
             } catch (error) {
-                setError({ title: "File Deletion Failed", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "File Deletion Failed", error: getErrorMessage(error, `Failed to delete ${filename}.`) });
             }
         },
         [apiPrefix, sessionId, addNotification, artifactsRefetch, setError]
@@ -481,11 +473,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         let errorCount = 0;
         for (const filename of filenamesToDelete) {
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
+                await fetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
-                    credentials: "include",
                 });
-                if (!response.ok && response.status !== 204) throw new Error(`Failed to delete ${filename}`);
                 successCount++;
             } catch (error: unknown) {
                 console.error(error);
@@ -529,9 +519,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact preview");
                 }
 
-                const versionsResponse = await authenticatedFetch(versionsUrl, { credentials: "include" });
-                if (!versionsResponse.ok) throw new Error("Error fetching version list");
-                const availableVersions: number[] = await versionsResponse.json();
+                const availableVersions: number[] = await fetchJsonWithError(versionsUrl);
                 if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
                 setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
                 const latestVersion = Math.max(...availableVersions);
@@ -545,8 +533,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact content");
                 }
 
-                const contentResponse = await authenticatedFetch(contentUrl, { credentials: "include" });
-                if (!contentResponse.ok) throw new Error("Error fetching latest version content");
+                const contentResponse = await fetchWithError(contentUrl);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -564,14 +551,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setPreviewFileContent(fileData);
                 return fileData;
             } catch (error) {
-                console.error("Error loading artifact preview:", error);
+                setError({ title: "Artifact Preview Failed", error: getErrorMessage(error, "Failed to load artifact preview.") });
                 return null;
             } finally {
                 // Remove from in-progress set immediately when done
                 artifactFetchInProgressRef.current.delete(artifactFilename);
             }
         },
-        [apiPrefix, sessionId, activeProject?.id, artifacts, previewArtifactFilename]
+        [apiPrefix, sessionId, activeProject?.id, artifacts, previewArtifactFilename, setError]
     );
 
     const navigateArtifactVersion = useCallback(
@@ -600,8 +587,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact navigation");
                 }
 
-                const contentResponse = await authenticatedFetch(contentUrl, { credentials: "include" });
-                if (!contentResponse.ok) throw new Error(`Error fetching version ${targetVersion}`);
+                const contentResponse = await fetchWithError(contentUrl);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -620,7 +606,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setPreviewFileContent(fileData);
                 return fileData;
             } catch (error) {
-                setError({ title: "Artifact Version Preview Failed", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Artifact Version Preview Failed", error: getErrorMessage(error, "Failed to fetch artifact version.") });
                 return null;
             }
         },
@@ -675,18 +661,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Fetch the latest version with embeds resolved
-                const versionsResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`, { credentials: "include" });
-                if (!versionsResponse.ok) throw new Error("Error fetching version list");
-
-                const availableVersions: number[] = await versionsResponse.json();
+                const availableVersions: number[] = await fetchJsonWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
                 if (!availableVersions || availableVersions.length === 0) {
                     throw new Error("No versions available");
                 }
 
                 const latestVersion = Math.max(...availableVersions);
-                const contentResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`, { credentials: "include" });
-                if (!contentResponse.ok) throw new Error("Error fetching artifact content");
-
+                const contentResponse = await fetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -717,8 +698,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 return fileData;
             } catch (error) {
-                console.error(`Error downloading artifact ${filename}:`, error);
-                setError({ title: "File Download Failed", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "File Download Failed", error: getErrorMessage(error, `Failed to download ${filename}.`) });
                 return null;
             } finally {
                 // Remove from in-progress set immediately when done
@@ -1262,7 +1242,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(cancelRequest),
-                        credentials: "include",
                     });
                 } catch (error) {
                     console.warn(`${log_prefix} Failed to cancel current task:`, error);
@@ -1337,7 +1316,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(cancelRequest),
-                        credentials: "include",
                     });
                 } catch (error) {
                     console.warn(`${log_prefix} Failed to cancel current task:`, error);
@@ -1352,40 +1330,36 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             try {
                 // Load session metadata first to get project info
-                const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
-                let session: Session | null = null;
-                if (sessionResponse.ok) {
-                    const sessionData = await sessionResponse.json();
-                    session = sessionData?.data;
-                    setSessionName(session?.name ?? "N/A");
+                const sessionData = await fetchJsonWithError(`${apiPrefix}/sessions/${newSessionId}`);
+                const session: Session | null = sessionData?.data;
+                setSessionName(session?.name ?? "N/A");
 
-                    // Activate or deactivate project context based on session's project
-                    // Set flag to prevent handleNewSession from being triggered by this project change
-                    isSessionSwitchRef.current = true;
+                // Activate or deactivate project context based on session's project
+                // Set flag to prevent handleNewSession from being triggered by this project change
+                isSessionSwitchRef.current = true;
 
-                    if (session?.projectId) {
-                        console.log(`${log_prefix} Session belongs to project ${session.projectId}`);
+                if (session?.projectId) {
+                    console.log(`${log_prefix} Session belongs to project ${session.projectId}`);
 
-                        // Check if we're already in the correct project context
-                        if (activeProject?.id !== session.projectId) {
-                            // Find the full project object from the projects array
-                            const project = projects.find((p: Project) => p.id === session?.projectId);
+                    // Check if we're already in the correct project context
+                    if (activeProject?.id !== session.projectId) {
+                        // Find the full project object from the projects array
+                        const project = projects.find((p: Project) => p.id === session?.projectId);
 
-                            if (project) {
-                                console.log(`${log_prefix} Activating project context: ${project.name}`);
-                                setActiveProject(project);
-                            } else {
-                                console.warn(`${log_prefix} Project ${session.projectId} not found in projects array`);
-                            }
+                        if (project) {
+                            console.log(`${log_prefix} Activating project context: ${project.name}`);
+                            setActiveProject(project);
                         } else {
-                            console.log(`${log_prefix} Already in correct project context`);
+                            console.warn(`${log_prefix} Project ${session.projectId} not found in projects array`);
                         }
                     } else {
-                        // Session has no project - deactivate project context
-                        if (activeProject !== null) {
-                            console.log(`${log_prefix} Session has no project, deactivating project context`);
-                            setActiveProject(null);
-                        }
+                        console.log(`${log_prefix} Already in correct project context`);
+                    }
+                } else {
+                    // Session has no project - deactivate project context
+                    if (activeProject !== null) {
+                        console.log(`${log_prefix} Session has no project, deactivating project context`);
+                        setActiveProject(null);
                     }
                 }
 
@@ -1403,8 +1377,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 await loadSessionTasks(newSessionId);
             } catch (error) {
-                console.error(`${log_prefix} Failed to fetch session history:`, error);
-                setError({ title: "Switching Chats Failed", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Switching Chats Failed", error: getErrorMessage(error, "Failed to switch chat sessions.") });
             } finally {
                 setIsLoadingSession(false);
             }
@@ -1420,11 +1393,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ name: newName }),
                 });
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ message: "Failed to update session name" }));
 
-                    if (response.status === 422) throw new Error("Invalid name");
-                    throw new Error(errorData.message || `HTTP error ${response.status}`);
+                // Special handling for 422 validation errors
+                if (response.status === 422) {
+                    throw new Error("Invalid name");
+                }
+
+                // For all other errors
+                if (!response.ok) {
+                    throw new Error(
+                        await response
+                            .json()
+                            .then(d => d.message)
+                            .catch(() => "Failed to update session name")
+                    );
                 }
 
                 setSessionName(newName);
@@ -1432,7 +1414,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                setError({ title: "Session Name Update Failed", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Session Name Update Failed", error: getErrorMessage(error, "Failed to update session name.") });
             }
         },
         [apiPrefix, setError]
@@ -1441,13 +1423,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const deleteSession = useCallback(
         async (sessionIdToDelete: string) => {
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionIdToDelete}`, {
+                await fetchWithError(`${apiPrefix}/sessions/${sessionIdToDelete}`, {
                     method: "DELETE",
                 });
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ message: "Failed to delete session" }));
-                    throw new Error(errorData.message || `HTTP error ${response.status}`);
-                }
                 addNotification("Session deleted.", "success");
                 if (sessionIdToDelete === sessionId) {
                     handleNewSession();
@@ -1457,7 +1435,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                setError({ title: "Chat Deletion Failed", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Chat Deletion Failed", error: getErrorMessage(error, "Failed to delete session.") });
             }
         },
         [apiPrefix, addNotification, handleNewSession, sessionId, setError]
@@ -1554,7 +1532,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 throw new Error(errorData.message || `HTTP error ${response.status}`);
             }
         } catch (error) {
-            setError({ title: "Task Cancellation Failed", error: error instanceof Error ? error.message : "Network error" });
+            setError({ title: "Task Cancellation Failed", error: getErrorMessage(error, "An unknown error occurred.") });
             setIsCancelling(false);
         }
     }, [isResponding, isCancelling, currentTaskId, apiPrefix, addNotification, setError, closeCurrentEventSource]);
@@ -1614,18 +1592,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     const deleteUrl = `${apiPrefix}/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`;
 
                     // Use the session ID that was used during upload
-                    const response = await authenticatedFetch(deleteUrl, {
+                    await fetchWithError(deleteUrl, {
                         method: "DELETE",
-                        credentials: "include",
                     });
-
-                    if (!response.ok && response.status !== 204) {
-                        const errorData = await response.json().catch(() => ({ message: `Failed to delete ${filename}` }));
-                        throw new Error(errorData.message || `HTTP error ${response.status}`);
-                    }
                 } catch (error) {
                     console.error(`[cleanupUploadedFiles] Exception while cleaning up file ${filename}:`, error);
-                    // Continue cleanup even if one fails
+                    // Continue cleanup even if one fails (intentionally silent)
                 }
             }
         },
@@ -1741,7 +1713,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             const cleanupMessage = successfullyUploadedFiles.length > 0 ? " Previously uploaded files have been cleaned up." : "";
 
                             const errorDetail = result && "error" in result ? ` (${result.error})` : "";
-                            setError({ title: "File Upload Failed", error: `Message not sent. File upload failed for "${file.name}"${errorDetail}.${cleanupMessage}` });
+                            setError({ title: "File Upload Failed", error: `Message not sent. File upload failed for "${file.name}"${errorDetail}.${cleanupMessage}.` });
                             setIsResponding(false);
                             setMessages(prev => prev.filter(msg => msg.metadata?.messageId !== userMsg.metadata?.messageId));
                             return;
@@ -1787,17 +1759,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // 5. Send the request
                 console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
-                const response = await authenticatedFetch(`${apiPrefix}/message:stream`, {
+                const result = await fetchJsonWithError(`${apiPrefix}/message:stream`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(sendMessageRequest),
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
-                    throw new Error(errorData.message || `HTTP error ${response.status}`);
-                }
-                const result = await response.json();
 
                 const task = result?.result as Task | undefined;
                 const taskId = task?.id;
@@ -1871,8 +1837,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Update user message with taskId so it's included in final save
                 setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, taskId: taskId } : msg)));
             } catch (error) {
-                console.error("ChatProvider handleSubmit: Catch block error", error);
-                setError({ title: "Message Failed", error: error instanceof Error ? error.message : "Unknown error. Please try again." });
+                setError({ title: "Message Failed", error: getErrorMessage(error, "An error occurred. Please try again.") });
                 setIsResponding(false);
                 setMessages(prev => prev.filter(msg => !msg.isStatusBubble));
                 setCurrentTaskId(null);
@@ -2132,6 +2097,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         /** Artifact Display and Cache Management */
         markArtifactAsDisplayed,
         downloadAndResolveArtifact,
+
+        /** Global error display */
+        displayError: setError,
     };
 
     return (
