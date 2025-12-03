@@ -98,6 +98,31 @@ apps:
         enable_artifact_resources: true
         resource_uri_prefix: "artifact"      # URI format: artifact://session_id/filename
 
+        # Tool filtering configuration
+        # Control which agent tools are exposed through the MCP server
+        # Filters check against agent name, skill name, AND final tool name
+        # Supports both regex patterns and exact string matches (auto-detected)
+        #
+        # Priority order (highest to lowest):
+        #   1. Exclude exact match - if any exclude pattern matches exactly, reject
+        #   2. Include exact match - if any include pattern matches exactly, accept
+        #   3. Exclude regex match - if any exclude pattern matches as regex, reject
+        #   4. Include regex match - if any include pattern matches as regex, accept
+        #   5. Default - if include_tools is empty, accept all; otherwise reject
+        #
+        # Examples:
+        #   include_tools:
+        #     - ".*"                 # Include all tools that exclude filters allows
+        #     - "data_.*"           # Regex: include tools starting with "data_"
+        #     - "fetch_user_info"   # Exact: include this specific tool
+        #   exclude_tools:
+        #     - ".*_debug"          # Regex: exclude tools ending with "_debug"
+        #     - "TestAgent"         # Exact: exclude all tools from agent "TestAgent"
+        #     - "test_tool"         # Exact: exclude this specific tool
+        #
+        include_tools: []  # Empty = include all tools (default)
+        exclude_tools: []  # Empty = no exclusions (default)
+
       # --- Artifact Service ---
       artifact_service:
         type: "filesystem"
