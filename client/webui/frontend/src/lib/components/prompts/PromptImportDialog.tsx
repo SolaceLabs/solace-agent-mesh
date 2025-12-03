@@ -271,7 +271,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
 
                                 {importData.prompt.category && (
                                     <div>
-                                        <Label className="text-muted-foreground text-xs">Category</Label>
+                                        <Label className="text-muted-foreground text-xs">Tag</Label>
                                         <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.category}</p>
                                     </div>
                                 )}
