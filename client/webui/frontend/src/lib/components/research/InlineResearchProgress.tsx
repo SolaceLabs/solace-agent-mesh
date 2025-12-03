@@ -158,9 +158,8 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
         // Check if we have multiple ragData entries (old format after refresh)
         const hasMultipleEntries = ragData.length > 1;
 
-        if (hasQueryBreakdown && isComplete) {
-            // NEW FORMAT: Single ragData entry with metadata.queries
-            // New format: use query breakdown from backend to maintain order
+        if (hasQueryBreakdown) {
+            // Use query breakdown from backend to maintain order
             const queries = metadata.queries as Array<{
                 query: string;
                 timestamp: string;
