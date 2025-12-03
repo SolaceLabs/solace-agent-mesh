@@ -1,18 +1,10 @@
 import type { ArtifactInfo, CreateProjectRequest, Project, UpdateProjectData } from "@/lib";
 import type { PaginatedSessionsResponse } from "@/lib/components/chat/SessionList";
-import { authenticatedFetch, fetchJsonWithError, fetchWithError } from "@/lib/utils";
+import { fetchJsonWithError, fetchWithError } from "@/lib/utils";
 
-export const handleAPIError = async (response: Response, defaultMessageLabel: string) => {
-    if (response.ok) return;
-
-    const errorData = await response.json();
-
-    throw new Error(errorData.message || errorData.detail || `${defaultMessageLabel}: ${response.statusText}`);
-};
 export const getProjects = async () => {
     const url = "/api/v1/projects?include_artifact_count=true";
-    const response = await authenticatedFetch(url, { credentials: "include" });
-    await handleAPIError(response, "Failed to get projects");
+    const response = await fetchWithError(url, { credentials: "include" });
 
     const data = await response.json();
     return data as { projects: Project[]; total: number };
@@ -27,13 +19,11 @@ export const createProject = async (data: CreateProjectRequest) => {
     }
 
     const url = "/api/v1/projects";
-    const response = await authenticatedFetch(url, {
+    const response = await fetchWithError(url, {
         method: "POST",
         body: formData,
         credentials: "include",
     });
-
-    await handleAPIError(response, "Failed to create project");
 
     return await response.json();
 };
@@ -50,25 +40,21 @@ export const addFilesToProject = async (projectId: string, files: File[], fileMe
     }
 
     const url = `/api/v1/projects/${projectId}/artifacts`;
-    const response = await authenticatedFetch(url, {
+    const response = await fetchWithError(url, {
         method: "POST",
         body: formData,
         credentials: "include",
     });
-
-    await handleAPIError(response, "Failed to add files to project");
 
     return await response.json();
 };
 
 export const removeFileFromProject = async (projectId: string, filename: string) => {
     const url = `/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`;
-    const response = await authenticatedFetch(url, {
+    const response = await fetchWithError(url, {
         method: "DELETE",
         credentials: "include",
     });
-
-    await handleAPIError(response, "Failed to remove file from project");
 
     return await response.json();
 };
@@ -78,55 +64,45 @@ export const updateFileMetadata = async (projectId: string, filename: string, de
     formData.append("description", description);
 
     const url = `/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`;
-    const response = await authenticatedFetch(url, {
+    const response = await fetchWithError(url, {
         method: "PATCH",
         body: formData,
         credentials: "include",
     });
-
-    await handleAPIError(response, "Failed to update file description");
 
     return await response.json();
 };
 
 export const updateProject = async (projectId: string, data: UpdateProjectData) => {
     const url = `/api/v1/projects/${projectId}`;
-    const response = await authenticatedFetch(url, {
+    const response = await fetchWithError(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
         credentials: "include",
     });
 
-    await handleAPIError(response, "Failed to update project");
-
     return await response.json();
 };
 
 export const deleteProject = async (projectId: string) => {
     const url = `/api/v1/projects/${projectId}`;
-    const response = await authenticatedFetch(url, {
+    await fetchWithError(url, {
         method: "DELETE",
         credentials: "include",
     });
-
-    await handleAPIError(response, "Failed to delete project");
 };
 
 export const getProjectArtifacts = async (projectId: string) => {
     const url = `/api/v1/projects/${projectId}/artifacts`;
-    const response = await authenticatedFetch(url, { credentials: "include" });
-
-    await handleAPIError(response, "Failed to get project artifacts");
+    const response = await fetchJsonWithError(url, { credentials: "include" });
 
     return (await response.json()) as ArtifactInfo[];
 };
 
 export const getProjectSessions = async (projectId: string) => {
     const url = `/api/v1/sessions?project_id=${projectId}&pageNumber=1&pageSize=100`;
-    const response = await authenticatedFetch(url, { credentials: "include" });
-
-    await handleAPIError(response, "Failed to get project sessions");
+    const response = await fetchJsonWithError(url, { credentials: "include" });
 
     const json = (await response.json()) as PaginatedSessionsResponse;
     return json.data;
