@@ -63,6 +63,8 @@ dependencies = [
     "SQLAlchemy==2.0.40",
     "alembic==1.16.5",
     "openai==1.99.9",
+    "rich==13.9.4",
+    "prompt_toolkit==3.0.48",
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
     "azure-cognitiveservices-speech==1.41.1"
@@ -84,7 +86,7 @@ dependencies = [
     "pytest-cov>=4.0.0",
     "pytest-xdist>=3.5.0",
     "pytest-httpx>=0.35.0",
-    "fastmcp",
+    "fastmcp==2.12.5",
     "httpx>=0.25",
     "respx",
     "ruff",
