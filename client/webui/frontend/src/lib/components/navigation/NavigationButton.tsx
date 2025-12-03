@@ -47,7 +47,7 @@ export const NavigationButton: React.FC<NavigationItemProps> = ({ item, isActive
                     <Icon className={cn("mb-1 h-6 w-6", isActive && "text-(--color-brand-wMain)")} />
                     <span className="text-center text-[13px] leading-tight">{label}</span>
                     {badge && (
-                        <Badge variant="outline" className="mt-1 border-gray-400 bg-gray-700 px-1 py-0.5 text-[8px] leading-tight text-gray-200 uppercase">
+                        <Badge variant="outline" className="mt-1 border-gray-400 bg-(--color-secondary-w80) px-1 py-0.5 text-[8px] leading-tight text-(--color-secondary-text-w10) uppercase">
                             {badge}
                         </Badge>
                     )}
