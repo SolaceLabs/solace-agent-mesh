@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
 import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
@@ -15,8 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/too
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { SessionSearch } from "@/lib/components/chat/SessionSearch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/lib/components/ui/dropdown-menu";
-import type { Session } from "@/lib/types";
-import type { Project } from "@/lib/types/projects";
+import type { Project, Session } from "@/lib/types";
 
 interface PaginatedSessionsResponse {
     data: Session[];
@@ -37,7 +36,7 @@ interface SessionListProps {
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification } = useChatContext();
+    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError } = useChatContext();
     const { configServerUrl, persistenceEnabled } = useConfigContext();
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -59,27 +58,20 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const fetchSessions = useCallback(
         async (pageNumber: number = 1, append: boolean = false) => {
             setIsLoading(true);
-            const pageSize = 20;
-
-            const url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+            const url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`;
 
             try {
-                const response = await authenticatedFetch(url);
-                if (response.ok) {
-                    const result: PaginatedSessionsResponse = await response.json();
+                const result: PaginatedSessionsResponse = await fetchJsonWithError(url);
 
-                    if (append) {
-                        setSessions(prev => [...prev, ...result.data]);
-                    } else {
-                        setSessions(result.data);
-                    }
-
-                    // Use metadata to determine if there are more pages
-                    setHasMore(result.meta.pagination.nextPage !== null);
-                    setCurrentPage(pageNumber);
+                if (append) {
+                    setSessions(prev => [...prev, ...result.data]);
                 } else {
-                    console.error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
+                    setSessions(result.data);
                 }
+
+                // Use metadata to determine if there are more pages
+                setHasMore(result.meta.pagination.nextPage !== null);
+                setCurrentPage(pageNumber);
             } catch (error) {
                 console.error("An error occurred while fetching sessions:", error);
             } finally {
@@ -168,16 +160,11 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         if (!sessionToMove) return;
 
         try {
-            const response = await authenticatedFetch(`${configServerUrl}/api/v1/sessions/${sessionToMove.id}/project`, {
+            await fetchWithError(`${configServerUrl}/api/v1/sessions/${sessionToMove.id}/project`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ projectId: targetProjectId }),
-                credentials: "include",
             });
-
-            if (!response.ok) {
-                throw new Error("Failed to move session");
-            }
 
             // Update local state
             setSessions(prevSessions =>
@@ -208,8 +195,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             setIsMoveDialogOpen(false);
             setSessionToMove(null);
         } catch (error) {
-            console.error("Failed to move session:", error);
-            addNotification?.("Failed to move session", "error");
+            displayError({ title: "Failed to Move Session", error: getErrorMessage(error, "An unknown error occurred while moving the session.") });
         }
     };
 

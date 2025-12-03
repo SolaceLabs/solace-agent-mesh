@@ -6,7 +6,7 @@ To run Solace Agent Mesh locally, follow these steps:
 
 ```sh
 cd docs
-npm install
+npm ci
 npm start
 ```
 
@@ -16,6 +16,6 @@ To build Solace Agent Mesh documentation pages, follow these steps:
 
 ```sh
 cd docs
-npm install
+npm ci
 npm run build
 ```

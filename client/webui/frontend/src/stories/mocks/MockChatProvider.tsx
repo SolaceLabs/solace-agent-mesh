@@ -104,6 +104,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     agentsRefetch: async () => {},
     artifactsRefetch: async () => {},
     setArtifacts: () => {},
+    displayError: () => {},
 };
 
 interface MockChatProviderProps {

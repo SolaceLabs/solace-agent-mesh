@@ -36,8 +36,8 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ messag
                     addNotification("Message copied to clipboard!", "success");
                 })
                 .catch(err => {
+                    // Not displaying error to user, dialog is too aggressive for clipboard failures
                     console.error("Failed to copy text:", err);
-                    addNotification("Failed to copy message to clipboard", "error");
                 });
         } else {
             addNotification("No text content to copy", "info");
