@@ -550,6 +550,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 const contentResponse = await authenticatedFetch(contentUrl, { credentials: "include" });
                 if (!contentResponse.ok) throw new Error("Error fetching latest version content");
+
+                // Get MIME type from response headers - this is the correct MIME type for this specific version
+                const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
+                // Strip charset and other parameters from Content-Type
+                const mimeType = contentType.split(";")[0].trim();
+
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -560,7 +566,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
                 const fileData: FileAttachment = {
                     name: artifactFilename,
-                    mime_type: artifactInfo?.mime_type || "application/octet-stream",
+                    // Use MIME type from response headers (version-specific), not from artifact list (latest version)
+                    mime_type: mimeType,
                     content: base64Content,
                     last_modified: artifactInfo?.last_modified || new Date().toISOString(),
                 };
@@ -605,6 +612,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 const contentResponse = await authenticatedFetch(contentUrl, { credentials: "include" });
                 if (!contentResponse.ok) throw new Error(`Error fetching version ${targetVersion}`);
+
+                // Get MIME type from response headers - this is the correct MIME type for this specific version
+                const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
+                // Strip charset and other parameters from Content-Type
+                const mimeType = contentType.split(";")[0].trim();
+
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -615,7 +628,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
                 const fileData: FileAttachment = {
                     name: artifactFilename,
-                    mime_type: artifactInfo?.mime_type || "application/octet-stream",
+                    // Use MIME type from response headers (version-specific), not from artifact list (latest version)
+                    mime_type: mimeType,
                     content: base64Content,
                     last_modified: artifactInfo?.last_modified || new Date().toISOString(),
                 };

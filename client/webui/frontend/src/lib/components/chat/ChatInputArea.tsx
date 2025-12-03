@@ -302,10 +302,35 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         if (!selectedPendingPasteId) return;
 
         try {
-            // Determine MIME type
+            // Determine MIME type - if "auto", derive from filename extension
             let mimeType = "text/plain";
             if (fileType !== "auto") {
                 mimeType = fileType;
+            } else {
+                // Derive MIME type from filename extension
+                const extension = title.split(".").pop()?.toLowerCase();
+                const extensionToMimeType: Record<string, string> = {
+                    txt: "text/plain",
+                    md: "text/markdown",
+                    csv: "text/csv",
+                    json: "application/json",
+                    html: "text/html",
+                    htm: "text/html",
+                    css: "text/css",
+                    js: "text/javascript",
+                    ts: "text/typescript",
+                    py: "text/python",
+                    yaml: "text/yaml",
+                    yml: "text/yaml",
+                    xml: "text/xml",
+                    svg: "image/svg+xml",
+                    sql: "text/sql",
+                    sh: "text/x-shellscript",
+                    bash: "text/x-shellscript",
+                };
+                if (extension && extensionToMimeType[extension]) {
+                    mimeType = extensionToMimeType[extension];
+                }
             }
 
             // Create a File object from the text content (use the potentially edited content)
