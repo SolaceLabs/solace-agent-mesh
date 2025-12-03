@@ -6,7 +6,7 @@ import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog } from "@
 import { useProjectContext } from "@/lib/providers";
 
 import { authenticatedFetch, fetchJsonWithError, fetchWithError, getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
-import { ChatContext, type ChatContextValue } from "@/lib/contexts";
+import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import type {
     ArtifactInfo,
     ArtifactRenderingState,
@@ -158,6 +158,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Feedback State
     const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
 
+    // Pending prompt state for starting new chat with a prompt template
+    const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
+
     // Notification Helper
     // Note: "error" type is deprecated in favor of useErrorDialog
     const addNotification = useCallback((message: string, type?: "success" | "info" | "error") => {
@@ -173,7 +176,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             setTimeout(() => {
                 setNotifications(current => current.filter(n => n.id !== id));
-            }, 3000);
+            }, 4000);
 
             return [...prev, newNotification];
         });
@@ -537,6 +540,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 const contentResponse = await fetchWithError(contentUrl);
+
+                // Get MIME type from response headers - this is the correct MIME type for this specific version
+                const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
+                // Strip charset and other parameters from Content-Type
+                const mimeType = contentType.split(";")[0].trim();
+
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -547,7 +556,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
                 const fileData: FileAttachment = {
                     name: artifactFilename,
-                    mime_type: artifactInfo?.mime_type || "application/octet-stream",
+                    // Use MIME type from response headers (version-specific), not from artifact list (latest version)
+                    mime_type: mimeType,
                     content: base64Content,
                     last_modified: artifactInfo?.last_modified || new Date().toISOString(),
                 };
@@ -591,6 +601,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 const contentResponse = await fetchWithError(contentUrl);
+
+                // Get MIME type from response headers - this is the correct MIME type for this specific version
+                const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
+                // Strip charset and other parameters from Content-Type
+                const mimeType = contentType.split(";")[0].trim();
+
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -601,7 +617,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
                 const fileData: FileAttachment = {
                     name: artifactFilename,
-                    mime_type: artifactInfo?.mime_type || "application/octet-stream",
+                    // Use MIME type from response headers (version-specific), not from artifact list (latest version)
+                    mime_type: mimeType,
                     content: base64Content,
                     last_modified: artifactInfo?.last_modified || new Date().toISOString(),
                 };
@@ -1295,6 +1312,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
     );
 
+    // Start a new chat session with a prompt template pre-filled
+    const startNewChatWithPrompt = useCallback(
+        (promptData: PendingPromptData) => {
+            // Store the pending prompt - it will be applied after the session is ready
+            setPendingPrompt(promptData);
+            // Start a new session
+            handleNewSession();
+        },
+        [handleNewSession]
+    );
+
+    // Clear the pending prompt (called after it's been applied)
+    const clearPendingPrompt = useCallback(() => {
+        setPendingPrompt(null);
+    }, []);
+
     const handleSwitchSession = useCallback(
         async (newSessionId: string) => {
             const log_prefix = "ChatProvider.handleSwitchSession:";
@@ -1608,7 +1641,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputText?: string | null) => {
+        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null) => {
             event.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
@@ -1629,7 +1662,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 metadata: {
                     messageId: `msg-${v4()}`,
-                    sessionId: sessionId,
+                    sessionId: overrideSessionId || sessionId,
                     lastProcessedEventSequence: 0,
                 },
             };
@@ -1642,7 +1675,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const successfullyUploadedFiles: Array<{ filename: string; sessionId: string }> = []; // Track large files for cleanup
 
                 // Track the effective session ID for this message (may be updated if large file upload)
-                let effectiveSessionId = sessionId;
+                // Use overrideSessionId if provided (e.g., from artifact upload that created a session)
+                let effectiveSessionId = overrideSessionId || sessionId;
 
                 console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
 
@@ -2092,6 +2126,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         /** Global error display */
         displayError: setError,
+
+        /** Pending prompt for starting new chat */
+        pendingPrompt,
+        startNewChatWithPrompt,
+        clearPendingPrompt,
     };
 
     return (

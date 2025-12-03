@@ -15,7 +15,7 @@ import { FileBadge } from "./file/FileBadge";
 import { AudioRecorder } from "./AudioRecorder";
 import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
 import { VariableDialog } from "./VariableDialog";
-import { PastedTextBadge, PasteActionDialog, isLargeText, type PastedArtifactItem } from "./paste";
+import { PastedTextBadge, PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PastedArtifactItem, type PastedTextItem } from "./paste";
 import { getErrorMessage } from "@/lib/utils";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
@@ -49,8 +49,26 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, displayError, artifacts, setPreviewArtifact, openSidePanelTab, messages } =
-        useChatContext();
+    const {
+        isResponding,
+        isCancelling,
+        selectedAgentName,
+        sessionId,
+        setSessionId,
+        handleSubmit,
+        handleCancel,
+        uploadArtifactFile,
+        artifactsRefetch,
+        addNotification,
+        displayError,
+        artifacts,
+        setPreviewArtifact,
+        openSidePanelTab,
+        messages,
+        startNewChatWithPrompt,
+        pendingPrompt,
+        clearPendingPrompt,
+    } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
@@ -62,9 +80,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-    // Pasted artifact support
+    // Pasted artifact support (already saved as artifacts)
     const [pastedArtifactItems, setPastedArtifactItems] = useState<PastedArtifactItem[]>([]);
-    const [pendingPasteContent, setPendingPasteContent] = useState<string | null>(null);
+
+    // Pending pasted text support (not yet saved as artifacts, shown as badges)
+    const [pendingPastedTextItems, setPendingPastedTextItems] = useState<PastedTextItem[]>([]);
+    const [selectedPendingPasteId, setSelectedPendingPasteId] = useState<string | null>(null);
     const [showArtifactForm, setShowArtifactForm] = useState(false);
 
     const [contextText, setContextText] = useState<string | null>(null);
@@ -89,10 +110,34 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
     const prevSessionIdRef = useRef<string | null>(sessionId);
 
+    // Flag to track if we've already processed the current location state
+    const processedLocationStateRef = useRef<string | null>(null);
+
+    // Handle pending prompt use from router state - delegate to ChatProvider
     useEffect(() => {
-        // Check for pending prompt use from router state
-        if (location.state?.promptText) {
+        if (location.state?.promptText && processedLocationStateRef.current !== location.state.groupId) {
             const { promptText, groupId, groupName } = location.state;
+
+            // Mark this state as being processed to prevent re-triggering
+            processedLocationStateRef.current = groupId;
+
+            // Clear the location state immediately
+            navigate(location.pathname, { replace: true, state: {} });
+
+            // Delegate to ChatProvider to handle the new session with prompt
+            startNewChatWithPrompt({ promptText, groupId, groupName });
+
+            // Reset the processed state ref after a delay to allow for future uses
+            setTimeout(() => {
+                processedLocationStateRef.current = null;
+            }, 1000);
+        }
+    }, [location.state, location.pathname, navigate, startNewChatWithPrompt]);
+
+    // Apply pending prompt from ChatProvider when session is ready
+    useEffect(() => {
+        if (pendingPrompt && selectedAgentName) {
+            const { promptText, groupId, groupName } = pendingPrompt;
 
             // Check if prompt has variables
             const variables = detectVariables(promptText);
@@ -101,7 +146,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 setPendingPromptGroup({
                     id: groupId,
                     name: groupName,
-                    productionPrompt: { promptText: promptText },
+                    productionPrompt: { promptText },
                 } as PromptGroup);
                 setShowVariableDialog(true);
             } else {
@@ -111,20 +156,29 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 }, 100);
             }
 
-            // Clear the location state to prevent re-triggering
-            navigate(location.pathname, { replace: true, state: {} });
-            return; // Don't clear input if we just set it
+            // Clear the pending prompt from provider
+            clearPendingPrompt();
+        }
+    }, [pendingPrompt, selectedAgentName, clearPendingPrompt]);
+
+    // Handle session changes (for normal session switching, not prompt template usage)
+    useEffect(() => {
+        // Skip if there's a pending prompt being processed
+        if (pendingPrompt) {
+            prevSessionIdRef.current = sessionId;
+            return;
         }
 
-        // Only clear if session actually changed (not just initialized)
+        // Only clear if session actually changed (not just initialized) and no pending prompt
         if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId) {
             setInputValue("");
             setShowPromptsCommand(false);
             setPastedArtifactItems([]);
+            setPendingPastedTextItems([]);
         }
         prevSessionIdRef.current = sessionId;
         setContextText(null);
-    }, [sessionId, location.state, location.pathname, navigate]);
+    }, [sessionId]);
 
     useEffect(() => {
         if (prevIsRespondingRef.current && !isResponding) {
@@ -235,29 +289,54 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             return;
         }
 
-        // Handle text pastes - show artifact form for large text
+        // Handle text pastes - show badge for large text
         const pastedText = clipboardData.getData("text");
         if (pastedText && isLargeText(pastedText)) {
-            // Large text - show artifact creation form
+            // Large text - add as pending pasted text badge
             event.preventDefault();
-            setPendingPasteContent(pastedText);
-            setShowArtifactForm(true);
+            const newItem = createPastedTextItem(pastedText);
+            setPendingPastedTextItems(prev => [...prev, newItem]);
         }
         // Small text pastes go through normally (no preventDefault)
     };
 
-    const handleSaveAsArtifact = async (title: string, fileType: string, description?: string) => {
-        if (!pendingPasteContent) return;
+    const handleSaveAsArtifact = async (title: string, fileType: string, content: string, description?: string) => {
+        if (!selectedPendingPasteId) return;
 
         try {
-            // Determine MIME type
+            // Determine MIME type - if "auto", derive from filename extension
             let mimeType = "text/plain";
             if (fileType !== "auto") {
                 mimeType = fileType;
+            } else {
+                // Derive MIME type from filename extension
+                const extension = title.split(".").pop()?.toLowerCase();
+                const extensionToMimeType: Record<string, string> = {
+                    txt: "text/plain",
+                    md: "text/markdown",
+                    csv: "text/csv",
+                    json: "application/json",
+                    html: "text/html",
+                    htm: "text/html",
+                    css: "text/css",
+                    js: "text/javascript",
+                    ts: "text/typescript",
+                    py: "text/python",
+                    yaml: "text/yaml",
+                    yml: "text/yaml",
+                    xml: "text/xml",
+                    svg: "image/svg+xml",
+                    sql: "text/sql",
+                    sh: "text/x-shellscript",
+                    bash: "text/x-shellscript",
+                };
+                if (extension && extensionToMimeType[extension]) {
+                    mimeType = extensionToMimeType[extension];
+                }
             }
 
-            // Create a File object from the text content
-            const blob = new Blob([pendingPasteContent], { type: mimeType });
+            // Create a File object from the text content (use the potentially edited content)
+            const blob = new Blob([content], { type: mimeType });
             const file = new File([blob], title, { type: mimeType });
 
             // Upload the artifact
@@ -288,7 +367,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     return [...prev, artifactItem];
                 });
 
-                addNotification(`Artifact "${title}" created from pasted content.`, "success");
+                // Remove the pending item that was just saved
+                setPendingPastedTextItems(prev => prev.filter(item => item.id !== selectedPendingPasteId));
+
+                // Refresh artifacts panel
                 await artifactsRefetch();
             } else {
                 throw new Error("Artifact upload returned no result");
@@ -296,21 +378,33 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         } catch (error) {
             displayError({ title: "Failed to Create Artifact", error: getErrorMessage(error, "An unknown error occurred.") });
         } finally {
-            setPendingPasteContent(null);
+            setSelectedPendingPasteId(null);
             setShowArtifactForm(false);
         }
     };
 
     const handleCancelArtifactForm = () => {
-        setPendingPasteContent(null);
+        setSelectedPendingPasteId(null);
         setShowArtifactForm(false);
+    };
+
+    const handlePendingPasteClick = (id: string) => {
+        setSelectedPendingPasteId(id);
+        setShowArtifactForm(true);
+    };
+
+    const handleRemovePendingPaste = (id: string) => {
+        setPendingPastedTextItems(prev => prev.filter(item => item.id !== id));
     };
 
     const handleRemoveFile = (index: number) => {
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pastedArtifactItems.length !== 0), [isResponding, inputValue, selectedFiles, pastedArtifactItems]);
+    const isSubmittingEnabled = useMemo(
+        () => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pastedArtifactItems.length !== 0 || pendingPastedTextItems.length !== 0),
+        [isResponding, inputValue, selectedFiles, pastedArtifactItems, pendingPastedTextItems]
+    );
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
@@ -320,7 +414,72 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 fullMessage = `Context: "${contextText}"\n\n${fullMessage}`;
             }
 
-            const artifactFiles: File[] = pastedArtifactItems
+            // Upload pending pasted text items as artifacts first, then create references
+            const uploadedPastedArtifacts: PastedArtifactItem[] = [];
+            let effectiveSessionId = sessionId;
+
+            // Build list of existing artifact filenames for uniqueness check
+            // Include both session artifacts and any artifacts we've already uploaded in this batch
+            const existingFilenames = new Set(artifacts.map(a => a.filename));
+
+            for (let i = 0; i < pendingPastedTextItems.length; i++) {
+                const item = pendingPastedTextItems[i];
+                try {
+                    // Generate a unique filename using the same pattern as the dialog (snippet.txt, snippet-2.txt, etc.)
+                    const mimeType = "text/plain";
+                    const extension = "txt";
+                    let filename = `snippet.${extension}`;
+
+                    // Check if filename already exists and generate unique name
+                    if (existingFilenames.has(filename)) {
+                        let counter = 2;
+                        while (existingFilenames.has(`snippet-${counter}.${extension}`)) {
+                            counter++;
+                        }
+                        filename = `snippet-${counter}.${extension}`;
+                    }
+
+                    // Add this filename to the set so subsequent items in this batch get unique names
+                    existingFilenames.add(filename);
+
+                    // Create a File object from the text content
+                    const blob = new Blob([item.content], { type: mimeType });
+                    const file = new File([blob], filename, { type: mimeType });
+
+                    // Upload the artifact via HTTP API (this creates proper metadata)
+                    const result = await uploadArtifactFile(file, effectiveSessionId);
+
+                    if (result && !("error" in result)) {
+                        // Update effective session ID if a new session was created
+                        if (result.sessionId && result.sessionId !== effectiveSessionId) {
+                            effectiveSessionId = result.sessionId;
+                            setSessionId(result.sessionId);
+                        }
+
+                        // Create an artifact reference for this uploaded file
+                        const now = Date.now();
+                        uploadedPastedArtifacts.push({
+                            id: `auto-paste-artifact-${now}-${i}`,
+                            artifactId: result.uri,
+                            filename: filename,
+                            mimeType: mimeType,
+                            timestamp: now,
+                        });
+                    } else {
+                        console.error("Failed to upload pasted text as artifact:", result);
+                        addNotification(`Failed to save pasted text as artifact`, "error");
+                    }
+                } catch (error) {
+                    console.error("Error uploading pasted text:", error);
+                    addNotification(`Error saving pasted text: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+                }
+            }
+
+            // Combine existing pasted artifacts with newly uploaded ones
+            const allPastedArtifacts = [...pastedArtifactItems, ...uploadedPastedArtifacts];
+
+            // Create artifact reference files for all pasted artifacts
+            const artifactFiles: File[] = allPastedArtifacts
                 .filter(item => item.artifactId && item.mimeType) // Skip invalid items early
                 .map(item => {
                     // Create a special File object that contains the artifact URI
@@ -339,9 +498,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Combine regular files with artifact references
             const allFiles = [...selectedFiles, ...artifactFiles];
 
-            await handleSubmit(event, allFiles, fullMessage);
+            // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
+            // as the uploaded artifacts (avoids React state timing issues)
+            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null);
             setSelectedFiles([]);
             setPastedArtifactItems([]);
+            setPendingPastedTextItems([]);
             setInputValue("");
             setContextText(null);
             setShowContextBadge(false);
@@ -533,8 +695,23 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 );
             })()}
 
+            {/* Pending Pasted Text Items (not yet saved as artifacts) */}
+            {pendingPastedTextItems.length > 0 && (
+                <div className="mb-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto pt-2 pl-2">
+                    {pendingPastedTextItems.map(item => (
+                        <PendingPastedTextBadge key={item.id} id={item.id} content={item.content} onClick={() => handlePendingPasteClick(item.id)} onRemove={() => handleRemovePendingPaste(item.id)} />
+                    ))}
+                </div>
+            )}
+
             {/* Artifact Creation Dialog */}
-            <PasteActionDialog isOpen={showArtifactForm} content={pendingPasteContent || ""} onSaveAsArtifact={handleSaveAsArtifact} onCancel={handleCancelArtifactForm} existingArtifacts={artifacts.map(a => a.filename)} />
+            <PasteActionDialog
+                isOpen={showArtifactForm}
+                content={pendingPastedTextItems.find(item => item.id === selectedPendingPasteId)?.content || ""}
+                onSaveAsArtifact={handleSaveAsArtifact}
+                onCancel={handleCancelArtifactForm}
+                existingArtifacts={artifacts.map(a => a.filename)}
+            />
 
             {/* Prompts Command Popover */}
             <PromptsCommand

@@ -90,11 +90,17 @@ class PromptModel(Base):
     # Content
     prompt_text = Column(Text, nullable=False)
     
+    # Versioned metadata fields (copied from group at version creation time)
+    name = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    category = Column(String(100), nullable=True)
+    command = Column(String(50), nullable=True)
+    
     # Group relationship
     group_id = Column(
-        String, 
-        ForeignKey("prompt_groups.id", ondelete="CASCADE"), 
-        nullable=False, 
+        String,
+        ForeignKey("prompt_groups.id", ondelete="CASCADE"),
+        nullable=False,
         index=True
     )
     
@@ -107,9 +113,9 @@ class PromptModel(Base):
     # Timestamps - BigInteger (epoch milliseconds)
     created_at = Column(BigInteger, nullable=False, default=now_epoch_ms)
     updated_at = Column(
-        BigInteger, 
-        nullable=False, 
-        default=now_epoch_ms, 
+        BigInteger,
+        nullable=False,
+        default=now_epoch_ms,
         onupdate=now_epoch_ms
     )
     

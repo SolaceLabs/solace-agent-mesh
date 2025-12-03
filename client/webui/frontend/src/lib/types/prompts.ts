@@ -8,6 +8,11 @@ export interface Prompt {
     groupId: string;
     userId: string;
     version: number;
+    // Versioned metadata fields
+    name?: string;
+    description?: string;
+    category?: string;
+    command?: string;
     createdAt: number; // epoch milliseconds
     updatedAt: number; // epoch milliseconds
 }
