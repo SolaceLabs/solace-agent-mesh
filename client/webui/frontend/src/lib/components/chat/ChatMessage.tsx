@@ -272,7 +272,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     const lastPartKind = groupedParts[lastPartIndex]?.kind;
 
     return (
-        <div key={message.metadata?.messageId} className="space-y-5">
+        <div key={message.metadata?.messageId} className="space-y-6">
             {/* Render parts in their original order to preserve interleaving */}
             {groupedParts.map((part, index) => {
                 const isLastPart = index === lastPartIndex;

@@ -46,7 +46,7 @@
 
     /* Light theme - referencing Solace palette variables */
     /* These variables are injected by applyCustomTheme() function */
-    --background: var(--color-background-w20);
+    --background: var(--color-background-w10);
     --foreground: var(--color-primary-text-wMain);
     --card: var(--color-background-w10);
     --card-foreground: var(--color-primary-text-wMain);
@@ -133,7 +133,7 @@
     /* Firefox */
     * {
         scrollbar-width: thin;
-        scrollbar-color: var(--color-primary-w20) var(--color-background-w10);
+        scrollbar-color: var(--color-primary-w20) var(--color-background-w20);
     }
 
     .fade-both-mask {
@@ -181,7 +181,7 @@
     }
 
     *::-webkit-scrollbar-track {
-        background-color: var(--color-background-w10);
+        background-color: var(--color-background-w20);
     }
 
     .dark *::-webkit-scrollbar-track {

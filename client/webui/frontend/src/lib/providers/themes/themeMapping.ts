@@ -14,7 +14,7 @@ export interface ThemeMappings {
  */
 export const customThemeMapping: ThemeMappings = {
     light: {
-        background: "background.w20",
+        background: "background.w10",
         foreground: "primary.text.wMain",
         card: "background.w10",
         "card-foreground": "primary.text.wMain",
