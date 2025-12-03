@@ -16,6 +16,7 @@ import { AudioRecorder } from "./AudioRecorder";
 import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
 import { VariableDialog } from "./VariableDialog";
 import { PastedTextBadge, PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PastedArtifactItem, type PastedTextItem } from "./paste";
+import { getErrorMessage } from "@/lib/utils";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     switch (command) {
@@ -59,6 +60,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         uploadArtifactFile,
         artifactsRefetch,
         addNotification,
+        displayError,
         artifacts,
         setPreviewArtifact,
         openSidePanelTab,
@@ -343,7 +345,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             if (result) {
                 // Type guard: check if result is an error
                 if ("error" in result) {
-                    addNotification(`Failed to create artifact: ${result.error}`, "error");
+                    displayError({ title: "Failed to Create Artifact", error: result.error });
                     return;
                 }
 
@@ -371,11 +373,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 // Refresh artifacts panel
                 await artifactsRefetch();
             } else {
-                addNotification(`Failed to create artifact from pasted content.`, "error");
+                throw new Error("Artifact upload returned no result");
             }
         } catch (error) {
-            console.error("Error saving artifact:", error);
-            addNotification(`Error creating artifact: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+            displayError({ title: "Failed to Create Artifact", error: getErrorMessage(error, "An unknown error occurred.") });
         } finally {
             setSelectedPendingPasteId(null);
             setShowArtifactForm(false);

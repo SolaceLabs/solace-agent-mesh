@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { useChatContext } from "@/lib/hooks";
 import { MessageBanner } from "@/lib/components/common";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { authenticatedFetch, fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
 
 interface VersionHistoryPageProps {
     group: PromptGroup;
@@ -19,7 +19,7 @@ interface VersionHistoryPageProps {
 }
 
 export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, onBack, onEdit, onDeleteAll, onRestoreVersion }) => {
-    const { addNotification } = useChatContext();
+    const { addNotification, displayError } = useChatContext();
     const [versions, setVersions] = useState<Prompt[]>([]);
     const [selectedVersion, setSelectedVersion] = useState<Prompt | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -36,41 +36,35 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         async (preserveSelection = false) => {
             setIsLoading(true);
             try {
-                const response = await authenticatedFetch(`/api/v1/prompts/groups/${group.id}/prompts`, {
-                    credentials: "include",
-                });
+                const data = await fetchJsonWithError(`/api/v1/prompts/groups/${group.id}/prompts`);
+                setVersions(data);
 
-                if (response.ok) {
-                    const data = await response.json();
-                    setVersions(data);
-
-                    // Use a function update to access the current selectedVersion without adding it to dependencies
-                    setSelectedVersion(currentSelected => {
-                        // If we have a _selectedVersionId from returning from edit, use that
-                        if (group._selectedVersionId) {
-                            const targetVersion = data.find((v: Prompt) => v.id === group._selectedVersionId);
-                            if (targetVersion) {
-                                return targetVersion;
-                            }
+                // Use a function update to access the current selectedVersion without adding it to dependencies
+                setSelectedVersion(currentSelected => {
+                    // If we have a _selectedVersionId from returning from edit, use that
+                    if (group._selectedVersionId) {
+                        const targetVersion = data.find((v: Prompt) => v.id === group._selectedVersionId);
+                        if (targetVersion) {
+                            return targetVersion;
                         }
+                    }
 
-                        // If preserving selection, try to keep the same version selected
-                        if (preserveSelection && currentSelected) {
-                            const stillExists = data.find((v: Prompt) => v.id === currentSelected.id);
-                            if (stillExists) {
-                                return stillExists;
-                            } else {
-                                // If the selected version was deleted, fall back to production
-                                return data.find((v: Prompt) => v.id === group.productionPromptId) || data[0];
-                            }
-                        } else if (data.length > 0 && !hasInitializedRef.current) {
-                            // Only set default selection on initial load
-                            hasInitializedRef.current = true;
+                    // If preserving selection, try to keep the same version selected
+                    if (preserveSelection && currentSelected) {
+                        const stillExists = data.find((v: Prompt) => v.id === currentSelected.id);
+                        if (stillExists) {
+                            return stillExists;
+                        } else {
+                            // If the selected version was deleted, fall back to production
                             return data.find((v: Prompt) => v.id === group.productionPromptId) || data[0];
                         }
-                        return currentSelected;
-                    });
-                }
+                    } else if (data.length > 0 && !hasInitializedRef.current) {
+                        // Only set default selection on initial load
+                        hasInitializedRef.current = true;
+                        return data.find((v: Prompt) => v.id === group.productionPromptId) || data[0];
+                    }
+                    return currentSelected;
+                });
             } catch (error) {
                 console.error("Failed to fetch versions:", error);
             } finally {
@@ -146,24 +140,14 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         }
 
         try {
-            const response = await authenticatedFetch(`/api/v1/prompts/${selectedVersion.id}`, {
-                method: "DELETE",
-                credentials: "include",
-            });
+            await fetchWithError(`/api/v1/prompts/${selectedVersion.id}`, { method: "DELETE" });
+            addNotification("Version deleted successfully", "success");
 
-            if (response.ok) {
-                addNotification("Version deleted successfully", "success");
-                // Clear selection and refresh (don't preserve since we deleted it)
-                setSelectedVersion(null);
-                await fetchVersions(false);
-            } else {
-                const error = await response.json();
-                const errorMessage = error.message || error.detail || "Failed to delete version";
-                addNotification(errorMessage, "error");
-            }
+            // Clear selection and refresh (don't preserve since we deleted it)
+            setSelectedVersion(null);
+            await fetchVersions(false);
         } catch (error) {
-            console.error("Failed to delete version:", error);
-            addNotification("Failed to delete version", "error");
+            displayError({ title: "Failed to Delete Version", error: getErrorMessage(error, "An unknown error occurred while deleting the version.") });
         }
     };
 

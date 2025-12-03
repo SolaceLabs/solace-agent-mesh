@@ -1,3 +1,4 @@
+export { AudioRecorder } from "./AudioRecorder";
 export { ChatInputArea } from "./ChatInputArea";
 export { ChatMessage } from "./ChatMessage";
 export { ChatSessions } from "./ChatSessions";
