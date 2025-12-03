@@ -1,10 +1,9 @@
 import React, { useState, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, CheckCircle, FileJson } from "lucide-react";
+import { FileJson } from "lucide-react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
-import { Alert, AlertDescription } from "@/lib/components/ui/alert";
 import { MessageBanner } from "@/lib/components";
 import {
     promptImportSchema,
@@ -270,22 +269,21 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                     {importData && !fileError && (
                         <div className="space-y-4">
                             {truncationWarnings.length > 0 ? (
-                                <Alert variant="destructive" className="border-amber-500 bg-amber-50 text-amber-900 dark:border-amber-600 dark:bg-amber-950/30 dark:text-amber-200 [&>svg]:text-amber-600">
-                                    <AlertTriangle className="h-4 w-4" />
-                                    <AlertDescription className="space-y-2">
-                                        <p className="font-medium">Some fields exceed the maximum length and will be truncated:</p>
-                                        <ul className="list-inside list-disc space-y-1 text-sm">
-                                            {truncationWarnings.map((warning, idx) => (
-                                                <li key={idx}>{warning.message}</li>
-                                            ))}
-                                        </ul>
-                                    </AlertDescription>
-                                </Alert>
+                                <MessageBanner
+                                    variant="warning"
+                                    message={
+                                        <div className="space-y-2">
+                                            <p className="font-medium">Some fields exceed the maximum length and will be truncated:</p>
+                                            <ul className="list-inside list-disc space-y-1 text-sm">
+                                                {truncationWarnings.map((warning, idx) => (
+                                                    <li key={idx}>{warning.message}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    }
+                                />
                             ) : (
-                                <Alert>
-                                    <CheckCircle className="h-4 w-4" />
-                                    <AlertDescription>File validated successfully. Review the details below:</AlertDescription>
-                                </Alert>
+                                <MessageBanner variant="success" message="File validated successfully. Review the details below:" />
                             )}
 
                             <div className="space-y-3 overflow-hidden rounded-lg border p-4">
