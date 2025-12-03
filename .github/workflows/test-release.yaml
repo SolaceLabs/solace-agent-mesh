@@ -1,0 +1,34 @@
+name: Test Release
+on:
+  push:
+    branches:
+      - test-release
+
+permissions:
+  id-token: write
+  checks: write
+  contents: write
+  packages: write
+  pull-requests: read
+
+jobs:
+  # Run security checks first via reusable workflow
+  security-checks:
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
+    with:
+      whitesource_project_name: "solace-agent-mesh"
+      whitesource_product_name: "solaceai"
+      prisma_check: true
+      sonarqube_hotspot_check: true
+    secrets:
+      PRISMA_DOCKER_IMAGE_TO_CHECK: ${{ secrets.DOCKER_IMAGE_TO_CHECK }}
+      PRISMA_ACCESS_KEY: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
+      PRISMA_ACCESS_KEY_SECRET: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
+      SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
+      SONARQUBE_PROJECT_MAIN_BRANCH: "main"
+      SONARQUBE_QUERY_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+      SONARQUBE_HOTSPOTS_API_URL: ${{ secrets.SONARQUBE_HOTSPOTS_API_URL }}
+      WHITESOURCE_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
+      MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
+      MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
+      MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
