@@ -10,6 +10,11 @@ on:
           - patch
           - minor
           - major
+      skip_security_checks:
+        type: boolean
+        required: false
+        description: "Skip security checks"
+        default: false
 
 permissions:
   id-token: write
@@ -21,6 +26,7 @@ permissions:
 jobs:
   # Run security checks first via reusable workflow
   security-checks:
+    if: ${{ inputs.skip_security_checks != 'true' }}
     uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
     with:
       whitesource_project_name: "solace-agent-mesh"
