@@ -47,7 +47,7 @@ class SubscriptionTarget(BaseModel):
             "my_a2a_messages",
             "current_namespace_a2a_messages",
             "namespace_a2a_messages",
-            "agent_a2a_messages",
+            "agent_a2a_messages"
         ],
     )
     identifier: Optional[str] = Field(

@@ -36,6 +36,7 @@ const GenericToolNode: React.FC<NodeProps<GenericToolNodeType>> = ({ data, id })
                 </div>
             </div>
             <Handle type="source" position={Position.Left} id={`${id}-tool-bottom-output`} className="!bg-cyan-500" isConnectable={true} style={{ top: "75%" }} />
+            <Handle type="source" position={Position.Right} id={`${id}-tool-right-output-artifact`} className="!bg-cyan-500" isConnectable={true} style={{ top: "50%" }} />
         </div>
     );
 };

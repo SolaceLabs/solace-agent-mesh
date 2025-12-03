@@ -45,9 +45,9 @@ class SamEvent:
 @dataclass
 class SessionDeletedEvent(SamEvent):
     """System event for session deletion."""
-    
+
     @classmethod
-    def create(cls, namespace: str, source_component: str, session_id: str, 
+    def create(cls, namespace: str, source_component: str, session_id: str,
                user_id: str, agent_id: str, gateway_id: str) -> "SessionDeletedEvent":
         """Create a session deleted event."""
         data = {

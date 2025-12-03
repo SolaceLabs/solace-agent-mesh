@@ -92,6 +92,9 @@ class ArtifactCreationProgressData(BaseModel):
         None,
         description="The version number of the artifact being created or updated.",
     )
+    function_call_id: Optional[str] = Field(
+        None, description="The function call ID if artifact was created by a tool."
+    )
 
 
 class ToolResultData(BaseModel):
