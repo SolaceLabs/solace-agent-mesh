@@ -95,17 +95,16 @@ export const deleteProject = async (projectId: string) => {
 
 export const getProjectArtifacts = async (projectId: string) => {
     const url = `/api/v1/projects/${projectId}/artifacts`;
-    const response = await fetchJsonWithError(url, { credentials: "include" });
+    const response = (await fetchJsonWithError(url, { credentials: "include" })) as ArtifactInfo[];
 
-    return (await response.json()) as ArtifactInfo[];
+    return response;
 };
 
 export const getProjectSessions = async (projectId: string) => {
     const url = `/api/v1/sessions?project_id=${projectId}&pageNumber=1&pageSize=100`;
-    const response = await fetchJsonWithError(url, { credentials: "include" });
+    const response = (await fetchJsonWithError(url, { credentials: "include" })) as PaginatedSessionsResponse;
 
-    const json = (await response.json()) as PaginatedSessionsResponse;
-    return json.data;
+    return response.data;
 };
 
 export const exportProject = async (projectId: string) => {
