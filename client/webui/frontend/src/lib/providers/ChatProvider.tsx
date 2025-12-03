@@ -173,7 +173,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             setTimeout(() => {
                 setNotifications(current => current.filter(n => n.id !== id));
-            }, 3000);
+            }, 4000);
 
             return [...prev, newNotification];
         });

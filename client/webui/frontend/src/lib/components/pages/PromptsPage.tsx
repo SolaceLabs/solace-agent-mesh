@@ -252,12 +252,6 @@ export const PromptsPage: React.FC = () => {
                 body: JSON.stringify(apiPayload),
             });
 
-            // Show warnings if any (combine into single notification for better UX)
-            if (result.warnings && result.warnings.length > 0) {
-                const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
-                addNotification(warningMessage, "info");
-            }
-
             // Navigate back to prompts page
             setShowBuilder(false);
             setShowImportDialog(false);
@@ -268,7 +262,13 @@ export const PromptsPage: React.FC = () => {
             await fetchPromptGroups();
             setNewlyCreatedPromptId(result.prompt_group_id);
 
-            addNotification("Prompt imported successfully", "success");
+            // Show single notification - include warnings if any
+            if (result.warnings && result.warnings.length > 0) {
+                const warningText = result.warnings.length === 1 ? result.warnings[0] : result.warnings.join("; ");
+                addNotification(`Prompt imported with notes: ${warningText}`, "info");
+            } else {
+                addNotification("Prompt imported", "success");
+            }
         } catch (error) {
             console.error("Failed to import prompt:", error);
             throw error; // Re-throw to let dialog handle it

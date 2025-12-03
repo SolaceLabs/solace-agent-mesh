@@ -7,7 +7,7 @@ import { z } from "zod";
 export const PROMPT_FIELD_LIMITS = {
     NAME_MAX: 255,
     DESCRIPTION_MAX: 500,
-    CATEGORY_MAX: 100,
+    TAG_MAX: 100,
     COMMAND_MAX: 50,
     AUTHOR_NAME_MAX: 255,
 } as const;
@@ -35,7 +35,7 @@ const optionalString = (maxLength: number, fieldName: string) => z.union([z.stri
 const promptDataSchema = z.object({
     name: z.string().min(1, "Name is required").max(PROMPT_FIELD_LIMITS.NAME_MAX, `Name must be ${PROMPT_FIELD_LIMITS.NAME_MAX} characters or less`),
     description: optionalString(PROMPT_FIELD_LIMITS.DESCRIPTION_MAX, "Description"),
-    category: optionalString(PROMPT_FIELD_LIMITS.CATEGORY_MAX, "Category"),
+    category: optionalString(PROMPT_FIELD_LIMITS.TAG_MAX, "Tag"),
     command: optionalString(PROMPT_FIELD_LIMITS.COMMAND_MAX, "Command"),
     promptText: z.string().min(1, "Prompt text is required"),
     metadata: z.union([promptMetadataSchema, z.null()]).optional(),
