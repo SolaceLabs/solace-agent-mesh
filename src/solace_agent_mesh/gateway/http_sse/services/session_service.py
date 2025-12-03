@@ -277,8 +277,6 @@ class SessionService:
             )
             return None
 
-        # Commit the session move to database before artifact copying
-        # This ensures the move is persisted even if artifact copying fails
         try:
             db.commit()
             log.info(
@@ -297,7 +295,6 @@ class SessionService:
             raise
 
         # Copy project artifacts to session immediately when moving to a project
-        # This happens after the move is committed to avoid transaction conflicts
         if new_project_id and self.component:
             from ..utils.artifact_copy_utils import copy_project_artifacts_to_session
             from ..services.project_service import ProjectService

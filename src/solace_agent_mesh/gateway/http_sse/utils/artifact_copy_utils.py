@@ -61,7 +61,6 @@ async def has_pending_project_context(
 
         # Check each artifact's metadata to see if it has pending project context
         for artifact_info in session_artifacts:
-            # Load metadata separately for each artifact
             loaded_metadata = await load_artifact_content_or_metadata(
                 artifact_service=artifact_service,
                 app_name=app_name,
@@ -113,7 +112,6 @@ async def clear_pending_project_context(
         )
 
         for artifact_info in session_artifacts:
-            # Load the artifact metadata to check for pending flag
             loaded_metadata = await load_artifact_content_or_metadata(
                 artifact_service=artifact_service,
                 app_name=app_name,
@@ -138,7 +136,6 @@ async def clear_pending_project_context(
                     # Remove the pending flag
                     metadata.pop("project_context_pending", None)
 
-                    # Load artifact content to re-save with updated metadata
                     loaded_artifact = await load_artifact_content_or_metadata(
                         artifact_service=artifact_service,
                         app_name=app_name,
@@ -217,7 +214,6 @@ async def copy_project_artifacts_to_session(
             log.warning("%sArtifact service not available", log_prefix)
             return 0, []
 
-        # Source project artifacts are stored under project owner's user_id
         source_user_id = project.user_id
         project_artifacts_session_id = f"project-{project.id}"
 
@@ -247,7 +243,6 @@ async def copy_project_artifacts_to_session(
             project.id,
         )
 
-        # Get list of artifacts already in session to avoid re-copying
         try:
             session_artifacts = await get_artifact_info_list(
                 artifact_service=artifact_service,
@@ -323,9 +318,6 @@ async def copy_project_artifacts_to_session(
                         else {}
                     )
 
-                    # Ensure the source is always set for copied project artifacts
-                    full_metadata["source"] = "project"
-                    # Mark that project context hasn't been injected yet for these artifacts
                     # This flag will be checked on the next user message to inject full context
                     full_metadata["project_context_pending"] = True
 
@@ -360,8 +352,7 @@ async def copy_project_artifacts_to_session(
                     artifact_info.filename,
                     e,
                 )
-                # Continue with other artifacts even if one fails
-
+                
         if artifacts_copied > 0:
             log.info(
                 "%sCopied %d new artifacts to session %s",

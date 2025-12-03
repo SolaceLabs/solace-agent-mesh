@@ -115,8 +115,7 @@ async def _inject_project_context(
         # This ensures new project files are available to existing sessions
         artifact_service = component.get_shared_artifact_service()
         if artifact_service:
-            try:
-                # Copy artifacts using the shared utility function
+            try:            
                 artifacts_copied, new_artifact_names = await copy_project_artifacts_to_session(
                     project_id=project_id,
                     user_id=user_id,
@@ -199,8 +198,6 @@ async def _inject_project_context(
         return message_text
     finally:
         # Clear the pending project context flags from all artifacts
-        # This is done after injection attempt to prevent re-injecting context on subsequent messages
-        # We attempt this even if injection failed to avoid leaving artifacts in a pending state
         if should_clear_pending_flags and artifact_service:
             from ..utils.artifact_copy_utils import clear_pending_project_context
             try:
@@ -359,8 +356,6 @@ async def _submit_task(
         modified_message = payload.params.message
         if project_service and project_id and message_text:
             # Determine if we should inject full context:
-            # 1. New sessions (no frontend_session_id provided)
-            # 2. Existing sessions with pending project context (after being moved to a project)
             should_inject_full_context = not frontend_session_id
 
             # Check if there are artifacts with pending project context
