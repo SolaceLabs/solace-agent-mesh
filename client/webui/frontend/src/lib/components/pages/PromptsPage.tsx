@@ -4,6 +4,7 @@ import { RefreshCcw, Upload } from "lucide-react";
 
 import { useChatContext } from "@/lib/hooks";
 import type { PromptGroup } from "@/lib/types/prompts";
+import type { PromptImportData } from "@/lib/schemas";
 import { Button, EmptyState, Header, VariableDialog } from "@/lib/components";
 import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage, PromptImportDialog } from "@/lib/components/prompts";
 import { authenticatedFetch, detectVariables, downloadBlob } from "@/lib/utils";
@@ -327,24 +328,6 @@ export const PromptsPage: React.FC = () => {
             throw error; // Re-throw to let dialog handle it
         }
     };
-
-    // Type for import data
-    interface PromptImportData {
-        version: string;
-        exportedAt: number;
-        prompt: {
-            name: string;
-            description?: string;
-            category?: string;
-            command?: string;
-            promptText: string;
-            metadata?: {
-                authorName?: string;
-                originalVersion: number;
-                originalCreatedAt: number;
-            };
-        };
-    }
 
     if (showBuilder) {
         return (
