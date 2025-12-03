@@ -29,7 +29,7 @@ from .registry import tool_registry
 from .web_search_tools import _web_search_tavily, _web_search_google
 from .web_tools import web_request
 from ...common import a2a
-from ...gateway.http_sse.routers.dto.rag_dto import create_rag_source, create_rag_search_result
+from ...common.rag_dto import create_rag_source, create_rag_search_result
 
 
 # Category information

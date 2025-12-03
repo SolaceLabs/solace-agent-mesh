@@ -11,7 +11,7 @@ from google.adk.tools import ToolContext
 from ...tools.web_search import TavilySearchTool, GoogleSearchTool, ExaSearchTool, BraveSearchTool, SearchResult
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
-from ...gateway.http_sse.routers.dto.rag_dto import create_rag_source, create_rag_search_result
+from ...common.rag_dto import create_rag_source, create_rag_search_result
 
 log = logging.getLogger(__name__)
 

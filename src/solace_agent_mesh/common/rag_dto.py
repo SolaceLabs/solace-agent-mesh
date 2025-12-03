@@ -1,6 +1,9 @@
 """
 Pydantic models for RAG (Retrieval-Augmented Generation) metadata.
 Handles automatic conversion between snake_case (backend) and camelCase (frontend).
+
+This module is placed in common/ to be shared across different components
+(agent tools, gateway, etc.) without creating cross-layer dependencies.
 """
 
 from typing import Any, Dict, List, Optional
