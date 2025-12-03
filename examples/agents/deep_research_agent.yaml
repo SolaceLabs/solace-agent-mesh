@@ -193,12 +193,15 @@ apps:
                 model: "openai/gpt-5-mini"
                 temperature: 1.0
                 timeout: 300
+        
+        - group_name: artifact_management
+          tool_type: builtin-group
 
 
       session_service: *default_session_service
       artifact_service: *default_artifact_service
       
-      artifact_handling_mode: "embed"
+      artifact_handling_mode: "reference"
       enable_embed_resolution: true
       enable_artifact_content_instruction: true
       enable_auto_continuation: true
@@ -209,42 +212,16 @@ apps:
       agent_card:
         version: "1.0.0"
         description: |
-          Advanced research agent that conducts comprehensive, iterative research across web and knowledge base sources.
-          
-          Capabilities:
-          • Deep Research: Iterative research with LLM-powered reflection and query refinement
-          • Web Search: Google and Tavily search integration for public information
-          • Knowledge Base Search: Internal document search capabilities
-          • Citation Tracking: Automatic source tracking with relevance scores
-          • Quality Assessment: LLM evaluates research completeness and identifies gaps
-          • Report Generation: Comprehensive reports with proper citations
-          
-          Perfect for:
-          - Complex research topics requiring depth and breadth from public sources
-          - Multi-perspective analysis using web and internal documents
-          - Comprehensive information gathering from web and knowledge bases
-          - Research requiring both public web sources and internal documentation
-          - Topics where citation and source quality matter
-          
-          Note: This is the web-only version. Requires Google or Tavily API keys for web search.
+          Conducts comprehensive, iterative research on complex topics and generates well-cited research reports.
         defaultInputModes: ["text"]
         defaultOutputModes: ["text"]
         skills:
           - id: "deep_research"
             name: "Deep Research"
-            description: "Conducts iterative research with LLM-powered reflection across web and knowledge bases. Automatically refines queries and generates comprehensive reports."
-          - id: "multi_source_search"
-            name: "Multi-Source Search"
-            description: "Searches across web and knowledge bases in parallel for comprehensive coverage."
-          - id: "research_reflection"
-            name: "Research Reflection"
-            description: "LLM-powered quality assessment that identifies gaps and refines search strategy."
+            description: "Iterative research with query refinement, gap analysis, and comprehensive report generation with citations."
           - id: "citation_management"
             name: "Citation Management"
-            description: "Automatic citation tracking with relevance scores and source metadata."
-          - id: "report_generation"
-            name: "Report Generation"
-            description: "LLM synthesizes findings into coherent, well-structured research reports."
+            description: "Automatic citation tracking with relevance scores."
       
       # Discovery & Communication
       agent_card_publishing:
