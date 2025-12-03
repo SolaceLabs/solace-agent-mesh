@@ -16,6 +16,7 @@ import { AudioRecorder } from "./AudioRecorder";
 import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
 import { VariableDialog } from "./VariableDialog";
 import { PastedTextBadge, PasteActionDialog, isLargeText, type PastedArtifactItem } from "./paste";
+import { getErrorMessage } from "@/lib/utils";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     switch (command) {
@@ -48,7 +49,8 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages } = useChatContext();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, displayError, artifacts, setPreviewArtifact, openSidePanelTab, messages } =
+        useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
@@ -264,7 +266,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             if (result) {
                 // Type guard: check if result is an error
                 if ("error" in result) {
-                    addNotification(`Failed to create artifact: ${result.error}`, "error");
+                    displayError({ title: "Failed to Create Artifact", error: result.error });
                     return;
                 }
 
@@ -286,15 +288,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     return [...prev, artifactItem];
                 });
 
-                addNotification(`Artifact "${title}" created from pasted content.`);
-                // Refresh artifacts panel
+                addNotification(`Artifact "${title}" created from pasted content.`, "success");
                 await artifactsRefetch();
             } else {
-                addNotification(`Failed to create artifact from pasted content.`, "error");
+                throw new Error("Artifact upload returned no result");
             }
         } catch (error) {
-            console.error("Error saving artifact:", error);
-            addNotification(`Error creating artifact: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+            displayError({ title: "Failed to Create Artifact", error: getErrorMessage(error, "An unknown error occurred.") });
         } finally {
             setPendingPasteContent(null);
             setShowArtifactForm(false);

@@ -1,7 +1,8 @@
 import React, { useRef, useEffect } from "react";
 import { FileText } from "lucide-react";
+
 import { Badge, CardTitle, Label } from "@/lib/components/ui";
-import type { TemplateConfig } from "./hooks/usePromptTemplateBuilder";
+import type { TemplateConfig } from "@/lib/types";
 
 interface TemplatePreviewPanelProps {
     config: TemplateConfig;
