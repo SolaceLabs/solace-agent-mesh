@@ -188,11 +188,14 @@ apps:
             google_cse_id: "${GOOGLE_CSE_ID}"
             
             # Phase-specific model configurations (optional)
-            model_configs:
-              report_generation:
-                model: "openai/gpt-5-mini"
-                temperature: 1.0
-                timeout: 300
+            # Uncomment and customize to use different models for specific research phases.
+            # If not specified, the agent's default model is used for all phases.
+            # Available phases: query_generation, reflection, source_selection, report_generation
+            # model_configs:
+            #   report_generation:
+            #     model: "${REPORT_GENERATION_MODEL}"  # e.g., "openai/gpt-4o" or "anthropic/claude-3-5-sonnet"
+            #     temperature: 1.0
+            #     timeout: 300
         
         - group_name: artifact_management
           tool_type: builtin-group
@@ -219,9 +222,6 @@ apps:
           - id: "deep_research"
             name: "Deep Research"
             description: "Iterative research with query refinement, gap analysis, and comprehensive report generation with citations."
-          - id: "citation_management"
-            name: "Citation Management"
-            description: "Automatic citation tracking with relevance scores."
       
       # Discovery & Communication
       agent_card_publishing:
