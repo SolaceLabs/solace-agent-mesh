@@ -214,18 +214,18 @@ def _setup_middleware(component: "PlatformServiceComponent"):
     log.info(f"CORS middleware added with origins: {allowed_origins}")
 
     # OAuth2 middleware - try enterprise implementation first, fall back to stub
-    try:
-        from solace_agent_mesh_enterprise.platform_service.middleware import create_oauth2_middleware
-
-        oauth2_middleware_class = create_oauth2_middleware(component)
-        app.add_middleware(oauth2_middleware_class)
-        log.info("Enterprise OAuth2 middleware added (real token validation)")
-    except ImportError:
-        # Fall back to stub middleware if enterprise package not available
-        from .middleware import oauth2_stub_middleware
-
-        app.middleware("http")(oauth2_stub_middleware)
-        log.info("OAuth2 stub middleware added (development mode - no enterprise package)")
+    # try:
+    #     from solace_agent_mesh_enterprise.platform_service.middleware import create_oauth2_middleware
+    #
+    #     oauth2_middleware_class = create_oauth2_middleware(component)
+    #     app.add_middleware(oauth2_middleware_class)
+    #     log.info("Enterprise OAuth2 middleware added (real token validation)")
+    # except ImportError:
+    #     # Fall back to stub middleware if enterprise package not available
+    #     from .middleware import oauth2_stub_middleware
+    #
+    #     app.middleware("http")(oauth2_stub_middleware)
+    #     log.info("OAuth2 stub middleware added (development mode - no enterprise package)")
 
 
 def _setup_routers():

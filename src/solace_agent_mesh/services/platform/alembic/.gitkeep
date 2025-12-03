@@ -1,3 +1,1 @@
-# Alembic migration directory for Platform Service
-# Phase 1: Empty (no migrations yet)
-# Phase 2+: Will contain database migrations for platform tables
+# Alembic migration directory for community Platform Service

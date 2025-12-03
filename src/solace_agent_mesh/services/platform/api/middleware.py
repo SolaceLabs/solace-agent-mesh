@@ -36,6 +36,7 @@ async def oauth2_stub_middleware(request: Request, call_next):
     """
     # Set stub user data (always authenticated for Phase 1)
     request.state.user = {
+        "id": "stub_user",
         "user_id": "stub_user",
         "email": "stub@example.com",
         "name": "Stub User (Phase 1)",

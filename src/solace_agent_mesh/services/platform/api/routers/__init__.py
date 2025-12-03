@@ -1,8 +1,7 @@
 """
 Community platform routers for Platform Service.
 
-Phase 1: Empty - no community endpoints yet.
-Future phases will add routers as needed.
+Currently empty - no community endpoints yet.
 """
 
 
@@ -10,8 +9,6 @@ def get_community_platform_routers() -> list:
     """
     Return list of community platform routers.
 
-    Phase 1: Returns empty list (no community endpoints).
-    Future phases will return router configurations in the format:
     [
         {
             "router": router_instance,
@@ -22,6 +19,6 @@ def get_community_platform_routers() -> list:
     ]
 
     Returns:
-        Empty list for Phase 1.
+        Community platform routers list.
     """
     return []

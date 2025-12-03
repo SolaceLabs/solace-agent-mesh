@@ -87,8 +87,7 @@ class PlatformServiceComponent(ComponentBase):
 
         # Gateway compatibility attributes
         # These allow webui_backend routers (designed for gateway) to work with platform service
-        self.gateway_id = f"platform_service_{self.namespace.strip('/').replace('/', '_')}"
-        self.component_config = {"app_config": {}}
+        # self.component_config = {"app_config": {}}
         self.session_manager = _StubSessionManager(use_authorization=self.use_authorization)
 
         log.info("%s Platform Service Component initialized.", self.log_identifier)
