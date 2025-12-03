@@ -368,7 +368,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 // Remove the pending item that was just saved
                 setPendingPastedTextItems(prev => prev.filter(item => item.id !== selectedPendingPasteId));
 
-                addNotification(`Artifact "${title}" created from pasted content.`);
                 // Refresh artifacts panel
                 await artifactsRefetch();
             } else {
