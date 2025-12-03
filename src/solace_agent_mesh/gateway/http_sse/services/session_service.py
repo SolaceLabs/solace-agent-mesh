@@ -301,36 +301,41 @@ class SessionService:
         if new_project_id and self.component:
             from ..utils.artifact_copy_utils import copy_project_artifacts_to_session
             from ..services.project_service import ProjectService
+            from ..dependencies import SessionLocal
 
-            try:
-                project_service = ProjectService(component=self.component)
-                log_prefix = f"[move_session_to_project session_id={session_id}] "
+            if SessionLocal:
+                artifact_db = SessionLocal()
+                try:
+                    project_service = ProjectService(component=self.component)
+                    log_prefix = f"[move_session_to_project session_id={session_id}] "
 
-                artifacts_copied, _ = await copy_project_artifacts_to_session(
-                    project_id=new_project_id,
-                    user_id=user_id,
-                    session_id=session_id,
-                    project_service=project_service,
-                    component=self.component,
-                    db=db,
-                    log_prefix=log_prefix,
-                )
-
-                if artifacts_copied > 0:
-                    log.info(
-                        "%sCopied %d project artifacts to session during move",
-                        log_prefix,
-                        artifacts_copied,
+                    artifacts_copied, _ = await copy_project_artifacts_to_session(
+                        project_id=new_project_id,
+                        user_id=user_id,
+                        session_id=session_id,
+                        project_service=project_service,
+                        component=self.component,
+                        db=artifact_db,
+                        log_prefix=log_prefix,
                     )
-            except Exception as e:
-                # Don't fail the move operation if artifact copying fails
-                # The session move has already been committed at this point
-                log.warning(
-                    "Failed to copy project artifacts when moving session %s to project %s: %s",
-                    session_id,
-                    new_project_id,
-                    e,
-                )
+
+                    if artifacts_copied > 0:
+                        log.info(
+                            "%sCopied %d project artifacts to session during move",
+                            log_prefix,
+                            artifacts_copied,
+                        )
+                except Exception as e:
+                    # Don't fail the move operation if artifact copying fails
+                    # The session move has already been committed at this point
+                    log.warning(
+                        "Failed to copy project artifacts when moving session %s to project %s: %s",
+                        session_id,
+                        new_project_id,
+                        e,
+                    )
+                finally:
+                    artifact_db.close()
 
         return updated_session
 

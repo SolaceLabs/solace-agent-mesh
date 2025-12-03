@@ -86,6 +86,9 @@ async def _inject_project_context(
         return message_text
 
     db = SessionLocal()
+    artifact_service = None
+    should_clear_pending_flags = False
+
     try:
         project = project_service.get_project(db, project_id, user_id)
         if not project:
@@ -124,6 +127,10 @@ async def _inject_project_context(
                     log_prefix=log_prefix,
                 )
 
+                if inject_full_context and artifacts_copied > 0:
+                    # need to clear the pending flags even if injection fails
+                    should_clear_pending_flags = True
+
                 # Get artifact descriptions for context injection
                 if artifacts_copied > 0 or inject_full_context:
                     source_user_id = project.user_id
@@ -154,21 +161,18 @@ async def _inject_project_context(
                                 new_artifact_descriptions.append(desc_str)
 
                         # Add artifact descriptions to context
+                        files_added_header = (
+                            "\nNew Files Added to Session:\n"
+                            "The following files have been added to your session (in addition to any files already present):\n"
+                        )
+
                         if inject_full_context and all_artifact_descriptions:
                             # New session: show all project files
-                            artifacts_context = (
-                                "\nFiles in Session:\n"
-                                "The following files are available in your session and can be viewed using your tools if required:\n"
-                                + "\n".join(all_artifact_descriptions)
-                            )
+                            artifacts_context = files_added_header + "\n".join(all_artifact_descriptions)
                             context_parts.append(artifacts_context)
                         elif not inject_full_context and new_artifact_descriptions:
                             # Existing session: notify about newly added files
-                            new_files_context = (
-                                "\nNew Files Added to Session:\n"
-                                "The following files have been added to your session (in addition to any files already present):\n"
-                                + "\n".join(new_artifact_descriptions)
-                            )
+                            new_files_context = files_added_header + "\n".join(new_artifact_descriptions)
                             context_parts.append(new_files_context)
 
             except Exception as e:
@@ -183,23 +187,7 @@ async def _inject_project_context(
         if context_parts:
             project_context = "\n".join(context_parts)
             modified_message_text = f"{project_context}\n\nUSER QUERY:\n{message_text}"
-            log.info("%sInjected full project context for project: %s", log_prefix, project_id)
-
-            # Clear the pending project context flags from all artifacts
-            # This is done after injection to prevent re-injecting context on subsequent messages
-            if artifact_service and inject_full_context:
-                from ..utils.artifact_copy_utils import clear_pending_project_context
-                try:
-                    await clear_pending_project_context(
-                        user_id=user_id,
-                        session_id=session_id,
-                        artifact_service=artifact_service,
-                        app_name=project_service.app_name,
-                        db=db,
-                        log_prefix=log_prefix,
-                    )
-                except Exception as e:
-                    log.warning("%sFailed to clear pending project context flags: %s", log_prefix, e)
+            log.debug("%sInjected full project context for project: %s", log_prefix, project_id)
         else:
             log.debug("%sSkipped full context injection for existing session, but ensured new artifacts are copied", log_prefix)
 
@@ -210,6 +198,24 @@ async def _inject_project_context(
         # Continue without injection - don't fail the request
         return message_text
     finally:
+        # Clear the pending project context flags from all artifacts
+        # This is done after injection attempt to prevent re-injecting context on subsequent messages
+        # We attempt this even if injection failed to avoid leaving artifacts in a pending state
+        if should_clear_pending_flags and artifact_service:
+            from ..utils.artifact_copy_utils import clear_pending_project_context
+            try:
+                await clear_pending_project_context(
+                    user_id=user_id,
+                    session_id=session_id,
+                    artifact_service=artifact_service,
+                    app_name=project_service.app_name,
+                    db=db,
+                    log_prefix=log_prefix,
+                )
+                log.debug("%sCleared pending project context flags", log_prefix)
+            except Exception as e:
+                log.warning("%sFailed to clear pending project context flags: %s", log_prefix, e)
+
         db.close()
 
 
