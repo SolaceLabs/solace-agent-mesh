@@ -128,6 +128,9 @@ function isImageFile(fileName?: string, mimeType?: string): boolean {
         if (lowerMime.startsWith("image/")) {
             return true;
         }
+        if (lowerMime.startsWith("text/") || lowerMime.startsWith("application/")) {
+            return false;
+        }
     }
     if (!fileName) return false;
     const lowerCaseFileName = fileName.toLowerCase();
@@ -205,6 +208,10 @@ function isAudioFile(fileName?: string, mimeType?: string): boolean {
         const lowerMime = mimeType.toLowerCase();
         if (lowerMime.startsWith("audio/")) {
             return true;
+        }
+
+        if (lowerMime.startsWith("text/") || lowerMime.startsWith("application/") || lowerMime.startsWith("image/")) {
+            return false;
         }
     }
     if (!fileName) return false;

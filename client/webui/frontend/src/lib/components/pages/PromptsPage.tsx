@@ -4,6 +4,7 @@ import { RefreshCcw, Upload } from "lucide-react";
 
 import { useChatContext } from "@/lib/hooks";
 import type { PromptGroup } from "@/lib/types/prompts";
+import type { PromptImportData } from "@/lib/schemas";
 import { Button, EmptyState, Header, VariableDialog } from "@/lib/components";
 import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage, PromptImportDialog } from "@/lib/components/prompts";
 import { fetchWithError, detectVariables, downloadBlob, getErrorMessage, fetchJsonWithError } from "@/lib/utils";
@@ -251,12 +252,6 @@ export const PromptsPage: React.FC = () => {
                 body: JSON.stringify(apiPayload),
             });
 
-            // Show warnings if any (combine into single notification for better UX)
-            if (result.warnings && result.warnings.length > 0) {
-                const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
-                addNotification(warningMessage, "info");
-            }
-
             // Navigate back to prompts page
             setShowBuilder(false);
             setShowImportDialog(false);
@@ -267,30 +262,22 @@ export const PromptsPage: React.FC = () => {
             await fetchPromptGroups();
             setNewlyCreatedPromptId(result.prompt_group_id);
 
-            addNotification("Prompt imported successfully", "success");
+            // Filter out truncation warnings since user was already informed in the dialog
+            // Only show non-truncation warnings (e.g., command conflicts)
+            const nonTruncationWarnings = (result.warnings || []).filter((warning: string) => !warning.toLowerCase().includes("truncated"));
+
+            // Show notification - include non-truncation warnings if any
+            if (nonTruncationWarnings.length > 0) {
+                const warningText = nonTruncationWarnings.length === 1 ? nonTruncationWarnings[0] : nonTruncationWarnings.join("; ");
+                addNotification(`Prompt imported with notes: ${warningText}`, "info");
+            } else {
+                addNotification("Prompt imported", "success");
+            }
         } catch (error) {
             console.error("Failed to import prompt:", error);
             throw error; // Re-throw to let dialog handle it
         }
     };
-
-    // Type for import data
-    interface PromptImportData {
-        version: string;
-        exportedAt: number;
-        prompt: {
-            name: string;
-            description?: string;
-            category?: string;
-            command?: string;
-            promptText: string;
-            metadata?: {
-                authorName?: string;
-                originalVersion: number;
-                originalCreatedAt: number;
-            };
-        };
-    }
 
     if (showBuilder) {
         return (
