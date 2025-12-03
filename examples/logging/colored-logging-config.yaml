@@ -1,0 +1,67 @@
+# Example logging configuration with colored output
+# This configuration demonstrates how to use the ColoredFormatter for better log readability
+
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  # Standard simple formatter without colors
+  simpleFormatter:
+    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
+
+  # Colored formatter for terminal output (automatically detects TTY support)
+  coloredFormatter:
+    class: solace_ai_connector.logging.ColoredFormatter
+    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
+
+  # JSON formatter for production/cloud deployments
+  jsonFormatter:
+    "()": pythonjsonlogger.json.JsonFormatter
+    format: "%(timestamp)s %(levelname)s %(threadName)s %(name)s %(message)s"
+    timestamp: "timestamp"
+
+handlers:
+  # Console handler with colored output (for development)
+  coloredConsoleHandler:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: coloredFormatter
+    stream: ext://sys.stdout
+
+  # Console handler without colors (for production or when colors are not desired)
+  simpleConsoleHandler:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: simpleFormatter
+    stream: ext://sys.stdout
+
+  # JSON console handler (for cloud deployments)
+  jsonConsoleHandler:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: jsonFormatter
+    stream: ext://sys.stdout
+
+root:
+  level: INFO
+  # Use coloredConsoleHandler for development with colors
+  handlers: [coloredConsoleHandler]
+  # Or use simpleConsoleHandler for production without colors
+  # handlers: [simpleConsoleHandler]
+  # Or use jsonConsoleHandler for cloud deployments
+  # handlers: [jsonConsoleHandler]
+
+loggers:
+  # You can configure specific loggers with different levels
+  solace_agent_mesh:
+    level: DEBUG
+    propagate: true
+  
+  # Reduce noise from verbose libraries
+  httpx:
+    level: WARNING
+    propagate: true
+  
+  urllib3:
+    level: WARNING
+    propagate: true

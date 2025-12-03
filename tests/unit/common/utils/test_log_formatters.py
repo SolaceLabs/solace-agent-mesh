@@ -317,6 +317,74 @@ class TestDatadogJsonFormatterExceptionHandling:
             assert log_data["exception.message"] == "Custom error message"
 
 
+class TestDatadogJsonFormatterDeprecation:
+    """Tests for deprecation warning functionality"""
+
+    def test_deprecation_warning_emitted_once(self):
+        """Test that deprecation warning is emitted only once"""
+        import warnings
+        
+        # Reset the class-level flag if it exists
+        if hasattr(DatadogJsonFormatter, '_deprecation_warned'):
+            delattr(DatadogJsonFormatter, '_deprecation_warned')
+        
+        formatter = DatadogJsonFormatter()
+        record = logging.LogRecord(
+            name="test.logger",
+            level=logging.INFO,
+            pathname="/test.py",
+            lineno=1,
+            msg="Test",
+            args=(),
+            exc_info=None
+        )
+        record.created = 1640995200.0
+        record.threadName = "MainThread"
+        record.module = "test"
+        record.funcName = "test_func"
+        
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            formatter.format(record)
+            formatter.format(record)  # Second call should not warn
+            
+            deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(deprecation_warnings) == 1
+            assert "deprecated" in str(deprecation_warnings[0].message).lower()
+
+    def test_deprecation_warning_contains_alternative(self):
+        """Test that deprecation warning mentions the alternative"""
+        import warnings
+        
+        # Reset the class-level flag if it exists
+        if hasattr(DatadogJsonFormatter, '_deprecation_warned'):
+            delattr(DatadogJsonFormatter, '_deprecation_warned')
+        
+        formatter = DatadogJsonFormatter()
+        record = logging.LogRecord(
+            name="test.logger",
+            level=logging.INFO,
+            pathname="/test.py",
+            lineno=1,
+            msg="Test",
+            args=(),
+            exc_info=None
+        )
+        record.created = 1640995200.0
+        record.threadName = "MainThread"
+        record.module = "test"
+        record.funcName = "test_func"
+        
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            formatter.format(record)
+            
+            deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(deprecation_warnings) == 1
+            warning_message = str(deprecation_warnings[0].message)
+            assert "pythonjsonlogger" in warning_message.lower() or "JsonFormatter" in warning_message
+
+
 class TestDatadogJsonFormatterEdgeCases:
     """Tests for edge cases and special scenarios"""
 

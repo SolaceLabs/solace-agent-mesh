@@ -187,6 +187,40 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         [apiPrefix, projectsEnabled, fetchProjects]
     );
 
+    const updateFileMetadata = useCallback(
+        async (projectId: string, filename: string, description: string): Promise<void> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append("description", description);
+
+                const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
+                    method: "PATCH",
+                    body: formData,
+                    credentials: "include",
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({
+                        detail: `Failed to update file metadata: ${response.statusText}`,
+                    }));
+                    throw new Error(errorData.detail || `Failed to update file metadata: ${response.statusText}`);
+                }
+                // Clear any previous errors on success
+                setError(null);
+            } catch (err: unknown) {
+                console.error("Error updating file metadata:", err);
+                const errorMessage = err instanceof Error ? err.message : "Could not update file metadata.";
+                // Don't set global error for file operations - let component handle it
+                throw new Error(errorMessage);
+            }
+        },
+        [apiPrefix, projectsEnabled]
+    );
+
     const updateProject = useCallback(
         async (projectId: string, data: UpdateProjectData): Promise<Project> => {
             if (!projectsEnabled) {
@@ -345,6 +379,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setActiveProject,
         addFilesToProject,
         removeFileFromProject,
+        updateFileMetadata,
         updateProject,
         deleteProject,
         searchQuery,

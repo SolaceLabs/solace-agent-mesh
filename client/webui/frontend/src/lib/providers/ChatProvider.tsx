@@ -2,9 +2,34 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEvent, type ReactNode } from "react";
 import { v4 } from "uuid";
 
-import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
+import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-import type { Project } from "@/lib/types/projects";
+
+import { authenticatedFetch, fetchJsonWithError, fetchWithError, getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
+import { ChatContext, type ChatContextValue } from "@/lib/contexts";
+import type {
+    ArtifactInfo,
+    ArtifactRenderingState,
+    CancelTaskRequest,
+    DataPart,
+    FileAttachment,
+    FilePart,
+    JSONRPCErrorResponse,
+    Message,
+    MessageFE,
+    Notification,
+    Part,
+    PartFE,
+    SendStreamingMessageRequest,
+    SendStreamingMessageSuccessResponse,
+    Session,
+    Task,
+    TaskStatusUpdateEvent,
+    TextPart,
+    ArtifactPart,
+    AgentCardInfo,
+    Project,
+} from "@/lib/types";
 
 // Type for tasks loaded from the API
 interface TaskFromAPI {
@@ -37,30 +62,15 @@ const MIGRATIONS: Record<number, (task: any) => any> = {
     // 1: migrateV1ToV2,
 };
 
-import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
-import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-import type {
-    ArtifactInfo,
-    ArtifactRenderingState,
-    CancelTaskRequest,
-    DataPart,
-    FileAttachment,
-    FilePart,
-    JSONRPCErrorResponse,
-    Message,
-    MessageFE,
-    Notification,
-    Part,
-    PartFE,
-    SendStreamingMessageRequest,
-    SendStreamingMessageSuccessResponse,
-    Session,
-    Task,
-    TaskStatusUpdateEvent,
-    TextPart,
-    ArtifactPart,
-    AgentCardInfo,
-} from "@/lib/types";
+const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
+
+const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = error => reject(error);
+    });
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -70,16 +80,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, configServerUrl, persistenceEnabled, configCollectFeedback } = useConfigContext();
     const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
     const { activeProject, setActiveProject, projects } = useProjectContext();
-
-    const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
-
-    const fileToBase64 = (file: File): Promise<string> =>
-        new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve((reader.result as string).split(",")[1]);
-            reader.onerror = error => reject(error);
-        });
+    const { ErrorDialog, setError } = useErrorDialog();
 
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
@@ -90,23 +91,33 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const currentEventSource = useRef<EventSource | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
     const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
-    const isCancellingRef = useRef(isCancelling);
+
     const savingTasksRef = useRef<Set<string>>(new Set());
+
     // Track in-flight artifact preview fetches to prevent duplicates
     const artifactFetchInProgressRef = useRef<Set<string>>(new Set());
     const artifactDownloadInProgressRef = useRef<Set<string>>(new Set());
 
+    // Track isCancelling in ref to access in async callbacks
+    const isCancellingRef = useRef(isCancelling);
     useEffect(() => {
         isCancellingRef.current = isCancelling;
     }, [isCancelling]);
+
+    // Track current session id to prevent race conditions
+    const currentSessionIdRef = useRef(sessionId);
+    useEffect(() => {
+        currentSessionIdRef.current = sessionId;
+    }, [sessionId]);
+
     const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
-    const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Ref for cancel timeout
+    const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isFinalizing = useRef(false);
     const latestStatusText = useRef<string | null>(null);
     const sseEventSequenceRef = useRef<number>(0);
 
     // Agents State
-    const { agents, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
+    const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
 
     // Chat Side Panel State
     const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts } = useArtifacts(sessionId);
@@ -145,6 +156,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
 
     // Notification Helper
+    // Note: "error" type is deprecated in favor of useErrorDialog
     const addNotification = useCallback((message: string, type?: "success" | "info" | "error") => {
         setNotifications(prev => {
             const existingNotification = prev.find(n => n.message === message);
@@ -209,11 +221,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: "Failed to save task" }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                    const errorData = await response.json().catch(() => ({ detail: "Failed saving task" }));
+                    throw new Error(errorData.message || `HTTP error ${response.status}`);
                 }
             } catch (error) {
-                console.error(`Error saving task ${taskData.task_id}:`, error);
+                console.error(`Failed saving task ${taskData.task_id}:`, error);
                 // Don't throw - saving is best-effort and silent per NFR-1
             } finally {
                 // Always remove from saving set after a delay to handle rapid re-renders
@@ -226,28 +238,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     // Helper function to deserialize task data to MessageFE objects
-
-    const deserializeTaskToMessages = useCallback(
-        (task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }): MessageFE[] => {
-            return task.messageBubbles.map(bubble => ({
-                taskId: task.taskId,
-                role: bubble.type === "user" ? "user" : "agent",
-                parts: bubble.parts || [{ kind: "text", text: bubble.text || "" }],
-                isUser: bubble.type === "user",
-                isComplete: true,
-                files: bubble.files,
-                uploadedFiles: bubble.uploadedFiles,
-                artifactNotification: bubble.artifactNotification,
-                isError: bubble.isError,
-                metadata: {
-                    messageId: bubble.id,
-                    sessionId: sessionId,
-                    lastProcessedEventSequence: 0,
-                },
-            }));
-        },
-        [sessionId]
-    );
+    const deserializeTaskToMessages = useCallback((task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, sessionId: string): MessageFE[] => {
+        return task.messageBubbles.map(bubble => ({
+            taskId: task.taskId,
+            role: bubble.type === "user" ? "user" : "agent",
+            parts: bubble.parts || [{ kind: "text", text: bubble.text || "" }],
+            isUser: bubble.type === "user",
+            isComplete: true,
+            files: bubble.files,
+            uploadedFiles: bubble.uploadedFiles,
+            artifactNotification: bubble.artifactNotification,
+            isError: bubble.isError,
+            metadata: {
+                messageId: bubble.id,
+                sessionId: sessionId,
+                lastProcessedEventSequence: 0,
+            },
+        }));
+    }, []);
 
     // Helper function to apply migrations to a task
     const migrateTask = useCallback((task: any): any => {
@@ -276,108 +284,128 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Helper function to load session tasks and reconstruct messages
     const loadSessionTasks = useCallback(
         async (sessionId: string) => {
-            try {
-                const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/chat-tasks`);
+            const data = await fetchJsonWithError(`${apiPrefix}/sessions/${sessionId}/chat-tasks`);
 
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: "Failed to load session tasks" }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+            // Check if this session is still active before processing
+            if (currentSessionIdRef.current !== sessionId) {
+                console.log(`Session ${sessionId} is no longer the active session: ${currentSessionIdRef.current}`);
+                return;
+            }
+
+            // Parse JSON strings from backend
+            const tasks = data.tasks || [];
+            const parsedTasks = tasks.map((task: TaskFromAPI) => ({
+                ...task,
+                messageBubbles: JSON.parse(task.messageBubbles),
+                taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null,
+            }));
+
+            // Apply migrations to each task
+            const migratedTasks = parsedTasks.map(migrateTask);
+
+            // Deserialize all tasks to messages
+            const allMessages: MessageFE[] = [];
+            for (const task of migratedTasks) {
+                const taskMessages = deserializeTaskToMessages(task, sessionId);
+                allMessages.push(...taskMessages);
+            }
+
+            // Extract feedback state from task metadata
+            const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
+            for (const task of migratedTasks) {
+                if (task.taskMetadata?.feedback) {
+                    feedbackMap[task.taskId] = {
+                        type: task.taskMetadata.feedback.type,
+                        text: task.taskMetadata.feedback.text || "",
+                    };
                 }
+            }
 
-                const data = await response.json();
-                const tasks = data.tasks || [];
-
-                // Parse JSON strings from backend
-                const parsedTasks = tasks.map((task: TaskFromAPI) => ({
-                    ...task,
-                    messageBubbles: JSON.parse(task.messageBubbles),
-                    taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null,
-                }));
-
-                // Apply migrations to each task
-                const migratedTasks = parsedTasks.map(migrateTask);
-
-                // Deserialize all tasks to messages
-                const allMessages: MessageFE[] = [];
-                for (const task of migratedTasks) {
-                    const taskMessages = deserializeTaskToMessages(task);
-                    allMessages.push(...taskMessages);
+            // Extract agent name from the most recent task
+            // (Use the last task's agent since that's the most recent interaction)
+            let agentName: string | null = null;
+            for (let i = migratedTasks.length - 1; i >= 0; i--) {
+                if (migratedTasks[i].taskMetadata?.agent_name) {
+                    agentName = migratedTasks[i].taskMetadata.agent_name;
+                    break;
                 }
+            }
 
-                // Extract feedback state from task metadata
-                const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
-                for (const task of migratedTasks) {
-                    if (task.taskMetadata?.feedback) {
-                        feedbackMap[task.taskId] = {
-                            type: task.taskMetadata.feedback.type,
-                            text: task.taskMetadata.feedback.text || "",
-                        };
-                    }
-                }
+            // Update state
+            setMessages(allMessages);
+            setSubmittedFeedback(feedbackMap);
 
-                // Extract agent name from the most recent task
-                // (Use the last task's agent since that's the most recent interaction)
-                let agentName: string | null = null;
-                for (let i = migratedTasks.length - 1; i >= 0; i--) {
-                    if (migratedTasks[i].taskMetadata?.agent_name) {
-                        agentName = migratedTasks[i].taskMetadata.agent_name;
-                        break;
-                    }
-                }
-
-                // Update state
-                setMessages(allMessages);
-                setSubmittedFeedback(feedbackMap);
-
-                // Set the agent name if found
-                if (agentName) {
-                    setSelectedAgentName(agentName);
-                }
-            } catch (error) {
-                console.error("Error loading session tasks:", error);
-                addNotification("Error loading session history. Please try again.", "error");
-                throw error;
+            // Set the agent name if found
+            if (agentName) {
+                setSelectedAgentName(agentName);
             }
         },
-        [apiPrefix, deserializeTaskToMessages, addNotification, migrateTask]
+        [apiPrefix, deserializeTaskToMessages, migrateTask]
     );
 
     const uploadArtifactFile = useCallback(
-        async (file: File, overrideSessionId?: string, description?: string): Promise<{ uri: string; sessionId: string } | null> => {
+        async (file: File, overrideSessionId?: string, description?: string): Promise<{ uri: string; sessionId: string } | { error: string } | null> => {
             const effectiveSessionId = overrideSessionId || sessionId;
             const formData = new FormData();
             formData.append("upload_file", file);
             formData.append("filename", file.name);
             // Send sessionId as form field (can be empty string for new sessions)
             formData.append("sessionId", effectiveSessionId || "");
-            
+
             // Add description as metadata if provided
             if (description) {
                 const metadata = { description };
                 formData.append("metadata_json", JSON.stringify(metadata));
             }
-            
+
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",
                     body: formData,
-                    credentials: "include",
                 });
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: `Failed to upload ${file.name}` }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+
+                // Special handling for 413 status before checking response.ok
+                if (response.status === 413) {
+                    const errorData = await response.json().catch(() => ({ message: `Failed to upload ${file.name}.` }));
+                    // Extract file size information if available
+                    const actualSize = errorData.actual_size_bytes;
+                    const maxSize = errorData.max_size_bytes;
+
+                    let errorMessage;
+                    if (actualSize && maxSize) {
+                        const actualSizeMB = (actualSize / (1024 * 1024)).toFixed(2);
+                        const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(2);
+                        errorMessage = `File "${file.name}" is too large: ${actualSizeMB} MB exceeds the maximum allowed size of ${maxSizeMB} MB.`;
+                    } else {
+                        errorMessage = errorData.message || `File "${file.name}" exceeds the maximum allowed size.`;
+                    }
+
+                    setError({ title: "File Upload Failed", error: errorMessage });
+                    return { error: errorMessage };
                 }
+
+                // For all other errors, use be error
+                if (!response.ok) {
+                    throw new Error(
+                        await response
+                            .json()
+                            .then(d => d.message)
+                            .catch(() => `Failed to upload ${file.name}.`)
+                    );
+                }
+
                 const result = await response.json();
-                addNotification(`Artifact "${file.name}" uploaded successfully.`);
+                addNotification(`File "${file.name}" uploaded.`, "success");
                 await artifactsRefetch();
                 // Return both URI and sessionId (backend may have created a new session)
                 return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
             } catch (error) {
-                addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`, "error");
-                return null;
+                const errorMessage = getErrorMessage(error, `Failed to upload "${file.name}".`);
+                setError({ title: "File Upload Failed", error: errorMessage });
+                return { error: errorMessage };
             }
         },
-        [apiPrefix, sessionId, addNotification, artifactsRefetch]
+        [apiPrefix, sessionId, addNotification, artifactsRefetch, setError]
     );
 
     // Session State
@@ -388,21 +416,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const deleteArtifactInternal = useCallback(
         async (filename: string) => {
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
+                await fetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
-                    credentials: "include",
                 });
-                if (!response.ok && response.status !== 204) {
-                    const errorData = await response.json().catch(() => ({ detail: `Failed to delete ${filename}` }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
-                }
-                addNotification(`File "${filename}" deleted successfully.`);
+                addNotification(`File "${filename}" deleted.`, "success");
                 artifactsRefetch();
             } catch (error) {
-                addNotification(`Error deleting file "${filename}": ${error instanceof Error ? error.message : "Unknown error"}`);
+                setError({ title: "File Deletion Failed", error: getErrorMessage(error, `Failed to delete ${filename}.`) });
             }
         },
-        [apiPrefix, sessionId, addNotification, artifactsRefetch]
+        [apiPrefix, sessionId, addNotification, artifactsRefetch, setError]
     );
 
     const openDeleteModal = useCallback((artifact: ArtifactInfo) => {
@@ -438,11 +461,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleDeleteSelectedArtifacts = useCallback(() => {
         if (selectedArtifactFilenames.size === 0) {
-            addNotification("No files selected for deletion.");
             return;
         }
         setIsBatchDeleteModalOpen(true);
-    }, [selectedArtifactFilenames, addNotification]);
+    }, [selectedArtifactFilenames]);
 
     const confirmBatchDeleteArtifacts = useCallback(async () => {
         setIsBatchDeleteModalOpen(false);
@@ -451,23 +473,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         let errorCount = 0;
         for (const filename of filenamesToDelete) {
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
+                await fetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
-                    credentials: "include",
                 });
-                if (!response.ok && response.status !== 204) throw new Error(`Failed to delete ${filename}`);
                 successCount++;
             } catch (error: unknown) {
                 console.error(error);
                 errorCount++;
             }
         }
-        if (successCount > 0) addNotification(`${successCount} files(s) deleted successfully.`);
-        if (errorCount > 0) addNotification(`Failed to delete ${errorCount} files(s).`);
+        if (successCount > 0) addNotification(`${successCount} files(s) deleted.`, "success");
+        if (errorCount > 0) {
+            setError({ title: "File Deletion Failed", error: `${errorCount} file(s) failed to delete.` });
+        }
         artifactsRefetch();
         setSelectedArtifactFilenames(new Set());
         setIsArtifactEditMode(false);
-    }, [selectedArtifactFilenames, addNotification, artifactsRefetch, apiPrefix, sessionId]);
+    }, [selectedArtifactFilenames, addNotification, artifactsRefetch, apiPrefix, sessionId, setError]);
 
     const openArtifactForPreview = useCallback(
         async (artifactFilename: string): Promise<FileAttachment | null> => {
@@ -497,9 +519,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact preview");
                 }
 
-                const versionsResponse = await authenticatedFetch(versionsUrl, { credentials: "include" });
-                if (!versionsResponse.ok) throw new Error("Error fetching version list");
-                const availableVersions: number[] = await versionsResponse.json();
+                const availableVersions: number[] = await fetchJsonWithError(versionsUrl);
                 if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
                 setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
                 const latestVersion = Math.max(...availableVersions);
@@ -513,8 +533,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact content");
                 }
 
-                const contentResponse = await authenticatedFetch(contentUrl, { credentials: "include" });
-                if (!contentResponse.ok) throw new Error("Error fetching latest version content");
+                const contentResponse = await fetchWithError(contentUrl);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -532,14 +551,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setPreviewFileContent(fileData);
                 return fileData;
             } catch (error) {
-                addNotification(`Error loading preview for ${artifactFilename}: ${error instanceof Error ? error.message : "Unknown error"}`);
+                setError({ title: "Artifact Preview Failed", error: getErrorMessage(error, "Failed to load artifact preview.") });
                 return null;
             } finally {
                 // Remove from in-progress set immediately when done
                 artifactFetchInProgressRef.current.delete(artifactFilename);
             }
         },
-        [apiPrefix, sessionId, activeProject?.id, artifacts, addNotification, previewArtifactFilename]
+        [apiPrefix, sessionId, activeProject?.id, artifacts, previewArtifactFilename, setError]
     );
 
     const navigateArtifactVersion = useCallback(
@@ -553,7 +572,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Now check if the specific version exists
             if (!previewedArtifactAvailableVersions.includes(targetVersion)) {
-                addNotification(`Version ${targetVersion} is not available for ${artifactFilename}.`);
+                console.warn(`Requested version ${targetVersion} not available for ${artifactFilename}`);
                 return null;
             }
             setPreviewFileContent(null);
@@ -568,8 +587,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact navigation");
                 }
 
-                const contentResponse = await authenticatedFetch(contentUrl, { credentials: "include" });
-                if (!contentResponse.ok) throw new Error(`Error fetching version ${targetVersion}`);
+                const contentResponse = await fetchWithError(contentUrl);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -588,21 +606,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setPreviewFileContent(fileData);
                 return fileData;
             } catch (error) {
-                addNotification(`Error loading version ${targetVersion}: ${error instanceof Error ? error.message : "Unknown error"}`);
+                setError({ title: "Artifact Version Preview Failed", error: getErrorMessage(error, "Failed to fetch artifact version.") });
                 return null;
             }
         },
-        [apiPrefix, addNotification, artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id]
-    );
-
-    const openMessageAttachmentForPreview = useCallback(
-        (file: FileAttachment) => {
-            addNotification(`Loading preview for attached file: ${file.name}`);
-            setPreviewFileContent(file);
-            setPreviewedArtifactAvailableVersions(null);
-            setCurrentPreviewedVersionNumber(null);
-        },
-        [addNotification]
+        [apiPrefix, artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id, setError]
     );
 
     const openSidePanelTab = useCallback((tab: "files" | "workflow") => {
@@ -653,18 +661,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Fetch the latest version with embeds resolved
-                const versionsResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`, { credentials: "include" });
-                if (!versionsResponse.ok) throw new Error("Error fetching version list");
-
-                const availableVersions: number[] = await versionsResponse.json();
+                const availableVersions: number[] = await fetchJsonWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
                 if (!availableVersions || availableVersions.length === 0) {
                     throw new Error("No versions available");
                 }
 
                 const latestVersion = Math.max(...availableVersions);
-                const contentResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`, { credentials: "include" });
-                if (!contentResponse.ok) throw new Error("Error fetching artifact content");
-
+                const contentResponse = await fetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -695,15 +698,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 return fileData;
             } catch (error) {
-                console.error(`Error downloading artifact ${filename}:`, error);
-                addNotification(`Error downloading artifact: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+                setError({ title: "File Download Failed", error: getErrorMessage(error, `Failed to download ${filename}.`) });
                 return null;
             } finally {
                 // Remove from in-progress set immediately when done
                 artifactDownloadInProgressRef.current.delete(filename);
             }
         },
-        [apiPrefix, sessionId, artifacts, addNotification, setArtifacts]
+        [apiPrefix, sessionId, artifacts, setArtifacts, setError]
     );
 
     const handleSseMessage = useCallback(
@@ -716,7 +718,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 rpcResponse = JSON.parse(event.data) as SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
             } catch (error: unknown) {
                 console.error("Failed to parse SSE message:", error);
-                addNotification("Received unparseable agent update.", "error");
                 return;
             }
 
@@ -1131,7 +1132,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Finalization logic
             if (isFinalEvent) {
                 if (isCancellingRef.current) {
-                    addNotification("Task successfully cancelled.");
+                    addNotification("Task cancelled.", "success");
                     if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
                     setIsCancelling(false);
                 }
@@ -1241,7 +1242,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(cancelRequest),
-                        credentials: "include",
                     });
                 } catch (error) {
                     console.warn(`${log_prefix} Failed to cancel current task:`, error);
@@ -1280,8 +1280,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
             // Artifacts will be automatically refreshed by useArtifacts hook when sessionId changes
-            // Success notification
-            addNotification("New session started successfully.");
 
             // Dispatch event to focus chat input
             if (typeof window !== "undefined") {
@@ -1291,7 +1289,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, addNotification, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
+        [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
     );
 
     const handleSwitchSession = useCallback(
@@ -1300,10 +1298,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             console.log(`${log_prefix} Switching to session ${newSessionId}...`);
 
             setIsLoadingSession(true);
-
-            // Clear messages immediately to prevent showing old session's messages
             setMessages([]);
-
             closeCurrentEventSource();
 
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
@@ -1321,7 +1316,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(cancelRequest),
-                        credentials: "include",
                     });
                 } catch (error) {
                     console.warn(`${log_prefix} Failed to cancel current task:`, error);
@@ -1336,45 +1330,43 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             try {
                 // Load session metadata first to get project info
-                const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
-                let session: Session | null = null;
-                if (sessionResponse.ok) {
-                    const sessionData = await sessionResponse.json();
-                    session = sessionData?.data;
-                    setSessionName(session?.name ?? "N/A");
+                const sessionData = await fetchJsonWithError(`${apiPrefix}/sessions/${newSessionId}`);
+                const session: Session | null = sessionData?.data;
+                setSessionName(session?.name ?? "N/A");
 
-                    // Activate or deactivate project context based on session's project
-                    // Set flag to prevent handleNewSession from being triggered by this project change
-                    isSessionSwitchRef.current = true;
+                // Activate or deactivate project context based on session's project
+                // Set flag to prevent handleNewSession from being triggered by this project change
+                isSessionSwitchRef.current = true;
 
-                    if (session?.projectId) {
-                        console.log(`${log_prefix} Session belongs to project ${session.projectId}`);
+                if (session?.projectId) {
+                    console.log(`${log_prefix} Session belongs to project ${session.projectId}`);
 
-                        // Check if we're already in the correct project context
-                        if (activeProject?.id !== session.projectId) {
-                            // Find the full project object from the projects array
-                            const project = projects.find((p: Project) => p.id === session?.projectId);
+                    // Check if we're already in the correct project context
+                    if (activeProject?.id !== session.projectId) {
+                        // Find the full project object from the projects array
+                        const project = projects.find((p: Project) => p.id === session?.projectId);
 
-                            if (project) {
-                                console.log(`${log_prefix} Activating project context: ${project.name}`);
-                                setActiveProject(project);
-                            } else {
-                                console.warn(`${log_prefix} Project ${session.projectId} not found in projects array`);
-                            }
+                        if (project) {
+                            console.log(`${log_prefix} Activating project context: ${project.name}`);
+                            setActiveProject(project);
                         } else {
-                            console.log(`${log_prefix} Already in correct project context`);
+                            console.warn(`${log_prefix} Project ${session.projectId} not found in projects array`);
                         }
                     } else {
-                        // Session has no project - deactivate project context
-                        if (activeProject !== null) {
-                            console.log(`${log_prefix} Session has no project, deactivating project context`);
-                            setActiveProject(null);
-                        }
+                        console.log(`${log_prefix} Already in correct project context`);
+                    }
+                } else {
+                    // Session has no project - deactivate project context
+                    if (activeProject !== null) {
+                        console.log(`${log_prefix} Session has no project, deactivating project context`);
+                        setActiveProject(null);
                     }
                 }
 
-                // Update session state
+                // Update session ID state
                 setSessionId(newSessionId);
+
+                // Reset other session-related state
                 setIsResponding(false);
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
@@ -1383,16 +1375,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
 
-                // Load session tasks
                 await loadSessionTasks(newSessionId);
             } catch (error) {
-                console.error(`${log_prefix} Failed to fetch session history:`, error);
-                addNotification("Error switching session. Please try again.", "error");
+                setError({ title: "Switching Chats Failed", error: getErrorMessage(error, "Failed to switch chat sessions.") });
             } finally {
                 setIsLoadingSession(false);
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError]
     );
 
     const updateSessionName = useCallback(
@@ -1403,35 +1393,40 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ name: newName }),
                 });
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: "Failed to update session name" }));
 
-                    if (response.status === 422) throw new Error("Invalid name");
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                // Special handling for 422 validation errors
+                if (response.status === 422) {
+                    throw new Error("Invalid name");
                 }
-                addNotification("Session name updated successfully.");
+
+                // For all other errors
+                if (!response.ok) {
+                    throw new Error(
+                        await response
+                            .json()
+                            .then(d => d.message)
+                            .catch(() => "Failed to update session name")
+                    );
+                }
+
                 setSessionName(newName);
                 if (typeof window !== "undefined") {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                addNotification(`Error updating session name: ${error instanceof Error ? error.message : "Unknown error"}`);
+                setError({ title: "Session Name Update Failed", error: getErrorMessage(error, "Failed to update session name.") });
             }
         },
-        [apiPrefix, addNotification]
+        [apiPrefix, setError]
     );
 
     const deleteSession = useCallback(
         async (sessionIdToDelete: string) => {
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionIdToDelete}`, {
+                await fetchWithError(`${apiPrefix}/sessions/${sessionIdToDelete}`, {
                     method: "DELETE",
                 });
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: "Failed to delete session" }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
-                }
-                addNotification("Session deleted successfully.");
+                addNotification("Session deleted.", "success");
                 if (sessionIdToDelete === sessionId) {
                     handleNewSession();
                 }
@@ -1440,10 +1435,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                addNotification(`Error deleting session: ${error instanceof Error ? error.message : "Unknown error"}`);
+                setError({ title: "Chat Deletion Failed", error: getErrorMessage(error, "Failed to delete session.") });
             }
         },
-        [apiPrefix, addNotification, handleNewSession, sessionId]
+        [apiPrefix, addNotification, handleNewSession, sessionId, setError]
     );
 
     // Artifact Rendering Actions
@@ -1496,15 +1491,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleCancel = useCallback(async () => {
         if ((!isResponding && !isCancelling) || !currentTaskId) {
-            addNotification("No active task to cancel.");
             return;
         }
         if (isCancelling) {
-            addNotification("Cancellation already in progress.");
             return;
         }
 
-        addNotification(`Requesting cancellation for task ${currentTaskId}...`);
         setIsCancelling(true);
 
         try {
@@ -1526,7 +1518,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             if (response.status === 202) {
                 if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
                 cancelTimeoutRef.current = setTimeout(() => {
-                    addNotification(`Cancellation for task ${currentTaskId} timed out. Allowing new input.`);
+                    addNotification("Cancellation timed out. Allowing new input.");
                     setIsCancelling(false);
                     setIsResponding(false);
                     closeCurrentEventSource();
@@ -1536,15 +1528,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     setMessages(prev => prev.filter(msg => !msg.isStatusBubble));
                 }, 15000);
             } else {
-                const errorData = await response.json().catch(() => ({ detail: "Unknown cancellation error" }));
-                addNotification(`Failed to request cancellation: ${errorData.detail || response.statusText}`);
-                setIsCancelling(false);
+                const errorData = await response.json().catch(() => ({ message: "Unknown cancellation error" }));
+                throw new Error(errorData.message || `HTTP error ${response.status}`);
             }
         } catch (error) {
-            addNotification(`Error sending cancellation request: ${error instanceof Error ? error.message : "Network error"}`);
+            setError({ title: "Task Cancellation Failed", error: getErrorMessage(error, "An unknown error occurred.") });
             setIsCancelling(false);
         }
-    }, [isResponding, isCancelling, currentTaskId, apiPrefix, addNotification, closeCurrentEventSource]);
+    }, [isResponding, isCancelling, currentTaskId, apiPrefix, addNotification, setError, closeCurrentEventSource]);
 
     const handleFeedbackSubmit = useCallback(
         async (taskId: string, feedbackType: "up" | "down", feedbackText: string) => {
@@ -1565,12 +1556,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }));
             } catch (error) {
                 console.error("Failed to submit feedback:", error);
-                addNotification("Failed to submit feedback. Please try again.", "error");
-                // Re-throw to allow UI to handle the error if needed
                 throw error;
             }
         },
-        [sessionId, addNotification]
+        [sessionId]
     );
 
     const handleSseOpen = useCallback(() => {
@@ -1579,7 +1568,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleSseError = useCallback(() => {
         if (isResponding && !isFinalizing.current && !isCancellingRef.current) {
-            addNotification("Connection error with agent updates.");
+            setError({ title: "Connection Failed", error: "Connection lost. Please try again." });
         }
         if (!isFinalizing.current) {
             setIsResponding(false);
@@ -1590,7 +1579,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
         }
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
-    }, [addNotification, closeCurrentEventSource, isResponding]);
+    }, [closeCurrentEventSource, isResponding, setError]);
+
+    const cleanupUploadedFiles = useCallback(
+        async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
+            if (uploadedFiles.length === 0) {
+                return;
+            }
+
+            for (const { filename, sessionId: fileSessionId } of uploadedFiles) {
+                try {
+                    const deleteUrl = `${apiPrefix}/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`;
+
+                    // Use the session ID that was used during upload
+                    await fetchWithError(deleteUrl, {
+                        method: "DELETE",
+                    });
+                } catch (error) {
+                    console.error(`[cleanupUploadedFiles] Exception while cleaning up file ${filename}:`, error);
+                    // Continue cleanup even if one fails (intentionally silent)
+                }
+            }
+        },
+        [apiPrefix]
+    );
 
     const handleSubmit = useCallback(
         async (event: FormEvent, files?: File[] | null, userInputText?: string | null) => {
@@ -1598,8 +1610,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
             if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {
-                if (!selectedAgentName) addNotification("Please select an agent first.");
-                if (isCancelling) addNotification("Cannot send new message while a task is being cancelled.");
                 return;
             }
             closeCurrentEventSource();
@@ -1624,59 +1634,113 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setMessages(prev => [...prev, userMsg]);
 
             try {
-                // 1. Process files using hybrid approach
-                const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
+                // 1. Process files using hybrid approach with fail-fast
+                const uploadedFileParts: FilePart[] = [];
+                const successfullyUploadedFiles: Array<{ filename: string; sessionId: string }> = []; // Track large files for cleanup
+
+                // Track the effective session ID for this message (may be updated if large file upload)
+                let effectiveSessionId = sessionId;
+
+                console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
+
+                for (const file of currentFiles) {
+                    // Check if this is an artifact reference (pasted artifact)
+                    if (file.type === "application/x-artifact-reference") {
+                        try {
+                            // Read the artifact reference data
+                            const text = await file.text();
+                            const artifactRef = JSON.parse(text);
+
+                            if (artifactRef.isArtifactReference && artifactRef.uri) {
+                                // This is a pasted artifact - send it as a file part with URI
+                                console.log(`[handleSubmit] Adding artifact reference: ${artifactRef.filename} (${artifactRef.uri})`);
+                                uploadedFileParts.push({
+                                    kind: "file",
+                                    file: {
+                                        uri: artifactRef.uri,
+                                        name: artifactRef.filename,
+                                        mimeType: artifactRef.mimeType || "application/octet-stream",
+                                    },
+                                });
+                                continue; // Skip to next file
+                            }
+                        } catch (error) {
+                            console.error(`[handleSubmit] Error processing artifact reference:`, error);
+                            // Fall through to normal file handling
+                        }
+                    }
+
                     if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
-                        // Small file: send inline as base64
+                        // Small file: send inline as base64 (no cleanup needed)
                         const base64Content = await fileToBase64(file);
-                        return {
+                        uploadedFileParts.push({
                             kind: "file",
                             file: {
                                 bytes: base64Content,
                                 name: file.name,
                                 mimeType: file.type,
                             },
-                        };
+                        });
                     } else {
-                        // Large file: upload and get URI
-                        const result = await uploadArtifactFile(file);
-                        if (result) {
-                            return {
+                        // Large file: upload and get URI, pass effectiveSessionId to ensure all files go to the same session
+                        const result = await uploadArtifactFile(file, effectiveSessionId);
+
+                        // Check for success FIRST - must have both uri and sessionId
+                        if (result && "uri" in result && result.uri && result.sessionId) {
+                            // Update effective session ID once if backend has created a new session
+                            if (!effectiveSessionId) {
+                                effectiveSessionId = result.sessionId;
+                            }
+
+                            successfullyUploadedFiles.push({
+                                filename: file.name,
+                                sessionId: result.sessionId,
+                            });
+
+                            uploadedFileParts.push({
                                 kind: "file",
                                 file: {
                                     uri: result.uri,
                                     name: file.name,
                                     mimeType: file.type,
                                 },
-                            };
+                            });
                         } else {
-                            addNotification(`Failed to upload large file: ${file.name}`, "error");
-                            return null;
+                            // ANY failure case (error object, null, or missing fields) - Clean up and stop
+                            console.error(`[handleSubmit] File upload failed for "${file.name}". Result:`, result);
+                            await cleanupUploadedFiles(successfullyUploadedFiles);
+
+                            const cleanupMessage = successfullyUploadedFiles.length > 0 ? " Previously uploaded files have been cleaned up." : "";
+
+                            const errorDetail = result && "error" in result ? ` (${result.error})` : "";
+                            setError({ title: "File Upload Failed", error: `Message not sent. File upload failed for "${file.name}"${errorDetail}.${cleanupMessage}.` });
+                            setIsResponding(false);
+                            setMessages(prev => prev.filter(msg => msg.metadata?.messageId !== userMsg.metadata?.messageId));
+                            return;
                         }
                     }
-                });
-
-                const uploadedFileParts = (await Promise.all(filePartsPromises)).filter((p): p is FilePart => p !== null);
+                }
 
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
                 if (currentInput) {
                     messageParts.push({ kind: "text", text: currentInput });
                 }
+
                 messageParts.push(...uploadedFileParts);
 
                 if (messageParts.length === 0) {
-                    throw new Error("Cannot send an empty message.");
+                    return;
                 }
 
                 // 3. Construct the A2A message
-                console.log(`ChatProvider handleSubmit: Using sessionId for contextId: ${sessionId}`);
+                console.log(`ChatProvider handleSubmit: Using effectiveSessionId for contextId: ${effectiveSessionId}`);
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
                     messageId: `msg-${v4()}`,
                     kind: "message",
-                    contextId: sessionId,
+                    contextId: effectiveSessionId,
                     metadata: {
                         agent_name: selectedAgentName,
                         project_id: activeProject?.id || null,
@@ -1695,18 +1759,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // 5. Send the request
                 console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
-                const response = await authenticatedFetch(`${apiPrefix}/message:stream`, {
+                const result = await fetchJsonWithError(`${apiPrefix}/message:stream`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(sendMessageRequest),
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: "Unknown error" }));
-                    console.error("ChatProvider handleSubmit: Error from /message:stream", response.status, errorData);
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
-                }
-                const result = await response.json();
 
                 const task = result?.result as Task | undefined;
                 const taskId = task?.id;
@@ -1743,13 +1800,25 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                     // If it was a new session, generate and persist its name
                     if (isNewSession) {
+                        let newSessionName = "New Chat";
                         const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
                         const combinedText = textParts
                             .map(p => p.text)
                             .join(" ")
                             .trim();
+
                         if (combinedText) {
-                            const newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
+                            newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
+                        } else if (currentFiles.length > 0) {
+                            // No text, but files were sent - derive name from files
+                            if (currentFiles.length === 1) {
+                                newSessionName = currentFiles[0].name;
+                            } else {
+                                newSessionName = `${currentFiles[0].name} +${currentFiles.length - 1} more`;
+                            }
+                        }
+
+                        if (newSessionName) {
                             setSessionName(newSessionName);
                             await updateSessionName(responseSessionId, newSessionName);
                         }
@@ -1768,8 +1837,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Update user message with taskId so it's included in final save
                 setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, taskId: taskId } : msg)));
             } catch (error) {
-                console.error("ChatProvider handleSubmit: Catch block error", error);
-                addNotification(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+                setError({ title: "Message Failed", error: getErrorMessage(error, "An error occurred. Please try again.") });
                 setIsResponding(false);
                 setMessages(prev => prev.filter(msg => !msg.isStatusBubble));
                 setCurrentTaskId(null);
@@ -1777,7 +1845,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, INLINE_FILE_SIZE_LIMIT_BYTES, activeProject]
+        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, activeProject, cleanupUploadedFiles, setError]
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
@@ -1855,9 +1923,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Check URL parameter first
             const urlParams = new URLSearchParams(window.location.search);
-            const urlAgentName = urlParams.get('agent');
+            const urlAgentName = urlParams.get("agent");
             let urlAgent: AgentCardInfo | undefined;
-            
+
             if (urlAgentName) {
                 urlAgent = agents.find(agent => agent.name === urlAgentName);
                 if (urlAgent) {
@@ -1972,6 +2040,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         agentsLoading,
         agentsError,
         agentsRefetch,
+        agentNameDisplayNameMap,
         handleNewSession,
         handleSwitchSession,
         handleSubmit,
@@ -2014,7 +2083,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         previewFileContent,
         openArtifactForPreview,
         navigateArtifactVersion,
-        openMessageAttachmentForPreview,
         previewArtifact,
         setPreviewArtifact, // Now uses the wrapper function that sets filename
         updateSessionName,
@@ -2029,7 +2097,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         /** Artifact Display and Cache Management */
         markArtifactAsDisplayed,
         downloadAndResolveArtifact,
+
+        /** Global error display */
+        displayError: setError,
     };
 
-    return <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>;
+    return (
+        <ChatContext.Provider value={contextValue}>
+            {children}
+            <ErrorDialog />
+        </ChatContext.Provider>
+    );
 };

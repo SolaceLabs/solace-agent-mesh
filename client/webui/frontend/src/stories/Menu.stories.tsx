@@ -1,4 +1,5 @@
 import { Menu } from "@/lib/components/ui/menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/lib/components/ui/popover";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 
 const meta = {
@@ -8,7 +9,7 @@ const meta = {
         layout: "fullscreen",
         docs: {
             description: {
-                component: "The button component",
+                component: "The menu component",
             },
         },
     },
@@ -16,7 +17,18 @@ const meta = {
         (Story: StoryFn, context: StoryContext) => {
             const storyResult = Story(context.args, context);
 
-            return <div style={{ height: "100vh", width: "100vw", display: "flex", justifyContent: "center", alignItems: "center" }}>{storyResult}</div>;
+            return (
+                <div style={{ height: "100vh", width: "100vw", display: "flex", justifyContent: "center", alignItems: "center" }}>
+                    <Popover defaultOpen>
+                        <PopoverTrigger asChild>
+                            <button style={{ visibility: "hidden" }}>Trigger</button>
+                        </PopoverTrigger>
+                        <PopoverContent align="center" side="bottom" className="w-auto" sideOffset={0}>
+                            {storyResult}
+                        </PopoverContent>
+                    </Popover>
+                </div>
+            );
         },
     ],
 } satisfies Meta<typeof Menu>;

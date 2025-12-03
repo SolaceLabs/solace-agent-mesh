@@ -19,6 +19,7 @@ export interface ChatState {
     agentsError: string | null;
     agentsLoading: boolean;
     agentsRefetch: () => Promise<void>;
+    agentNameDisplayNameMap: Record<string, string>;
     // Chat Side Panel State
     artifacts: ArtifactInfo[];
     artifactsLoading: boolean;
@@ -57,7 +58,7 @@ export interface ChatActions {
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "error") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
-    uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string) => Promise<{ uri: string; sessionId: string } | null>;
+    uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
     setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;
@@ -80,8 +81,6 @@ export interface ChatActions {
     openArtifactForPreview: (artifactFilename: string, autoRun?: boolean) => Promise<FileAttachment | null>;
     navigateArtifactVersion: (artifactFilename: string, targetVersion: number) => Promise<FileAttachment | null>;
 
-    openMessageAttachmentForPreview: (file: FileAttachment, autoRun?: boolean) => void;
-
     /** Artifact Display and Cache Management */
     markArtifactAsDisplayed: (filename: string, displayed: boolean) => void;
     downloadAndResolveArtifact: (filename: string) => Promise<FileAttachment | null>;
@@ -95,6 +94,8 @@ export interface ChatActions {
     updateSessionName: (sessionId: string, newName: string, showNotification?: boolean) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
     handleFeedbackSubmit: (taskId: string, feedbackType: "up" | "down", feedbackText: string) => Promise<void>;
+
+    displayError: ({ title, error }: { title: string; error: string }) => void;
 }
 
 export type ChatContextValue = ChatState & ChatActions;

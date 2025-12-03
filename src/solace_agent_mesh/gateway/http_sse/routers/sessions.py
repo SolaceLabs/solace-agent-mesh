@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from ..dependencies import get_session_business_service, get_db
@@ -474,6 +475,11 @@ async def update_session_name(
 
     except HTTPException:
         raise
+    except ValidationError as e:
+        log.warning("Pydantic validation error updating session %s: %s", session_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
     except ValueError as e:
         log.warning("Validation error updating session %s: %s", session_id, e)
         raise HTTPException(

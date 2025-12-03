@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
+import { authenticatedFetch } from "@/lib/utils/api";
 
 interface UseSpeechToTextOptions {
     onTranscriptionComplete?: (text: string) => void;
@@ -233,7 +234,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
     const startExternalRecording = useCallback(async () => {
         // Check if external STT is configured
         try {
-            const configResponse = await fetch("/api/v1/speech/config");
+            const configResponse = await authenticatedFetch("/api/v1/speech/config");
             if (configResponse.ok) {
                 const config = await configResponse.json();
 
@@ -286,14 +287,18 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                     const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
                     const fileExtension = getFileExtension(mimeType);
 
-                    // Send to backend with provider preference
+                    // Send to backend with provider preference and language
                     const formData = new FormData();
                     formData.append("audio", audioBlob, `audio.${fileExtension}`);
                     if (settings.sttProvider && settings.sttProvider !== "browser") {
                         formData.append("provider", settings.sttProvider);
                     }
+                    // Send language setting for external STT
+                    if (settings.languageSTT) {
+                        formData.append("language", settings.languageSTT);
+                    }
 
-                    const response = await fetch("/api/v1/speech/stt", {
+                    const response = await authenticatedFetch("/api/v1/speech/stt", {
                         method: "POST",
                         body: formData,
                     });

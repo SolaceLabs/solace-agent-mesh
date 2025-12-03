@@ -1,5 +1,5 @@
 import React from "react";
-import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MoreHorizontal, SquarePen } from "lucide-react";
+import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MoreHorizontal, SquarePen, Download } from "lucide-react";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -13,9 +13,10 @@ interface PromptDetailSidePanelProps {
     onViewVersions?: (prompt: PromptGroup) => void;
     onUseInChat?: (prompt: PromptGroup) => void;
     onTogglePin?: (id: string, currentStatus: boolean) => void;
+    onExport?: (prompt: PromptGroup) => void;
 }
 
-export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ prompt, onClose, onEdit, onDelete, onViewVersions, onUseInChat }) => {
+export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ prompt, onClose, onEdit, onDelete, onViewVersions, onUseInChat, onExport }) => {
     const { configFeatureEnablement } = useConfigContext();
     const versionHistoryEnabled = configFeatureEnablement?.promptVersionHistory ?? true;
     const showVersionHistory = versionHistoryEnabled && onViewVersions;
@@ -39,6 +40,12 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
     const handleUseInChat = () => {
         if (onUseInChat) {
             onUseInChat(prompt);
+        }
+    };
+
+    const handleExport = () => {
+        if (onExport) {
+            onExport(prompt);
         }
     };
 
@@ -66,6 +73,12 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                                {onExport && (
+                                    <DropdownMenuItem onClick={handleExport}>
+                                        <Download size={14} className="mr-2" />
+                                        Export Prompt
+                                    </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem onClick={handleEdit}>
                                     <Pencil size={14} className="mr-2" />
                                     Edit Prompt
@@ -125,11 +138,11 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                 )}
 
                 {/* Content - no background */}
-                {prompt.production_prompt && (
+                {prompt.productionPrompt && (
                     <div>
                         <h3 className="text-muted-foreground mb-2 text-xs font-semibold">Content</h3>
                         <div className="font-mono text-xs break-words whitespace-pre-wrap">
-                            {prompt.production_prompt.prompt_text.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
+                            {prompt.productionPrompt.promptText.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
                                 if (part.match(/\{\{[^}]+\}\}/)) {
                                     return (
                                         <span key={index} className="bg-primary/20 text-primary rounded px-1 font-medium">
@@ -148,12 +161,12 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
             <div className="bg-background space-y-2 border-t p-4">
                 <div className="text-muted-foreground flex items-center gap-2 text-xs">
                     <User size={12} />
-                    <span>Created by: {prompt.author_name || prompt.user_id}</span>
+                    <span>Created by: {prompt.authorName || prompt.userId}</span>
                 </div>
-                {prompt.updated_at && (
+                {prompt.updatedAt && (
                     <div className="text-muted-foreground flex items-center gap-2 text-xs">
                         <Calendar size={12} />
-                        <span>Last updated: {formatPromptDate(prompt.updated_at)}</span>
+                        <span>Last updated: {formatPromptDate(prompt.updatedAt)}</span>
                     </div>
                 )}
             </div>

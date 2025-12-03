@@ -9,11 +9,15 @@ from pydantic import BaseModel, Field
 class PromptBase(BaseModel):
     """Base schema for Prompt"""
     prompt_text: str = Field(
-        ..., 
-        min_length=1, 
-        max_length=10000, 
-        description="The prompt text content"
+        ...,
+        min_length=1,
+        max_length=10000,
+        description="The prompt text content",
+        alias="promptText"
     )
+    
+    class Config:
+        populate_by_name = True
 
 
 class PromptCreate(PromptBase):
@@ -24,14 +28,15 @@ class PromptCreate(PromptBase):
 class PromptResponse(PromptBase):
     """Schema for prompt response"""
     id: str
-    group_id: str
-    user_id: str
+    group_id: str = Field(alias="groupId")
+    user_id: str = Field(alias="userId")
     version: int
-    created_at: int  # epoch milliseconds
-    updated_at: int  # epoch milliseconds
+    created_at: int = Field(alias="createdAt")  # epoch milliseconds
+    updated_at: int = Field(alias="updatedAt")  # epoch milliseconds
     
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class PromptGroupBase(BaseModel):
@@ -93,19 +98,20 @@ class PromptGroupUpdate(BaseModel):
 class PromptGroupResponse(PromptGroupBase):
     """Schema for prompt group response"""
     id: str
-    user_id: str
-    author_name: Optional[str]
-    production_prompt_id: Optional[str]
-    is_shared: bool
-    is_pinned: bool
-    created_at: int  # epoch milliseconds
-    updated_at: int  # epoch milliseconds
+    user_id: str = Field(alias="userId")
+    author_name: Optional[str] = Field(None, alias="authorName")
+    production_prompt_id: Optional[str] = Field(None, alias="productionPromptId")
+    is_shared: bool = Field(alias="isShared")
+    is_pinned: bool = Field(alias="isPinned")
+    created_at: int = Field(alias="createdAt")  # epoch milliseconds
+    updated_at: int = Field(alias="updatedAt")  # epoch milliseconds
     
     # Include production prompt if available
-    production_prompt: Optional[PromptResponse] = None
+    production_prompt: Optional[PromptResponse] = Field(None, alias="productionPrompt")
     
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class PromptGroupListResponse(BaseModel):
@@ -160,6 +166,85 @@ class PromptBuilderChatResponse(BaseModel):
         description="Confidence score"
     )
     ready_to_save: bool = Field(
-        False, 
+        False,
         description="Whether template is ready to save"
     )
+
+
+# Export/Import Models
+
+class PromptExportMetadata(BaseModel):
+    """Metadata for exported prompt"""
+    author_name: Optional[str] = Field(None, alias="authorName")
+    original_version: int = Field(alias="originalVersion")
+    original_created_at: int = Field(alias="originalCreatedAt")
+    
+    class Config:
+        populate_by_name = True
+
+
+class PromptExportData(BaseModel):
+    """Data structure for exported prompt"""
+    name: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    command: Optional[str] = None
+    prompt_text: str = Field(alias="promptText")
+    metadata: PromptExportMetadata
+    
+    class Config:
+        populate_by_name = True
+
+
+class PromptExportResponse(BaseModel):
+    """Schema for exported prompt file"""
+    version: str = "1.0"
+    exported_at: int = Field(alias="exportedAt")
+    prompt: PromptExportData
+    
+    class Config:
+        populate_by_name = True
+        by_alias = True
+
+
+class PromptImportOptions(BaseModel):
+    """Options for importing a prompt"""
+    preserve_command: bool = Field(
+        False,
+        alias="preserveCommand",
+        description="If true, attempt to keep original command (may be modified if conflict exists)"
+    )
+    preserve_category: bool = Field(
+        True,
+        alias="preserveCategory",
+        description="If true, keep the original category"
+    )
+    
+    class Config:
+        populate_by_name = True
+
+
+class PromptImportRequest(BaseModel):
+    """Schema for importing a prompt"""
+    prompt_data: Dict[str, Any] = Field(
+        ...,
+        description="The exported prompt JSON data"
+    )
+    options: Optional[PromptImportOptions] = Field(
+        default_factory=PromptImportOptions,
+        description="Import options"
+    )
+
+
+class PromptImportResponse(BaseModel):
+    """Schema for import response"""
+    success: bool
+    prompt_group_id: str = Field(alias="promptGroupId")
+    warnings: List[str] = Field(
+        default_factory=list,
+        description="Any warnings generated during import (e.g., command conflicts)"
+    )
+    
+    class Config:
+        populate_by_name = True
+        by_alias = True

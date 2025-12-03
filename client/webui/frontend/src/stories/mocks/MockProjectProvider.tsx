@@ -21,6 +21,7 @@ const defaultProjectValues: ProjectContextValue = {
     addFilesToProject: async () => {},
     updateProject: async () => ({}) as Project,
     removeFileFromProject: async () => {},
+    updateFileMetadata: async () => {},
     deleteProject: async () => {},
     searchQuery: "",
     setSearchQuery: () => {},

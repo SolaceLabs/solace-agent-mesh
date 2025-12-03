@@ -4,12 +4,12 @@
 
 export interface Prompt {
     id: string;
-    prompt_text: string;
-    group_id: string;
-    user_id: string;
+    promptText: string;
+    groupId: string;
+    userId: string;
     version: number;
-    created_at: number; // epoch milliseconds
-    updated_at: number; // epoch milliseconds
+    createdAt: number; // epoch milliseconds
+    updatedAt: number; // epoch milliseconds
 }
 
 export interface PromptGroup {
@@ -18,14 +18,14 @@ export interface PromptGroup {
     description?: string;
     category?: string;
     command?: string;
-    user_id: string;
-    author_name?: string;
-    production_prompt_id?: string;
-    is_shared: boolean;
-    is_pinned: boolean;
-    created_at: number; // epoch milliseconds
-    updated_at: number; // epoch milliseconds
-    production_prompt?: Prompt;
+    userId: string;
+    authorName?: string;
+    productionPromptId?: string;
+    isShared: boolean;
+    isPinned: boolean;
+    createdAt: number; // epoch milliseconds
+    updatedAt: number; // epoch milliseconds
+    productionPrompt?: Prompt;
     _editingPromptId?: string;
     _isEditingActiveVersion?: boolean;
     _selectedVersionId?: string;
@@ -47,7 +47,7 @@ export interface PromptGroupUpdate {
 }
 
 export interface PromptCreate {
-    prompt_text: string;
+    promptText: string;
 }
 
 export interface PromptGroupListResponse {
@@ -74,4 +74,13 @@ export interface PromptBuilderChatResponse {
     template_updates: Record<string, unknown>;
     confidence: number;
     ready_to_save: boolean;
+}
+
+export interface TemplateConfig {
+    name?: string;
+    category?: string;
+    command?: string;
+    promptText?: string;
+    description?: string;
+    detected_variables?: string[];
 }

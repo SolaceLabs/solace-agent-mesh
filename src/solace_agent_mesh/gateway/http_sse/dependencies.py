@@ -630,3 +630,20 @@ def get_audio_service(
     log.debug(f"[get_audio_service] app_config keys: {app_config.keys()}")
     return AudioService(config=app_config)
 
+
+
+def get_user_display_name(
+    request: Request,
+    user_id: str = Depends(get_user_id),
+) -> str:
+    """
+    FastAPI dependency to get a user's display name.
+    Returns email if available, otherwise returns user_id.
+    """
+    # Try to get user info from request state (set by AuthMiddleware)
+    if hasattr(request.state, "user") and request.state.user:
+        user_info = request.state.user
+        # Try email first, then name, then fall back to user_id
+        return user_info.get("email") or user_info.get("name") or user_id
+    
+    return user_id

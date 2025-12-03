@@ -52,7 +52,7 @@ export const FeedbackModal = React.memo<FeedbackModalProps>(({ isOpen, onClose, 
                 <DialogHeader>
                     <DialogTitle>Provide Feedback</DialogTitle>
                     <DialogDescription className="flex flex-col gap-2">
-                        <span className="font-medium">{feedbackPrompt}</span>
+                        <span>{feedbackPrompt}</span>
                         <span>Providing more details will help improve AI responses over time.</span>
                     </DialogDescription>
                 </DialogHeader>
@@ -65,7 +65,7 @@ export const FeedbackModal = React.memo<FeedbackModalProps>(({ isOpen, onClose, 
                         Cancel
                     </Button>
                     <Button variant="default" onClick={handleSubmit} disabled={isSubmitting}>
-                        {isSubmitting ? "Submitting..." : "Submit"}
+                        Submit
                     </Button>
                 </DialogFooter>
             </DialogContent>
