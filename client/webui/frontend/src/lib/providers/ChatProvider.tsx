@@ -347,7 +347,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const uploadArtifactFile = useCallback(
-        async (file: File, overrideSessionId?: string, description?: string): Promise<{ uri: string; sessionId: string } | { error: string } | null> => {
+        async (file: File, overrideSessionId?: string, description?: string, silent?: boolean): Promise<{ uri: string; sessionId: string } | { error: string } | null> => {
             const effectiveSessionId = overrideSessionId || sessionId;
             const formData = new FormData();
             formData.append("upload_file", file);
@@ -398,7 +398,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 const result = await response.json();
-                addNotification(`File "${file.name}" uploaded.`, "success");
+                if (!silent) {
+                    addNotification(`File "${file.name}" uploaded.`, "success");
+                }
                 await artifactsRefetch();
                 // Return both URI and sessionId (backend may have created a new session)
                 return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
