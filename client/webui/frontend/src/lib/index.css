@@ -46,7 +46,7 @@
 
     /* Light theme - referencing Solace palette variables */
     /* These variables are injected by applyCustomTheme() function */
-    --background: var(--color-background-w10);
+    --background: var(--color-background-w20);
     --foreground: var(--color-primary-text-wMain);
     --card: var(--color-background-w10);
     --card-foreground: var(--color-primary-text-wMain);
@@ -147,7 +147,7 @@
         left: 0;
         right: 0;
         height: 40px;
-        background: linear-gradient(to top, rgba(255, 255, 255, 0), var(--color-background-w10, white));
+        background: linear-gradient(to top, rgba(247, 248, 249, 0), var(--color-background-w20, #F7F8F9));
         pointer-events: none;
         z-index: 10;
     }
@@ -159,17 +159,17 @@
         left: 0;
         right: 0;
         height: 40px;
-        background: linear-gradient(to bottom, rgba(255, 255, 255, 0), var(--color-background-w10, white));
+        background: linear-gradient(to bottom, rgba(247, 248, 249, 0), var(--color-background-w20, #F7F8F9));
         pointer-events: none;
         z-index: 10;
     }
 
     .dark .fade-both-mask::before {
-        background: linear-gradient(to top, rgba(0, 0, 0, 0), var(--color-background-w100, black));
+        background: linear-gradient(to top, rgba(2, 27, 47, 0), var(--color-background-w100, #021B2F));
     }
 
     .dark .fade-both-mask::after {
-        background: linear-gradient(to bottom, rgba(0, 0, 0, 0), var(--color-background-w100, black));
+        background: linear-gradient(to bottom, rgba(2, 27, 47, 0), var(--color-background-w100, #021B2F));
     }
 
     .dark * {

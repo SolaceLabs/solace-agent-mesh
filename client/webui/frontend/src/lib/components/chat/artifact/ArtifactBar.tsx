@@ -163,13 +163,15 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
 
     // Determine if this artifact is clickable
     const isClickable = status === "completed" && actions?.onPreview && !isDeleted;
+    // Show shadow for all artifacts in chat context (not deleted), but only enable hover for clickable ones
+    const showShadow = context === "chat" && !isDeleted;
 
     return (
         <div
             className={`w-full ${isClickable ? "cursor-pointer" : ""} ${context === "list" ? "border-b" : ""} ${isDeleted ? "opacity-60" : ""} transition-shadow duration-200 ease-in-out`}
             style={{
                 backgroundColor,
-                boxShadow: isClickable ? restingShadow : undefined,
+                boxShadow: showShadow ? restingShadow : undefined,
                 borderRadius: context === "list" ? undefined : '4px',
             }}
             onMouseEnter={(e) => {
