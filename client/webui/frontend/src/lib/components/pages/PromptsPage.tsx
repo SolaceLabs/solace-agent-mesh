@@ -262,9 +262,13 @@ export const PromptsPage: React.FC = () => {
             await fetchPromptGroups();
             setNewlyCreatedPromptId(result.prompt_group_id);
 
-            // Show single notification - include warnings if any
-            if (result.warnings && result.warnings.length > 0) {
-                const warningText = result.warnings.length === 1 ? result.warnings[0] : result.warnings.join("; ");
+            // Filter out truncation warnings since user was already informed in the dialog
+            // Only show non-truncation warnings (e.g., command conflicts)
+            const nonTruncationWarnings = (result.warnings || []).filter((warning: string) => !warning.toLowerCase().includes("truncated"));
+
+            // Show notification - include non-truncation warnings if any
+            if (nonTruncationWarnings.length > 0) {
+                const warningText = nonTruncationWarnings.length === 1 ? nonTruncationWarnings[0] : nonTruncationWarnings.join("; ");
                 addNotification(`Prompt imported with notes: ${warningText}`, "info");
             } else {
                 addNotification("Prompt imported", "success");

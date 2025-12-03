@@ -1,12 +1,23 @@
 import React, { useState, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle, FileJson } from "lucide-react";
+import { AlertTriangle, CheckCircle, FileJson } from "lucide-react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
 import { Alert, AlertDescription } from "@/lib/components/ui/alert";
 import { MessageBanner } from "@/lib/components";
-import { promptImportSchema, promptImportCommandSchema, PROMPT_FIELD_LIMITS, formatZodErrors, hasPathError, getPathErrorMessage, type PromptImportData, type PromptImportCommandForm } from "@/lib/schemas";
+import {
+    promptImportSchema,
+    promptImportCommandSchema,
+    PROMPT_FIELD_LIMITS,
+    formatZodErrors,
+    hasPathError,
+    getPathErrorMessage,
+    detectTruncationWarnings,
+    type PromptImportData,
+    type PromptImportCommandForm,
+    type TruncationWarning,
+} from "@/lib/schemas";
 
 interface PromptImportDialogProps {
     open: boolean;
@@ -18,6 +29,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
     const [importData, setImportData] = useState<PromptImportData | null>(null);
     const [fileError, setFileError] = useState<string | null>(null);
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
+    const [truncationWarnings, setTruncationWarnings] = useState<TruncationWarning[]>([]);
     const [isImporting, setIsImporting] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [selectedFileName, setSelectedFileName] = useState<string>("");
@@ -41,6 +53,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
     const validateAndParseFile = useCallback(async (file: File): Promise<PromptImportData | null> => {
         setFileError(null);
         setValidationErrors([]);
+        setTruncationWarnings([]);
         setImportData(null);
 
         // Validate file type
@@ -85,6 +98,10 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                 }
                 return null;
             }
+
+            // Check for truncation warnings
+            const warnings = detectTruncationWarnings(result.data);
+            setTruncationWarnings(warnings);
 
             return result.data;
         } catch {
@@ -186,6 +203,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         setSelectedFileName("");
         setFileError(null);
         setValidationErrors([]);
+        setTruncationWarnings([]);
         resetForm();
     };
 
@@ -251,10 +269,24 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                     {/* Preview */}
                     {importData && !fileError && (
                         <div className="space-y-4">
-                            <Alert>
-                                <CheckCircle className="h-4 w-4" />
-                                <AlertDescription>File validated successfully. Review the details below:</AlertDescription>
-                            </Alert>
+                            {truncationWarnings.length > 0 ? (
+                                <Alert variant="destructive" className="border-amber-500 bg-amber-50 text-amber-900 dark:border-amber-600 dark:bg-amber-950/30 dark:text-amber-200 [&>svg]:text-amber-600">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    <AlertDescription className="space-y-2">
+                                        <p className="font-medium">Some fields exceed the maximum length and will be truncated:</p>
+                                        <ul className="list-inside list-disc space-y-1 text-sm">
+                                            {truncationWarnings.map((warning, idx) => (
+                                                <li key={idx}>{warning.message}</li>
+                                            ))}
+                                        </ul>
+                                    </AlertDescription>
+                                </Alert>
+                            ) : (
+                                <Alert>
+                                    <CheckCircle className="h-4 w-4" />
+                                    <AlertDescription>File validated successfully. Review the details below:</AlertDescription>
+                                </Alert>
+                            )}
 
                             <div className="space-y-3 overflow-hidden rounded-lg border p-4">
                                 <div>
