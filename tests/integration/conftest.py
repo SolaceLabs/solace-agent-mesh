@@ -833,11 +833,6 @@ def shared_solace_connector(
         },
         {
             "tool_type": "builtin",
-            "tool_name": "web_search_tavily",
-            "tool_config": {"tavily_api_key": "fake-tavily-key"},
-        },
-        {
-            "tool_type": "builtin",
             "tool_name": "web_search_google",
             "tool_config": {
                 "google_search_api_key": "fake-google-key",
@@ -846,19 +841,8 @@ def shared_solace_connector(
         },
         {
             "tool_type": "builtin",
-            "tool_name": "web_search_exa",
-            "tool_config": {"exa_api_key": "fake-exa-key"},
-        },
-        {
-            "tool_type": "builtin",
-            "tool_name": "web_search_brave",
-            "tool_config": {"brave_api_key": "fake-brave-key"},
-        },
-        {
-            "tool_type": "builtin",
             "tool_name": "deep_research",
             "tool_config": {
-                "tavily_api_key": "fake-tavily-key",
                 "google_search_api_key": "fake-google-key",
                 "google_cse_id": "fake-cse-id",
             },
