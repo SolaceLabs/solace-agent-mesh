@@ -8,50 +8,41 @@ export const SelectableMessageContent: React.FC<SelectableMessageContentProps> =
     const { setSelection, clearSelection } = useTextSelection();
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const handleMouseUp = useCallback(
-        () => {
-            // Only process if this is an AI message
-            if (!isAIMessage) {
+    const handleMouseUp = useCallback(() => {
+        // Only process if this is an AI message
+        if (!isAIMessage) {
+            return;
+        }
+
+        // Small delay to ensure selection is complete
+        setTimeout(() => {
+            const text = getSelectedText();
+            const range = getSelectionRange();
+            const rect = getSelectionBoundingRect();
+
+            // Validate selection
+            if (!isValidSelection(text) || !range || !rect || !text) {
                 return;
             }
 
-            // Small delay to ensure selection is complete
-            setTimeout(() => {
-                const text = getSelectedText();
-                const range = getSelectionRange();
-                const rect = getSelectionBoundingRect();
+            // Check if selection is within this message
+            const container = containerRef.current;
+            if (!container) {
+                return;
+            }
 
-                // Validate selection
-                if (!isValidSelection(text) || !range || !rect || !text) {
-                    return;
-                }
+            // Verify the selection intersects with our container
+            if (!range.intersectsNode(container)) {
+                return;
+            }
 
-                // Check if selection is within this message
-                const container = containerRef.current;
-                if (!container) {
-                    return;
-                }
+            // Calculate menu position
+            const position = calculateMenuPosition(rect);
 
-                // Verify the selection is within our container
-                const selection = window.getSelection();
-                if (!selection || !selection.anchorNode) {
-                    return;
-                }
-
-                // Check if the selection's anchor node is a descendant of our container
-                if (!container.contains(selection.anchorNode)) {
-                    return;
-                }
-
-                // Calculate menu position
-                const position = calculateMenuPosition(rect);
-
-                // Update selection state
-                setSelection(text, range, messageId, position);
-            }, 10);
-        },
-        [isAIMessage, messageId, setSelection]
-    );
+            // Update selection state
+            setSelection(text, range, messageId, position);
+        }, 10);
+    }, [isAIMessage, messageId, setSelection]);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -59,10 +50,10 @@ export const SelectableMessageContent: React.FC<SelectableMessageContentProps> =
             return;
         }
 
-        container.addEventListener("mouseup", handleMouseUp);
+        document.addEventListener("mouseup", handleMouseUp);
 
         return () => {
-            container.removeEventListener("mouseup", handleMouseUp);
+            document.removeEventListener("mouseup", handleMouseUp);
         };
     }, [handleMouseUp, isAIMessage]);
 

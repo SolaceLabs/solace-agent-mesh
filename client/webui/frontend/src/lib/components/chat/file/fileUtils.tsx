@@ -31,11 +31,11 @@ export const getFileIcon = (artifact: ArtifactInfo | undefined, className = "h-4
 };
 
 /**
- * Determines if a file should auto-render (images and audio)
+ * Determines if a file should auto-render (images, audio, text, and markdown)
  */
 export const shouldAutoRender = (filename?: string, mimeType?: string): boolean => {
     const renderType = getRenderType(filename, mimeType);
-    return renderType === "image" || renderType === "audio";
+    return renderType === "image" || renderType === "audio" || renderType === "text" || renderType === "markdown";
 };
 
 /**

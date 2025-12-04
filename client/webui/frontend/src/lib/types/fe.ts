@@ -100,7 +100,7 @@ export interface FileAttachment {
 export interface Notification {
     id: string;
     message: string;
-    type?: "success" | "info" | "error";
+    type?: "info" | "success" | "warning";
 }
 
 export interface ArtifactPart {
@@ -201,6 +201,7 @@ export interface NavigationItem {
     active?: boolean;
     disabled?: boolean;
     showDividerAfter?: boolean;
+    badge?: string;
 }
 
 export interface NavigationConfig {

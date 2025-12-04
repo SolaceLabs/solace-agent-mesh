@@ -40,7 +40,7 @@ import { r as React, j as jsx, e as ReactDOM } from "./webui/frontend/static/ass
 cd webui/frontend
 
 # Install dependencies
-npm install
+npm ci
 
 # Start development server
 npm run dev
