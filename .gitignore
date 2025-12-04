@@ -165,3 +165,6 @@ my-dev-project
 # workaround requirements.txt not working in ci
 requirements.txt
 data/artifacts/
+
+#config
+configs/
