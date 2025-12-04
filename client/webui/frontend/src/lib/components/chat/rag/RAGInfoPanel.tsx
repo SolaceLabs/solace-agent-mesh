@@ -219,13 +219,21 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         );
     };
 
-    // Get all unique sources (for deep research: filter out snippets, for web_search: show all including images)
-    const allUniqueSources = (() => {
-        if (!isAllDeepResearch) return [];
-        const sourceMap = new Map<string, RAGSearchResult["sources"][0]>();
+    // Helper function to check if a source was fully fetched
+    const isSourceFullyFetched = (source: RAGSearchResult["sources"][0]): boolean => {
+        return source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview ? source.contentPreview.includes("[Full Content Fetched]") : false);
+    };
+
+    // Get all unique sources grouped by fully read vs snippets (for deep research)
+    const { fullyReadSources, snippetSources, allUniqueSources } = (() => {
+        if (!isAllDeepResearch) return { fullyReadSources: [], snippetSources: [], allUniqueSources: [] };
+
+        const fullyReadMap = new Map<string, RAGSearchResult["sources"][0]>();
+        const snippetMap = new Map<string, RAGSearchResult["sources"][0]>();
 
         // Check if this is web_search (no fetched metadata) or deep_research (has fetched metadata)
         const isWebSearch = ragData.some(search => search.searchType === "web_search");
+        const isDeepResearch = ragData.some(search => search.searchType === "deep_research");
 
         ragData.forEach(search => {
             search.sources.forEach(source => {
@@ -237,46 +245,71 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                     if (!sourceLink) {
                         return; // Skip images without source links
                     }
-                    // Use the source link as the key for deduplication
-                    if (!sourceMap.has(sourceLink)) {
-                        sourceMap.set(sourceLink, source);
+                    // Images are always considered "fully read" if they have a source link
+                    if (!fullyReadMap.has(sourceLink)) {
+                        fullyReadMap.set(sourceLink, source);
                     }
                     return;
                 }
 
-                // For web_search: include all non-image sources
-                // For deep_research: only include fetched sources (not snippets)
-                if (!isWebSearch) {
-                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
-                    if (!wasFetched) {
-                        return; // Skip snippet-only sources for deep research
+                const key = source.url || source.sourceUrl || source.title || "";
+                if (!key) return;
+
+                // For web_search: all sources go to fully read (no distinction)
+                if (isWebSearch && !isDeepResearch) {
+                    if (!fullyReadMap.has(key)) {
+                        fullyReadMap.set(key, source);
                     }
+                    return;
                 }
 
-                const key = source.url || source.sourceUrl || source.title || "";
-                if (key && !sourceMap.has(key)) {
-                    sourceMap.set(key, source);
+                // For deep_research: separate into fully read vs snippets
+                const wasFetched = isSourceFullyFetched(source);
+                if (wasFetched) {
+                    if (!fullyReadMap.has(key)) {
+                        fullyReadMap.set(key, source);
+                    }
+                    // Remove from snippets if it was previously added there
+                    snippetMap.delete(key);
+                } else {
+                    // Only add to snippets if not already in fully read
+                    if (!fullyReadMap.has(key) && !snippetMap.has(key)) {
+                        snippetMap.set(key, source);
+                    }
                 }
             });
         });
 
-        const uniqueSources = Array.from(sourceMap.values());
+        const fullyRead = Array.from(fullyReadMap.values());
+        const snippets = Array.from(snippetMap.values());
+        const all = [...fullyRead, ...snippets];
 
         console.log("[RAGInfoPanel] Source filtering:", {
             isWebSearch,
+            isDeepResearch,
             totalSourcesBeforeFilter: ragData.reduce((sum, s) => sum + s.sources.length, 0),
-            uniqueSources: uniqueSources.length,
-            sampleSources: uniqueSources.slice(0, 3).map(s => ({
+            fullyReadSources: fullyRead.length,
+            snippetSources: snippets.length,
+            sampleFullyRead: fullyRead.slice(0, 2).map(s => ({
                 url: s.url,
                 title: s.title,
                 fetched: s.metadata?.fetched,
                 fetch_status: s.metadata?.fetch_status,
-                sourceType: s.sourceType,
+            })),
+            sampleSnippets: snippets.slice(0, 2).map(s => ({
+                url: s.url,
+                title: s.title,
+                fetched: s.metadata?.fetched,
+                fetch_status: s.metadata?.fetch_status,
             })),
         });
 
-        return uniqueSources;
+        return { fullyReadSources: fullyRead, snippetSources: snippets, allUniqueSources: all };
     })();
+
+    // Check if we should show grouped view (only for deep_research with both types)
+    const isDeepResearch = ragData.some(search => search.searchType === "deep_research");
+    const showGroupedSources = isDeepResearch && (fullyReadSources.length > 0 || snippetSources.length > 0);
 
     // Get the title from the first ragData entry (research question or user query)
     const panelTitle = ragData && ragData.length > 0 ? ragData[0].query : "";
@@ -284,7 +317,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
     return (
         <div className="flex h-full flex-col overflow-hidden">
             {isAllDeepResearch ? (
-                // Deep research: Show all sources in a simple list
+                // Deep research: Show sources grouped by fully read vs snippets
                 <div className="flex flex-1 flex-col overflow-hidden">
                     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                         {/* Title section showing research question or query */}
@@ -293,14 +326,57 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                 <h2 className="text-foreground text-base leading-tight font-semibold">{panelTitle}</h2>
                             </div>
                         )}
-                        <div className="mb-3">
-                            <h3 className="text-muted-foreground text-sm font-semibold tracking-wide uppercase">{allUniqueSources.length} Sources</h3>
-                        </div>
-                        <div className="space-y-1">
-                            {allUniqueSources.map((source, idx) => (
-                                <SimpleSourceItem key={`source-${idx}`} source={source} />
-                            ))}
-                        </div>
+
+                        {/* Show grouped sources for deep research, simple list for web search */}
+                        {showGroupedSources ? (
+                            <>
+                                {/* Fully Read Sources Section */}
+                                {fullyReadSources.length > 0 && (
+                                    <div className="mb-4">
+                                        <div className="mb-2">
+                                            <h3 className="text-muted-foreground text-sm font-semibold">
+                                                {fullyReadSources.length} Fully Read Source{fullyReadSources.length !== 1 ? "s" : ""}
+                                            </h3>
+                                            <p className="text-muted-foreground mt-0.5 text-xs">Pages that were fully fetched and analyzed</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            {fullyReadSources.map((source, idx) => (
+                                                <SimpleSourceItem key={`fully-read-${idx}`} source={source} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Partially Read Sources Section */}
+                                {snippetSources.length > 0 && (
+                                    <div>
+                                        <div className="mb-2">
+                                            <h3 className="text-muted-foreground text-sm font-semibold">
+                                                {snippetSources.length} Partially Read Source{snippetSources.length !== 1 ? "s" : ""}
+                                            </h3>
+                                            <p className="text-muted-foreground mt-0.5 text-xs">Search result snippets</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            {snippetSources.map((source, idx) => (
+                                                <SimpleSourceItem key={`partially-read-${idx}`} source={source} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            // Simple list for web search (no grouping)
+                            <>
+                                <div className="mb-3">
+                                    <h3 className="text-muted-foreground text-sm font-semibold tracking-wide uppercase">{allUniqueSources.length} Sources</h3>
+                                </div>
+                                <div className="space-y-1">
+                                    {allUniqueSources.map((source, idx) => (
+                                        <SimpleSourceItem key={`source-${idx}`} source={source} />
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             ) : (
