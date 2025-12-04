@@ -349,13 +349,30 @@ async def add_project_artifacts(
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
     db: Session = Depends(get_db),
-    _: None = Depends(check_projects_enabled),
+    _: None = Depends(check_projects_enabled)
 ):
     """
-    Add one or more artifacts to a project.
+
+    Add one or more artifacts to a project with optional file conversion.
+    
+    New Parameter:
+        convertToMarkdown (bool): If true, automatically converts uploaded files 
+                                  (PDF, DOCX, XLSX, etc.) to markdown format.
+    
+    Supported Conversion Formats:
+        - PDF (.pdf)
+        - Microsoft Word (.docx, .doc)
+        - Microsoft Excel (.xlsx, .xls)
+        - Microsoft PowerPoint (.pptx, .ppt)
+        - HTML (.html, .htm)
+        - ZIP archives (.zip)
+        - And more...
     """
+
+    convert_to_markdown: bool = True  # Default to True for this endpoint
+
     user_id = user.get("id")
-    log.info(f"User {user_id} attempting to add artifacts to project {project_id}")
+    log.info(f"User {user_id} attempting to add artifacts to project {project_id} (convert_to_markdown={convert_to_markdown})")
 
     try:
         parsed_file_metadata = {}
@@ -371,7 +388,8 @@ async def add_project_artifacts(
             project_id=project_id,
             user_id=user_id,
             files=files,
-            file_metadata=parsed_file_metadata
+            file_metadata=parsed_file_metadata,
+            convert_to_markdown=convert_to_markdown,
         )
         return results
     except ValueError as e:

@@ -11,6 +11,7 @@ from fastapi import UploadFile
 from datetime import datetime, timezone
 
 from ....agent.utils.artifact_helpers import get_artifact_info_list, save_artifact_with_metadata, get_artifact_counts_batch
+from ..utils.md_converter import get_file_converter
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -253,10 +254,11 @@ class ProjectService:
         project_id: str,
         user_id: str,
         files: List[UploadFile],
-        file_metadata: Optional[dict] = None
+        file_metadata: Optional[dict] = None,
+        convert_to_markdown: bool = True,
     ) -> List[dict]:
         """
-        Add one or more artifacts to a project.
+        Add one or more artifacts to a project with optional file conversion.
         
         Args:
             db: The database session
@@ -264,7 +266,7 @@ class ProjectService:
             user_id: The requesting user ID
             files: List of files to add
             file_metadata: Optional dictionary of metadata (e.g., descriptions)
-            
+            convert_to_markdown: Whether to convert files to markdown format
         Returns:
             List[dict]: A list of results from the save operations
             
@@ -282,11 +284,14 @@ class ProjectService:
         if not files:
             return []
 
-        self.logger.info(f"Adding {len(files)} artifacts to project {project_id} for user {user_id}")
-        storage_session_id = f"project-{project.id}"
-        results = []
+        self.logger.info(
+            f"Adding {len(files)} artifacts to project {project_id} for user {user_id} "
+            f"(convert_to_markdown={convert_to_markdown})"
+        )
+        #storage_session_id = f"project-{project.id}"
+        #results = []
 
-        for file in files:
+        """ for file in files:
             content_bytes = await file.read()
             metadata = {"source": "project"}
             if file_metadata and file.filename in file_metadata:
@@ -305,10 +310,139 @@ class ProjectService:
                 metadata_dict=metadata,
                 timestamp=datetime.now(timezone.utc),
             )
-            results.append(result)
+            results.append(result) """
+        
+        results = await self._save_project_artifacts(
+            project_id=project.id,
+            user_id=project.user_id,
+            files=files,
+            file_metadata=file_metadata,
+            convert_to_markdown=convert_to_markdown,
+        )
         
         self.logger.info(f"Finished adding {len(files)} artifacts to project {project_id}")
         return results
+    
+    async def _save_project_artifacts(
+        self,
+        project_id: str,
+        user_id: str,
+        files: List[UploadFile],
+        file_metadata: Optional[dict] = None,
+        convert_to_markdown: bool = True,
+    ) -> List[dict]:
+        """
+        Internal method to save files to a project with optional conversion.
+
+        Args:
+            project_id: The project ID
+            user_id: The project owner's user ID
+            files: List of files to save
+            file_metadata: Optional dictionary of file metadata
+            convert_to_markdown: If True, attempt to convert non-text files to markdown
+
+        Returns:
+            List[dict]: A list of results from the save operations
+        """
+        storage_session_id = f"project-{project_id}"
+        results = []
+
+        # Import file converter if conversion is requested
+        file_converter = None
+        if convert_to_markdown:
+            file_converter = get_file_converter()
+            self.logger.info("File converter initialized for markdown conversion")
+
+        for file in files:
+            try:
+                content_bytes = await file.read()
+                filename = file.filename
+                mime_type = file.content_type or "application/octet-stream"
+
+                # Build base metadata
+                metadata = {"source": "project"}
+                if file_metadata and file.filename in file_metadata:
+                    desc = file_metadata[file.filename]
+                    if desc:
+                        metadata["description"] = desc
+
+                # Attempt conversion if requested
+                conversion_attempted = False
+                if convert_to_markdown and file_converter:
+                    if file_converter.should_convert(filename, mime_type):
+                        conversion_attempted = True
+                        self.logger.info(f"Converting {filename} to markdown")
+                        try:
+                            (
+                                converted_bytes,
+                                converted_filename,
+                                converted_mime_type,
+                                conversion_meta,
+                            ) = await file_converter.convert_to_markdown(
+                                content_bytes, filename, mime_type
+                            )
+
+                            # Update metadata with conversion info
+                            metadata.update(conversion_meta)
+
+                            # Use converted content if successful
+                            if conversion_meta.get("conversion_successful"):
+                                content_bytes = converted_bytes
+                                filename = converted_filename
+                                mime_type = converted_mime_type
+                                self.logger.info(
+                                    f"Successfully converted {file.filename} to {filename}"
+                                )
+                            else:
+                                self.logger.warning(
+                                    f"Conversion failed for {file.filename}: "
+                                    f"{conversion_meta.get('reason')}"
+                                )
+                        except Exception as e:
+                            self.logger.error(f"Error converting {filename}: {e}")
+                            metadata["conversion_error"] = str(e)
+                            metadata["conversion_attempted"] = True
+                            metadata["conversion_successful"] = False
+                    else:
+                        self.logger.debug(
+                            f"Skipping conversion for {filename} "
+                            "(not a convertible format)"
+                        )
+
+                # Save the artifact (original or converted)
+                result = await save_artifact_with_metadata(
+                    artifact_service=self.artifact_service,
+                    app_name=self.app_name,
+                    user_id=user_id,  # Always use project owner's ID for storage
+                    session_id=storage_session_id,
+                    filename=filename,
+                    content_bytes=content_bytes,
+                    mime_type=mime_type,
+                    metadata_dict=metadata,
+                    timestamp=datetime.now(timezone.utc),
+                )
+
+                # Add conversion info to result
+                if conversion_attempted:
+                    result["conversion_info"] = {
+                        "attempted": True,
+                        "successful": metadata.get("conversion_successful", False),
+                        "original_filename": file.filename,
+                        "converted_filename": filename if metadata.get("conversion_successful") else None,
+                    }
+
+                results.append(result)
+
+            except Exception as e:
+                self.logger.error(f"Error processing file {file.filename}: {e}")
+                results.append({
+                    "status": "error",
+                    "data_filename": file.filename,
+                    "message": f"Failed to process file: {str(e)}",
+                })
+
+        return results
+
 
     async def update_artifact_metadata(
         self,
