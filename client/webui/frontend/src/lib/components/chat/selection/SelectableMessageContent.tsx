@@ -31,14 +31,8 @@ export const SelectableMessageContent: React.FC<SelectableMessageContentProps> =
                 return;
             }
 
-            // Verify the selection is within our container
-            const selection = window.getSelection();
-            if (!selection || !selection.anchorNode) {
-                return;
-            }
-
-            // Check if the selection's anchor node is a descendant of our container
-            if (!container.contains(selection.anchorNode)) {
+            // Verify the selection intersects with our container
+            if (!range.intersectsNode(container)) {
                 return;
             }
 
@@ -56,10 +50,10 @@ export const SelectableMessageContent: React.FC<SelectableMessageContentProps> =
             return;
         }
 
-        container.addEventListener("mouseup", handleMouseUp);
+        document.addEventListener("mouseup", handleMouseUp);
 
         return () => {
-            container.removeEventListener("mouseup", handleMouseUp);
+            document.removeEventListener("mouseup", handleMouseUp);
         };
     }, [handleMouseUp, isAIMessage]);
 

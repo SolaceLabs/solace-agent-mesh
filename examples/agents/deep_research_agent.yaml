@@ -123,11 +123,11 @@ apps:
            - Save the report as an artifact
         5. **CRITICAL - Presenting Results to User:**
            The `deep_research` tool returns a `response_artifact` object containing the filename and version.
-           Your final response to the user MUST present the contents of this artifact using an `artifact_content` embed.
+           Your final response to the user MUST return this artifact using an `artifact_return` embed.
            
            **Use this exact markdown structure:**
            ```markdown
-           «artifact_content:{{response_artifact.filename}}:{{response_artifact.version}}»
+           «artifact_return:{{response_artifact.filename}}:{{response_artifact.version}}»
            ```
            
            **Example:**
@@ -145,11 +145,11 @@ apps:
            
            Your response should be:
            ```markdown
-           «artifact_content:history_of_ai_report.md:1»
+           «artifact_return:history_of_ai_report.md:1»
            ```
            
            **IMPORTANT:** Do NOT try to re-write, summarize, or modify the report content yourself.
-           The artifact_content embed will automatically display the full report to the user.
+           The artifact_return embed will attach the full report as an artifact for the user to view.
         6. All citations in the report are in the format [[cite:searchN]]
         
         **Citation Requirements:**

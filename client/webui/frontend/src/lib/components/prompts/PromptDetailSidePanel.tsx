@@ -1,5 +1,5 @@
 import React from "react";
-import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MoreHorizontal, SquarePen, Download } from "lucide-react";
+import { X, NotepadText, Tag, Calendar, Pencil, History, Trash2, User, MoreHorizontal, SquarePen, Download } from "lucide-react";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -55,7 +55,7 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
             <div className="border-b p-4">
                 <div className="mb-2 flex items-center justify-between">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <FileText className="text-muted-foreground h-5 w-5 flex-shrink-0" />
+                        <NotepadText className="text-muted-foreground h-5 w-5 flex-shrink-0" />
                         <Tooltip delayDuration={300}>
                             <TooltipTrigger asChild>
                                 <h2 className="cursor-default truncate text-lg font-semibold">{prompt.name}</h2>
@@ -129,11 +129,11 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                     )}
                 </div>
 
-                {/* Start New Chat Button */}
+                {/* Use in New Chat Button */}
                 {onUseInChat && (
                     <Button onClick={handleUseInChat} className="w-full">
                         <SquarePen className="h-4 w-4" />
-                        Start New Chat
+                        Use in New Chat
                     </Button>
                 )}
 

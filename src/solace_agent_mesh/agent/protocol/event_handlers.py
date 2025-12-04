@@ -1299,41 +1299,64 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                     )
                                     return
 
+                                # Filter out artifact creation progress from peer agents.
+                                # These are implementation details that should not leak across
+                                # agent boundaries. Artifacts are properly bubbled up in the
+                                # final Task response metadata.
+                                filtered_data_parts = []
                                 for data_part in data_parts:
-                                    log.info(
-                                        "%s Received DataPart signal from peer for sub-task %s. Forwarding...",
+                                    if isinstance(data_part.data, dict) and data_part.data.get("type") == "artifact_creation_progress":
+                                        log.debug(
+                                            "%s Filtered out artifact_creation_progress DataPart from peer sub-task %s. Not forwarding to user.",
+                                            component.log_identifier,
+                                            sub_task_id,
+                                        )
+                                        continue
+                                    filtered_data_parts.append(data_part)
+
+                                # Only forward if there are non-filtered data parts
+                                if filtered_data_parts:
+                                    for data_part in filtered_data_parts:
+                                        log.info(
+                                            "%s Received DataPart signal from peer for sub-task %s. Forwarding...",
+                                            component.log_identifier,
+                                            sub_task_id,
+                                        )
+
+                                        forwarded_message = a2a.create_agent_parts_message(
+                                            parts=[data_part],
+                                            metadata=event_metadata,
+                                        )
+
+                                        forwarded_event = a2a.create_status_update(
+                                            task_id=main_logical_task_id,
+                                            context_id=main_context_id,
+                                            message=forwarded_message,
+                                            is_final=False,
+                                        )
+                                        if (
+                                            status_event.status
+                                            and status_event.status.timestamp
+                                        ):
+                                            forwarded_event.status.timestamp = (
+                                                status_event.status.timestamp
+                                            )
+                                        _forward_jsonrpc_response(
+                                            component=component,
+                                            original_jsonrpc_request_id=original_jsonrpc_request_id,
+                                            result_data=forwarded_event,
+                                            target_topic=target_topic_for_forward,
+                                            main_logical_task_id=main_logical_task_id,
+                                            peer_agent_name=peer_agent_name,
+                                            message=message,
+                                        )
+                                    return
+                                else:
+                                    log.debug(
+                                        "%s All DataParts from peer sub-task %s were filtered. Not forwarding.",
                                         component.log_identifier,
                                         sub_task_id,
                                     )
-
-                                    forwarded_message = a2a.create_agent_parts_message(
-                                        parts=[data_part],
-                                        metadata=event_metadata,
-                                    )
-
-                                    forwarded_event = a2a.create_status_update(
-                                        task_id=main_logical_task_id,
-                                        context_id=main_context_id,
-                                        message=forwarded_message,
-                                        is_final=False,
-                                    )
-                                    if (
-                                        status_event.status
-                                        and status_event.status.timestamp
-                                    ):
-                                        forwarded_event.status.timestamp = (
-                                            status_event.status.timestamp
-                                        )
-                                    _forward_jsonrpc_response(
-                                        component=component,
-                                        original_jsonrpc_request_id=original_jsonrpc_request_id,
-                                        result_data=forwarded_event,
-                                        target_topic=target_topic_for_forward,
-                                        main_logical_task_id=main_logical_task_id,
-                                        peer_agent_name=peer_agent_name,
-                                        message=message,
-                                    )
-                                    return
 
                             payload_to_queue = status_event.model_dump(
                                 by_alias=True, exclude_none=True

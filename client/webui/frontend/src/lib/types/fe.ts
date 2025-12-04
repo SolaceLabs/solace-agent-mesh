@@ -206,6 +206,7 @@ export interface NavigationItem {
     active?: boolean;
     disabled?: boolean;
     showDividerAfter?: boolean;
+    badge?: string;
 }
 
 export interface NavigationConfig {

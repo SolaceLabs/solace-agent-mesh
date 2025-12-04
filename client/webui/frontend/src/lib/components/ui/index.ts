@@ -2,6 +2,7 @@
 export { Button } from "./button";
 export { ViewWorkflowButton } from "./ViewWorkflowButton";
 export { Textarea } from "./textarea";
+export { HighlightedTextarea } from "./highlighted-textarea";
 export { Input } from "./input";
 export { SearchInput } from "./search-input";
 export { Label } from "./label";
