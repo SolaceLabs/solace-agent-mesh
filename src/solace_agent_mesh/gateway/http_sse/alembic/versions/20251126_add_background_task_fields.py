@@ -1,7 +1,7 @@
 """Add background task execution fields
 
 Revision ID: 20251126_background_tasks
-Revises: 20251115_add_parent_task_id
+Revises: 20251202_versioned_prompt_fields
 Create Date: 2025-11-26 17:30:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20251126_background_tasks'
-down_revision = '20251115_add_parent_task_id'
+down_revision = '20251202_versioned_prompt_fields'
 branch_labels = None
 depends_on = None
 
