@@ -337,7 +337,6 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                             <h3 className="text-muted-foreground text-sm font-semibold">
                                                 {fullyReadSources.length} Fully Read Source{fullyReadSources.length !== 1 ? "s" : ""}
                                             </h3>
-                                            <p className="text-muted-foreground mt-0.5 text-xs">Pages that were fully fetched and analyzed</p>
                                         </div>
                                         <div className="space-y-1">
                                             {fullyReadSources.map((source, idx) => (
