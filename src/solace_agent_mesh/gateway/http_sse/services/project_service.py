@@ -45,20 +45,27 @@ class ProjectService:
         self.app_name = component.get_config("name", "WebUIBackendApp") if component else "WebUIBackendApp"
         self.logger = logging.getLogger(__name__)
         # Get max upload size from component config, with fallback to default
-        self.max_upload_size_bytes = (
+        # Ensure values are integers for proper formatting
+        max_upload_config = (
             component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_UPLOAD_SIZE_BYTES)
             if component else DEFAULT_MAX_UPLOAD_SIZE_BYTES
         )
+        self.max_upload_size_bytes = int(max_upload_config) if isinstance(max_upload_config, (int, float)) else DEFAULT_MAX_UPLOAD_SIZE_BYTES
+        
         # Get max ZIP upload size from component config, with fallback to default (100MB)
-        self.max_zip_upload_size_bytes = (
+        max_zip_config = (
             component.get_config("gateway_max_zip_upload_size_bytes", DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES)
             if component else DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES
         )
+        self.max_zip_upload_size_bytes = int(max_zip_config) if isinstance(max_zip_config, (int, float)) else DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES
+        
         self.logger.info(
-            f"[ProjectService] Initialized with max_upload_size_bytes={self.max_upload_size_bytes:,} "
-            f"({self.max_upload_size_bytes / (1024*1024):.2f} MB), "
-            f"max_zip_upload_size_bytes={self.max_zip_upload_size_bytes:,} "
-            f"({self.max_zip_upload_size_bytes / (1024*1024):.2f} MB)"
+            "[ProjectService] Initialized with max_upload_size_bytes=%d (%.2f MB), "
+            "max_zip_upload_size_bytes=%d (%.2f MB)",
+            self.max_upload_size_bytes,
+            self.max_upload_size_bytes / (1024*1024),
+            self.max_zip_upload_size_bytes,
+            self.max_zip_upload_size_bytes / (1024*1024)
         )
 
     def _get_repositories(self, db):
