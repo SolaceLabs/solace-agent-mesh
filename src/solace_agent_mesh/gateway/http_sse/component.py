@@ -212,7 +212,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 )
 
         platform_config = self.get_config("platform_service", {})
-        self.platform_database_url = platform_config.get("database_url")
+        self.platform_service_url = platform_config.get("url", "")
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
 
@@ -1229,7 +1229,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             self.fastapi_app = fastapi_app_instance
 
-            setup_dependencies(self, self.database_url, self.platform_database_url)
+            setup_dependencies(self, self.database_url)
 
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.
@@ -1346,71 +1346,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     )
                     self.stop_signal.set()
 
-                try:
-                    from solace_agent_mesh_enterprise.init_enterprise import (
-                        start_enterprise_background_tasks,
-                    )
-
-                    log.info(
-                        "%s Starting enterprise background tasks...",
-                        self.log_identifier,
-                    )
-                    await start_enterprise_background_tasks(self)
-                    log.info(
-                        "%s Enterprise background tasks started successfully",
-                        self.log_identifier,
-                    )
-                except ImportError:
-                    log.debug(
-                        "%s Enterprise package not available - skipping background tasks",
-                        self.log_identifier,
-                    )
-                except RuntimeError as enterprise_err:
-                    log.warning(
-                        "%s Enterprise background tasks disabled: %s - Community features will continue normally",
-                        self.log_identifier,
-                        enterprise_err,
-                    )
-                except Exception as enterprise_err:
-                    log.error(
-                        "%s Failed to start enterprise background tasks: %s - Community features will continue normally",
-                        self.log_identifier,
-                        enterprise_err,
-                        exc_info=True,
-                    )
-
             @self.fastapi_app.on_event("shutdown")
             async def shutdown_event():
                 log.info(
                     "%s [_start_listener] FastAPI shutdown event triggered.",
                     self.log_identifier,
                 )
-
-                try:
-                    from solace_agent_mesh_enterprise.init_enterprise import (
-                        stop_enterprise_background_tasks,
-                    )
-
-                    log.info(
-                        "%s Stopping enterprise background tasks...",
-                        self.log_identifier,
-                    )
-                    await stop_enterprise_background_tasks()
-                    log.info(
-                        "%s Enterprise background tasks stopped", self.log_identifier
-                    )
-                except ImportError:
-                    log.debug(
-                        "%s Enterprise package not available - no background tasks to stop",
-                        self.log_identifier,
-                    )
-                except Exception as enterprise_err:
-                    log.error(
-                        "%s Failed to stop enterprise background tasks: %s",
-                        self.log_identifier,
-                        enterprise_err,
-                        exc_info=True,
-                    )
 
             self.fastapi_thread = threading.Thread(
                 target=self.uvicorn_server.run, daemon=True, name="FastAPI_Thread"

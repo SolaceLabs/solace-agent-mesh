@@ -9,51 +9,6 @@ from fastapi import Request as FastAPIRequest
 from fastapi import status
 from typing import TYPE_CHECKING
 
-import sqlalchemy as sa
-from a2a.types import InternalError, JSONRPCError
-from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
-from alembic import command
-from alembic.config import Config
-from fastapi import FastAPI, HTTPException
-from fastapi import Request as FastAPIRequest
-from fastapi import status
-from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from starlette.middleware.sessions import SessionMiddleware
-from starlette.staticfiles import StaticFiles
-
-from .routers.sessions import router as session_router
-from .routers.tasks import router as task_router
-from .routers.users import router as user_router
-from ...common import a2a
-from ...gateway.http_sse import dependencies
-from .routers import (
-    agent_cards,
-    artifacts,
-    auth,
-    config,
-    feedback,
-    people,
-    sse,
-    speech,
-    version,
-    visualization,
-    projects,
-    prompts,
-)
-from .routers.sessions import router as session_router
-from .routers.tasks import router as task_router
-from .routers.users import router as user_router
-
-from alembic import command
-from alembic.config import Config
-
-from a2a.types import InternalError, InvalidRequestError, JSONRPCError
-from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
-from ...common import a2a
-from ...gateway.http_sse import dependencies
-
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -448,57 +403,27 @@ def _run_community_migrations(database_url: str) -> None:
             ) from migration_error
 
 
-def _run_enterprise_migrations(
-    component: "WebUIBackendComponent", database_url: str
-) -> None:
-    """
-    Run migrations for enterprise features like advanced analytics, audit logs, etc.
-    This is optional and only runs if the enterprise package is available.
-    """
-    try:
-        from solace_agent_mesh_enterprise.webui_backend.migration_runner import (
-            run_migrations,
-        )
-
-        webui_app = component.get_app()
-        app_config = getattr(webui_app, "app_config", {}) if webui_app else {}
-        log.info("Starting enterprise migrations...")
-        run_migrations(database_url, app_config)
-        log.info("Enterprise migrations completed")
-    except (ImportError, ModuleNotFoundError):
-        log.debug("Enterprise module not found - skipping enterprise migrations")
-    except Exception as e:
-        log.error("Enterprise migration failed: %s", e)
-        log.error("Advanced features may be unavailable")
-        raise RuntimeError(f"Enterprise database migration failed: {e}") from e
 
 
 def _setup_database(
     component: "WebUIBackendComponent",
     database_url: str,
-    platform_database_url: str = None
 ) -> None:
     """
-    Initialize database connections and run all required migrations.
-    Sets up both runtime and platform database schemas.
+    Initialize database and run migrations for WebUI Gateway (chat only).
+
+    Platform database is no longer used by WebUI Gateway.
+    Platform migrations are handled by Platform Service.
 
     Args:
         component: WebUIBackendComponent instance
-        database_url: Runtime database URL (sessions, tasks, chat) - REQUIRED
-        platform_database_url: Platform database URL (agents, connectors, deployments).
-                                If None, platform features will be unavailable.
+        database_url: Chat database URL (sessions, tasks, feedback) - REQUIRED
     """
     dependencies.init_database(database_url)
     log.info("Persistence enabled - sessions will be stored in database")
     log.info("Running database migrations...")
 
     _run_community_migrations(database_url)
-
-    if platform_database_url:
-        log.info("Platform database configured - running migrations")
-        _run_enterprise_migrations(component, platform_database_url)
-    else:
-        log.info("No platform database configured - skipping platform migrations")
 
 
 def _get_app_config(component: "WebUIBackendComponent") -> dict:
@@ -536,17 +461,14 @@ def _create_api_config(app_config: dict, database_url: str) -> dict:
 def setup_dependencies(
     component: "WebUIBackendComponent",
     database_url: str = None,
-    platform_database_url: str = None
 ):
     """
-    Initialize dependencies for both runtime and platform databases.
+    Initialize dependencies for WebUI Gateway (chat only).
 
     Args:
         component: WebUIBackendComponent instance
-        database_url: Runtime database URL (sessions, tasks, chat).
+        database_url: Chat database URL (sessions, tasks, feedback).
                      If None, runs in compatibility mode with in-memory sessions.
-        platform_database_url: Platform database URL (agents, connectors, deployments).
-                                If None, platform features will be unavailable (returns 501).
 
     This function is idempotent and safe to call multiple times.
     """
@@ -559,7 +481,7 @@ def setup_dependencies(
     dependencies.set_component_instance(component)
 
     if database_url:
-        _setup_database(component, database_url, platform_database_url)
+        _setup_database(component, database_url)
     else:
         log.warning(
             "No database URL provided - using in-memory session storage (data not persisted across restarts)"
@@ -626,35 +548,11 @@ def _setup_routers() -> None:
     app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
-    # Register shared exception handlers from community repo
-    from .shared.exception_handlers import register_exception_handlers
+    # Register shared exception handlers
+    from solace_agent_mesh.shared.exceptions.exception_handlers import register_exception_handlers
 
     register_exception_handlers(app)
-    log.info("Registered shared exception handlers from community repo")
-
-    # Mount enterprise routers if available
-    try:
-        from solace_agent_mesh_enterprise.webui_backend.routers import (
-            get_enterprise_routers,
-        )
-
-        enterprise_routers = get_enterprise_routers()
-        for router_config in enterprise_routers:
-            app.include_router(
-                router_config["router"],
-                prefix=router_config["prefix"],
-                tags=router_config["tags"],
-            )
-        log.info("Mounted %d enterprise routers", len(enterprise_routers))
-
-    except ImportError:
-        log.debug("No enterprise package detected - skipping enterprise routers")
-    except ModuleNotFoundError:
-        log.debug(
-            "Enterprise module not found - skipping enterprise routers and exception handlers"
-        )
-    except Exception as e:
-        log.warning("Failed to load enterprise routers and exception handlers: %s", e)
+    log.info("Registered shared exception handlers")
 
 
 def _setup_static_files() -> None:

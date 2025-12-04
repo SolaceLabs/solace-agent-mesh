@@ -1,18 +1,29 @@
 """
 Platform Service for Solace Agent Mesh.
 
-Provides REST API for platform configuration management:
-- Agents
-- Connectors
-- Toolsets
-- Deployments
-- AI Assistant
+ARCHITECTURE: Service vs Gateway
+--------------------------------
+SERVICES provide internal platform functionality (this component).
+GATEWAYS handle external communication channels (http_sse, slack, webhook, etc.).
 
-This service is NOT a gateway - it does not:
-- Manage chat sessions
-- Submit tasks to agents via A2A
-- Handle artifacts or embeds
-- Communicate with the agent mesh
+Platform Service Responsibilities:
+- REST API for platform configuration management
+- Agent Builder (CRUD operations on agents)
+- Connector management (CRUD operations on connectors)
+- Toolset discovery and management
+- Deployment orchestration (deploy/update/undeploy agents)
+- AI Assistant (AI-powered configuration help)
+- Deployer heartbeat monitoring (track deployer availability)
+- Background deployment status checking (verify agent deployments succeed)
 
-It only validates OAuth2 tokens and performs CRUD operations on platform data.
+Message Communication:
+- PUBLISHES: Deployment commands to deployer ({namespace}/deployer/agent/...)
+- RECEIVES: Deployer heartbeats ({namespace}/deployer/heartbeat)
+- RECEIVES: Agent cards for deployment monitoring ({namespace}/a2a/agent-cards)
+
+What Platform Service is NOT:
+- NOT a chat interface (no user sessions)
+- NOT for task submission to agents (no orchestration of user tasks)
+- NOT for artifact management (no chat artifacts or embeds)
+- NOT for end-user communication (admin/platform operations only)
 """

@@ -80,6 +80,27 @@ class PlatformServiceApp(App):
             "default": True,
             "description": "Enable OAuth2 token validation. Set to false for development mode.",
         },
+        {
+            "name": "deployment_timeout_minutes",
+            "required": False,
+            "type": "integer",
+            "default": 5,
+            "description": "Timeout for agent deployments (default: 5 minutes).",
+        },
+        {
+            "name": "heartbeat_timeout_seconds",
+            "required": False,
+            "type": "integer",
+            "default": 90,
+            "description": "Deployer heartbeat timeout in seconds (default: 90 seconds).",
+        },
+        {
+            "name": "deployment_check_interval_seconds",
+            "required": False,
+            "type": "integer",
+            "default": 60,
+            "description": "Interval for checking deployment status in seconds (default: 60 seconds).",
+        },
     ]
 
     def __init__(self, app_info: Dict[str, Any], **kwargs):

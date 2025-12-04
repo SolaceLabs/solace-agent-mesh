@@ -36,6 +36,12 @@ apps:
         type: "sql"
         database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
         default_behavior: "PERSISTENT"
+
+      # --- Platform Service Configuration ---
+      # URL for Platform Service (runs separately on port 8001)
+      # Frontend will route /api/v1/enterprise/* requests to this URL
+      platform_service:
+        url: "${PLATFORM_SERVICE_URL, http://localhost:8001}"
       # --- Optional with Defaults ---
       model: *general_model # Optional: defaults to None - Points to shared_config.yaml
       gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.
