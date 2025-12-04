@@ -987,12 +987,11 @@ class SamAgentComponent(SamComponentBase):
                 )
                 if peer_tool_instance.name not in llm_request.tools_dict:
                     peer_tools_to_add.append(peer_tool_instance)
-                    description = (
-                        getattr(agent_card, "description", "No description")
-                        or "No description"
-                    )
+                    # Get enhanced description from the tool instance
+                    # which includes capabilities, skills, and tools
+                    enhanced_desc = peer_tool_instance._build_enhanced_description(agent_card)
                     allowed_peer_descriptions.append(
-                        f"- `peer_{peer_name}`: {description}"
+                        f"\n### `peer_{peer_name}`\n{enhanced_desc}"
                     )
             except Exception as e:
                 log.error(
@@ -1005,12 +1004,15 @@ class SamAgentComponent(SamComponentBase):
         if allowed_peer_descriptions:
             peer_list_str = "\n".join(allowed_peer_descriptions)
             instruction_text = (
-                "You can delegate tasks to other specialized agents if they are better suited.\n"
-                "Use the `peer_<agent_name>(task_description: str, user_query: str)` tool for delegation. "
-                "Replace `<agent_name>` with the actual name of the target agent.\n"
-                "Provide a clear `task_description` for the peer and include the original `user_query` for context.\n"
-                "Be aware that the peer agent may not have access to your session history, so you must provide all required context necessary to fulfill the request.\n\n"
-                "Available peer agents you can delegate to (use the `peer_...` tool name):\n"
+                "## Peer Agent Delegation\n\n"
+                "You can delegate tasks to other specialized agents if they are better suited.\n\n"
+                "**How to delegate:**\n"
+                "- Use the `peer_<agent_name>(task_description: str)` tool for delegation\n"
+                "- Replace `<agent_name>` with the actual name of the target agent\n"
+                "- Provide a clear and detailed `task_description` for the peer agent\n"
+                "- **Important:** The peer agent may not have access to your session history, "
+                "so you must provide all required context necessary to fulfill the request\n\n"
+                "## Available Peer Agents\n"
                 f"{peer_list_str}"
             )
             callback_context.state["peer_tool_instructions"] = instruction_text
