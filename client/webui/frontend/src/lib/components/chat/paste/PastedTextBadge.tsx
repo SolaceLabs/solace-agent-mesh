@@ -86,6 +86,7 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
                         }}
                         className="bg-background border-border hover:bg-muted absolute -top-2 -left-2 h-5 w-5 rounded-full border p-0 shadow-sm"
                         tooltip="Remove pasted text"
+                        tooltipSide="left"
                     >
                         <XIcon className="h-3 w-3" />
                     </Button>
