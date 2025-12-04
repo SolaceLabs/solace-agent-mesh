@@ -10,7 +10,7 @@ import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useChatContext, useTaskContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useThemeContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
@@ -40,6 +40,7 @@ const PANEL_SIZES_OPEN = {
 
 export function ChatPage() {
     const { activeProject } = useProjectContext();
+    const { currentTheme } = useThemeContext();
     const {
         agents,
         sessionName,
@@ -225,7 +226,13 @@ export function ChatPage() {
             <div className="flex min-h-0 flex-1">
                 <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
-                        <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
+                        <ResizablePanel
+                            defaultSize={chatPanelSizes.default}
+                            minSize={chatPanelSizes.min}
+                            maxSize={chatPanelSizes.max}
+                            id="chat-panel"
+                            style={{ backgroundColor: currentTheme === "dark" ? "var(--color-background-w100)" : "var(--color-background-w20)" }}
+                        >
                             <div className="flex h-full w-full flex-col">
                                 <div className="flex min-h-0 flex-1 flex-col py-6">
                                     {isLoadingSession ? (

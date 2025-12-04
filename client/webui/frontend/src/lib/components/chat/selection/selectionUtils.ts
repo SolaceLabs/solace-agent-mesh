@@ -37,31 +37,28 @@ export function getSelectionBoundingRect(): DOMRect | null {
  * Ensures the menu stays within viewport boundaries
  */
 export function calculateMenuPosition(rect: DOMRect): { x: number; y: number } {
-    const menuWidth = 200; // Approximate menu width
-    const menuHeight = 150; // Approximate menu height
-    const padding = 10;
+    const menuWidth = 160; // Approximate menu width (matches max-w-[160px])
+    const menuHeight = 40; // Approximate menu height for single button
+    const padding = 8;
 
-    let x = rect.left + rect.width / 2;
-    let y = rect.bottom + padding;
+    // Position at the left edge of the selection
+    let x = rect.left;
+    // Position above the selection
+    let y = rect.top - menuHeight - padding;
 
     // Adjust if menu would go off right edge
-    if (x + menuWidth / 2 > window.innerWidth) {
-        x = window.innerWidth - menuWidth / 2 - padding;
+    if (x + menuWidth > window.innerWidth) {
+        x = window.innerWidth - menuWidth - padding;
     }
 
     // Adjust if menu would go off left edge
-    if (x - menuWidth / 2 < 0) {
-        x = menuWidth / 2 + padding;
+    if (x < padding) {
+        x = padding;
     }
 
-    // If menu would go off bottom, show above selection
-    if (y + menuHeight > window.innerHeight) {
-        y = rect.top - menuHeight - padding;
-    }
-
-    // If still off screen, position at top
-    if (y < 0) {
-        y = padding;
+    // If menu would go off top, show below selection instead
+    if (y < padding) {
+        y = rect.bottom + padding;
     }
 
     return { x, y };
