@@ -163,6 +163,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                 value="files"
                                 title="Files"
                                 className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-l-md border border-r-0 data-[state=active]:z-10 data-[state=active]:border-r-0"
+                                onClick={() => setPreviewArtifact(null)}
                             >
                                 <FileText className="mr-2 h-4 w-4" />
                                 Files

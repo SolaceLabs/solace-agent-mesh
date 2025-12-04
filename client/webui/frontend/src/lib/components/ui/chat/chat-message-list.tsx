@@ -13,9 +13,11 @@ export interface ChatMessageListRef {
 }
 
 const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProps>(({ className = "", children, ...props }, ref) => {
+    const contentRef = React.useRef<HTMLDivElement>(null);
     const { scrollRef, isAtBottom, disableAutoScroll, scrollToBottom, userHasScrolled } = useAutoScroll({
         smooth: true,
         content: children,
+        contentRef,
     });
 
     useImperativeHandle(ref, () => ({
@@ -34,7 +36,7 @@ const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProp
                     scrollBehavior: "smooth",
                 }}
             >
-                <div className="flex flex-col gap-6" style={CHAT_STYLES}>
+                <div className="flex flex-col gap-6" style={CHAT_STYLES} ref={contentRef}>
                     {children}
                 </div>
             </div>

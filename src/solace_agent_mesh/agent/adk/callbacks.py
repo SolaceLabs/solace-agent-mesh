@@ -37,11 +37,12 @@ from ..tools.tool_definition import BuiltinTool
 from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
     EMBED_DELIMITER_CLOSE,
-)
-
-from ...common.utils.embeds import (
     EMBED_CHAIN_DELIMITER,
+    EARLY_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
 )
+from ...common.utils.embeds.types import ResolutionMode
 
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
@@ -115,6 +116,77 @@ async def _publish_data_part_status_update(
         )
 
 
+async def _resolve_early_embeds_in_chunk(
+    chunk: str,
+    callback_context: CallbackContext,
+    host_component: "SamAgentComponent",
+    log_identifier: str,
+) -> str:
+    """
+    Resolves early embeds in an artifact chunk before streaming to the browser.
+
+    Args:
+        chunk: The text chunk containing potential embeds
+        callback_context: The ADK callback context with services
+        host_component: The host component instance
+        log_identifier: Identifier for logging
+
+    Returns:
+        The chunk with early embeds resolved
+    """
+    if not chunk or EMBED_DELIMITER_OPEN not in chunk:
+        return chunk
+
+    try:
+        # Build resolution context from callback_context (pattern from EmbedResolvingMCPToolset)
+        invocation_context = callback_context._invocation_context
+        if not invocation_context:
+            log.warning("%s No invocation context available for embed resolution", log_identifier)
+            return chunk
+
+        session_context = invocation_context.session
+        if not session_context:
+            log.warning("%s No session context available for embed resolution", log_identifier)
+            return chunk
+
+        resolution_context = {
+            "artifact_service": invocation_context.artifact_service,
+            "session_context": {
+                "session_id": get_original_session_id(invocation_context),
+                "user_id": session_context.user_id,
+                "app_name": session_context.app_name,
+            },
+        }
+
+        # Resolve only early embeds (math, datetime, uuid, artifact_meta)
+        resolved_text, processed_until, _ = await resolve_embeds_in_string(
+            text=chunk,
+            context=resolution_context,
+            resolver_func=evaluate_embed,
+            types_to_resolve=EARLY_EMBED_TYPES,  # Only resolve early embeds
+            resolution_mode=ResolutionMode.ARTIFACT_STREAMING,  # New mode
+            log_identifier=log_identifier,
+            config=None,  # Could pass host_component config if needed
+        )
+
+        # SAFETY CHECK: If resolver buffered something, parser has a bug
+        if processed_until < len(chunk):
+            log.error(
+                "%s PARSER BUG DETECTED: Resolver buffered partial embed. "
+                "Chunk ends with: %r. Returning unresolved chunk to avoid corruption.",
+                log_identifier,
+                chunk[-50:] if len(chunk) > 50 else chunk,
+            )
+            # Fallback: return original unresolved chunk (degraded but not corrupted)
+            return chunk
+
+        return resolved_text
+
+    except Exception as e:
+        log.error("%s Error resolving embeds in chunk: %s", log_identifier, e, exc_info=True)
+        return chunk  # Return original chunk on error
+
+
 async def process_artifact_blocks_callback(
     callback_context: CallbackContext,
     llm_response: LlmResponse,
@@ -132,10 +204,11 @@ async def process_artifact_blocks_callback(
     parser: FencedBlockStreamParser = session.state.get(parser_state_key)
     if parser is None:
         log.debug("%s New turn. Creating new FencedBlockStreamParser.", log_identifier)
-        parser = FencedBlockStreamParser(progress_update_interval_bytes=250)
+        parser = FencedBlockStreamParser(progress_update_interval_bytes=50)
         session.state[parser_state_key] = parser
         session.state["completed_artifact_blocks_list"] = []
         session.state["completed_template_blocks_list"] = []
+        session.state["artifact_chars_sent"] = 0  # Reset character tracking for new turn
 
     stream_chunks_were_processed = callback_context.state.get(
         A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY, False
@@ -167,6 +240,9 @@ async def process_artifact_blocks_callback(
                             log_identifier,
                             event.params,
                         )
+                        # Reset character tracking for this new artifact block
+                        session.state["artifact_chars_sent"] = 0
+
                         filename = event.params.get("filename", "unknown_artifact")
                         if filename == "unknown_artifact":
                             log.warning(
@@ -199,6 +275,7 @@ async def process_artifact_blocks_callback(
                                 bytes_transferred=0,
                                 artifact_chunk=None,
                             )
+
                             await _publish_data_part_status_update(
                                 host_component, a2a_context, artifact_progress_data
                             )
@@ -222,13 +299,28 @@ async def process_artifact_blocks_callback(
                                 log_identifier,
                             )
                         if a2a_context:
+                            # Resolve early embeds in the chunk before streaming
+                            resolved_chunk = await _resolve_early_embeds_in_chunk(
+                                chunk=event.chunk,
+                                callback_context=callback_context,
+                                host_component=host_component,
+                                log_identifier=f"{log_identifier}[ResolveChunk]",
+                            )
+
                             progress_data = ArtifactCreationProgressData(
                                 filename=filename,
                                 description=params.get("description"),
                                 status="in-progress",
                                 bytes_transferred=event.buffered_size,
-                                artifact_chunk=event.chunk,
+                                artifact_chunk=resolved_chunk,  # Resolved chunk
                             )
+
+                            # Track the cumulative character count of what we've sent
+                            # We need character count (not bytes) to slice correctly later
+                            previous_char_count = session.state.get("artifact_chars_sent", 0)
+                            new_char_count = previous_char_count + len(event.chunk)
+                            session.state["artifact_chars_sent"] = new_char_count
+
                             await _publish_data_part_status_update(
                                 host_component, a2a_context, progress_data
                             )
@@ -342,6 +434,37 @@ async def process_artifact_blocks_callback(
                                     log_identifier,
                                     e_track,
                                 )
+
+                            # Send final progress update with any remaining content not yet sent
+                            if a2a_context:
+                                # Check if there's unsent content (content after last progress event)
+                                total_bytes = len(event.content.encode("utf-8"))
+                                chars_already_sent = session.state.get("artifact_chars_sent", 0)
+
+                                if chars_already_sent < len(event.content):
+                                    # There's unsent content - send it as a final progress update
+                                    final_chunk = event.content[chars_already_sent:]
+
+                                    # Resolve embeds in final chunk
+                                    resolved_final_chunk = await _resolve_early_embeds_in_chunk(
+                                        chunk=final_chunk,
+                                        callback_context=callback_context,
+                                        host_component=host_component,
+                                        log_identifier=f"{log_identifier}[ResolveFinalChunk]",
+                                    )
+
+                                    final_progress_data = ArtifactCreationProgressData(
+                                        filename=filename,
+                                        description=params.get("description"),
+                                        status="in-progress",
+                                        bytes_transferred=total_bytes,
+                                        artifact_chunk=resolved_final_chunk,  # Resolved final chunk
+                                    )
+
+                                    await _publish_data_part_status_update(
+                                        host_component, a2a_context, final_progress_data
+                                    )
+
                             # Publish completion status immediately via SSE
                             if a2a_context:
                                 progress_data = ArtifactCreationProgressData(
@@ -352,6 +475,7 @@ async def process_artifact_blocks_callback(
                                     mime_type=params.get("mime_type"),
                                     version=version_for_tool,
                                 )
+
                                 await _publish_data_part_status_update(
                                     host_component, a2a_context, progress_data
                                 )
@@ -977,7 +1101,7 @@ def _generate_inline_template_instruction() -> str:
 Use inline Liquid templates to dynamically render data from artifacts for user-friendly display. This is faster and more accurate than reading the artifact and reformatting it yourself.
 
 IMPORTANT: Template Format
-- Templates use Liquid template syntax (same as Shopify/Jekyll templates)
+- Templates use Liquid template syntax (same as Shopify templates - NOTE that Jekyll extensions are NOT supported).
 
 When to Use Inline Templates:
 - Formatting CSV, JSON, or YAML data into tables or lists.
@@ -1004,6 +1128,7 @@ Negative Examples
 Use {{ issues.size }} instead of {{ issues|length }}
 Use {{ forloop.index }} instead of {{ loop.index }} (Liquid uses forloop not loop)
 Use {{ issue.fields.description | truncate: 200 }} instead of slicing with [:200]
+Do not use Jekyll-specific tags or filters (e.g., `{{% assign %}}`, `{{% capture %}}`, `where`, `sort`, `where_exp`, etc.)
 
 The rendered output will appear inline in your response automatically.
 """
@@ -1043,8 +1168,7 @@ def _generate_examples_instruction() -> str:
     - User: "Create a markdown file with your two csv files as tables."
     <note>There are two csv files already uploaded: data1.csv and data2.csv</note>
     - OrchestratorAgent:
-    {embed_open_delim}status_update:Creating the Markdown tables...{embed_close_delim}
-    I'll create a Markdown file with the CSV data formatted as tables.
+    {embed_open_delim}status_update:Creating Markdown tables from CSV files...{embed_close_delim}
     {open_delim}save_artifact: filename="data_tables.md" mime_type="text/markdown" description="Markdown tables from CSV files"
     # Data Tables
     ## Data 1
@@ -1067,8 +1191,7 @@ def _generate_examples_instruction() -> str:
     Example 2:
     - User: "Create a text file with the result of sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680)."
     - OrchestratorAgent:
-    {embed_open_delim}status_update:Calculating the result and creating the text file...{embed_close_delim}
-    I'll put the result into a text file for you.
+    {embed_open_delim}status_update:Calculating and creating text file...{embed_close_delim}
     {open_delim}save_artifact: filename="math.txt" mime_type="text/plain" description="Result of sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680)"
     result = {embed_open_delim}math: sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680) | .2f{embed_close_delim}
     {close_delim}
@@ -1076,8 +1199,7 @@ def _generate_examples_instruction() -> str:
     Example 3:
     - User: "Show me the first 10 entries from data1.csv"
     - OrchestratorAgent:
-    {embed_open_delim}status_update:Loading and filtering the CSV data...{embed_close_delim}
-    Here are the first 10 entries from data1.csv.
+    {embed_open_delim}status_update:Loading CSV data...{embed_close_delim}
     {open_delim}template_liquid: data="data1.csv" limit="10"
     """
         + """| {% for h in headers %}{{ h }} | {% endfor %}
@@ -1087,10 +1209,17 @@ def _generate_examples_instruction() -> str:
         + f"""{close_delim}
 
     Example 4:
+    - User: "Search the database for all orders from last month"
+    - OrchestratorAgent:
+    {embed_open_delim}status_update:Querying order database...{embed_close_delim}
+    [calls search_database tool with no visible text]
+    [After getting results:]
+    Found 247 orders from last month totaling $45,231.
+
+    Example 5:
     - User: "Create an HTML with the chart image you just generated with the customer data."
     - OrchestratorAgent:
-    {embed_open_delim}status_update:Generating the HTML report with the chart...{embed_close_delim}
-
+    {embed_open_delim}status_update:Generating HTML report with chart...{embed_close_delim}
     {open_delim}save_artifact: filename="customer_analysis.html" mime_type="text/html" description="Interactive customer analysis dashboard"
     <!DOCTYPE html>
     <html>
@@ -1138,6 +1267,8 @@ def _generate_embed_instruction(
     modifier_list = ", ".join([f"`{prefix}`" for prefix in modifier_list])
 
     base_instruction = f"""\
+**Using Dynamic Embeds in Responses:**
+
 You can use dynamic embeds in your text responses and tool parameters using the syntax {open_delim}type:expression {chain_delim} format{close_delim}. NOTE that this differs from 'save_artifact', which has  different delimiters. This allows you to
 always have correct information in your output. Specifically, make sure you always use embeds for math, even if it is simple. You will make mistakes if you try to do math yourself.
 Use HTML entities to escape the delimiters.
@@ -1185,6 +1316,64 @@ The following embeds are resolved *late* (by the gateway before final display):
 Ensure the syntax is exactly `{open_delim}type:expression{close_delim}` or `{open_delim}type:expression {chain_delim} ... {chain_delim} format:output_format{close_delim}` with no extra spaces around delimiters (`{open_delim}`, `{close_delim}`, `{chain_delim}`, `:`, `|`). Malformed directives will be ignored."""
 
     return final_instruction
+
+
+def _generate_conversation_flow_instruction() -> str:
+    """Generates instruction text for conversation flow and response formatting."""
+    open_delim = EMBED_DELIMITER_OPEN
+    close_delim = EMBED_DELIMITER_CLOSE
+    return f"""\
+**Conversation Flow and Response Formatting:**
+
+**CRITICAL: Minimize Narration - Maximize Results**
+
+You do NOT need to produce visible text on every turn. Many turns should contain ONLY status updates and tool calls, with NO visible text at all.
+Only produce visible text when you have actual results, answers, or insights to share with the user.
+
+Response Content Rules:
+1. Visible responses should contain ONLY:
+   - Direct answers to the user's question
+   - Analysis and insights derived from tool results
+   - Final results and data
+   - Follow-up questions when needed
+   - Plans for complex multi-step tasks
+
+2. DO NOT include visible text for:
+   - Process narration ("Let me...", "I'll...", "Now I will...")
+   - Acknowledgments of tool calls ("I'm calling...", "Searching...")
+   - Descriptions of what you're about to do
+   - Play-by-play commentary on your actions
+   - Transitional phrases between tool calls
+
+3. Use invisible status_update embeds for ALL process updates:
+   - "Searching for..."
+   - "Analyzing..."
+   - "Creating..."
+   - "Querying..."
+   - "Calling agent X..."
+
+4. NEVER mix process narration with status updates - if you use a status_update embed, do NOT repeat that information in visible text.
+
+Examples:
+
+**Excellent (no visible text, just status and tools):**
+"{open_delim}status_update:Retrieving sales data...{close_delim}" [then calls tool, no visible text]
+
+**Good (visible text only contains results):**
+"{open_delim}status_update:Analyzing Q4 sales...{close_delim}" [calls tool]
+"Sales increased 23% in Q4, driven primarily by enterprise accounts."
+
+**Bad (unnecessary narration):**
+"Let me retrieve the sales data for you." [then calls tool]
+
+**Bad (narration mixed with results):**
+"I've analyzed the data and found that sales increased 23% in Q4."
+
+**Bad (play-by-play commentary):**
+"Now I'll search for the information. After that I'll analyze it."
+
+Remember: The user can see status updates and tool calls. You don't need to announce them in visible text.
+"""
 
 
 def _generate_tool_instructions_from_registry(
@@ -1257,13 +1446,18 @@ Parallel Tool Calling:
 The system is capable of calling multiple tools in parallel to speed up processing. Please try to run tools in parallel when they don't depend on each other. This saves money and time, providing faster results to the user.
 
 **Response Formatting - CRITICAL**:
-When calling tools or using invisible embeds (like status_update), do NOT end your text with a colon (":"). Since tool calls and certain embeds produce no 
-visible output in your response, ending with a colon leaves it hanging with nothing following it. Instead, end with a period (".") or ellipsis ("...").
- 
+In most cases when calling tools, you should produce NO visible text at all - only status_update embeds and the tool calls themselves.
+The user can see your tool calls and status updates, so narrating your actions is redundant and creates noise.
+
+If you do include visible text:
+- It must contain actual results, insights, or answers - NOT process narration
+- Do NOT end with a colon (":") before tool calls, as this leaves it hanging
+- Prefer ending with a period (".") if you must include visible text
+
 Examples:
- - BAD: "Let me search for that information:" [then calls tool]
- - GOOD: "Let me search for that information." [then calls tool]
- - GOOD: "Searching for information..." [then calls tool]
+ - BEST: "{open_delim}status_update:Searching database...{close_delim}" [then calls tool, NO visible text]
+ - BAD: "Let me search for that information." [then calls tool]
+ - BAD: "Searching for information..." [then calls tool]
 
 Embeds in responses from agents:
 To be efficient, peer agents may respond with artifact_content in their responses. These will not be resolved until they are sent back to a gateway. If it makes
@@ -1354,6 +1548,11 @@ If a plan is created:
                 log_identifier,
                 include_artifact_content_instr,
             )
+
+        instruction = _generate_conversation_flow_instruction()
+        if instruction:
+            injected_instructions.append(instruction)
+            log.debug("%s Prepared conversation flow instructions.", log_identifier)
 
     if active_builtin_tools:
         instruction = _generate_tool_instructions_from_registry(
