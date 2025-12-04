@@ -40,6 +40,7 @@ export interface ArtifactBarProps {
 
 export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description, mimeType, size, status, expandable = false, expanded = false, onToggleExpand, actions, bytesTransferred, error, expandedContent, context = "chat", isDeleted = false, version, source }) => {
     const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
+    const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
 
     useEffect(() => {
         if (expandedContent) {
@@ -52,6 +53,20 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
             return () => clearTimeout(timer);
         }
     }, [expandedContent]);
+
+    // Track dark mode changes
+    useEffect(() => {
+        const observer = new MutationObserver(() => {
+            setIsDarkMode(document.documentElement.classList.contains('dark'));
+        });
+
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+
+        return () => observer.disconnect();
+    }, []);
 
     // Validate required props
     if (!filename || typeof filename !== "string") {
@@ -135,9 +150,40 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
         }
     };
 
+    // Define shadow and background colors based on theme
+    // Light mode: background-w10, shadow using secondary-w8040
+    // Dark mode: background-wMain, shadow using primary-w90 (darker shadows)
+    const backgroundColor = isDarkMode ? 'var(--color-background-wMain)' : 'var(--color-background-w10)';
+    const restingShadow = isDarkMode
+        ? '0px 1px 4px 0px var(--color-primary-w90)'
+        : '0px 1px 4px 0px var(--color-secondary-w8040)';
+    const hoverShadow = isDarkMode
+        ? '0px 2px 8px 0px var(--color-primary-w90)'
+        : '0px 2px 8px 0px var(--color-secondary-w8040)';
+
+    // Determine if this artifact is clickable
+    const isClickable = status === "completed" && actions?.onPreview && !isDeleted;
+    // Show shadow for all artifacts in chat context (not deleted), but only enable hover for clickable ones
+    const showShadow = context === "chat" && !isDeleted;
+
     return (
         <div
-            className={`dark:bg-muted/30 w-full ${status === "completed" && actions?.onPreview && !isDeleted ? "cursor-pointer transition-all duration-200 ease-in-out hover:shadow-md" : ""} ${context === "list" ? "border-b" : "border-border rounded-md border"} ${isDeleted ? "opacity-60" : ""}`}
+            className={`w-full ${isClickable ? "cursor-pointer" : ""} ${context === "list" ? "border-b" : ""} ${isDeleted ? "opacity-60" : ""} transition-shadow duration-200 ease-in-out`}
+            style={{
+                backgroundColor,
+                boxShadow: showShadow ? restingShadow : undefined,
+                borderRadius: context === "list" ? undefined : '4px',
+            }}
+            onMouseEnter={(e) => {
+                if (isClickable) {
+                    e.currentTarget.style.boxShadow = hoverShadow;
+                }
+            }}
+            onMouseLeave={(e) => {
+                if (isClickable) {
+                    e.currentTarget.style.boxShadow = restingShadow;
+                }
+            }}
             onClick={isDeleted ? undefined : handleBarClick}
         >
             <div className="flex min-h-[60px] items-center gap-3 p-3">

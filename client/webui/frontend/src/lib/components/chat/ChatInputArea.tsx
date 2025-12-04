@@ -15,8 +15,7 @@ import { FileBadge } from "./file/FileBadge";
 import { AudioRecorder } from "./AudioRecorder";
 import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
 import { VariableDialog } from "./VariableDialog";
-import { PastedTextBadge, PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PastedArtifactItem, type PastedTextItem } from "./paste";
-import { getErrorMessage } from "@/lib/utils";
+import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     switch (command) {
@@ -49,26 +48,7 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const {
-        isResponding,
-        isCancelling,
-        selectedAgentName,
-        sessionId,
-        setSessionId,
-        handleSubmit,
-        handleCancel,
-        uploadArtifactFile,
-        artifactsRefetch,
-        addNotification,
-        displayError,
-        artifacts,
-        setPreviewArtifact,
-        openSidePanelTab,
-        messages,
-        startNewChatWithPrompt,
-        pendingPrompt,
-        clearPendingPrompt,
-    } = useChatContext();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, addNotification, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
@@ -80,10 +60,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-    // Pasted artifact support (already saved as artifacts)
-    const [pastedArtifactItems, setPastedArtifactItems] = useState<PastedArtifactItem[]>([]);
-
     // Pending pasted text support (not yet saved as artifacts, shown as badges)
+    // These items may have optional metadata if user has configured them via dialog
     const [pendingPastedTextItems, setPendingPastedTextItems] = useState<PastedTextItem[]>([]);
     const [selectedPendingPasteId, setSelectedPendingPasteId] = useState<string | null>(null);
     const [showArtifactForm, setShowArtifactForm] = useState(false);
@@ -173,7 +151,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId) {
             setInputValue("");
             setShowPromptsCommand(false);
-            setPastedArtifactItems([]);
             setPendingPastedTextItems([]);
         }
         prevSessionIdRef.current = sessionId;
@@ -300,87 +277,28 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         // Small text pastes go through normally (no preventDefault)
     };
 
-    const handleSaveAsArtifact = async (title: string, fileType: string, content: string, description?: string) => {
+    // Handle saving metadata from the dialog (no upload yet - just stores the configuration)
+    const handleSaveMetadata = (metadata: PasteMetadata) => {
         if (!selectedPendingPasteId) return;
 
-        try {
-            // Determine MIME type - if "auto", derive from filename extension
-            let mimeType = "text/plain";
-            if (fileType !== "auto") {
-                mimeType = fileType;
-            } else {
-                // Derive MIME type from filename extension
-                const extension = title.split(".").pop()?.toLowerCase();
-                const extensionToMimeType: Record<string, string> = {
-                    txt: "text/plain",
-                    md: "text/markdown",
-                    csv: "text/csv",
-                    json: "application/json",
-                    html: "text/html",
-                    htm: "text/html",
-                    css: "text/css",
-                    js: "text/javascript",
-                    ts: "text/typescript",
-                    py: "text/python",
-                    yaml: "text/yaml",
-                    yml: "text/yaml",
-                    xml: "text/xml",
-                    svg: "image/svg+xml",
-                    sql: "text/sql",
-                    sh: "text/x-shellscript",
-                    bash: "text/x-shellscript",
-                };
-                if (extension && extensionToMimeType[extension]) {
-                    mimeType = extensionToMimeType[extension];
-                }
-            }
+        // Update the pending item with the new metadata
+        setPendingPastedTextItems(prev =>
+            prev.map(item =>
+                item.id === selectedPendingPasteId
+                    ? {
+                          ...item,
+                          content: metadata.content,
+                          filename: metadata.filename,
+                          mimeType: metadata.mimeType,
+                          description: metadata.description,
+                          isConfigured: true,
+                      }
+                    : item
+            )
+        );
 
-            // Create a File object from the text content (use the potentially edited content)
-            const blob = new Blob([content], { type: mimeType });
-            const file = new File([blob], title, { type: mimeType });
-
-            // Upload the artifact
-            const result = await uploadArtifactFile(file, sessionId, description);
-
-            if (result) {
-                // Type guard: check if result is an error
-                if ("error" in result) {
-                    displayError({ title: "Failed to Create Artifact", error: result.error });
-                    return;
-                }
-
-                // Now TypeScript knows result has uri and sessionId
-                // If a new session was created, update our sessionId
-                if (result.sessionId && result.sessionId !== sessionId) {
-                    setSessionId(result.sessionId);
-                }
-
-                // Create a badge item for this pasted artifact
-                const artifactItem: PastedArtifactItem = {
-                    id: `paste-artifact-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-                    artifactId: result.uri,
-                    filename: title,
-                    mimeType: mimeType,
-                    timestamp: Date.now(),
-                };
-                setPastedArtifactItems(prev => {
-                    return [...prev, artifactItem];
-                });
-
-                // Remove the pending item that was just saved
-                setPendingPastedTextItems(prev => prev.filter(item => item.id !== selectedPendingPasteId));
-
-                // Refresh artifacts panel
-                await artifactsRefetch();
-            } else {
-                throw new Error("Artifact upload returned no result");
-            }
-        } catch (error) {
-            displayError({ title: "Failed to Create Artifact", error: getErrorMessage(error, "An unknown error occurred.") });
-        } finally {
-            setSelectedPendingPasteId(null);
-            setShowArtifactForm(false);
-        }
+        setSelectedPendingPasteId(null);
+        setShowArtifactForm(false);
     };
 
     const handleCancelArtifactForm = () => {
@@ -401,10 +319,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const isSubmittingEnabled = useMemo(
-        () => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pastedArtifactItems.length !== 0 || pendingPastedTextItems.length !== 0),
-        [isResponding, inputValue, selectedFiles, pastedArtifactItems, pendingPastedTextItems]
-    );
+    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0), [isResponding, inputValue, selectedFiles, pendingPastedTextItems]);
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
@@ -414,8 +329,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 fullMessage = `Context: "${contextText}"\n\n${fullMessage}`;
             }
 
-            // Upload pending pasted text items as artifacts first, then create references
-            const uploadedPastedArtifacts: PastedArtifactItem[] = [];
+            // Upload all pending pasted text items as artifacts, then create references
+            interface UploadedArtifact {
+                uri: string;
+                filename: string;
+                mimeType: string;
+            }
+            const uploadedArtifacts: UploadedArtifact[] = [];
             let effectiveSessionId = sessionId;
 
             // Build list of existing artifact filenames for uniqueness check
@@ -425,18 +345,30 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             for (let i = 0; i < pendingPastedTextItems.length; i++) {
                 const item = pendingPastedTextItems[i];
                 try {
-                    // Generate a unique filename using the same pattern as the dialog (snippet.txt, snippet-2.txt, etc.)
-                    const mimeType = "text/plain";
-                    const extension = "txt";
-                    let filename = `snippet.${extension}`;
+                    // Use configured metadata if available, otherwise generate defaults
+                    let filename: string;
+                    let mimeType: string;
+                    let description: string | undefined;
 
-                    // Check if filename already exists and generate unique name
-                    if (existingFilenames.has(filename)) {
-                        let counter = 2;
-                        while (existingFilenames.has(`snippet-${counter}.${extension}`)) {
-                            counter++;
+                    if (item.isConfigured && item.filename && item.mimeType) {
+                        // User has configured this item via dialog
+                        filename = item.filename;
+                        mimeType = item.mimeType;
+                        description = item.description;
+                    } else {
+                        // Generate default filename using snippet pattern
+                        mimeType = "text/plain";
+                        const extension = "txt";
+                        filename = `snippet.${extension}`;
+
+                        // Check if filename already exists and generate unique name
+                        if (existingFilenames.has(filename)) {
+                            let counter = 2;
+                            while (existingFilenames.has(`snippet-${counter}.${extension}`)) {
+                                counter++;
+                            }
+                            filename = `snippet-${counter}.${extension}`;
                         }
-                        filename = `snippet-${counter}.${extension}`;
                     }
 
                     // Add this filename to the set so subsequent items in this batch get unique names
@@ -447,7 +379,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     const file = new File([blob], filename, { type: mimeType });
 
                     // Upload the artifact via HTTP API (this creates proper metadata)
-                    const result = await uploadArtifactFile(file, effectiveSessionId);
+                    // Pass silent=true to suppress toast notifications for pasted text artifacts
+                    const result = await uploadArtifactFile(file, effectiveSessionId, description, true);
 
                     if (result && !("error" in result)) {
                         // Update effective session ID if a new session was created
@@ -456,14 +389,11 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                             setSessionId(result.sessionId);
                         }
 
-                        // Create an artifact reference for this uploaded file
-                        const now = Date.now();
-                        uploadedPastedArtifacts.push({
-                            id: `auto-paste-artifact-${now}-${i}`,
-                            artifactId: result.uri,
+                        // Store the uploaded artifact info
+                        uploadedArtifacts.push({
+                            uri: result.uri,
                             filename: filename,
                             mimeType: mimeType,
-                            timestamp: now,
                         });
                     } else {
                         console.error("Failed to upload pasted text as artifact:", result);
@@ -475,25 +405,20 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 }
             }
 
-            // Combine existing pasted artifacts with newly uploaded ones
-            const allPastedArtifacts = [...pastedArtifactItems, ...uploadedPastedArtifacts];
-
-            // Create artifact reference files for all pasted artifacts
-            const artifactFiles: File[] = allPastedArtifacts
-                .filter(item => item.artifactId && item.mimeType) // Skip invalid items early
-                .map(item => {
-                    // Create a special File object that contains the artifact URI
-                    const artifactData = JSON.stringify({
-                        isArtifactReference: true,
-                        uri: item.artifactId,
-                        filename: item.filename,
-                        mimeType: item.mimeType,
-                    });
-                    const blob = new Blob([artifactData], { type: "application/x-artifact-reference" });
-                    return new File([blob], item.filename, {
-                        type: "application/x-artifact-reference",
-                    });
+            // Create artifact reference files for all uploaded artifacts
+            const artifactFiles: File[] = uploadedArtifacts.map(item => {
+                // Create a special File object that contains the artifact URI
+                const artifactData = JSON.stringify({
+                    isArtifactReference: true,
+                    uri: item.uri,
+                    filename: item.filename,
+                    mimeType: item.mimeType,
                 });
+                const blob = new Blob([artifactData], { type: "application/x-artifact-reference" });
+                return new File([blob], item.filename, {
+                    type: "application/x-artifact-reference",
+                });
+            });
 
             // Combine regular files with artifact references
             const allFiles = [...selectedFiles, ...artifactFiles];
@@ -502,7 +427,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // as the uploaded artifacts (avoids React state timing issues)
             await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null);
             setSelectedFiles([]);
-            setPastedArtifactItems([]);
             setPendingPastedTextItems([]);
             setInputValue("");
             setContextText(null);
@@ -584,21 +508,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }
     };
 
-    // Handle pasted artifact management
-    const handleRemovePastedArtifact = (id: string) => {
-        setPastedArtifactItems(prev => prev.filter(item => item.id !== id));
-    };
-
-    const handleViewPastedArtifact = (filename: string) => {
-        // Find the artifact in the artifacts list
-        const artifact = artifacts.find(a => a.filename === filename);
-        if (artifact) {
-            // Use the existing artifact preview functionality
-            setPreviewArtifact(artifact);
-            openSidePanelTab("files");
-        }
-    };
-
     // Handle variable dialog submission from "Use in Chat"
     const handleVariableSubmit = (processedPrompt: string) => {
         setInputValue(processedPrompt);
@@ -631,7 +540,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     return (
         <div
-            className={`rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
+            className={`bg-card rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -682,36 +591,178 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 </div>
             )}
 
-            {/* Pasted Artifact Items */}
-            {(() => {
-                return (
-                    pastedArtifactItems.length > 0 && (
-                        <div className="mb-2 flex flex-wrap gap-2">
-                            {pastedArtifactItems.map((item, index) => (
-                                <PastedTextBadge key={item.id} id={item.id} index={index + 1} textPreview={item.filename} onClick={() => handleViewPastedArtifact(item.filename)} onRemove={() => handleRemovePastedArtifact(item.id)} />
-                            ))}
-                        </div>
-                    )
-                );
-            })()}
-
-            {/* Pending Pasted Text Items (not yet saved as artifacts) */}
+            {/* Pending Pasted Text Items (not yet uploaded as artifacts) */}
             {pendingPastedTextItems.length > 0 && (
                 <div className="mb-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto pt-2 pl-2">
-                    {pendingPastedTextItems.map(item => (
-                        <PendingPastedTextBadge key={item.id} id={item.id} content={item.content} onClick={() => handlePendingPasteClick(item.id)} onRemove={() => handleRemovePendingPaste(item.id)} />
-                    ))}
+                    {pendingPastedTextItems.map((item, index) => {
+                        // Compute default filename for non-configured items
+                        // This mirrors the logic used at submit time
+                        let defaultFilename = "snippet.txt";
+                        if (!item.isConfigured) {
+                            const existingFilenames = new Set(artifacts.map(a => a.filename));
+                            // Also consider configured items before this one
+                            pendingPastedTextItems.slice(0, index).forEach(prevItem => {
+                                if (prevItem.isConfigured && prevItem.filename) {
+                                    existingFilenames.add(prevItem.filename);
+                                }
+                            });
+                            // Also consider default filenames we've "assigned" to previous non-configured items
+                            let tempFilename = "snippet.txt";
+                            for (let i = 0; i < index; i++) {
+                                const prevItem = pendingPastedTextItems[i];
+                                if (!prevItem.isConfigured) {
+                                    // This item would get tempFilename
+                                    existingFilenames.add(tempFilename);
+                                    // Compute next available for the next iteration
+                                    if (existingFilenames.has("snippet.txt")) {
+                                        let counter = 2;
+                                        while (existingFilenames.has(`snippet-${counter}.txt`)) {
+                                            counter++;
+                                        }
+                                        tempFilename = `snippet-${counter}.txt`;
+                                    }
+                                }
+                            }
+                            // Now compute the default for this item
+                            if (existingFilenames.has("snippet.txt")) {
+                                let counter = 2;
+                                while (existingFilenames.has(`snippet-${counter}.txt`)) {
+                                    counter++;
+                                }
+                                defaultFilename = `snippet-${counter}.txt`;
+                            }
+                        }
+
+                        return (
+                            <PendingPastedTextBadge
+                                key={item.id}
+                                id={item.id}
+                                content={item.content}
+                                onClick={() => handlePendingPasteClick(item.id)}
+                                onRemove={() => handleRemovePendingPaste(item.id)}
+                                isConfigured={item.isConfigured}
+                                filename={item.filename}
+                                defaultFilename={defaultFilename}
+                            />
+                        );
+                    })}
                 </div>
             )}
 
-            {/* Artifact Creation Dialog */}
-            <PasteActionDialog
-                isOpen={showArtifactForm}
-                content={pendingPastedTextItems.find(item => item.id === selectedPendingPasteId)?.content || ""}
-                onSaveAsArtifact={handleSaveAsArtifact}
-                onCancel={handleCancelArtifactForm}
-                existingArtifacts={artifacts.map(a => a.filename)}
-            />
+            {/* Artifact Configuration Dialog */}
+            {(() => {
+                const selectedItem = pendingPastedTextItems.find(item => item.id === selectedPendingPasteId);
+                const selectedIndex = pendingPastedTextItems.findIndex(item => item.id === selectedPendingPasteId);
+
+                // Build the full list of existing filenames for conflict detection
+                // This includes session artifacts AND filenames from other pending items
+                const allExistingFilenames = new Set(artifacts.map(a => a.filename));
+
+                // Add filenames from all pending items (except the currently selected one)
+                // For configured items, use their configured filename
+                // For non-configured items, compute what their default filename would be
+                let tempFilename = "snippet.txt";
+                pendingPastedTextItems.forEach((item, idx) => {
+                    if (item.id === selectedPendingPasteId) {
+                        // Skip the currently selected item - we don't want to warn about itself
+                        return;
+                    }
+
+                    if (item.isConfigured && item.filename) {
+                        allExistingFilenames.add(item.filename);
+                    } else {
+                        // We need to track what filenames have been "assigned" to previous items
+                        if (idx < selectedIndex || selectedIndex === -1) {
+                            if (allExistingFilenames.has(tempFilename)) {
+                                let counter = 2;
+                                while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
+                                    counter++;
+                                }
+                                tempFilename = `snippet-${counter}.txt`;
+                            }
+                            allExistingFilenames.add(tempFilename);
+                            // Update tempFilename for next iteration
+                            if (allExistingFilenames.has("snippet.txt")) {
+                                let counter = 2;
+                                while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
+                                    counter++;
+                                }
+                                tempFilename = `snippet-${counter}.txt`;
+                            } else {
+                                tempFilename = "snippet.txt";
+                            }
+                        } else {
+                            if (allExistingFilenames.has(tempFilename)) {
+                                let counter = 2;
+                                while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
+                                    counter++;
+                                }
+                                tempFilename = `snippet-${counter}.txt`;
+                            }
+                            allExistingFilenames.add(tempFilename);
+                            // Update tempFilename for next iteration
+                            if (allExistingFilenames.has("snippet.txt")) {
+                                let counter = 2;
+                                while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
+                                    counter++;
+                                }
+                                tempFilename = `snippet-${counter}.txt`;
+                            } else {
+                                tempFilename = "snippet.txt";
+                            }
+                        }
+                    }
+                });
+
+                // Compute default filename for the selected item (same logic as badge display)
+                let computedDefaultFilename = "snippet.txt";
+                if (selectedItem && !selectedItem.isConfigured && selectedIndex >= 0) {
+                    const existingFilenames = new Set(artifacts.map(a => a.filename));
+                    // Also consider configured items before this one
+                    pendingPastedTextItems.slice(0, selectedIndex).forEach(prevItem => {
+                        if (prevItem.isConfigured && prevItem.filename) {
+                            existingFilenames.add(prevItem.filename);
+                        }
+                    });
+                    // Also consider default filenames we've "assigned" to previous non-configured items
+                    let defaultTempFilename = "snippet.txt";
+                    for (let i = 0; i < selectedIndex; i++) {
+                        const prevItem = pendingPastedTextItems[i];
+                        if (!prevItem.isConfigured) {
+                            existingFilenames.add(defaultTempFilename);
+                            if (existingFilenames.has("snippet.txt")) {
+                                let counter = 2;
+                                while (existingFilenames.has(`snippet-${counter}.txt`)) {
+                                    counter++;
+                                }
+                                defaultTempFilename = `snippet-${counter}.txt`;
+                            }
+                        }
+                    }
+                    // Now compute the default for this item
+                    if (existingFilenames.has("snippet.txt")) {
+                        let counter = 2;
+                        while (existingFilenames.has(`snippet-${counter}.txt`)) {
+                            counter++;
+                        }
+                        computedDefaultFilename = `snippet-${counter}.txt`;
+                    }
+                }
+
+                return (
+                    <PasteActionDialog
+                        isOpen={showArtifactForm}
+                        content={selectedItem?.content || ""}
+                        onSaveMetadata={handleSaveMetadata}
+                        onCancel={handleCancelArtifactForm}
+                        existingArtifacts={Array.from(allExistingFilenames)}
+                        initialFilename={selectedItem?.filename}
+                        initialMimeType={selectedItem?.mimeType}
+                        initialDescription={selectedItem?.description}
+                        defaultFilename={computedDefaultFilename}
+                    />
+                );
+            })()}
 
             {/* Prompts Command Popover */}
             <PromptsCommand
