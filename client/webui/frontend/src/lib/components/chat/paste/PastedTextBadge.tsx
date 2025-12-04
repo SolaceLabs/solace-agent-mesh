@@ -72,29 +72,23 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
             <TooltipTrigger asChild>
                 <div
                     className={`bg-background relative inline-flex max-w-[200px] cursor-pointer flex-col rounded-lg border shadow-sm transition-colors ${
-                        isConfigured ? "border-blue-500/50 hover:border-blue-500" : "border-border hover:border-primary/50"
+                        isConfigured ? "border-[var(--color-info-wMain)]/50 hover:border-[var(--color-info-wMain)]" : "border-border hover:border-primary/50"
                     }`}
                     onClick={onClick}
                 >
                     {/* Close button */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={e => {
-                                    e.stopPropagation();
-                                    onRemove();
-                                }}
-                                className="bg-background border-border hover:bg-muted absolute -top-2 -left-2 h-5 w-5 rounded-full border p-0 shadow-sm"
-                            >
-                                <XIcon className="h-3 w-3" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                            <p>Remove pasted text</p>
-                        </TooltipContent>
-                    </Tooltip>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={e => {
+                            e.stopPropagation();
+                            onRemove();
+                        }}
+                        className="bg-background border-border hover:bg-muted absolute -top-2 -left-2 h-5 w-5 rounded-full border p-0 shadow-sm"
+                        tooltip="Remove pasted text"
+                    >
+                        <XIcon className="h-3 w-3" />
+                    </Button>
 
                     {/* Text preview */}
                     <div className="text-muted-foreground overflow-hidden px-3 pt-3 pb-2 font-mono text-xs leading-relaxed">
@@ -109,9 +103,9 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
                     {/* Status label - show filename (configured or default) */}
                     <div className="flex items-center gap-1 px-2 pb-2">
                         {isConfigured ? (
-                            <span className="inline-flex max-w-[170px] items-center gap-1.5 truncate rounded bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-blue-600 dark:text-blue-400">
+                            <span className="inline-flex max-w-[170px] items-center gap-1.5 truncate rounded bg-[var(--color-info-w10)] px-2 py-0.5 text-[10px] font-semibold tracking-wider text-[var(--color-info-wMain)] dark:bg-[var(--color-info-wMain)] dark:text-[var(--color-primary-text-w10)]">
                                 {filename || "CONFIGURED"}
-                                <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500" />
+                                <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[var(--color-info-wMain)] dark:bg-[var(--color-primary-text-w10)]" />
                             </span>
                         ) : (
                             <span className="bg-muted text-muted-foreground inline-block max-w-[170px] truncate rounded px-2 py-0.5 text-[10px] font-semibold tracking-wider">{defaultFilename || "snippet.txt"}</span>

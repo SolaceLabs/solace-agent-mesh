@@ -22,6 +22,8 @@ interface PasteActionDialogProps {
     initialFilename?: string;
     initialMimeType?: string;
     initialDescription?: string;
+    // Default filename to use when not configured (computed by parent to account for other pending items)
+    defaultFilename?: string;
 }
 
 const FILE_TYPES = [
@@ -77,7 +79,7 @@ const generateUniqueFilename = (baseName: string, extension: string, existingArt
 // Default MIME type - always use text/plain for safety and readability
 const DEFAULT_MIME_TYPE = "text/plain";
 
-export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, content, onSaveMetadata, onCancel, existingArtifacts = [], initialFilename, initialMimeType, initialDescription }) => {
+export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, content, onSaveMetadata, onCancel, existingArtifacts = [], initialFilename, initialMimeType, initialDescription, defaultFilename }) => {
     const [title, setTitle] = useState("snippet.txt");
     const [description, setDescription] = useState("");
     const [fileType, setFileType] = useState(DEFAULT_MIME_TYPE);
@@ -100,15 +102,16 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                 setFileType(initialMimeType || DEFAULT_MIME_TYPE);
                 setDescription(initialDescription || "");
             } else {
-                // First time opening - generate defaults
+                // First time opening - use the pre-computed default filename if provided,
+                // otherwise generate one (fallback for backwards compatibility)
                 setFileType(DEFAULT_MIME_TYPE);
-                const uniqueFilename = generateUniqueFilename("snippet", "txt", existingArtifacts);
+                const uniqueFilename = defaultFilename || generateUniqueFilename("snippet", "txt", existingArtifacts);
                 setTitle(uniqueFilename);
                 const generatedDescription = generateArtifactDescription(content);
                 setDescription(generatedDescription);
             }
         }
-    }, [isOpen, content, existingArtifacts, initialFilename, initialMimeType, initialDescription]);
+    }, [isOpen, content, existingArtifacts, initialFilename, initialMimeType, initialDescription, defaultFilename]);
 
     // Update title extension when user explicitly changes file type
     useEffect(() => {
@@ -187,7 +190,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                                 }, 0);
                             }}
                         />
-                        {showOverwriteWarning && <p className="text-sm text-yellow-600 dark:text-yellow-500">⚠️ A file with this name already exists. Saving will create a new version.</p>}
+                        {showOverwriteWarning && <MessageBanner variant="warning" message="A file with this name already exists. Saving will create a new version." />}
                     </div>
 
                     <div className="space-y-2">
@@ -241,8 +244,6 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                         Customize
                     </Button>
                 </DialogFooter>
-
-                {showOverwriteWarning && <p className="mt-2 text-sm text-yellow-600 dark:text-yellow-500">⚠️ A file with this name already exists. It will create a new version when submitted.</p>}
             </DialogContent>
         </Dialog>
     );

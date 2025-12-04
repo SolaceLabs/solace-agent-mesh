@@ -652,16 +652,114 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {/* Artifact Configuration Dialog */}
             {(() => {
                 const selectedItem = pendingPastedTextItems.find(item => item.id === selectedPendingPasteId);
+                const selectedIndex = pendingPastedTextItems.findIndex(item => item.id === selectedPendingPasteId);
+
+                // Build the full list of existing filenames for conflict detection
+                // This includes session artifacts AND filenames from other pending items
+                const allExistingFilenames = new Set(artifacts.map(a => a.filename));
+
+                // Add filenames from all pending items (except the currently selected one)
+                // For configured items, use their configured filename
+                // For non-configured items, compute what their default filename would be
+                let tempFilename = "snippet.txt";
+                pendingPastedTextItems.forEach((item, idx) => {
+                    if (item.id === selectedPendingPasteId) {
+                        // Skip the currently selected item - we don't want to warn about itself
+                        return;
+                    }
+
+                    if (item.isConfigured && item.filename) {
+                        allExistingFilenames.add(item.filename);
+                    } else {
+                        // We need to track what filenames have been "assigned" to previous items
+                        if (idx < selectedIndex || selectedIndex === -1) {
+                            if (allExistingFilenames.has(tempFilename)) {
+                                let counter = 2;
+                                while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
+                                    counter++;
+                                }
+                                tempFilename = `snippet-${counter}.txt`;
+                            }
+                            allExistingFilenames.add(tempFilename);
+                            // Update tempFilename for next iteration
+                            if (allExistingFilenames.has("snippet.txt")) {
+                                let counter = 2;
+                                while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
+                                    counter++;
+                                }
+                                tempFilename = `snippet-${counter}.txt`;
+                            } else {
+                                tempFilename = "snippet.txt";
+                            }
+                        } else {
+                            if (allExistingFilenames.has(tempFilename)) {
+                                let counter = 2;
+                                while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
+                                    counter++;
+                                }
+                                tempFilename = `snippet-${counter}.txt`;
+                            }
+                            allExistingFilenames.add(tempFilename);
+                            // Update tempFilename for next iteration
+                            if (allExistingFilenames.has("snippet.txt")) {
+                                let counter = 2;
+                                while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
+                                    counter++;
+                                }
+                                tempFilename = `snippet-${counter}.txt`;
+                            } else {
+                                tempFilename = "snippet.txt";
+                            }
+                        }
+                    }
+                });
+
+                // Compute default filename for the selected item (same logic as badge display)
+                let computedDefaultFilename = "snippet.txt";
+                if (selectedItem && !selectedItem.isConfigured && selectedIndex >= 0) {
+                    const existingFilenames = new Set(artifacts.map(a => a.filename));
+                    // Also consider configured items before this one
+                    pendingPastedTextItems.slice(0, selectedIndex).forEach(prevItem => {
+                        if (prevItem.isConfigured && prevItem.filename) {
+                            existingFilenames.add(prevItem.filename);
+                        }
+                    });
+                    // Also consider default filenames we've "assigned" to previous non-configured items
+                    let defaultTempFilename = "snippet.txt";
+                    for (let i = 0; i < selectedIndex; i++) {
+                        const prevItem = pendingPastedTextItems[i];
+                        if (!prevItem.isConfigured) {
+                            existingFilenames.add(defaultTempFilename);
+                            if (existingFilenames.has("snippet.txt")) {
+                                let counter = 2;
+                                while (existingFilenames.has(`snippet-${counter}.txt`)) {
+                                    counter++;
+                                }
+                                defaultTempFilename = `snippet-${counter}.txt`;
+                            }
+                        }
+                    }
+                    // Now compute the default for this item
+                    if (existingFilenames.has("snippet.txt")) {
+                        let counter = 2;
+                        while (existingFilenames.has(`snippet-${counter}.txt`)) {
+                            counter++;
+                        }
+                        computedDefaultFilename = `snippet-${counter}.txt`;
+                    }
+                }
+
                 return (
                     <PasteActionDialog
                         isOpen={showArtifactForm}
                         content={selectedItem?.content || ""}
                         onSaveMetadata={handleSaveMetadata}
                         onCancel={handleCancelArtifactForm}
-                        existingArtifacts={artifacts.map(a => a.filename)}
+                        existingArtifacts={Array.from(allExistingFilenames)}
                         initialFilename={selectedItem?.filename}
                         initialMimeType={selectedItem?.mimeType}
                         initialDescription={selectedItem?.description}
+                        defaultFilename={computedDefaultFilename}
                     />
                 );
             })()}
