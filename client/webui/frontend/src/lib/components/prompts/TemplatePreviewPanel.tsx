@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from "react";
-import { FileText } from "lucide-react";
+import { NotepadText } from "lucide-react";
 import { Badge, CardTitle, Label } from "@/lib/components/ui";
-import type { TemplateConfig } from "./hooks/usePromptTemplateBuilder";
+import type { TemplateConfig } from "@/lib/types";
 
 interface TemplatePreviewPanelProps {
     config: TemplateConfig;
@@ -111,7 +111,7 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({ conf
             <div className="border-b px-4 py-3">
                 <div className="flex items-center gap-2">
                     <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full">
-                        <FileText className="text-muted-foreground h-4 w-4" />
+                        <NotepadText className="text-muted-foreground h-4 w-4" />
                     </div>
                     <div>
                         <h3 className="text-sm font-semibold">Template Preview</h3>
@@ -124,7 +124,7 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({ conf
                 {!hasContent ? (
                     <div className="flex h-full flex-col items-center justify-center p-8 text-center">
                         <div className="bg-muted mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-                            <FileText className="text-muted-foreground h-8 w-8" />
+                            <NotepadText className="text-muted-foreground h-8 w-8" />
                         </div>
                         <h3 className="mb-2 text-lg font-semibold">No Template Yet</h3>
                         <p className="text-muted-foreground max-w-sm text-sm">Start chatting with the AI assistant to create your template. The preview will update in real-time as you describe your task.</p>

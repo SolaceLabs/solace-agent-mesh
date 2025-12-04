@@ -9,6 +9,11 @@ from enum import Enum, auto
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
 
+from ...common.utils.embeds.constants import (
+    EMBED_DELIMITER_OPEN,
+    EMBED_DELIMITER_CLOSE,
+)
+
 log = logging.getLogger(__name__)
 
 # --- Constants ---
@@ -115,10 +120,14 @@ class FencedBlockStreamParser:
         self._block_params: Dict[str, Any] = {}
         self._progress_update_interval = progress_update_interval_bytes
         self._last_progress_update_size = 0
+        self._last_progress_chunk_end = 0  # Character position in buffer where last chunk ended
         # Track block type and nesting for template handling
         self._current_block_type: str = None  # "save_artifact" or "template"
         self._nesting_depth = 0  # Track if we're inside a block
         self._previous_state: ParserState = None  # Track state before POTENTIAL_BLOCK
+        # Safety limit: force emission after this many pending bytes (to handle unclosed embeds)
+        # Use minimum of 8KB to handle long templates/embeds
+        self._max_pending_bytes = max(progress_update_interval_bytes * 4, 8192)  # Min 8KB
 
     def _reset_state(self):
         """Resets the parser to its initial IDLE state."""
@@ -127,9 +136,36 @@ class FencedBlockStreamParser:
         self._artifact_buffer = ""
         self._block_params = {}
         self._last_progress_update_size = 0
+        self._last_progress_chunk_end = 0
         self._current_block_type = None
         self._nesting_depth = 0
         self._previous_state = None
+
+    def _is_safe_to_emit_chunk(self) -> bool:
+        """
+        Check if current buffer position is safe for chunking (not inside an embed).
+
+        Looks at the content since the last chunk emission to see if there's an
+        unclosed embed delimiter. If so, waits until the embed is closed before emitting.
+
+        Returns:
+            True if safe to emit chunk (no partial embeds), False otherwise.
+        """
+        # Check the portion of buffer we're about to emit
+        buffer_to_check = self._artifact_buffer[self._last_progress_chunk_end:]
+
+        # Find last occurrence of opening delimiter
+        last_open = buffer_to_check.rfind(EMBED_DELIMITER_OPEN)
+
+        if last_open == -1:
+            # No embed delimiter found in this portion
+            return True
+
+        # Found an opening delimiter - check if it's closed
+        last_close = buffer_to_check.rfind(EMBED_DELIMITER_CLOSE, last_open)
+
+        # Safe only if there's a closing delimiter after the opening one
+        return last_close > last_open
 
     def process_chunk(self, text_chunk: str) -> ParserResult:
         """
@@ -342,18 +378,38 @@ class FencedBlockStreamParser:
         else:
             # Check if we should emit a progress update (only for save_artifact blocks)
             if self._current_block_type == "save_artifact":
-                current_size = len(self._artifact_buffer.encode("utf-8"))
-                if (
-                    current_size - self._last_progress_update_size
-                ) >= self._progress_update_interval:
-                    new_chunk = self._artifact_buffer[
-                        self._last_progress_update_size : current_size
-                    ]
-                    events.append(
-                        BlockProgressedEvent(
-                            params=self._block_params,
-                            buffered_size=current_size,
-                            chunk=new_chunk,
+                # Calculate current total size in bytes (for threshold check)
+                current_size_bytes = len(self._artifact_buffer.encode("utf-8"))
+
+                # Check if we've accumulated enough new bytes since last update
+                bytes_since_last = current_size_bytes - self._last_progress_update_size
+                if bytes_since_last >= self._progress_update_interval:
+                    # Check if it's safe to emit (not inside an embed)
+                    # OR force emit if we've exceeded safety limit (very long unclosed embed)
+                    force_emit = bytes_since_last >= self._max_pending_bytes
+
+                    if force_emit:
+                        log.warning(
+                            "[StreamParser] Forcing chunk emission due to safety limit (%d bytes pending). "
+                            "Possible unclosed embed or very long embed.",
+                            bytes_since_last
                         )
-                    )
-                    self._last_progress_update_size = current_size
+
+                    if self._is_safe_to_emit_chunk() or force_emit:
+                        # Extract all new content since last progress update
+                        # Slice by character position (not bytes) to avoid UTF-8 issues
+                        current_char_position = len(self._artifact_buffer)
+                        new_chunk = self._artifact_buffer[self._last_progress_chunk_end:]
+
+                        events.append(
+                            BlockProgressedEvent(
+                                params=self._block_params,
+                                buffered_size=current_size_bytes,  # Total bytes accumulated so far
+                                chunk=new_chunk,  # All new content since last update
+                            )
+                        )
+
+                        # Update tracking: character position for slicing, bytes for threshold
+                        self._last_progress_chunk_end = current_char_position
+                        self._last_progress_update_size = current_size_bytes
+                    # else: wait for embed to close before emitting

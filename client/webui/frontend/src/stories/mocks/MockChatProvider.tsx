@@ -104,6 +104,12 @@ const defaultMockChatContext: DefaultMockContextType = {
     agentsRefetch: async () => {},
     artifactsRefetch: async () => {},
     setArtifacts: () => {},
+    displayError: () => {},
+
+    // Prompt handling
+    pendingPrompt: null,
+    startNewChatWithPrompt: async () => {},
+    clearPendingPrompt: () => {},
 };
 
 interface MockChatProviderProps {

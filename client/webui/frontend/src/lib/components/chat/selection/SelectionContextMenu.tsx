@@ -66,7 +66,6 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ isOp
             style={{
                 left: `${position.x}px`,
                 top: `${position.y}px`,
-                transform: "translate(-50%, 0)",
             }}
         >
             <div className="bg-background w-auto max-w-[160px] rounded-md border p-1 shadow-lg">
