@@ -4,6 +4,7 @@ import { useChatContext, useArtifactRendering } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { FileAttachment, MessageFE } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
+import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
 import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
 
@@ -486,7 +487,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             mimeType={fileMimeType}
             size={fileAttachment?.size}
             status={props.status}
-            expandable={isExpandable && context === "chat"} // Allow expansion in chat context for user-controllable files
+            expandable={isExpandable && context === "chat" && !isDeepResearchReportFilename(fileName)} // Allow expansion in chat context for user-controllable files, but not for deep research reports (shown inline)
             expanded={isExpanded || isInfoExpanded}
             onToggleExpand={isExpandable && context === "chat" ? toggleExpanded : undefined}
             actions={actions}

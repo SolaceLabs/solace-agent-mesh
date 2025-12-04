@@ -7,11 +7,13 @@ import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } f
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
-import type { ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, TextPart } from "@/lib/types";
+import type { ArtifactInfo, ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, RAGSearchResult, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
+import { DeepResearchReportContent } from "@/lib/components/research/DeepResearchReportContent";
 import { Sources } from "@/lib/components/web/Sources";
 import { ImageSearchGrid } from "@/lib/components/research";
+import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
 import { TextWithCitations } from "./Citation";
 import { parseCitations } from "@/lib/utils/citations";
 
@@ -161,7 +163,7 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
         });
 
         return { modifiedText: modText, contentElements: elements };
-    }, [embeddedContent, displayText, sessionId, setRenderError]);
+    }, [embeddedContent, displayText, sessionId, setRenderError, taskRagData]);
 
     // Parse citations from modified text
     const modifiedCitations = useMemo(() => {
@@ -225,7 +227,13 @@ const getUploadedFiles = (message: MessageFE) => {
     return null;
 };
 
-const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean, sourcesElement?: React.ReactNode): React.ReactNode => {
+interface DeepResearchReportInfo {
+    artifact: ArtifactInfo;
+    sessionId: string;
+    ragData?: RAGSearchResult;
+}
+
+const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean, sourcesElement?: React.ReactNode, deepResearchReportInfo?: DeepResearchReportInfo): React.ReactNode => {
     const { openSidePanelTab, setTaskIdInSidePanel, ragData } = chatContext;
 
     if (message.isStatusBubble) {
@@ -389,6 +397,15 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                 return null;
             })}
 
+            {/* Show deep research report content inline (without References and Methodology sections) */}
+            {deepResearchReportInfo && (
+                <ChatBubble variant="received">
+                    <ChatBubbleMessage variant="received">
+                        <DeepResearchReportContent artifact={deepResearchReportInfo.artifact} sessionId={deepResearchReportInfo.sessionId} ragData={deepResearchReportInfo.ragData} />
+                    </ChatBubbleMessage>
+                </ChatBubble>
+            )}
+
             {/* Show actions after artifacts if the last part is an artifact */}
             {lastPartKind === "artifact" || lastPartKind === "file" ? (
                 <div className={`flex ${message.isUser ? "justify-end pr-4" : "justify-start pl-4"}`}>
@@ -407,8 +424,82 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean }> = ({ message, isLastWithTaskId }) => {
     const chatContext = useChatContext();
-    const { ragData, openSidePanelTab, setTaskIdInSidePanel } = chatContext;
+    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId } = chatContext;
 
+    // Get RAG metadata for this task
+    const taskRagData = useMemo(() => {
+        if (!message?.taskId || !ragData) return undefined;
+        return ragData.filter(r => r.taskId === message.taskId);
+    }, [message?.taskId, ragData]);
+
+    // Find deep research report artifact in the message
+    const deepResearchReportArtifact = useMemo(() => {
+        if (!message) return null;
+
+        // Check if this is a completed deep research message
+        const hasProgressPart = message.parts?.some(p => {
+            if (p.kind === "data") {
+                const data = (p as DataPart).data as unknown as ResearchProgressData;
+                return data?.type === "deep_research_progress";
+            }
+            return false;
+        });
+
+        const hasRagSources = taskRagData && taskRagData.length > 0 && taskRagData.some(r => r.sources && r.sources.length > 0);
+        const hasDeepResearchRagData = taskRagData?.some(r => r.searchType === "deep_research");
+        const isDeepResearchComplete = message.isComplete && (hasProgressPart || hasDeepResearchRagData) && hasRagSources;
+
+        if (!isDeepResearchComplete || !isLastWithTaskId) return null;
+
+        // Look for artifact parts in the message that match deep research report pattern
+        const artifactParts = message.parts?.filter(p => p.kind === "artifact") as ArtifactPart[] | undefined;
+
+        // First priority: Find the report artifact from this message's artifact parts
+        // This ensures we get the correct report for this specific task
+        if (artifactParts && artifactParts.length > 0) {
+            for (const part of artifactParts) {
+                if (part.status === "completed" && isDeepResearchReportFilename(part.name)) {
+                    const fullArtifact = artifacts.find(a => a.filename === part.name);
+                    if (fullArtifact) {
+                        return fullArtifact;
+                    }
+                }
+            }
+        }
+
+        // Second priority: Use artifact filename from RAG metadata
+        // The backend stores the artifact filename in the RAG metadata for this purpose
+        if (taskRagData && taskRagData.length > 0) {
+            // Get the last RAG data entry which should have the artifact filename
+            const lastRagData = taskRagData[taskRagData.length - 1];
+            const artifactFilenameFromRag = lastRagData.metadata?.artifactFilename as string | undefined;
+            if (artifactFilenameFromRag) {
+                const matchedArtifact = artifacts.find(a => a.filename === artifactFilenameFromRag);
+                if (matchedArtifact) {
+                    return matchedArtifact;
+                }
+            }
+        }
+
+        // Only use global artifacts list if there's exactly one report artifact
+        // This handles edge cases but avoids showing the wrong report when there are multiple
+        const allReportArtifacts = artifacts.filter(a => isDeepResearchReportFilename(a.filename));
+        if (allReportArtifacts.length === 1) {
+            return allReportArtifacts[0];
+        }
+
+        // If there are multiple report artifacts and we couldn't find one,
+        // don't show any inline report to avoid showing the wrong one
+        return null;
+    }, [message, isLastWithTaskId, artifacts, taskRagData]);
+
+    // Get the last RAG data entry for this task (for citations in report)
+    const lastTaskRagData = useMemo(() => {
+        if (!taskRagData || taskRagData.length === 0) return undefined;
+        return taskRagData[taskRagData.length - 1];
+    }, [taskRagData]);
+
+    // Early return after all hooks
     if (!message) {
         return null;
     }
@@ -423,40 +514,15 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         return false;
     });
 
-    // Get RAG metadata for this task
-    const taskRagData = ragData?.filter(r => r.taskId === message.taskId);
-
-    console.log("[ChatMessage] Task RAG data:", {
-        taskId: message.taskId,
-        taskRagDataCount: taskRagData?.length,
-        taskRagData: taskRagData,
-        hasProgressPart,
-        isComplete: message.isComplete,
-    });
-
     const hasRagSources = taskRagData && taskRagData.length > 0 && taskRagData.some(r => r.sources && r.sources.length > 0);
 
-    // Check if ragData indicates deep research (works after page refresh)
+    // Check if ragData indicates deep research
     const hasDeepResearchRagData = taskRagData?.some(r => r.searchType === "deep_research");
 
     const isDeepResearchComplete = message.isComplete && (hasProgressPart || hasDeepResearchRagData) && hasRagSources;
 
-    console.log("[ChatMessage] Deep research detection:", {
-        isDeepResearchComplete,
-        hasProgressPart,
-        hasDeepResearchRagData,
-        hasRagSources,
-    });
-
     // Check if this is a completed web search message (has web_search sources but not deep research)
     const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources && taskRagData?.some(r => r.searchType === "web_search");
-
-    console.log("[ChatMessage] Web search detection:", {
-        isWebSearchComplete,
-        isLastWithTaskId,
-        hasRagSources,
-        searchTypes: taskRagData?.map(r => r.searchType),
-    });
 
     // Handler for sources click (works for both deep research and web search)
     const handleSourcesClick = () => {
@@ -532,19 +598,14 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                                     return true;
                                 });
 
-                          console.log("[ChatMessage] Rendering Sources component:", {
-                              isDeepResearchComplete,
-                              isWebSearchComplete,
-                              sourcesToShowCount: sourcesToShow.length,
-                              sampleSource: sourcesToShow[0],
-                          });
-
                           // Only render if we have sources
                           if (sourcesToShow.length === 0) return null;
 
                           return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleSourcesClick} />;
                       })()
-                    : undefined
+                    : undefined,
+                // Pass deep research report info if available
+                isDeepResearchComplete && isLastWithTaskId && deepResearchReportArtifact && sessionId ? { artifact: deepResearchReportArtifact, sessionId, ragData: lastTaskRagData } : undefined
             )}
 
             {/* Render images separately at the end for web search */}

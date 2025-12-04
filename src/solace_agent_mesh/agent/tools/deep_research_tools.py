@@ -250,7 +250,7 @@ class ResearchCitationTracker:
             self.citations[citation_id]["metadata"]["fetch_status"] = result.metadata.get("fetch_status", "")
             log.info("[DeepResearch:Citation] Updated citation %s with fetched content", citation_id)
     
-    def get_rag_metadata(self) -> Dict[str, Any]:
+    def get_rag_metadata(self, artifact_filename: Optional[str] = None) -> Dict[str, Any]:
         """Format citations for RAG system with camelCase conversion"""
         # Save the last query if it exists
         if self.current_query:
@@ -262,15 +262,22 @@ class ResearchCitationTracker:
             self.current_query = None
             self.current_query_sources = []
         
+        # Build metadata dict
+        metadata_dict: Dict[str, Any] = {
+            "queries": self.queries  # Include query breakdown for timeline
+        }
+        
+        # Include artifact filename if provided (for matching after page refresh)
+        if artifact_filename:
+            metadata_dict["artifactFilename"] = artifact_filename
+        
         # Return single search result with all sources using DTO for camelCase conversion
         return create_rag_search_result(
             query=self.research_question,
             search_type="deep_research",
             timestamp=datetime.now(timezone.utc).isoformat(),
             sources=list(self.citations.values()),
-            metadata={
-                "queries": self.queries  # Include query breakdown for timeline
-            }
+            metadata=metadata_dict
         )
 
 
@@ -1628,7 +1635,7 @@ async def deep_research(
             "artifact_version": artifact_version,
             "total_sources": len(all_findings),
             "iterations_completed": min(iteration, max_iterations),
-            "rag_metadata": citation_tracker.get_rag_metadata(),
+            "rag_metadata": citation_tracker.get_rag_metadata(artifact_filename=artifact_filename),
             # Include the response_artifact for the agent to use with artifact_content embed
             "response_artifact": {
                 "filename": artifact_filename,
