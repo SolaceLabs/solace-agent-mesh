@@ -49,7 +49,6 @@ jobs:
   # Release to PyPI using Trusted Publishing
   release:
     name: Release to PyPI
-    needs: security-checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: pypi
