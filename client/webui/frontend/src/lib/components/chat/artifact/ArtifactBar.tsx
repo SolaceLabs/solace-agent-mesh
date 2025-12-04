@@ -4,6 +4,7 @@ import { Download, ChevronDown, Trash, Info, ChevronUp, CircleAlert } from "luci
 import { Button, Spinner, Badge } from "@/lib/components/ui";
 import { FileIcon } from "../file/FileIcon";
 import { cn } from "@/lib/utils";
+import { useThemeContext } from "@/lib/hooks";
 
 const ErrorState: React.FC<{ message: string }> = ({ message }) => (
     <div className="w-full rounded-lg border border-[var(--color-error-w100)] bg-[var(--color-error-wMain-50)] p-3">
@@ -40,7 +41,8 @@ export interface ArtifactBarProps {
 
 export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description, mimeType, size, status, expandable = false, expanded = false, onToggleExpand, actions, bytesTransferred, error, expandedContent, context = "chat", isDeleted = false, version, source }) => {
     const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
-    const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+    const { currentTheme } = useThemeContext();
+    const isDarkMode = currentTheme === "dark";
 
     useEffect(() => {
         if (expandedContent) {
@@ -53,20 +55,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
             return () => clearTimeout(timer);
         }
     }, [expandedContent]);
-
-    // Track dark mode changes
-    useEffect(() => {
-        const observer = new MutationObserver(() => {
-            setIsDarkMode(document.documentElement.classList.contains('dark'));
-        });
-
-        observer.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ['class'],
-        });
-
-        return () => observer.disconnect();
-    }, []);
 
     // Validate required props
     if (!filename || typeof filename !== "string") {
