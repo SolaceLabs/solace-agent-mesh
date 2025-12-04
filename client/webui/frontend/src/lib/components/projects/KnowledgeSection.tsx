@@ -8,6 +8,7 @@ import { useProjectArtifacts } from "@/lib/hooks/useProjectArtifacts";
 import { useProjectContext } from "@/lib/providers";
 import { useDownload } from "@/lib/hooks/useDownload";
 import { useConfigContext } from "@/lib/hooks";
+import { validateFileSizes } from "@/lib/utils/file-validation";
 import type { Project } from "@/lib/types/projects";
 import type { ArtifactInfo } from "@/lib/types";
 import { DocumentListItem } from "./DocumentListItem";
@@ -48,33 +49,10 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     }, [artifacts]);
 
     // Validate file sizes before showing upload dialog
-    // If maxUploadSizeBytes is not configured, skip client-side validation and let backend handle it
-    const validateFileSizes = useCallback(
-        (files: FileList): { valid: boolean; error?: string } => {
-            // Skip validation if max size is not configured
-            if (!maxUploadSizeBytes) {
-                return { valid: true };
-            }
-
-            const oversizedFiles: string[] = [];
-            const maxSizeMB = maxUploadSizeBytes / (1024 * 1024);
-
-            for (const file of Array.from(files)) {
-                if (file.size > maxUploadSizeBytes) {
-                    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-                    oversizedFiles.push(`${file.name} (${fileSizeMB} MB)`);
-                }
-            }
-
-            if (oversizedFiles.length > 0) {
-                const errorMsg =
-                    oversizedFiles.length === 1
-                        ? `File "${oversizedFiles[0]}" exceeds the maximum size of ${maxSizeMB.toFixed(0)} MB.`
-                        : `${oversizedFiles.length} files exceed the maximum size of ${maxSizeMB.toFixed(0)} MB:\n${oversizedFiles.slice(0, 3).join(", ")}${oversizedFiles.length > 3 ? ` and ${oversizedFiles.length - 3} more` : ""}`;
-                return { valid: false, error: errorMsg };
-            }
-
-            return { valid: true };
+    // if maxUploadSizeBytes is not configured, validation is skipped and backend handles it
+    const handleValidateFileSizes = useCallback(
+        (files: FileList) => {
+            return validateFileSizes(files, { maxSizeBytes: maxUploadSizeBytes });
         },
         [maxUploadSizeBytes]
     );
@@ -87,7 +65,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         const files = event.target.files;
         if (files && files.length > 0) {
             // Validate file sizes first
-            const validation = validateFileSizes(files);
+            const validation = handleValidateFileSizes(files);
             if (!validation.valid) {
                 setFileSizeError(validation.error || "One or more files exceed the maximum allowed size.");
                 if (event.target) {
@@ -126,7 +104,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         const files = event.dataTransfer.files;
         if (files && files.length > 0) {
             // Validate file sizes first
-            const validation = validateFileSizes(files);
+            const validation = handleValidateFileSizes(files);
             if (!validation.valid) {
                 setFileSizeError(validation.error || "One or more files exceed the maximum allowed size.");
                 return;
