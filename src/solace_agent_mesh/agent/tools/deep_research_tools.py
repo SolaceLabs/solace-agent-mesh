@@ -1,8 +1,7 @@
 """
 Deep Research Tools for Solace Agent Mesh
 
-Provides comprehensive, iterative research capabilities across multiple sources
-including web search, knowledge bases, Google Drive, and SharePoint.
+Provides comprehensive, iterative research capabilities using web search
 
 This module implements:
 - Iterative research with LLM-powered reflection and query refinement
@@ -26,7 +25,7 @@ from solace_ai_connector.common.log import log
 
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
-from .web_search_tools import _web_search_tavily, _web_search_google
+from .web_search_tools import _web_search_google
 from .web_tools import web_request
 from ...common import a2a
 from ...common.rag_dto import create_rag_source, create_rag_search_result
@@ -373,7 +372,11 @@ async def _search_web(
     tool_config: Optional[Dict[str, Any]],
     send_progress: bool = True
 ) -> List[SearchResult]:
-    """Search web using Google (default) or Tavily"""
+    """Search web using Google Custom Search API.
+    
+    Note: For other search providers (Tavily, Exa, Brave), use the corresponding
+    plugins from the solace-agent-mesh-plugins repository.
+    """
     log_identifier = "[DeepResearch:WebSearch]"
     
     if send_progress:
@@ -382,13 +385,11 @@ async def _search_web(
             tool_context
         )
     
-    # Try Google first (preferred for deep research)
-    # The web search functions will handle API key checking via tool_config or os.getenv
     try:
         log.info("%s Attempting Google search", log_identifier)
         result = await _web_search_google(
-                query=query,
-                max_results=max_results,
+            query=query,
+            max_results=max_results,
             tool_context=tool_context,
             tool_config=tool_config
         )
@@ -410,39 +411,9 @@ async def _search_web(
             log.info("%s Found %d Google results", log_identifier, len(search_results))
             return search_results
     except Exception as e:
-        log.warning("%s Google search failed: %s, trying Tavily fallback", log_identifier, str(e))
+        log.error("%s Google search failed: %s", log_identifier, str(e))
     
-    # Try Tavily as fallback
-    try:
-        log.info("%s Attempting Tavily search", log_identifier)
-        result = await _web_search_tavily(
-            query=query,
-            max_results=max_results,
-            search_depth="advanced",
-            tool_context=tool_context,
-            tool_config=tool_config
-        )
-        
-        if isinstance(result, dict) and result.get("result"):
-            result_data = json.loads(result["result"])
-            search_results = []
-            
-            for item in result_data.get("organic", []):
-                search_results.append(SearchResult(
-                    source_type="web",
-                    title=item.get("title", ""),
-                    content=item.get("snippet", ""),
-                    url=item.get("link", ""),
-                    relevance_score=0.9,
-                    metadata={"provider": "tavily"}
-                ))
-            
-            log.info("%s Found %d Tavily results", log_identifier, len(search_results))
-            return search_results
-    except Exception as e:
-        log.error("%s Tavily search also failed: %s", log_identifier, str(e))
-    
-    log.warning("%s No web search results available - both Google and Tavily failed or not configured", log_identifier)
+    log.warning("%s No web search results available - Google search failed or not configured", log_identifier)
     return []
 
 # TODO: will add other sources such as knowledgebases
@@ -1741,7 +1712,7 @@ Configuration:
                     type=adk_types.Type.STRING,
                     enum=["web", "kb"]
                 ),
-                description="Sources to search. Default from tool_config or ['web']. Web search requires Google or Tavily API keys.",
+                description="Sources to search. Default from tool_config or ['web']. Web search requires Google Custom Search API key (GOOGLE_API_KEY and GOOGLE_CSE_ID). For other search providers (Tavily, Exa, Brave), use the corresponding plugins from solace-agent-mesh-plugins.",
                 nullable=True
             ),
             "kb_ids": adk_types.Schema(
