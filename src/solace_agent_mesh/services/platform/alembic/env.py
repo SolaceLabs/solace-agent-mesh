@@ -11,7 +11,6 @@ config = context.config
 Base = declarative_base()
 
 # Import all models here to ensure they are registered with the Base
-# TODO: Import community platform models when they are created
 # Example:
 # from solace_agent_mesh.services.platform.models.example_model import ExampleModel
 
@@ -21,6 +20,8 @@ target_metadata = Base.metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
+
+SQLALCHEMY_URL_KEY = "sqlalchemy.url"
 
 
 def run_migrations_offline() -> None:
@@ -35,7 +36,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = config.get_main_option(SQLALCHEMY_URL_KEY)
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -55,15 +56,15 @@ def run_migrations_online() -> None:
 
     """
     # Get the database URL from the Alembic config
-    url = config.get_main_option("sqlalchemy.url")
+    url = config.get_main_option(SQLALCHEMY_URL_KEY)
     if not url:
         raise ValueError(
-            "Database URL is not set. Please set sqlalchemy.url in alembic.ini or via command line."
+            f"Database URL is not set. Please set {SQLALCHEMY_URL_KEY} in alembic.ini or via command line."
         )
 
     # Create a configuration dictionary for the engine
     # This ensures that the URL is correctly picked up by engine_from_config
-    engine_config = {"sqlalchemy.url": url}
+    engine_config = {SQLALCHEMY_URL_KEY: url}
 
     connectable = engine_from_config(
         engine_config,

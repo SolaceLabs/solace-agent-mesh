@@ -90,7 +90,7 @@ def _run_community_migrations(database_url: str) -> None:
             ) from migration_error
 
 
-def _run_enterprise_migrations(component: "PlatformServiceComponent", database_url: str) -> None:
+def _run_enterprise_migrations(database_url: str) -> None:
     """
     Run migrations for enterprise platform features.
     This is optional and only runs if the enterprise package is available.
@@ -105,7 +105,7 @@ def _run_enterprise_migrations(component: "PlatformServiceComponent", database_u
         log.info("Starting enterprise platform migrations...")
         run_migrations(database_url)
         log.info("Enterprise platform migrations completed")
-    except (ImportError, ModuleNotFoundError):
+    except ImportError:
         log.debug("Enterprise platform module not found - skipping enterprise migrations")
     except Exception as e:
         log.error("Enterprise platform migration failed: %s", e)
@@ -113,7 +113,7 @@ def _run_enterprise_migrations(component: "PlatformServiceComponent", database_u
         raise RuntimeError(f"Enterprise platform database migration failed: {e}") from e
 
 
-def _setup_database(component: "PlatformServiceComponent", database_url: str) -> None:
+def _setup_database(database_url: str) -> None:
     """
     Initialize database connection and run all required migrations.
     Sets up both community and enterprise platform database schemas.
@@ -135,7 +135,7 @@ def _setup_database(component: "PlatformServiceComponent", database_url: str) ->
 
     # MIGRATION PHASE 1: No community migrations yet - only enterprise migrations
     # _run_community_migrations(database_url)
-    _run_enterprise_migrations(component, database_url)
+    _run_enterprise_migrations(database_url)
 
 
 def setup_dependencies(component: "PlatformServiceComponent", database_url: str):
@@ -177,7 +177,7 @@ def setup_dependencies(component: "PlatformServiceComponent", database_url: str)
 
     # Initialize database and run migrations
     if database_url:
-        _setup_database(component, database_url)
+        _setup_database(database_url)
         log.info("Platform database initialized with migrations")
     else:
         log.warning("No database URL provided - platform service will not function")
@@ -249,10 +249,8 @@ def _setup_routers():
 
     # Try to load enterprise platform routers
     try:
-        # from solace_agent_mesh_enterprise.webui_backend.routers import get_platform_routers
         from solace_agent_mesh_enterprise.webui_backend.routers import get_enterprise_routers
 
-        # enterprise_routers = get_platform_routers()
         enterprise_routers = get_enterprise_routers()
         for router_config in enterprise_routers:
             app.include_router(
@@ -265,10 +263,6 @@ def _setup_routers():
     except ImportError:
         log.info(
             "No enterprise package detected - running in community mode (no platform endpoints available)"
-        )
-    except ModuleNotFoundError:
-        log.debug(
-            "Enterprise platform module not found - skipping enterprise platform routers"
         )
     except Exception as e:
         log.warning(f"Failed to load enterprise platform routers: {e}")
