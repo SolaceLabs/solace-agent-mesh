@@ -396,6 +396,7 @@ async def get_user_config(
     """
     log.debug(f"get_user_config called for user_id: {user_id}")
 
+    # TODO: DATAGO-114659-split-cleanup
     gateway_context = {}
     if getattr(component, "gateway_id", None):
         gateway_context = {
