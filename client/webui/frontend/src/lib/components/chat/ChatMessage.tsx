@@ -267,16 +267,30 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     const lastPartKind = groupedParts[lastPartIndex]?.kind;
 
     return (
-        <div key={message.metadata?.messageId} className="space-y-2">
+        <div key={message.metadata?.messageId} className="space-y-6">
             {/* Render parts in their original order to preserve interleaving */}
             {groupedParts.map((part, index) => {
                 const isLastPart = index === lastPartIndex;
 
                 if (part.kind === "text") {
+                    // Skip rendering empty or whitespace-only text parts
+                    const textContent = (part as TextPart).text;
+                    if (!textContent || !textContent.trim()) {
+                        // If this is the last part and it's empty, still render actions if needed
+                        if (isLastPart && (showWorkflowButton || showFeedbackActions)) {
+                            return (
+                                <div key={`part-${index}`} className={`flex ${message.isUser ? "justify-end pr-4" : "justify-start pl-4"}`}>
+                                    <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />
+                                </div>
+                            );
+                        }
+                        return null;
+                    }
+
                     return (
                         <ChatBubble key={`part-${index}`} variant={variant}>
                             <ChatBubbleMessage variant={variant}>
-                                <MessageContent message={{ ...message, parts: [{ kind: "text", text: (part as TextPart).text }] }} />
+                                <MessageContent message={{ ...message, parts: [{ kind: "text", text: textContent }] }} />
                                 {/* Show actions on the last part if it's text */}
                                 {isLastPart && <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />}
                             </ChatBubbleMessage>
