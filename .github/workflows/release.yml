@@ -26,7 +26,7 @@ permissions:
 jobs:
   # Run security checks first via reusable workflow
   security-checks:
-    if: ${{ inputs.skip_security_checks != 'true' }}
+    if: ${{ !fromJson(inputs.skip_security_checks) }}
     uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
     with:
       whitesource_project_name: "solace-agent-mesh"
