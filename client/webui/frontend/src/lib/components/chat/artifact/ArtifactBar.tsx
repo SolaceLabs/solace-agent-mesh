@@ -38,9 +38,26 @@ export interface ArtifactBarProps {
     source?: string; // Source of the artifact (e.g., "project")
 }
 
-export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description, mimeType, size, status, expandable = false, expanded = false, onToggleExpand, actions, bytesTransferred, error, expandedContent, context = "chat", isDeleted = false, version, source }) => {
+export const ArtifactBar: React.FC<ArtifactBarProps> = ({
+    filename,
+    description,
+    mimeType,
+    size,
+    status,
+    expandable = false,
+    expanded = false,
+    onToggleExpand,
+    actions,
+    bytesTransferred,
+    error,
+    expandedContent,
+    context = "chat",
+    isDeleted = false,
+    version,
+    source,
+}) => {
     const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
-    const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+    const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
 
     useEffect(() => {
         if (expandedContent) {
@@ -57,12 +74,12 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
     // Track dark mode changes
     useEffect(() => {
         const observer = new MutationObserver(() => {
-            setIsDarkMode(document.documentElement.classList.contains('dark'));
+            setIsDarkMode(document.documentElement.classList.contains("dark"));
         });
 
         observer.observe(document.documentElement, {
             attributes: true,
-            attributeFilter: ['class'],
+            attributeFilter: ["class"],
         });
 
         return () => observer.disconnect();
@@ -153,13 +170,9 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
     // Define shadow and background colors based on theme
     // Light mode: background-w10, shadow using secondary-w8040
     // Dark mode: background-wMain, shadow using primary-w90 (darker shadows)
-    const backgroundColor = isDarkMode ? 'var(--color-background-wMain)' : 'var(--color-background-w10)';
-    const restingShadow = isDarkMode
-        ? '0px 1px 4px 0px var(--color-primary-w90)'
-        : '0px 1px 4px 0px var(--color-secondary-w8040)';
-    const hoverShadow = isDarkMode
-        ? '0px 2px 8px 0px var(--color-primary-w90)'
-        : '0px 2px 8px 0px var(--color-secondary-w8040)';
+    const backgroundColor = isDarkMode ? "var(--color-background-wMain)" : "var(--color-background-w10)";
+    const restingShadow = isDarkMode ? "0px 1px 4px 0px var(--color-primary-w90)" : "0px 1px 4px 0px var(--color-secondary-w8040)";
+    const hoverShadow = isDarkMode ? "0px 2px 8px 0px var(--color-primary-w90)" : "0px 2px 8px 0px var(--color-secondary-w8040)";
 
     // Determine if this artifact is clickable
     const isClickable = status === "completed" && actions?.onPreview && !isDeleted;
@@ -172,14 +185,14 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
             style={{
                 backgroundColor,
                 boxShadow: showShadow ? restingShadow : undefined,
-                borderRadius: context === "list" ? undefined : '4px',
+                borderRadius: context === "list" ? undefined : "4px",
             }}
-            onMouseEnter={(e) => {
+            onMouseEnter={e => {
                 if (isClickable) {
                     e.currentTarget.style.boxShadow = hoverShadow;
                 }
             }}
-            onMouseLeave={(e) => {
+            onMouseLeave={e => {
                 if (isClickable) {
                     e.currentTarget.style.boxShadow = restingShadow;
                 }
@@ -199,10 +212,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                         </div>
                         {/* Project badge */}
                         {source === "project" && (
-                            <Badge
-                                variant="outline"
-                                className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm"
-                            >
+                            <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary px-2 py-0.5 text-xs font-semibold shadow-sm">
                                 Project
                             </Badge>
                         )}
