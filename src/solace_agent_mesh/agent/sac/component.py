@@ -106,6 +106,7 @@ info = {
 }
 InstructionProvider = Callable[[ReadonlyContext], str]
 
+
 class SamAgentComponent(SamComponentBase):
     """
     A Solace AI Connector component that hosts a Google ADK agent,
@@ -130,7 +131,11 @@ class SamAgentComponent(SamComponentBase):
 
         super().__init__(info, **kwargs)
         self.agent_name = self.get_config("agent_name")
-        log.info("%s Initializing agent: %s (A2A ADK Host Component)...", self.log_identifier, self.agent_name)
+        log.info(
+            "%s Initializing agent: %s (A2A ADK Host Component)...",
+            self.log_identifier,
+            self.agent_name,
+        )
 
         # Initialize the agent registry for health tracking
         self.agent_registry = AgentRegistry()
@@ -989,7 +994,9 @@ class SamAgentComponent(SamComponentBase):
                     peer_tools_to_add.append(peer_tool_instance)
                     # Get enhanced description from the tool instance
                     # which includes capabilities, skills, and tools
-                    enhanced_desc = peer_tool_instance._build_enhanced_description(agent_card)
+                    enhanced_desc = peer_tool_instance._build_enhanced_description(
+                        agent_card
+                    )
                     allowed_peer_descriptions.append(
                         f"\n### `peer_{peer_name}`\n{enhanced_desc}"
                     )
@@ -1010,7 +1017,7 @@ class SamAgentComponent(SamComponentBase):
                 "- Use the `peer_<agent_name>(task_description: str)` tool for delegation\n"
                 "- Replace `<agent_name>` with the actual name of the target agent\n"
                 "- Provide a clear and detailed `task_description` for the peer agent\n"
-                "- **Important:** The peer agent may not have access to your session history, "
+                "- **Important:** The peer agent does not have access to your session history, "
                 "so you must provide all required context necessary to fulfill the request\n\n"
                 "## Available Peer Agents\n"
                 f"{peer_list_str}"
@@ -1720,8 +1727,13 @@ class SamAgentComponent(SamComponentBase):
         is_final_turn_event = not adk_event.partial
 
         try:
-            from solace_agent_mesh_enterprise.auth.tool_auth import handle_tool_auth_event
-            auth_status_update = await handle_tool_auth_event(adk_event, self, a2a_context)
+            from solace_agent_mesh_enterprise.auth.tool_auth import (
+                handle_tool_auth_event,
+            )
+
+            auth_status_update = await handle_tool_auth_event(
+                adk_event, self, a2a_context
+            )
             if auth_status_update:
                 await self._publish_status_update_with_buffer_flush(
                     auth_status_update,
@@ -2772,7 +2784,9 @@ class SamAgentComponent(SamComponentBase):
                     with self.active_tasks_lock:
                         task_context = self.active_tasks.get(logical_task_id)
                         if task_context:
-                            original_message = task_context.get_original_solace_message()
+                            original_message = (
+                                task_context.get_original_solace_message()
+                            )
 
                     if original_message:
                         try:
@@ -3595,8 +3609,8 @@ class SamAgentComponent(SamComponentBase):
         """
         try:
             publish_interval_sec = self.agent_card_publishing_config.get(
-                    "interval_seconds"
-                )
+                "interval_seconds"
+            )
             if publish_interval_sec and publish_interval_sec > 0:
                 log.info(
                     "%s Scheduling agent card publishing every %d seconds.",
