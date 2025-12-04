@@ -159,8 +159,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
 
     // Notification Helper
-    // Note: "error" type is deprecated in favor of useErrorDialog
-    const addNotification = useCallback((message: string, type?: "success" | "info" | "error") => {
+    const addNotification = useCallback((message: string, type?: "success" | "info" | "warning") => {
         setNotifications(prev => {
             const existingNotification = prev.find(n => n.message === message);
 
