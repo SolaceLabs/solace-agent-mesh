@@ -397,7 +397,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                             mimeType: mimeType,
                         });
                     } else {
-                        throw new Error(result?.error || "An unknown upload error occurred.");
+                        const errorDetail = result && "error" in result ? result.error : "An unknown upload error occurred.";
+                        throw new Error(errorDetail);
                     }
                 } catch (error) {
                     displayError({ title: "Failed to Save Pasted Text", error: getErrorMessage(error) });
