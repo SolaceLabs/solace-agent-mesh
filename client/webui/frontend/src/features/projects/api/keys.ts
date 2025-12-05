@@ -10,7 +10,7 @@ export const projects = createQueryKeys("projects", {
     sessions: (projectId: string) => ({ queryKey: [projectId] }),
 
     artifacts: (projectId: string) => ({
-        queryKey: [projectId, "artifacts"],
+        queryKey: [projectId],
         contextQueries: {
             create: { queryKey: null },
             update: (filename: string) => ({ queryKey: [filename] }),
