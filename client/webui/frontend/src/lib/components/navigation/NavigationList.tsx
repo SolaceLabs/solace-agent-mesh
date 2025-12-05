@@ -95,7 +95,7 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                                     actions={[
                                         {
                                             id: "logout",
-                                            label: "Logout",
+                                            label: "Log Out",
                                             icon: <LogOut />,
                                             onClick: handleLogoutClick,
                                             divider: true,

@@ -24,7 +24,7 @@ const meta = {
             },
         },
         authContext: {
-            userInfo: { username: "Story User" },
+            userInfo: { username: "Story Username" },
         },
     },
     decorators: [
@@ -167,8 +167,9 @@ export const Logout = {
         await userEvent.click(menu);
         await within(document.body).findByRole("menuitem", { name: "Settings" });
 
-        // Verify Logout menu item
-        const logoutButton = await within(document.body).findByRole("menuitem", { name: "Logout" });
+        // Verify user name  and logout menu item
+        await within(document.body).findByText("Story Username");
+        const logoutButton = await within(document.body).findByRole("menuitem", { name: "Log Out" });
         await expect(logoutButton).toBeInTheDocument();
     },
 };
@@ -203,7 +204,7 @@ export const All = {
         await userEvent.click(menu);
 
         // Verify Logout and Settings menu items
-        await within(document.body).findByRole("menuitem", { name: "Logout" });
+        await within(document.body).findByRole("menuitem", { name: "Log Out" });
         const settingsButton = await within(document.body).findByRole("menuitem", { name: "Settings" });
         await expect(settingsButton).toBeInTheDocument();
         await userEvent.click(settingsButton);
