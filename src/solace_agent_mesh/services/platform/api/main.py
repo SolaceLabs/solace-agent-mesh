@@ -307,94 +307,10 @@ def _setup_routers():
 @app.get("/health", tags=["Health"])
 async def health_check():
     """
-    Basic health check endpoint (liveness probe).
-
-    Verifies the service process is running and FastAPI is responding.
-    Use this for Kubernetes liveness probe.
+    Platform Service health check endpoint.
 
     Returns:
         Dictionary with status and service name.
     """
     log.debug("Health check endpoint '/health' called")
     return {"status": "healthy", "service": "Platform Service"}
-
-
-@app.get("/health/ready", tags=["Health"])
-async def readiness_check():
-    """
-    Readiness probe endpoint.
-
-    Checks if Platform Service is ready to accept traffic:
-    - Database connection working
-    - Direct publisher initialized
-    - Enterprise routers loaded (if enterprise available)
-
-    Use this for Kubernetes readiness probe.
-
-    Returns:
-        Dictionary with detailed readiness status
-
-    Raises:
-        HTTPException: 503 if service is not ready
-    """
-    from fastapi import HTTPException, status as http_status
-    from . import dependencies
-
-    checks = {
-        "service": "Platform Service",
-        "status": "ready",
-        "checks": {}
-    }
-
-    # Check database connectivity
-    try:
-        if dependencies.PlatformSessionLocal is not None:
-            db = dependencies.PlatformSessionLocal()
-            db.execute("SELECT 1")
-            db.close()
-            checks["checks"]["database"] = "connected"
-        else:
-            checks["checks"]["database"] = "not_configured"
-    except Exception as e:
-        checks["status"] = "not_ready"
-        checks["checks"]["database"] = f"error: {str(e)}"
-
-    # Check direct publisher
-    try:
-        component = dependencies.platform_component_instance
-        if component and component.direct_publisher:
-            checks["checks"]["direct_publisher"] = "initialized"
-        else:
-            checks["checks"]["direct_publisher"] = "not_initialized"
-    except Exception as e:
-        checks["checks"]["direct_publisher"] = f"error: {str(e)}"
-
-    # Check enterprise routers loaded
-    try:
-        import solace_agent_mesh_enterprise
-        checks["checks"]["enterprise_package"] = "loaded"
-    except ImportError:
-        checks["checks"]["enterprise_package"] = "not_available"
-
-    # Return 503 if not ready
-    if checks["status"] == "not_ready":
-        raise HTTPException(
-            status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=checks
-        )
-
-    return checks
-
-
-@app.get("/health/live", tags=["Health"])
-async def liveness_check():
-    """
-    Liveness probe endpoint (alias for /health).
-
-    Simple check that service is running.
-    Use this for Kubernetes liveness probe.
-
-    Returns:
-        Dictionary with status
-    """
-    return {"status": "alive", "service": "Platform Service"}
