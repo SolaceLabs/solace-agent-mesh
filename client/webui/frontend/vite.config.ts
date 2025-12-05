@@ -46,8 +46,8 @@ export default defineConfig(({ mode }) => {
     const backendPort = env.VITE_BACKEND_PORT || process.env.FASTAPI_PORT || "8000";
     const backendTarget = `http://localhost:${backendPort}`;
 
-    const enterprisePort = env.VITE_ENTERPRISE_PORT || "8001";
-    const enterpriseTarget = `http://localhost:${enterprisePort}`;
+    const platformPort = env.VITE_PLATFORM_PORT || "8001";
+    const platformTarget = `http://localhost:${platformPort}`;
 
     return {
         plugins: [react(), tailwindcss(), generateVersionMetadata()],
@@ -73,10 +73,10 @@ export default defineConfig(({ mode }) => {
         },
         server: {
             proxy: {
-                // IMPORTANT: Enterprise endpoints must come first for specificity
+                // IMPORTANT: Platform Service endpoints must come first for specificity
                 // More specific routes must be defined before general routes
                 "/api/v1/enterprise": {
-                    target: enterpriseTarget,
+                    target: platformTarget,
                     changeOrigin: true,
                     secure: false,
                 },
