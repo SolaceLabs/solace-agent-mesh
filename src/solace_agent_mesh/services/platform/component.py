@@ -7,7 +7,7 @@ import logging
 import threading
 
 import uvicorn
-from solace_ai_connector.components.component_base import ComponentBase
+from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
 from solace_agent_mesh.common.middleware.config_resolver import ConfigResolver
 
 log = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ info = {
 }
 
 
-class PlatformServiceComponent(ComponentBase):
+class PlatformServiceComponent(SamComponentBase):
     """
     Platform Service Component - Management plane for SAM platform.
 

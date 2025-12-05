@@ -81,6 +81,13 @@ class PlatformServiceApp(App):
             "description": "Enable OAuth2 token validation. Set to false for development mode.",
         },
         {
+            "name": "max_message_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": 10000000,
+            "description": "Maximum message size in bytes for A2A messages (default: 10MB).",
+        },
+        {
             "name": "deployment_timeout_minutes",
             "required": False,
             "type": "integer",
