@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
 import { useConfigContext } from "./useConfigContext";
 
 interface UseSpeechToTextOptions {
@@ -236,24 +236,21 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
     const startExternalRecording = useCallback(async () => {
         // Check if external STT is configured
         try {
-            const configResponse = await authenticatedFetch(`${configServerUrl}/api/v1/speech/config`);
-            if (configResponse.ok) {
-                const config = await configResponse.json();
+            const config = await fetchJsonWithError(`${configServerUrl}/api/v1/speech/config`);
 
-                if (!config.sttExternal) {
-                    // Auto-switch to browser mode
-                    updateSetting("engineSTT", "browser");
+            if (!config.sttExternal) {
+                // Auto-switch to browser mode
+                updateSetting("engineSTT", "browser");
 
-                    const errorMsg = "External STT is not configured. Switched to Browser mode. Please click the microphone button again.";
-                    setError(errorMsg);
-                    onError?.(errorMsg);
+                const errorMsg = "External STT is not configured. Switched to Browser mode. Please click the microphone button again.";
+                setError(errorMsg);
+                onError?.(errorMsg);
 
-                    // Don't try to start recording - user needs to click again
-                    return;
-                }
+                // Don't try to start recording - user needs to click again
+                return;
             }
-        } catch {
-            const errorMsg = "Failed to check STT configuration. Please try again.";
+        } catch (error) {
+            const errorMsg = `Failed to check STT configuration: ${getErrorMessage(error, "Please try again.")}`;
             setError(errorMsg);
             onError?.(errorMsg);
             return;
@@ -300,37 +297,10 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                         formData.append("language", settings.languageSTT);
                     }
 
-                    const response = await authenticatedFetch(`${configServerUrl}/api/v1/speech/stt`, {
+                    const response = await fetchWithError(`${configServerUrl}/api/v1/speech/stt`, {
                         method: "POST",
                         body: formData,
                     });
-
-                    if (!response.ok) {
-                        const errorText = await response.text();
-
-                        // Try to parse error message from backend for all error codes
-                        let backendMessage = "";
-                        try {
-                            const errorData = JSON.parse(errorText);
-                            backendMessage = errorData.message || errorData.detail || "";
-                        } catch (parseError) {
-                            // Parsing failed, will use generic message
-                            console.error("[useSpeechToText] Failed to parse error response:", parseError);
-                        }
-
-                        // Show backend error message if available
-                        if (backendMessage) {
-                            throw new Error(backendMessage);
-                        }
-
-                        // Fallback to generic message
-                        if (response.status === 500) {
-                            const providerName = settings.sttProvider === "azure" ? "Azure Speech" : "OpenAI Whisper";
-                            throw new Error(`External STT failed (${providerName}). Please check your webui.yaml configuration or switch to Browser mode in settings.`);
-                        }
-
-                        throw new Error(`Transcription failed: ${response.statusText}`);
-                    }
 
                     const result = await response.json();
                     const transcribedText = result.text || "";
@@ -357,7 +327,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
             onError?.(errorMsg);
             cleanup();
         }
-    }, [settings.sttProvider, onTranscriptionComplete, onError, cleanup, updateSetting]);
+    }, [settings.sttProvider, settings.languageSTT, configServerUrl, onTranscriptionComplete, onError, cleanup, updateSetting]);
 
     const stopExternalRecording = useCallback(async () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
