@@ -74,6 +74,72 @@ class PeerAgentTool(BaseTool):
         """Safely retrieves the AgentCard for the target peer."""
         return self.host_component.peer_agents.get(self.target_agent_name)
 
+    def _build_enhanced_description(self, agent_card: AgentCard) -> str:
+        """
+        Builds an enhanced description including skills.
+        Returns a structured, markdown-formatted description with:
+        - Base description
+        - Skills section (if skills are available)
+        - Summary format (counts + skill names, up to 8 skills before truncation)
+        - Soft limit of ~500 chars (allows overflow to ~600 for important info)
+
+        Args:
+            agent_card: The AgentCard to extract information from
+
+        Returns:
+            Enhanced description string with markdown formatting
+        """
+        # Start with base description - ensure it's clean (no extra whitespace)
+        base_desc = agent_card.description or f"Interact with the {self.target_agent_name} agent."
+        base_desc = " ".join(base_desc.split())  # Normalize whitespace
+
+        # Extract skills information
+        if agent_card.skills and len(agent_card.skills) > 0:
+            skill_count = len(agent_card.skills)
+            # Get first 8 skill names
+            max_skills_to_show = 8
+            skill_names = []
+            for skill in agent_card.skills[:max_skills_to_show]:
+                # Prefer name, fallback to id
+                skill_name = getattr(skill, 'name', None) or getattr(skill, 'id', None)
+                if skill_name:
+                    skill_names.append(skill_name)
+
+            skills_str = ", ".join(skill_names)
+            # Add truncation indicator with count if there are more skills
+            if skill_count > max_skills_to_show:
+                remaining = skill_count - max_skills_to_show
+                skills_str += f" ({remaining} more...)"
+
+            # Include skill count in the header
+            if skill_count > 1:
+                enhanced_desc = f"{base_desc}\n\n**Skills ({skill_count}):** {skills_str}"
+            else:
+                enhanced_desc = f"{base_desc}\n\n**Skills:** {skills_str}"
+
+            # Check length and truncate if needed (soft limit ~600 chars)
+            if len(enhanced_desc) > 600:
+                # Truncate to first 4 skills to keep it concise
+                skill_names = []
+                for skill in agent_card.skills[:4]:
+                    skill_name = getattr(skill, 'name', None) or getattr(skill, 'id', None)
+                    if skill_name:
+                        skill_names.append(skill_name)
+                skills_str = ", ".join(skill_names)
+                if skill_count > 4:
+                    remaining = skill_count - 4
+                    skills_str += f" ({remaining} more...)"
+
+                if skill_count > 1:
+                    enhanced_desc = f"{base_desc}\n\n**Skills ({skill_count}):** {skills_str}"
+                else:
+                    enhanced_desc = f"{base_desc}\n\n**Skills:** {skills_str}"
+        else:
+            # No skills - just return base description
+            enhanced_desc = base_desc
+
+        return enhanced_desc
+
     def _get_declaration(self) -> Optional[adk_types.FunctionDeclaration]:
         """
         Dynamically generates the FunctionDeclaration based on the peer's AgentCard.
@@ -88,10 +154,8 @@ class PeerAgentTool(BaseTool):
             )
             return None
 
-        self.description = (
-            agent_card.description
-            or f"Interact with the {self.target_agent_name} agent."
-        )
+        # Use enhanced description with capabilities information
+        self.description = self._build_enhanced_description(agent_card)
 
         parameters_schema = adk_types.Schema(
             type=adk_types.Type.OBJECT,
@@ -99,10 +163,6 @@ class PeerAgentTool(BaseTool):
                 "task_description": adk_types.Schema(
                     type=adk_types.Type.STRING,
                     description="Detailed description of the task for the peer agent.",
-                ),
-                "user_query": adk_types.Schema(
-                    type=adk_types.Type.STRING,
-                    description="The original user query or relevant context.",
                 ),
                 "artifacts": adk_types.Schema(
                     type=adk_types.Type.ARRAY,

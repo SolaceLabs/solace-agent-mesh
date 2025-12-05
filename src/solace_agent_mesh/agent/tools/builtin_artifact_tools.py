@@ -1927,7 +1927,11 @@ def _perform_single_replacement(
 
             # Check for multiple matches without global flag (only in strict mode for batch operations)
             if strict_match_validation and match_count > 1 and not global_replace:
-                return content, match_count, f"Multiple matches found ({match_count}) but global flag 'g' not set"
+                return (
+                    content,
+                    match_count,
+                    f"Multiple matches found ({match_count}) but global flag 'g' not set",
+                )
 
             # Perform replacement
             count_limit = 0 if global_replace else 1
@@ -1967,6 +1971,20 @@ async def artifact_search_and_replace_regex(
     literal string matching or regular expressions. Note that this is run once across the entire artifact.
     If multiple replacements are needed, then set the 'g' flag in regexp_flags.
 
+    Handling Multi-line Search and Replace:
+
+        When searching for or replacing text that spans multiple lines:
+
+        - In literal mode (is_regexp=false): Include actual newline characters directly in your search_expression
+        and replace_expression parameters. Do NOT use escape sequences like \n - the tool will search for those
+        literal characters. Multi-line parameter values are fully supported in the XML parameter format.
+
+        - In regex mode (is_regexp=true): Use the regex pattern \n to match newline characters in your pattern.
+
+    For multiple independent replacements:
+
+        Use the replacements array parameter to perform all replacements atomically in a single tool call, which is more efficient than multiple sequential calls.
+
     Args:
         filename: The name of the artifact to search/replace in.
         search_expression: The pattern to search for (regex if is_regexp=true, literal otherwise).
@@ -1995,14 +2013,18 @@ async def artifact_search_and_replace_regex(
     log.debug("%s Processing request.", log_identifier)
 
     # Validate parameter combinations
-    if replacements is not None and (search_expression is not None or replace_expression is not None):
+    if replacements is not None and (
+        search_expression is not None or replace_expression is not None
+    ):
         return {
             "status": "error",
             "filename": filename,
             "message": "Cannot provide both 'replacements' array and individual 'search_expression'/'replace_expression'. Use one or the other.",
         }
 
-    if replacements is None and (search_expression is None or replace_expression is None):
+    if replacements is None and (
+        search_expression is None or replace_expression is None
+    ):
         return {
             "status": "error",
             "filename": filename,
@@ -2120,7 +2142,7 @@ async def artifact_search_and_replace_regex(
             log.info(
                 "%s Processing batch of %d replacements.",
                 log_identifier,
-                len(replacements)
+                len(replacements),
             )
 
             current_content = original_content
@@ -2141,7 +2163,7 @@ async def artifact_search_and_replace_regex(
                     is_regex,
                     regex_flags,
                     log_identifier,
-                    strict_match_validation=True
+                    strict_match_validation=True,
                 )
 
                 if error_msg:
@@ -2150,7 +2172,7 @@ async def artifact_search_and_replace_regex(
                         "%s Batch replacement failed at index %d: %s",
                         log_identifier,
                         idx,
-                        error_msg
+                        error_msg,
                     )
 
                     # Mark all as skipped
@@ -2159,16 +2181,18 @@ async def artifact_search_and_replace_regex(
                             "search": repl["search"],
                             "match_count": match_count,
                             "status": "error",
-                            "error": error_msg
+                            "error": error_msg,
                         }
                     ]
                     # Add remaining as skipped
                     for i in range(idx + 1, len(replacements)):
-                        all_results.append({
-                            "search": replacements[i]["search"],
-                            "match_count": 0,
-                            "status": "skipped"
-                        })
+                        all_results.append(
+                            {
+                                "search": replacements[i]["search"],
+                                "match_count": 0,
+                                "status": "skipped",
+                            }
+                        )
 
                     return {
                         "status": "error",
@@ -2179,25 +2203,27 @@ async def artifact_search_and_replace_regex(
                         "failed_replacement": {
                             "index": idx,
                             "search": search_expr,
-                            "error": error_msg
-                        }
+                            "error": error_msg,
+                        },
                     }
 
                 # Success - update state and continue
                 current_content = new_content
                 total_matches += match_count
-                replacement_results.append({
-                    "search": search_expr,
-                    "match_count": match_count,
-                    "status": "success"
-                })
+                replacement_results.append(
+                    {
+                        "search": search_expr,
+                        "match_count": match_count,
+                        "status": "success",
+                    }
+                )
 
                 log.debug(
                     "%s Replacement %d/%d succeeded: %d matches",
                     log_identifier,
                     idx + 1,
                     len(replacements),
-                    match_count
+                    match_count,
                 )
 
             # All replacements succeeded
@@ -2208,7 +2234,7 @@ async def artifact_search_and_replace_regex(
                 "%s Batch replacement succeeded: %d operations, %d total matches",
                 log_identifier,
                 total_replacements,
-                total_matches
+                total_matches,
             )
 
         else:
@@ -2219,7 +2245,7 @@ async def artifact_search_and_replace_regex(
                 replace_expression,
                 is_regexp,
                 regexp_flags,
-                log_identifier
+                log_identifier,
             )
 
             if error_msg:
@@ -2344,13 +2370,13 @@ async def artifact_search_and_replace_regex(
                 "total_replacements": total_replacements,
                 "replacement_results": replacement_results,
                 "total_matches": total_matches,
-                "message": f"Batch replacement completed: {total_replacements} operations, {total_matches} total matches"
+                "message": f"Batch replacement completed: {total_replacements} operations, {total_matches} total matches",
             }
         else:
             # Compute replacements_made for backward compatibility
             # For literal replacements, all matches are replaced
             # For regex without 'g' flag, only first match is replaced
-            global_replace = 'g' in (regexp_flags or '')
+            global_replace = "g" in (regexp_flags or "")
             replacements_made = (
                 match_count if not is_regexp or global_replace else min(match_count, 1)
             )

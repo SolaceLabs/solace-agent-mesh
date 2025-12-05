@@ -189,38 +189,54 @@ async def get_all_prompt_groups(
         # Fetch production prompts for each group
         result = []
         for group in groups:
-            group_dict = {
-                "id": group.id,
-                "name": group.name,
-                "description": group.description,
-                "category": group.category,
-                "command": group.command,
-                "user_id": group.user_id,
-                "author_name": group.author_name,
-                "production_prompt_id": group.production_prompt_id,
-                "is_shared": group.is_shared,
-                "is_pinned": group.is_pinned,
-                "created_at": group.created_at,
-                "updated_at": group.updated_at,
-                "production_prompt": None,
-            }
-            
-            if group.production_prompt_id:
-                prod_prompt = db.query(PromptModel).filter(
-                    PromptModel.id == group.production_prompt_id
-                ).first()
-                if prod_prompt:
-                    group_dict["production_prompt"] = {
-                        "id": prod_prompt.id,
-                        "prompt_text": prod_prompt.prompt_text,
-                        "group_id": prod_prompt.group_id,
-                        "user_id": prod_prompt.user_id,
-                        "version": prod_prompt.version,
-                        "created_at": prod_prompt.created_at,
-                        "updated_at": prod_prompt.updated_at,
-                    }
-            
-            result.append(PromptGroupResponse(**group_dict))
+            try:
+                # Truncate fields that exceed max length to prevent validation errors
+                name = group.name[:255] if group.name and len(group.name) > 255 else group.name
+                description = group.description[:1000] if group.description and len(group.description) > 1000 else group.description
+                category = group.category[:100] if group.category and len(group.category) > 100 else group.category
+                command = group.command[:50] if group.command and len(group.command) > 50 else group.command
+                author_name = group.author_name[:255] if group.author_name and len(group.author_name) > 255 else group.author_name
+                
+                group_dict = {
+                    "id": group.id,
+                    "name": name,
+                    "description": description,
+                    "category": category,
+                    "command": command,
+                    "user_id": group.user_id,
+                    "author_name": author_name,
+                    "production_prompt_id": group.production_prompt_id,
+                    "is_shared": group.is_shared,
+                    "is_pinned": group.is_pinned,
+                    "created_at": group.created_at,
+                    "updated_at": group.updated_at,
+                    "production_prompt": None,
+                }
+                
+                if group.production_prompt_id:
+                    prod_prompt = db.query(PromptModel).filter(
+                        PromptModel.id == group.production_prompt_id
+                    ).first()
+                    if prod_prompt:
+                        group_dict["production_prompt"] = {
+                            "id": prod_prompt.id,
+                            "prompt_text": prod_prompt.prompt_text,
+                            "group_id": prod_prompt.group_id,
+                            "user_id": prod_prompt.user_id,
+                            "version": prod_prompt.version,
+                            "name": prod_prompt.name,
+                            "description": prod_prompt.description,
+                            "category": prod_prompt.category,
+                            "command": prod_prompt.command,
+                            "created_at": prod_prompt.created_at,
+                            "updated_at": prod_prompt.updated_at,
+                        }
+                
+                result.append(PromptGroupResponse(**group_dict))
+            except Exception as e:
+                # Log the error but continue processing other groups
+                log.warning(f"Skipping invalid prompt group {group.id}: {e}")
+                continue
         
         return result
     except Exception as e:
@@ -282,38 +298,54 @@ async def list_prompt_groups(
         # Fetch production prompts for each group
         result_groups = []
         for group in groups:
-            group_dict = {
-                "id": group.id,
-                "name": group.name,
-                "description": group.description,
-                "category": group.category,
-                "command": group.command,
-                "user_id": group.user_id,
-                "author_name": group.author_name,
-                "production_prompt_id": group.production_prompt_id,
-                "is_shared": group.is_shared,
-                "is_pinned": group.is_pinned,
-                "created_at": group.created_at,
-                "updated_at": group.updated_at,
-                "production_prompt": None,
-            }
-            
-            if group.production_prompt_id:
-                prod_prompt = db.query(PromptModel).filter(
-                    PromptModel.id == group.production_prompt_id
-                ).first()
-                if prod_prompt:
-                    group_dict["production_prompt"] = {
-                        "id": prod_prompt.id,
-                        "prompt_text": prod_prompt.prompt_text,
-                        "group_id": prod_prompt.group_id,
-                        "user_id": prod_prompt.user_id,
-                        "version": prod_prompt.version,
-                        "created_at": prod_prompt.created_at,
-                        "updated_at": prod_prompt.updated_at,
-                    }
-            
-            result_groups.append(PromptGroupResponse(**group_dict))
+            try:
+                # Truncate fields that exceed max length to prevent validation errors
+                name = group.name[:255] if group.name and len(group.name) > 255 else group.name
+                description = group.description[:1000] if group.description and len(group.description) > 1000 else group.description
+                category = group.category[:100] if group.category and len(group.category) > 100 else group.category
+                command = group.command[:50] if group.command and len(group.command) > 50 else group.command
+                author_name = group.author_name[:255] if group.author_name and len(group.author_name) > 255 else group.author_name
+                
+                group_dict = {
+                    "id": group.id,
+                    "name": name,
+                    "description": description,
+                    "category": category,
+                    "command": command,
+                    "user_id": group.user_id,
+                    "author_name": author_name,
+                    "production_prompt_id": group.production_prompt_id,
+                    "is_shared": group.is_shared,
+                    "is_pinned": group.is_pinned,
+                    "created_at": group.created_at,
+                    "updated_at": group.updated_at,
+                    "production_prompt": None,
+                }
+                
+                if group.production_prompt_id:
+                    prod_prompt = db.query(PromptModel).filter(
+                        PromptModel.id == group.production_prompt_id
+                    ).first()
+                    if prod_prompt:
+                        group_dict["production_prompt"] = {
+                            "id": prod_prompt.id,
+                            "prompt_text": prod_prompt.prompt_text,
+                            "group_id": prod_prompt.group_id,
+                            "user_id": prod_prompt.user_id,
+                            "version": prod_prompt.version,
+                            "name": prod_prompt.name,
+                            "description": prod_prompt.description,
+                            "category": prod_prompt.category,
+                            "command": prod_prompt.command,
+                            "created_at": prod_prompt.created_at,
+                            "updated_at": prod_prompt.updated_at,
+                        }
+                
+                result_groups.append(PromptGroupResponse(**group_dict))
+            except Exception as e:
+                # Log the error but continue processing other groups
+                log.warning(f"Skipping invalid prompt group {group.id}: {e}")
+                continue
         
         return PromptGroupListResponse(
             groups=result_groups,
@@ -378,6 +410,10 @@ async def get_prompt_group(
                     "group_id": prod_prompt.group_id,
                     "user_id": prod_prompt.user_id,
                     "version": prod_prompt.version,
+                    "name": prod_prompt.name,
+                    "description": prod_prompt.description,
+                    "category": prod_prompt.category,
+                    "command": prod_prompt.command,
                     "created_at": prod_prompt.created_at,
                     "updated_at": prod_prompt.updated_at,
                 }
@@ -439,11 +475,15 @@ async def create_prompt_group(
         db.add(new_group)
         db.flush()
         
-        # Create initial prompt
+        # Create initial prompt with versioned metadata
         prompt_id = str(uuid.uuid4())
         new_prompt = PromptModel(
             id=prompt_id,
             prompt_text=group_data.initial_prompt,
+            name=group_data.name,
+            description=group_data.description,
+            category=group_data.category,
+            command=group_data.command,
             group_id=group_id,
             user_id=user_id,
             version=1,
@@ -480,6 +520,10 @@ async def create_prompt_group(
                 group_id=new_prompt.group_id,
                 user_id=new_prompt.user_id,
                 version=new_prompt.version,
+                name=new_prompt.name,
+                description=new_prompt.description,
+                category=new_prompt.category,
+                command=new_prompt.command,
                 created_at=new_prompt.created_at,
                 updated_at=new_prompt.updated_at,
             ),
@@ -551,9 +595,14 @@ async def update_prompt_group(
             prompt_id = str(uuid.uuid4())
             now_ms = now_epoch_ms()
             
+            # Create new prompt version with current metadata
             new_prompt = PromptModel(
                 id=prompt_id,
                 prompt_text=group_data.initial_prompt,
+                name=group_data.name if group_data.name else group.name,
+                description=group_data.description if group_data.description is not None else group.description,
+                category=group_data.category if group_data.category is not None else group.category,
+                command=group_data.command if group_data.command is not None else group.command,
                 group_id=group_id,
                 user_id=user_id,
                 version=next_version,
@@ -599,6 +648,10 @@ async def update_prompt_group(
                     "group_id": prod_prompt.group_id,
                     "user_id": prod_prompt.user_id,
                     "version": prod_prompt.version,
+                    "name": prod_prompt.name,
+                    "description": prod_prompt.description,
+                    "category": prod_prompt.category,
+                    "command": prod_prompt.command,
                     "created_at": prod_prompt.created_at,
                     "updated_at": prod_prompt.updated_at,
                 }
@@ -673,6 +726,10 @@ async def toggle_pin_prompt(
                     "group_id": prod_prompt.group_id,
                     "user_id": prod_prompt.user_id,
                     "version": prod_prompt.version,
+                    "name": prod_prompt.name,
+                    "description": prod_prompt.description,
+                    "category": prod_prompt.category,
+                    "command": prod_prompt.command,
                     "created_at": prod_prompt.created_at,
                     "updated_at": prod_prompt.updated_at,
                 }
@@ -766,6 +823,10 @@ async def list_prompts_in_group(
                 group_id=p.group_id,
                 user_id=p.user_id,
                 version=p.version,
+                name=p.name,
+                description=p.description,
+                category=p.category,
+                command=p.command,
                 created_at=p.created_at,
                 updated_at=p.updated_at,
             )
@@ -815,9 +876,14 @@ async def create_prompt_version(
         prompt_id = str(uuid.uuid4())
         now_ms = now_epoch_ms()
         
+        # Get current group metadata for the new version
         new_prompt = PromptModel(
             id=prompt_id,
             prompt_text=prompt_data.prompt_text,
+            name=group.name,
+            description=group.description,
+            category=group.category,
+            command=group.command,
             group_id=group_id,
             user_id=user_id,
             version=next_version,
@@ -834,6 +900,10 @@ async def create_prompt_version(
             group_id=new_prompt.group_id,
             user_id=new_prompt.user_id,
             version=new_prompt.version,
+            name=new_prompt.name,
+            description=new_prompt.description,
+            category=new_prompt.category,
+            command=new_prompt.command,
             created_at=new_prompt.created_at,
             updated_at=new_prompt.updated_at,
         )
@@ -885,6 +955,10 @@ async def update_prompt(
             group_id=prompt.group_id,
             user_id=prompt.user_id,
             version=prompt.version,
+            name=prompt.name,
+            description=prompt.description,
+            category=prompt.category,
+            command=prompt.command,
             created_at=prompt.created_at,
             updated_at=prompt.updated_at,
         )
@@ -939,6 +1013,10 @@ async def make_prompt_production(
             group_id=prompt.group_id,
             user_id=prompt.user_id,
             version=prompt.version,
+            name=prompt.name,
+            description=prompt.description,
+            category=prompt.category,
+            command=prompt.command,
             created_at=prompt.created_at,
             updated_at=prompt.updated_at,
         )
@@ -1209,12 +1287,39 @@ async def import_prompt(
                     detail=f"Invalid export format: missing required field '{field}'"
                 )
         
-        # Extract fields
+        # Extract fields with validation
         name = prompt_info["name"]
+        # Truncate name if it exceeds max length (255 chars)
+        if len(name) > 255:
+            original_name = name
+            name = name[:252] + "..."
+            warnings.append(
+                f"Name was truncated from {len(original_name)} to 255 characters"
+            )
+        
         description = prompt_info.get("description")
+        # Truncate description if it exceeds max length (1000 chars)
+        if description and len(description) > 1000:
+            description = description[:997] + "..."
+            warnings.append("Description was truncated to 1000 characters")
+        
         category = prompt_info.get("category") if options.preserve_category else None
+        # Truncate category if it exceeds max length (100 chars)
+        if category and len(category) > 100:
+            category = category[:97] + "..."
+            warnings.append("Category was truncated to 100 characters")
+        
         command = prompt_info.get("command") if options.preserve_command else None
+        # Truncate command if it exceeds max length (50 chars)
+        if command and len(command) > 50:
+            command = command[:50]
+            warnings.append("Command was truncated to 50 characters")
+        
         prompt_text = prompt_info["prompt_text"]
+        # Truncate prompt_text if it exceeds max length (10000 chars)
+        if len(prompt_text) > 10000:
+            prompt_text = prompt_text[:9997] + "..."
+            warnings.append("Prompt text was truncated to 10000 characters")
         
         # Handle command conflicts
         if command:
@@ -1268,11 +1373,15 @@ async def import_prompt(
         db.add(new_group)
         db.flush()
         
-        # Create prompt version
+        # Create prompt version with versioned metadata
         prompt_id = str(uuid.uuid4())
         new_prompt = PromptModel(
             id=prompt_id,
             prompt_text=prompt_text,
+            name=name,
+            description=description,
+            category=category,
+            command=command,
             group_id=group_id,
             user_id=user_id,
             version=1,  # Start at version 1 for imported prompts

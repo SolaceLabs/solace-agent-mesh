@@ -65,6 +65,10 @@ const defaultMockChatContext: DefaultMockContextType = {
     // Artifact rendering
     artifactRenderingState: { expandedArtifacts: new Set<string>() },
 
+    // Background task monitoring
+    backgroundTasks: [],
+    backgroundNotifications: [],
+
     // No-op functions
     setMessages: () => {},
     setTaskIdInSidePanel: () => {},
@@ -104,6 +108,13 @@ const defaultMockChatContext: DefaultMockContextType = {
     agentsRefetch: async () => {},
     artifactsRefetch: async () => {},
     setArtifacts: () => {},
+    displayError: () => {},
+
+    // Prompt handling
+    pendingPrompt: null,
+    startNewChatWithPrompt: async () => {},
+    clearPendingPrompt: () => {},
+    isTaskRunningInBackground: () => false,
 };
 
 interface MockChatProviderProps {

@@ -53,7 +53,12 @@ formatters:
   # Simple human-readable format
   simpleFormatter:
     format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
-  
+
+  # Colored simple human-readable format 
+  coloredFormatter:
+    class: solace_ai_connector.logging.ColoredFormatter
+    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
+    
   # JSON format for structured logging
   jsonFormatter:
     "()": pythonjsonlogger.json.JsonFormatter # The python-json-logger package is used for JSON formatting
@@ -65,7 +70,7 @@ handlers:
   # Stream handler - outputs logs to console (stdout)
   streamHandler:
     class: logging.StreamHandler
-    formatter: simpleFormatter
+    formatter: coloredFormatter
     stream: "ext://sys.stdout"
   
   # Rotating file handler - writes to log files with automatic rotation
@@ -124,6 +129,7 @@ For complete details on handlers, see [Python's supported handlers documentation
 Formatters control the structure and appearance of log messages. The default configuration includes:
 
 - **`simpleFormatter`**: Human-readable format including timestamp, level, thread, logger name, and message.
+- **`coloredFormatter`**: Similar to `simpleFormatter` but with color coding for log levels and backend component logs to enhance readability in the console.
 - **`jsonFormatter`**: JSON format for log aggregation and analysis tools. See [Structured Logging](#structured-logging) for possible customizations.
 
 Consult Python's documentation for complete details on [formatters](https://docs.python.org/3/library/logging.html#formatter-objects) and [available fields](https://docs.python.org/3/library/logging.html#logrecord-attributes).

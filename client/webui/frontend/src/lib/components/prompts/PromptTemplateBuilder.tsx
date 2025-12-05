@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Sparkles, Loader2, AlertCircle, Pencil } from "lucide-react";
 
-import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, CardTitle } from "@/lib/components/ui";
+import { Button, Input, HighlightedTextarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, CardTitle } from "@/lib/components/ui";
 import { Header } from "@/lib/components/header";
 import { MessageBanner } from "@/lib/components/common";
 import { useNavigationBlocker } from "@/lib/hooks";
@@ -298,14 +298,14 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                         Content<span className="text-[var(--color-primary-wMain)]">*</span>
                                     </CardTitle>
                                     <div className="space-y-2">
-                                        <Textarea
+                                        <HighlightedTextarea
                                             id="template-prompt"
                                             data-testid="prompt-text-input"
                                             placeholder="Enter your prompt template here. Use {{Variable Name}} for placeholders."
                                             value={config.promptText || ""}
                                             onChange={e => updateConfig({ promptText: e.target.value })}
                                             rows={12}
-                                            className={`placeholder:text-muted-foreground/50 font-mono ${validationErrors.promptText ? "border-red-500" : ""}`}
+                                            className={`placeholder:text-muted-foreground/50 ${validationErrors.promptText ? "border-red-500" : ""}`}
                                         />
                                         {validationErrors.promptText && (
                                             <p className="flex items-center gap-1 text-sm text-red-600">

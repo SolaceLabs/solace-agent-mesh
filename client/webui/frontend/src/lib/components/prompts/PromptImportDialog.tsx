@@ -1,26 +1,22 @@
-import React, { useState, useRef } from "react";
-import { CheckCircle, FileJson } from "lucide-react";
+import React, { useState, useRef, useCallback } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { FileJson } from "lucide-react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
-import { Alert, AlertDescription } from "@/lib/components/ui/alert";
 import { MessageBanner } from "@/lib/components";
-
-interface PromptImportData {
-    version: string;
-    exportedAt: number;
-    prompt: {
-        name: string;
-        description?: string;
-        category?: string;
-        command?: string;
-        promptText: string;
-        metadata?: {
-            authorName?: string;
-            originalVersion: number;
-            originalCreatedAt: number;
-        };
-    };
-}
+import {
+    promptImportSchema,
+    promptImportCommandSchema,
+    PROMPT_FIELD_LIMITS,
+    formatZodErrors,
+    hasPathError,
+    getPathErrorMessage,
+    detectTruncationWarnings,
+    type PromptImportData,
+    type PromptImportCommandForm,
+    type TruncationWarning,
+} from "@/lib/schemas";
 
 interface PromptImportDialogProps {
     open: boolean;
@@ -30,61 +26,102 @@ interface PromptImportDialogProps {
 
 export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, onOpenChange, onImport }) => {
     const [importData, setImportData] = useState<PromptImportData | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const [fileError, setFileError] = useState<string | null>(null);
+    const [validationErrors, setValidationErrors] = useState<string[]>([]);
+    const [truncationWarnings, setTruncationWarnings] = useState<TruncationWarning[]>([]);
     const [isImporting, setIsImporting] = useState(false);
-    const [editedCommand, setEditedCommand] = useState<string>("");
     const [isDragging, setIsDragging] = useState(false);
     const [selectedFileName, setSelectedFileName] = useState<string>("");
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Form for the editable command field
+    const {
+        register,
+        handleSubmit,
+        formState: { errors },
+        reset: resetForm,
+        setValue,
+    } = useForm<PromptImportCommandForm>({
+        resolver: zodResolver(promptImportCommandSchema),
+        defaultValues: {
+            command: "",
+        },
+        mode: "onChange",
+    });
+
+    const validateAndParseFile = useCallback(async (file: File): Promise<PromptImportData | null> => {
+        setFileError(null);
+        setValidationErrors([]);
+        setTruncationWarnings([]);
+        setImportData(null);
+
+        // Validate file type
+        if (!file.name.endsWith(".json")) {
+            setFileError("Please select a JSON file");
+            return null;
+        }
+
+        // Validate file size (1MB limit)
+        if (file.size > 1024 * 1024) {
+            setFileError("File size must be less than 1MB");
+            return null;
+        }
+
+        try {
+            const text = await file.text();
+            let data: unknown;
+
+            try {
+                data = JSON.parse(text);
+            } catch {
+                setFileError("Failed to parse JSON file. Please ensure it's a valid JSON format.");
+                return null;
+            }
+
+            // Validate using zod schema
+            const result = promptImportSchema.safeParse(data);
+
+            if (!result.success) {
+                // Extract and format validation errors using helper functions
+                const errors = formatZodErrors(result.error);
+
+                // Check if it's a version error
+                if (hasPathError(result.error, "version")) {
+                    const versionMessage = getPathErrorMessage(result.error, "version");
+                    setFileError(versionMessage || "Invalid version format");
+                } else if (errors.length === 1) {
+                    setFileError(errors[0]);
+                } else {
+                    setFileError("The imported prompt has validation errors:");
+                    setValidationErrors(errors);
+                }
+                return null;
+            }
+
+            // Check for truncation warnings
+            const warnings = detectTruncationWarnings(result.data);
+            setTruncationWarnings(warnings);
+
+            return result.data;
+        } catch {
+            setFileError("Failed to read file. Please try again.");
+            return null;
+        }
+    }, []);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (!selectedFile) return;
 
-        setError(null);
-        setImportData(null);
+        const data = await validateAndParseFile(selectedFile);
 
-        // Validate file type
-        if (!selectedFile.name.endsWith(".json")) {
-            setError("Please select a JSON file");
-            return;
-        }
-
-        // Validate file size (1MB limit)
-        if (selectedFile.size > 1024 * 1024) {
-            setError("File size must be less than 1MB");
-            return;
-        }
-
-        try {
-            const text = await selectedFile.text();
-            const data = JSON.parse(text) as PromptImportData;
-
-            // Validate format
-            if (!data.version || !data.prompt) {
-                setError("Invalid export format: missing required fields");
-                return;
-            }
-
-            // Currently only version 1.0 is supported. Future versions may require migration logic.
-            // TODO: Consider implementing version migration strategies if format changes are needed
-            if (data.version !== "1.0") {
-                setError(`Unsupported export format version: ${data.version}. Only version 1.0 is currently supported.`);
-                return;
-            }
-
-            if (!data.prompt.name || !data.prompt.promptText) {
-                setError("Invalid export format: missing prompt name or text");
-                return;
-            }
-
+        if (data) {
             setImportData(data);
             setSelectedFileName(selectedFile.name);
-            // Initialize edited command with the imported command
-            setEditedCommand(data.prompt.command || "");
-        } catch {
-            setError("Failed to parse JSON file. Please ensure it's a valid prompt export.");
+            // Initialize the form with the imported command
+            setValue("command", data.prompt.command || "");
         }
+
         // Reset file input
         if (e.target) {
             e.target.value = "";
@@ -103,18 +140,21 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         setIsDragging(false);
     };
 
-    const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault();
         event.stopPropagation();
         setIsDragging(false);
 
         const files = event.dataTransfer.files;
         if (files && files.length > 0) {
-            // Simulate file input change event
-            const fakeEvent = {
-                target: { files, value: "" },
-            } as React.ChangeEvent<HTMLInputElement>;
-            handleFileChange(fakeEvent);
+            const file = files[0];
+            const data = await validateAndParseFile(file);
+
+            if (data) {
+                setImportData(data);
+                setSelectedFileName(file.name);
+                setValue("command", data.prompt.command || "");
+            }
         }
     };
 
@@ -122,69 +162,65 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         fileInputRef.current?.click();
     };
 
-    const handleImport = async () => {
+    const onSubmit = async (formData: PromptImportCommandForm) => {
         // Validate that a file has been selected
         if (!importData) {
-            setError("Please select a JSON file to import");
+            setFileError("Please select a JSON file to import");
             return;
         }
 
         setIsImporting(true);
-        setError(null);
+        setFileError(null);
 
         try {
             // Update the import data with the edited command
-            const updatedImportData = {
+            const updatedImportData: PromptImportData = {
                 ...importData,
                 prompt: {
                     ...importData.prompt,
-                    command: editedCommand || undefined,
+                    command: formData.command || undefined,
                 },
             };
 
             await onImport(updatedImportData, {
-                preserveCommand: !!editedCommand,
+                preserveCommand: !!formData.command,
                 preserveCategory: true, // Always preserve category
             });
 
             // Reset state and close dialog
-            setImportData(null);
-            setSelectedFileName("");
-            setEditedCommand("");
-            setError(null);
+            handleReset();
             onOpenChange(false);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to import prompt");
+            setFileError(err instanceof Error ? err.message : "Failed to import prompt");
         } finally {
             setIsImporting(false);
         }
     };
 
+    const handleReset = () => {
+        setImportData(null);
+        setSelectedFileName("");
+        setFileError(null);
+        setValidationErrors([]);
+        setTruncationWarnings([]);
+        resetForm();
+    };
+
     const handleClose = () => {
         if (!isImporting) {
-            setImportData(null);
-            setSelectedFileName("");
-            setEditedCommand("");
-            setError(null);
+            handleReset();
             onOpenChange(false);
         }
     };
 
-    // Check for command conflicts (this is a simple check - backend will handle the actual conflict resolution)
-    const handleCommandChange = (value: string) => {
-        setEditedCommand(value);
-        // You could add API call here to check for conflicts in real-time if needed
-        // For now, we'll let the backend handle it and show warnings in the response
-    };
-
     return (
         <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>Import Prompt</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 overflow-x-hidden py-4">
                     {/* File Upload - Drag and Drop or Selected File Display */}
                     {!selectedFileName ? (
                         <div
@@ -207,64 +243,80 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                             <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-medium">{selectedFileName}</p>
                             </div>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                    setSelectedFileName("");
-                                    setImportData(null);
-                                    setEditedCommand("");
-                                    setError(null);
-                                }}
-                                disabled={isImporting}
-                            >
+                            <Button type="button" variant="ghost" size="sm" onClick={handleReset} disabled={isImporting}>
                                 Change
                             </Button>
                         </div>
                     )}
 
                     {/* Error Display */}
-                    {error && <MessageBanner variant="error" message={error} />}
+                    {fileError && (
+                        <div className="space-y-2">
+                            <MessageBanner variant="error" message={fileError} />
+                            {validationErrors.length > 0 && (
+                                <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/30">
+                                    <ul className="list-inside list-disc space-y-1 text-sm text-red-800 dark:text-red-200">
+                                        {validationErrors.map((err, idx) => (
+                                            <li key={idx}>{err}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Preview */}
-                    {importData && !error && (
+                    {importData && !fileError && (
                         <div className="space-y-4">
-                            <Alert>
-                                <CheckCircle className="h-4 w-4" />
-                                <AlertDescription>File validated successfully. Review the details below:</AlertDescription>
-                            </Alert>
+                            {truncationWarnings.length > 0 ? (
+                                <MessageBanner
+                                    variant="warning"
+                                    message={
+                                        <div className="space-y-2">
+                                            <p className="font-medium">Some fields exceed the maximum length and will be truncated:</p>
+                                            <ul className="list-inside list-disc space-y-1 text-sm">
+                                                {truncationWarnings.map((warning, idx) => (
+                                                    <li key={idx}>{warning.message}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    }
+                                />
+                            ) : (
+                                <MessageBanner variant="success" message="File validated successfully. Review the details below:" />
+                            )}
 
-                            <div className="space-y-3 rounded-lg border p-4">
+                            <div className="space-y-3 overflow-hidden rounded-lg border p-4">
                                 <div>
                                     <Label className="text-muted-foreground text-xs">Name</Label>
-                                    <p className="font-medium">{importData.prompt.name}</p>
+                                    <p className="overflow-wrap-anywhere font-medium break-words">{importData.prompt.name}</p>
                                 </div>
 
                                 {importData.prompt.description && (
                                     <div>
                                         <Label className="text-muted-foreground text-xs">Description</Label>
-                                        <p className="text-sm">{importData.prompt.description}</p>
+                                        <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.description}</p>
                                     </div>
                                 )}
 
                                 {importData.prompt.category && (
                                     <div>
-                                        <Label className="text-muted-foreground text-xs">Category</Label>
-                                        <p className="text-sm">{importData.prompt.category}</p>
+                                        <Label className="text-muted-foreground text-xs">Tag</Label>
+                                        <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.category}</p>
                                     </div>
                                 )}
 
                                 {importData.prompt.command && (
                                     <div>
                                         <Label className="text-muted-foreground text-xs">Command</Label>
-                                        <p className="font-mono text-sm">/{importData.prompt.command}</p>
+                                        <p className="font-mono text-sm break-all">{importData.prompt.command}</p>
                                     </div>
                                 )}
 
                                 {importData.prompt.metadata?.authorName && (
                                     <div>
                                         <Label className="text-muted-foreground text-xs">Original Author</Label>
-                                        <p className="text-sm">{importData.prompt.metadata.authorName}</p>
+                                        <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.metadata.authorName}</p>
                                     </div>
                                 )}
                             </div>
@@ -281,24 +333,27 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                         </Label>
                                         <div className="flex items-center gap-2">
                                             <span className="text-muted-foreground text-sm">/</span>
-                                            <Input id="import-command" value={editedCommand} onChange={e => handleCommandChange(e.target.value)} placeholder="e.g., code-review" className="flex-1" />
+                                            <Input id="import-command" {...register("command")} placeholder="e.g., code-review" className={`flex-1 ${errors.command ? "border-red-500" : ""}`} maxLength={PROMPT_FIELD_LIMITS.COMMAND_MAX} />
                                         </div>
-                                        <p className="text-muted-foreground text-xs">You can modify the shortcut if needed. If it conflicts with an existing shortcut, a unique one will be generated automatically.</p>
+                                        {errors.command && <p className="text-sm text-red-500">{errors.command.message}</p>}
+                                        <p className="text-muted-foreground text-xs">
+                                            You can modify the shortcut if needed (max {PROMPT_FIELD_LIMITS.COMMAND_MAX} characters). If it conflicts with an existing shortcut, a unique one will be generated automatically.
+                                        </p>
                                     </div>
                                 )}
                             </div>
                         </div>
                     )}
-                </div>
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={handleClose} disabled={isImporting}>
-                        Cancel
-                    </Button>
-                    <Button data-testid="importPromptButton" onClick={handleImport} disabled={isImporting}>
-                        {isImporting ? "Importing..." : "Import"}
-                    </Button>
-                </DialogFooter>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={handleClose} disabled={isImporting}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={isImporting || !importData}>
+                            {isImporting ? "Importing..." : "Import"}
+                        </Button>
+                    </DialogFooter>
+                </form>
             </DialogContent>
         </Dialog>
     );
