@@ -1588,6 +1588,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isFinalizing.current = false;
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
+                // Clear RAG data when switching sessions - will be repopulated by loadSessionTasks
+                setRagData([]);
 
                 await loadSessionTasks(newSessionId);
             } catch (error) {
@@ -1596,7 +1598,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setIsLoadingSession(false);
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError, setRagData]
     );
 
     const updateSessionName = useCallback(
