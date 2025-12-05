@@ -3,7 +3,7 @@ import { Send, Loader2, Sparkles } from "lucide-react";
 
 import { AudioRecorder, Button, MessageBanner, Textarea } from "@/lib/components";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
-import { authenticatedFetch } from "@/lib/utils";
+import { fetchJsonWithError } from "@/lib/utils";
 import type { TemplateConfig } from "@/lib/types";
 
 interface Message {
@@ -61,8 +61,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
         const initChat = async () => {
             try {
-                const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/chat/init`);
-                const data = await response.json();
+                const data = await fetchJsonWithError(`${configServerUrl}/api/v1/prompts/chat/init`);
 
                 // Use different greeting message for editing mode
                 const greetingMessage = isEditing ? "Hi! I'll help you edit this prompt template. What changes would you like to make?" : data.message;
@@ -89,7 +88,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
                     // Send the message to the API
                     try {
-                        const chatResponse = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/chat`, {
+                        const chatData: ChatResponse = await fetchJsonWithError(`${configServerUrl}/api/v1/prompts/chat`, {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",
@@ -107,35 +106,21 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                             }),
                         });
 
-                        if (chatResponse.ok) {
-                            const chatData: ChatResponse = await chatResponse.json();
+                        const assistantMessage: Message = {
+                            role: "assistant",
+                            content: chatData.message,
+                            timestamp: new Date(),
+                        };
+                        setMessages(prev => [...prev, assistantMessage]);
 
-                            const assistantMessage: Message = {
-                                role: "assistant",
-                                content: chatData.message,
-                                timestamp: new Date(),
-                            };
-                            setMessages(prev => [...prev, assistantMessage]);
-
-                            if (Object.keys(chatData.template_updates).length > 0) {
-                                onConfigUpdate(chatData.template_updates);
-                            }
-
-                            onReadyToSave(chatData.ready_to_save);
-
-                            // Scroll to bottom after AI response
-                            setTimeout(() => scrollToBottom(), 100);
-                        } else {
-                            const errorData = await chatResponse.json().catch(() => ({}));
-                            console.error("Prompt builder API error:", errorData);
-
-                            const errorMessage: Message = {
-                                role: "assistant",
-                                content: "The conversation history is too long for automatic processing. Please describe your task manually, and I'll help you create a template.",
-                                timestamp: new Date(),
-                            };
-                            setMessages(prev => [...prev, errorMessage]);
+                        if (Object.keys(chatData.template_updates).length > 0) {
+                            onConfigUpdate(chatData.template_updates);
                         }
+
+                        onReadyToSave(chatData.ready_to_save);
+
+                        // Scroll to bottom after AI response
+                        setTimeout(() => scrollToBottom(), 100);
                     } catch (error) {
                         console.error("Error sending initial message:", error);
                         const errorMessage: Message = {
@@ -226,7 +211,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
         setHasUserMessage(true);
 
         try {
-            const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/chat`, {
+            const data: ChatResponse = await fetchJsonWithError(`${configServerUrl}/api/v1/prompts/chat`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -243,12 +228,6 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                     current_template: currentConfig,
                 }),
             });
-
-            if (!response.ok) {
-                throw new Error("Failed to get response");
-            }
-
-            const data: ChatResponse = await response.json();
 
             // Add assistant response
             const assistantMessage: Message = {

@@ -6,7 +6,7 @@ import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMe
 import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { MessageBanner } from "@/lib/components/common";
-import { authenticatedFetch, fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
 
 interface VersionHistoryPageProps {
     group: PromptGroup;
@@ -76,18 +76,14 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
 
     const fetchGroupData = useCallback(async () => {
         try {
-            const response = await authenticatedFetch(`${configServerUrl}/api/v1/prompts/groups/${group.id}`, {
+            const data = await fetchJsonWithError(`${configServerUrl}/api/v1/prompts/groups/${group.id}`, {
                 credentials: "include",
             });
-
-            if (response.ok) {
-                const data = await response.json();
-                setCurrentGroup(data);
-            }
+            setCurrentGroup(data);
         } catch (error) {
             console.error("Failed to fetch group data:", error);
         }
-    }, [group.id]);
+    }, [group.id, configServerUrl]);
 
     useEffect(() => {
         // Preserve selection when the component updates (e.g., after editing)
