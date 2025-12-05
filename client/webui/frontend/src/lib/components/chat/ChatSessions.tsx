@@ -1,15 +1,13 @@
-import { useProjects } from "@/features/projects/api/hooks";
 import { SessionList } from "./SessionList";
 import { useConfigContext, useChatContext } from "@/lib/hooks";
+import { useProjectContext } from "@/lib/providers";
 
 export const ChatSessions = () => {
     const { persistenceEnabled } = useConfigContext();
     const { sessionName } = useChatContext();
+    const { projects } = useProjectContext();
 
-    const { data } = useProjects();
-    if (!data) return;
-
-    if (persistenceEnabled) return <SessionList projects={data.projects} />;
+    if (persistenceEnabled) return <SessionList projects={projects} />;
 
     // When persistence is disabled, show simple single-session view like in main
     return (

@@ -3,61 +3,24 @@ import { Download, Trash, Pencil } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
 import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
-import type { ArtifactInfo, Project } from "@/lib/types";
+import type { ArtifactInfo } from "@/lib/types";
 import { getFileIcon } from "../chat/file/fileUtils";
 import { ConfirmationDialog } from "../common";
-import { useRemoveFileFromProject, useUpdateFileMetadata } from "@/features/projects/api/hooks";
-import { EditFileDescriptionDialog } from "./EditFileDescriptionDialog";
-import { FileDetailsDialog } from "./FileDetailsDialog";
 
 interface DocumentListItemProps {
-    project: Project;
     artifact: ArtifactInfo;
     onDownload: () => void;
+    onDelete?: () => void;
+    onClick?: () => void;
+    onEditDescription?: () => void;
 }
 
-export const DocumentListItem: React.FC<DocumentListItemProps> = ({ project, artifact, onDownload }) => {
+export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, onDownload, onDelete, onClick, onEditDescription }) => {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-    const [showEditDialog, setShowEditDialog] = useState(false);
-    const [showDetailsDialog, setShowDetailsDialog] = useState(false);
-
-    const removeFileFromProject = useRemoveFileFromProject(project.id, artifact.filename);
-    const updateFileMetadata = useUpdateFileMetadata(project.id, artifact.filename);
-
-    const handleFileDetailsEdit = () => {
-        setShowEditDialog(true);
-        setShowDetailsDialog(false);
-    };
 
     return (
         <>
-            <ConfirmationDialog
-                title="Delete Project File"
-                content={
-                    <>
-                        This action cannot be undone. This file will be permanently removed from the project: <strong>{artifact.filename}</strong>
-                    </>
-                }
-                actionLabels={{ confirm: "Delete" }}
-                open={showDeleteDialog}
-                onConfirm={() => removeFileFromProject.mutate()}
-                onOpenChange={setShowDeleteDialog}
-            />
-
-            <FileDetailsDialog isOpen={showDetailsDialog} artifact={artifact} onClose={() => setShowDetailsDialog(false)} onEdit={handleFileDetailsEdit} />
-
-            <EditFileDescriptionDialog
-                isOpen={showEditDialog}
-                artifact={artifact}
-                onClose={() => setShowEditDialog(false)}
-                onSave={async description => {
-                    await updateFileMetadata.mutateAsync(description, {
-                        onSuccess: () => setShowEditDialog(false),
-                    });
-                }}
-            />
-
-            <div className="hover:bg-accent/50 group flex cursor-pointer items-center justify-between rounded-md p-2" onClick={() => setShowDetailsDialog(true)}>
+            <div className={`hover:bg-accent/50 group flex items-center justify-between rounded-md p-2 ${onClick ? "cursor-pointer" : ""}`} onClick={onClick}>
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                     {getFileIcon(artifact, "h-4 w-4 flex-shrink-0 text-muted-foreground")}
                     <div className="min-w-0 flex-1">
@@ -80,17 +43,18 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({ project, art
                     </div>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Button
-                        variant="ghost"
-                        onClick={e => {
-                            e.stopPropagation();
-                            setShowEditDialog(true);
-                        }}
-                        tooltip="Edit Description"
-                    >
-                        <Pencil />
-                    </Button>
-
+                    {onEditDescription && (
+                        <Button
+                            variant="ghost"
+                            onClick={e => {
+                                e.stopPropagation();
+                                onEditDescription();
+                            }}
+                            tooltip="Edit Description"
+                        >
+                            <Pencil />
+                        </Button>
+                    )}
                     <Button
                         variant="ghost"
                         onClick={e => {
@@ -101,19 +65,34 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({ project, art
                     >
                         <Download />
                     </Button>
-
-                    <Button
-                        variant="ghost"
-                        tooltip="Delete"
-                        onClick={e => {
-                            e.stopPropagation();
-                            setShowDeleteDialog(true);
-                        }}
-                    >
-                        <Trash />
-                    </Button>
+                    {onDelete && (
+                        <Button
+                            variant="ghost"
+                            tooltip="Delete"
+                            onClick={e => {
+                                e.stopPropagation();
+                                setShowDeleteDialog(true);
+                            }}
+                        >
+                            <Trash />
+                        </Button>
+                    )}
                 </div>
             </div>
+            {onDelete && (
+                <ConfirmationDialog
+                    title="Delete Project File"
+                    content={
+                        <>
+                            This action cannot be undone. This file will be permanently removed from the project: <strong>{artifact.filename}</strong>
+                        </>
+                    }
+                    actionLabels={{ confirm: "Delete" }}
+                    open={showDeleteDialog}
+                    onConfirm={onDelete}
+                    onOpenChange={setShowDeleteDialog}
+                />
+            )}
         </>
     );
 };

@@ -4,13 +4,13 @@ import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
 import { Button, Input, Textarea, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
+import { useProjectContext } from "@/lib/providers";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
 import { KnowledgeSection } from "./KnowledgeSection";
 import { ProjectChatsSection } from "./ProjectChatsSection";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
-import { useProjects, useUpdateProject } from "@/features/projects/api/hooks";
 
 interface ProjectDetailViewProps {
     project: Project;
@@ -20,28 +20,42 @@ interface ProjectDetailViewProps {
 }
 
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
-    const { data } = useProjects();
+    const { updateProject, projects, deleteProject } = useProjectContext();
+    const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(project.name);
     const [editedDescription, setEditedDescription] = useState(project.description || "");
     const [nameError, setNameError] = useState<string | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-
-    const updateProject = useUpdateProject(project.id);
-
-    if (!data) return;
-    const projects = data.projects;
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
         setError(null);
-        const updateData: UpdateProjectData = { systemPrompt };
-        updateProject.mutate(updateData);
+        setIsSaving(true);
+        try {
+            const updateData: UpdateProjectData = { systemPrompt };
+            await updateProject(project.id, updateData);
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : "Failed to update instructions";
+            setError(errorMessage);
+            throw err;
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleSaveDefaultAgent = async (defaultAgentId: string | null) => {
-        const updateData: UpdateProjectData = { defaultAgentId };
-        updateProject.mutate(updateData);
+        setIsSaving(true);
+        try {
+            const updateData: UpdateProjectData = { defaultAgentId };
+            await updateProject(project.id, updateData);
+        } catch (err) {
+            console.error("Failed to update default agent:", err);
+            throw err;
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleSave = async () => {
@@ -57,18 +71,26 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
         }
 
         setNameError(null);
-        const updateData: UpdateProjectData = {};
-        if (trimmedName !== project.name) {
-            updateData.name = trimmedName;
-        }
-        if (trimmedDescription !== (project.description || "")) {
-            updateData.description = trimmedDescription;
-        }
+        setIsSaving(true);
+        try {
+            const updateData: UpdateProjectData = {};
+            if (trimmedName !== project.name) {
+                updateData.name = trimmedName;
+            }
+            if (trimmedDescription !== (project.description || "")) {
+                updateData.description = trimmedDescription;
+            }
 
-        if (Object.keys(updateData).length > 0) {
-            updateProject.mutate(updateData);
+            if (Object.keys(updateData).length > 0) {
+                await updateProject(project.id, updateData);
+            }
+            setIsEditing(false);
+        } catch (err) {
+            console.error("Failed to update project:", err);
+            setNameError(err instanceof Error ? err.message : "Failed to update project");
+        } finally {
+            setIsSaving(false);
         }
-        setIsEditing(false);
     };
 
     const handleCancelEdit = () => {
@@ -82,8 +104,17 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     };
 
     const handleDeleteConfirm = async () => {
-        setIsDeleteDialogOpen(false);
-        onBack();
+        setIsDeleting(true);
+        try {
+            await deleteProject(project.id);
+            setIsDeleteDialogOpen(false);
+            // Navigate back to list after successful deletion
+            onBack();
+        } catch (error) {
+            console.error("Failed to delete project:", error);
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
     return (
@@ -128,9 +159,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
 
                 {/* Right Panel - Metadata Sidebar */}
                 <div className="bg-muted/30 w-[40%] overflow-y-auto">
-                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={updateProject.isPending} error={error} />
+                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
 
-                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={updateProject.isPending} />
+                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />
 
                     <KnowledgeSection project={project} />
                 </div>
@@ -153,20 +184,20 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Name*</label>
-                            <Input value={editedName} onChange={e => setEditedName(e.target.value)} placeholder="Project name" disabled={updateProject.isPending} maxLength={255} autoFocus={false} />
+                            <Input value={editedName} onChange={e => setEditedName(e.target.value)} placeholder="Project name" disabled={isSaving} maxLength={255} autoFocus={false} />
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Description*</label>
-                            <Textarea value={editedDescription} onChange={e => setEditedDescription(e.target.value)} placeholder="Project description" rows={4} disabled={updateProject.isPending} maxLength={1000} />
+                            <Textarea value={editedDescription} onChange={e => setEditedDescription(e.target.value)} placeholder="Project description" rows={4} disabled={isSaving} maxLength={1000} />
                             <div className="text-muted-foreground text-right text-xs">{editedDescription.length}/1000 characters</div>
                         </div>
                         {nameError && <MessageBanner variant="error" message={nameError} />}
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={handleCancelEdit} disabled={updateProject.isPending}>
+                        <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
                             Discard Changes
                         </Button>
-                        <Button onClick={handleSave} disabled={updateProject.isPending}>
+                        <Button onClick={handleSave} disabled={isSaving}>
                             Save
                         </Button>
                     </DialogFooter>
@@ -174,7 +205,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
             </Dialog>
 
             {/* Delete Project Dialog */}
-            <DeleteProjectDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={handleDeleteConfirm} project={project} />
+            <DeleteProjectDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={handleDeleteConfirm} project={project} isDeleting={isDeleting} />
         </div>
     );
 };

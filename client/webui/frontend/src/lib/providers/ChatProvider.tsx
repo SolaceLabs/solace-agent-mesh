@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEven
 import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog } from "@/lib/hooks";
-import { useProjectContext } from "@/lib/providers";
+import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 
 import { authenticatedFetch, fetchJsonWithError, fetchWithError, getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
@@ -30,7 +30,6 @@ import type {
     AgentCardInfo,
     Project,
 } from "@/lib/types";
-import { useProjects } from "@/features/projects/api/hooks";
 
 // Type for tasks loaded from the API
 interface TaskFromAPI {
@@ -80,10 +79,8 @@ interface ChatProviderProps {
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, configServerUrl, persistenceEnabled, configCollectFeedback } = useConfigContext();
     const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
-    const { activeProject, setActiveProject } = useProjectContext();
+    const { activeProject, setActiveProject, projects } = useProjectContext();
     const { ErrorDialog, setError } = useErrorDialog();
-    const { data } = useProjects();
-    const projects = useMemo(() => (data ? data.projects : []), [data]);
 
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
@@ -1889,6 +1886,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const prevProjectIdRef = useRef<string | null | undefined>("");
     const isSessionSwitchRef = useRef(false);
     const isSessionMoveRef = useRef(false);
+
+    useEffect(() => {
+        const handleProjectDeleted = (deletedProjectId: string) => {
+            if (activeProject?.id === deletedProjectId) {
+                console.log(`Project ${deletedProjectId} was deleted, clearing session context`);
+                handleNewSession(false);
+            }
+        };
+
+        registerProjectDeletedCallback(handleProjectDeleted);
+    }, [activeProject, handleNewSession]);
 
     useEffect(() => {
         const handleSessionMoved = async (event: Event) => {

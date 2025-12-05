@@ -3,13 +3,11 @@ import { FileJson, Upload as UploadIcon } from "lucide-react";
 import JSZip from "jszip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
-import { useImportProject } from "@/features/projects/api/hooks";
-import { useChatContext } from "@/lib/hooks";
-import { useNavigate } from "react-router-dom";
 
 interface ProjectImportDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    onImport: (file: File, options: { preserveName: boolean; customName?: string }) => Promise<void>;
 }
 
 interface ProjectPreview {
@@ -21,21 +19,18 @@ interface ProjectPreview {
     artifactNames: string[];
 }
 
-export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, onOpenChange }) => {
+export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, onOpenChange, onImport }) => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [selectedFileName, setSelectedFileName] = useState<string>("");
     const [projectPreview, setProjectPreview] = useState<ProjectPreview | null>(null);
     const [customName, setCustomName] = useState("");
     const [error, setError] = useState<string | null>(null);
+    const [isImporting, setIsImporting] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const { addNotification } = useChatContext();
-    const navigate = useNavigate();
-    const importProject = useImportProject();
-
     const handleClose = () => {
-        if (!importProject.isPending) {
+        if (!isImporting) {
             setSelectedFile(null);
             setSelectedFileName("");
             setProjectPreview(null);
@@ -148,28 +143,21 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
             setError("Please select a file to import");
             return;
         }
+
+        setIsImporting(true);
         setError(null);
 
         try {
-            const result = await importProject.mutateAsync({
-                file: selectedFile,
-                options: {
-                    preserveName: false,
-                    customName: customName.trim(),
-                },
+            await onImport(selectedFile, {
+                preserveName: false,
+                customName: customName.trim() || undefined,
             });
-
-            if (result.warnings && result.warnings.length > 0) {
-                const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
-                addNotification(warningMessage, "info");
-            }
-
-            navigate(`/projects/${result.projectId}`);
-            addNotification(`Project imported successfully with ${result.artifactsImported} artifacts`, "success");
-            onOpenChange(false);
-        } catch (error) {
-            console.error("Failed to import project:", error);
-            throw error; // Re-throw to let dialog handle it
+            handleClose();
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : "Failed to import project";
+            setError(errorMessage);
+        } finally {
+            setIsImporting(false);
         }
     };
 
@@ -218,7 +206,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                                     </p>
                                     <p className="text-muted-foreground text-xs">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
                                 </div>
-                                <Button variant="ghost" size="sm" onClick={handleChangeFile} disabled={importProject.isPending} className="flex-shrink-0">
+                                <Button variant="ghost" size="sm" onClick={handleChangeFile} disabled={isImporting} className="flex-shrink-0">
                                     Change
                                 </Button>
                             </div>
@@ -275,7 +263,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                     {projectPreview && (
                         <div className="space-y-2">
                             <Label htmlFor="customName">Project Name</Label>
-                            <Input id="customName" value={customName} onChange={e => setCustomName(e.target.value)} placeholder="Enter project name" disabled={importProject.isPending} />
+                            <Input id="customName" value={customName} onChange={e => setCustomName(e.target.value)} placeholder="Enter project name" disabled={isImporting} />
                             <p className="text-muted-foreground text-xs">Name conflicts will be resolved automatically</p>
                         </div>
                     )}
@@ -285,11 +273,11 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={handleClose} disabled={importProject.isPending}>
+                    <Button variant="outline" onClick={handleClose} disabled={isImporting}>
                         Cancel
                     </Button>
-                    <Button onClick={handleImport} disabled={importProject.isPending}>
-                        {importProject.isPending ? "Importing..." : "Import"}
+                    <Button onClick={handleImport} disabled={isImporting}>
+                        {isImporting ? "Importing..." : "Import"}
                     </Button>
                 </DialogFooter>
             </DialogContent>
