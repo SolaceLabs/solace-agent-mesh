@@ -10,9 +10,10 @@ interface DeepResearchReportContentProps {
     artifact: ArtifactInfo;
     sessionId: string;
     ragData?: RAGSearchResult;
+    onContentLoaded?: (content: string) => void;
 }
 
-export const DeepResearchReportContent: React.FC<DeepResearchReportContentProps> = ({ artifact, sessionId, ragData }) => {
+export const DeepResearchReportContent: React.FC<DeepResearchReportContentProps> = ({ artifact, sessionId, ragData, onContentLoaded }) => {
     const [content, setContent] = useState<string | null>(null);
     const [loadedFilename, setLoadedFilename] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -90,6 +91,13 @@ export const DeepResearchReportContent: React.FC<DeepResearchReportContentProps>
         }
         return stripReportMetadataSections(content);
     }, [content]);
+
+    // Notify parent when content is loaded
+    useEffect(() => {
+        if (filteredContent && onContentLoaded) {
+            onContentLoaded(filteredContent);
+        }
+    }, [filteredContent, onContentLoaded]);
 
     if (!isDeepResearchReport) {
         return null;

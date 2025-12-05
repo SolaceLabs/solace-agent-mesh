@@ -36,7 +36,9 @@ const MessageActions: React.FC<{
     showFeedbackActions: boolean;
     handleViewWorkflowClick: () => void;
     sourcesElement?: React.ReactNode;
-}> = ({ message, showWorkflowButton, showFeedbackActions, handleViewWorkflowClick, sourcesElement }) => {
+    /** Optional text content override */
+    textContentOverride?: string;
+}> = ({ message, showWorkflowButton, showFeedbackActions, handleViewWorkflowClick, sourcesElement, textContentOverride }) => {
     const { configCollectFeedback, submittedFeedback, handleFeedbackSubmit, addNotification } = useChatContext();
     const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
     const [feedbackType, setFeedbackType] = useState<"up" | "down" | null>(null);
@@ -82,7 +84,7 @@ const MessageActions: React.FC<{
                             </Button>
                         </div>
                     )}
-                    <MessageHoverButtons message={message} />
+                    <MessageHoverButtons message={message} textContentOverride={textContentOverride} />
                     {sourcesElement && <div className="ml-2">{sourcesElement}</div>}
                 </div>
             </div>
@@ -233,7 +235,30 @@ interface DeepResearchReportInfo {
     ragData?: RAGSearchResult;
 }
 
-const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean, sourcesElement?: React.ReactNode, deepResearchReportInfo?: DeepResearchReportInfo): React.ReactNode => {
+// Component to render deep research report with TTS support
+const DeepResearchReportBubble: React.FC<{
+    deepResearchReportInfo: DeepResearchReportInfo;
+    message: MessageFE;
+    onContentLoaded?: (content: string) => void;
+}> = ({ deepResearchReportInfo, onContentLoaded }) => {
+    return (
+        <ChatBubble variant="received">
+            <ChatBubbleMessage variant="received">
+                <DeepResearchReportContent artifact={deepResearchReportInfo.artifact} sessionId={deepResearchReportInfo.sessionId} ragData={deepResearchReportInfo.ragData} onContentLoaded={onContentLoaded} />
+            </ChatBubbleMessage>
+        </ChatBubble>
+    );
+};
+
+const getChatBubble = (
+    message: MessageFE,
+    chatContext: ChatContextValue,
+    isLastWithTaskId?: boolean,
+    sourcesElement?: React.ReactNode,
+    deepResearchReportInfo?: DeepResearchReportInfo,
+    onReportContentLoaded?: (content: string) => void,
+    reportContentOverride?: string
+): React.ReactNode => {
     const { openSidePanelTab, setTaskIdInSidePanel, ragData } = chatContext;
 
     if (message.isStatusBubble) {
@@ -373,7 +398,13 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                         if (isLastPart && (showWorkflowButton || showFeedbackActions)) {
                             return (
                                 <div key={`part-${index}`} className={`flex ${message.isUser ? "justify-end pr-4" : "justify-start pl-4"}`}>
-                                    <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />
+                                    <MessageActions
+                                        message={message}
+                                        showWorkflowButton={!!showWorkflowButton}
+                                        showFeedbackActions={!!showFeedbackActions}
+                                        handleViewWorkflowClick={handleViewWorkflowClick}
+                                        textContentOverride={reportContentOverride}
+                                    />
                                 </div>
                             );
                         }
@@ -386,7 +417,14 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                                 <MessageContent message={{ ...message, parts: [{ kind: "text", text: textContent }] }} />
                                 {/* Show actions on the last part if it's text */}
                                 {isLastPart && (
-                                    <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} sourcesElement={sourcesElement} />
+                                    <MessageActions
+                                        message={message}
+                                        showWorkflowButton={!!showWorkflowButton}
+                                        showFeedbackActions={!!showFeedbackActions}
+                                        handleViewWorkflowClick={handleViewWorkflowClick}
+                                        sourcesElement={sourcesElement}
+                                        textContentOverride={reportContentOverride}
+                                    />
                                 )}
                             </ChatBubbleMessage>
                         </ChatBubble>
@@ -398,18 +436,19 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
             })}
 
             {/* Show deep research report content inline (without References and Methodology sections) */}
-            {deepResearchReportInfo && (
-                <ChatBubble variant="received">
-                    <ChatBubbleMessage variant="received">
-                        <DeepResearchReportContent artifact={deepResearchReportInfo.artifact} sessionId={deepResearchReportInfo.sessionId} ragData={deepResearchReportInfo.ragData} />
-                    </ChatBubbleMessage>
-                </ChatBubble>
-            )}
+            {deepResearchReportInfo && <DeepResearchReportBubble deepResearchReportInfo={deepResearchReportInfo} message={message} onContentLoaded={onReportContentLoaded} />}
 
             {/* Show actions after artifacts if the last part is an artifact */}
             {lastPartKind === "artifact" || lastPartKind === "file" ? (
                 <div className={`flex ${message.isUser ? "justify-end pr-4" : "justify-start pl-4"}`}>
-                    <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} sourcesElement={sourcesElement} />
+                    <MessageActions
+                        message={message}
+                        showWorkflowButton={!!showWorkflowButton}
+                        showFeedbackActions={!!showFeedbackActions}
+                        handleViewWorkflowClick={handleViewWorkflowClick}
+                        sourcesElement={sourcesElement}
+                        textContentOverride={reportContentOverride}
+                    />
                 </div>
             ) : null}
 
@@ -425,6 +464,9 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean }> = ({ message, isLastWithTaskId }) => {
     const chatContext = useChatContext();
     const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId } = chatContext;
+
+    // State to track deep research report content for message actions functionality
+    const [reportContent, setReportContent] = useState<string | null>(null);
 
     // Get RAG metadata for this task
     const taskRagData = useMemo(() => {
@@ -605,7 +647,11 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                       })()
                     : undefined,
                 // Pass deep research report info if available
-                isDeepResearchComplete && isLastWithTaskId && deepResearchReportArtifact && sessionId ? { artifact: deepResearchReportArtifact, sessionId, ragData: lastTaskRagData } : undefined
+                isDeepResearchComplete && isLastWithTaskId && deepResearchReportArtifact && sessionId ? { artifact: deepResearchReportArtifact, sessionId, ragData: lastTaskRagData } : undefined,
+                // Callback to capture report content for TTS/copy
+                setReportContent,
+                // Pass report content to MessageActions for TTS/copy
+                reportContent || undefined
             )}
 
             {/* Render images separately at the end for web search */}
