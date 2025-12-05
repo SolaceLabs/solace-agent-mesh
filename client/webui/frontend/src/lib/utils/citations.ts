@@ -165,15 +165,17 @@ export function getCitationNumber(citation: Citation): number {
  * Get citation tooltip text
  */
 export function getCitationTooltip(citation: Citation): string {
-    // For web search citations, show the URL and title
+    // For web search and deep research citations, show the URL and title
     const isWebSearch = citation.source?.metadata?.type === "web_search" || citation.type === "search";
+    const isDeepResearch = citation.source?.metadata?.type === "deep_research" || citation.type === "research";
+    const sourceUrl = citation.source?.sourceUrl || citation.source?.url;
 
-    if (isWebSearch && citation.source?.sourceUrl) {
-        const title = citation.source.metadata?.title || citation.source.filename;
-        if (title && title !== citation.source.sourceUrl) {
-            return `${title}\n${citation.source.sourceUrl}`;
+    if ((isWebSearch || isDeepResearch) && sourceUrl) {
+        const title = citation.source?.metadata?.title || citation.source?.filename;
+        if (title && title !== sourceUrl) {
+            return `${title}\n${sourceUrl}`;
         }
-        return citation.source.sourceUrl;
+        return sourceUrl;
     }
 
     if (!citation.source) {

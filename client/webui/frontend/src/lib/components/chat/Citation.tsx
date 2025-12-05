@@ -129,17 +129,19 @@ export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
     const displayText = getCitationDisplayText(citation, maxLength);
     const tooltip = getCitationTooltip(citation);
 
-    // Check if this is a web search citation
+    // Check if this is a web search or deep research citation with a URL
     const isWebSearch = citation.source?.metadata?.type === "web_search";
-    const webSearchUrl = isWebSearch ? citation.source?.sourceUrl : null;
+    const isDeepResearch = citation.source?.metadata?.type === "deep_research" || citation.type === "research";
+    const sourceUrl = citation.source?.sourceUrl || citation.source?.url;
+    const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
 
-        // For web search citations, open the URL directly
-        if (isWebSearch && webSearchUrl) {
-            window.open(webSearchUrl, "_blank", "noopener,noreferrer");
+        // For web search and deep research citations with URLs, open the URL directly
+        if (hasClickableUrl) {
+            window.open(sourceUrl, "_blank", "noopener,noreferrer");
             return;
         }
 
@@ -209,17 +211,19 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
     const firstDisplayText = getCitationDisplayText(firstCitation, 20);
     const tooltip = getCitationTooltip(firstCitation);
 
-    // Check if this is a web search citation
+    // Check if this is a web search or deep research citation
     const isWebSearch = firstCitation.source?.metadata?.type === "web_search";
-    const webSearchUrl = isWebSearch ? firstCitation.source?.sourceUrl : null;
+    const isDeepResearch = firstCitation.source?.metadata?.type === "deep_research" || firstCitation.type === "research";
+    const sourceUrl = firstCitation.source?.sourceUrl || firstCitation.source?.url;
+    const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
     const handleFirstCitationClick = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
 
-        // For web search citations, open the URL directly
-        if (isWebSearch && webSearchUrl) {
-            window.open(webSearchUrl, "_blank", "noopener,noreferrer");
+        // For web search and deep research citations, open the URL directly
+        if (hasClickableUrl && sourceUrl) {
+            window.open(sourceUrl, "_blank", "noopener,noreferrer");
             return;
         }
 
@@ -263,13 +267,15 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                     {uniqueCitations.map((citation, index) => {
                         const displayText = getCitationDisplayText(citation, 50);
                         const isWebSearch = citation.source?.metadata?.type === "web_search";
-                        const webSearchUrl = isWebSearch ? citation.source?.sourceUrl : null;
+                        const isDeepResearch = citation.source?.metadata?.type === "deep_research" || citation.type === "research";
+                        const sourceUrl = citation.source?.sourceUrl || citation.source?.url;
+                        const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
-                        // Get favicon for web sources
+                        // Get favicon for web sources (both web search and deep research)
                         let favicon = null;
-                        if (isWebSearch && citation.source?.sourceUrl) {
+                        if ((isWebSearch || isDeepResearch) && sourceUrl) {
                             try {
-                                const url = new URL(citation.source.sourceUrl);
+                                const url = new URL(sourceUrl);
                                 const domain = url.hostname;
                                 favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
                             } catch {
@@ -281,8 +287,8 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                             e.preventDefault();
                             e.stopPropagation();
 
-                            if (isWebSearch && webSearchUrl) {
-                                window.open(webSearchUrl, "_blank", "noopener,noreferrer");
+                            if (hasClickableUrl && sourceUrl) {
+                                window.open(sourceUrl, "_blank", "noopener,noreferrer");
                             } else if (onCitationClick) {
                                 onCitationClick(citation);
                             }
