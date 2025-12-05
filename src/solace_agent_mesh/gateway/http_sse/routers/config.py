@@ -275,10 +275,7 @@ async def get_app_config(
             "frontend_server_url": component.get_config(
                 "frontend_server_url", ""
             ),
-            "frontend_enterprise_server_url": component.get_config(
-                "frontend_enterprise_server_url", ""
-            ),
-            "frontend_enterprise_server_url": platform_service_url,
+            "frontend_platform_server_url": platform_service_url,
             "frontend_auth_login_url": component.get_config(
                 "frontend_auth_login_url", ""
             ),

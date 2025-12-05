@@ -196,16 +196,16 @@ def _setup_middleware(component: "PlatformServiceComponent"):
     # CORS middleware - automatically trust configured UI origins
     configured_origins = component.get_cors_origins().copy()
 
-    # Automatically add frontend and enterprise URLs as trusted origins
+    # Automatically add frontend and platform service URLs as trusted origins
     # These are admin-controlled values that should always be trusted
     frontend_url = os.getenv("FRONTEND_SERVER_URL", "").strip()
-    enterprise_url = os.getenv("ENTERPRISE_API_URL", "").strip()
+    platform_url = os.getenv("PLATFORM_SERVICE_URL", "").strip()
 
     auto_trusted_origins = []
     if frontend_url:
         auto_trusted_origins.append(frontend_url)
-    if enterprise_url:
-        auto_trusted_origins.append(enterprise_url)
+    if platform_url:
+        auto_trusted_origins.append(platform_url)
 
     # Combine and deduplicate
     allowed_origins = list(set(auto_trusted_origins + configured_origins))

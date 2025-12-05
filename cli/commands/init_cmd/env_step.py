@@ -26,7 +26,7 @@ ENV_DEFAULTS = {
     "S3_ENDPOINT_URL": "",
     "S3_REGION": "us-east-1",
     "FRONTEND_SERVER_URL": "",
-    "ENTERPRISE_API_URL": "",
+    "PLATFORM_SERVICE_URL": "",
     "LLM_SERVICE_OAUTH_TOKEN_URL": "YOUR_LLM_SERVICE_OAUTH_TOKEN_URL_HERE",
     "LLM_SERVICE_OAUTH_CLIENT_ID": "YOUR_LLM_SERVICE_OAUTH_CLIENT_ID_HERE",
     "LLM_SERVICE_OAUTH_CLIENT_SECRET": "YOUR_LLM_SERVICE_OAUTH_CLIENT_SECRET_HERE",
@@ -211,11 +211,11 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             "FRONTEND_SERVER_URL",
         ),
         (
-            "enterprise_api_url",
-            "ENTERPRISE_API_URL",
-            "Enter Enterprise API URL (leave empty if not using enterprise features)",
+            "platform_service_url",
+            "PLATFORM_SERVICE_URL",
+            "Enter Platform Service URL (leave empty if not using platform service)",
             False,
-            "ENTERPRISE_API_URL",
+            "PLATFORM_SERVICE_URL",
         ),
     ]
 
