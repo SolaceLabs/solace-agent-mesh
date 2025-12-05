@@ -16,3 +16,4 @@ class ProxyTaskContext:
     task_id: str  # SAM's task ID (used for upstream communication)
     a2a_context: Dict[str, Any]
     downstream_task_id: str | None = None  # Downstream agent's task ID (used for cancellation)
+    original_request: Any = None  # Original A2A request (for task pause/resume in OAuth2 flows)
