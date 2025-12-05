@@ -15,19 +15,20 @@ interface NavigationListProps {
 }
 
 export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomItems, activeItem, onItemClick }) => {
-    const [popoverOpen, setPopoverOpen] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
     const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
 
-    // When authorization is enabled, show user info
-    const { frontend_use_authorization: useAuthorization } = useConfigContext();
+    // When authorization is enabled, show menu with user info and settings/logout
+    const { frontend_use_authorization: useAuthorization, configFeatureEnablement } = useConfigContext();
+    const logoutEnabled = useAuthorization && configFeatureEnablement?.logout ? true : false;
     const { userInfo, logout } = useAuthContext();
 
     const handleSettingsClick = () => {
-        setPopoverOpen(false);
+        setMenuOpen(false);
         setSettingsDialogOpen(true);
     };
     const handleLogoutClick = () => {
-        setPopoverOpen(false);
+        setMenuOpen(false);
         logout();
     };
 
@@ -56,9 +57,9 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                         </li>
                     ))}
                 {/* User or Settings */}
-                {useAuthorization ? (
+                {logoutEnabled ? (
                     <li className="my-4 flex justify-center">
-                        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <PopoverTrigger asChild>

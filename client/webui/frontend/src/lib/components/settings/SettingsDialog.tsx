@@ -74,10 +74,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
         }
     };
 
-    // When controlled externally (open prop is provided), don't render trigger
-
     return (
         <Dialog open={open} onOpenChange={setOpen}>
+            {/* When controlled externally (open prop is provided), don't render trigger */}
             {!isControlled &&
                 (iconOnly ? (
                     <Tooltip>

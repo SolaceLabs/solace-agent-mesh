@@ -1,8 +1,9 @@
 import { useState } from "react";
 import type { Meta, StoryContext, StoryFn } from "@storybook/react-vite";
+import { expect, userEvent, within } from "storybook/test";
+
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { NavigationList } from "@/lib/components/navigation/NavigationList";
-import { expect, userEvent, within } from "storybook/test";
 
 const meta = {
     title: "Views/Settings",
@@ -11,7 +12,7 @@ const meta = {
         layout: "fullscreen",
         docs: {
             description: {
-                component: "A settings dialog component with multiple sections for configuring application settings, shown in the context of NavigationList",
+                component: "A settings dialog component for configuring application settings",
             },
         },
         configContext: {
@@ -21,6 +22,9 @@ const meta = {
                 speechToText: false,
                 textToSpeech: false,
             },
+        },
+        authContext: {
+            userInfo: { username: "Story User" },
         },
     },
     decorators: [
@@ -50,11 +54,10 @@ export const Default = {
         const settingsButton = await canvas.findByLabelText("Open Settings");
         await userEvent.click(settingsButton);
 
-        // Verify the dialog opened
+        // Verify the dialog and content
         const dialog = await within(document.body).findByRole("dialog");
         await expect(dialog).toBeInTheDocument();
 
-        // Verify dialog content
         const dialogContent = within(dialog);
         await dialogContent.findByRole("button", { name: "General" });
         await dialogContent.findByRole("button", { name: "About" });
@@ -79,15 +82,14 @@ export const About = {
         const settingsButton = await canvas.findByLabelText("Open Settings");
         await userEvent.click(settingsButton);
 
-        // Verify the dialog opened
+        // Verify the dialog and about content
         const dialog = await within(document.body).findByRole("dialog");
         await expect(dialog).toBeInTheDocument();
 
-        // Verify dialog content
         const dialogContent = within(dialog);
         await dialogContent.findByRole("button", { name: "General" });
-        const about = await dialogContent.findByRole("button", { name: "About" });
 
+        const about = await dialogContent.findByRole("button", { name: "About" });
         await userEvent.click(about);
         await dialogContent.findByText("Application Versions");
     },
@@ -97,7 +99,7 @@ export const TextToSpeech = {
     parameters: {
         configContext: {
             persistenceEnabled: false,
-            frontend_use_authorization: false,
+            frontend_use_authorization: true,
             configFeatureEnablement: {
                 speechToText: false,
                 textToSpeech: true,
@@ -120,16 +122,15 @@ export const TextToSpeech = {
         const settingsButton = await canvas.findByLabelText("Open Settings");
         await userEvent.click(settingsButton);
 
-        // Verify the dialog opened
+        // Verify the dialog and Speech content
         const dialog = await within(document.body).findByRole("dialog");
         await expect(dialog).toBeInTheDocument();
 
-        // Verify dialog content
         const dialogContent = within(dialog);
         await dialogContent.findByRole("button", { name: "General" });
         await dialogContent.findByRole("button", { name: "About" });
-        const speech = await dialogContent.findByRole("button", { name: "Speech" });
 
+        const speech = await dialogContent.findByRole("button", { name: "Speech" });
         await userEvent.click(speech);
         await dialogContent.findByText("Text-to-Speech");
         expect(dialogContent.queryByText("Speech-to-Text")).toBeNull();
@@ -144,6 +145,7 @@ export const Logout = {
             configFeatureEnablement: {
                 speechToText: false,
                 textToSpeech: false,
+                logout: true,
             },
         },
     },
@@ -162,10 +164,10 @@ export const Logout = {
         // When authorization is enabled, Settings becomes a menu item
         const menu = await canvas.findByLabelText("Open Menu");
         await expect(menu).toBeInTheDocument();
-
         await userEvent.click(menu);
-
         await within(document.body).findByRole("menuitem", { name: "Settings" });
+
+        // Verify Logout menu item
         const logoutButton = await within(document.body).findByRole("menuitem", { name: "Logout" });
         await expect(logoutButton).toBeInTheDocument();
     },
@@ -179,6 +181,7 @@ export const All = {
             configFeatureEnablement: {
                 speechToText: true,
                 textToSpeech: true,
+                logout: true,
             },
         },
     },
@@ -197,20 +200,22 @@ export const All = {
         // When authorization is enabled, Settings becomes a menu item
         const menu = await canvas.findByLabelText("Open Menu");
         await expect(menu).toBeInTheDocument();
-
         await userEvent.click(menu);
 
+        // Verify Logout and Settings menu items
         await within(document.body).findByRole("menuitem", { name: "Logout" });
         const settingsButton = await within(document.body).findByRole("menuitem", { name: "Settings" });
         await expect(settingsButton).toBeInTheDocument();
         await userEvent.click(settingsButton);
 
-        // Verify the dialog opened
+        // Verify the dialog and content
         const dialog = await within(document.body).findByRole("dialog");
         await expect(dialog).toBeInTheDocument();
 
         // Verify Speech tab is available and shows both features
         const dialogContent = within(dialog);
+        await dialogContent.findByRole("button", { name: "General" });
+        await dialogContent.findByRole("button", { name: "About" });
         const speech = await dialogContent.findByRole("button", { name: "Speech" });
         await userEvent.click(speech);
         await dialogContent.findByText("Speech-to-Text");
