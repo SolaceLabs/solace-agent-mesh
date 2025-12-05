@@ -179,10 +179,6 @@ def setup_dependencies(component: "PlatformServiceComponent", database_url: str)
     # Setup routers
     _setup_routers()
 
-    # Start enterprise platform background tasks (if available)
-    # This follows the same pattern as WebUI Gateway
-    await _start_enterprise_platform_tasks(component)
-
     _dependencies_initialized = True
     log.info("Platform Service dependencies initialized successfully")
 

@@ -208,13 +208,30 @@ class PlatformServiceComponent(ComponentBase):
 
         Uses direct publishing (not A2A protocol) since deployer is a
         standalone service, not an A2A agent.
+
+        Note: Direct publisher initialization is optional. If broker connection
+        is not available, deployment commands will not work but the Platform
+        Service API will still function for CRUD operations.
         """
         try:
-            main_app = self.get_app()
-            if not main_app or not main_app.connector:
-                raise RuntimeError("Cannot access main app or connector for message publishing")
+            # For simplified apps, the component needs to wait for broker connection
+            # The broker_output attribute will be set by the framework after broker connects
+            if not hasattr(self, 'broker_output') or not self.broker_output:
+                log.warning(
+                    "%s Broker not yet connected - direct publisher will be initialized later",
+                    self.log_identifier
+                )
+                return
 
-            messaging_service = main_app.connector.get_messaging_service()
+            # Get messaging service from broker_output
+            if not hasattr(self.broker_output, 'messaging_service'):
+                log.warning(
+                    "%s Broker output does not have messaging_service - direct publisher unavailable",
+                    self.log_identifier
+                )
+                return
+
+            messaging_service = self.broker_output.messaging_service
 
             from solace.messaging.publisher.direct_message_publisher import DirectMessagePublisher
 
@@ -224,8 +241,44 @@ class PlatformServiceComponent(ComponentBase):
             log.info("%s Direct message publisher initialized for deployer commands", self.log_identifier)
 
         except Exception as e:
-            log.error("%s Failed to initialize direct publisher: %s", self.log_identifier, e)
-            raise
+            log.warning(
+                "%s Could not initialize direct publisher: %s (deployment commands will not work)",
+                self.log_identifier,
+                e
+            )
+
+    def _start_background_tasks(self):
+        """
+        Start background tasks for Platform Service.
+
+        This method calls the enterprise function to start background tasks
+        if the enterprise package is available. Follows the same pattern as
+        WebUI Gateway for graceful degradation.
+
+        Background tasks (enterprise-only):
+        - Heartbeat listener (monitors deployer heartbeats)
+        - Deployment status checker (checks deployment timeouts)
+        - Agent registry (tracks agent availability)
+        """
+        try:
+            from solace_agent_mesh_enterprise.init_enterprise import start_platform_background_tasks
+
+            log.info("%s Starting enterprise platform background tasks...", self.log_identifier)
+            start_platform_background_tasks(self)
+            log.info("%s Enterprise platform background tasks started", self.log_identifier)
+
+        except ImportError:
+            log.info(
+                "%s Enterprise package not available - no background tasks to start",
+                self.log_identifier
+            )
+        except Exception as e:
+            log.error(
+                "%s Failed to start enterprise background tasks: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
 
     def cleanup(self):
         """
