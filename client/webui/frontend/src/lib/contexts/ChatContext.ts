@@ -1,6 +1,6 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentCardInfo, ArtifactInfo, ArtifactRenderingState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
+import type { AgentCardInfo, ArtifactInfo, ArtifactRenderingState, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
 
 /** Pending prompt data for starting a new chat with a prompt template */
 export interface PendingPromptData {
@@ -54,6 +54,9 @@ export interface ChatState {
     artifactRenderingState: ArtifactRenderingState;
     // Pending prompt for starting new chat
     pendingPrompt: PendingPromptData | null;
+    // Background Task Monitoring State
+    backgroundTasks: BackgroundTaskState[];
+    backgroundNotifications: BackgroundTaskNotification[];
 }
 
 export interface ChatActions {
@@ -109,6 +112,9 @@ export interface ChatActions {
     handleFeedbackSubmit: (taskId: string, feedbackType: "up" | "down", feedbackText: string) => Promise<void>;
 
     displayError: ({ title, error }: { title: string; error: string }) => void;
+
+    /** Background Task Monitoring Actions */
+    isTaskRunningInBackground: (taskId: string) => boolean;
 }
 
 export type ChatContextValue = ChatState & ChatActions;

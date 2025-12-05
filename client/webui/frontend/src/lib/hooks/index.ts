@@ -3,6 +3,7 @@ export * from "./useArtifactRendering";
 export * from "./useArtifacts";
 export * from "./useAudioSettings";
 export * from "./useAuthContext";
+export * from "./useBackgroundTaskMonitor";
 export * from "./useBeforeUnload";
 export * from "./useChatContext";
 export * from "./useConfigContext";
