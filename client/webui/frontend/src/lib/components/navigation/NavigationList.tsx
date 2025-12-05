@@ -80,7 +80,6 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                                     <span className="text-sm font-medium">{typeof userInfo?.username === "string" ? userInfo.username : "Guest"}</span>
                                 </div>
                                 <Menu
-                                    className="h-20"
                                     actions={[
                                         {
                                             id: "settings",
