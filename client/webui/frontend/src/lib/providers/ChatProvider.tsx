@@ -582,9 +582,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Wrapper function to set preview artifact by filename
     // IMPORTANT: Must be defined before confirmDelete to avoid circular dependency
-    const setPreviewArtifact = useCallback((artifact: ArtifactInfo | null) => {
-        setPreviewArtifactFilename(artifact?.filename || null);
-    }, []);
+    const setPreviewArtifact = useCallback(
+        (artifact: ArtifactInfo | null) => {
+            setPreviewArtifactFilename(artifact?.filename || null);
+            // Clear version-related state when changing/closing preview to prevent stale data
+            if (!artifact || artifact.filename !== previewArtifactFilename) {
+                setPreviewedArtifactAvailableVersions(null);
+                setCurrentPreviewedVersionNumber(null);
+                setPreviewFileContent(null);
+            }
+        },
+        [previewArtifactFilename]
+    );
 
     const confirmDelete = useCallback(async () => {
         if (artifactToDelete) {
@@ -683,6 +692,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Strip charset and other parameters from Content-Type
                 const mimeType = contentType.split(";")[0].trim();
 
+                // Get version-specific timestamp from Last-Modified header if available
+                const lastModifiedHeader = contentResponse.headers.get("Last-Modified");
+                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
+                const versionTimestamp = lastModifiedHeader || artifactInfo?.last_modified || new Date().toISOString();
+
+                console.log(`[ChatProvider:openArtifactForPreview] Timestamp for ${artifactFilename} v${latestVersion}:`, {
+                    lastModifiedHeader,
+                    artifactInfoTimestamp: artifactInfo?.last_modified,
+                    finalTimestamp: versionTimestamp,
+                    allHeaders: Object.fromEntries(contentResponse.headers.entries()),
+                });
+
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -690,13 +711,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     reader.onerror = reject;
                     reader.readAsDataURL(blob);
                 });
-                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
                 const fileData: FileAttachment = {
                     name: artifactFilename,
                     // Use MIME type from response headers (version-specific), not from artifact list (latest version)
                     mime_type: mimeType,
                     content: base64Content,
-                    last_modified: artifactInfo?.last_modified || new Date().toISOString(),
+                    last_modified: versionTimestamp,
                 };
                 setPreviewFileContent(fileData);
                 return fileData;
@@ -747,6 +767,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Strip charset and other parameters from Content-Type
                 const mimeType = contentType.split(";")[0].trim();
 
+                // Get version-specific timestamp from Last-Modified header if available
+                const lastModifiedHeader = contentResponse.headers.get("Last-Modified");
+                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
+                const versionTimestamp = lastModifiedHeader || artifactInfo?.last_modified || new Date().toISOString();
+
+                console.log(`[ChatProvider:navigateArtifactVersion] Timestamp for ${artifactFilename} v${targetVersion}:`, {
+                    lastModifiedHeader,
+                    artifactInfoTimestamp: artifactInfo?.last_modified,
+                    finalTimestamp: versionTimestamp,
+                    allHeaders: Object.fromEntries(contentResponse.headers.entries()),
+                });
+
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -754,13 +786,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     reader.onerror = reject;
                     reader.readAsDataURL(blob);
                 });
-                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
                 const fileData: FileAttachment = {
                     name: artifactFilename,
                     // Use MIME type from response headers (version-specific), not from artifact list (latest version)
                     mime_type: mimeType,
                     content: base64Content,
-                    last_modified: artifactInfo?.last_modified || new Date().toISOString(),
+                    last_modified: versionTimestamp,
                 };
                 setCurrentPreviewedVersionNumber(targetVersion);
                 setPreviewFileContent(fileData);
@@ -2151,6 +2182,89 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const prevProjectIdRef = useRef<string | null | undefined>("");
     const isSessionSwitchRef = useRef(false);
     const isSessionMoveRef = useRef(false);
+
+    // Auto-refresh preview when the previewed artifact gets updated
+    const lastCheckedVersionRef = useRef<number | null>(null);
+    useEffect(() => {
+        if (!previewArtifactFilename || !previewedArtifactAvailableVersions) return;
+
+        const previewedArtifact = artifacts.find(a => a.filename === previewArtifactFilename);
+        if (!previewedArtifact) return;
+
+        // Check if artifact has a newer version than what we currently have in the dropdown
+        const currentMaxVersion = Math.max(...previewedArtifactAvailableVersions);
+        const artifactLatestVersion = previewedArtifact.version;
+
+        // If the artifact has a newer version, refresh the preview
+        if (artifactLatestVersion && artifactLatestVersion > currentMaxVersion && lastCheckedVersionRef.current !== artifactLatestVersion) {
+            lastCheckedVersionRef.current = artifactLatestVersion;
+
+            // Refresh versions and switch to latest
+            (async () => {
+                try {
+                    let versionsUrl: string;
+                    if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
+                        versionsUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(previewArtifactFilename)}/versions`;
+                    } else if (activeProject?.id) {
+                        versionsUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(previewArtifactFilename)}/versions?project_id=${activeProject.id}`;
+                    } else {
+                        return;
+                    }
+
+                    const availableVersions: number[] = await fetchJsonWithError(versionsUrl);
+                    if (!availableVersions || availableVersions.length === 0) return;
+
+                    setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
+                    const newVersion = Math.max(...availableVersions);
+
+                    // Fetch and display the new version
+                    let contentUrl: string;
+                    if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
+                        contentUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(previewArtifactFilename)}/versions/${newVersion}`;
+                    } else if (activeProject?.id) {
+                        contentUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(previewArtifactFilename)}/versions/${newVersion}?project_id=${activeProject.id}`;
+                    } else {
+                        return;
+                    }
+
+                    const contentResponse = await fetchWithError(contentUrl);
+                    const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
+                    const mimeType = contentType.split(";")[0].trim();
+
+                    // Get version-specific timestamp from Last-Modified header if available
+                    const lastModifiedHeader = contentResponse.headers.get("Last-Modified");
+                    const versionTimestamp = lastModifiedHeader || previewedArtifact?.last_modified || new Date().toISOString();
+
+                    console.log(`[ChatProvider:useEffect auto-refresh] Timestamp for ${previewArtifactFilename} v${newVersion}:`, {
+                        lastModifiedHeader,
+                        previewedArtifactTimestamp: previewedArtifact?.last_modified,
+                        finalTimestamp: versionTimestamp,
+                        allHeaders: Object.fromEntries(contentResponse.headers.entries()),
+                    });
+
+                    const blob = await contentResponse.blob();
+                    const base64Content = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+
+                    const fileData: FileAttachment = {
+                        name: previewArtifactFilename,
+                        mime_type: mimeType,
+                        content: base64Content,
+                        last_modified: versionTimestamp,
+                    };
+
+                    setCurrentPreviewedVersionNumber(newVersion);
+                    setPreviewFileContent(fileData);
+                } catch (error) {
+                    console.error("Failed to refresh preview after artifact update:", error);
+                }
+            })();
+        }
+    }, [artifacts, previewArtifactFilename, previewedArtifactAvailableVersions, sessionId, apiPrefix, activeProject]);
 
     useEffect(() => {
         const handleProjectDeleted = (deletedProjectId: string) => {

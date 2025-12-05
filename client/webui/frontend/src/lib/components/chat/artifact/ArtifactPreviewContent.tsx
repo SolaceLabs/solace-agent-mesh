@@ -16,7 +16,7 @@ const EmptyState: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
 };
 
 export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ artifact }) => {
-    const { openArtifactForPreview, previewFileContent, markArtifactAsDisplayed, downloadAndResolveArtifact } = useChatContext();
+    const { openArtifactForPreview, previewFileContent, markArtifactAsDisplayed, downloadAndResolveArtifact, currentPreviewedVersionNumber } = useChatContext();
     const preview = useMemo(() => canPreviewArtifact(artifact), [artifact]);
 
     const [isLoading, setIsLoading] = useState(false);
@@ -42,10 +42,10 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
         setIsLoading(false);
         setError(null);
         setCachedContent(null);
-        // Reset fetch tracking when filename changes
+        // Reset fetch tracking when filename or version changes
         isFetchingRef.current = false;
         lastFetchedFilenameRef.current = null;
-    }, [artifact.filename]); // Only depend on filename to avoid infinite loops
+    }, [artifact.filename, currentPreviewedVersionNumber]); // Clear cache when filename or version changes
 
     // Update cached content when accumulated content changes (for progressive rendering)
     useEffect(() => {
