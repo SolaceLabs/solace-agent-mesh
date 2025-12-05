@@ -1,22 +1,16 @@
 import { createQueryKeys } from "@lukemorales/query-key-factory";
 
 export const projects = createQueryKeys("projects", {
-    all: null,
+    all: { queryKey: null },
+    create: { queryKey: null },
+    import: { queryKey: null },
+    update: (projectId: string) => ({ queryKey: [projectId] }),
+    delete: (projectId: string) => ({ queryKey: [projectId] }),
+    export: (projectId: string) => ({ queryKey: [projectId] }),
+    sessions: (projectId: string) => ({ queryKey: [projectId] }),
 
-    create: null,
-    update: (projectId: string) => [projectId],
-    delete: (projectId: string) => [projectId],
-    import: null,
-    export: (projectId: string) => [projectId],
-
-    artifacts: (projectId: string) => ({
-        queryKey: [projectId],
-        contextQueries: {
-            create: null,
-            update: (filename: string) => [filename],
-            delete: (filename: string) => [filename],
-        },
-    }),
-
-    sessions: (projectId: string) => [projectId],
+    artifacts: (projectId: string) => ({ queryKey: [projectId, "artifacts"] }),
+    artifactsCreate: (projectId: string) => ({ queryKey: [projectId, "artifacts", "create"] }),
+    artifactsUpdate: (projectId: string, filename: string) => ({ queryKey: [projectId, "artifacts", "update", filename] }),
+    artifactsDelete: (projectId: string, filename: string) => ({ queryKey: [projectId, "artifacts", "delete", filename] }),
 });

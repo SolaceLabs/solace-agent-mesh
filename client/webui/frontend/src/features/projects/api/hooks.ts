@@ -41,7 +41,7 @@ export const useAddFilesToProject = (projectId: string) => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationKey: projects.artifacts(projectId)._ctx.create.queryKey,
+        mutationKey: projects.artifactsCreate(projectId).queryKey,
         mutationFn: (data: { files: File[]; fileMetadata?: Record<string, string> }) => addFilesToProject(projectId, data.files, data.fileMetadata),
         onSettled: () =>
             queryClient.invalidateQueries({
@@ -54,7 +54,7 @@ export const useRemoveFileFromProject = (projectId: string, filename: string) =>
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationKey: projects.artifacts(projectId)._ctx.delete(filename).queryKey,
+        mutationKey: projects.artifactsDelete(projectId, filename).queryKey,
         mutationFn: () => removeFileFromProject(projectId, filename),
         onSettled: () =>
             queryClient.invalidateQueries({
@@ -67,7 +67,7 @@ export const useUpdateFileMetadata = (projectId: string, filename: string) => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationKey: projects.artifacts(projectId)._ctx.update(filename).queryKey,
+        mutationKey: projects.artifactsUpdate(projectId, filename).queryKey,
         mutationFn: (description: string) => updateFileMetadata(projectId, filename, description),
         onSettled: () =>
             queryClient.invalidateQueries({
