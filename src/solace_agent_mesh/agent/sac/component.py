@@ -3327,6 +3327,80 @@ class SamAgentComponent(SamComponentBase):
         """Returns the dedicated asyncio event loop for this component's async tasks."""
         return self._async_loop
 
+    def publish_data_signal_from_thread(
+        self,
+        a2a_context: Dict[str, Any],
+        signal_data: BaseModel,
+        skip_buffer_flush: bool = False,
+        log_identifier: Optional[str] = None,
+    ) -> bool:
+        """
+        Publishes a data signal status update from any thread by scheduling it on the async loop.
+
+        This is a convenience method for tools and callbacks that need to publish status updates
+        but are not running in an async context. It handles:
+        1. Extracting task_id and context_id from a2a_context
+        2. Creating the status update event
+        3. Checking if the async loop is available and running
+        4. Scheduling the publish operation on the async loop
+
+        Args:
+            a2a_context: The A2A context dictionary containing logical_task_id and contextId
+            signal_data: A Pydantic BaseModel instance (e.g., AgentProgressUpdateData,
+                        DeepResearchProgressData, ArtifactCreationProgressData)
+            skip_buffer_flush: If True, skip buffer flushing before publishing
+            log_identifier: Optional log identifier for debugging
+
+        Returns:
+            bool: True if the publish was successfully scheduled, False otherwise
+        """
+        from ...common import a2a
+
+        log_id = log_identifier or f"{self.log_identifier}[PublishDataSignal]"
+
+        if not a2a_context:
+            log.error("%s No a2a_context provided. Cannot publish data signal.", log_id)
+            return False
+
+        logical_task_id = a2a_context.get("logical_task_id")
+        context_id = a2a_context.get("contextId")
+
+        if not logical_task_id:
+            log.error("%s No logical_task_id in a2a_context. Cannot publish data signal.", log_id)
+            return False
+
+        # Create status update event using the standard data signal pattern
+        status_update_event = a2a.create_data_signal_event(
+            task_id=logical_task_id,
+            context_id=context_id,
+            signal_data=signal_data,
+            agent_name=self.agent_name,
+        )
+
+        # Get the async loop and schedule the publish
+        loop = self.get_async_loop()
+        if loop and loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                self._publish_status_update_with_buffer_flush(
+                    status_update_event,
+                    a2a_context,
+                    skip_buffer_flush=skip_buffer_flush,
+                ),
+                loop,
+            )
+            log.debug(
+                "%s Scheduled data signal status update (type: %s).",
+                log_id,
+                type(signal_data).__name__,
+            )
+            return True
+        else:
+            log.error(
+                "%s Async loop not available or not running. Cannot publish data signal.",
+                log_id,
+            )
+            return False
+
     def set_agent_system_instruction_string(self, instruction_string: str) -> None:
         """
         Sets a static string to be injected into the LLM system prompt.

@@ -343,30 +343,13 @@ async def _send_research_progress(
             # Fallback to simple text progress
             progress_data = AgentProgressUpdateData(status_text=message)
         
-        logical_task_id = a2a_context.get("logical_task_id")
-        context_id = a2a_context.get("contextId")
-        
-        # Create status update event using the standard data signal pattern
-        status_update_event = a2a.create_data_signal_event(
-            task_id=logical_task_id,
-            context_id=context_id,
+        # Use the host component's helper method to publish the data signal
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
             signal_data=progress_data,
-            agent_name=host_component.agent_name,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
         )
-        
-        # Publish via the host component's async method
-        loop = host_component.get_async_loop()
-        if loop and loop.is_running():
-            asyncio.run_coroutine_threadsafe(
-                host_component._publish_status_update_with_buffer_flush(
-                    status_update_event,
-                    a2a_context,
-                    skip_buffer_flush=False,
-                ),
-                loop,
-            )
-        else:
-            log.error("%s Async loop not available. Cannot publish progress update.", log_identifier)
         
     except Exception as e:
         log.error("%s Error sending progress update: %s", log_identifier, str(e))
