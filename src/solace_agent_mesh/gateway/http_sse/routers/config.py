@@ -34,6 +34,48 @@ def _get_validation_limits() -> Dict[str, Any]:
     }
 
 
+def _get_background_tasks_config(
+    component: "WebUIBackendComponent",
+    log_prefix: str
+) -> Dict[str, Any]:
+    """
+    Extracts background tasks configuration for the frontend.
+    
+    Returns:
+        Dict with background tasks non-boolean settings:
+        - default_timeout_ms: Default timeout for background tasks
+        
+    Note: The 'enabled' flag is now in frontend_feature_enablement.background_tasks
+    """
+    background_config = component.get_config("background_tasks", {})
+    default_timeout_ms = background_config.get("default_timeout_ms", 3600000)  # 1 hour default
+    
+    return {
+        "default_timeout_ms": default_timeout_ms,
+    }
+
+
+def _determine_background_tasks_enabled(
+    component: "WebUIBackendComponent",
+    log_prefix: str
+) -> bool:
+    """
+    Determines if background tasks feature should be enabled.
+    
+    Returns:
+        bool: True if background tasks should be enabled
+    """
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    enabled = feature_flags.get("background_tasks", False)
+    
+    if enabled:
+        log.debug("%s Background tasks enabled globally for all agents", log_prefix)
+    else:
+        log.debug("%s Background tasks disabled", log_prefix)
+    
+    return enabled
+
+
 def _determine_projects_enabled(
     component: "WebUIBackendComponent",
     api_config: Dict[str, Any],
@@ -196,6 +238,14 @@ async def get_app_config(
             log.debug("%s Projects feature flag is disabled.", log_prefix)
         
         
+        # Determine if background tasks should be enabled
+        background_tasks_enabled = _determine_background_tasks_enabled(component, log_prefix)
+        feature_enablement["background_tasks"] = background_tasks_enabled
+        if background_tasks_enabled:
+            log.debug("%s Background tasks feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Background tasks feature flag is disabled.", log_prefix)
+        
         # Check tool configuration status
         tool_config_status = {}
         
@@ -319,6 +369,7 @@ async def get_app_config(
             "validation_limits": _get_validation_limits(),
             "tool_config_status": tool_config_status,
             "tts_settings": tts_settings,
+            "background_tasks_config": _get_background_tasks_config(component, log_prefix),
         }
         log.debug("%sReturning frontend configuration.", log_prefix)
         return config_data

@@ -38,6 +38,19 @@ export interface ConfigContextValue {
     validationLimits?: ValidationLimits;
 
     /**
+     * Whether background task execution is enabled globally.
+     * When true, all tasks can run in background mode, allowing users to
+     * navigate away and return to see completed results.
+     */
+    backgroundTasksEnabled?: boolean;
+
+    /**
+     * Default timeout for background tasks in milliseconds.
+     * Tasks running longer than this will be automatically cancelled.
+     */
+    backgroundTasksDefaultTimeoutMs?: number;
+
+    /**
      * Tool configuration status from backend.
      * Indicates which tools are properly configured with required API keys.
      */
