@@ -778,14 +778,7 @@ class SamAgentComponent(SamComponentBase):
                 log_retrigger,
                 len(new_response_parts),
             )
-            new_adk_event = ADKEvent(
-                invocation_id=paused_invocation_id,
-                author=self.agent_name,
-                content=adk_types.Content(role="tool", parts=new_response_parts),
-            )
-            await self.session_service.append_event(
-                session=session, event=new_adk_event
-            )
+            new_tool_response_content = adk_types.Content(role="tool", parts=new_response_parts)
 
             # Always use SSE streaming mode for the ADK runner, even on re-trigger.
             # This ensures that real-time callbacks for status updates and artifact
@@ -803,7 +796,7 @@ class SamAgentComponent(SamComponentBase):
             )
             try:
                 await run_adk_async_task_thread_wrapper(
-                    self, session, None, run_config, original_task_context
+                    self, session, new_tool_response_content, run_config, original_task_context, append_context_event=False
                 )
             finally:
                 log.info(

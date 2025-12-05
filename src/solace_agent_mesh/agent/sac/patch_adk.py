@@ -7,9 +7,10 @@
 # Purpose: Fix event filtering and function response handling in LLM flows
 # =============================================================================
 import google.adk.flows.llm_flows.contents
+from google.adk.flows.llm_flows.contents import _contains_empty_content
 from google.adk.flows.llm_flows.contents import _is_event_belongs_to_branch
 from google.adk.flows.llm_flows.contents import _is_auth_event
-from google.adk.flows.llm_flows.contents import _convert_foreign_event
+from google.adk.flows.llm_flows.contents import _present_other_agent_message
 from google.adk.flows.llm_flows.contents import _is_other_agent_reply
 from google.adk.flows.llm_flows.contents import _rearrange_events_for_async_function_responses_in_history
 from google.adk.flows.llm_flows.contents import remove_client_function_call_id
@@ -39,16 +40,7 @@ def _patch_get_contents(
   # Parse the events, leaving the contents and the function calls and
   # responses from the current agent.
   for event in events:
-    if (
-        not event.content
-        or not event.content.role
-        or not event.content.parts
-        or (event.content.parts[0].text == '' and not event.content.parts[0].function_response)
-    ):
-      # Skip events without content, or generated neither by user nor by model
-      # or has empty text.
-      # E.g. events purely for mutating session states.
-
+    if _contains_empty_content(event):
       continue
     if not _is_event_belongs_to_branch(current_branch, event):
       # Skip events not belong to current branch.
@@ -56,11 +48,11 @@ def _patch_get_contents(
     if _is_auth_event(event):
       # Skip auth events.
       continue
-    filtered_events.append(
-        _convert_foreign_event(event)
-        if _is_other_agent_reply(agent_name, event)
-        else event
-    )
+    if _is_other_agent_reply(agent_name, event):
+      if converted_event := _present_other_agent_message(event):
+        filtered_events.append(converted_event)
+    else:
+      filtered_events.append(event)
 
   # Rearrange events for proper function call/response pairing
   result_events = filtered_events
