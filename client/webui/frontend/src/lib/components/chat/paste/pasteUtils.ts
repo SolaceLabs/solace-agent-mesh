@@ -2,6 +2,11 @@ export interface PastedTextItem {
     id: string;
     content: string;
     timestamp: number;
+    // Optional metadata - set when user configures via dialog
+    filename?: string;
+    mimeType?: string;
+    description?: string;
+    isConfigured?: boolean; // true if user has opened dialog and saved settings
 }
 
 export interface PastedArtifactItem {

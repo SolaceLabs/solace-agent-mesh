@@ -69,9 +69,9 @@ export interface ChatActions {
     handleSwitchSession: (sessionId: string) => Promise<void>;
     handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null, overrideSessionId?: string | null) => Promise<void>;
     handleCancel: () => void;
-    addNotification: (message: string, type?: "success" | "info" | "error") => void;
+    addNotification: (message: string, type?: "success" | "info" | "warning") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
-    uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
+    uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string, silent?: boolean) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
     setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;

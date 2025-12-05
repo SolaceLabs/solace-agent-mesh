@@ -10,7 +10,7 @@ const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(({ class
         ref={ref}
         name="message"
         data-testid="chat-input"
-        className={cn(`flex w-full items-center rounded-md px-4 py-3 placeholder:text-[var(--color-secondary-wMain)] disabled:cursor-not-allowed disabled:opacity-50`, className)}
+        className={cn(`bg-card flex w-full items-center rounded-md px-4 py-3 placeholder:text-[var(--color-secondary-wMain)] disabled:cursor-not-allowed disabled:opacity-50`, className)}
         {...props}
     />
 ));

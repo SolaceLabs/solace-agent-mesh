@@ -30,6 +30,10 @@ from ...agent.adk.callbacks import _publish_data_part_status_update
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common import a2a
+from ...common.utils.embeds.constants import (
+    EMBED_DELIMITER_OPEN,
+    EMBED_DELIMITER_CLOSE,
+)
 from ...common.a2a import (
     get_agent_request_topic,
     get_agent_response_subscription_topic,
@@ -1298,41 +1302,64 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                     )
                                     return
 
+                                # Filter out artifact creation progress from peer agents.
+                                # These are implementation details that should not leak across
+                                # agent boundaries. Artifacts are properly bubbled up in the
+                                # final Task response metadata.
+                                filtered_data_parts = []
                                 for data_part in data_parts:
-                                    log.info(
-                                        "%s Received DataPart signal from peer for sub-task %s. Forwarding...",
+                                    if isinstance(data_part.data, dict) and data_part.data.get("type") == "artifact_creation_progress":
+                                        log.debug(
+                                            "%s Filtered out artifact_creation_progress DataPart from peer sub-task %s. Not forwarding to user.",
+                                            component.log_identifier,
+                                            sub_task_id,
+                                        )
+                                        continue
+                                    filtered_data_parts.append(data_part)
+
+                                # Only forward if there are non-filtered data parts
+                                if filtered_data_parts:
+                                    for data_part in filtered_data_parts:
+                                        log.info(
+                                            "%s Received DataPart signal from peer for sub-task %s. Forwarding...",
+                                            component.log_identifier,
+                                            sub_task_id,
+                                        )
+
+                                        forwarded_message = a2a.create_agent_parts_message(
+                                            parts=[data_part],
+                                            metadata=event_metadata,
+                                        )
+
+                                        forwarded_event = a2a.create_status_update(
+                                            task_id=main_logical_task_id,
+                                            context_id=main_context_id,
+                                            message=forwarded_message,
+                                            is_final=False,
+                                        )
+                                        if (
+                                            status_event.status
+                                            and status_event.status.timestamp
+                                        ):
+                                            forwarded_event.status.timestamp = (
+                                                status_event.status.timestamp
+                                            )
+                                        _forward_jsonrpc_response(
+                                            component=component,
+                                            original_jsonrpc_request_id=original_jsonrpc_request_id,
+                                            result_data=forwarded_event,
+                                            target_topic=target_topic_for_forward,
+                                            main_logical_task_id=main_logical_task_id,
+                                            peer_agent_name=peer_agent_name,
+                                            message=message,
+                                        )
+                                    return
+                                else:
+                                    log.debug(
+                                        "%s All DataParts from peer sub-task %s were filtered. Not forwarding.",
                                         component.log_identifier,
                                         sub_task_id,
                                     )
-
-                                    forwarded_message = a2a.create_agent_parts_message(
-                                        parts=[data_part],
-                                        metadata=event_metadata,
-                                    )
-
-                                    forwarded_event = a2a.create_status_update(
-                                        task_id=main_logical_task_id,
-                                        context_id=main_context_id,
-                                        message=forwarded_message,
-                                        is_final=False,
-                                    )
-                                    if (
-                                        status_event.status
-                                        and status_event.status.timestamp
-                                    ):
-                                        forwarded_event.status.timestamp = (
-                                            status_event.status.timestamp
-                                        )
-                                    _forward_jsonrpc_response(
-                                        component=component,
-                                        original_jsonrpc_request_id=original_jsonrpc_request_id,
-                                        result_data=forwarded_event,
-                                        target_topic=target_topic_for_forward,
-                                        main_logical_task_id=main_logical_task_id,
-                                        peer_agent_name=peer_agent_name,
-                                        message=message,
-                                    )
-                                    return
 
                             payload_to_queue = status_event.model_dump(
                                 by_alias=True, exclude_none=True
@@ -1613,6 +1640,16 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                             header_text=header_text,
                                         )
                                     )
+
+                                    # Add guidance about artifact_return responsibility
+                                    artifact_return_guidance = (
+                                        f"\n\n**Note:** If any of these artifacts fulfill the user's request, "
+                                        f"you should return them directly to the user using the "
+                                        f"{EMBED_DELIMITER_OPEN}artifact_return:filename:version{EMBED_DELIMITER_CLOSE} embed. "
+                                        f"This is more convenient for the user than just describing the artifacts. "
+                                        f"Replace 'filename' and 'version' with the actual values from the artifact metadata above."
+                                    )
+                                    artifact_summary += artifact_return_guidance
                                 else:
                                     log.warning(
                                         "%s Could not generate artifact summary: missing user_id or session_id in correlation data.",
@@ -1635,7 +1672,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
 
             full_response_text = final_text
             if artifact_summary:
-                full_response_text = f"{artifact_summary}\n\n{full_response_text}"
+                full_response_text = f"{artifact_summary}\n---\n\nPeer Agent Response:\n\n{full_response_text}"
 
             await _publish_peer_tool_result_notification(
                 component=component,

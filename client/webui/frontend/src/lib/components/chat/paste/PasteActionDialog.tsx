@@ -1,16 +1,29 @@
 import React, { useState, useEffect } from "react";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from "@/lib/components/ui";
-import { MessageBanner, ConfirmationDialog } from "@/lib/components/common";
+import { MessageBanner } from "@/lib/components/common";
 
 import { generateArtifactDescription } from "./pasteUtils";
+
+export interface PasteMetadata {
+    filename: string;
+    mimeType: string;
+    description?: string;
+    content: string;
+}
 
 interface PasteActionDialogProps {
     isOpen: boolean;
     content: string;
-    onSaveAsArtifact: (title: string, type: string, content: string, description?: string) => Promise<void>;
+    onSaveMetadata: (metadata: PasteMetadata) => void; // Just saves metadata locally, no upload
     onCancel: () => void;
     existingArtifacts?: string[]; // List of existing artifact filenames
+    // Initial values from previously configured metadata
+    initialFilename?: string;
+    initialMimeType?: string;
+    initialDescription?: string;
+    // Default filename to use when not configured (computed by parent to account for other pending items)
+    defaultFilename?: string;
 }
 
 const FILE_TYPES = [
@@ -66,34 +79,39 @@ const generateUniqueFilename = (baseName: string, extension: string, existingArt
 // Default MIME type - always use text/plain for safety and readability
 const DEFAULT_MIME_TYPE = "text/plain";
 
-export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, content, onSaveAsArtifact, onCancel, existingArtifacts = [] }) => {
+export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, content, onSaveMetadata, onCancel, existingArtifacts = [], initialFilename, initialMimeType, initialDescription, defaultFilename }) => {
     const [title, setTitle] = useState("snippet.txt");
     const [description, setDescription] = useState("");
     const [fileType, setFileType] = useState(DEFAULT_MIME_TYPE);
-    const [isSaving, setIsSaving] = useState(false);
     const [editableContent, setEditableContent] = useState("");
     const [contentError, setContentError] = useState<string | null>(null);
-    const [showOverwriteConfirmDialog, setShowOverwriteConfirmDialog] = useState(false);
 
-    // Check if current title exists in artifacts
-    const titleExists = existingArtifacts.includes(title);
+    // Check if current title exists in artifacts (but not if it's the same as initial - user is editing)
+    const titleExists = existingArtifacts.includes(title) && title !== initialFilename;
     // Show warning whenever title exists
     const showOverwriteWarning = titleExists;
 
-    // Initialize form when dialog opens - always default to text/plain for safety
+    // Initialize form when dialog opens
     useEffect(() => {
         if (isOpen && content) {
             setEditableContent(content);
-            // Always default to text/plain - user can change if needed
-            setFileType(DEFAULT_MIME_TYPE);
-            // Update title with .txt extension, ensuring uniqueness
-            const uniqueFilename = generateUniqueFilename("snippet", "txt", existingArtifacts);
-            setTitle(uniqueFilename);
-            // Generate and set description
-            const generatedDescription = generateArtifactDescription(content);
-            setDescription(generatedDescription);
+
+            // If we have initial values (user is re-editing), use them
+            if (initialFilename) {
+                setTitle(initialFilename);
+                setFileType(initialMimeType || DEFAULT_MIME_TYPE);
+                setDescription(initialDescription || "");
+            } else {
+                // First time opening - use the pre-computed default filename if provided,
+                // otherwise generate one (fallback for backwards compatibility)
+                setFileType(DEFAULT_MIME_TYPE);
+                const uniqueFilename = defaultFilename || generateUniqueFilename("snippet", "txt", existingArtifacts);
+                setTitle(uniqueFilename);
+                const generatedDescription = generateArtifactDescription(content);
+                setDescription(generatedDescription);
+            }
         }
-    }, [isOpen, content, existingArtifacts]);
+    }, [isOpen, content, existingArtifacts, initialFilename, initialMimeType, initialDescription, defaultFilename]);
 
     // Update title extension when user explicitly changes file type
     useEffect(() => {
@@ -111,7 +129,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
         }
     }, [fileType, title]);
 
-    const handleSaveArtifact = async () => {
+    const handleSaveMetadata = () => {
         // Check if content is empty
         if (!editableContent.trim()) {
             setContentError("Content cannot be empty. Please add some content before saving.");
@@ -121,32 +139,15 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
         // Clear any previous error
         setContentError(null);
 
-        // Check if artifact already exists - show confirmation dialog
-        if (titleExists) {
-            setShowOverwriteConfirmDialog(true);
-            return;
-        }
+        // Save metadata locally (no upload yet)
+        onSaveMetadata({
+            filename: title,
+            mimeType: fileType,
+            description: description.trim() || undefined,
+            content: editableContent,
+        });
 
-        // No conflict - proceed with save
-        await performSave();
-    };
-
-    const performSave = async () => {
-        setIsSaving(true);
-        try {
-            await onSaveAsArtifact(title, fileType, editableContent, description.trim() || undefined);
-            resetForm();
-        } catch (error) {
-            console.error("Error saving artifact:", error);
-            // Don't reset form on error so user can try again
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const handleConfirmOverwrite = async () => {
-        setShowOverwriteConfirmDialog(false);
-        await performSave();
+        resetForm();
     };
 
     const handleCancel = () => {
@@ -158,10 +159,8 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
         setTitle("snippet.txt");
         setDescription("");
         setFileType(DEFAULT_MIME_TYPE);
-        setIsSaving(false);
         setEditableContent("");
         setContentError(null);
-        setShowOverwriteConfirmDialog(false);
     };
 
     const charCount = editableContent.length;
@@ -172,8 +171,8 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
         <Dialog open={isOpen} onOpenChange={handleCancel}>
             <DialogContent className="flex max-h-[80vh] flex-col sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Create File</DialogTitle>
-                    <DialogDescription>Save this text as a file that the agent can access</DialogDescription>
+                    <DialogTitle>Customize File</DialogTitle>
+                    <DialogDescription>Customize the file settings before sending to the agent</DialogDescription>
                 </DialogHeader>
 
                 <div className="flex-1 space-y-4 overflow-y-auto py-4">
@@ -191,7 +190,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                                 }, 0);
                             }}
                         />
-                        {showOverwriteWarning && <p className="text-sm text-yellow-600 dark:text-yellow-500">⚠️ A file with this name already exists. Saving will create a new version.</p>}
+                        {showOverwriteWarning && <MessageBanner variant="warning" message="A file with this name already exists. Saving will create a new version." />}
                     </div>
 
                     <div className="space-y-2">
@@ -216,7 +215,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="content">Content (editable)</Label>
+                        <Label htmlFor="content">Content</Label>
                         <Textarea
                             id="content"
                             value={editableContent}
@@ -227,7 +226,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                                     setContentError(null);
                                 }
                             }}
-                            className="max-h-[300px] min-h-[200px] resize-none font-mono text-sm"
+                            className="min-h-[300px] resize-y font-mono text-sm"
                             placeholder="Paste content here..."
                         />
                         <p className="text-muted-foreground text-xs">
@@ -238,24 +237,14 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
                 </div>
 
                 <DialogFooter>
-                    <Button variant="ghost" onClick={handleCancel} disabled={isSaving}>
+                    <Button variant="ghost" onClick={handleCancel}>
                         Cancel
                     </Button>
-                    <Button onClick={handleSaveArtifact} disabled={isSaving || !title.trim()}>
-                        Save File
+                    <Button onClick={handleSaveMetadata} disabled={!title.trim()}>
+                        Customize
                     </Button>
                 </DialogFooter>
             </DialogContent>
-
-            {/* Overwrite Confirmation Dialog */}
-            <ConfirmationDialog
-                open={showOverwriteConfirmDialog}
-                title="Overwrite existing file?"
-                description={`A file named "${title}" already exists. This will create a new version of the file. The previous version will still be accessible.`}
-                actionLabels={{ cancel: "Cancel", confirm: "Overwrite" }}
-                onOpenChange={setShowOverwriteConfirmDialog}
-                onConfirm={handleConfirmOverwrite}
-            />
         </Dialog>
     );
 };
