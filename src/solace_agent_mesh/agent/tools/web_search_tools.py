@@ -22,7 +22,7 @@ CATEGORY_NAME = "web_search"
 CATEGORY_DESCRIPTION = "Tools for searching the web and retrieving current information"
 
 
-async def _web_search_google(
+async def web_search_google(
     query: str,
     max_results: int = 5,
     search_type: Optional[str] = None,
@@ -146,7 +146,7 @@ async def _web_search_google(
 
 web_search_google_tool_def = BuiltinTool(
     name="web_search_google",
-    implementation=_web_search_google,
+    implementation=web_search_google,
     description=(
         "Search the web using Google Custom Search API. "
         "Use this when you need up-to-date information from Google. "

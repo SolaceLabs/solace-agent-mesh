@@ -25,7 +25,7 @@ from solace_ai_connector.common.log import log
 
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
-from .web_search_tools import _web_search_google
+from .web_search_tools import web_search_google
 from .web_tools import web_request
 from ...common import a2a
 from ...common.rag_dto import create_rag_source, create_rag_search_result
@@ -94,10 +94,26 @@ def _get_model_for_phase(
     """
     log_identifier = f"[DeepResearch:ModelSelection:{phase}]"
     
-    # Get agent's default model
+    # Get agent's default model 
     inv_context = tool_context._invocation_context
     agent = getattr(inv_context, 'agent', None)
     default_model = agent.canonical_model if agent else None
+    
+    # If canonical_model is not available, try to get model from host_component config
+    if not default_model:
+        host_component = getattr(agent, "host_component", None) if agent else None
+        if host_component:
+            model_config_from_component = host_component.get_config("model")
+            if model_config_from_component:
+                log.info(
+                    "%s canonical_model not available, falling back to host_component model config",
+                    log_identifier,
+                )
+                from ...agent.adk.models.lite_llm import LiteLlm
+                if isinstance(model_config_from_component, str):
+                    default_model = LiteLlm(model=model_config_from_component)
+                elif isinstance(model_config_from_component, dict):
+                    default_model = LiteLlm(**model_config_from_component)
     
     if not default_model:
         raise ValueError(f"{log_identifier} No default model available")
@@ -377,7 +393,7 @@ async def _search_web(
     
     try:
         log.info("%s Attempting Google search", log_identifier)
-        result = await _web_search_google(
+        result = await web_search_google(
             query=query,
             max_results=max_results,
             tool_context=tool_context,
