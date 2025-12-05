@@ -1,11 +1,14 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useCallback } from "react";
 import { Upload } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
 import { Spinner } from "@/lib/components/ui/spinner";
+import { MessageBanner } from "@/lib/components/common";
 import { useProjectArtifacts } from "@/lib/hooks/useProjectArtifacts";
 import { useProjectContext } from "@/lib/providers";
 import { useDownload } from "@/lib/hooks/useDownload";
+import { useConfigContext } from "@/lib/hooks";
+import { validateFileSizes } from "@/lib/utils/file-validation";
 import type { Project } from "@/lib/types/projects";
 import type { ArtifactInfo } from "@/lib/types";
 import { DocumentListItem } from "./DocumentListItem";
@@ -21,7 +24,11 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const { artifacts, isLoading, error, refetch } = useProjectArtifacts(project.id);
     const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
     const { onDownload } = useDownload(project.id);
+    const { validationLimits } = useConfigContext();
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Get max upload size from config - if not available, skip client-side validation
+    const maxUploadSizeBytes = validationLimits?.maxUploadSizeBytes;
 
     const [filesToUpload, setFilesToUpload] = useState<FileList | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,6 +37,8 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const [showDetailsDialog, setShowDetailsDialog] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [isSavingMetadata, setIsSavingMetadata] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const [fileSizeError, setFileSizeError] = useState<string | null>(null);
 
     const sortedArtifacts = React.useMemo(() => {
         return [...artifacts].sort((a, b) => {
@@ -39,6 +48,15 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         });
     }, [artifacts]);
 
+    // Validate file sizes before showing upload dialog
+    // if maxUploadSizeBytes is not configured, validation is skipped and backend handles it
+    const handleValidateFileSizes = useCallback(
+        (files: FileList) => {
+            return validateFileSizes(files, { maxSizeBytes: maxUploadSizeBytes });
+        },
+        [maxUploadSizeBytes]
+    );
+
     const handleUploadClick = () => {
         fileInputRef.current?.click();
     };
@@ -46,6 +64,17 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
         if (files && files.length > 0) {
+            // Validate file sizes first
+            const validation = handleValidateFileSizes(files);
+            if (!validation.valid) {
+                setFileSizeError(validation.error || "One or more files exceed the maximum allowed size.");
+                if (event.target) {
+                    event.target.value = "";
+                }
+                return;
+            }
+
+            setFileSizeError(null);
             const dataTransfer = new DataTransfer();
             Array.from(files).forEach(file => dataTransfer.items.add(file));
             setFilesToUpload(dataTransfer.files);
@@ -74,6 +103,14 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
 
         const files = event.dataTransfer.files;
         if (files && files.length > 0) {
+            // Validate file sizes first
+            const validation = handleValidateFileSizes(files);
+            if (!validation.valid) {
+                setFileSizeError(validation.error || "One or more files exceed the maximum allowed size.");
+                return;
+            }
+
+            setFileSizeError(null);
             const dataTransfer = new DataTransfer();
             Array.from(files).forEach(file => dataTransfer.items.add(file));
             setFilesToUpload(dataTransfer.files);
@@ -82,15 +119,31 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
 
     const handleConfirmUpload = async (formData: FormData) => {
         setIsSubmitting(true);
+        setUploadError(null);
         try {
             await addFilesToProject(project.id, formData);
             await refetch();
             setFilesToUpload(null);
         } catch (e) {
             console.error("Failed to add files:", e);
+            const errorMessage = e instanceof Error ? e.message : "Failed to upload files. Please try again.";
+            setUploadError(errorMessage);
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleCloseUploadDialog = () => {
+        setFilesToUpload(null);
+        setUploadError(null);
+    };
+
+    const handleClearUploadError = () => {
+        setUploadError(null);
+    };
+
+    const handleClearFileSizeError = () => {
+        setFileSizeError(null);
     };
 
     const handleDelete = async (filename: string) => {
@@ -147,6 +200,13 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
 
     return (
         <div className="mb-6">
+            {/* File size validation error banner */}
+            {fileSizeError && (
+                <div className="px-4 pb-3">
+                    <MessageBanner variant="error" message={fileSizeError} dismissible onDismiss={handleClearFileSizeError} />
+                </div>
+            )}
+
             <div className="mb-3 flex items-center justify-between px-4">
                 <div className="flex items-center gap-2">
                     <h3 className="text-foreground text-sm font-semibold">Knowledge</h3>
@@ -199,7 +259,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
             </div>
 
-            <AddProjectFilesDialog isOpen={!!filesToUpload} files={filesToUpload} onClose={() => setFilesToUpload(null)} onConfirm={handleConfirmUpload} isSubmitting={isSubmitting} />
+            <AddProjectFilesDialog isOpen={!!filesToUpload} files={filesToUpload} onClose={handleCloseUploadDialog} onConfirm={handleConfirmUpload} isSubmitting={isSubmitting} error={uploadError} onClearError={handleClearUploadError} />
 
             <FileDetailsDialog isOpen={showDetailsDialog} artifact={selectedArtifact} onClose={handleCloseDetailsDialog} onEdit={handleEditFromDetails} />
 

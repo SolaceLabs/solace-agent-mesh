@@ -1,13 +1,20 @@
 import React, { useState, useRef } from "react";
-import { FileJson, Upload as UploadIcon } from "lucide-react";
+import { FileJson, Upload as UploadIcon, AlertTriangle } from "lucide-react";
 import JSZip from "jszip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
+import { useConfigContext } from "@/lib/hooks";
 
 interface ProjectImportDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onImport: (file: File, options: { preserveName: boolean; customName?: string }) => Promise<void>;
+}
+
+interface ArtifactPreviewInfo {
+    name: string;
+    size: number;
+    isOversized: boolean;
 }
 
 interface ProjectPreview {
@@ -17,9 +24,18 @@ interface ProjectPreview {
     defaultAgentId?: string;
     artifactCount: number;
     artifactNames: string[];
+    artifacts: ArtifactPreviewInfo[];
+    oversizedArtifacts: ArtifactPreviewInfo[];
 }
 
+// Default max ZIP upload size (100MB) - fallback if not configured
+const DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
+
 export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, onOpenChange, onImport }) => {
+    const { validationLimits } = useConfigContext();
+    const maxUploadSizeBytes = validationLimits?.maxUploadSizeBytes;
+    const maxZipUploadSizeBytes = validationLimits?.maxZipUploadSizeBytes ?? DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES;
+
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [selectedFileName, setSelectedFileName] = useState<string>("");
     const [projectPreview, setProjectPreview] = useState<ProjectPreview | null>(null);
@@ -49,10 +65,10 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
             return false;
         }
 
-        // Validate file size (max 100MB)
-        const maxSize = 100 * 1024 * 1024;
-        if (file.size > maxSize) {
-            setError("File size exceeds 100MB limit");
+        // Validate ZIP file size against configurable limit
+        if (file.size > maxZipUploadSizeBytes) {
+            const maxSizeMB = (maxZipUploadSizeBytes / (1024 * 1024)).toFixed(0);
+            setError(`ZIP file size exceeds ${maxSizeMB}MB limit`);
             return false;
         }
 
@@ -78,11 +94,51 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                 return false;
             }
 
-            // Count artifacts in the ZIP
+            // Count artifacts in the ZIP and check their sizes
             const artifactFiles = Object.keys(zip.files).filter(name => name.startsWith("artifacts/") && name !== "artifacts/");
 
-            // Extract artifact filenames (remove 'artifacts/' prefix)
+            // Extract artifact filenames and sizes (remove 'artifacts/' prefix)
             const artifactNames = artifactFiles.map(path => path.replace("artifacts/", ""));
+
+            // Build a map of artifact sizes from project.json metadata if available
+            const artifactMetadata = projectData.artifacts || [];
+            const sizeMap = new Map<string, number>();
+            for (const meta of artifactMetadata) {
+                if (meta.filename && typeof meta.size === "number") {
+                    sizeMap.set(meta.filename, meta.size);
+                }
+            }
+
+            // Get artifact sizes and check for oversized files
+            const artifacts: ArtifactPreviewInfo[] = [];
+            const oversizedArtifacts: ArtifactPreviewInfo[] = [];
+
+            for (const artifactPath of artifactFiles) {
+                const zipEntry = zip.files[artifactPath];
+                const filename = artifactPath.replace("artifacts/", "");
+
+                // Get size from metadata map, or read the file content to determine size
+                let size = sizeMap.get(filename);
+                if (size === undefined) {
+                    // Fallback: read the file content to get its size
+                    // This is slower but works when metadata is not available
+                    try {
+                        const content = await zipEntry.async("uint8array");
+                        size = content.length;
+                    } catch {
+                        size = 0;
+                    }
+                }
+
+                const isOversized = maxUploadSizeBytes ? size > maxUploadSizeBytes : false;
+
+                const artifactInfo: ArtifactPreviewInfo = { name: filename, size, isOversized };
+                artifacts.push(artifactInfo);
+
+                if (isOversized) {
+                    oversizedArtifacts.push(artifactInfo);
+                }
+            }
 
             // Set preview with all metadata
             setProjectPreview({
@@ -92,6 +148,8 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                 defaultAgentId: projectData.project.defaultAgentId,
                 artifactCount: artifactFiles.length,
                 artifactNames: artifactNames,
+                artifacts,
+                oversizedArtifacts,
             });
 
             // Set default custom name
@@ -244,18 +302,32 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                                 <Label className="text-muted-foreground text-xs">
                                     Artifacts ({projectPreview.artifactCount} {projectPreview.artifactCount === 1 ? "file" : "files"})
                                 </Label>
-                                {projectPreview.artifactNames.length > 0 && (
+                                {projectPreview.artifacts.length > 0 && (
                                     <div className="mt-1 space-y-1">
-                                        {projectPreview.artifactNames.slice(0, 5).map((name, index) => (
-                                            <div key={index} className="flex items-center gap-1.5 text-xs">
-                                                <FileJson className="text-muted-foreground h-3 w-3 flex-shrink-0" />
-                                                <span className="truncate">{name}</span>
+                                        {projectPreview.artifacts.slice(0, 5).map((artifact, index) => (
+                                            <div key={index} className={`flex items-center gap-1.5 text-xs ${artifact.isOversized ? "text-destructive" : ""}`}>
+                                                {artifact.isOversized ? <AlertTriangle className="text-destructive h-3 w-3 flex-shrink-0" /> : <FileJson className="text-muted-foreground h-3 w-3 flex-shrink-0" />}
+                                                <span className="truncate">{artifact.name}</span>
+                                                <span className="text-muted-foreground flex-shrink-0">({(artifact.size / (1024 * 1024)).toFixed(2)} MB)</span>
                                             </div>
                                         ))}
-                                        {projectPreview.artifactNames.length > 5 && <p className="text-muted-foreground text-xs italic">+ {projectPreview.artifactNames.length - 5} more files</p>}
+                                        {projectPreview.artifacts.length > 5 && <p className="text-muted-foreground text-xs italic">+ {projectPreview.artifacts.length - 5} more files</p>}
                                     </div>
                                 )}
                             </div>
+
+                            {/* Warning for oversized artifacts */}
+                            {projectPreview.oversizedArtifacts.length > 0 && maxUploadSizeBytes && (
+                                <div className="mt-2">
+                                    <MessageBanner
+                                        variant="warning"
+                                        message={`${projectPreview.oversizedArtifacts.length} ${projectPreview.oversizedArtifacts.length === 1 ? "file exceeds" : "files exceed"} the maximum size of ${(maxUploadSizeBytes / (1024 * 1024)).toFixed(0)} MB and will be skipped during import: ${projectPreview.oversizedArtifacts
+                                            .slice(0, 3)
+                                            .map(a => a.name)
+                                            .join(", ")}${projectPreview.oversizedArtifacts.length > 3 ? ` and ${projectPreview.oversizedArtifacts.length - 3} more` : ""}`}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
 

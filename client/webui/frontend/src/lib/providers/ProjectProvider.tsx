@@ -134,10 +134,29 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({
-                        detail: `Failed to add files: ${response.statusText}`,
-                    }));
-                    throw new Error(errorData.detail || `Failed to add files: ${response.statusText}`);
+                    const responseText = await response.text();
+                    let errorMessage = `Failed to add files: ${response.statusText}`;
+
+                    try {
+                        const errorData = JSON.parse(responseText);
+                        errorMessage = errorData.detail || errorData.message || errorMessage;
+                    } catch {
+                        // If JSON parsing fails, check if we have a meaningful response text
+                        if (responseText && responseText.length < 500) {
+                            errorMessage = responseText;
+                        }
+                    }
+
+                    // Provide user-friendly message for file size errors
+                    if (response.status === 413) {
+                        // If we have a detailed message from the backend, use it
+                        // Otherwise provide a generic but helpful message
+                        if (!errorMessage.includes("exceeds maximum") && !errorMessage.includes("too large")) {
+                            errorMessage = "One or more files exceed the maximum allowed size. Please try uploading smaller files.";
+                        }
+                    }
+
+                    throw new Error(errorMessage);
                 }
                 // Clear any previous errors on success
                 setError(null);

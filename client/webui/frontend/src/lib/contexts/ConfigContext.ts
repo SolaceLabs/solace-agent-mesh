@@ -4,6 +4,8 @@ export interface ValidationLimits {
     projectNameMax?: number;
     projectDescriptionMax?: number;
     projectInstructionsMax?: number;
+    maxUploadSizeBytes?: number;
+    maxZipUploadSizeBytes?: number;
 }
 
 export interface ConfigContextValue {
@@ -23,13 +25,13 @@ export interface ConfigContextValue {
     frontend_use_authorization: boolean;
 
     persistenceEnabled?: boolean;
-    
+
     /**
      * Whether projects feature is enabled.
      * Computed from feature flags and persistence status.
      */
     projectsEnabled?: boolean;
-    
+
     /**
      * Validation limits from backend.
      * These are dynamically fetched from the backend to ensure
