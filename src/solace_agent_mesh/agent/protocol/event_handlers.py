@@ -30,6 +30,10 @@ from ...agent.adk.callbacks import _publish_data_part_status_update
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common import a2a
+from ...common.utils.embeds.constants import (
+    EMBED_DELIMITER_OPEN,
+    EMBED_DELIMITER_CLOSE,
+)
 from ...common.a2a import (
     get_agent_request_topic,
     get_agent_response_subscription_topic,
@@ -1637,6 +1641,16 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                             header_text=header_text,
                                         )
                                     )
+
+                                    # Add guidance about artifact_return responsibility
+                                    artifact_return_guidance = (
+                                        f"\n\n**Note:** If any of these artifacts fulfill the user's request, "
+                                        f"you should return them directly to the user using the "
+                                        f"{EMBED_DELIMITER_OPEN}artifact_return:filename:version{EMBED_DELIMITER_CLOSE} embed. "
+                                        f"This is more convenient for the user than just describing the artifacts. "
+                                        f"Replace 'filename' and 'version' with the actual values from the artifact metadata above."
+                                    )
+                                    artifact_summary += artifact_return_guidance
                                 else:
                                     log.warning(
                                         "%s Could not generate artifact summary: missing user_id or session_id in correlation data.",
@@ -1659,7 +1673,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
 
             full_response_text = final_text
             if artifact_summary:
-                full_response_text = f"{artifact_summary}\n\n{full_response_text}"
+                full_response_text = f"{artifact_summary}\n---\n\nPeer Agent Response:\n\n{full_response_text}"
 
             await _publish_peer_tool_result_notification(
                 component=component,

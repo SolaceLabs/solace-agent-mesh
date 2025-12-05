@@ -190,6 +190,34 @@ def parse_artifact_uri(uri: str) -> Dict[str, Any]:
     }
 
 
+def _clean_metadata_for_output(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Remove null, False, and empty values from metadata to reduce token usage.
+    Recursively cleans nested dictionaries.
+
+    Args:
+        metadata: The metadata dictionary to clean
+
+    Returns:
+        A cleaned dictionary with unnecessary fields removed
+    """
+    cleaned = {}
+    for key, value in metadata.items():
+        # Skip None, False, and empty collections
+        if value is None or value is False or value == {} or value == []:
+            continue
+
+        # Recursively clean nested dictionaries
+        if isinstance(value, dict):
+            cleaned_nested = _clean_metadata_for_output(value)
+            if cleaned_nested:  # Only include if not empty after cleaning
+                cleaned[key] = cleaned_nested
+        else:
+            cleaned[key] = value
+
+    return cleaned
+
+
 def _inspect_structure(
     data: Any, max_depth: int, max_keys: int, current_depth: int = 0
 ) -> Any:
@@ -697,12 +725,15 @@ async def generate_artifact_metadata_summary(
                 metadata.pop("filename", None)
                 metadata.pop("version", None)
 
+                # Clean metadata to remove null/false/empty values for token efficiency
+                cleaned_metadata = _clean_metadata_for_output(metadata)
+
                 TRUNCATION_LIMIT_BYTES = 1024
                 TRUNCATION_MESSAGE = "\n... [truncated] ..."
 
                 try:
                     formatted_metadata_str = yaml.safe_dump(
-                        metadata,
+                        cleaned_metadata,
                         default_flow_style=False,
                         sort_keys=False,
                         allow_unicode=True,
