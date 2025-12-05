@@ -206,7 +206,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                     const isSelected = selectedVersion?.id === version.id;
 
                                     return (
-                                        <button key={version.id} onClick={() => setSelectedVersion(version)} className={`w-full p-3 text-left transition-colors ${isSelected ? "bg-primary/5" : "hover:bg-muted/50"}`}>
+                                        <button data-testid={version.id} key={version.id} onClick={() => setSelectedVersion(version)} className={`w-full p-3 text-left transition-colors ${isSelected ? "bg-primary/5" : "hover:bg-muted/50"}`}>
                                             <div className="mb-1 flex items-center justify-between">
                                                 <span className="text-sm font-medium">Version {version.version}</span>
                                                 {isActive && <span className="rounded-full bg-[var(--color-success-w20)] px-2 py-0.5 text-xs text-[var(--color-success-wMain)]">Active</span>}
