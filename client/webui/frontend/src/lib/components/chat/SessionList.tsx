@@ -17,7 +17,7 @@ import { SessionSearch } from "@/lib/components/chat/SessionSearch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/lib/components/ui/dropdown-menu";
 import type { Project, Session } from "@/lib/types";
 
-interface PaginatedSessionsResponse {
+export interface PaginatedSessionsResponse {
     data: Session[];
     meta: {
         pagination: {
