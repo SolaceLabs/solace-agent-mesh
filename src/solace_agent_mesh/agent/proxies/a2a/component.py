@@ -45,6 +45,7 @@ from solace_ai_connector.common.log import log
 from datetime import datetime, timezone
 
 from ....common import a2a
+from ....common.oauth import OAuth2Client, validate_https_url
 from ....common.data_parts import AgentProgressUpdateData
 from ....agent.utils.artifact_helpers import format_artifact_uri
 from ..base.component import BaseProxyComponent
@@ -81,6 +82,9 @@ class A2AProxyComponent(BaseProxyComponent):
         # Why use asyncio.Lock: Ensures thread-safe access to the token cache
         # when multiple concurrent requests target the same agent
         self._oauth_token_cache: OAuth2TokenCache = OAuth2TokenCache()
+
+        # OAuth 2.0 client for protocol operations (no retry for A2A)
+        self._oauth_client = OAuth2Client()
 
         # Index agent configs by name for O(1) lookup (performance optimization)
         self._agent_config_by_name: Dict[str, Dict[str, Any]] = {
@@ -636,18 +640,8 @@ class A2AProxyComponent(BaseProxyComponent):
                 "'token_url', 'client_id', and 'client_secret'."
             )
 
-        # SECURITY: Enforce HTTPS for token URL
-        parsed_url = urlparse(token_url)
-        if parsed_url.scheme != "https":
-            log.error(
-                "%s OAuth 2.0 token_url must use HTTPS for security. Got scheme: '%s'",
-                log_identifier,
-                parsed_url.scheme,
-            )
-            raise ValueError(
-                f"{log_identifier} OAuth 2.0 token_url must use HTTPS for security. "
-                f"Got: {parsed_url.scheme}://"
-            )
+        # SECURITY: Enforce HTTPS for token URL using common utility
+        validate_https_url(token_url)
 
         # Step 3: Extract optional parameters
         scope = auth_config.get("scope", "")
@@ -665,49 +659,32 @@ class A2AProxyComponent(BaseProxyComponent):
         )
 
         try:
-            # Step 5: Create temporary httpx client with 30-second timeout
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Step 6: Execute POST request
-                # SECURITY: client_secret is sent in POST body (not logged or in URL)
-                response = await client.post(
-                    token_url,
-                    data={
-                        "grant_type": "client_credentials",
-                        "client_id": client_id,
-                        "client_secret": client_secret,
-                        "scope": scope,
-                    },
-                    headers={
-                        "Content-Type": "application/x-www-form-urlencoded",
-                        "Accept": "application/json",
-                    },
-                )
-                response.raise_for_status()
+            # Step 5: Fetch token using common OAuth client (no retry for A2A)
+            token_data = await self._oauth_client.fetch_client_credentials_token(
+                token_url=token_url,
+                client_id=client_id,
+                client_secret=client_secret,
+                scope=scope,
+                verify=True,
+                timeout=30.0,
+            )
 
-                # Step 7: Parse response
-                token_response = response.json()
-                access_token = token_response.get("access_token")
+            access_token = token_data["access_token"]
 
-                if not access_token:
-                    raise ValueError(
-                        f"{log_identifier} Token response missing 'access_token' field. "
-                        f"Response keys: {list(token_response.keys())}"
-                    )
+            # Step 6: Cache the token
+            await self._oauth_token_cache.set(
+                agent_name, access_token, cache_duration
+            )
 
-                # Step 8: Cache the token
-                await self._oauth_token_cache.set(
-                    agent_name, access_token, cache_duration
-                )
+            # Step 7: Log success
+            log.info(
+                "%s Successfully obtained OAuth 2.0 token (cached for %ds)",
+                log_identifier,
+                cache_duration,
+            )
 
-                # Step 9: Log success
-                log.info(
-                    "%s Successfully obtained OAuth 2.0 token (cached for %ds)",
-                    log_identifier,
-                    cache_duration,
-                )
-
-                # Step 10: Return access token
-                return access_token
+            # Step 8: Return access token
+            return access_token
 
         except httpx.HTTPStatusError as e:
             log.error(

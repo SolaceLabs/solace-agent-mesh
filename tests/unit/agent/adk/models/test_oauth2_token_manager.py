@@ -82,7 +82,7 @@ class TestOAuth2ClientCredentialsTokenManager:
     @pytest.mark.asyncio
     async def test_token_acquisition_success(self, token_manager, mock_token_response):
         """Test successful token acquisition."""
-        with patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.httpx.AsyncClient") as mock_client:
+        with patch("solace_agent_mesh.common.oauth.oauth_client.httpx.AsyncClient") as mock_client:
             # Setup mock response
             mock_response = MagicMock()
             mock_response.status_code = 200
@@ -111,7 +111,7 @@ class TestOAuth2ClientCredentialsTokenManager:
     @pytest.mark.asyncio
     async def test_token_caching(self, token_manager, mock_token_response):
         """Test that subsequent calls use cached token."""
-        with patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.httpx.AsyncClient") as mock_client:
+        with patch("solace_agent_mesh.common.oauth.oauth_client.httpx.AsyncClient") as mock_client:
             # Setup mock response
             mock_response = MagicMock()
             mock_response.status_code = 200
@@ -136,8 +136,8 @@ class TestOAuth2ClientCredentialsTokenManager:
     @pytest.mark.asyncio
     async def test_token_refresh_on_expiration(self, token_manager, mock_token_response):
         """Test token refresh when token is expired or near expiry."""
-        with patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.httpx.AsyncClient") as mock_client, \
-             patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.time.time") as mock_time:
+        with patch("solace_agent_mesh.common.oauth.oauth_client.httpx.AsyncClient") as mock_client, \
+             patch("solace_agent_mesh.common.oauth.utils.time.time") as mock_time:
             # Setup mock response
             mock_response = MagicMock()
             mock_response.status_code = 200
@@ -169,7 +169,7 @@ class TestOAuth2ClientCredentialsTokenManager:
     @pytest.mark.asyncio
     async def test_http_error_handling(self, token_manager):
         """Test handling of various HTTP errors."""
-        with patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.httpx.AsyncClient") as mock_client:
+        with patch("solace_agent_mesh.common.oauth.oauth_client.httpx.AsyncClient") as mock_client:
             # Test 401 Unauthorized (should not retry)
             mock_response = MagicMock()
             mock_response.status_code = 401
@@ -190,8 +190,8 @@ class TestOAuth2ClientCredentialsTokenManager:
     @pytest.mark.asyncio
     async def test_http_error_handling_with_retries(self, token_manager):
         """Test handling of 5xx errors with retries."""
-        with patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.httpx.AsyncClient") as mock_client, \
-             patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.asyncio.sleep") as mock_sleep:
+        with patch("solace_agent_mesh.common.oauth.oauth_client.httpx.AsyncClient") as mock_client, \
+             patch("solace_agent_mesh.common.oauth.oauth_client.asyncio.sleep") as mock_sleep:
             # Test 500 Internal Server Error (should retry)
             mock_response = MagicMock()
             mock_response.status_code = 500
@@ -220,7 +220,7 @@ class TestOAuth2ClientCredentialsTokenManager:
             ca_cert_path="/path/to/ca.crt",
         )
 
-        with patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.httpx.AsyncClient") as mock_client:
+        with patch("solace_agent_mesh.common.oauth.oauth_client.httpx.AsyncClient") as mock_client:
             # Setup mock response
             mock_response = MagicMock()
             mock_response.status_code = 200
@@ -239,7 +239,7 @@ class TestOAuth2ClientCredentialsTokenManager:
     @pytest.mark.asyncio
     async def test_concurrent_token_requests(self, token_manager, mock_token_response):
         """Test thread safety with concurrent token requests."""
-        with patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.httpx.AsyncClient") as mock_client:
+        with patch("solace_agent_mesh.common.oauth.oauth_client.httpx.AsyncClient") as mock_client:
             # Setup mock response
             mock_response = MagicMock()
             mock_response.status_code = 200
@@ -262,20 +262,18 @@ class TestOAuth2ClientCredentialsTokenManager:
 
     def test_is_token_expired(self, token_manager):
         """Test token expiration checking."""
+        from solace_agent_mesh.common.oauth import is_token_expired
+
         current_time = time.time()
-        
+
         # Token that expires in the future (not expired)
-        token_data = {"expires_at": current_time + 1000}
-        assert not token_manager._is_token_expired(token_data)
-        
+        assert not is_token_expired(current_time + 1000, buffer_seconds=token_manager.refresh_buffer_seconds)
+
         # Token that expires within buffer time (considered expired)
-        token_data = {"expires_at": current_time + 200}  # 200 < 300 buffer
-        assert token_manager._is_token_expired(token_data)
-        
+        assert is_token_expired(current_time + 200, buffer_seconds=token_manager.refresh_buffer_seconds)  # 200 < 300 buffer
+
         # Token that has already expired
-        token_data = {"expires_at": current_time - 100}
-        assert token_manager._is_token_expired(token_data)
-        
-        # Token data without expires_at (considered expired)
-        token_data = {}
-        assert token_manager._is_token_expired(token_data)
+        assert is_token_expired(current_time - 100, buffer_seconds=token_manager.refresh_buffer_seconds)
+
+        # Edge case: token expires exactly at buffer boundary
+        assert is_token_expired(current_time + 300, buffer_seconds=token_manager.refresh_buffer_seconds)

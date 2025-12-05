@@ -102,7 +102,7 @@ class TestOAuthLLMIntegration:
         """Test that OAuth tokens are properly injected into LLM requests."""
         llm = LiteLlm(**oauth_config)
 
-        with patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.httpx.AsyncClient") as mock_oauth_client, \
+        with patch("solace_agent_mesh.common.oauth.oauth_client.httpx.AsyncClient") as mock_oauth_client, \
              patch.object(llm.llm_client, "acompletion") as mock_completion:
 
             # Mock OAuth token response
@@ -156,7 +156,7 @@ class TestOAuthLLMIntegration:
 
         llm = LiteLlm(**config)
 
-        with patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.httpx.AsyncClient") as mock_oauth_client, \
+        with patch("solace_agent_mesh.common.oauth.oauth_client.httpx.AsyncClient") as mock_oauth_client, \
              patch.object(llm.llm_client, "acompletion") as mock_completion:
 
             # Mock OAuth failure
@@ -196,7 +196,7 @@ class TestOAuthLLMIntegration:
         """Test that multiple LLM requests reuse cached OAuth tokens."""
         llm = LiteLlm(**oauth_config)
 
-        with patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.httpx.AsyncClient") as mock_oauth_client, \
+        with patch("solace_agent_mesh.common.oauth.oauth_client.httpx.AsyncClient") as mock_oauth_client, \
              patch.object(llm.llm_client, "acompletion") as mock_completion:
 
             # Mock OAuth token response
@@ -250,7 +250,7 @@ class TestOAuthLLMIntegration:
 
         llm = LiteLlm(**config)
 
-        with patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.httpx.AsyncClient") as mock_oauth_client:
+        with patch("solace_agent_mesh.common.oauth.oauth_client.httpx.AsyncClient") as mock_oauth_client:
             # Mock OAuth failure
             mock_oauth_client.return_value.__aenter__.return_value.post = AsyncMock(
                 side_effect=Exception("OAuth server unavailable")
@@ -288,7 +288,7 @@ class TestOAuthLLMIntegration:
         """Test thread safety with concurrent OAuth-authenticated LLM requests."""
         llm = LiteLlm(**oauth_config)
 
-        with patch("solace_agent_mesh.agent.adk.models.oauth2_token_manager.httpx.AsyncClient") as mock_oauth_client, \
+        with patch("solace_agent_mesh.common.oauth.oauth_client.httpx.AsyncClient") as mock_oauth_client, \
              patch.object(llm.llm_client, "acompletion") as mock_completion:
 
             # Mock OAuth token response
