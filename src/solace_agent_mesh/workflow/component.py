@@ -20,6 +20,8 @@ from ..common.constants import (
     EXTENSION_URI_AGENT_TYPE,
     EXTENSION_URI_SCHEMAS,
 )
+
+EXTENSION_URI_WORKFLOW_VISUALIZATION = "https://solace.com/a2a/extensions/sam/workflow-visualization"
 from ..common.data_parts import (
     WorkflowExecutionStartData,
     WorkflowExecutionResultData,
@@ -210,6 +212,73 @@ class WorkflowExecutorComponent(SamComponentBase):
                 f"{self.log_identifier} Failed to publish workflow agent card: {e}"
             )
 
+    def _generate_mermaid_diagram(self) -> str:
+        """Generate a Mermaid diagram from the workflow definition."""
+        nodes = self.workflow_definition.nodes
+        lines = ["graph TD"]
+
+        # Helper to sanitize IDs
+        def sanitize(node_id):
+            return node_id.replace("-", "_").replace(".", "_")
+
+        # 1. Define Nodes
+        for node in nodes:
+            safe_id = sanitize(node.id)
+
+            if node.type == "agent":
+                # Rectangular box
+                lines.append(f'    {safe_id}["{node.id}<br/>({node.agent_persona})"]')
+            elif node.type == "conditional":
+                # Diamond
+                # Escape quotes in condition if needed
+                condition = node.condition.replace('"', "'")
+                lines.append(f'    {safe_id}{{"{node.id}<br/>{condition}?"}}')
+            elif node.type == "fork":
+                # Hexagon (using {{ }})
+                lines.append(f'    {safe_id}{{{{ "{node.id} (Fork)" }}}}')
+            elif node.type == "map":
+                # Double circle (using (( )))
+                lines.append(f'    {safe_id}(("{node.id} (Map)"))')
+
+        # 2. Define Edges
+        for node in nodes:
+            safe_id = sanitize(node.id)
+
+            # Standard dependencies
+            if node.depends_on:
+                for dep in node.depends_on:
+                    safe_dep = sanitize(dep)
+                    lines.append(f"    {safe_dep} --> {safe_id}")
+
+            # Conditional branches (Outgoing edges)
+            if node.type == "conditional":
+                if node.true_branch:
+                    safe_true = sanitize(node.true_branch)
+                    lines.append(f"    {safe_id} -- Yes --> {safe_true}")
+                if node.false_branch:
+                    safe_false = sanitize(node.false_branch)
+                    lines.append(f"    {safe_id} -- No --> {safe_false}")
+
+            # Fork branches
+            if node.type == "fork":
+                for branch in node.branches:
+                    branch_safe_id = sanitize(branch.id)
+                    # Define branch node
+                    lines.append(
+                        f'    {branch_safe_id}["{branch.id}<br/>({branch.agent_persona})"]'
+                    )
+                    # Connect fork to branch
+                    lines.append(
+                        f"    {safe_id} -- {branch.output_key} --> {branch_safe_id}"
+                    )
+
+            # Map node
+            if node.type == "map":
+                target_safe_id = sanitize(node.node)
+                lines.append(f"    {safe_id} -- Map --> {target_safe_id}")
+
+        return "\n".join(lines)
+
     def _create_workflow_agent_card(self) -> AgentCard:
         """Create the workflow agent card."""
         # Build extensions list
@@ -242,6 +311,20 @@ class WorkflowExecutorComponent(SamComponentBase):
                 params=schema_params,
             )
             extensions_list.append(schemas_extension)
+
+        # Add visualization extension
+        try:
+            mermaid_source = self._generate_mermaid_diagram()
+            viz_extension = AgentExtension(
+                uri=EXTENSION_URI_WORKFLOW_VISUALIZATION,
+                description="Mermaid JS diagram of the workflow logic.",
+                params={"mermaid_source": mermaid_source},
+            )
+            extensions_list.append(viz_extension)
+        except Exception as e:
+            log.warning(
+                f"{self.log_identifier} Failed to generate workflow visualization: {e}"
+            )
 
         capabilities = AgentCapabilities(
             streaming=False,
