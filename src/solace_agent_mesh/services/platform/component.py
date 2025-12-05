@@ -7,7 +7,7 @@ import logging
 import threading
 
 import uvicorn
-from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
+from solace_ai_connector.components.component_base import ComponentBase
 from solace_agent_mesh.common.middleware.config_resolver import ConfigResolver
 
 log = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ info = {
 }
 
 
-class PlatformServiceComponent(SamComponentBase):
+class PlatformServiceComponent(ComponentBase):
     """
     Platform Service Component - Management plane for SAM platform.
 
@@ -53,9 +53,10 @@ class PlatformServiceComponent(SamComponentBase):
 
     Key characteristics:
     - No user chat sessions (services don't interact with end users)
-    - Has A2A messaging (publishes to deployer, receives heartbeats/agent-cards)
+    - Uses direct messaging (publishes commands to deployer, receives heartbeats)
     - Has agent registry (for deployment monitoring, not chat orchestration)
     - Independent from WebUI gateway
+    - NOT A2A communication (deployer is a service, not an agent)
     """
 
     def __init__(self, **kwargs):
@@ -117,10 +118,16 @@ class PlatformServiceComponent(SamComponentBase):
         self.background_scheduler = None
         self.background_tasks_thread = None
 
+        # Direct message publisher for deployer commands
+        self.direct_publisher = None
+
         log.info("%s Platform Service Component initialized.", self.log_identifier)
 
         # Start FastAPI server
         self._start_fastapi_server()
+
+        # Initialize direct message publisher
+        self._init_direct_publisher()
 
         # Start background tasks (heartbeat listener + deployment checker)
         self._start_background_tasks()
@@ -188,6 +195,36 @@ class PlatformServiceComponent(SamComponentBase):
                 self.log_identifier,
                 e,
             )
+            raise
+
+    def _init_direct_publisher(self):
+        """
+        Initialize direct message publisher for deployer communication.
+
+        Platform Service sends deployment commands directly to deployer:
+        - {namespace}/deployer/agent/{id}/deploy
+        - {namespace}/deployer/agent/{id}/update
+        - {namespace}/deployer/agent/{id}/undeploy
+
+        Uses direct publishing (not A2A protocol) since deployer is a
+        standalone service, not an A2A agent.
+        """
+        try:
+            main_app = self.get_app()
+            if not main_app or not main_app.connector:
+                raise RuntimeError("Cannot access main app or connector for message publishing")
+
+            messaging_service = main_app.connector.get_messaging_service()
+
+            from solace.messaging.publisher.direct_message_publisher import DirectMessagePublisher
+
+            self.direct_publisher = messaging_service.create_direct_message_publisher_builder().build()
+            self.direct_publisher.start()
+
+            log.info("%s Direct message publisher initialized for deployer commands", self.log_identifier)
+
+        except Exception as e:
+            log.error("%s Failed to initialize direct publisher: %s", self.log_identifier, e)
             raise
 
     def _start_background_tasks(self):
@@ -338,13 +375,22 @@ class PlatformServiceComponent(SamComponentBase):
         Gracefully shut down the Platform Service Component.
 
         This method:
-        1. Stops background tasks (heartbeat listener, deployment checker)
-        2. Stops agent registry
-        3. Signals the uvicorn server to exit
-        4. Waits for the FastAPI thread to finish
-        5. Calls parent cleanup
+        1. Stops direct message publisher
+        2. Stops background tasks (heartbeat listener, deployment checker)
+        3. Stops agent registry
+        4. Signals the uvicorn server to exit
+        5. Waits for the FastAPI thread to finish
+        6. Calls parent cleanup
         """
         log.info("%s Cleaning up Platform Service Component...", self.log_identifier)
+
+        # Stop direct publisher
+        if self.direct_publisher:
+            try:
+                self.direct_publisher.terminate()
+                log.info("%s Direct message publisher stopped", self.log_identifier)
+            except Exception as e:
+                log.warning("%s Error stopping direct publisher: %s", self.log_identifier, e)
 
         # Stop background scheduler
         if self.background_scheduler:
@@ -462,26 +508,56 @@ class PlatformServiceComponent(SamComponentBase):
         self, topic: str, payload: dict, user_properties: dict | None = None
     ):
         """
-        Publish an A2A message to the broker.
+        Publish direct message to deployer (not A2A protocol).
 
-        Used by deployment service to send commands to deployer:
+        Platform Service sends deployment commands directly to deployer service.
+        This is service-to-service communication, not agent-to-agent protocol.
+
+        Commands sent to:
         - {namespace}/deployer/agent/{agent_id}/deploy
         - {namespace}/deployer/agent/{agent_id}/update
         - {namespace}/deployer/agent/{agent_id}/undeploy
 
         Args:
             topic: Message topic
-            payload: Message payload dictionary
-            user_properties: Optional user properties for message metadata
+            payload: Message payload dictionary (will be JSON-serialized)
+            user_properties: Optional user properties (not used by deployer)
 
         Raises:
             Exception: If publishing fails
         """
-        log.debug("%s Publishing A2A message to topic: %s", self.log_identifier, topic)
+        import json
+        from solace.messaging.resources.topic import Topic
+
+        log.debug("%s Publishing deployer command to topic: %s", self.log_identifier, topic)
 
         try:
-            super().publish_a2a_message(payload, topic, user_properties)
-            log.debug("%s Successfully published to topic: %s", self.log_identifier, topic)
+            if not self.direct_publisher:
+                raise RuntimeError("Direct publisher not initialized")
+
+            # Serialize payload to JSON
+            message_body = json.dumps(payload)
+
+            # Build message
+            main_app = self.get_app()
+            messaging_service = main_app.connector.get_messaging_service()
+            message = messaging_service.message_builder().build(message_body)
+
+            # Publish directly to topic
+            self.direct_publisher.publish(message, Topic.of(topic))
+
+            log.debug(
+                "%s Successfully published deployer command to topic: %s (payload size: %d bytes)",
+                self.log_identifier,
+                topic,
+                len(message_body)
+            )
+
         except Exception as e:
-            log.error("%s Failed to publish A2A message: %s", self.log_identifier, e, exc_info=True)
+            log.error(
+                "%s Failed to publish deployer command: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
             raise
