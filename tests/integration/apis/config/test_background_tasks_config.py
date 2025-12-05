@@ -35,13 +35,12 @@ def _create_background_tasks_config_client(
         # Override specific config keys
         if key == "background_tasks":
             return {
-                "enabled": background_tasks_enabled,
                 "default_timeout_ms": background_tasks_timeout_ms
             }
         if key == "projects":
             return {"enabled": True}
         if key == "frontend_feature_enablement":
-            return {"projects": True}
+            return {"projects": True, "background_tasks": background_tasks_enabled}
         if key == "name":
             return "A2A_WebUI_App"
         if key == "session_service":
@@ -124,9 +123,10 @@ class TestBackgroundTasksConfigEndpoint:
         assert response.status_code == 200
 
         config_data = response.json()
-        assert "background_tasks" in config_data
-        assert "enabled" in config_data["background_tasks"]
-        assert "default_timeout_ms" in config_data["background_tasks"]
+        assert "frontend_feature_enablement" in config_data
+        assert "background_tasks" in config_data["frontend_feature_enablement"]
+        assert "background_tasks_config" in config_data
+        assert "default_timeout_ms" in config_data["background_tasks_config"]
 
     def test_config_background_tasks_enabled_true(self, db_provider):
         """Test that config endpoint shows background_tasks.enabled=true when configured"""
@@ -146,9 +146,10 @@ class TestBackgroundTasksConfigEndpoint:
             assert response.status_code == 200
 
             config_data = response.json()
-            assert "background_tasks" in config_data
-            assert config_data["background_tasks"]["enabled"] is True
-            assert config_data["background_tasks"]["default_timeout_ms"] == 7200000
+            assert "frontend_feature_enablement" in config_data
+            assert config_data["frontend_feature_enablement"]["background_tasks"] is True
+            assert "background_tasks_config" in config_data
+            assert config_data["background_tasks_config"]["default_timeout_ms"] == 7200000
         finally:
             client.cleanup()
 
@@ -170,9 +171,10 @@ class TestBackgroundTasksConfigEndpoint:
             assert response.status_code == 200
 
             config_data = response.json()
-            assert "background_tasks" in config_data
-            assert config_data["background_tasks"]["enabled"] is False
-            assert config_data["background_tasks"]["default_timeout_ms"] == 3600000
+            assert "frontend_feature_enablement" in config_data
+            assert config_data["frontend_feature_enablement"]["background_tasks"] is False
+            assert "background_tasks_config" in config_data
+            assert config_data["background_tasks_config"]["default_timeout_ms"] == 3600000
         finally:
             client.cleanup()
 
@@ -195,7 +197,7 @@ class TestBackgroundTasksConfigEndpoint:
             assert response.status_code == 200
 
             config_data = response.json()
-            assert config_data["background_tasks"]["default_timeout_ms"] == custom_timeout
+            assert config_data["background_tasks_config"]["default_timeout_ms"] == custom_timeout
         finally:
             client.cleanup()
 
@@ -217,8 +219,8 @@ class TestBackgroundTasksConfigEndpoint:
             responses = [client.get("/api/v1/config") for _ in range(5)]
 
             # All should return same background_tasks status
-            enabled_values = [r.json()["background_tasks"]["enabled"] for r in responses]
-            timeout_values = [r.json()["background_tasks"]["default_timeout_ms"] for r in responses]
+            enabled_values = [r.json()["frontend_feature_enablement"]["background_tasks"] for r in responses]
+            timeout_values = [r.json()["background_tasks_config"]["default_timeout_ms"] for r in responses]
 
             assert all(val == enabled_values[0] for val in enabled_values)
             assert all(val == timeout_values[0] for val in timeout_values)
