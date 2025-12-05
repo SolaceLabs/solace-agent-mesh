@@ -145,3 +145,33 @@ def get_current_user(request: Request) -> dict:
             detail="Authentication required",
         )
     return request.state.user
+
+
+def get_heartbeat_tracker():
+    """
+    Get the heartbeat tracker from platform component.
+
+    Used by deployer status endpoint to check if deployer is online.
+
+    Returns:
+        HeartbeatTracker instance if initialized, None otherwise.
+    """
+    if platform_component_instance is None:
+        log.warning("Platform component not initialized - heartbeat tracker unavailable")
+        return None
+    return platform_component_instance.get_heartbeat_tracker()
+
+
+def get_agent_registry():
+    """
+    Get the agent registry from platform component.
+
+    Used for deployment status monitoring.
+
+    Returns:
+        AgentRegistry instance if initialized, None otherwise.
+    """
+    if platform_component_instance is None:
+        log.warning("Platform component not initialized - agent registry unavailable")
+        return None
+    return platform_component_instance.get_agent_registry()

@@ -15,12 +15,11 @@ log = logging.getLogger(__name__)
 
 class _StubSessionManager:
     """
-    Minimal stub for SessionManager to satisfy gateway dependencies.
+    Minimal stub for SessionManager to satisfy legacy router dependencies.
 
-    Platform service doesn't have sessions, but webui_backend routers
-    expect a SessionManager for user_id resolution. This stub provides
-    just enough to make get_user_id work when OAuth middleware sets
-    request.state.user.
+    Platform service doesn't have chat sessions, but webui_backend routers
+    (originally designed for WebUI gateway) expect a SessionManager.
+    This stub provides minimal compatibility for user_id resolution.
     """
     def __init__(self, use_authorization: bool):
         self.use_authorization = use_authorization
@@ -29,18 +28,35 @@ class _StubSessionManager:
 info = {
     "class_name": "PlatformServiceComponent",
     "description": (
-        "Platform Service Component - REST API for platform configuration management. "
-        "NOT a gateway - no session management, no A2A communication, no artifacts."
+        "Platform Service Component - REST API for platform management (agents, connectors, deployments). "
+        "This is a SERVICE, not a gateway - services provide internal platform functionality, "
+        "while gateways handle external communication channels."
     ),
 }
 
 
 class PlatformServiceComponent(ComponentBase):
     """
-    Platform Service Component
+    Platform Service Component - Management plane for SAM platform.
+
+    Architecture distinction:
+    - SERVICE: Provides internal platform functionality (this component)
+    - GATEWAY: Handles external communication channels (http_sse, slack, webhook, etc.)
+
+    Responsibilities:
+    - REST API for platform configuration management
+    - Agent Builder CRUD operations
+    - Connector management
+    - Deployment orchestration
+    - Deployer heartbeat monitoring
+    - Background deployment status checking
 
     Key characteristics:
-    - Pure REST API with CRUD operations on platform database
+    - No user chat sessions (services don't interact with end users)
+    - Uses direct messaging (publishes commands to deployer, receives heartbeats)
+    - Has agent registry (for deployment monitoring, not chat orchestration)
+    - Independent from WebUI gateway
+    - NOT A2A communication (deployer is a service, not an agent)
     """
 
     def __init__(self, **kwargs):
@@ -66,6 +82,11 @@ class PlatformServiceComponent(ComponentBase):
             self.external_auth_provider = self.get_config("external_auth_provider", "azure")
             self.use_authorization = self.get_config("use_authorization", True)
 
+            # Background task configuration
+            self.deployment_timeout_minutes = self.get_config("deployment_timeout_minutes", 5)
+            self.heartbeat_timeout_seconds = self.get_config("heartbeat_timeout_seconds", 90)
+            self.deployment_check_interval_seconds = self.get_config("deployment_check_interval_seconds", 60)
+
             log.info(
                 "%s Platform service configuration retrieved (Host: %s, Port: %d, Auth: %s).",
                 self.log_identifier,
@@ -85,15 +106,31 @@ class PlatformServiceComponent(ComponentBase):
         # Config resolver (permissive default - allows all features/scopes)
         self.config_resolver = ConfigResolver()
 
-        # Gateway compatibility attributes
-        # These allow webui_backend routers (designed for gateway) to work with platform service
-        # self.component_config = {"app_config": {}}
+        # Legacy router compatibility
+        # webui_backend routers were originally designed for WebUI gateway context
+        # but now work with Platform Service via dependency abstraction
         self.session_manager = _StubSessionManager(use_authorization=self.use_authorization)
+
+        # Background task state (for heartbeat monitoring and deployment status checking)
+        self.agent_registry = None
+        self.heartbeat_tracker = None
+        self.heartbeat_listener = None
+        self.background_scheduler = None
+        self.background_tasks_thread = None
+
+        # Direct message publisher for deployer commands
+        self.direct_publisher = None
 
         log.info("%s Platform Service Component initialized.", self.log_identifier)
 
         # Start FastAPI server
         self._start_fastapi_server()
+
+        # Initialize direct message publisher
+        self._init_direct_publisher()
+
+        # Start background tasks (heartbeat listener + deployment checker)
+        self._start_background_tasks()
 
     def _start_fastapi_server(self):
         """
@@ -160,16 +197,137 @@ class PlatformServiceComponent(ComponentBase):
             )
             raise
 
+    def _init_direct_publisher(self):
+        """
+        Initialize direct message publisher for deployer communication.
+
+        Platform Service sends deployment commands directly to deployer:
+        - {namespace}/deployer/agent/{id}/deploy
+        - {namespace}/deployer/agent/{id}/update
+        - {namespace}/deployer/agent/{id}/undeploy
+
+        Uses direct publishing (not A2A protocol) since deployer is a
+        standalone service, not an A2A agent.
+
+        Note: Direct publisher initialization is optional. If broker connection
+        is not available, deployment commands will not work but the Platform
+        Service API will still function for CRUD operations.
+        """
+        try:
+            # For simplified apps, the component needs to wait for broker connection
+            # The broker_output attribute will be set by the framework after broker connects
+            if not hasattr(self, 'broker_output') or not self.broker_output:
+                log.warning(
+                    "%s Broker not yet connected - direct publisher will be initialized later",
+                    self.log_identifier
+                )
+                return
+
+            # Get messaging service from broker_output
+            if not hasattr(self.broker_output, 'messaging_service'):
+                log.warning(
+                    "%s Broker output does not have messaging_service - direct publisher unavailable",
+                    self.log_identifier
+                )
+                return
+
+            messaging_service = self.broker_output.messaging_service
+
+            from solace.messaging.publisher.direct_message_publisher import DirectMessagePublisher
+
+            self.direct_publisher = messaging_service.create_direct_message_publisher_builder().build()
+            self.direct_publisher.start()
+
+            log.info("%s Direct message publisher initialized for deployer commands", self.log_identifier)
+
+        except Exception as e:
+            log.warning(
+                "%s Could not initialize direct publisher: %s (deployment commands will not work)",
+                self.log_identifier,
+                e
+            )
+
+    def _start_background_tasks(self):
+        """
+        Start background tasks for Platform Service.
+
+        This method calls the enterprise function to start background tasks
+        if the enterprise package is available. Follows the same pattern as
+        WebUI Gateway for graceful degradation.
+
+        Background tasks (enterprise-only):
+        - Heartbeat listener (monitors deployer heartbeats)
+        - Deployment status checker (checks deployment timeouts)
+        - Agent registry (tracks agent availability)
+        """
+        try:
+            from solace_agent_mesh_enterprise.init_enterprise import start_platform_background_tasks
+
+            log.info("%s Starting enterprise platform background tasks...", self.log_identifier)
+            start_platform_background_tasks(self)
+            log.info("%s Enterprise platform background tasks started", self.log_identifier)
+
+        except ImportError:
+            log.info(
+                "%s Enterprise package not available - no background tasks to start",
+                self.log_identifier
+            )
+        except Exception as e:
+            log.error(
+                "%s Failed to start enterprise background tasks: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
+
     def cleanup(self):
         """
         Gracefully shut down the Platform Service Component.
 
         This method:
-        1. Signals the uvicorn server to exit
-        2. Waits for the FastAPI thread to finish
-        3. Calls parent cleanup
+        1. Stops direct message publisher
+        2. Stops background tasks (heartbeat listener, deployment checker)
+        3. Stops agent registry
+        4. Signals the uvicorn server to exit
+        5. Waits for the FastAPI thread to finish
+        6. Calls parent cleanup
         """
         log.info("%s Cleaning up Platform Service Component...", self.log_identifier)
+
+        # Stop direct publisher
+        if self.direct_publisher:
+            try:
+                self.direct_publisher.terminate()
+                log.info("%s Direct message publisher stopped", self.log_identifier)
+            except Exception as e:
+                log.warning("%s Error stopping direct publisher: %s", self.log_identifier, e)
+
+        # Stop background scheduler
+        if self.background_scheduler:
+            try:
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self.background_scheduler.stop())
+                log.info("%s Background scheduler stopped", self.log_identifier)
+            except Exception as e:
+                log.warning("%s Error stopping background scheduler: %s", self.log_identifier, e)
+
+        # Stop heartbeat listener
+        if self.heartbeat_listener:
+            try:
+                self.heartbeat_listener.stop()
+                log.info("%s Heartbeat listener stopped", self.log_identifier)
+            except Exception as e:
+                log.warning("%s Error stopping heartbeat listener: %s", self.log_identifier, e)
+
+        # Stop agent registry
+        if self.agent_registry:
+            try:
+                self.agent_registry.cleanup()
+                log.info("%s Agent registry stopped", self.log_identifier)
+            except Exception as e:
+                log.warning("%s Error stopping agent registry: %s", self.log_identifier, e)
 
         # Signal uvicorn to shutdown
         if self.uvicorn_server:
@@ -233,3 +391,83 @@ class PlatformServiceComponent(ComponentBase):
             Stub SessionManager instance.
         """
         return self.session_manager
+
+    def get_heartbeat_tracker(self):
+        """
+        Return the heartbeat tracker instance.
+
+        Used by deployer status endpoint to check if deployer is online.
+
+        Returns:
+            HeartbeatTracker instance if initialized, None otherwise.
+        """
+        return self.heartbeat_tracker
+
+    def get_agent_registry(self):
+        """
+        Return the agent registry instance.
+
+        Used for deployment status monitoring.
+
+        Returns:
+            AgentRegistry instance if initialized, None otherwise.
+        """
+        return self.agent_registry
+
+    def publish_a2a(
+        self, topic: str, payload: dict, user_properties: dict | None = None
+    ):
+        """
+        Publish direct message to deployer (not A2A protocol).
+
+        Platform Service sends deployment commands directly to deployer service.
+        This is service-to-service communication, not agent-to-agent protocol.
+
+        Commands sent to:
+        - {namespace}/deployer/agent/{agent_id}/deploy
+        - {namespace}/deployer/agent/{agent_id}/update
+        - {namespace}/deployer/agent/{agent_id}/undeploy
+
+        Args:
+            topic: Message topic
+            payload: Message payload dictionary (will be JSON-serialized)
+            user_properties: Optional user properties (not used by deployer)
+
+        Raises:
+            Exception: If publishing fails
+        """
+        import json
+        from solace.messaging.resources.topic import Topic
+
+        log.debug("%s Publishing deployer command to topic: %s", self.log_identifier, topic)
+
+        try:
+            if not self.direct_publisher:
+                raise RuntimeError("Direct publisher not initialized")
+
+            # Serialize payload to JSON
+            message_body = json.dumps(payload)
+
+            # Build message
+            main_app = self.get_app()
+            messaging_service = main_app.connector.get_messaging_service()
+            message = messaging_service.message_builder().build(message_body)
+
+            # Publish directly to topic
+            self.direct_publisher.publish(message, Topic.of(topic))
+
+            log.debug(
+                "%s Successfully published deployer command to topic: %s (payload size: %d bytes)",
+                self.log_identifier,
+                topic,
+                len(message_body)
+            )
+
+        except Exception as e:
+            log.error(
+                "%s Failed to publish deployer command: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
+            raise

@@ -22,8 +22,8 @@ from ..repository.entities import Feedback
 from ..repository.feedback_repository import FeedbackRepository
 from ..repository.interfaces import ITaskRepository
 from ..services.feedback_service import FeedbackService
-from ..shared.pagination import PaginationParams
-from ..shared.types import UserId
+from solace_agent_mesh.shared.api.pagination import PaginationParams
+from solace_agent_mesh.shared.utils.types import UserId
 
 router = APIRouter()
 log = logging.getLogger(__name__)

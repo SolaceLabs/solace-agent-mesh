@@ -4,8 +4,8 @@ Feedback repository implementation using SQLAlchemy.
 
 from sqlalchemy.orm import Session as DBSession
 
-from ..shared.pagination import PaginationParams
-from ..shared.types import UserId
+from solace_agent_mesh.shared.api.pagination import PaginationParams
+from solace_agent_mesh.shared.utils.types import UserId
 from .entities import Feedback
 from .interfaces import IFeedbackRepository
 from .models import FeedbackModel

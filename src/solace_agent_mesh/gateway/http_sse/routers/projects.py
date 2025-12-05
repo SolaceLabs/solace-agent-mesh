@@ -20,7 +20,7 @@ from solace_ai_connector.common.log import log
 
 from ..dependencies import get_project_service, get_sac_component, get_api_config, get_db
 from ..services.project_service import ProjectService
-from ..shared.auth_utils import get_current_user
+from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from ....common.a2a.types import ArtifactInfo
 from typing import TYPE_CHECKING
 

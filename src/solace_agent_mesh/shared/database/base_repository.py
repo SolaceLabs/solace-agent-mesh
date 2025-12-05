@@ -10,7 +10,7 @@ from typing import Any, Generic, TypeVar
 
 from sqlalchemy.orm import Session
 
-from .exceptions import EntityNotFoundError
+from ..exceptions.exceptions import EntityNotFoundError
 
 T = TypeVar("T")
 ModelType = TypeVar("ModelType")

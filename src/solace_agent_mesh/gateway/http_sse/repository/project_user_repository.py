@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from .models import ProjectUserModel
 from .entities.project_user import ProjectUser
-from ..shared import now_epoch_ms
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 
 class ProjectUserRepository:
