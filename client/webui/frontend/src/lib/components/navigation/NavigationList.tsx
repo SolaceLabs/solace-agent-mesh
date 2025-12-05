@@ -87,11 +87,6 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                                             icon: <Settings />,
                                             onClick: handleSettingsClick,
                                         },
-                                    ]}
-                                />
-                                <Menu
-                                    className="border-t"
-                                    actions={[
                                         {
                                             id: "logout",
                                             label: "Log Out",
