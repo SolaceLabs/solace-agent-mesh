@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import * as Ariakit from "@ariakit/react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -107,11 +107,12 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                     href={source.link}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="border-border-heavy bg-surface-secondary hover:bg-surface-hover dark:border-border-medium dark:hover:bg-surface-tertiary ml-1 inline-block h-5 max-w-36 cursor-pointer items-center overflow-hidden rounded-xl border px-2 text-xs font-medium text-ellipsis whitespace-nowrap no-underline transition-colors"
+                                    className="border-border-heavy bg-surface-secondary hover:bg-surface-hover dark:border-border-medium dark:hover:bg-surface-tertiary ml-1 inline-flex h-5 max-w-36 cursor-pointer items-center gap-1 overflow-hidden rounded-xl border px-2 text-xs font-medium no-underline transition-colors"
                                     onMouseEnter={onMouseEnter}
                                     onMouseLeave={onMouseLeave}
                                 >
-                                    {label}
+                                    <span className="truncate">{label}</span>
+                                    <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-60" />
                                 </a>
                             )
                         }
@@ -150,8 +151,14 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                             {source.attribution || source.title || "File Source"}
                                         </button>
                                     ) : (
-                                        <a href={source.link} target="_blank" rel="noopener noreferrer" className="line-clamp-2 cursor-pointer overflow-hidden text-sm font-bold text-[#0066cc] hover:underline md:line-clamp-3 dark:text-blue-400">
-                                            {source.attribution || domain}
+                                        <a
+                                            href={source.link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="line-clamp-2 inline-flex cursor-pointer items-center gap-1 overflow-hidden text-sm font-bold text-[#0066cc] hover:underline md:line-clamp-3 dark:text-blue-400"
+                                        >
+                                            <span className="truncate">{source.attribution || domain}</span>
+                                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
                                         </a>
                                     )}
                                 </span>

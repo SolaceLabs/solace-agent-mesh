@@ -10,6 +10,7 @@ import { getCitationTooltip, CITATION_PATTERN } from "@/lib/utils/citations";
 import { MarkdownHTMLConverter } from "@/lib/components";
 import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
 import * as Ariakit from "@ariakit/react";
+import { ExternalLink } from "lucide-react";
 
 interface CitationProps {
     citation: CitationType;
@@ -154,12 +155,13 @@ export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
     return (
         <button
             onClick={handleClick}
-            className="citation-badge mx-0.5 inline-flex cursor-pointer items-center rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+            className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-0.5 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
             title={tooltip}
             aria-label={`Citation: ${tooltip}`}
             type="button"
         >
             <span className="max-w-[200px] truncate">{displayText}</span>
+            {hasClickableUrl && <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />}
         </button>
     );
 }
@@ -245,6 +247,7 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                         type="button"
                     >
                         <span className="max-w-[200px] truncate">{firstDisplayText}</span>
+                        {hasClickableUrl && <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />}
                         <span className="text-[10px] opacity-70">+{remainingCount}</span>
                     </button>
                 }
@@ -303,7 +306,10 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                                     </div>
                                 )}
                                 <div className="flex-1 overflow-hidden">
-                                    <div className="truncate text-sm font-medium text-blue-600 dark:text-blue-400">{displayText}</div>
+                                    <div className="flex items-center gap-1">
+                                        <span className="truncate text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">{displayText}</span>
+                                        {hasClickableUrl && <ExternalLink className="h-3 w-3 flex-shrink-0 text-blue-600 dark:text-blue-400" />}
+                                    </div>
                                     {citation.source?.metadata?.title && <div className="mt-0.5 truncate text-xs text-gray-600 dark:text-gray-400">{citation.source.metadata.title}</div>}
                                 </div>
                             </button>
