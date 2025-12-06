@@ -290,17 +290,21 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
             totalSourcesBeforeFilter: ragData.reduce((sum, s) => sum + s.sources.length, 0),
             fullyReadSources: fullyRead.length,
             snippetSources: snippets.length,
-            sampleFullyRead: fullyRead.slice(0, 2).map(s => ({
+            sampleFullyRead: fullyRead.slice(0, 3).map(s => ({
                 url: s.url,
                 title: s.title,
                 fetched: s.metadata?.fetched,
                 fetch_status: s.metadata?.fetch_status,
+                contentPreview: s.contentPreview?.substring(0, 100),
+                hasMarker: s.contentPreview?.includes("[Full Content Fetched]"),
             })),
-            sampleSnippets: snippets.slice(0, 2).map(s => ({
+            sampleSnippets: snippets.slice(0, 3).map(s => ({
                 url: s.url,
                 title: s.title,
                 fetched: s.metadata?.fetched,
                 fetch_status: s.metadata?.fetch_status,
+                contentPreview: s.contentPreview?.substring(0, 100),
+                hasMarker: s.contentPreview?.includes("[Full Content Fetched]"),
             })),
         });
 
@@ -314,10 +318,13 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
     // Get the title from the first ragData entry (research question or user query)
     const panelTitle = ragData && ragData.length > 0 ? ragData[0].query : "";
 
+    // Check if research is complete by looking for sources with fetched metadata
+    const hasAnyFetchedSources = isDeepResearch && ragData.some(search => search.sources.some(s => s.metadata?.fetched === true || s.metadata?.fetch_status === "success"));
+
     return (
         <div className="flex h-full flex-col overflow-hidden">
             {isAllDeepResearch ? (
-                // Deep research: Show sources grouped by fully read vs snippets
+                // Deep research: Show sources grouped by fully read vs snippets (only when complete)
                 <div className="flex flex-1 flex-col overflow-hidden">
                     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                         {/* Title section showing research question or query */}
@@ -327,8 +334,8 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                             </div>
                         )}
 
-                        {/* Show grouped sources for deep research, simple list for web search */}
-                        {showGroupedSources ? (
+                        {/* Show grouped sources ONLY when research is complete (has fetched sources) */}
+                        {showGroupedSources && hasAnyFetchedSources ? (
                             <>
                                 {/* Fully Read Sources Section */}
                                 {fullyReadSources.length > 0 && (
@@ -364,10 +371,10 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                 )}
                             </>
                         ) : (
-                            // Simple list for web search (no grouping)
                             <>
                                 <div className="mb-3">
-                                    <h3 className="text-muted-foreground text-sm font-semibold tracking-wide uppercase">{allUniqueSources.length} Sources</h3>
+                                    <h3 className="text-muted-foreground text-sm font-semibold">{isDeepResearch && !hasAnyFetchedSources ? "Sources Explored So Far" : `${allUniqueSources.length} Sources`}</h3>
+                                    {isDeepResearch && !hasAnyFetchedSources && <p className="text-muted-foreground mt-0.5 text-xs">Research in progress...</p>}
                                 </div>
                                 <div className="space-y-1">
                                     {allUniqueSources.map((source, idx) => (

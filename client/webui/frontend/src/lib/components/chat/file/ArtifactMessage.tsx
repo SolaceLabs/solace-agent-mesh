@@ -80,6 +80,11 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             return false;
         }
 
+        // Don't auto-expand deep research reports - they are shown inline without expander
+        if (isDeepResearchReportFilename(fileName)) {
+            return false;
+        }
+
         const renderType = getRenderType(fileName, fileMimeType);
         const isAutoRenderType = renderType === "image" || renderType === "audio" || renderType === "markdown";
 

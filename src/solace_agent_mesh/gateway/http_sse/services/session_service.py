@@ -592,7 +592,15 @@ class SessionService:
 
         # Load tasks
         task_repo = ChatTaskRepository()
-        return task_repo.find_by_session(db, session_id, user_id)
+        tasks = task_repo.find_by_session(db, session_id, user_id)
+        
+        # Note: Deduplication logic was removed because the root cause of duplicate
+        # artifact markers has been fixed in task_logger_service.py. The fix ensures
+        # that when reconstructing chat messages for background tasks, existing
+        # versioned markers (e.g., «artifact_return:report.md:0») are properly
+        # detected and prevent adding duplicate non-versioned markers.
+        
+        return tasks
 
     def get_session_messages_from_tasks(
         self,

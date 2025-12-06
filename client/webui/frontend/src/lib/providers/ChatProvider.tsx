@@ -336,22 +336,40 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const ARTIFACT_RETURN_REGEX = /«artifact_return:([^»]+)»/g;
         const ARTIFACT_REGEX = /«artifact:([^»]+)»/g;
 
-        const createArtifactPart = (filename: string) => ({
-            kind: "artifact",
-            status: "completed",
-            name: filename,
-            file: {
-                name: filename,
-                uri: `artifact://${sessionId}/${filename}`,
-            },
-        });
+        const createArtifactPart = (filename: string) => {
+            // Strip version suffix if present (e.g., "file.md:0" -> "file.md")
+            // This handles artifact markers from agents that include version numbers
+            let cleanFilename = filename;
+            if (filename.includes(":")) {
+                const parts = filename.split(":");
+                // Check if the last part is a number (version)
+                const lastPart = parts[parts.length - 1];
+                if (/^\d+$/.test(lastPart)) {
+                    // It's a version number, remove it
+                    cleanFilename = parts.slice(0, -1).join(":");
+                }
+            }
+
+            return {
+                kind: "artifact",
+                status: "completed",
+                name: cleanFilename,
+                file: {
+                    name: cleanFilename,
+                    uri: `artifact://${sessionId}/${cleanFilename}`,
+                },
+            };
+        };
 
         // Extract artifact_return markers
         let match;
         while ((match = ARTIFACT_RETURN_REGEX.exec(text)) !== null) {
             const artifactFilename = match[1];
-            if (!addedArtifacts.has(artifactFilename)) {
-                addedArtifacts.add(artifactFilename);
+            // Normalize filename to avoid duplicates (strip version suffix)
+            const normalizedFilename = artifactFilename.includes(":") && /:\d+$/.test(artifactFilename) ? artifactFilename.substring(0, artifactFilename.lastIndexOf(":")) : artifactFilename;
+
+            if (!addedArtifacts.has(normalizedFilename)) {
+                addedArtifacts.add(normalizedFilename);
                 processedParts.push(createArtifactPart(artifactFilename));
             }
         }
@@ -1305,6 +1323,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     if (resultData && typeof resultData === "object" && resultData.rag_metadata) {
                                         const ragMetadata = resultData.rag_metadata;
                                         if (ragMetadata && ragEnabled) {
+                                            console.log("[ChatProvider] Received tool_result with RAG metadata:", {
+                                                searchType: ragMetadata.searchType,
+                                                sourcesCount: ragMetadata.sources?.length,
+                                                taskId: currentTaskIdFromResult,
+                                                sampleSources: ragMetadata.sources?.slice(0, 3).map((s: any) => ({
+                                                    title: s.title,
+                                                    fetched: s.metadata?.fetched,
+                                                    fetch_status: s.metadata?.fetch_status,
+                                                    contentPreview: s.contentPreview?.substring(0, 100),
+                                                })),
+                                            });
+
                                             const ragSearchResult: RAGSearchResult = {
                                                 query: ragMetadata.query,
                                                 searchType: ragMetadata.searchType,
@@ -1317,11 +1347,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             // For deep research: REPLACE all previous entries for this task with the final metadata
                                             // This ensures we have the complete, properly structured data with metadata.queries
                                             if (ragMetadata.searchType === "deep_research") {
+                                                console.log("[ChatProvider] Replacing deep research RAG data for task", currentTaskIdFromResult);
                                                 setRagData(prev => {
+                                                    const beforeCount = prev.filter(r => r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult).length;
                                                     // Remove all previous deep research entries for this task
                                                     const filtered = prev.filter(r => !(r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult));
                                                     // Add the final complete entry
-                                                    return [...filtered, ragSearchResult];
+                                                    const result = [...filtered, ragSearchResult];
+                                                    console.log("[ChatProvider] Deep research RAG data replaced:", {
+                                                        removedEntries: beforeCount,
+                                                        newSourcesCount: ragSearchResult.sources.length,
+                                                    });
+                                                    return result;
                                                 });
                                             } else {
                                                 // For regular web search: append as before
