@@ -240,11 +240,13 @@ const DeepResearchReportBubble: React.FC<{
     deepResearchReportInfo: DeepResearchReportInfo;
     message: MessageFE;
     onContentLoaded?: (content: string) => void;
-}> = ({ deepResearchReportInfo, onContentLoaded }) => {
+}> = ({ deepResearchReportInfo, message, onContentLoaded }) => {
     return (
         <ChatBubble variant="received">
             <ChatBubbleMessage variant="received">
-                <DeepResearchReportContent artifact={deepResearchReportInfo.artifact} sessionId={deepResearchReportInfo.sessionId} ragData={deepResearchReportInfo.ragData} onContentLoaded={onContentLoaded} />
+                <SelectableMessageContent messageId={message.metadata?.messageId || ""} isAIMessage={true}>
+                    <DeepResearchReportContent artifact={deepResearchReportInfo.artifact} sessionId={deepResearchReportInfo.sessionId} ragData={deepResearchReportInfo.ragData} onContentLoaded={onContentLoaded} />
+                </SelectableMessageContent>
             </ChatBubbleMessage>
         </ChatBubble>
     );
