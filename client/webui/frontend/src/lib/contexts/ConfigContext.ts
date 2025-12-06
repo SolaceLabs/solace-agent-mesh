@@ -49,6 +49,15 @@ export interface ConfigContextValue {
      * Tasks running longer than this will be automatically cancelled.
      */
     backgroundTasksDefaultTimeoutMs?: number;
+
+    /**
+     * Tool configuration status from backend.
+     * Indicates which tools are properly configured with required API keys.
+     */
+    toolConfigStatus?: {
+        web_search?: boolean;
+        deep_research?: boolean;
+    };
 }
 
 export const ConfigContext = createContext<ConfigContextValue | null>(null);

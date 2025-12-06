@@ -3,6 +3,7 @@ API Router for providing frontend configuration.
 """
 
 import logging
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any
 
@@ -235,7 +236,7 @@ async def get_app_config(
             log.debug("%s Projects feature flag is enabled.", log_prefix)
         else:
             log.debug("%s Projects feature flag is disabled.", log_prefix)
-
+        
         
         # Determine if background tasks should be enabled
         background_tasks_enabled = _determine_background_tasks_enabled(component, log_prefix)
@@ -316,6 +317,37 @@ async def get_app_config(
             "engineTTS": "external" if tts_configured else "browser",
             "ttsProvider": tts_provider,
         }
+
+        # Check tool configuration status
+        tool_config_status = {}
+        
+        # Check web search configuration from component config
+        # Web search tools (Tavily, Google) are configured in agent tool configs
+        # We check if the tools section exists and has web_search or deep_research configured
+        tools_config = component.get_config("tools", [])
+        web_search_configured = False
+        deep_research_configured = False
+        
+        if tools_config:
+            for tool in tools_config:
+                tool_name = tool.get("tool_name", "")
+                if tool_name in ["web_search", "web_search_tavily", "web_search_google"]:
+                    web_search_configured = True
+                elif tool_name == "deep_research":
+                    deep_research_configured = True
+        
+        tool_config_status["web_search"] = web_search_configured
+        tool_config_status["deep_research"] = deep_research_configured
+        
+        if web_search_configured:
+            log.debug("%s Web search is configured", log_prefix)
+        else:
+            log.debug("%s Web search is NOT configured", log_prefix)
+            
+        if deep_research_configured:
+            log.debug("%s Deep research is configured", log_prefix)
+        else:
+            log.debug("%s Deep research is NOT configured", log_prefix)
 
         config_data = {
             "frontend_server_url": "",
