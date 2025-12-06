@@ -58,9 +58,9 @@ export const generateContentPreview = (content: string, maxLength: number = 200)
 
     // Remove excessive whitespace but preserve structure
     const cleanedContent = content
-        .replace(/\r\n/g, '\n') // Normalize line endings
-        .replace(/\n{3,}/g, '\n\n') // Limit consecutive newlines
-        .replace(/[ \t]{2,}/g, ' ') // Limit consecutive spaces/tabs
+        .replace(/\r\n/g, "\n") // Normalize line endings
+        .replace(/\n{3,}/g, "\n\n") // Limit consecutive newlines
+        .replace(/[ \t]{2,}/g, " ") // Limit consecutive spaces/tabs
         .trim();
 
     if (cleanedContent.length <= maxLength) {
@@ -69,16 +69,16 @@ export const generateContentPreview = (content: string, maxLength: number = 200)
 
     // Truncate at word boundary if possible
     const truncated = cleanedContent.substring(0, maxLength);
-    const lastSpaceIndex = truncated.lastIndexOf(' ');
-    const lastNewlineIndex = truncated.lastIndexOf('\n');
+    const lastSpaceIndex = truncated.lastIndexOf(" ");
+    const lastNewlineIndex = truncated.lastIndexOf("\n");
 
     // Use the latest boundary (space or newline) that's not too close to the start
     const boundaryIndex = Math.max(lastSpaceIndex, lastNewlineIndex);
     if (boundaryIndex > maxLength * 0.7) {
-        return truncated.substring(0, boundaryIndex) + '...';
+        return truncated.substring(0, boundaryIndex) + "...";
     }
 
-    return truncated + '...';
+    return truncated + "...";
 };
 
 /**
@@ -91,22 +91,20 @@ export const generateStructuredDataPreview = (content: string, type: "json" | "y
             // Extract key structure for preview
             if (typeof parsed === "object" && parsed !== null) {
                 const keys = Object.keys(parsed).slice(0, 5); // Show first 5 keys
-                const preview = keys.map(key => {
-                    const value = parsed[key];
-                    const valueType = Array.isArray(value) ? "array" : typeof value;
-                    return `${key}: ${valueType}`;
-                }).join('\n');
+                const preview = keys
+                    .map(key => {
+                        const value = parsed[key];
+                        const valueType = Array.isArray(value) ? "array" : typeof value;
+                        return `${key}: ${valueType}`;
+                    })
+                    .join("\n");
                 return generateContentPreview(preview, maxLength);
             }
         } else if (type === "yaml") {
             // For YAML, show first few lines that contain key-value pairs
-            const lines = content.split('\n').slice(0, 10);
-            const keyValueLines = lines.filter(line =>
-                line.trim() &&
-                !line.trim().startsWith('#') &&
-                line.includes(':')
-            ).slice(0, 5);
-            return generateContentPreview(keyValueLines.join('\n'), maxLength);
+            const lines = content.split("\n").slice(0, 10);
+            const keyValueLines = lines.filter(line => line.trim() && !line.trim().startsWith("#") && line.includes(":")).slice(0, 5);
+            return generateContentPreview(keyValueLines.join("\n"), maxLength);
         }
     } catch (error) {
         // If parsing fails, fall back to regular content preview
@@ -146,19 +144,21 @@ export const extractJsonPreview = (content: string): string => {
         const parsed = JSON.parse(content);
         if (typeof parsed === "object" && parsed !== null) {
             const keys = Object.keys(parsed).slice(0, 8); // Show more keys for icon
-            const preview = keys.map(key => {
-                const value = parsed[key];
-                if (typeof value === "string") {
-                    return `"${key}": "${value.length > 20 ? value.substring(0, 20) + '...' : value}"`;
-                } else if (typeof value === "number" || typeof value === "boolean") {
-                    return `"${key}": ${value}`;
-                } else if (Array.isArray(value)) {
-                    return `"${key}": [${value.length} items]`;
-                } else if (typeof value === "object" && value !== null) {
-                    return `"${key}": {...}`;
-                }
-                return `"${key}": ${typeof value}`;
-            }).join('\n');
+            const preview = keys
+                .map(key => {
+                    const value = parsed[key];
+                    if (typeof value === "string") {
+                        return `"${key}": "${value.length > 20 ? value.substring(0, 20) + "..." : value}"`;
+                    } else if (typeof value === "number" || typeof value === "boolean") {
+                        return `"${key}": ${value}`;
+                    } else if (Array.isArray(value)) {
+                        return `"${key}": [${value.length} items]`;
+                    } else if (typeof value === "object" && value !== null) {
+                        return `"${key}": {...}`;
+                    }
+                    return `"${key}": ${typeof value}`;
+                })
+                .join("\n");
             return `{\n${preview}\n}`;
         }
         return JSON.stringify(parsed, null, 2).substring(0, 150);
@@ -171,25 +171,27 @@ export const extractJsonPreview = (content: string): string => {
  * Extracts preview text from YAML content
  */
 export const extractYamlPreview = (content: string): string => {
-    const lines = content.split('\n').slice(0, 12);
-    const keyValueLines = lines.filter(line => {
-        const trimmed = line.trim();
-        return trimmed &&
-               !trimmed.startsWith('#') &&
-               (trimmed.includes(':') || trimmed.startsWith('-'));
-    }).slice(0, 8);
-    return keyValueLines.join('\n');
+    const lines = content.split("\n").slice(0, 12);
+    const keyValueLines = lines
+        .filter(line => {
+            const trimmed = line.trim();
+            return trimmed && !trimmed.startsWith("#") && (trimmed.includes(":") || trimmed.startsWith("-"));
+        })
+        .slice(0, 8);
+    return keyValueLines.join("\n");
 };
 
 /**
  * Extracts preview text from CSV content
  */
 export const extractCsvPreview = (content: string): string => {
-    const lines = content.split('\n').slice(0, 6);
-    return lines.map(line => {
-        // Truncate very long lines
-        return line.length > 50 ? line.substring(0, 50) + '...' : line;
-    }).join('\n');
+    const lines = content.split("\n").slice(0, 6);
+    return lines
+        .map(line => {
+            // Truncate very long lines
+            return line.length > 50 ? line.substring(0, 50) + "..." : line;
+        })
+        .join("\n");
 };
 
 /**
@@ -199,15 +201,15 @@ export const extractHtmlPreview = (content: string): string => {
     // Try to extract meaningful structure
     const structuralTags = content.match(/<(html|head|body|div|section|article|header|footer|nav|main|aside)[^>]*>/gi);
     if (structuralTags && structuralTags.length > 0) {
-        return structuralTags.slice(0, 8).join('\n');
+        return structuralTags.slice(0, 8).join("\n");
     }
 
     // Fallback to text extraction
     const textContent = content
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/\s+/g, ' ')
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\s+/g, " ")
         .trim();
 
     return textContent.substring(0, 150);
@@ -217,12 +219,14 @@ export const extractHtmlPreview = (content: string): string => {
  * Extracts preview text from Markdown content
  */
 export const extractMarkdownPreview = (content: string): string => {
-    const lines = content.split('\n').slice(0, 10);
-    const meaningfulLines = lines.filter(line => {
-        const trimmed = line.trim();
-        return trimmed && !trimmed.startsWith('<!--');
-    }).slice(0, 6);
-    return meaningfulLines.join('\n');
+    const lines = content.split("\n").slice(0, 10);
+    const meaningfulLines = lines
+        .filter(line => {
+            const trimmed = line.trim();
+            return trimmed && !trimmed.startsWith("<!--");
+        })
+        .slice(0, 6);
+    return meaningfulLines.join("\n");
 };
 
 /**
@@ -230,8 +234,8 @@ export const extractMarkdownPreview = (content: string): string => {
  */
 export const extractTextPreview = (content: string): string => {
     // For plain text, just return the first portion with some line preservation
-    const lines = content.split('\n').slice(0, 8);
-    return lines.join('\n').substring(0, 150);
+    const lines = content.split("\n").slice(0, 8);
+    return lines.join("\n").substring(0, 150);
 };
 
 /**
@@ -247,16 +251,16 @@ export const generateFileTypePreview = (content: string, filename?: string, mime
             return generateStructuredDataPreview(content, "yaml", maxLength);
         case "csv": {
             // For CSV, show first few rows
-            const csvLines = content.split('\n').slice(0, 5);
-            return generateContentPreview(csvLines.join('\n'), maxLength);
+            const csvLines = content.split("\n").slice(0, 5);
+            return generateContentPreview(csvLines.join("\n"), maxLength);
         }
         case "html": {
             // For HTML, try to extract text content or show structure
             const htmlPreview = content
-                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove scripts
-                .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '') // Remove styles
-                .replace(/<[^>]*>/g, ' ') // Remove HTML tags
-                .replace(/\s+/g, ' ') // Normalize whitespace
+                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "") // Remove scripts
+                .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "") // Remove styles
+                .replace(/<[^>]*>/g, " ") // Remove HTML tags
+                .replace(/\s+/g, " ") // Normalize whitespace
                 .trim();
             return generateContentPreview(htmlPreview || content, maxLength);
         }

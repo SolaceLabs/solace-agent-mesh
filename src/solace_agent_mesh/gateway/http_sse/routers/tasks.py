@@ -1,5 +1,6 @@
 """
 API Router for submitting and managing tasks to agents.
+Includes background task status endpoints.
 """
 
 import logging
@@ -13,8 +14,9 @@ from a2a.types import (
     SendStreamingMessageRequest,
     SendStreamingMessageSuccessResponse,
 )
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi import Request as FastAPIRequest
+from pydantic import BaseModel
 from sqlalchemy.orm import Session as DBSession
 
 from ....gateway.http_sse.services.project_service import ProjectService
@@ -37,6 +39,7 @@ from ....gateway.http_sse.dependencies import (
 )
 from ....gateway.http_sse.repository.entities import Task
 from ....gateway.http_sse.repository.interfaces import ITaskRepository
+from ....gateway.http_sse.repository.task_repository import TaskRepository
 from ....gateway.http_sse.services.session_service import SessionService
 from ....gateway.http_sse.services.task_service import TaskService
 from ....gateway.http_sse.session_manager import SessionManager
@@ -50,6 +53,108 @@ if TYPE_CHECKING:
 router = APIRouter()
 
 log = logging.getLogger(__name__)
+
+
+# Background Task Status Models and Endpoints
+class TaskStatusResponse(BaseModel):
+    """Response model for task status queries."""
+    task: Task
+    is_running: bool
+    is_background: bool
+    can_reconnect: bool
+
+
+@router.get("/tasks/{task_id}/status", response_model=TaskStatusResponse, tags=["Tasks"])
+async def get_task_status(
+    task_id: str,
+    db: DBSession = Depends(get_db),
+):
+    """
+    Get the current status of a task.
+    Used by frontend to check if a background task is still running.
+    
+    Args:
+        task_id: The task ID to query
+        
+    Returns:
+        Task status information including whether it's running and can be reconnected to
+    """
+    log_prefix = f"[GET /api/v1/tasks/{task_id}/status] "
+    log.debug("%sQuerying task status", log_prefix)
+    
+    repo = TaskRepository()
+    task = repo.find_by_id(db, task_id)
+    
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    
+    # Determine if task is still running
+    is_running = task.status in [None, "running", "pending"] and task.end_time is None
+    
+    # Check if it's a background task
+    is_background = task.background_execution_enabled or False
+    
+    # Can reconnect if it's a background task and still running
+    can_reconnect = is_background and is_running
+    
+    log.info(
+        "%sTask status: running=%s, background=%s, can_reconnect=%s",
+        log_prefix,
+        is_running,
+        is_background,
+        can_reconnect,
+    )
+    
+    return TaskStatusResponse(
+        task=task,
+        is_running=is_running,
+        is_background=is_background,
+        can_reconnect=can_reconnect
+    )
+
+
+@router.get("/tasks/background/active", tags=["Tasks"])
+async def get_active_background_tasks(
+    user_id: str = Query(..., description="User ID to filter tasks"),
+    db: DBSession = Depends(get_db),
+):
+    """
+    Get all active background tasks for a user.
+    Used by frontend on session load to detect running background tasks.
+    
+    Args:
+        user_id: The user ID to filter by
+        
+    Returns:
+        List of active background tasks
+    """
+    log_prefix = "[GET /api/v1/tasks/background/active] "
+    log.debug("%sQuerying active background tasks for user %s", log_prefix, user_id)
+    
+    repo = TaskRepository()
+    
+    # Get all background tasks
+    all_background_tasks = repo.find_background_tasks_by_status(db, status=None)
+    
+    # Filter by user and running status
+    active_tasks = [
+        task for task in all_background_tasks
+        if task.user_id == user_id
+        and task.status in [None, "running", "pending"]
+        and task.end_time is None
+    ]
+    
+    log.info("%sFound %d active background tasks for user %s", log_prefix, len(active_tasks), user_id)
+    
+    return {
+        "tasks": active_tasks,
+        "count": len(active_tasks)
+    }
+
+
+# =============================================================================
+# Project Context Injection Helper
+# =============================================================================
 
 
 async def _inject_project_context(
@@ -593,6 +698,7 @@ async def get_task_events(
         # Transform task events into A2AEventSSEPayload format for the frontend
         # Need to reconstruct the SSE structure from stored data
         formatted_events = []
+        
         for event in events:
             # event.payload contains the raw A2A JSON-RPC message
             # event.created_time is epoch milliseconds
@@ -698,6 +804,7 @@ async def get_task_events(
 
             # Format events for this related task
             related_formatted_events = []
+            
             for event in related_events:
                 from datetime import datetime, timezone
 
