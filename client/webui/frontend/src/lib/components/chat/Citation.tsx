@@ -298,7 +298,12 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                         };
 
                         return (
-                            <button key={`bundled-citation-${index}`} onClick={handleClick} className="flex w-full cursor-pointer items-start gap-2 rounded-md p-2 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-800" type="button">
+                            <button
+                                key={`bundled-citation-${index}`}
+                                onClick={handleClick}
+                                className="group flex w-full cursor-pointer items-start gap-2 rounded-md p-2 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                                type="button"
+                            >
                                 {favicon && (
                                     <div className="relative mt-0.5 h-4 w-4 flex-shrink-0 overflow-hidden rounded-full bg-white">
                                         <img src={favicon} alt="" className="h-full w-full" />
@@ -307,8 +312,12 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                                 )}
                                 <div className="flex-1 overflow-hidden">
                                     <div className="flex items-center gap-1">
-                                        <span className="truncate text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">{displayText}</span>
-                                        {hasClickableUrl && <ExternalLink className="h-3 w-3 flex-shrink-0 text-blue-600 dark:text-blue-400" />}
+                                        <span className="truncate text-sm font-medium text-[var(--color-primary-wMain)] group-hover:text-[var(--color-primary-w60)] dark:text-[var(--color-primary-w60)] dark:group-hover:text-[var(--color-white)]">
+                                            {displayText}
+                                        </span>
+                                        {hasClickableUrl && (
+                                            <ExternalLink className="h-3 w-3 flex-shrink-0 text-[var(--color-primary-wMain)] group-hover:text-[var(--color-primary-w60)] dark:text-[var(--color-primary-w60)] dark:group-hover:text-[var(--color-white)]" />
+                                        )}
                                     </div>
                                     {citation.source?.metadata?.title && <div className="mt-0.5 truncate text-xs text-gray-600 dark:text-gray-400">{citation.source.metadata.title}</div>}
                                 </div>

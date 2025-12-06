@@ -1,5 +1,5 @@
 import React from "react";
-import { FileText, TrendingUp, Search, Link2, ChevronDown, ChevronUp, Brain, Globe } from "lucide-react";
+import { FileText, TrendingUp, Search, Link2, ChevronDown, ChevronUp, Brain, Globe, ExternalLink } from "lucide-react";
 // Web-only version - enterprise icons removed
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/lib/components/ui/tabs";
 import type { RAGSearchResult } from "@/lib/types";
@@ -78,8 +78,15 @@ const SourceCard: React.FC<{
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                     <FileText className="text-muted-foreground h-3 w-3 flex-shrink-0" />
                     {sourceUrl ? (
-                        <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="text-primary truncate text-xs font-medium hover:underline" title={displayTitle}>
-                            {displayTitle}
+                        <a
+                            href={sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 truncate text-xs font-medium text-[var(--color-primary-wMain)] hover:text-[var(--color-primary-w60)] hover:underline dark:text-[var(--color-primary-w60)] dark:hover:text-[var(--color-white)]"
+                            title={displayTitle}
+                        >
+                            <span className="truncate">{displayTitle}</span>
+                            <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
                         </a>
                     ) : (
                         <span className="truncate text-xs font-medium" title={displayTitle}>
@@ -207,8 +214,15 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                     />
                 )}
                 {url ? (
-                    <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary truncate text-sm hover:underline" title={title}>
-                        {title}
+                    <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 truncate text-sm text-[var(--color-primary-wMain)] hover:text-[var(--color-primary-w60)] hover:underline dark:text-[var(--color-primary-w60)] dark:hover:text-[var(--color-white)]"
+                        title={title}
+                    >
+                        <span className="truncate">{title}</span>
+                        <ExternalLink className="h-3 w-3 flex-shrink-0" />
                     </a>
                 ) : (
                     <span className="truncate text-sm" title={title}>
@@ -473,8 +487,14 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                                         <div className="text-sm">
                                                             <span className="text-muted-foreground">Read </span>
                                                             {event.url ? (
-                                                                <a href={event.url} target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:underline">
-                                                                    {event.title || new URL(event.url).hostname}
+                                                                <a
+                                                                    href={event.url}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex items-center gap-1 font-medium text-[var(--color-primary-wMain)] hover:text-[var(--color-primary-w60)] hover:underline dark:text-[var(--color-primary-w60)] dark:hover:text-[var(--color-white)]"
+                                                                >
+                                                                    <span>{event.title || new URL(event.url).hostname}</span>
+                                                                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
                                                                 </a>
                                                             ) : (
                                                                 <span className="font-medium">{event.content}</span>
