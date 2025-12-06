@@ -31,6 +31,11 @@ import { StoryProvider } from "../mocks/StoryProvider";
  */
 export const withProviders: Decorator = (Story: StoryFn, context: StoryContext) => {
     // Extract mock values from story parameters or args
+    const authContextValues = {
+        ...(context.parameters.authContext || {}),
+        ...(context.args.authContext || {}),
+    };
+
     const chatContextValues = {
         ...(context.parameters.chatContext || {}),
         ...(context.args.chatContext || {}),
@@ -49,7 +54,7 @@ export const withProviders: Decorator = (Story: StoryFn, context: StoryContext) 
     const storyResult = Story(context.args, context);
 
     return (
-        <StoryProvider chatContextValues={chatContextValues} taskContextValues={taskContextValues} configContextValues={configContextValues}>
+        <StoryProvider authContextValues={authContextValues} chatContextValues={chatContextValues} taskContextValues={taskContextValues} configContextValues={configContextValues}>
             {storyResult}
         </StoryProvider>
     );
