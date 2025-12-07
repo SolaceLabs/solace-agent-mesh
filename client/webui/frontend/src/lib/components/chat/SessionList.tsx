@@ -30,7 +30,7 @@ const SessionName: React.FC<SessionNameProps> = ({ session, isCurrentSession, is
         }
         // Fallback to "New Chat" if no name
         return "New Chat";
-    }, [session.name, session.id]);
+    }, [session.name]);
 
     // Pass session ID to useTitleAnimation so it can listen for title generation events
     const { text: animatedName, isAnimating, isGenerating } = useTitleAnimation(displayName, session.id);
@@ -138,18 +138,21 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         };
         const handleTitleUpdated = async (event: Event) => {
             const customEvent = event as CustomEvent;
-            const { sessionId } = customEvent.detail;
+            const { sessionId: updatedSessionId } = customEvent.detail;
 
             // Fetch the updated session from backend to get the new title
             try {
-                const sessionData = await fetchJsonWithError(`${configServerUrl}/api/v1/sessions/${sessionId}`);
+                const url = `${configServerUrl}/api/v1/sessions/${updatedSessionId}`;
+                const sessionData = await fetchJsonWithError(url);
                 const updatedSession = sessionData?.data;
 
                 if (updatedSession) {
-                    setSessions(prevSessions => prevSessions.map(s => (s.id === sessionId ? { ...s, name: updatedSession.name } : s)));
+                    setSessions(prevSessions => {
+                        return prevSessions.map(s => (s.id === updatedSessionId ? { ...s, name: updatedSession.name } : s));
+                    });
                 }
             } catch (error) {
-                console.error("Error fetching updated session:", error);
+                console.error("[SessionList] Error fetching updated session:", error);
                 // Fallback: just refresh the entire list
                 fetchSessions(1, false);
             }
@@ -168,7 +171,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             window.removeEventListener("session-title-updated", handleTitleUpdated);
             window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
         };
-    }, [fetchSessions]);
+    }, [fetchSessions, configServerUrl]);
 
     // Periodic refresh when there are sessions with running background tasks
     // This is necessary to detect task completion when user is on a different session
