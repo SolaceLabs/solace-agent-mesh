@@ -650,6 +650,10 @@ async def trigger_title_generation(
     Trigger asynchronous title generation for a chat session.
     Accepts the user message and agent response directly to avoid database timing issues.
     Returns immediately (202 Accepted) while title is generated in background.
+    
+    If the session already has a meaningful title (not "New Chat"), the request is
+    silently accepted but no generation occurs. This handles browser refresh scenarios
+    where the frontend's in-memory tracking is lost.
     """
     user_id = user.get("id")
     log.info(f"User {user_id} triggering async title generation for session {session_id}")
@@ -670,6 +674,13 @@ async def trigger_title_generation(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
+        
+        # Check if session already has a meaningful title (not "New Chat")
+        # This handles browser refresh scenarios where frontend tracking is lost
+        current_title = session_domain.name
+        if current_title and current_title.strip() and current_title.strip() != "New Chat":
+            log.debug(f"Session {session_id} already has title, skipping generation")
+            return {"message": "Title already exists", "skipped": True}
         
         # Validate we have both messages
         if not user_message or not agent_response:
@@ -694,7 +705,6 @@ async def trigger_title_generation(
                 log.error(f"Failed to update session name in callback: {e}")
 
         # Create background task using asyncio to ensure it runs
-        import asyncio
         loop = asyncio.get_event_loop()
         
         # Schedule the task in the event loop with callback

@@ -10,7 +10,7 @@ import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
@@ -41,6 +41,7 @@ const PANEL_SIZES_OPEN = {
 export function ChatPage() {
     const { activeProject } = useProjectContext();
     const { currentTheme } = useThemeContext();
+    const { autoTitleGenerationEnabled } = useConfigContext();
     const {
         agents,
         sessionId,
@@ -116,12 +117,18 @@ export function ChatPage() {
     const { text: pageTitle, isAnimating: isTitleAnimating, isGenerating: isTitleGenerating } = useTitleAnimation(rawPageTitle, sessionId);
 
     const isWaitingForTitle = useMemo(() => {
+        if (!autoTitleGenerationEnabled) {
+            return false;
+        }
         const isNewChat = !sessionName || sessionName === "New Chat";
         return (isNewChat && isResponding) || isTitleGenerating;
-    }, [sessionName, isResponding, isTitleGenerating]);
+    }, [sessionName, isResponding, isTitleGenerating, autoTitleGenerationEnabled]);
 
     // Determine the appropriate animation class
     const titleAnimationClass = useMemo(() => {
+        if (!autoTitleGenerationEnabled) {
+            return "opacity-100"; // No animation when disabled
+        }
         if (isWaitingForTitle) {
             return "animate-pulse-slow";
         }
@@ -129,7 +136,7 @@ export function ChatPage() {
             return "animate-pulse opacity-50";
         }
         return "opacity-100";
-    }, [isWaitingForTitle, isTitleAnimating]);
+    }, [isWaitingForTitle, isTitleAnimating, autoTitleGenerationEnabled]);
 
     useEffect(() => {
         if (chatSidePanelRef.current && isSidePanelCollapsed) {

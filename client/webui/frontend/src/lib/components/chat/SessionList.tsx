@@ -24,6 +24,8 @@ interface SessionNameProps {
 }
 
 const SessionName: React.FC<SessionNameProps> = ({ session, isCurrentSession, isResponding }) => {
+    const { autoTitleGenerationEnabled } = useConfigContext();
+
     const displayName = useMemo(() => {
         if (session.name && session.name.trim()) {
             return session.name;
@@ -36,20 +38,32 @@ const SessionName: React.FC<SessionNameProps> = ({ session, isCurrentSession, is
     const { text: animatedName, isAnimating, isGenerating } = useTitleAnimation(displayName, session.id);
 
     const isWaitingForTitle = useMemo(() => {
+        // Always show pulse when isGenerating (manual "Rename with AI")
+        if (isGenerating) {
+            return true;
+        }
+
+        if (!autoTitleGenerationEnabled) {
+            return false; // No pulse when auto title generation is disabled
+        }
         const isNewChat = !session.name || session.name === "New Chat";
-        return (isCurrentSession && isNewChat && isResponding) || isGenerating;
-    }, [session.name, isCurrentSession, isResponding, isGenerating]);
+        return isCurrentSession && isNewChat && isResponding;
+    }, [session.name, isCurrentSession, isResponding, isGenerating, autoTitleGenerationEnabled]);
 
     // Show slow pulse while waiting for title, faster pulse during transition animation
     const animationClass = useMemo(() => {
+        if (isGenerating || isAnimating) {
+            if (isWaitingForTitle) {
+                return "animate-pulse-slow";
+            }
+            return "animate-pulse opacity-50";
+        }
+        // For automatic title generation waiting state
         if (isWaitingForTitle) {
             return "animate-pulse-slow";
         }
-        if (isAnimating) {
-            return "animate-pulse opacity-50";
-        }
         return "opacity-100";
-    }, [isWaitingForTitle, isAnimating]);
+    }, [isWaitingForTitle, isAnimating, isGenerating]);
 
     return <span className={`truncate font-semibold transition-opacity duration-300 ${animationClass}`}>{animatedName}</span>;
 };
@@ -292,7 +306,8 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
                 // Call the title generation service with the full context
                 // Pass current title so polling can detect the change
-                await generateTitle(session.id, userSummary, agentSummary, session.name || "New Chat");
+                // Pass force=true to bypass the "already has title" check
+                await generateTitle(session.id, userSummary, agentSummary, session.name || "New Chat", true);
 
                 addNotification?.("Title regenerated successfully", "success");
             } catch (error) {

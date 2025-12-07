@@ -13,9 +13,10 @@ export const useTitleGeneration = () => {
     /**
      * Trigger async title generation with messages.
      * Polls until title is updated or timeout.
+     * @param force - If true, forces regeneration even if title already exists (for "Rename with AI")
      */
     const generateTitle = useCallback(
-        async (sessionId: string, userMessage: string, agentResponse: string, currentTitle?: string): Promise<void> => {
+        async (sessionId: string, userMessage: string, agentResponse: string, currentTitle?: string, force: boolean = false): Promise<void> => {
             if (!sessionId || sessionId === "" || sessionId === "null") {
                 console.warn("[useTitleGeneration] Invalid session ID, skipping title generation");
                 return;
@@ -60,6 +61,7 @@ export const useTitleGeneration = () => {
                     body: JSON.stringify({
                         userMessage,
                         agentResponse,
+                        force,
                     }),
                     credentials: "include",
                 });
