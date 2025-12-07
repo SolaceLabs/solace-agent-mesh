@@ -1,7 +1,7 @@
 """Add token usage tracking tables
 
 Revision ID: 20250121_token_usage
-Revises: 20251115_add_parent_task_id
+Revises: 20251126_background_tasks
 Create Date: 2025-01-21 00:00:00.000000
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy import JSON
 
 # revision identifiers, used by Alembic.
 revision = '20250121_token_usage'
-down_revision = '20251115_add_parent_task_id'
+down_revision = '20251126_background_tasks'
 branch_labels = None
 depends_on = None
 
