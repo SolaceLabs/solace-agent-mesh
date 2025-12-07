@@ -293,6 +293,30 @@
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
+        },
+        {
+            "name": "Claude Code Agent (With WebUI)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/coding-agent.yaml examples/gateways/webui_gateway_example.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
+            }
+        },
+        {
+            "name": "Claude Code Agent (Standalone)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env config/examples/coding-agent.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
+            }
         }
     ],
     "inputs": [

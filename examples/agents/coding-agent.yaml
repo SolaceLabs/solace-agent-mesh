@@ -1,0 +1,153 @@
+# A2A ADK Coding Agent Component Configuration
+#
+# This configuration demonstrates how to set up an agent with Claude Code
+# capabilities for AI-assisted software development.
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: coding-agent.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  - name: coding-agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection # Points to shared_config.yaml
+
+    # App Level Config
+    app_config:
+      namespace: ${NAMESPACE} # Your A2A topic namespace
+      supports_streaming: true # Host capability flag
+      agent_name: "CodingAgent"
+      display_name: "Coding Assistant"
+
+      model: *planning_model # Points to shared_config.yaml
+
+      instruction: |
+        You are a helpful coding assistant with access to Claude Code tools.
+
+        When users ask you to write code, debug issues, or work on software projects,
+        use the claude_code_execute tool to leverage AI-assisted development with
+        full access to the filesystem, git, and development tools.
+
+        Session continuity is automatic - just keep using the same workspace_id
+        for related requests. The tool internally manages session state.
+
+        Available Claude Code tools:
+        - claude_code_execute: Execute coding tasks in a workspace
+        - claude_code_list_workspaces: List available workspaces
+        - claude_code_read_files: Read files from a workspace
+        - claude_code_create_version: Create semantic version snapshots
+        - claude_code_export_workspace: Export workspace as archive
+        - claude_code_import_workspace: Import workspace from archive
+
+        Workflow guidelines:
+        - For new projects, use workspace_type="app" to create persistent workspaces
+        - For one-off tasks or experiments, use workspace_type="session"
+        - Always provide clear workspace_id names (e.g., "react-todo-app", "api-client")
+        - Create versions after significant milestones using claude_code_create_version
+        - Use claude_code_read_files to review code before sharing with the user
+
+      session_service:
+        type: "sql"
+        database_url: "${CODING_AGENT_DATABASE_URL, sqlite:///coding-agent.db}"
+        default_behavior: "PERSISTENT"
+      artifact_service: *default_artifact_service # Points to shared_config.yaml
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+        - tool_type: builtin
+          tool_name: "get_current_time"
+        - tool_type: python
+          component_module: "solace_agent_mesh.agent.tools.claude_code.tool_provider"
+          class_name: "ClaudeCodeToolProvider"
+          tool_config:
+            # API Configuration
+            api_key: "${ANTHROPIC_API_KEY}"
+            model: "vertex-claude-4-5-sonnet"
+            max_iterations: 15
+
+            # Container Runtime (optional - auto-detects docker or podman if not specified)
+            # container_runtime: "docker"  # or "podman"
+
+            # Workspace Configuration
+            # Note: On macOS with Podman, paths must be under $HOME as that's mounted in the VM
+            workspace_base: "${HOME}/.claude-workspaces"
+            settings_base: "${HOME}/.claude-settings"
+            export_base: "${HOME}/.claude-exports"
+
+            # Pre-pull images on agent startup (optional)
+            prepull_images: false
+            environments: ["node", "python", "go"]
+            stream: true
+
+            # Arbitrary Environment Variables
+            # These are injected into the Claude Code container
+            environment_variables:
+              # Anthropic API configuration
+              ANTHROPIC_BASE_URL: "${ANTHROPIC_BASE_URL}"
+              ANTHROPIC_BEDROCK_BASE_URL: "${ANTHROPIC_BEDROCK_BASE_URL}"
+
+              # Additional development tools
+              GITHUB_TOKEN: "${GITHUB_TOKEN}"
+              NPM_TOKEN: "${NPM_TOKEN}"
+
+            # Claude Code Settings Overrides
+            # These are written to settings.json in each workspace
+            settings:
+              # Very permissive - we're running in a Docker sandbox
+              allowedTools: ["*"]
+              autoApproveTools: true
+              maxThinkingTokens: 4000
+
+              sandbox:
+                enabled: true
+                allowedNetworkDomains: ["*"]
+
+              # Optional: hooks for quality gates
+              hooks:
+                - name: "post-write-lint"
+                  trigger: "after:write"
+                  command: "npm run lint:fix || true"
+
+      stream_batching_threshold_bytes: 50
+      inject_system_purpose: true
+      inject_response_format: true
+      max_llm_calls_per_task: 25
+
+      # Agent Card Definition
+      agent_card:
+        description: "AI-powered coding assistant with Claude Code integration. Capable of creating complete applications, debugging code, managing git repositories, and working with Node.js, Python, and Go projects."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: code_generation
+            name: Code Generation
+            description: Creates complete applications and code projects from scratch using Claude Code, with support for Node.js, Python, and Go. Handles project setup, dependency management, and initial implementation.
+
+          - id: debugging_and_refactoring
+            name: Debugging & Refactoring
+            description: Analyzes existing code, identifies bugs, and implements fixes. Refactors code for better performance, maintainability, and adherence to best practices.
+
+          - id: version_control
+            name: Version Control & Workspace Management
+            description: Manages git repositories within workspaces, creates semantic version snapshots, and handles workspace import/export for project portability.
+
+          - id: full_stack_development
+            name: Full-Stack Development
+            description: Develops complete full-stack applications including frontend (React, Vue, etc.), backend (Express, FastAPI, etc.), databases, and APIs with proper testing and build configurations.
+
+      # Discovery & Communication
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+      inter_agent_communication:
+        allow_list: ["*"]
+        request_timeout_seconds: 2000

@@ -75,3 +75,33 @@ def get_user_timezone(invocation_context: Any) -> str:
     if hasattr(invocation_context, "user_timezone"):
         return invocation_context.user_timezone or "UTC"
     return "UTC"
+
+
+def get_host_component_from_tool_context(tool_context: Any) -> Any:
+    """
+    Extract the host component from a tool context.
+
+    The host component is typically accessed via:
+    tool_context._invocation_context.agent.host_component
+
+    Args:
+        tool_context: The tool context object (google.adk.tools.ToolContext).
+
+    Returns:
+        The host component instance (SamAgentComponent) if available, None otherwise.
+    """
+    if not tool_context:
+        return None
+
+    if not hasattr(tool_context, "_invocation_context"):
+        return None
+
+    invocation_context = tool_context._invocation_context
+    if not hasattr(invocation_context, "agent"):
+        return None
+
+    agent = invocation_context.agent
+    if not hasattr(agent, "host_component"):
+        return None
+
+    return agent.host_component

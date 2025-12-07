@@ -1,0 +1,31 @@
+FROM node:20-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    ripgrep \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code CLI
+RUN npm install -g @anthropic-ai/claude-code
+
+# Copy debug wrapper (needs to be before USER switch)
+COPY debug-wrapper.sh /usr/local/bin/debug-wrapper.sh
+RUN chmod 755 /usr/local/bin/debug-wrapper.sh
+
+# Create workspace and config directories for node user
+RUN mkdir -p /workspace /home/node/.claude && \
+    chown -R node:node /workspace /home/node/.claude
+
+# Switch to non-root user (node user already exists in base image)
+USER node
+WORKDIR /workspace
+
+# Set git defaults for node user
+RUN git config --global user.name "Claude Code" && \
+    git config --global user.email "cc@workspace" && \
+    git config --global init.defaultBranch main
+
+# Use debug wrapper as entrypoint
+ENTRYPOINT ["/usr/local/bin/debug-wrapper.sh"]
