@@ -662,8 +662,9 @@ async def trigger_title_generation(
         # Extract messages from request body
         user_message = request_body.get("userMessage", "")
         agent_response = request_body.get("agentResponse", "")
+        force_regenerate = request_body.get("force", False)
         
-        log.info(f"Received messages - User: {len(user_message)} chars, Agent: {len(agent_response)} chars")
+        log.info(f"Received messages - User: {len(user_message)} chars, Agent: {len(agent_response)} chars, Force: {force_regenerate}")
 
         # Validate session exists and belongs to user
         session_domain = session_service.get_session_details(
@@ -678,7 +679,7 @@ async def trigger_title_generation(
         # Check if session already has a meaningful title (not "New Chat")
         # This handles browser refresh scenarios where frontend tracking is lost
         current_title = session_domain.name
-        if current_title and current_title.strip() and current_title.strip() != "New Chat":
+        if not force_regenerate and current_title and current_title.strip() and current_title.strip() != "New Chat":
             log.debug(f"Session {session_id} already has title, skipping generation")
             return {"message": "Title already exists", "skipped": True}
         

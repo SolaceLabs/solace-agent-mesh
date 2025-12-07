@@ -85,7 +85,7 @@ def _determine_auto_title_generation_enabled(
     
     Logic:
     1. Check if persistence is enabled (required for title generation)
-    2. Check explicit auto_title_generation config
+    2. Check explicit auto_title_generation config (must be explicitly enabled)
     3. Check frontend_feature_enablement.auto_title_generation override
     
     Returns:
@@ -97,24 +97,22 @@ def _determine_auto_title_generation_enabled(
         log.debug("%s Auto title generation disabled: persistence is not enabled", log_prefix)
         return False
     
-    # Check explicit auto_title_generation config
+    # Check explicit auto_title_generation config - disabled by default
     auto_title_config = component.get_config("auto_title_generation", {})
+    explicitly_enabled = False
     if isinstance(auto_title_config, dict):
-        explicitly_enabled = auto_title_config.get("enabled", True)
-        if not explicitly_enabled:
-            log.debug("%s Auto title generation disabled: explicitly disabled in config", log_prefix)
-            return False
+        explicitly_enabled = auto_title_config.get("enabled", False)
     
     # Check frontend_feature_enablement override
     feature_flags = component.get_config("frontend_feature_enablement", {})
     if "auto_title_generation" in feature_flags:
-        flag_value = feature_flags.get("auto_title_generation", True)
-        if not flag_value:
-            log.debug("%s Auto title generation disabled: disabled in frontend_feature_enablement", log_prefix)
-            return False
+        explicitly_enabled = feature_flags.get("auto_title_generation", False)
     
-    # All checks passed - enabled by default when persistence is available
-    log.debug("%s Auto title generation enabled: persistence enabled and no explicit disable", log_prefix)
+    if not explicitly_enabled:
+        log.debug("%s Auto title generation disabled: not explicitly enabled in config", log_prefix)
+        return False
+    
+    log.debug("%s Auto title generation enabled: explicitly enabled in config", log_prefix)
     return True
 
 

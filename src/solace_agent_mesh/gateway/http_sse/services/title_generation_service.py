@@ -53,11 +53,10 @@ class TitleGenerationService:
         
         # Fire and forget - don't await
         task = asyncio.create_task(
-            self._generate_and_cache_title(
+            self._generate_and_update_title(
                 session_id=session_id,
                 user_message=user_message,
                 agent_response=agent_response,
-                user_id=user_id,
                 update_callback=update_callback,
             )
         )
