@@ -103,7 +103,7 @@ async def test_google_search_returns_formatted_results(
     
     llm_responses = [
         create_tool_call_response(
-            "_web_search_google",
+            "web_search_google",
             {"query": "climate change solutions", "max_results": 5}
         ),
         create_final_response(
@@ -177,7 +177,7 @@ async def test_google_search_respects_max_results(
     
     llm_responses = [
         create_tool_call_response(
-            "_web_search_google",
+            "web_search_google",
             {"query": "machine learning", "max_results": 3}
         ),
         create_final_response(
@@ -247,7 +247,7 @@ async def test_google_search_handles_api_error(
     
     llm_responses = [
         create_tool_call_response(
-            "_web_search_google",
+            "web_search_google",
             {"query": "test query", "max_results": 5}
         ),
         create_final_response(
@@ -306,7 +306,7 @@ async def test_web_search_rag_metadata_structure(
     
     llm_responses = [
         create_tool_call_response(
-            "_web_search_google",
+            "web_search_google",
             {"query": "artificial intelligence", "max_results": 2}
         ),
         create_final_response(
@@ -370,7 +370,7 @@ async def test_google_search_with_image_results(
     
     llm_responses = [
         create_tool_call_response(
-            "_web_search_google",
+            "web_search_google",
             {"query": "sunset photos", "max_results": 3, "search_type": "image"}
         ),
         create_final_response(
@@ -440,7 +440,7 @@ async def test_google_search_with_date_restrict(
     
     llm_responses = [
         create_tool_call_response(
-            "_web_search_google",
+            "web_search_google",
             {"query": "recent news", "max_results": 3, "date_restrict": "d7"}
         ),
         create_final_response(
