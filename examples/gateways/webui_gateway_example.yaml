@@ -200,6 +200,11 @@ apps:
         include_task_info: "stim" # Options: "none", "summary", "stim"
         max_payload_size_bytes: 9000000 # 9MB default, safety margin below 10MB broker limit
 
+      # --- Background Tasks Configuration ---
+      background_tasks:
+        enabled: ${BACKGROUND_TASKS_ENABLED, true}  # Enable background task execution for all tasks
+        default_timeout_ms: ${BACKGROUND_TASKS_TIMEOUT_MS, 3600000}  # 1 hour default timeout
+
       # --- Data Retention Configuration ---
       # Automatically cleans up old tasks, task events, and feedback to prevent unbounded database growth
       # data_retention:

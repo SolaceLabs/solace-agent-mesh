@@ -1,4 +1,5 @@
 export * from "./activities";
+export * from "./background-tasks";
 export * from "./be";
 export * from "./fe";
 export * from "./projects";

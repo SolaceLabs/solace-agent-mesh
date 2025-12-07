@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2 } from "lucide-react";
 
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
@@ -154,15 +154,39 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 fetchSessions(1, false);
             }
         };
+        const handleBackgroundTaskCompleted = () => {
+            // Refresh session list when background task completes to update indicators
+            fetchSessions(1, false);
+        };
         window.addEventListener("new-chat-session", handleNewSession);
         window.addEventListener("session-updated", handleSessionUpdated as EventListener);
         window.addEventListener("session-title-updated", handleTitleUpdated);
+        window.addEventListener("background-task-completed", handleBackgroundTaskCompleted);
         return () => {
             window.removeEventListener("new-chat-session", handleNewSession);
             window.removeEventListener("session-updated", handleSessionUpdated as EventListener);
             window.removeEventListener("session-title-updated", handleTitleUpdated);
+            window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
         };
     }, [fetchSessions]);
+
+    // Periodic refresh when there are sessions with running background tasks
+    // This is necessary to detect task completion when user is on a different session
+    useEffect(() => {
+        const hasBackgroundTasks = sessions.some(s => s.hasRunningBackgroundTask);
+
+        if (!hasBackgroundTasks) {
+            return; // No background tasks, no need to poll
+        }
+
+        const intervalId = setInterval(() => {
+            fetchSessions(1, false);
+        }, 10000); // Check every 10 seconds
+
+        return () => {
+            clearInterval(intervalId);
+        };
+    }, [sessions, fetchSessions]);
 
     useEffect(() => {
         if (inView && hasMore && !isLoading) {
@@ -231,7 +255,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 const tasks = data.tasks || [];
 
                 if (tasks.length === 0) {
-                    addNotification?.("No messages found in this session", "error");
+                    addNotification?.("No messages found in this session", "warning");
                     setRegeneratingTitleForSession(null);
                     return;
                 }
@@ -250,7 +274,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 }
 
                 if (allMessages.length === 0) {
-                    addNotification?.("No text content found in session", "error");
+                    addNotification?.("No text content found in session", "warning");
                     setRegeneratingTitleForSession(null);
                     return;
                 }
@@ -270,7 +294,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 addNotification?.("Title regenerated successfully", "success");
             } catch (error) {
                 console.error("Error regenerating title:", error);
-                addNotification?.(`Failed to regenerate title: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+                addNotification?.(`Failed to regenerate title: ${error instanceof Error ? error.message : "Unknown error"}`, "warning");
             } finally {
                 setRegeneratingTitleForSession(null);
             }
@@ -418,7 +442,17 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                         <button onClick={() => handleSessionClick(session.id)} className="min-w-0 flex-1 cursor-pointer text-left">
                                             <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                                    <SessionName session={session} isCurrentSession={session.id === sessionId} isResponding={isResponding} />
+                                                    <div className="flex items-center gap-2">
+                                                        <SessionName session={session} isCurrentSession={session.id === sessionId} isResponding={isResponding} />
+                                                        {session.hasRunningBackgroundTask && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Loader2 className="text-primary h-4 w-4 flex-shrink-0 animate-spin" />
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>Background task running</TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                    </div>
                                                     <span className="text-muted-foreground truncate text-xs">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
                                                 {session.projectName && (
