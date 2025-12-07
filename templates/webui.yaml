@@ -54,12 +54,16 @@ apps:
       
       # --- Frontend Feature Flags ---
       frontend_feature_enablement:
-      # Uncomment to control speech features in the UI
-        # speechToText: true   # Set to false to hide Speech-to-Text settings & microphone
-        # textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
-        # projects: true
-        # promptLibrary: true
+      #   speechToText: true   # Set to false to hide Speech-to-Text settings & microphone
+      #   textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
+      #   projects: true
+      #   promptLibrary: true
         tokenUsageTracking: false  # Set to true to enable token usage UI components
+        background_tasks: true  # Enable background task execution
+
+      # --- Background Tasks Configuration ---
+      background_tasks:
+        default_timeout_ms: 3600000  # Default: 1 hour (3600000ms)
 
       # --- Speech Configuration (STT/TTS) ---
       speech:

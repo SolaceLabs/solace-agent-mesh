@@ -5,7 +5,7 @@ Manages Server-Sent Event (SSE) connections for streaming task updates.
 import logging
 import asyncio
 import threading
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Callable, Optional
 import json
 import datetime
 import math
@@ -22,13 +22,15 @@ class SSEManager:
     Uses asyncio Queues for buffering events per connection.
     """
 
-    def __init__(self, max_queue_size: int, event_buffer: SSEEventBuffer):
+    def __init__(self, max_queue_size: int, event_buffer: SSEEventBuffer, session_factory: Optional[Callable] = None):
         self._connections: Dict[str, List[asyncio.Queue]] = {}
         self._event_buffer = event_buffer
         self._locks: Dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._locks_lock = threading.Lock()
         self.log_identifier = "[SSEManager]"
         self._max_queue_size = max_queue_size
+        self._session_factory = session_factory
+        self._background_task_cache: Dict[str, bool] = {}  # Cache to avoid repeated DB queries
 
     def _get_lock(self) -> asyncio.Lock:
         """Get or create a lock for the current event loop."""
@@ -142,6 +144,49 @@ class SSEManager:
                     task_id,
                 )
 
+    def _is_background_task(self, task_id: str) -> bool:
+        """
+        Check if a task is a background task by querying the database.
+        Uses caching to avoid repeated queries.
+        
+        Args:
+            task_id: The ID of the task to check
+            
+        Returns:
+            True if the task is a background task, False otherwise
+        """
+        # Check cache first
+        if task_id in self._background_task_cache:
+            return self._background_task_cache[task_id]
+        
+        # If no session factory, assume not a background task
+        if not self._session_factory:
+            return False
+        
+        try:
+            from .repository.task_repository import TaskRepository
+            
+            db = self._session_factory()
+            try:
+                repo = TaskRepository()
+                task = repo.find_by_id(db, task_id)
+                is_background = task and task.background_execution_enabled
+                
+                # Cache the result
+                self._background_task_cache[task_id] = is_background
+                
+                return is_background
+            finally:
+                db.close()
+        except Exception as e:
+            log.warning(
+                "%s Failed to check if task %s is a background task: %s",
+                self.log_identifier,
+                task_id,
+                e,
+            )
+            return False
+
     async def send_event(
         self, task_id: str, event_data: Dict[str, Any], event_type: str = "message"
     ):
@@ -174,12 +219,24 @@ class SSEManager:
             sse_payload = {"event": event_type, "data": serialized_data}
 
             if not queues:
-                log.debug(
-                    "%s No active SSE connections for Task ID: %s. Buffering event.",
-                    self.log_identifier,
-                    task_id,
-                )
-                self._event_buffer.buffer_event(task_id, sse_payload)
+                # Check if this is a background task
+                is_background_task = self._is_background_task(task_id)
+                
+                if is_background_task:
+                    # For background tasks with no active connections, drop events instead of buffering
+                    # This prevents buffer overflow when clients disconnect
+                    log.debug(
+                        "%s No active SSE connections for background task %s. Dropping event to prevent buffer overflow.",
+                        self.log_identifier,
+                        task_id,
+                    )
+                else:
+                    log.debug(
+                        "%s No active SSE connections for Task ID: %s. Buffering event.",
+                        self.log_identifier,
+                        task_id,
+                    )
+                    self._event_buffer.buffer_event(task_id, sse_payload)
                 return
 
             if trace_logger.isEnabledFor(logging.DEBUG):
@@ -284,6 +341,37 @@ class SSEManager:
             )
         finally:
             await self.remove_sse_connection(task_id, connection_queue)
+
+    async def drain_buffer_for_background_task(self, task_id: str):
+        """
+        Drains the event buffer for a background task when a client disconnects.
+        This prevents buffer overflow warnings when background tasks continue
+        generating events with no active consumers.
+        
+        Args:
+            task_id: The ID of the background task
+        """
+        log.info(
+            "%s Draining event buffer for background task: %s",
+            self.log_identifier,
+            task_id,
+        )
+        
+        # Remove any buffered events to prevent overflow
+        buffered_events = self._event_buffer.get_and_remove_buffer(task_id)
+        if buffered_events:
+            log.info(
+                "%s Drained %d buffered events for background task: %s",
+                self.log_identifier,
+                len(buffered_events),
+                task_id,
+            )
+        else:
+            log.debug(
+                "%s No buffered events to drain for background task: %s",
+                self.log_identifier,
+                task_id,
+            )
 
     async def close_all_for_task(self, task_id: str):
         """

@@ -8,6 +8,11 @@ export interface Prompt {
     groupId: string;
     userId: string;
     version: number;
+    // Versioned metadata fields
+    name?: string;
+    description?: string;
+    category?: string;
+    command?: string;
     createdAt: number; // epoch milliseconds
     updatedAt: number; // epoch milliseconds
 }
@@ -74,4 +79,13 @@ export interface PromptBuilderChatResponse {
     template_updates: Record<string, unknown>;
     confidence: number;
     ready_to_save: boolean;
+}
+
+export interface TemplateConfig {
+    name?: string;
+    category?: string;
+    command?: string;
+    promptText?: string;
+    description?: string;
+    detected_variables?: string[];
 }

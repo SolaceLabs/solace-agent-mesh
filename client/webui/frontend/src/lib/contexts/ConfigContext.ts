@@ -4,6 +4,16 @@ export interface ValidationLimits {
     projectNameMax?: number;
     projectDescriptionMax?: number;
     projectInstructionsMax?: number;
+    maxUploadSizeBytes?: number;
+    maxZipUploadSizeBytes?: number;
+}
+
+export interface UserInfo {
+    id: string;
+    name: string;
+    email: string;
+    authenticated: boolean;
+    auth_method: string;
 }
 
 export interface UserInfo {
@@ -44,6 +54,19 @@ export interface ConfigContextValue {
      * frontend and backend validation stay in sync.
      */
     validationLimits?: ValidationLimits;
+
+    /**
+     * Whether background task execution is enabled globally.
+     * When true, all tasks can run in background mode, allowing users to
+     * navigate away and return to see completed results.
+     */
+    backgroundTasksEnabled?: boolean;
+
+    /**
+     * Default timeout for background tasks in milliseconds.
+     * Tasks running longer than this will be automatically cancelled.
+     */
+    backgroundTasksDefaultTimeoutMs?: number;
 
     /**
      * Current user information from backend.
