@@ -138,6 +138,50 @@ def _determine_projects_enabled(
     return True
 
 
+def _determine_scheduler_enabled(
+    component: "WebUIBackendComponent",
+    api_config: Dict[str, Any],
+    log_prefix: str
+) -> bool:
+    """
+    Determines if scheduler feature should be enabled.
+    
+    Logic:
+    1. Check if SQL persistence is enabled (required for scheduler)
+    2. Check explicit scheduler_service.enabled config (default: False - disabled by default)
+    
+    Returns:
+        bool: True if scheduler should be enabled
+    """
+    # Scheduler requires SQL persistence
+    session_config = component.get_config("session_service", {})
+    session_type = session_config.get("type", "memory")
+    
+    if session_type != "sql":
+        log.debug(
+            "%s Scheduler disabled: session_service type is '%s' (not 'sql')",
+            log_prefix,
+            session_type
+        )
+        return False
+    
+    # Check explicit scheduler_service config (default to False - disabled by default)
+    scheduler_config = component.get_config("scheduler_service", {})
+    if isinstance(scheduler_config, dict):
+        scheduler_explicitly_enabled = scheduler_config.get("enabled", False)
+        if not scheduler_explicitly_enabled:
+            log.debug("%s Scheduler disabled: scheduler_service.enabled is not true", log_prefix)
+            return False
+    else:
+        # No scheduler_service config section, disabled by default
+        log.debug("%s Scheduler disabled: no scheduler_service config section", log_prefix)
+        return False
+    
+    # All checks passed
+    log.debug("%s Scheduler enabled: SQL persistence enabled and scheduler_service.enabled=true", log_prefix)
+    return True
+
+
 @router.get("/config", response_model=Dict[str, Any])
 async def get_app_config(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
@@ -264,6 +308,14 @@ async def get_app_config(
             log.debug("%s Background tasks feature flag is enabled.", log_prefix)
         else:
             log.debug("%s Background tasks feature flag is disabled.", log_prefix)
+        
+        # Determine if scheduler should be enabled
+        scheduler_enabled = _determine_scheduler_enabled(component, api_config, log_prefix)
+        feature_enablement["scheduler"] = scheduler_enabled
+        if scheduler_enabled:
+            log.debug("%s Scheduler feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Scheduler feature flag is disabled.", log_prefix)
         
         # Check tool configuration status
         tool_config_status = {}
