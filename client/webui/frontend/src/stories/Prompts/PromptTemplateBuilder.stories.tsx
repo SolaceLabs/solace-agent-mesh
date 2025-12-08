@@ -1,6 +1,22 @@
 import { PromptTemplateBuilder } from "@/lib/components/prompts";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
+import { http, HttpResponse } from "msw";
+
+const handlers = [
+    http.get("*/api/v1/prompts/chat/init", () => {
+        return HttpResponse.json({
+            message: "Hi! I'll help you create an effective prompt template. What kind of task or interaction would you like this prompt to handle?",
+        });
+    }),
+    http.post("*/api/v1/prompts/chat", () => {
+        return HttpResponse.json({
+            message: "I understand you want to create a prompt template. Let me help you with that.",
+            template_updates: {},
+            ready_to_save: false,
+        });
+    }),
+];
 
 const meta = {
     title: "Pages/Prompts/PromptTemplateBuilder",
@@ -12,6 +28,7 @@ const meta = {
                 component: "The component for templating and building custom prompts",
             },
         },
+        msw: { handlers },
     },
     decorators: [
         (Story: StoryFn, context: StoryContext) => {
