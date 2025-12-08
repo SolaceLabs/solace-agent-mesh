@@ -360,7 +360,6 @@ def _create_auth_middleware(component):
                         "email": user_info_dict.get("email"),
                         "name": user_info_dict.get("name"),
                         "roles": user_info_dict.get("roles", []),
-                        "scopes": user_info_dict.get("scopes", []),
                     }
                 log.debug(f"AuthMiddleware: Set user state for user: {user_info_dict.get('id')}")
             else:

@@ -395,10 +395,16 @@ async def get_user_config(
     FastAPI dependency to get the user-specific configuration.
     """
     log.debug(f"get_user_config called for user_id: {user_id}")
+
+    # Extract user_claims from request state (set by AuthMiddleware)
+    user_claims = getattr(request.state, "user_claims", None)
+
+    # Gateway context contains runtime data needed for authorization
     gateway_context = {
         "gateway_id": component.gateway_id,
         "gateway_app_config": app_config,
         "request": request,
+        "user_claims": user_claims,  # User auth data (slight mixing of concerns, but avoids breaking changes)
     }
     return await config_resolver.resolve_user_config(
         user_id, gateway_context, app_config
@@ -442,31 +448,6 @@ class ValidatedUserConfig:
             f"ValidatedUserConfig called for user_id: {user_id} with required scopes: {self.required_scopes}"
         )
 
-        # First, try to check scopes from SAM token claims (if available)
-        if (hasattr(request.state, "user_claims")
-            and request.state.user_claims
-            and isinstance(request.state.user_claims, dict)):
-            user_scopes = request.state.user_claims.get("scopes", [])
-
-            # Check if user has all required scopes
-            if all(scope in user_scopes for scope in self.required_scopes):
-                log.debug(
-                    f"Authorization granted for user '{user_id}' via SAM token claims. "
-                    f"User scopes count: {len(user_scopes)}"
-                )
-                return user_config
-            else:
-                missing_scopes = [s for s in self.required_scopes if s not in user_scopes]
-                log.warning(
-                    f"Authorization denied for user '{user_id}'. "
-                    f"Missing scopes: {missing_scopes}. User scopes count: {len(user_scopes)}"
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Not authorized. Missing scopes: {missing_scopes}",
-                )
-
-        # Fall back to config_resolver for backwards compatibility (IdP tokens or development mode)
         if not config_resolver.is_feature_enabled(
             user_config,
             {"tool_metadata": {"required_scopes": self.required_scopes}},
