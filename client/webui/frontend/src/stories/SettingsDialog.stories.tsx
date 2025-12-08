@@ -1,9 +1,31 @@
 import { useState } from "react";
 import type { Meta, StoryContext, StoryFn } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
+import { http, HttpResponse } from "msw";
 
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { NavigationList } from "@/lib/components/navigation/NavigationList";
+
+const handlers = [
+    http.get("*/api/v1/speech/config", () => {
+        return HttpResponse.json({
+            sttExternal: true,
+            ttsExternal: true,
+        });
+    }),
+    http.get("*/api/v1/version", () => {
+        return HttpResponse.json({
+            products: [
+                {
+                    id: "solace-agent-mesh",
+                    name: "Solace Agent Mesh",
+                    description: "Multi-agent orchestration platform",
+                    version: "1.0.0",
+                },
+            ],
+        });
+    }),
+];
 
 const meta = {
     title: "Views/Settings",
@@ -15,6 +37,7 @@ const meta = {
                 component: "A settings dialog component for configuring application settings",
             },
         },
+        msw: { handlers },
         configContext: {
             persistenceEnabled: false,
             frontend_use_authorization: false,

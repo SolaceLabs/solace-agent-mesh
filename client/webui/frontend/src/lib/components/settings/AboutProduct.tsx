@@ -36,7 +36,7 @@ export const AboutProduct: React.FC = () => {
                     {versionData.products
                         .toSorted((a, b) => a.name.localeCompare(b.name))
                         .map(product => (
-                            <TableRow key={product.id}>
+                            <TableRow key={product.id} className="hover:bg-transparent">
                                 <TableCell className="font-medium">{product.name}</TableCell>
                                 <TableCell>{product.version}</TableCell>
                             </TableRow>
