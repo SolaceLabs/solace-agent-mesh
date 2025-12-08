@@ -670,49 +670,50 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "artifact_creation_progress": {
-                                // Handle artifact creation/completion
-                                if (signalData.status === "completed") {
-                                    flushAggregatedTextStep(currentEventOwningTaskId);
+                                break;
+                            }
+                            case "artifact_saved": {
+                                // Handle new artifact_saved event type
+                                flushAggregatedTextStep(currentEventOwningTaskId);
 
-                                    // Check if this is a synthetic tool call (fenced block)
-                                    const isSyntheticToolCall = signalData.function_call_id && signalData.function_call_id.startsWith("host-notify-");
+                                // Check if this has a function_call_id (from fenced blocks with _notify_artifact_save)
+                                const isSyntheticToolCall = signalData.function_call_id && signalData.function_call_id.startsWith("host-notify-");
 
-                                    if (isSyntheticToolCall) {
-                                        // Queue this artifact - will be created when we see the _notify_artifact_save tool result
-                                        pendingArtifacts.set(signalData.function_call_id, {
-                                            filename: signalData.filename || "Unnamed Artifact",
-                                            version: signalData.version,
-                                            description: signalData.description,
-                                            mimeType: signalData.mime_type,
-                                            timestamp: eventTimestamp,
-                                            agentName: statusUpdateAgentName,
-                                            taskId: currentEventOwningTaskId,
-                                            nestingLevel: currentEventNestingLevel,
-                                            eventId: eventId,
-                                        });
-                                    } else {
-                                        // Regular tool call - create node immediately
-                                        const artifactNotification: ArtifactNotificationData = {
-                                            artifactName: signalData.filename || "Unnamed Artifact",
-                                            version: signalData.version,
-                                            description: signalData.description,
-                                            mimeType: signalData.mime_type,
-                                        };
-                                        visualizerSteps.push({
-                                            id: `vstep-artifactcreated-${visualizerSteps.length}-${eventId}`,
-                                            type: "AGENT_ARTIFACT_NOTIFICATION",
-                                            timestamp: eventTimestamp,
-                                            title: `${statusUpdateAgentName}: Created Artifact - ${artifactNotification.artifactName}`,
-                                            source: statusUpdateAgentName,
-                                            target: "User/System",
-                                            data: { artifactNotification },
-                                            rawEventIds: [eventId],
-                                            isSubTaskStep: currentEventNestingLevel > 0,
-                                            nestingLevel: currentEventNestingLevel,
-                                            owningTaskId: currentEventOwningTaskId,
-                                            functionCallId: signalData.function_call_id || functionCallIdForStep,
-                                        });
-                                    }
+                                if (isSyntheticToolCall) {
+                                    // Queue this artifact - will be created when we see the _notify_artifact_save tool result
+                                    pendingArtifacts.set(signalData.function_call_id, {
+                                        filename: signalData.filename || "Unnamed Artifact",
+                                        version: signalData.version,
+                                        description: signalData.description,
+                                        mimeType: signalData.mime_type,
+                                        timestamp: eventTimestamp,
+                                        agentName: statusUpdateAgentName,
+                                        taskId: currentEventOwningTaskId,
+                                        nestingLevel: currentEventNestingLevel,
+                                        eventId: eventId,
+                                    });
+                                } else {
+                                    // Regular tool call - create node immediately
+                                    const artifactNotification: ArtifactNotificationData = {
+                                        artifactName: signalData.filename || "Unnamed Artifact",
+                                        version: signalData.version,
+                                        description: signalData.description,
+                                        mimeType: signalData.mime_type,
+                                    };
+                                    visualizerSteps.push({
+                                        id: `vstep-artifactsaved-${visualizerSteps.length}-${eventId}`,
+                                        type: "AGENT_ARTIFACT_NOTIFICATION",
+                                        timestamp: eventTimestamp,
+                                        title: `${statusUpdateAgentName}: Created Artifact - ${artifactNotification.artifactName}`,
+                                        source: statusUpdateAgentName,
+                                        target: "User/System",
+                                        data: { artifactNotification },
+                                        rawEventIds: [eventId],
+                                        isSubTaskStep: currentEventNestingLevel > 0,
+                                        nestingLevel: currentEventNestingLevel,
+                                        owningTaskId: currentEventOwningTaskId,
+                                        functionCallId: signalData.function_call_id || functionCallIdForStep,
+                                    });
                                 }
                                 break;
                             }

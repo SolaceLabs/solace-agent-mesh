@@ -49,6 +49,7 @@ from ...common.utils.embeds.types import ResolutionMode
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
 from ...common import a2a
+from ...common.a2a.types import ArtifactInfo
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
@@ -670,38 +671,37 @@ async def process_artifact_blocks_callback(
                         "filename": block_info["filename"],
                         "version": block_info["version"],
                         "status": block_info["status"],
-                        "description": block_info.get("description"),
-                        "mime_type": block_info.get("mime_type"),
                     },
                     id=function_call_id,
                 )
                 tool_call_parts.append(adk_types.Part(function_call=notify_tool_call))
 
-                # Send completion signal now that we have the function_call_id
+                # Send artifact saved notification now that we have the function_call_id
                 # This ensures the signal and tool call arrive together
                 if block_info["status"] == "success" and a2a_context:
                     try:
-                        completed_data = ArtifactCreationProgressData(
+                        artifact_info = ArtifactInfo(
                             filename=block_info["filename"],
-                            description=block_info.get("description"),
-                            status="completed",
                             version=block_info["version"],
-                            bytes_transferred=block_info.get("bytes_transferred", 0),
-                            mime_type=block_info.get("mime_type"),
+                            mime_type=block_info.get("mime_type") or "application/octet-stream",
+                            size=block_info.get("bytes_transferred", 0),
+                            description=block_info.get("description"),
+                            version_count=1,  # We just saved this version
+                        )
+                        await host_component.notify_artifact_saved(
+                            artifact_info=artifact_info,
+                            a2a_context=a2a_context,
                             function_call_id=function_call_id,
                         )
-                        await _publish_data_part_status_update(
-                            host_component, a2a_context, completed_data
-                        )
                         log.debug(
-                            "%s Published completion signal for fenced block: %s (function_call_id=%s)",
+                            "%s Published artifact saved notification for fenced block: %s (function_call_id=%s)",
                             log_identifier,
                             block_info["filename"],
                             function_call_id,
                         )
                     except Exception as signal_err:
                         log.warning(
-                            "%s Failed to publish completion signal: %s",
+                            "%s Failed to publish artifact saved notification: %s",
                             log_identifier,
                             signal_err,
                         )

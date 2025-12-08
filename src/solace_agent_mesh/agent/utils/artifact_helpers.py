@@ -335,15 +335,12 @@ async def save_artifact_with_metadata(
                 data_version,
             )
 
-        # Always attempt to publish artifact completion signal for workflow visualization
+        # Always attempt to publish artifact saved notification for workflow visualization
         # This works independently of artifact_delta and should succeed if we have
         # the necessary context (host_component and a2a_context)
         # Skip if suppress_visualization_signal is True (e.g., when called from fenced block callback)
         if not suppress_visualization_signal:
             try:
-                from ...common.data_parts import ArtifactCreationProgressData
-                from ...agent.adk.callbacks import _publish_data_part_status_update
-
                 # Try to get context from tool_context if available
                 host_component = None
                 a2a_context = None
@@ -366,28 +363,26 @@ async def save_artifact_with_metadata(
 
                 # Only proceed if we have both required components
                 if host_component and a2a_context:
-                    # Create artifact completion signal
-                    artifact_signal = ArtifactCreationProgressData(
-                        type="artifact_creation_progress",
+                    # Create ArtifactInfo object
+                    artifact_info = ArtifactInfo(
                         filename=filename,
-                        status="completed",
                         version=data_version,
-                        bytes_transferred=len(content_bytes),
                         mime_type=mime_type,
+                        size=len(content_bytes),
                         description=metadata_dict.get("description") if metadata_dict else None,
-                        function_call_id=function_call_id,
+                        version_count=1,  # We just saved version data_version
                     )
 
-                    # Publish as status update with signal
-                    await _publish_data_part_status_update(
-                        host_component,
-                        a2a_context,
-                        artifact_signal,
+                    # Publish artifact saved notification via component method
+                    await host_component.notify_artifact_saved(
+                        artifact_info=artifact_info,
+                        a2a_context=a2a_context,
+                        function_call_id=function_call_id,
                     )
             except Exception as signal_err:
-                # Don't fail artifact save if signal publishing fails
-                log.info(
-                    "%s Failed to publish artifact creation signal (non-critical): %s",
+                # Don't fail artifact save if notification publishing fails
+                log.warning(
+                    "%s Failed to publish artifact saved notification (non-critical): %s",
                     log_identifier,
                     signal_err,
                 )

@@ -97,6 +97,30 @@ class ArtifactCreationProgressData(BaseModel):
     )
 
 
+class ArtifactSavedData(BaseModel):
+    """
+    Data model for an artifact saved notification signal.
+    This is sent when an artifact has been successfully saved to storage.
+    Unlike ArtifactCreationProgressData, this is a single notification event
+    and does not follow the start->updates->end protocol.
+    """
+
+    type: Literal["artifact_saved"] = Field(
+        "artifact_saved",
+        description="The constant type for this data part.",
+    )
+    filename: str = Field(..., description="The name of the saved artifact.")
+    version: int = Field(..., description="The version number of the saved artifact.")
+    mime_type: str = Field(..., description="The MIME type of the artifact.")
+    size_bytes: int = Field(..., description="The size of the artifact in bytes.")
+    description: Optional[str] = Field(
+        None, description="An optional description of the artifact."
+    )
+    function_call_id: Optional[str] = Field(
+        None, description="The function call ID if artifact was created by a tool."
+    )
+
+
 class ToolResultData(BaseModel):
     """
     Data model for a tool execution result signal.
@@ -148,6 +172,7 @@ SignalData = Union[
     LlmInvocationData,
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
+    ArtifactSavedData,
     ToolResultData,
     TemplateBlockData,
 ]
