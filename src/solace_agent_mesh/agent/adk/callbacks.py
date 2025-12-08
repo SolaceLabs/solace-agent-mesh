@@ -1,7 +1,7 @@
 """
 ADK Callbacks for the A2A Host Component.
 Includes dynamic instruction injection, artifact metadata injection,
-embed resolution, and logging.
+embed resolution, logging, and context window management.
 """
 
 import logging
@@ -10,6 +10,13 @@ import asyncio
 import uuid
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 from collections import defaultdict
+
+try:
+    import litellm
+    LITELLM_AVAILABLE = True
+except ImportError:
+    LITELLM_AVAILABLE = False
+    logging.warning("litellm not available. Context window management will be disabled.")
 
 from google.adk.tools import BaseTool, ToolContext
 from google.adk.artifacts import BaseArtifactService
@@ -79,8 +86,150 @@ log = logging.getLogger(__name__)
 
 A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 
+# Model context limits fallback dictionaries
+# These are used when litellm.get_max_tokens() cannot find the model
+OPENAI_MODEL_LIMITS = {
+    "o4-mini": 200000,
+    "o3-mini": 195000,
+    "o3": 200000,
+    "o1": 195000,
+    "o1-mini": 127500,
+    "o1-preview": 127500,
+    "gpt-4": 8187,
+    "gpt-4-0613": 8187,
+    "gpt-4-32k": 32758,
+    "gpt-4-32k-0314": 32758,
+    "gpt-4-32k-0613": 32758,
+    "gpt-4-1106": 127500,
+    "gpt-4-0125": 127500,
+    "gpt-4.1": 1047576,
+    "gpt-4.1-mini": 1047576,
+    "gpt-4.1-nano": 1047576,
+    "gpt-5": 400000,
+    "gpt-5-mini": 400000,
+    "gpt-5-nano": 400000,
+    "gpt-4o": 127500,
+    "gpt-4o-mini": 127500,
+    "gpt-4o-2024-05-13": 127500,
+    "gpt-4o-2024-08-06": 127500,
+    "gpt-4-turbo": 127500,
+    "gpt-4-vision": 127500,
+    "gpt-3.5-turbo": 16375,
+    "gpt-3.5-turbo-0613": 4092,
+    "gpt-3.5-turbo-0301": 4092,
+    "gpt-3.5-turbo-16k": 16375,
+    "gpt-3.5-turbo-16k-0613": 16375,
+    "gpt-3.5-turbo-1106": 16375,
+    "gpt-3.5-turbo-0125": 16375,
+}
+
+ANTHROPIC_MODEL_LIMITS = {
+    "claude-": 100000,
+    "claude-instant": 100000,
+    "claude-2": 100000,
+    "claude-2.1": 200000,
+    "claude-3": 200000,
+    "claude-3-haiku": 200000,
+    "claude-3-sonnet": 200000,
+    "claude-3-opus": 200000,
+    "claude-3.5-haiku": 200000,
+    "claude-haiku-4-5": 200000,
+    "claude-3-5-sonnet": 200000,
+    "claude-3.5-sonnet": 200000,
+    "claude-3-7-sonnet": 200000,
+    "claude-3.7-sonnet": 200000,
+    "claude-3-5-sonnet-latest": 200000,
+    "claude-3.5-sonnet-latest": 200000,
+    "claude-sonnet-4": 200000,
+    "claude-sonnet-4-0": 200000,
+    "claude-sonnet-4-5": 200000,
+    "claude-sonnet-4-5-20250929": 200000,
+    "anthropic.claude-sonnet-4-5": 200000,
+    "anthropic.claude-haiku-4-5": 200000,
+    "claude-4-sonnet": 200000,
+    "claude-4-sonnet-20250514": 200000,
+    "claude-opus-4": 200000,
+    "claude-opus-4-0": 200000,
+    "claude-4-opus": 200000,
+    "claude-4-opus-20250514": 200000,
+    "claude-4": 200000,
+}
+
+GOOGLE_MODEL_LIMITS = {
+    "gemini": 30720,
+    "gemini-pro-vision": 12288,
+    "gemini-exp": 2000000,
+    "gemini-2.5": 1000000,
+    "gemini-2.5-flash": 1000000,
+    "gemini-2.5-flash-lite-preview-06-17": 1000000,
+    "gemini-2.5-flash-lite": 1000000,
+    "gemini-2.5-pro": 1000000,
+    "gemini-2.0": 2000000,
+    "gemini-2.0-flash": 1000000,
+    "gemini-2.0-flash-lite": 1000000,
+    "gemini-1.5": 1000000,
+    "gemini-1.5-flash": 1000000,
+    "gemini-1.5-flash-8b": 1000000,
+}
+
+DEEPSEEK_MODEL_LIMITS = {
+    "deepseek-reasoner": 63000,
+    "deepseek": 63000,
+}
+
+META_MODEL_LIMITS = {
+    "llama3.1": 127500,
+    "llama3.2": 127500,
+    "llama3.3": 127500,
+    "llama3": 8000,
+    "llama2": 4000,
+}
+
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
+
+
+def _get_model_max_tokens_fallback(model_name: str, log_identifier: str) -> Optional[int]:
+    """
+    Fallback function to get max tokens when litellm.get_max_tokens() fails.
+    Handles model names with provider prefixes (e.g., "openai/gpt-4").
+    
+    Args:
+        model_name: The model name, potentially with provider prefix
+        log_identifier: Identifier for logging
+    
+    Returns:
+        Maximum token count if found, None otherwise
+    """
+    # Extract the actual model name if it has a provider prefix
+    if "/" in model_name:
+        actual_model = model_name.split("/")[-1]
+        log.debug(f"{log_identifier} Extracted model name '{actual_model}' from '{model_name}'")
+    else:
+        actual_model = model_name
+    
+    # Try each provider's model limits
+    all_limits = [
+        ("OpenAI", OPENAI_MODEL_LIMITS),
+        ("Anthropic", ANTHROPIC_MODEL_LIMITS),
+        ("Google", GOOGLE_MODEL_LIMITS),
+        ("DeepSeek", DEEPSEEK_MODEL_LIMITS),
+        ("Meta", META_MODEL_LIMITS),
+    ]
+    
+    for provider_name, limits_dict in all_limits:
+        if actual_model in limits_dict:
+            max_tokens = limits_dict[actual_model]
+            log.info(
+                f"{log_identifier} Found {provider_name} model '{actual_model}' "
+                f"in fallback with max tokens: {max_tokens}"
+            )
+            return max_tokens
+    
+    log.warning(
+        f"{log_identifier} Model '{actual_model}' not found in fallback dictionaries"
+    )
+    return None
 
 
 async def _publish_data_part_status_update(
@@ -2316,3 +2465,388 @@ def auto_continue_on_max_tokens_callback(
     )
 
     return hijacked_response
+
+
+def _count_request_tokens(llm_request: LlmRequest, model: str) -> int:
+    """
+    Count tokens in an LlmRequest using litellm.token_counter().
+    
+    Args:
+        llm_request: The LLM request to count tokens for
+        model: The model name (e.g., "gpt-4", "claude-3-opus")
+    
+    Returns:
+        Total token count for the request
+    """
+    if not LITELLM_AVAILABLE:
+        return 0
+    
+    try:
+        # Convert LlmRequest to messages format for token counting
+        messages = []
+        
+        # Add system instruction if present
+        if llm_request.config and llm_request.config.system_instruction:
+            system_text = llm_request.config.system_instruction
+            if isinstance(system_text, adk_types.Content):
+                if system_text.parts:
+                    system_text = " ".join(p.text for p in system_text.parts if p.text)
+            messages.append({"role": "system", "content": str(system_text)})
+        
+        # Add conversation history
+        if llm_request.contents:
+            for content in llm_request.contents:
+                role = content.role
+                if role == "model":
+                    role = "assistant"
+                
+                # Extract text from parts
+                text_parts = []
+                if content.parts:
+                    for part in content.parts:
+                        if part.text:
+                            text_parts.append(part.text)
+                        elif part.function_call:
+                            # Include function calls in token count
+                            text_parts.append(f"[Function call: {part.function_call.name}]")
+                        elif part.function_response:
+                            # Include function responses in token count
+                            text_parts.append(f"[Function response: {part.function_response.name}]")
+                
+                if text_parts:
+                    messages.append({"role": role, "content": " ".join(text_parts)})
+        
+        # Use litellm to count tokens
+        token_count = litellm.token_counter(model=model, messages=messages)
+        return token_count
+        
+    except Exception as e:
+        log.error(f"[ContextWindow] Error counting tokens: {e}", exc_info=True)
+        return 0
+
+
+async def _summarize_messages(
+    messages: List[adk_types.Content],
+    model_name: str,
+    log_identifier: str,
+    max_retries: int = 3,
+) -> str:
+    """
+    Use an LLM to summarize older messages in the conversation history.
+    Retries up to max_retries times on failure.
+    
+    Args:
+        messages: List of Content objects to summarize
+        model_name: The model name to use for summarization
+        log_identifier: Identifier for logging
+        max_retries: Maximum number of retry attempts (default: 3)
+    
+    Returns:
+        A concise summary of the messages
+    """
+    # Format messages for summarization
+    conversation_text = []
+    for content in messages:
+        role = content.role
+        if role == "model":
+            role = "Assistant"
+        elif role == "user":
+            role = "User"
+        else:
+            role = role.capitalize()
+        
+        text_parts = []
+        if content.parts:
+            for part in content.parts:
+                if part.text:
+                    text_parts.append(part.text)
+                elif part.function_call:
+                    text_parts.append(f"[Called tool: {part.function_call.name}]")
+                elif part.function_response:
+                    text_parts.append(f"[Tool result from: {part.function_response.name}]")
+        
+        if text_parts:
+            conversation_text.append(f"{role}: {' '.join(text_parts)}")
+    
+    conversation_str = "\n\n".join(conversation_text)
+    
+    # Create summarization prompt
+    summarization_prompt = f"""Please provide a concise summary of the following conversation history. Focus on:
+1. Key topics discussed
+2. Important decisions or conclusions
+3. Relevant context for future messages
+4. Any artifacts or data mentioned
+
+Keep the summary brief but informative (2-4 sentences).
+
+Conversation to summarize:
+{conversation_str}
+
+Summary:"""
+    
+    # Try up to max_retries times
+    for attempt in range(1, max_retries + 1):
+        try:
+            log.info(f"{log_identifier} Summarization attempt {attempt}/{max_retries}")
+            
+            # Import the LiteLLM model class
+            from ...agent.adk.models.lite_llm import LiteLlm
+            
+            # Create a temporary model instance for summarization using the same model
+            temp_model = LiteLlm(model=model_name)
+            
+            # Create a simple request with no config
+            summary_request = LlmRequest(
+                contents=[adk_types.Content(
+                    role="user",
+                    parts=[adk_types.Part(text=summarization_prompt)]
+                )],
+                config=None  # No config needed for summarization
+            )
+            
+            # Call the model
+            summary_response = await temp_model.generate_content_async(summary_request)
+            
+            # Extract summary text
+            if summary_response.content and summary_response.content.parts:
+                summary = " ".join(p.text for p in summary_response.content.parts if p.text)
+                if summary.strip():
+                    log.info(f"{log_identifier} Successfully generated summary on attempt {attempt}: {summary[:100]}...")
+                    return summary.strip()
+                else:
+                    log.warning(f"{log_identifier} Summarization returned empty content on attempt {attempt}")
+            else:
+                log.warning(f"{log_identifier} Summarization returned no content on attempt {attempt}")
+            
+            # If we got here, the attempt failed but didn't raise an exception
+            if attempt < max_retries:
+                log.info(f"{log_identifier} Retrying summarization...")
+                await asyncio.sleep(1)  # Brief delay before retry
+                
+        except Exception as e:
+            log.error(f"{log_identifier} Error during summarization attempt {attempt}/{max_retries}: {e}", exc_info=True)
+            if attempt < max_retries:
+                log.info(f"{log_identifier} Retrying summarization...")
+                await asyncio.sleep(1)  # Brief delay before retry
+    
+    # All attempts failed, return fallback
+    log.error(f"{log_identifier} All {max_retries} summarization attempts failed, using fallback")
+    return "[Previous conversation context]"
+
+
+async def _compress_context_window(
+    llm_request: LlmRequest,
+    max_tokens: int,
+    target_tokens: int,
+    model_name: str,
+    preserve_recent: int,
+    log_identifier: str,
+) -> None:
+    """
+    Compress conversation history by summarizing older messages.
+    
+    Args:
+        llm_request: The LLM request to compress
+        max_tokens: Maximum token limit for the model
+        target_tokens: Target token count after compression
+        model_name: The model name to use for summarization
+        preserve_recent: Number of recent message pairs to preserve
+        log_identifier: Identifier for logging
+    """
+    if not llm_request.contents:
+        return
+    
+    # Separate system messages from conversation
+    conversation_messages = []
+    for content in llm_request.contents:
+        if content.role != "system":
+            conversation_messages.append(content)
+    
+    # Check if we have enough messages to compress
+    if len(conversation_messages) <= preserve_recent * 2:  # *2 for user-assistant pairs
+        log.warning(
+            f"{log_identifier} Not enough messages to compress "
+            f"(have {len(conversation_messages)}, need > {preserve_recent * 2})"
+        )
+        return
+    
+    # Split into old and recent messages
+    # Keep last N user-assistant pairs (approximately preserve_recent * 2 messages)
+    messages_to_keep = preserve_recent * 2
+    old_messages = conversation_messages[:-messages_to_keep]
+    recent_messages = conversation_messages[-messages_to_keep:]
+    
+    log.info(
+        f"{log_identifier} Compressing {len(old_messages)} old messages, "
+        f"preserving {len(recent_messages)} recent messages"
+    )
+    
+    # Summarize old messages (with retry logic)
+    summary_text = await _summarize_messages(
+        old_messages,
+        model_name,
+        log_identifier,
+        max_retries=3,
+    )
+    
+    # Create a summary message
+    summary_message = adk_types.Content(
+        role="user",
+        parts=[adk_types.Part(
+            text=f"[Context Summary: {summary_text}]"
+        )]
+    )
+    
+    # Rebuild contents with summary + recent messages
+    llm_request.contents = [summary_message] + recent_messages
+    
+    log.info(
+        f"{log_identifier} Compressed conversation history. "
+        f"New message count: {len(llm_request.contents)}"
+    )
+
+
+def manage_context_window_callback(
+    callback_context: CallbackContext,
+    llm_request: LlmRequest,
+    host_component: "SamAgentComponent",
+) -> Optional[LlmResponse]:
+    """
+    ADK before_model_callback to manage context window size.
+    
+    This callback:
+    1. Counts tokens in the current request
+    2. Checks if it exceeds the configured threshold (default 80% of max)
+    3. If exceeded, compresses the conversation history by:
+       - Preserving recent messages (default: last 3 pairs)
+       - Summarizing older messages using the same LLM (with 3 retry attempts)
+       - Replacing old messages with a summary
+    
+    Args:
+        callback_context: The ADK callback context
+        llm_request: The LLM request to check and potentially compress
+        host_component: The host component instance
+    
+    Returns:
+        None (modifies llm_request in place) or LlmResponse to skip LLM call
+    """
+    log_identifier = "[Callback:ManageContextWindow]"
+    
+    # Check if context window management is enabled
+    if not host_component.get_config("enable_context_window_management", True):
+        log.debug(f"{log_identifier} Context window management is disabled")
+        return None
+    
+    if not LITELLM_AVAILABLE:
+        log.warning(f"{log_identifier} litellm not available, skipping context window management")
+        return None
+    
+    try:
+        # Get model name
+        model_name = host_component.model_config
+        if isinstance(model_name, dict):
+            model_name = model_name.get("model", "gpt-4")
+        
+        log.debug(f"{log_identifier} Checking context window for model: {model_name}")
+        
+        # Get maximum tokens for this model
+        max_tokens = None
+        try:
+            max_tokens = litellm.get_max_tokens(model_name)
+            if max_tokens and max_tokens > 0:
+                log.debug(f"{log_identifier} litellm returned max tokens: {max_tokens}")
+            else:
+                log.debug(f"{log_identifier} litellm returned invalid max tokens, trying fallback")
+                max_tokens = None
+        except Exception as e:
+            log.debug(f"{log_identifier} litellm.get_max_tokens() failed: {e}, trying fallback")
+            max_tokens = None
+        
+        # If litellm failed, try fallback
+        if not max_tokens:
+            max_tokens = _get_model_max_tokens_fallback(model_name, log_identifier)
+            if not max_tokens:
+                log.warning(f"{log_identifier} Could not determine max tokens for {model_name} using either litellm or fallback")
+                return None
+        
+        # Count current tokens
+        current_tokens = _count_request_tokens(llm_request, model_name)
+        
+        if current_tokens == 0:
+            log.debug(f"{log_identifier} Token counting returned 0, skipping")
+            return None
+        
+        # Get threshold percentage (default 80%)
+        threshold_pct = host_component.get_config("context_window_threshold_percent", 80)
+        threshold_tokens = int(max_tokens * (threshold_pct / 100))
+        
+        log.info(
+            f"{log_identifier} Token usage: {current_tokens}/{max_tokens} "
+            f"(threshold: {threshold_tokens}, {threshold_pct}%)"
+        )
+        
+        # Check if we need to compress
+        if current_tokens <= threshold_tokens:
+            log.debug(f"{log_identifier} Within threshold, no compression needed")
+            return None
+        
+        log.warning(
+            f"{log_identifier} Context window threshold exceeded! "
+            f"Current: {current_tokens}, Threshold: {threshold_tokens}"
+        )
+        
+        # Calculate target token count (aim for 60% of max to leave room for growth)
+        target_tokens = int(max_tokens * 0.6)
+        
+        # Get number of recent messages to preserve
+        preserve_recent = host_component.get_config("context_preserve_recent_messages", 3)
+        
+        # Compress the context window (async operation)
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # We're in an async context, but this callback is sync
+            # We need to run the compression synchronously
+            try:
+                import nest_asyncio
+                nest_asyncio.apply()
+            except:
+                pass  # May already be applied or not needed
+            
+            loop.run_until_complete(
+                _compress_context_window(
+                    llm_request,
+                    max_tokens,
+                    target_tokens,
+                    model_name,
+                    preserve_recent,
+                    log_identifier,
+                )
+            )
+        else:
+            # Not in async context, create new loop
+            asyncio.run(
+                _compress_context_window(
+                    llm_request,
+                    max_tokens,
+                    target_tokens,
+                    model_name,
+                    preserve_recent,
+                    log_identifier,
+                )
+            )
+        
+        # Recount tokens after compression
+        new_token_count = _count_request_tokens(llm_request, model_name)
+        log.info(
+            f"{log_identifier} Compression complete. "
+            f"Tokens: {current_tokens} -> {new_token_count} "
+            f"(saved {current_tokens - new_token_count} tokens)"
+        )
+        
+        # Return None to continue with the (now compressed) request
+        return None
+        
+    except Exception as e:
+        log.error(f"{log_identifier} Error in context window management: {e}", exc_info=True)
+        # On error, continue without compression
+        return None

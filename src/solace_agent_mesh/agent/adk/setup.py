@@ -1094,6 +1094,19 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
+        # Add context window management callback
+        context_window_callback_with_component = functools.partial(
+            adk_callbacks.manage_context_window_callback,
+            host_component=component,
+        )
+        callbacks_in_order_for_before_model.append(
+            context_window_callback_with_component
+        )
+        log.debug(
+            "%s Added manage_context_window_callback to before_model chain.",
+            component.log_identifier,
+        )
+
         solace_llm_trigger_callback_with_component = functools.partial(
             adk_callbacks.solace_llm_invocation_callback, host_component=component
         )
