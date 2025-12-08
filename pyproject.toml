@@ -65,7 +65,9 @@ dependencies = [
     "openai==1.99.9",
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
-    "azure-cognitiveservices-speech==1.41.1"
+    "azure-cognitiveservices-speech==1.41.1",
+    "APScheduler==3.10.4",
+    "croniter==2.0.5"
 ]
 
 [project.optional-dependencies]

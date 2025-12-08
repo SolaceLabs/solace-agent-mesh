@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20251117_create_scheduled_tasks_tables"
-down_revision: str | Sequence[str] | None = "20251115_add_parent_task_id"
+down_revision: str | Sequence[str] | None = "20251126_background_tasks"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
