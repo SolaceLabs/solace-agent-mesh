@@ -175,7 +175,7 @@ async def _internal_create_artifact(
             timestamp=timestamp_for_artifact,
             schema_max_keys=max_keys_to_use,
             tool_context=tool_context,
-            suppress_visualization_signal=True,  # Fenced blocks handle visualization via _notify_artifact_save tool
+            suppress_visualization_signal=True,  # Fenced blocks handle their own visualization signals
         )
         log.info(
             "%s Result from save_artifact_with_metadata: %s", log_identifier, result

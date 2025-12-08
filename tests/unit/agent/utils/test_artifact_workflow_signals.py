@@ -2,19 +2,18 @@
 """
 Unit tests for artifact workflow visualization signal emission.
 
-Tests verify that artifact creation properly emits artifact_creation_progress signals
-for workflow diagram visualization, including:
-- Tool-created artifacts with function_call_id
-- LLM-generated artifacts (fenced blocks) with synthetic function_call_id
+Tests verify that artifact creation properly emits signals for workflow diagram visualization:
+- Tool-created artifacts emit ArtifactSavedData signals with function_call_id
+- LLM-generated artifacts (fenced blocks) emit ArtifactSavedData signals with synthetic function_call_id
 - Signal suppression flag functionality
 - Graceful handling when required context is missing
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, call
+from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timezone
 
-from solace_agent_mesh.common.data_parts import ArtifactCreationProgressData
+from solace_agent_mesh.common.data_parts import ArtifactCreationProgressData, ArtifactSavedData
 
 
 class TestArtifactWorkflowSignals:
@@ -69,41 +68,44 @@ class TestArtifactWorkflowSignals:
         mock_artifact_service = AsyncMock()
         mock_artifact_service.save_artifact = AsyncMock(return_value=1)  # version 1
 
-        # Mock the signal publishing function to capture the signal
-        captured_signal = None
+        # Capture the call to notify_artifact_saved
+        captured_artifact_info = None
+        captured_function_call_id = None
 
-        async def capture_publish(host_component, a2a_context, data_part_model):
-            nonlocal captured_signal
-            captured_signal = data_part_model
+        async def capture_notify(artifact_info, a2a_context, function_call_id=None):
+            nonlocal captured_artifact_info, captured_function_call_id
+            captured_artifact_info = artifact_info
+            captured_function_call_id = function_call_id
+
+        # Mock notify_artifact_saved on the host component
+        mock_tool_context._invocation_context.agent.host_component.notify_artifact_saved = AsyncMock(side_effect=capture_notify)
 
         # Execute - call the real function with mocked dependencies
-        with patch('solace_agent_mesh.agent.adk.callbacks._publish_data_part_status_update', new=capture_publish):
-            result = await save_artifact_with_metadata(
-                artifact_service=mock_artifact_service,
-                app_name="TestApp",
-                user_id="user-123",
-                session_id="session-456",
-                filename="output.json",
-                content_bytes=b'{"result": "test"}',
-                mime_type="application/json",
-                metadata_dict={"description": "Test output"},
-                timestamp=datetime.now(timezone.utc),
-                tool_context=mock_tool_context
-            )
+        result = await save_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="TestApp",
+            user_id="user-123",
+            session_id="session-456",
+            filename="output.json",
+            content_bytes=b'{"result": "test"}',
+            mime_type="application/json",
+            metadata_dict={"description": "Test output"},
+            timestamp=datetime.now(timezone.utc),
+            tool_context=mock_tool_context
+        )
 
         # Verify result
         assert result["status"] == "success"
         assert result["data_version"] == 1
 
-        # Verify signal was captured
-        assert captured_signal is not None
-        assert isinstance(captured_signal, ArtifactCreationProgressData)
-        assert captured_signal.filename == "output.json"
-        assert captured_signal.status == "completed"
-        assert captured_signal.version == 1
-        assert captured_signal.mime_type == "application/json"
-        assert captured_signal.description == "Test output"
-        assert captured_signal.function_call_id == "fc-789"  # From tool_context
+        # Verify notify_artifact_saved was called with correct artifact_info
+        assert captured_artifact_info is not None
+        assert captured_artifact_info.filename == "output.json"
+        assert captured_artifact_info.version == 1
+        assert captured_artifact_info.mime_type == "application/json"
+        assert captured_artifact_info.size == len(b'{"result": "test"}')
+        assert captured_artifact_info.description == "Test output"
+        assert captured_function_call_id == "fc-789"  # From tool_context
 
     @pytest.mark.asyncio
     async def test_signal_not_emitted_when_suppress_flag_set(self, mock_tool_context):
@@ -114,35 +116,28 @@ class TestArtifactWorkflowSignals:
         mock_artifact_service = AsyncMock()
         mock_artifact_service.save_artifact = AsyncMock(return_value=1)
 
-        # Capture any signal emissions
-        signal_emitted = False
+        # Mock notify_artifact_saved to track if it was called
+        mock_tool_context._invocation_context.agent.host_component.notify_artifact_saved = AsyncMock()
 
-        async def capture_publish(*args, **kwargs):
-            nonlocal signal_emitted
-            signal_emitted = True
-
-        with patch('solace_agent_mesh.agent.adk.callbacks._publish_data_part_status_update', new=capture_publish):
-            from solace_agent_mesh.agent.utils import artifact_helpers
-
-            result = await artifact_helpers.save_artifact_with_metadata(
-                artifact_service=mock_artifact_service,
-                app_name="TestApp",
-                user_id="user-123",
-                session_id="session-456",
-                filename="output.json",
-                content_bytes=b'{"result": "test"}',
-                mime_type="application/json",
-                metadata_dict={"description": "Test output"},
-                timestamp=datetime.now(timezone.utc),
-                tool_context=mock_tool_context,
-                suppress_visualization_signal=True  # Suppressed
-            )
+        result = await save_artifact_with_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="TestApp",
+            user_id="user-123",
+            session_id="session-456",
+            filename="output.json",
+            content_bytes=b'{"result": "test"}',
+            mime_type="application/json",
+            metadata_dict={"description": "Test output"},
+            timestamp=datetime.now(timezone.utc),
+            tool_context=mock_tool_context,
+            suppress_visualization_signal=True  # Suppressed
+        )
 
         # Verify artifact was saved
         assert result["status"] == "success"
 
-        # Verify signal was NOT emitted
-        assert not signal_emitted
+        # Verify notify_artifact_saved was NOT called
+        mock_tool_context._invocation_context.agent.host_component.notify_artifact_saved.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_no_signal_when_missing_context(self):
@@ -152,12 +147,20 @@ class TestArtifactWorkflowSignals:
         # Create tool context without a2a_context
         mock_context = Mock()
         mock_invocation_context = Mock()
+        mock_agent = Mock()
+        mock_host_component = Mock()
+
         mock_invocation_context.artifact_service = AsyncMock()
         mock_invocation_context.artifact_service.save_artifact = AsyncMock(return_value=1)
         mock_invocation_context.app_name = "TestApp"
         mock_invocation_context.user_id = "test-user"
         mock_invocation_context.session = Mock()
         mock_invocation_context.session.last_update_time = datetime.now(timezone.utc)
+
+        # Setup host_component with mocked notify_artifact_saved
+        mock_host_component.notify_artifact_saved = AsyncMock()
+        mock_agent.host_component = mock_host_component
+        mock_invocation_context.agent = mock_agent
 
         mock_context._invocation_context = mock_invocation_context
         mock_context.state = {}  # No a2a_context
@@ -167,42 +170,33 @@ class TestArtifactWorkflowSignals:
         mock_actions.artifact_delta = {}
         mock_context.actions = mock_actions
 
-        signal_emitted = False
-
-        async def capture_publish(*args, **kwargs):
-            nonlocal signal_emitted
-            signal_emitted = True
-
-        with patch('solace_agent_mesh.agent.adk.callbacks._publish_data_part_status_update', new=capture_publish):
-            from solace_agent_mesh.agent.utils import artifact_helpers
-
-            result = await artifact_helpers.save_artifact_with_metadata(
-                artifact_service=mock_invocation_context.artifact_service,
-                app_name="TestApp",
-                user_id="user-123",
-                session_id="session-456",
-                filename="output.json",
-                content_bytes=b'{"result": "test"}',
-                mime_type="application/json",
-                metadata_dict={"description": "Test output"},
-                timestamp=datetime.now(timezone.utc),
-                tool_context=mock_context
-            )
+        result = await save_artifact_with_metadata(
+            artifact_service=mock_invocation_context.artifact_service,
+            app_name="TestApp",
+            user_id="user-123",
+            session_id="session-456",
+            filename="output.json",
+            content_bytes=b'{"result": "test"}',
+            mime_type="application/json",
+            metadata_dict={"description": "Test output"},
+            timestamp=datetime.now(timezone.utc),
+            tool_context=mock_context
+        )
 
         # Verify artifact was still saved
         assert result["status"] == "success"
 
-        # Verify no signal was emitted due to missing context
-        assert not signal_emitted
+        # Verify notify_artifact_saved was NOT called due to missing a2a_context
+        mock_host_component.notify_artifact_saved.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_llm_generated_artifact_with_synthetic_function_call_id(self, mock_tool_context):
-        """Test that LLM-generated artifacts (fenced blocks) emit signals with synthetic function_call_id.
+        """Test that LLM-generated artifacts (fenced blocks) emit ArtifactSavedData signals with synthetic function_call_id.
 
         Simulates the flow where:
         1. Artifact saved during streaming with suppress_visualization_signal=True (no signal)
         2. Finalization creates synthetic tool call with host-notify-{uuid} ID
-        3. Signal emitted with same synthetic function_call_id
+        3. ArtifactSavedData signal emitted with same synthetic function_call_id
         """
         from solace_agent_mesh.agent.utils.artifact_helpers import save_artifact_with_metadata
         import uuid
@@ -239,26 +233,27 @@ class TestArtifactWorkflowSignals:
         assert not signal_emitted  # No signal during streaming
 
         # Phase 2: Finalization - simulate signal emission with synthetic function_call_id
-        # This simulates what happens in callbacks.py lines 529-567
+        # This simulates what happens in callbacks.py lines 552-580
         synthetic_function_call_id = f"host-notify-{uuid.uuid4()}"
 
         # Create signal with synthetic ID (what callback does during finalization)
-        signal_data = ArtifactCreationProgressData(
+        # Now uses ArtifactSavedData instead of ArtifactCreationProgressData
+        signal_data = ArtifactSavedData(
+            type="artifact_saved",
             filename="llm_output.txt",
-            description="LLM generated file",
-            status="completed",
             version=1,
-            bytes_transferred=len(b'This is LLM-generated content'),
             mime_type="text/plain",
+            size_bytes=len(b'This is LLM-generated content'),
+            description="LLM generated file",
             function_call_id=synthetic_function_call_id,  # Synthetic ID
         )
 
         # Verify signal has correct structure for LLM-generated artifacts
+        assert signal_data.type == "artifact_saved"
         assert signal_data.filename == "llm_output.txt"
-        assert signal_data.status == "completed"
         assert signal_data.version == 1
         assert signal_data.function_call_id == synthetic_function_call_id
         assert signal_data.function_call_id.startswith("host-notify-")  # Synthetic ID pattern
         assert signal_data.description == "LLM generated file"
         assert signal_data.mime_type == "text/plain"
-        assert signal_data.bytes_transferred == 29  # len(b'This is LLM-generated content')
+        assert signal_data.size_bytes == 29  # len(b'This is LLM-generated content')
