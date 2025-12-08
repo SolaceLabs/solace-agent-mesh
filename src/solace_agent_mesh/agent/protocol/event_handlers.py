@@ -8,6 +8,8 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Dict
 
+from litellm.exceptions import BadRequestError
+
 from a2a.types import (
     A2ARequest,
     AgentCapabilities,
@@ -967,6 +969,64 @@ async def handle_a2a_request(component, message: SolaceMessage):
         except Exception as nack_e:
             log.error(
                 "%s Failed to NACK message after pre-start error: %s",
+                component.log_identifier,
+                nack_e,
+            )
+
+        component.handle_error(e, Event(EventType.MESSAGE, message))
+        return None
+
+    except BadRequestError as e:
+        log.error(
+            "%s Bad Request error handling A2A request: %s", component.log_identifier, e
+        )
+        
+        # Check if this is a context limit error
+        error_str = str(e).lower()
+        if (
+            "too many tokens" in error_str
+            or "expected maxLength:" in error_str
+            or "Input is too long" in error_str
+            or "prompt is too long" in error_str
+            or "prompt: length: 1.." in error_str
+            or "Too many input tokens" in error_str
+        ):
+            error_message = (
+            "The conversation history has become too long for the AI model to process. "
+            "This can happen after extended conversations. "
+            "To continue, please start a new conversation or try summarizing your previous messages into a shorter request."
+            )
+            log.warning(
+            "%s Context limit exceeded for task %s",
+            component.log_identifier,
+            logical_task_id,
+            )
+        else:
+            error_message = f"Bad request: {e}"
+        
+        error_response = a2a.create_invalid_request_error_response(
+            message=error_message,
+            request_id=jsonrpc_request_id,
+            data={"taskId": logical_task_id},
+        )
+        target_topic = reply_topic_from_peer or (
+            get_client_response_topic(namespace, client_id) if client_id else None
+        )
+        if target_topic:
+            component.publish_a2a_message(
+                error_response.model_dump(exclude_none=True),
+                target_topic,
+            )
+
+        try:
+            message.call_negative_acknowledgements()
+            log.warning(
+                "%s NACKed original A2A request due to bad request error.",
+                component.log_identifier,
+            )
+        except Exception as nack_e:
+            log.error(
+                "%s Failed to NACK message after bad request error: %s",
                 component.log_identifier,
                 nack_e,
             )

@@ -13,6 +13,8 @@ import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+from litellm.exceptions import BadRequestError
+
 from a2a.types import (
     AgentCard,
     MessageSendParams,
@@ -2653,10 +2655,36 @@ class SamAgentComponent(SamComponentBase):
             peer_reply_topic = a2a_context.get("replyToTopic")
             namespace = self.get_config("namespace")
 
+            # Detect context limit errors and provide user-friendly message
+            error_message = "An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
+            
+            if isinstance(exception, BadRequestError):
+                error_str = str(exception).lower()
+                # Check for various context limit error patterns
+                if (
+                    "too many tokens" in error_str
+                    or "expected maxLength:" in error_str
+                    or "Input is too long" in error_str
+                    or "prompt is too long" in error_str
+                    or "prompt: length: 1.." in error_str
+                    or "Too many input tokens" in error_str
+                ):
+                    log.warning(
+                        "%s Context limit exceeded for task %s. Error: %s",
+                        self.log_identifier,
+                        logical_task_id,
+                        exception,
+                    )
+                    error_message = (
+                        "The conversation history has become too long for the AI model to process. "
+                        "This can happen after extended conversations. "
+                        "To continue, please start a new conversation or try summarizing your previous messages into a shorter request."
+                    )
+
             failed_status = a2a.create_task_status(
                 state=TaskState.failed,
                 message=a2a.create_agent_text_message(
-                    text="An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
+                    text=error_message
                 ),
             )
 
