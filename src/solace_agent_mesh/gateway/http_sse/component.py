@@ -124,6 +124,30 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
             self.model_config = self.get_config("model", None)
 
+            # Auto-construct frontend_server_url if not provided
+            configured_frontend_url = self.get_config("frontend_server_url", "")
+            if configured_frontend_url:
+                self.frontend_server_url = configured_frontend_url
+            else:
+                # Determine protocol and port based on SSL configuration
+                if self.ssl_keyfile and self.ssl_certfile:
+                    protocol = "https"
+                    port = self.fastapi_https_port
+                else:
+                    protocol = "http"
+                    port = self.fastapi_port
+
+                # Construct URL
+                # Use 'localhost' if host is 127.0.0.1 for better compatibility
+                host = "localhost" if self.fastapi_host == "127.0.0.1" else self.fastapi_host
+                self.frontend_server_url = f"{protocol}://{host}:{port}"
+
+                log.info(
+                    "%s frontend_server_url not configured, auto-constructed: %s",
+                    self.log_identifier,
+                    self.frontend_server_url,
+                )
+
             log.info(
                 "%s WebUI-specific configuration retrieved (Host: %s, Port: %d).",
                 self.log_identifier,
