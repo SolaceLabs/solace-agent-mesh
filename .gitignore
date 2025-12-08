@@ -146,7 +146,8 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 tmp
-.sam 
+.sam
+*.key
 playground.py
 
 # VS Code
