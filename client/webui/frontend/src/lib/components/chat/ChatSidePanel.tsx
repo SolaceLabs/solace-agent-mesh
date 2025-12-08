@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 
 import { PanelRightIcon, FileText, Network, RefreshCw, Link2 } from "lucide-react";
 
@@ -26,6 +26,25 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
 
     // Track which task IDs we've already attempted to load to prevent duplicate loads
     const loadAttemptedRef = React.useRef<Set<string>>(new Set());
+
+    // Check if there are any sources in the current session (web sources or deep research sources)
+    const hasSourcesInSession = useMemo(() => {
+        if (!ragData || ragData.length === 0) return false;
+        // Check if any RAG data has sources with valid links
+        return ragData.some(
+            search =>
+                search.sources &&
+                search.sources.some(source => {
+                    const sourceType = source.sourceType || "web";
+                    // For images, check if they have a source link
+                    if (sourceType === "image") {
+                        return source.sourceUrl || source.metadata?.link;
+                    }
+                    // For other sources, check if they have a URL or sourceUrl
+                    return source.url || source.sourceUrl;
+                })
+        );
+    }, [ragData]);
 
     // Process task data for visualization when the selected workflow task ID changes
     // or when monitoredTasks is updated with new data
@@ -176,13 +195,15 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                     <FileText className="size-5" />
                 </Button>
 
-                <Button variant="ghost" size="sm" onClick={() => handleIconClick("workflow")} className="mb-2 h-10 w-10 p-0" tooltip="Workflow">
+                <Button variant="ghost" size="sm" onClick={() => handleIconClick("workflow")} className={hasSourcesInSession ? "mb-2 h-10 w-10 p-0" : "h-10 w-10 p-0"} tooltip="Workflow">
                     <Network className="size-5" />
                 </Button>
 
-                <Button variant="ghost" size="sm" onClick={() => handleIconClick("rag")} className="h-10 w-10 p-0" tooltip="Sources">
-                    <Link2 className="size-5" />
-                </Button>
+                {hasSourcesInSession && (
+                    <Button variant="ghost" size="sm" onClick={() => handleIconClick("rag")} className="h-10 w-10 p-0" tooltip="Sources">
+                        <Link2 className="size-5" />
+                    </Button>
+                )}
             </div>
         );
     }
@@ -206,18 +227,24 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                 <FileText className="h-4 w-4 shrink-0" />
                                 <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
                             </TabsTrigger>
-                            <TabsTrigger value="workflow" title="Workflow" className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border-x-0 border-y px-2 data-[state=active]:z-10">
+                            <TabsTrigger
+                                value="workflow"
+                                title="Workflow"
+                                className={`border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border-x-0 border-y px-2 data-[state=active]:z-10 ${!hasSourcesInSession ? "rounded-r-md border-r" : ""}`}
+                            >
                                 <Network className="h-4 w-4 shrink-0" />
                                 <span className="ml-1.5 hidden truncate @[240px]:inline">Workflow</span>
                             </TabsTrigger>
-                            <TabsTrigger
-                                value="rag"
-                                title="Sources"
-                                className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border border-l-0 px-2 data-[state=active]:z-10"
-                            >
-                                <Link2 className="h-4 w-4 shrink-0" />
-                                <span className="ml-1.5 hidden truncate @[240px]:inline">Sources</span>
-                            </TabsTrigger>
+                            {hasSourcesInSession && (
+                                <TabsTrigger
+                                    value="rag"
+                                    title="Sources"
+                                    className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border border-l-0 px-2 data-[state=active]:z-10"
+                                >
+                                    <Link2 className="h-4 w-4 shrink-0" />
+                                    <span className="ml-1.5 hidden truncate @[240px]:inline">Sources</span>
+                                </TabsTrigger>
+                            )}
                         </TabsList>
                     </div>
                     <div className="min-h-0 flex-1">
@@ -266,11 +293,13 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                             </div>
                         </TabsContent>
 
-                        <TabsContent value="rag" className="m-0 h-full">
-                            <div className="h-full">
-                                <RAGInfoPanel ragData={taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData} enabled={ragEnabled} />
-                            </div>
-                        </TabsContent>
+                        {hasSourcesInSession && (
+                            <TabsContent value="rag" className="m-0 h-full">
+                                <div className="h-full">
+                                    <RAGInfoPanel ragData={taskIdInSidePanel ? ragData.filter(r => r.taskId === taskIdInSidePanel) : ragData} enabled={ragEnabled} />
+                                </div>
+                            </TabsContent>
+                        )}
                     </div>
                 </Tabs>
             </div>
