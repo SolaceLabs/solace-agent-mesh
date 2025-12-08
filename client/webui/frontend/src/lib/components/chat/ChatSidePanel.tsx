@@ -192,27 +192,31 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
         <div className="bg-background flex h-full flex-col border-l">
             <div className="m-1 min-h-0 flex-1">
                 <Tabs value={activeSidePanelTab} onValueChange={value => handleTabClick(value as "files" | "workflow" | "rag")} className="flex h-full flex-col">
-                    <div className="flex gap-2 p-2">
-                        <Button data-testid="collapsePanel" variant="ghost" onClick={toggleCollapsed} className="p-1" tooltip="Collapse Panel">
+                    <div className="@container flex gap-2 p-2">
+                        <Button data-testid="collapsePanel" variant="ghost" onClick={toggleCollapsed} className="shrink-0 p-1" tooltip="Collapse Panel">
                             <PanelRightIcon className="size-5" />
                         </Button>
-                        <TabsList className="grid w-full grid-cols-3 bg-transparent p-0">
+                        <TabsList className="flex min-w-0 flex-1 bg-transparent p-0">
                             <TabsTrigger
                                 value="files"
                                 title="Files"
-                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-l-md border border-r-0 data-[state=active]:z-10 data-[state=active]:border-r-0"
+                                className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-l-md border border-r-0 px-2 data-[state=active]:z-10 data-[state=active]:border-r-0"
                                 onClick={() => setPreviewArtifact(null)}
                             >
-                                <FileText className="mr-2 h-4 w-4" />
-                                Files
+                                <FileText className="h-4 w-4 shrink-0" />
+                                <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
                             </TabsTrigger>
-                            <TabsTrigger value="workflow" title="Workflow" className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none border-x-0 border-y data-[state=active]:z-10">
-                                <Network className="mr-2 h-4 w-4" />
-                                Workflow
+                            <TabsTrigger value="workflow" title="Workflow" className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border-x-0 border-y px-2 data-[state=active]:z-10">
+                                <Network className="h-4 w-4 shrink-0" />
+                                <span className="ml-1.5 hidden truncate @[240px]:inline">Workflow</span>
                             </TabsTrigger>
-                            <TabsTrigger value="rag" title="Sources" className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-r-md border border-l-0 data-[state=active]:z-10">
-                                <Link2 className="mr-2 h-4 w-4" />
-                                Sources
+                            <TabsTrigger
+                                value="rag"
+                                title="Sources"
+                                className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border border-l-0 px-2 data-[state=active]:z-10"
+                            >
+                                <Link2 className="h-4 w-4 shrink-0" />
+                                <span className="ml-1.5 hidden truncate @[240px]:inline">Sources</span>
                             </TabsTrigger>
                         </TabsList>
                     </div>
