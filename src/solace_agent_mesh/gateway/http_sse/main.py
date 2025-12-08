@@ -597,9 +597,9 @@ def setup_dependencies(
     _setup_middleware(component)
     _setup_routers()
 
-    log.error("DEBUG: About to call _setup_oauth_proxy_routes()")
+    log.debug("Setting up OAuth proxy routes for gateway authentication")
     _setup_oauth_proxy_routes(component)  # Setup gateway OAuth proxy if enterprise is available
-    log.error("DEBUG: Finished calling _setup_oauth_proxy_routes()")
+    log.debug("OAuth proxy routes configured")
 
     _setup_static_files()
 
