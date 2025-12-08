@@ -21,6 +21,7 @@ const meta = {
                 component: "The main chat page component that displays the chat interface, side panels, and handles user interactions.",
             },
         },
+        msw: { handlers },
     },
     decorators: [
         (Story: StoryFn, context: StoryContext) => {
@@ -166,7 +167,6 @@ export const WithPromptDialogOpen: Story = {
         configContext: {
             persistenceEnabled: false,
         },
-        msw: { handlers },
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
