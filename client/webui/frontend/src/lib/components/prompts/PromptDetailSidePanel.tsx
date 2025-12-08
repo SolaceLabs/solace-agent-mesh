@@ -1,5 +1,5 @@
 import React from "react";
-import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MoreHorizontal, SquarePen, Download } from "lucide-react";
+import { X, NotepadText, Tag, Calendar, Pencil, History, Trash2, User, MoreHorizontal, SquarePen, Download } from "lucide-react";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -55,7 +55,7 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
             <div className="border-b p-4">
                 <div className="mb-2 flex items-center justify-between">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <FileText className="text-muted-foreground h-5 w-5 flex-shrink-0" />
+                        <NotepadText className="text-muted-foreground h-5 w-5 flex-shrink-0" />
                         <Tooltip delayDuration={300}>
                             <TooltipTrigger asChild>
                                 <h2 className="cursor-default truncate text-lg font-semibold">{prompt.name}</h2>
@@ -129,20 +129,20 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                     )}
                 </div>
 
-                {/* Start New Chat Button */}
+                {/* Use in New Chat Button */}
                 {onUseInChat && (
-                    <Button onClick={handleUseInChat} className="w-full">
+                    <Button data-testid="startNewChatButton" onClick={handleUseInChat} className="w-full">
                         <SquarePen className="h-4 w-4" />
-                        Start New Chat
+                        Use in New Chat
                     </Button>
                 )}
 
                 {/* Content - no background */}
-                {prompt.production_prompt && (
+                {prompt.productionPrompt && (
                     <div>
                         <h3 className="text-muted-foreground mb-2 text-xs font-semibold">Content</h3>
                         <div className="font-mono text-xs break-words whitespace-pre-wrap">
-                            {prompt.production_prompt.prompt_text.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
+                            {prompt.productionPrompt.promptText.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
                                 if (part.match(/\{\{[^}]+\}\}/)) {
                                     return (
                                         <span key={index} className="bg-primary/20 text-primary rounded px-1 font-medium">
@@ -161,12 +161,12 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
             <div className="bg-background space-y-2 border-t p-4">
                 <div className="text-muted-foreground flex items-center gap-2 text-xs">
                     <User size={12} />
-                    <span>Created by: {prompt.author_name || prompt.user_id}</span>
+                    <span>Created by: {prompt.authorName || prompt.userId}</span>
                 </div>
-                {prompt.updated_at && (
+                {prompt.updatedAt && (
                     <div className="text-muted-foreground flex items-center gap-2 text-xs">
                         <Calendar size={12} />
-                        <span>Last updated: {formatPromptDate(prompt.updated_at)}</span>
+                        <span>Last updated: {formatPromptDate(prompt.updatedAt)}</span>
                     </div>
                 )}
             </div>

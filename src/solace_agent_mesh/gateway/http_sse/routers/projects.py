@@ -155,10 +155,17 @@ async def create_project(
         )
     
     except ValueError as e:
-        log.warning(f"Validation error creating project: {e}")
+        error_msg = str(e)
+        log.warning(f"Validation error creating project: {error_msg}")
+        # Check if this is a file size error
+        if "exceeds maximum" in error_msg.lower() and "bytes" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=error_msg
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=error_msg
         )
     except Exception as e:
         log.error("Error creating project for user %s: %s", user_id, e)
@@ -375,11 +382,14 @@ async def add_project_artifacts(
         )
         return results
     except ValueError as e:
-        log.warning(f"Validation error adding artifacts to project {project_id}: {e}")
-        # Could be 404 if project not found, or 400 if other validation fails
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        error_msg = str(e)
+        log.warning(f"Validation error adding artifacts to project {project_id}: {error_msg}")
+        # Could be 404 if project not found, 413 if file too large, or 400 if other validation fails
+        if "not found" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_msg)
+        if "exceeds maximum" in error_msg.lower() and "bytes" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=error_msg)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
     except Exception as e:
         log.error(
             "Error adding artifacts to project %s for user %s: %s",
@@ -390,6 +400,56 @@ async def add_project_artifacts(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to add artifacts to project"
+        )
+
+
+@router.patch("/projects/{project_id}/artifacts/{filename}", status_code=status.HTTP_200_OK)
+async def update_project_artifact_metadata(
+    project_id: str,
+    filename: str,
+    description: Optional[str] = Form(None),
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Update metadata (description) for a project artifact.
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} attempting to update metadata for artifact '{filename}' in project {project_id}")
+
+    try:
+        success = await project_service.update_artifact_metadata(
+            db=db,
+            project_id=project_id,
+            user_id=user_id,
+            filename=filename,
+            description=description,
+        )
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project or artifact not found, or access denied."
+            )
+        
+        return {"message": "Artifact metadata updated successfully"}
+    except ValueError as e:
+        log.warning(f"Validation error updating artifact metadata in project {project_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(
+            "Error updating metadata for artifact '%s' in project %s for user %s: %s",
+            filename,
+            project_id,
+            user_id,
+            e,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update artifact metadata"
         )
 
 
@@ -687,10 +747,17 @@ async def import_project(
         )
     
     except ValueError as e:
-        log.warning(f"Validation error importing project: {e}")
+        error_msg = str(e)
+        log.warning(f"Validation error importing project: {error_msg}")
+        # Check if this is a file size error 
+        if "exceeds maximum" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=error_msg
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=error_msg
         )
     except Exception as e:
         log.error(f"Error importing project: {e}")

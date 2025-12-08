@@ -11,6 +11,7 @@ class ResolutionMode(Enum):
     A2A_MESSAGE_TO_USER = auto()
     TOOL_PARAMETER = auto()
     RECURSIVE_ARTIFACT_CONTENT = auto()
+    ARTIFACT_STREAMING = auto()  # For streaming artifact chunks to browser
 
 
 class DataFormat(Enum):

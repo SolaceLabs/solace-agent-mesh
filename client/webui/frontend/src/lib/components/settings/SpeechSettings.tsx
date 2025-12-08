@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Mic, Volume2, AlertCircle, Play, Loader2 } from "lucide-react";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
 import { Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input, Button } from "@/lib/components/ui";
-import { MessageBanner } from "@/lib/components/common";
+import { authenticatedFetch } from "@/lib/utils/api";
 
 export const SpeechSettingsPanel: React.FC = () => {
     const { settings, updateSetting } = useAudioSettings();
@@ -11,6 +11,9 @@ export const SpeechSettingsPanel: React.FC = () => {
     const [loadingVoices, setLoadingVoices] = useState(false);
     const [sttConfigured, setSttConfigured] = useState<boolean | null>(null);
     const [ttsConfigured, setTtsConfigured] = useState<boolean | null>(null);
+    // Per-provider configuration status
+    const [sttProviders, setSttProviders] = useState<{ openai: boolean; azure: boolean } | null>(null);
+    const [ttsProviders, setTtsProviders] = useState<{ gemini: boolean; azure: boolean; polly: boolean } | null>(null);
     const [playingSample, setPlayingSample] = useState(false);
     const [loadingSample, setLoadingSample] = useState(false);
     const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
@@ -23,7 +26,7 @@ export const SpeechSettingsPanel: React.FC = () => {
     useEffect(() => {
         const checkConfig = async () => {
             try {
-                const response = await fetch("/api/v1/speech/config");
+                const response = await authenticatedFetch("/api/v1/speech/config");
                 if (response.ok) {
                     const config = await response.json();
                     const sttExt = config.sttExternal || false;
@@ -31,6 +34,14 @@ export const SpeechSettingsPanel: React.FC = () => {
 
                     setSttConfigured(sttExt);
                     setTtsConfigured(ttsExt);
+
+                    // Set per-provider status
+                    if (config.sttProviders) {
+                        setSttProviders(config.sttProviders);
+                    }
+                    if (config.ttsProviders) {
+                        setTtsProviders(config.ttsProviders);
+                    }
 
                     // Auto-reset provider to browser if external not configured
                     if (!sttExt && settings.sttProvider !== "browser") {
@@ -63,7 +74,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             setLoadingVoices(true);
             try {
                 const provider = settings.ttsProvider || "gemini";
-                const response = await fetch(`/api/v1/speech/voices?provider=${provider}`);
+                const response = await authenticatedFetch(`/api/v1/speech/voices?provider=${provider}`);
                 if (response.ok) {
                     const data = await response.json();
                     setAvailableVoices(data.voices || []);
@@ -113,7 +124,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             }
 
             // Fetch voice sample
-            const response = await fetch("/api/v1/speech/voice-sample", {
+            const response = await authenticatedFetch("/api/v1/speech/voice-sample", {
                 method: "POST",
                 body: formData,
             });
@@ -178,11 +189,6 @@ export const SpeechSettingsPanel: React.FC = () => {
                         <Select
                             value={settings.sttProvider}
                             onValueChange={(value: "browser" | "openai" | "azure") => {
-                                // If switching to external provider but not configured, show warning
-                                if (value !== "browser" && sttConfigured === false) {
-                                    alert("External STT is not configured. Please add STT configuration to webui.yaml first.");
-                                    return;
-                                }
                                 // Update both provider and engine based on selection
                                 updateSetting("sttProvider", value);
                                 updateSetting("engineSTT", value === "browser" ? "browser" : "external");
@@ -194,12 +200,8 @@ export const SpeechSettingsPanel: React.FC = () => {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="browser">Browser (Free)</SelectItem>
-                                <SelectItem value="openai" disabled={sttConfigured === false}>
-                                    OpenAI Whisper {sttConfigured === false ? "(Not Configured)" : ""}
-                                </SelectItem>
-                                <SelectItem value="azure" disabled={sttConfigured === false}>
-                                    Azure Speech {sttConfigured === false ? "(Not Configured)" : ""}
-                                </SelectItem>
+                                {sttProviders?.openai && <SelectItem value="openai">OpenAI Whisper</SelectItem>}
+                                {sttProviders?.azure && <SelectItem value="azure">Azure Speech</SelectItem>}
                             </SelectContent>
                         </Select>
                     </div>
@@ -246,11 +248,6 @@ export const SpeechSettingsPanel: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Browser STT Info */}
-                    {settings.speechToText && settings.sttProvider === "browser" && (
-                        <MessageBanner variant="info" message="Browser Mode (Free) - Uses your browser's built-in speech recognition. Works in Chrome, Edge, and Safari. No API key or backend configuration required." />
-                    )}
-
                     {/* Language */}
                     <div className="flex items-center justify-between">
                         <Label className="font-medium">Language</Label>
@@ -294,11 +291,6 @@ export const SpeechSettingsPanel: React.FC = () => {
                         <Select
                             value={settings.ttsProvider}
                             onValueChange={(value: "browser" | "gemini" | "azure" | "polly") => {
-                                // If switching to external provider but not configured, show warning
-                                if (value !== "browser" && ttsConfigured === false) {
-                                    alert("External TTS is not configured. Please add TTS configuration to webui.yaml first.");
-                                    return;
-                                }
                                 // Update both provider and engine based on selection
                                 updateSetting("ttsProvider", value);
                                 updateSetting("engineTTS", value === "browser" ? "browser" : "external");
@@ -310,15 +302,9 @@ export const SpeechSettingsPanel: React.FC = () => {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="browser">Browser (Free)</SelectItem>
-                                <SelectItem value="gemini" disabled={ttsConfigured === false}>
-                                    Google Gemini {ttsConfigured === false ? "(Not Configured)" : ""}
-                                </SelectItem>
-                                <SelectItem value="azure" disabled={ttsConfigured === false}>
-                                    Azure Neural {ttsConfigured === false ? "(Not Configured)" : ""}
-                                </SelectItem>
-                                <SelectItem value="polly" disabled={ttsConfigured === false}>
-                                    AWS Polly {ttsConfigured === false ? "(Not Configured)" : ""}
-                                </SelectItem>
+                                {ttsProviders?.gemini && <SelectItem value="gemini">Google Gemini</SelectItem>}
+                                {ttsProviders?.azure && <SelectItem value="azure">Azure Neural</SelectItem>}
+                                {ttsProviders?.polly && <SelectItem value="polly">AWS Polly</SelectItem>}
                             </SelectContent>
                         </Select>
                     </div>
@@ -371,11 +357,6 @@ export const SpeechSettingsPanel: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                    )}
-
-                    {/* Browser TTS Info */}
-                    {settings.textToSpeech && settings.ttsProvider === "browser" && (
-                        <MessageBanner variant="info" message="Browser Mode (Free) - Uses your browser's built-in text-to-speech. No API key or backend configuration required. Voice quality depends on your browser and operating system." />
                     )}
 
                     {/* Voice Selection - Only show for External API */}

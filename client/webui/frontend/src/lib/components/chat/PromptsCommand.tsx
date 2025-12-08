@@ -5,11 +5,11 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, FileText, Plus } from "lucide-react";
+import { Search, NotepadText, Plus } from "lucide-react";
 import type { MessageFE, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { VariableDialog } from "./VariableDialog";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { fetchJsonWithError } from "@/lib/utils/api";
 
 export type ChatCommand = "create-template";
 
@@ -17,7 +17,7 @@ interface ReservedCommand {
     command: ChatCommand;
     name: string;
     description: string;
-    icon: typeof FileText;
+    icon: typeof NotepadText;
 }
 
 const RESERVED_COMMANDS: ReservedCommand[] = [
@@ -25,7 +25,7 @@ const RESERVED_COMMANDS: ReservedCommand[] = [
         command: "create-template",
         name: "Create Template from Session",
         description: "Create a reusable prompt template from this conversation",
-        icon: FileText,
+        icon: NotepadText,
     },
 ];
 
@@ -59,13 +59,8 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
         const fetchPromptGroups = async () => {
             setIsLoading(true);
             try {
-                const response = await authenticatedFetch("/api/v1/prompts/groups/all", {
-                    credentials: "include",
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    setPromptGroups(data);
-                }
+                const data = await fetchJsonWithError("/api/v1/prompts/groups/all");
+                setPromptGroups(data);
             } catch (error) {
                 console.error("Failed to fetch prompt groups:", error);
             } finally {
@@ -141,7 +136,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
     // Handle prompt selection
     const handlePromptSelect = useCallback(
         (group: PromptGroup) => {
-            const promptText = group.production_prompt?.prompt_text || "";
+            const promptText = group.productionPrompt?.promptText || "";
 
             // Check for variables
             const variables = detectVariables(promptText);
@@ -240,7 +235,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
             {/* Backdrop */}
             <div ref={backdropRef} className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
 
-            <div className="fixed top-1/3 left-1/2 z-50 w-full max-w-[672px] -translate-x-1/2 px-4">
+            <div data-testid="promptCommand" className="fixed top-1/3 left-1/2 z-50 w-full max-w-[672px] -translate-x-1/2 px-4">
                 <div ref={popoverRef} className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg" style={{ maxHeight: "60vh" }}>
                     {/* Search Input */}
                     <div className="flex items-center gap-2 border-b border-[var(--border)] p-3">
@@ -291,7 +286,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
                                             className={`w-full rounded-md p-3 text-left transition-colors ${index === activeIndex ? "bg-[var(--accent)]" : !isKeyboardMode ? "hover:bg-[var(--accent)]" : ""}`}
                                         >
                                             <div className="flex items-start gap-3">
-                                                <FileText className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
+                                                <NotepadText className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         {group.command && <span className="font-mono text-xs text-[var(--primary)]">/{group.command}</span>}

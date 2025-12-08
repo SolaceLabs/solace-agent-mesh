@@ -10,7 +10,7 @@ import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useChatContext, useTaskContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useThemeContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
@@ -40,7 +40,23 @@ const PANEL_SIZES_OPEN = {
 
 export function ChatPage() {
     const { activeProject } = useProjectContext();
-    const { agents, sessionName, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, isLoadingSession, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, currentTaskId } = useChatContext();
+    const { currentTheme } = useThemeContext();
+    const {
+        agents,
+        sessionName,
+        messages,
+        isSidePanelCollapsed,
+        setIsSidePanelCollapsed,
+        openSidePanelTab,
+        setTaskIdInSidePanel,
+        isResponding,
+        latestStatusText,
+        isLoadingSession,
+        sessionToDelete,
+        closeSessionDeleteModal,
+        confirmSessionDelete,
+        currentTaskId,
+    } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
@@ -180,19 +196,13 @@ export function ChatPage() {
                     title={
                         <div className="flex items-center gap-3">
                             <Tooltip delayDuration={300}>
-                                <TooltipTrigger className="truncate max-w-[400px] cursor-default text-left border-0 bg-transparent p-0 hover:bg-transparent font-inherit text-inherit">
-                                    {pageTitle}
-                                </TooltipTrigger>
+                                <TooltipTrigger className="font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit hover:bg-transparent">{pageTitle}</TooltipTrigger>
                                 <TooltipContent side="bottom">
                                     <p>{pageTitle}</p>
                                 </TooltipContent>
                             </Tooltip>
                             {activeProject && (
-                                <Badge
-                                    variant="outline"
-                                    className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm max-w-[200px]"
-                                    title={activeProject.name}
-                                >
+                                <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary max-w-[200px] px-2 py-0.5 text-xs font-semibold shadow-sm" title={activeProject.name}>
                                     <span className="block truncate text-left">{activeProject.name}</span>
                                 </Badge>
                             )}
@@ -216,13 +226,19 @@ export function ChatPage() {
             <div className="flex min-h-0 flex-1">
                 <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
-                        <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
+                        <ResizablePanel
+                            defaultSize={chatPanelSizes.default}
+                            minSize={chatPanelSizes.min}
+                            maxSize={chatPanelSizes.max}
+                            id="chat-panel"
+                            style={{ backgroundColor: currentTheme === "dark" ? "var(--color-background-w100)" : "var(--color-background-w20)" }}
+                        >
                             <div className="flex h-full w-full flex-col">
-                                <div className="flex flex-1 flex-col py-6 min-h-0">
+                                <div className="flex min-h-0 flex-1 flex-col py-6">
                                     {isLoadingSession ? (
                                         <div className="flex h-full items-center justify-center">
                                             <Spinner size="medium" variant="primary">
-                                                <p className="text-sm text-muted-foreground mt-4">Loading session...</p>
+                                                <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
                                             </Spinner>
                                         </div>
                                     ) : (
@@ -264,7 +280,7 @@ export function ChatPage() {
                     </ResizablePanelGroup>
                 </div>
             </div>
-            <ChatSessionDeleteDialog isOpen={!!sessionToDelete} onClose={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || `Session ${sessionToDelete?.id.substring(0, 8)}`} />
+            <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
         </div>
     );
 }

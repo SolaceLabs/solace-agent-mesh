@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-import { Pencil, Trash2, FileText, Tag, History, MoreHorizontal, MessageSquare, Star, Download } from "lucide-react";
+import { Pencil, Trash2, NotepadText, Tag, History, MoreHorizontal, MessageSquare, Star, Download } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -57,7 +57,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
     const handleTogglePin = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (onTogglePin) {
-            onTogglePin(prompt.id, prompt.is_pinned);
+            onTogglePin(prompt.id, prompt.isPinned);
         }
     };
 
@@ -70,11 +70,11 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
     };
 
     return (
-        <GridCard isSelected={isSelected} onClick={onPromptClick}>
+        <GridCard data-testid={prompt.id} isSelected={isSelected} onClick={onPromptClick}>
             <div className="flex h-full w-full flex-col">
                 <div className="flex items-center justify-between px-4">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <FileText className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                        <NotepadText className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
                         <div className="min-w-0">
                             <h2 className="truncate text-lg font-semibold" title={prompt.name}>
                                 {prompt.name}
@@ -83,8 +83,8 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
                     </div>
                     <div className="flex items-center gap-1">
                         {onTogglePin && (
-                            <Button variant="ghost" size="icon" onClick={handleTogglePin} className={prompt.is_pinned ? "text-primary" : "text-muted-foreground"} tooltip={prompt.is_pinned ? "Remove from favorites" : "Add to favorites"}>
-                                <Star size={16} fill={prompt.is_pinned ? "currentColor" : "none"} />
+                            <Button variant="ghost" size="icon" onClick={handleTogglePin} className={prompt.isPinned ? "text-primary" : "text-muted-foreground"} tooltip={prompt.isPinned ? "Remove from favorites" : "Add to favorites"}>
+                                <Star size={16} fill={prompt.isPinned ? "currentColor" : "none"} />
                             </Button>
                         )}
                         <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
@@ -106,7 +106,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
                                 {onUseInChat && (
                                     <DropdownMenuItem onClick={handleUseInChat}>
                                         <MessageSquare size={14} className="mr-2" />
-                                        Use in Chat
+                                        Use in New Chat
                                     </DropdownMenuItem>
                                 )}
                                 {onExport && (
@@ -134,7 +134,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
                     </div>
                 </div>
                 <div className="flex flex-grow flex-col overflow-hidden px-4">
-                    <div className="text-muted-foreground mb-2 text-xs">By {prompt.author_name || prompt.user_id}</div>
+                    <div className="text-muted-foreground mb-2 text-xs">By {prompt.authorName || prompt.userId}</div>
                     <div className="mb-3 line-clamp-2 text-sm leading-5">{prompt.description || "No description provided."}</div>
                     <div className="mt-auto">
                         <div className="flex flex-wrap items-center gap-2">

@@ -1,20 +1,6 @@
-import React, { useState, useEffect, useCallback, type JSX } from "react";
+import { useState, useEffect, useCallback, type JSX } from "react";
 import { useBlocker } from "react-router-dom";
 import { ConfirmationDialog } from "../components/common/ConfirmationDialog";
-
-// Confirmation dialog component used as blocker
-interface NavigationConfirmationDialogProps {
-    isOpen: boolean;
-    onConfirm: () => void;
-    onCancel: () => void;
-    onOpenChange: (isOpen: boolean) => void;
-}
-
-const NavigationConfirmationDialog: React.FC<NavigationConfirmationDialogProps> = ({ isOpen, onConfirm, onCancel, onOpenChange }) => {
-    return (
-        <ConfirmationDialog title="Unsaved Changes Will Be Discarded" message="Leaving the form will discard any unsaved changes. Are you sure you want to leave?" onClose={onCancel} onConfirm={onConfirm} open={isOpen} onOpenChange={onOpenChange} />
-    );
-};
 
 interface UseNavigationBlockerReturn {
     NavigationBlocker: () => JSX.Element | null;
@@ -57,7 +43,16 @@ export function useNavigationBlocker(): UseNavigationBlockerReturn {
     }, []);
 
     const NavigationBlocker = useCallback(() => {
-        return <NavigationConfirmationDialog isOpen={showConfirmationDialog} onConfirm={confirmNavigation} onCancel={cancelNavigation} onOpenChange={setShowConfirmationDialog} />;
+        return (
+            <ConfirmationDialog
+                title="Unsaved Changes Will Be Discarded"
+                description="Leaving the form will discard any unsaved changes. Are you sure you want to leave?"
+                open={showConfirmationDialog}
+                onConfirm={confirmNavigation}
+                onCancel={cancelNavigation}
+                onOpenChange={setShowConfirmationDialog}
+            />
+        );
     }, [showConfirmationDialog, confirmNavigation, cancelNavigation]);
 
     return {

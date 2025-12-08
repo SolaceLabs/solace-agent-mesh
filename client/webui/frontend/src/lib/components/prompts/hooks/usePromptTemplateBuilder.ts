@@ -1,23 +1,14 @@
 import { useState, useCallback } from "react";
 import { detectVariables, validatePromptText } from "@/lib/utils/promptUtils";
 import { useChatContext } from "@/lib/hooks";
-import type { PromptGroup } from "@/lib/types/prompts";
+import type { PromptGroup, TemplateConfig } from "@/lib/types/prompts";
 import { isReservedCommand } from "@/lib/constants/reservedCommands";
-import { authenticatedFetch } from "@/lib/utils/api";
-
-export interface TemplateConfig {
-    name?: string;
-    category?: string;
-    command?: string;
-    prompt_text?: string;
-    description?: string;
-    detected_variables?: string[];
-}
+import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
 
 export interface ValidationErrors {
     name?: string;
     command?: string;
-    prompt_text?: string;
+    promptText?: string;
     [key: string]: string | undefined;
 }
 
@@ -30,8 +21,8 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                 description: editingGroup.description,
                 category: editingGroup.category,
                 command: editingGroup.command,
-                prompt_text: editingGroup.production_prompt?.prompt_text || "",
-                detected_variables: detectVariables(editingGroup.production_prompt?.prompt_text || ""),
+                promptText: editingGroup.productionPrompt?.promptText || "",
+                detected_variables: detectVariables(editingGroup.productionPrompt?.promptText || ""),
             };
         }
         return {};
@@ -44,9 +35,9 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
         setConfig(prev => {
             const newConfig = { ...prev, ...updates };
 
-            // Auto-detect variables when prompt_text changes
-            if (updates.prompt_text !== undefined) {
-                const variables = detectVariables(updates.prompt_text || "");
+            // Auto-detect variables when promptText changes
+            if (updates.promptText !== undefined) {
+                const variables = detectVariables(updates.promptText || "");
                 newConfig.detected_variables = variables;
             }
 
@@ -85,12 +76,12 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
         }
 
         // Validate prompt text
-        if (!config.prompt_text || config.prompt_text.trim().length === 0) {
-            errors.prompt_text = "Prompt text is required";
+        if (!config.promptText || config.promptText.trim().length === 0) {
+            errors.promptText = "Prompt text is required";
         } else {
-            const validation = validatePromptText(config.prompt_text);
+            const validation = validatePromptText(config.promptText);
             if (!validation.valid) {
-                errors.prompt_text = validation.error || "Invalid prompt text";
+                errors.promptText = validation.error || "Invalid prompt text";
             }
         }
 
@@ -100,7 +91,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
 
         // Show notification to user only if valid (errors are shown in the UI banner)
         if (isValid) {
-            addNotification("✓ Template is valid and ready to save!", "success");
+            addNotification("Template is valid and ready to save!", "success");
         }
 
         return isValid;
@@ -125,29 +116,20 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                 description: config.description || null,
                 category: config.category || null,
                 command: config.command || null,
-                initial_prompt: config.prompt_text!,
+                initial_prompt: config.promptText!,
             };
 
             // Call API to create prompt group
-            const response = await authenticatedFetch("/api/v1/prompts/groups", {
+            const createdGroup = await fetchJsonWithError("/api/v1/prompts/groups", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                credentials: "include",
                 body: JSON.stringify(templateData),
             });
 
-            if (!response.ok) {
-                const error = await response.json();
-                const errorMessage = error.message || error.detail || "Failed to save template";
-                addNotification(errorMessage, "error");
-                throw new Error(errorMessage);
-            }
-
-            const createdGroup = await response.json();
             setSaveStatus("success");
-            addNotification("Template saved successfully!", "success");
+            addNotification("Template saved", "success");
             setIsLoading(false);
             return createdGroup.id;
         } catch (error) {
@@ -155,16 +137,12 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             setSaveStatus("error");
             setIsLoading(false);
 
-            // Show error notification
-            if (error instanceof Error) {
-                addNotification(error.message, "error");
-                setValidationErrors(prev => ({
-                    ...prev,
-                    _general: error.message,
-                }));
-            } else {
-                addNotification("Failed to save template", "error");
-            }
+            // Store error in validation errors for display
+            const errorMessage = getErrorMessage(error, "Failed to save template");
+            setValidationErrors(prev => ({
+                ...prev,
+                _general: errorMessage,
+            }));
 
             return null;
         }
@@ -184,9 +162,9 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                     return false;
                 }
 
-                const promptTextChanged = config.prompt_text !== editingGroup?.production_prompt?.prompt_text;
+                const promptTextChanged = config.promptText !== editingGroup?.productionPrompt?.promptText;
                 const isEditingActiveVersion = editingGroup?._isEditingActiveVersion ?? true;
-                const editingPromptId = editingGroup?._editingPromptId || editingGroup?.production_prompt_id;
+                const editingPromptId = editingGroup?._editingPromptId || editingGroup?.productionPromptId;
 
                 if (createNewVersion) {
                     // Create new version by updating group with initial_prompt
@@ -197,26 +175,18 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                     if (config.description !== editingGroup?.description) updateData.description = config.description;
                     if (config.category !== editingGroup?.category) updateData.category = config.category;
                     if (config.command !== editingGroup?.command) updateData.command = config.command;
-                    updateData.initial_prompt = config.prompt_text;
+                    updateData.initial_prompt = config.promptText;
 
-                    const response = await authenticatedFetch(`/api/v1/prompts/groups/${groupId}`, {
+                    await fetchWithError(`/api/v1/prompts/groups/${groupId}`, {
                         method: "PATCH",
                         headers: {
                             "Content-Type": "application/json",
                         },
-                        credentials: "include",
                         body: JSON.stringify(updateData),
                     });
 
-                    if (!response.ok) {
-                        const error = await response.json();
-                        const errorMessage = error.message || error.detail || "Failed to create new version";
-                        addNotification(errorMessage, "error");
-                        throw new Error(errorMessage);
-                    }
-
                     setSaveStatus("success");
-                    const message = promptTextChanged ? "New version created and activated successfully!" : "Changes saved successfully!";
+                    const message = promptTextChanged ? "New version created and activated" : "Changes saved";
                     addNotification(message, "success");
                     setIsLoading(false);
                     return true;
@@ -232,44 +202,28 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                         if (config.category !== editingGroup?.category) updateData.category = config.category;
                         if (config.command !== editingGroup?.command) updateData.command = config.command;
 
-                        const groupResponse = await authenticatedFetch(`/api/v1/prompts/groups/${groupId}`, {
+                        await fetchWithError(`/api/v1/prompts/groups/${groupId}`, {
                             method: "PATCH",
                             headers: {
                                 "Content-Type": "application/json",
                             },
-                            credentials: "include",
                             body: JSON.stringify(updateData),
                         });
-
-                        if (!groupResponse.ok) {
-                            const error = await groupResponse.json();
-                            const errorMessage = error.message || error.detail || "Failed to update template metadata";
-                            addNotification(errorMessage, "error");
-                            throw new Error(errorMessage);
-                        }
                     }
 
                     // Then update prompt text if it changed
                     if (promptTextChanged && editingPromptId) {
-                        const promptResponse = await authenticatedFetch(`/api/v1/prompts/${editingPromptId}`, {
+                        await fetchWithError(`/api/v1/prompts/${editingPromptId}`, {
                             method: "PATCH",
                             headers: {
                                 "Content-Type": "application/json",
                             },
-                            credentials: "include",
-                            body: JSON.stringify({ prompt_text: config.prompt_text }),
+                            body: JSON.stringify({ promptText: config.promptText }),
                         });
-
-                        if (!promptResponse.ok) {
-                            const error = await promptResponse.json();
-                            const errorMessage = error.message || error.detail || "Failed to update prompt text";
-                            addNotification(errorMessage, "error");
-                            throw new Error(errorMessage);
-                        }
                     }
 
                     setSaveStatus("success");
-                    const message = isEditingActiveVersion ? "Active version updated successfully!" : "Version updated successfully!";
+                    const message = isEditingActiveVersion ? "Active version updated" : "Version updated";
                     addNotification(message, "success");
                     setIsLoading(false);
                     return true;
@@ -279,11 +233,12 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                 setSaveStatus("error");
                 setIsLoading(false);
 
-                if (error instanceof Error) {
-                    addNotification(error.message, "error");
-                } else {
-                    addNotification("Failed to update template", "error");
-                }
+                // Store error in validation errors for display
+                const errorMessage = getErrorMessage(error, "Failed to update template");
+                setValidationErrors(prev => ({
+                    ...prev,
+                    _general: errorMessage,
+                }));
 
                 return false;
             }

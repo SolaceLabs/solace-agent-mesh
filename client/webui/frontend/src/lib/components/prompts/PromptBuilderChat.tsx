@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Loader2, Sparkles } from "lucide-react";
-import { Button, Textarea } from "@/lib/components/ui";
-import type { TemplateConfig } from "./hooks/usePromptTemplateBuilder";
-import { authenticatedFetch } from "@/lib/utils/api";
+
+import { AudioRecorder, Button, MessageBanner, Textarea } from "@/lib/components";
+import { useAudioSettings, useConfigContext } from "@/lib/hooks";
+import { authenticatedFetch } from "@/lib/utils";
+import type { TemplateConfig } from "@/lib/types";
 
 interface Message {
     role: "user" | "assistant";
@@ -34,6 +36,13 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const initRef = useRef(false);
+
+    // Speech-to-text support
+    const { settings } = useAudioSettings();
+    const { configFeatureEnablement } = useConfigContext();
+    const sttEnabled = configFeatureEnablement?.speechToText ?? true;
+    const [sttError, setSttError] = useState<string | null>(null);
+    const [isRecording, setIsRecording] = useState(false);
 
     // Auto-scroll to bottom when new messages arrive
     const scrollToBottom = () => {
@@ -182,6 +191,26 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
         adjustHeight();
     }, [input]);
 
+    // Handle transcription from AudioRecorder
+    const handleTranscription = useCallback(
+        (text: string) => {
+            // Append transcribed text to current input
+            const newText = input ? `${input} ${text}` : text;
+            setInput(newText);
+
+            // Focus the input after transcription
+            setTimeout(() => {
+                inputRef.current?.focus();
+            }, 100);
+        },
+        [input]
+    );
+
+    // Handle STT errors with persistent banner
+    const handleTranscriptionError = useCallback((error: string) => {
+        setSttError(error);
+    }, []);
+
     const handleSend = async () => {
         if (!input.trim() || isLoading) return;
 
@@ -303,6 +332,13 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
             {/* Input Area */}
             <div className="bg-background border-t p-4">
+                {/* STT Error Banner */}
+                {sttError && (
+                    <div className="mb-3">
+                        <MessageBanner variant="error" message={sttError} dismissible onDismiss={() => setSttError(null)} />
+                    </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="relative">
                     <Textarea
                         ref={inputRef}
@@ -314,15 +350,19 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                                 handleSend();
                             }
                         }}
-                        placeholder={hasUserMessage ? "Type your message..." : "Describe your recurring task..."}
-                        disabled={isLoading}
-                        className="max-h-[200px] min-h-[40px] resize-none overflow-y-auto pr-12"
+                        placeholder={isRecording ? "Recording..." : hasUserMessage ? "Type your message..." : "Describe your recurring task..."}
+                        disabled={isLoading || isRecording}
+                        className="max-h-[200px] min-h-[40px] resize-none overflow-y-auto pr-24"
                         rows={1}
                         style={{ height: "40px" }}
                     />
-                    <Button type="submit" disabled={!input.trim() || isLoading} variant="ghost" size="icon" className="absolute top-1/2 right-2 -translate-y-1/2" tooltip="Send message">
-                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    </Button>
+                    <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
+                        {/* Microphone button - show if STT feature enabled and STT setting enabled */}
+                        {sttEnabled && settings.speechToText && <AudioRecorder disabled={isLoading} onTranscriptionComplete={handleTranscription} onError={handleTranscriptionError} onRecordingStateChange={setIsRecording} />}
+                        <Button type="submit" disabled={!input.trim() || isLoading} variant="ghost" size="icon" tooltip="Send message">
+                            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        </Button>
+                    </div>
                 </form>
             </div>
         </div>

@@ -134,10 +134,29 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({
-                        detail: `Failed to add files: ${response.statusText}`,
-                    }));
-                    throw new Error(errorData.detail || `Failed to add files: ${response.statusText}`);
+                    const responseText = await response.text();
+                    let errorMessage = `Failed to add files: ${response.statusText}`;
+
+                    try {
+                        const errorData = JSON.parse(responseText);
+                        errorMessage = errorData.detail || errorData.message || errorMessage;
+                    } catch {
+                        // If JSON parsing fails, check if we have a meaningful response text
+                        if (responseText && responseText.length < 500) {
+                            errorMessage = responseText;
+                        }
+                    }
+
+                    // Provide user-friendly message for file size errors
+                    if (response.status === 413) {
+                        // If we have a detailed message from the backend, use it
+                        // Otherwise provide a generic but helpful message
+                        if (!errorMessage.includes("exceeds maximum") && !errorMessage.includes("too large")) {
+                            errorMessage = "One or more files exceed the maximum allowed size. Please try uploading smaller files.";
+                        }
+                    }
+
+                    throw new Error(errorMessage);
                 }
                 // Clear any previous errors on success
                 setError(null);
@@ -185,6 +204,40 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
         },
         [apiPrefix, projectsEnabled, fetchProjects]
+    );
+
+    const updateFileMetadata = useCallback(
+        async (projectId: string, filename: string, description: string): Promise<void> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append("description", description);
+
+                const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
+                    method: "PATCH",
+                    body: formData,
+                    credentials: "include",
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({
+                        detail: `Failed to update file metadata: ${response.statusText}`,
+                    }));
+                    throw new Error(errorData.detail || `Failed to update file metadata: ${response.statusText}`);
+                }
+                // Clear any previous errors on success
+                setError(null);
+            } catch (err: unknown) {
+                console.error("Error updating file metadata:", err);
+                const errorMessage = err instanceof Error ? err.message : "Could not update file metadata.";
+                // Don't set global error for file operations - let component handle it
+                throw new Error(errorMessage);
+            }
+        },
+        [apiPrefix, projectsEnabled]
     );
 
     const updateProject = useCallback(
@@ -345,6 +398,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setActiveProject,
         addFilesToProject,
         removeFileFromProject,
+        updateFileMetadata,
         updateProject,
         deleteProject,
         searchQuery,

@@ -207,6 +207,7 @@ async def upload_artifact_with_session(
 
     # Handle session creation logic (matching chat API pattern)
     effective_session_id = None
+    is_new_session = False  # Track if we created a new session
 
     # Use session ID from request body (matching sessionId pattern in session APIs)
     if sessionId and sessionId.strip():
@@ -215,6 +216,7 @@ async def upload_artifact_with_session(
     else:
         # Create new session when no sessionId provided (like chat does for new conversations)
         effective_session_id = session_manager.create_new_session_id(request)
+        is_new_session = True  # Mark that we created this session
         log.info(
             "%sCreated new session for file upload: %s",
             log_prefix,
@@ -273,7 +275,8 @@ async def upload_artifact_with_session(
         )
 
     # Validate session (now that we have an effective_session_id)
-    if not validate_session(effective_session_id, user_id):
+    # Skip validation if we just created the session to avoid race conditions
+    if not is_new_session and not validate_session(effective_session_id, user_id):
         log.warning(
             "%sSession validation failed for session: %s",
             log_prefix,

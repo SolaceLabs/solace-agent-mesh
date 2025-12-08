@@ -58,3 +58,20 @@ def get_original_session_id(invocation_context: Any) -> str:
     else:
         raw_session_id = invocation_context.session.id
     return raw_session_id.split(":", 1)[0] if ":" in raw_session_id else raw_session_id
+
+
+def get_user_timezone(invocation_context: Any) -> str:
+    """
+    Extract the user's timezone from an invocation context.
+
+    Args:
+        invocation_context: The invocation context object from tool_context.
+                            Typically accessed via `tool_context._invocation_context`.
+
+    Returns:
+        str: The user's timezone (e.g., "America/Toronto").
+             Returns "UTC" if timezone is not available in the context.
+    """
+    if hasattr(invocation_context, "user_timezone"):
+        return invocation_context.user_timezone or "UTC"
+    return "UTC"

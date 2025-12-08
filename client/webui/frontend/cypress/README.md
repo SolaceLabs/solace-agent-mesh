@@ -165,7 +165,7 @@ Ensure the following are installed:
 
 - Node.js (>=20.8.10)
 - npm or yarn
-- Cypress dependencies (`npm install`)
+- Cypress dependencies (`npm ci`)
 
 ### Development Server
 
