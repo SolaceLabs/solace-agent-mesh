@@ -146,7 +146,8 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
     }
 
     // Use cached content if available, otherwise fall back to previewFileContent
-    const contentSource = cachedContent || previewFileContent;
+    // But only if it matches the current artifact filename to avoid showing stale content
+    const contentSource = cachedContent || (previewFileContent?.name === artifact.filename ? previewFileContent : null);
     const rendererType = getRenderType(artifact.filename, artifact.mime_type);
     const content = getFileContent(contentSource);
 
