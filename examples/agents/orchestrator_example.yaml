@@ -55,6 +55,8 @@ apps:
           group_name: "artifact_management"
         - tool_type: builtin-group
           group_name: "data_analysis"
+        - tool_type: builtin
+          tool_name: "get_current_time"
       stream_batching_threshold_bytes: 50
       inject_system_purpose: true
       inject_response_format: true

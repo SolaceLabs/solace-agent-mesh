@@ -52,11 +52,11 @@ const ChatBubbleAvatar: React.FC<ChatBubbleAvatarProps> = ({ src, fallback, clas
 );
 
 // ChatBubbleMessage
-const chatBubbleMessageVariants = cva("p-4", {
+const chatBubbleMessageVariants = cva("", {
     variants: {
         variant: {
             received: "rounded-r-lg rounded-tl-lg",
-            sent: "rounded-l-lg rounded-tr-lg justify-end bg-[var(--message-background)]",
+            sent: "rounded-l-lg rounded-tr-lg justify-end bg-[var(--message-background)] p-4",
         },
         layout: {
             default: "",
@@ -74,7 +74,7 @@ interface ChatBubbleMessageProps extends React.HTMLAttributes<HTMLDivElement>, V
 }
 
 const ChatBubbleMessage = React.forwardRef<HTMLDivElement, ChatBubbleMessageProps>(({ className, variant, layout, children, ...props }, ref) => (
-    <div className={cn(chatBubbleMessageVariants({ variant, layout, className }), "relative max-w-full break-words")} ref={ref} {...props}>
+    <div className={cn(chatBubbleMessageVariants({ variant, layout, className }), "relative max-w-full leading-[150%] break-words")} ref={ref} {...props}>
         <>{children}</>
     </div>
 ));

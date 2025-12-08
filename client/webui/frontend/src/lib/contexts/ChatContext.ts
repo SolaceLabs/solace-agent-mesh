@@ -1,6 +1,13 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentCardInfo, ArtifactInfo, ArtifactRenderingState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
+import type { AgentCardInfo, ArtifactInfo, ArtifactRenderingState, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
+
+/** Pending prompt data for starting a new chat with a prompt template */
+export interface PendingPromptData {
+    promptText: string;
+    groupId: string;
+    groupName: string;
+}
 
 export interface ChatState {
     configCollectFeedback: boolean;
@@ -45,6 +52,11 @@ export interface ChatState {
     submittedFeedback: Record<string, { type: "up" | "down"; text: string }>;
     // Artifact Rendering State
     artifactRenderingState: ArtifactRenderingState;
+    // Pending prompt for starting new chat
+    pendingPrompt: PendingPromptData | null;
+    // Background Task Monitoring State
+    backgroundTasks: BackgroundTaskState[];
+    backgroundNotifications: BackgroundTaskNotification[];
 }
 
 export interface ChatActions {
@@ -52,13 +64,17 @@ export interface ChatActions {
     setSessionName: React.Dispatch<React.SetStateAction<string | null>>;
     setMessages: React.Dispatch<React.SetStateAction<MessageFE[]>>;
     setTaskIdInSidePanel: React.Dispatch<React.SetStateAction<string | null>>;
-    handleNewSession: (preserveProjectContext?: boolean) => void;
+    handleNewSession: (preserveProjectContext?: boolean) => Promise<void>;
+    /** Start a new chat session with a prompt template pre-filled */
+    startNewChatWithPrompt: (promptData: PendingPromptData) => void;
+    /** Clear the pending prompt (called after it's been applied) */
+    clearPendingPrompt: () => void;
     handleSwitchSession: (sessionId: string) => Promise<void>;
-    handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null) => Promise<void>;
+    handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null, overrideSessionId?: string | null) => Promise<void>;
     handleCancel: () => void;
-    addNotification: (message: string, type?: "success" | "info" | "error") => void;
+    addNotification: (message: string, type?: "success" | "info" | "warning") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
-    uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
+    uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string, silent?: boolean) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
     setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;
@@ -81,8 +97,6 @@ export interface ChatActions {
     openArtifactForPreview: (artifactFilename: string, autoRun?: boolean) => Promise<FileAttachment | null>;
     navigateArtifactVersion: (artifactFilename: string, targetVersion: number) => Promise<FileAttachment | null>;
 
-    openMessageAttachmentForPreview: (file: FileAttachment, autoRun?: boolean) => void;
-
     /** Artifact Display and Cache Management */
     markArtifactAsDisplayed: (filename: string, displayed: boolean) => void;
     downloadAndResolveArtifact: (filename: string) => Promise<FileAttachment | null>;
@@ -96,6 +110,11 @@ export interface ChatActions {
     updateSessionName: (sessionId: string, newName: string, showNotification?: boolean) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
     handleFeedbackSubmit: (taskId: string, feedbackType: "up" | "down", feedbackText: string) => Promise<void>;
+
+    displayError: ({ title, error }: { title: string; error: string }) => void;
+
+    /** Background Task Monitoring Actions */
+    isTaskRunningInBackground: (taskId: string) => boolean;
 }
 
 export type ChatContextValue = ChatState & ChatActions;

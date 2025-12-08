@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 
 import type { ArtifactInfo } from "@/lib/types";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { fetchJsonWithError } from "@/lib/utils/api";
 
 import { useConfigContext } from "./useConfigContext";
 
@@ -34,19 +34,10 @@ export const useProjectArtifacts = (projectId?: string): UseProjectArtifactsRetu
 
         setIsLoading(true);
         setError(null);
-        
+
         try {
             const url = `${apiPrefix}/projects/${projectId}/artifacts`;
-            const response = await authenticatedFetch(url, { credentials: "include" });
-            
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ 
-                    message: `Failed to fetch project artifacts. ${response.statusText}` 
-                }));
-                throw new Error(errorData.message || `Failed to fetch project artifacts. ${response.statusText}`);
-            }
-            
-            const data: ArtifactInfo[] = await response.json();
+            const data: ArtifactInfo[] = await fetchJsonWithError(url);
             setArtifacts(data);
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : "Failed to fetch project artifacts.";

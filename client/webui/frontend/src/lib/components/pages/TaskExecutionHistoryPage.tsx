@@ -2,21 +2,16 @@
  * Full-page view for scheduled task execution history
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { MoreHorizontal, FileText, Download, ArrowLeft, ChevronRight, ChevronLeft } from 'lucide-react';
-import type { ScheduledTask, TaskExecution, ArtifactInfo } from '@/lib/types/scheduled-tasks';
-import { Header } from '@/lib/components/header';
-import { Button, Label } from '@/lib/components/ui';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/lib/components/ui';
-import { useChatContext } from '@/lib/hooks';
-import { authenticatedFetch } from '@/lib/utils/api';
-import { ContentRenderer } from '@/lib/components/chat/preview/ContentRenderer';
-import { getRenderType } from '@/lib/components/chat/preview/previewUtils';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { MoreHorizontal, FileText, Download, ArrowLeft, ChevronRight, ChevronLeft } from "lucide-react";
+import type { ScheduledTask, TaskExecution, ArtifactInfo } from "@/lib/types/scheduled-tasks";
+import { Header } from "@/lib/components/header";
+import { Button, Label } from "@/lib/components/ui";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
+import { useChatContext } from "@/lib/hooks";
+import { authenticatedFetch } from "@/lib/utils/api";
+import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
+import { getRenderType } from "@/lib/components/chat/preview/previewUtils";
 
 interface TaskExecutionHistoryPageProps {
     task: ScheduledTask;
@@ -25,12 +20,7 @@ interface TaskExecutionHistoryPageProps {
     onDelete: (id: string, name: string) => void;
 }
 
-export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> = ({
-    task,
-    onBack,
-    onEdit,
-    onDelete,
-}) => {
+export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> = ({ task, onBack, onEdit, onDelete }) => {
     const { addNotification } = useChatContext();
     const [executions, setExecutions] = useState<TaskExecution[]>([]);
     const [selectedExecution, setSelectedExecution] = useState<TaskExecution | null>(null);
@@ -44,27 +34,27 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
         setIsLoading(true);
         try {
             const response = await authenticatedFetch(`/api/v1/scheduled-tasks/${task.id}/executions`, {
-                credentials: 'include',
+                credentials: "include",
             });
-            
+
             if (response.ok) {
                 const data = await response.json();
                 // API returns { executions: [], total: number, skip: number, limit: number }
                 const executionsList = data.executions || [];
                 setExecutions(executionsList);
-                
+
                 // Auto-select the first execution on initial load
                 if (executionsList.length > 0 && !hasInitializedRef.current) {
                     hasInitializedRef.current = true;
                     setSelectedExecution(executionsList[0]);
                 }
             } else {
-                console.error('Failed to fetch executions:', response.status, response.statusText);
-                addNotification(`Failed to load execution history: ${response.statusText}`, 'error');
+                console.error("Failed to fetch executions:", response.status, response.statusText);
+                addNotification(`Failed to load execution history: ${response.statusText}`, "warning");
             }
         } catch (error) {
-            console.error('Failed to fetch executions:', error);
-            addNotification('Failed to load execution history', 'error');
+            console.error("Failed to fetch executions:", error);
+            addNotification("Failed to load execution history", "warning");
         } finally {
             setIsLoading(false);
         }
@@ -76,9 +66,10 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
 
     const formatTimestamp = (timestamp: number) => {
         // Check if timestamp is in seconds (< year 3000 in seconds) or milliseconds
-        const date = timestamp < 10000000000
-            ? new Date(timestamp * 1000)  // Convert seconds to milliseconds
-            : new Date(timestamp);         // Already in milliseconds
+        const date =
+            timestamp < 10000000000
+                ? new Date(timestamp * 1000) // Convert seconds to milliseconds
+                : new Date(timestamp); // Already in milliseconds
         return date.toLocaleString();
     };
 
@@ -91,17 +82,13 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
 
     const getStatusBadge = (status: string) => {
         const statusConfig = {
-            completed: { bg: 'bg-[var(--color-success-w20)]', text: 'text-[var(--color-success-wMain)]', label: 'Completed' },
-            failed: { bg: 'bg-[var(--color-error-w20)]', text: 'text-[var(--color-error-wMain)]', label: 'Failed' },
-            running: { bg: 'bg-[var(--color-info-w20)]', text: 'text-[var(--color-info-wMain)]', label: 'Running' },
-            timeout: { bg: 'bg-[var(--color-warning-w20)]', text: 'text-[var(--color-warning-wMain)]', label: 'Timeout' },
+            completed: { bg: "bg-[var(--color-success-w20)]", text: "text-[var(--color-success-wMain)]", label: "Completed" },
+            failed: { bg: "bg-[var(--color-error-w20)]", text: "text-[var(--color-error-wMain)]", label: "Failed" },
+            running: { bg: "bg-[var(--color-info-w20)]", text: "text-[var(--color-info-wMain)]", label: "Running" },
+            timeout: { bg: "bg-[var(--color-warning-w20)]", text: "text-[var(--color-warning-wMain)]", label: "Timeout" },
         };
         const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.failed;
-        return (
-            <span className={`text-xs px-2 py-0.5 rounded-full ${config.bg} ${config.text}`}>
-                {config.label}
-            </span>
-        );
+        return <span className={`rounded-full px-2 py-0.5 text-xs ${config.bg} ${config.text}`}>{config.label}</span>;
     };
 
     const renderResponse = (execution: TaskExecution) => {
@@ -112,9 +99,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
         if (summary.agent_response) {
             return (
                 <div className="space-y-2">
-                    <div className="p-3 rounded bg-muted/30 text-sm whitespace-pre-wrap break-words">
-                        {summary.agent_response}
-                    </div>
+                    <div className="bg-muted/30 rounded p-3 text-sm break-words whitespace-pre-wrap">{summary.agent_response}</div>
                 </div>
             );
         }
@@ -125,12 +110,8 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                 <div className="space-y-3">
                     {summary.messages.map((msg, idx: number) => (
                         <div key={idx} className="space-y-1">
-                            <div className="text-xs font-medium text-muted-foreground capitalize">
-                                {msg.role || 'Unknown'}
-                            </div>
-                            <div className="p-3 rounded bg-muted/30 text-sm whitespace-pre-wrap break-words">
-                                {msg.text || 'No content'}
-                            </div>
+                            <div className="text-muted-foreground text-xs font-medium capitalize">{msg.role || "Unknown"}</div>
+                            <div className="bg-muted/30 rounded p-3 text-sm break-words whitespace-pre-wrap">{msg.text || "No content"}</div>
                         </div>
                     ))}
                 </div>
@@ -147,26 +128,26 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
             setArtifactContent(null);
             return;
         }
-        
+
         setPreviewArtifact(artifact);
         setArtifactContent(null);
-        
+
         if (artifact.uri) {
             setLoadingArtifact(true);
             try {
                 const response = await authenticatedFetch(artifact.uri, {
-                    credentials: 'include',
+                    credentials: "include",
                 });
-                
+
                 if (response.ok) {
                     const content = await response.text();
                     setArtifactContent(content);
                 } else {
-                    addNotification(`Failed to load artifact: ${response.statusText}`, 'error');
+                    addNotification(`Failed to load artifact: ${response.statusText}`, "warning");
                 }
             } catch (error) {
-                console.error('Failed to load artifact:', error);
-                addNotification('Failed to load artifact content', 'error');
+                console.error("Failed to load artifact:", error);
+                addNotification("Failed to load artifact content", "warning");
             } finally {
                 setLoadingArtifact(false);
             }
@@ -177,13 +158,10 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
         // Artifacts can be in execution.artifacts (top-level) or execution.result_summary.artifacts
         const topLevelArtifacts = execution.artifacts || [];
         const summaryArtifacts = execution.result_summary?.artifacts || [];
-        
+
         // Combine and normalize artifacts
-        const allArtifacts = [
-            ...topLevelArtifacts.map(a => typeof a === 'string' ? { name: a, uri: `artifact://${a}` } : a),
-            ...summaryArtifacts
-        ];
-        
+        const allArtifacts = [...topLevelArtifacts.map(a => (typeof a === "string" ? { name: a, uri: `artifact://${a}` } : a)), ...summaryArtifacts];
+
         if (allArtifacts.length === 0) {
             return <p className="text-muted-foreground text-sm">No artifacts generated</p>;
         }
@@ -191,42 +169,32 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
         return (
             <div className="space-y-2">
                 {allArtifacts.map((artifact, idx: number) => {
-                    const isViewable = artifact.uri?.startsWith('http') || artifact.uri?.startsWith('/');
-                    const filename = artifact.name || artifact.uri?.split('/').pop() || `artifact-${idx + 1}`;
-                    
+                    const isViewable = artifact.uri?.startsWith("http") || artifact.uri?.startsWith("/");
+                    const filename = artifact.name || artifact.uri?.split("/").pop() || `artifact-${idx + 1}`;
+
                     const artifactInfo: ArtifactInfo = {
                         name: filename,
-                        uri: artifact.uri || ''
+                        uri: artifact.uri || "",
                     };
-                    
+
                     const isCurrentlyPreviewed = previewArtifact?.name === filename;
-                    
+
                     return (
                         <button
                             key={idx}
                             onClick={() => isViewable && handlePreviewArtifact(artifactInfo)}
                             disabled={!isViewable}
-                            className={`w-full flex items-center justify-between p-3 rounded transition-colors text-left group ${
-                                isViewable
-                                    ? isCurrentlyPreviewed
-                                        ? 'bg-primary/10 border border-primary/20'
-                                        : 'bg-muted/30 hover:bg-primary/10 cursor-pointer'
-                                    : 'bg-muted/20 cursor-not-allowed opacity-60'
+                            className={`group flex w-full items-center justify-between rounded p-3 text-left transition-colors ${
+                                isViewable ? (isCurrentlyPreviewed ? "bg-primary/10 border-primary/20 border" : "bg-muted/30 hover:bg-primary/10 cursor-pointer") : "bg-muted/20 cursor-not-allowed opacity-60"
                             }`}
                         >
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <FileText className="size-4 text-muted-foreground flex-shrink-0" />
-                                <span className={`text-sm truncate ${isViewable ? isCurrentlyPreviewed ? 'text-primary font-medium' : 'group-hover:text-primary' : ''}`} title={filename}>
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                                <FileText className="text-muted-foreground size-4 flex-shrink-0" />
+                                <span className={`truncate text-sm ${isViewable ? (isCurrentlyPreviewed ? "text-primary font-medium" : "group-hover:text-primary") : ""}`} title={filename}>
                                     {filename}
                                 </span>
                             </div>
-                            {isViewable && (
-                                isCurrentlyPreviewed ? (
-                                    <ChevronLeft className="size-4 text-primary transition-colors" />
-                                ) : (
-                                    <ChevronRight className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                                )
-                            )}
+                            {isViewable && (isCurrentlyPreviewed ? <ChevronLeft className="text-primary size-4 transition-colors" /> : <ChevronRight className="text-muted-foreground group-hover:text-primary size-4 transition-colors" />)}
                         </button>
                     );
                 })}
@@ -235,11 +203,11 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
     };
 
     const formatScheduleExpression = (task: ScheduledTask) => {
-        if (task.schedule_type === 'cron') {
+        if (task.schedule_type === "cron") {
             return task.schedule_expression;
-        } else if (task.schedule_type === 'interval') {
+        } else if (task.schedule_type === "interval") {
             return `Every ${task.schedule_expression}`;
-        } else if (task.schedule_type === 'one_time') {
+        } else if (task.schedule_type === "one_time") {
             // Parse ISO timestamp and format it
             try {
                 const date = new Date(task.schedule_expression);
@@ -256,10 +224,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
             {/* Header with Breadcrumbs */}
             <Header
                 title={task.name}
-                breadcrumbs={[
-                    { label: "Scheduled Tasks", onClick: onBack },
-                    { label: task.name }
-                ]}
+                breadcrumbs={[{ label: "Scheduled Tasks", onClick: onBack }, { label: task.name }]}
                 buttons={[
                     <DropdownMenu key="actions-menu">
                         <DropdownMenuTrigger asChild>
@@ -268,57 +233,41 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => onEdit(task)}>
-                                Edit Task
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onDelete(task.id, task.name)}>
-                                Delete Task
-                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onEdit(task)}>Edit Task</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onDelete(task.id, task.name)}>Delete Task</DropdownMenuItem>
                         </DropdownMenuContent>
-                    </DropdownMenu>
+                    </DropdownMenu>,
                 ]}
             />
 
             {/* Content */}
-            <div className="flex flex-1 min-h-0">
+            <div className="flex min-h-0 flex-1">
                 {/* Left Sidebar - Execution List */}
-                <div className="w-[300px] border-r overflow-y-auto">
+                <div className="w-[300px] overflow-y-auto border-r">
                     <div className="p-4">
-                        <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-                            Executions ({executions.length})
-                        </h3>
+                        <h3 className="text-muted-foreground mb-3 text-sm font-semibold">Executions ({executions.length})</h3>
                         {isLoading ? (
                             <div className="flex items-center justify-center p-8">
-                                <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                <div className="border-primary size-6 animate-spin rounded-full border-2 border-t-transparent" />
                             </div>
                         ) : executions.length === 0 ? (
-                            <p className="text-sm text-muted-foreground p-4 text-center">
-                                No executions yet
-                            </p>
+                            <p className="text-muted-foreground p-4 text-center text-sm">No executions yet</p>
                         ) : (
                             <div className="space-y-2">
-                                {executions.map((execution) => {
+                                {executions.map(execution => {
                                     const isSelected = selectedExecution?.id === execution.id;
-                                    
+
                                     return (
                                         <button
                                             key={execution.id}
                                             onClick={() => setSelectedExecution(execution)}
-                                            className={`w-full text-left p-3 rounded transition-colors ${
-                                                isSelected
-                                                    ? 'bg-primary/5 border border-primary/20'
-                                                    : 'hover:bg-muted/50'
-                                            }`}
+                                            className={`w-full rounded p-3 text-left transition-colors ${isSelected ? "bg-primary/5 border-primary/20 border" : "hover:bg-muted/50"}`}
                                         >
-                                            <div className="flex items-center justify-between mb-2">
+                                            <div className="mb-2 flex items-center justify-between">
                                                 {getStatusBadge(execution.status)}
-                                                <span className="text-xs text-muted-foreground">
-                                                    {execution.duration_ms ? formatDuration(execution.duration_ms) : '-'}
-                                                </span>
+                                                <span className="text-muted-foreground text-xs">{execution.duration_ms ? formatDuration(execution.duration_ms) : "-"}</span>
                                             </div>
-                                            <span className="text-xs text-muted-foreground block">
-                                                {execution.started_at ? formatTimestamp(execution.started_at) : 'Pending'}
-                                            </span>
+                                            <span className="text-muted-foreground block text-xs">{execution.started_at ? formatTimestamp(execution.started_at) : "Pending"}</span>
                                         </button>
                                     );
                                 })}
@@ -328,48 +277,38 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                 </div>
 
                 {/* Center Panel - Execution Details */}
-                <div className={`flex-1 overflow-y-auto ${previewArtifact ? 'border-r' : ''}`}>
+                <div className={`flex-1 overflow-y-auto ${previewArtifact ? "border-r" : ""}`}>
                     {selectedExecution ? (
                         <div className="p-6">
-                            <div className="max-w-4xl mx-auto space-y-6">
+                            <div className="mx-auto max-w-4xl space-y-6">
                                 {/* Header */}
                                 <div className="flex items-center justify-between">
-                                    <h2 className="text-lg font-semibold">
-                                        Execution Details
-                                    </h2>
+                                    <h2 className="text-lg font-semibold">Execution Details</h2>
                                     {getStatusBadge(selectedExecution.status)}
                                 </div>
 
                                 {/* Execution Metadata */}
-                                <div className="grid grid-cols-2 gap-4 p-4 rounded bg-muted/30">
+                                <div className="bg-muted/30 grid grid-cols-2 gap-4 rounded p-4">
                                     <div>
-                                        <Label className="text-xs text-muted-foreground">Started</Label>
-                                        <div className="text-sm mt-1">
-                                            {selectedExecution.started_at ? formatTimestamp(selectedExecution.started_at) : 'Pending'}
-                                        </div>
+                                        <Label className="text-muted-foreground text-xs">Started</Label>
+                                        <div className="mt-1 text-sm">{selectedExecution.started_at ? formatTimestamp(selectedExecution.started_at) : "Pending"}</div>
                                     </div>
                                     {selectedExecution.completed_at && (
                                         <div>
-                                            <Label className="text-xs text-muted-foreground">Completed</Label>
-                                            <div className="text-sm mt-1">
-                                                {formatTimestamp(selectedExecution.completed_at)}
-                                            </div>
+                                            <Label className="text-muted-foreground text-xs">Completed</Label>
+                                            <div className="mt-1 text-sm">{formatTimestamp(selectedExecution.completed_at)}</div>
                                         </div>
                                     )}
                                     {selectedExecution.duration_ms && (
                                         <div>
-                                            <Label className="text-xs text-muted-foreground">Duration</Label>
-                                            <div className="text-sm mt-1">
-                                                {formatDuration(selectedExecution.duration_ms)}
-                                            </div>
+                                            <Label className="text-muted-foreground text-xs">Duration</Label>
+                                            <div className="mt-1 text-sm">{formatDuration(selectedExecution.duration_ms)}</div>
                                         </div>
                                     )}
                                     {selectedExecution.retry_count > 0 && (
                                         <div>
-                                            <Label className="text-xs text-muted-foreground">Retries</Label>
-                                            <div className="text-sm mt-1">
-                                                {selectedExecution.retry_count}
-                                            </div>
+                                            <Label className="text-muted-foreground text-xs">Retries</Label>
+                                            <div className="mt-1 text-sm">{selectedExecution.retry_count}</div>
                                         </div>
                                     )}
                                 </div>
@@ -378,9 +317,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                                 {selectedExecution.error_message && (
                                     <div className="space-y-2">
                                         <Label className="text-[var(--color-secondaryText-wMain)]">Error</Label>
-                                        <div className="p-3 rounded bg-[var(--color-error-w20)] text-[var(--color-error-wMain)] text-sm whitespace-pre-wrap break-words">
-                                            {selectedExecution.error_message}
-                                        </div>
+                                        <div className="rounded bg-[var(--color-error-w20)] p-3 text-sm break-words whitespace-pre-wrap text-[var(--color-error-wMain)]">{selectedExecution.error_message}</div>
                                     </div>
                                 )}
 
@@ -391,43 +328,38 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                                 </div>
 
                                 {/* Artifacts */}
-                                {((selectedExecution.artifacts && selectedExecution.artifacts.length > 0) ||
-                                  (selectedExecution.result_summary?.artifacts && selectedExecution.result_summary.artifacts.length > 0)) && (
+                                {((selectedExecution.artifacts && selectedExecution.artifacts.length > 0) || (selectedExecution.result_summary?.artifacts && selectedExecution.result_summary.artifacts.length > 0)) && (
                                     <div className="space-y-2">
-                                        <Label className="text-[var(--color-secondaryText-wMain)]">
-                                            Artifacts ({(selectedExecution.artifacts?.length || 0) + (selectedExecution.result_summary?.artifacts?.length || 0)})
-                                        </Label>
+                                        <Label className="text-[var(--color-secondaryText-wMain)]">Artifacts ({(selectedExecution.artifacts?.length || 0) + (selectedExecution.result_summary?.artifacts?.length || 0)})</Label>
                                         {renderArtifacts(selectedExecution)}
                                     </div>
                                 )}
 
                                 {/* Task Configuration */}
-                                <div className="pt-4 border-t space-y-4">
+                                <div className="space-y-4 border-t pt-4">
                                     <h3 className="text-sm font-semibold">Task Configuration</h3>
-                                    
+
                                     <div className="space-y-2">
-                                        <Label className="text-xs text-muted-foreground">Agent</Label>
+                                        <Label className="text-muted-foreground text-xs">Agent</Label>
                                         <div className="text-sm">{task.target_agent_name}</div>
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label className="text-xs text-muted-foreground">Schedule</Label>
+                                        <Label className="text-muted-foreground text-xs">Schedule</Label>
                                         <div className="text-sm">{formatScheduleExpression(task)}</div>
                                     </div>
 
                                     {task.task_message && task.task_message.length > 0 && (
                                         <div className="space-y-2">
-                                            <Label className="text-xs text-muted-foreground">Message</Label>
-                                            <div className="text-sm p-3 rounded bg-muted/30 whitespace-pre-wrap break-words">
-                                                {task.task_message.map(part => part.text).join('\n')}
-                                            </div>
+                                            <Label className="text-muted-foreground text-xs">Message</Label>
+                                            <div className="bg-muted/30 rounded p-3 text-sm break-words whitespace-pre-wrap">{task.task_message.map(part => part.text).join("\n")}</div>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </div>
                     ) : (
-                        <div className="flex items-center justify-center h-full">
+                        <div className="flex h-full items-center justify-center">
                             <p className="text-muted-foreground">Select an execution to view details</p>
                         </div>
                     )}
@@ -435,7 +367,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
 
                 {/* Right Panel - Artifact Preview (styled like Files tab) */}
                 {previewArtifact && (
-                    <div className="w-[450px] flex-shrink-0 bg-background flex flex-col">
+                    <div className="bg-background flex w-[450px] flex-shrink-0 flex-col">
                         {/* Header with back button (matching Files tab) */}
                         <div className="flex items-center gap-2 border-b p-2">
                             <Button variant="ghost" onClick={() => setPreviewArtifact(null)}>
@@ -458,12 +390,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                                         </div>
                                     </div>
                                     <div className="whitespace-nowrap">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => window.open(`${previewArtifact.uri}?download=true`, '_blank')}
-                                            tooltip="Download"
-                                        >
+                                        <Button variant="ghost" size="sm" onClick={() => window.open(`${previewArtifact.uri}?download=true`, "_blank")} tooltip="Download">
                                             <Download />
                                         </Button>
                                     </div>
@@ -473,28 +400,23 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                             {/* Preview Content (matching ArtifactPanel structure) */}
                             <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
                                 {loadingArtifact ? (
-                                    <div className="flex items-center justify-center h-full">
-                                        <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                    <div className="flex h-full items-center justify-center">
+                                        <div className="border-primary size-8 animate-spin rounded-full border-2 border-t-transparent" />
                                     </div>
                                 ) : artifactContent ? (
                                     <div className="relative h-full w-full">
                                         {(() => {
-                                            const mimeType = 'text/plain';
+                                            const mimeType = "text/plain";
                                             const rendererType = getRenderType(previewArtifact.name, mimeType);
                                             return rendererType ? (
-                                                <ContentRenderer
-                                                    content={artifactContent}
-                                                    rendererType={rendererType}
-                                                    mime_type={mimeType}
-                                                    setRenderError={() => {}}
-                                                />
+                                                <ContentRenderer content={artifactContent} rendererType={rendererType} mime_type={mimeType} setRenderError={() => {}} />
                                             ) : (
-                                                <pre className="text-sm whitespace-pre-wrap break-words p-4">{artifactContent}</pre>
+                                                <pre className="p-4 text-sm break-words whitespace-pre-wrap">{artifactContent}</pre>
                                             );
                                         })()}
                                     </div>
                                 ) : (
-                                    <div className="flex items-center justify-center h-full">
+                                    <div className="flex h-full items-center justify-center">
                                         <p className="text-muted-foreground text-sm">No content available</p>
                                     </div>
                                 )}

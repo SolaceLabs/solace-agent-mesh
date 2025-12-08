@@ -194,9 +194,19 @@ async def test_peer_tool_description_matches_agent_card(
     ), "Declaration for peer_TestPeerAgentB not found in LLM request"
 
     actual_description = peer_b_declaration["description"]
+    # With enhanced descriptions, the tool description includes the base description
+    # and may include a Skills section if the agent has skills
     assert (
-        actual_description == expected_description
-    ), f"Tool description '{actual_description}' does not match AgentCard description '{expected_description}'"
-    print(f"Scenario {scenario_id}: Verified tool description matches agent card.")
+        expected_description in actual_description
+    ), f"Tool description does not contain expected base description. Expected '{expected_description}' to be in '{actual_description}'"
+
+    # The description should either have skills listed, or just be the base description
+    has_skills_section = "**Skills:**" in actual_description
+    is_base_only = actual_description.strip() == expected_description.strip()
+
+    assert (
+        has_skills_section or is_base_only
+    ), f"Tool description should include Skills section if agent has skills, or just base description. Got: '{actual_description}'"
+    print(f"Scenario {scenario_id}: Verified tool description contains base description{' and skills' if has_skills_section else ''}.")
 
     print(f"Scenario {scenario_id}: Completed successfully.")

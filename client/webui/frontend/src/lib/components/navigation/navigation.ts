@@ -1,4 +1,4 @@
-import { MessageCircle, Bot, SunMoon, FolderOpen, FileText, Calendar } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, FolderOpen, NotepadText, Calendar } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
@@ -22,7 +22,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
             icon: Bot,
         },
     ];
-    
+
     // Add projects only if explicitly enabled (requires SQL persistence)
     // Default to false if flag is undefined to be safe
     const projectsEnabled = featureFlags?.projects ?? false;
@@ -33,7 +33,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
             icon: FolderOpen,
         });
     }
-    
+
     // Add prompts only if explicitly enabled (requires SQL persistence)
     // Default to false if flag is undefined to be safe
     const promptLibraryEnabled = featureFlags?.promptLibrary ?? false;
@@ -41,10 +41,11 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
         items.push({
             id: "prompts",
             label: "Prompts",
-            icon: FileText,
+            icon: NotepadText,
+            badge: "EXPERIMENTAL",
         });
     }
-    
+
     // Add scheduled tasks (always enabled if SQL persistence is available)
     // Scheduler requires SQL persistence, so we can use the same flag as prompts
     const schedulerEnabled = featureFlags?.promptLibrary ?? false; // Uses same SQL requirement
@@ -55,7 +56,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
             icon: Calendar,
         });
     }
-    
+
     return items;
 };
 
@@ -79,7 +80,13 @@ export const topNavigationItems: NavigationItem[] = [
     {
         id: "prompts",
         label: "Prompts",
-        icon: FileText,
+        icon: NotepadText,
+        badge: "EXPERIMENTAL",
+    },
+    {
+        id: "schedules",
+        label: "Schedules",
+        icon: Calendar,
     },
     {
         id: "schedules",

@@ -33,6 +33,7 @@ from .routers import (
     people,
     sse,
     speech,
+    version,
     visualization,
     projects,
     prompts,
@@ -598,6 +599,7 @@ def _setup_routers() -> None:
     app.include_router(session_router, prefix=api_prefix, tags=["Sessions"])
     app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
+    app.include_router(version.router, prefix=api_prefix, tags=["Version"])
     app.include_router(agent_cards.router, prefix=api_prefix, tags=["Agent Cards"])
     app.include_router(task_router, prefix=api_prefix, tags=["Tasks"])
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
