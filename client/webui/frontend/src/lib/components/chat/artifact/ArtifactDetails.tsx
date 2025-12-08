@@ -29,14 +29,6 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, 
     // Use version-specific timestamp when in preview mode, otherwise use artifact's latest timestamp
     const displayTimestamp = useMemo(() => (isPreview && previewFileContent?.last_modified ? previewFileContent.last_modified : artifactInfo.last_modified), [isPreview, previewFileContent?.last_modified, artifactInfo.last_modified]);
 
-    console.log(`[ArtifactDetails] Timestamp for ${artifactInfo.filename}:`, {
-        isPreview,
-        previewFileContentTimestamp: previewFileContent?.last_modified,
-        artifactInfoTimestamp: artifactInfo.last_modified,
-        displayTimestamp,
-        currentVersion: currentPreviewedVersionNumber,
-    });
-
     return (
         <div className="flex flex-row justify-between gap-1">
             <div className="flex min-w-0 items-center gap-4">
