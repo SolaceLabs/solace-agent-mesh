@@ -27,7 +27,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, 
     const versions = useMemo(() => previewedArtifactAvailableVersions ?? [], [previewedArtifactAvailableVersions]);
 
     // Use version-specific timestamp when in preview mode, otherwise use artifact's latest timestamp
-    const displayTimestamp = isPreview && previewFileContent?.last_modified ? previewFileContent.last_modified : artifactInfo.last_modified;
+    const displayTimestamp = useMemo(() => (isPreview && previewFileContent?.last_modified ? previewFileContent.last_modified : artifactInfo.last_modified), [isPreview, previewFileContent?.last_modified, artifactInfo.last_modified]);
 
     console.log(`[ArtifactDetails] Timestamp for ${artifactInfo.filename}:`, {
         isPreview,
