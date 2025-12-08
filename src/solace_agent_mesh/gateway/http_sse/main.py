@@ -4,10 +4,40 @@ from pathlib import Path
 
 import httpx
 import sqlalchemy as sa
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI, HTTPException
 from fastapi import Request as FastAPIRequest
 from fastapi import status
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.staticfiles import StaticFiles
 from typing import TYPE_CHECKING
+
+from a2a.types import InternalError, InvalidRequestError, JSONRPCError
+from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
+
+from ...common import a2a
+from ...gateway.http_sse import dependencies
+from .routers import (
+    agent_cards,
+    artifacts,
+    auth,
+    config,
+    feedback,
+    people,
+    sse,
+    speech,
+    version,
+    visualization,
+    projects,
+    prompts,
+)
+from .routers.sessions import router as session_router
+from .routers.tasks import router as task_router
+from .routers.users import router as user_router
 
 
 if TYPE_CHECKING:

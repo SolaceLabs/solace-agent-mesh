@@ -10,10 +10,10 @@ from ..repository import (
 )
 from ..repository.chat_task_repository import ChatTaskRepository
 from ..repository.entities import ChatTask
-from ..shared.enums import SenderType
-from ..shared.types import SessionId, UserId
-from ..shared import now_epoch_ms
-from ..shared.pagination import PaginationParams, PaginatedResponse, get_pagination_or_default
+from solace_agent_mesh.shared.utils.enums import SenderType
+from solace_agent_mesh.shared.utils.types import SessionId, UserId
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+from solace_agent_mesh.shared.api.pagination import PaginationParams, PaginatedResponse, get_pagination_or_default
 
 log = logging.getLogger(__name__)
 

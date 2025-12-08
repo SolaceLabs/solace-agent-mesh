@@ -16,8 +16,8 @@ Platform Service Responsibilities:
 - Deployer heartbeat monitoring (track deployer availability)
 - Background deployment status checking (verify agent deployments succeed)
 
-Message Communication:
-- PUBLISHES: Deployment commands to deployer ({namespace}/deployer/agent/...)
+Message Communication (Direct Messaging - Not A2A Protocol):
+- PUBLISHES: Deployment commands (direct publishing) to deployer ({namespace}/deployer/agent/...)
 - RECEIVES: Deployer heartbeats ({namespace}/deployer/heartbeat)
 - RECEIVES: Agent cards for deployment monitoring ({namespace}/a2a/agent-cards)
 

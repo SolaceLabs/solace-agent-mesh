@@ -40,8 +40,8 @@ from ....gateway.http_sse.repository.interfaces import ITaskRepository
 from ....gateway.http_sse.services.session_service import SessionService
 from ....gateway.http_sse.services.task_service import TaskService
 from ....gateway.http_sse.session_manager import SessionManager
-from ....gateway.http_sse.shared.pagination import PaginationParams
-from ....gateway.http_sse.shared.types import UserId
+from solace_agent_mesh.shared.api.pagination import PaginationParams
+from solace_agent_mesh.shared.utils.types import UserId
 from ..utils.stim_utils import create_stim_from_task_data
 
 if TYPE_CHECKING:

@@ -81,6 +81,13 @@ class PlatformServiceApp(App):
             "description": "Enable OAuth2 token validation. Set to false for development mode.",
         },
         {
+            "name": "max_message_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": 10000000,
+            "description": "Maximum message size in bytes for A2A messages (default: 10MB).",
+        },
+        {
             "name": "deployment_timeout_minutes",
             "required": False,
             "type": "integer",
@@ -106,13 +113,43 @@ class PlatformServiceApp(App):
     def __init__(self, app_info: Dict[str, Any], **kwargs):
         """
         Initialize the PlatformServiceApp.
-        Most setup is handled by the base App class.
+        Programmatically creates the component and configures broker before calling parent App.__init__().
         """
         log.debug(
             "%s Initializing PlatformServiceApp...",
             app_info.get("name", "PlatformServiceApp"),
         )
-        super().__init__(app_info, **kwargs)
+
+        modified_app_info = app_info.copy()
+        app_config = modified_app_info.get("app_config", {})
+
+        # Get namespace from config
+        namespace = app_config.get("namespace", "")
+        if not namespace:
+            raise ValueError("Namespace is required in app_config for PlatformServiceApp")
+
+        # Create component definition
+        component_definition = {
+            "name": f"{app_info.get('name', 'platform_service')}_component",
+            "component_class": PlatformServiceComponent,
+            "component_config": {"app_config": app_config},
+        }
+
+        modified_app_info["components"] = [component_definition]
+
+        # Configure broker connection (similar to BaseGatewayApp)
+        # This enables the component to receive broker input/output
+        broker_config = modified_app_info.setdefault("broker", {})
+        broker_config["input_enabled"] = True
+        broker_config["output_enabled"] = True
+        # Platform Service doesn't need a queue (it only publishes)
+        # but we enable broker connection for direct publisher access
+        log.debug(
+            "Configured broker for Platform Service with namespace: %s",
+            namespace
+        )
+
+        super().__init__(modified_app_info, **kwargs)
         log.debug("%s PlatformServiceApp initialization complete.", self.name)
 
     def get_component(self) -> PlatformServiceComponent | None:

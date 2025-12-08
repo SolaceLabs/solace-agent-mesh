@@ -53,9 +53,10 @@ class PlatformServiceComponent(ComponentBase):
 
     Key characteristics:
     - No user chat sessions (services don't interact with end users)
-    - Has A2A messaging (publishes to deployer, receives heartbeats/agent-cards)
+    - Uses direct messaging (publishes commands to deployer, receives heartbeats)
     - Has agent registry (for deployment monitoring, not chat orchestration)
     - Independent from WebUI gateway
+    - NOT A2A communication (deployer is a service, not an agent)
     """
 
     def __init__(self, **kwargs):
@@ -117,10 +118,16 @@ class PlatformServiceComponent(ComponentBase):
         self.background_scheduler = None
         self.background_tasks_thread = None
 
+        # Direct message publisher for deployer commands
+        self.direct_publisher = None
+
         log.info("%s Platform Service Component initialized.", self.log_identifier)
 
         # Start FastAPI server
         self._start_fastapi_server()
+
+        # Initialize direct message publisher
+        self._init_direct_publisher()
 
         # Start background tasks (heartbeat listener + deployment checker)
         self._start_background_tasks()
@@ -190,161 +197,110 @@ class PlatformServiceComponent(ComponentBase):
             )
             raise
 
-    def _start_background_tasks(self):
+    def _init_direct_publisher(self):
         """
-        Start background tasks for platform service:
-        1. Agent registry (monitors agent presence via agent-cards topic)
-        2. Heartbeat listener (monitors deployer heartbeats)
-        3. Deployment status checker (monitors in-progress deployments)
-        """
-        log.info("%s Starting background tasks...", self.log_identifier)
+        Initialize direct message publisher for deployer communication.
 
-        try:
-            from solace_agent_mesh.agent.registry import AgentRegistry
+        Platform Service sends deployment commands directly to deployer:
+        - {namespace}/deployer/agent/{id}/deploy
+        - {namespace}/deployer/agent/{id}/update
+        - {namespace}/deployer/agent/{id}/undeploy
 
-            self.agent_registry = AgentRegistry(namespace=self.namespace, component=self)
-            log.info("%s Agent registry initialized for deployment monitoring", self.log_identifier)
-        except Exception as e:
-            log.error("%s Failed to initialize agent registry: %s", self.log_identifier, e)
-            raise
+        Uses direct publishing (not A2A protocol) since deployer is a
+        standalone service, not an A2A agent.
 
-        import asyncio
-        loop = asyncio.new_event_loop()
-
-        async def start_tasks():
-            await self._start_heartbeat_listener()
-            await self._start_deployment_checker()
-
-        def run_loop():
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(start_tasks())
-            loop.run_forever()
-
-        self.background_tasks_thread = threading.Thread(
-            target=run_loop,
-            daemon=True,
-            name="PlatformService_BackgroundTasks"
-        )
-        self.background_tasks_thread.start()
-
-        log.info("%s Background tasks started successfully", self.log_identifier)
-
-    async def _start_heartbeat_listener(self):
-        """
-        Start deployer heartbeat listener.
-        Monitors deployer heartbeats to determine if deployer service is online.
+        Note: Direct publisher initialization is optional. If broker connection
+        is not available, deployment commands will not work but the Platform
+        Service API will still function for CRUD operations.
         """
         try:
-            from solace_agent_mesh_enterprise.platform_service.services.heartbeat_tracker import HeartbeatTracker
-            from solace_agent_mesh_enterprise.platform_service.services.heartbeat_message_handler import HeartbeatMessageHandler
-            from solace_agent_mesh_enterprise.platform_service.services.heartbeat_listener import HeartbeatListener
-
-            log.info("%s Starting heartbeat listener...", self.log_identifier)
-
-            self.heartbeat_tracker = HeartbeatTracker(timeout_seconds=self.heartbeat_timeout_seconds)
-
-            heartbeat_topic = f"{self.namespace}/deployer/heartbeat"
-
-            main_app = self.get_app()
-            if not main_app or not main_app.connector:
-                raise RuntimeError("Cannot access main app or connector for heartbeat listener")
-
-            broker_config = main_app.app_info.get("broker", {})
-            if not broker_config:
-                raise ValueError("Broker configuration is required for heartbeat monitoring")
-
-            handler = HeartbeatMessageHandler(self.heartbeat_tracker)
-            self.heartbeat_listener = HeartbeatListener(
-                heartbeat_topic=heartbeat_topic,
-                broker_config=broker_config,
-                handler=handler
-            )
-
-            self.heartbeat_listener.start()
-
-            log.info(
-                "%s Heartbeat listener started on topic: %s (timeout: %ds)",
-                self.log_identifier,
-                heartbeat_topic,
-                self.heartbeat_timeout_seconds
-            )
-
-        except (ImportError, ModuleNotFoundError):
-            log.warning(
-                "%s Enterprise package not found - heartbeat monitoring unavailable",
-                self.log_identifier
-            )
-        except Exception as e:
-            log.error("%s Failed to start heartbeat listener: %s", self.log_identifier, e)
-            raise
-
-    async def _start_deployment_checker(self):
-        """
-        Start deployment status checker.
-        Periodically checks in-progress deployments and updates their status.
-        """
-        try:
-            from solace_agent_mesh_enterprise.platform_service.services.deployment_status_checker import DeploymentStatusChecker
-            from solace_agent_mesh_enterprise.platform_service.services.background_scheduler import BackgroundScheduler
-            from solace_agent_mesh_enterprise.platform_service.repositories.deployment_repository import DeploymentRepository
-            from solace_agent_mesh_enterprise.platform_service.repositories.agent_repository import AgentRepository
-            from solace_agent_mesh_enterprise.platform_service.dependencies import PlatformSessionLocal
-
-            if PlatformSessionLocal is None:
+            # For simplified apps, the component needs to wait for broker connection
+            # The broker_output attribute will be set by the framework after broker connects
+            if not hasattr(self, 'broker_output') or not self.broker_output:
                 log.warning(
-                    "%s Platform database not initialized - deployment monitoring unavailable",
+                    "%s Broker not yet connected - direct publisher will be initialized later",
                     self.log_identifier
                 )
                 return
 
-            log.info("%s Starting deployment status checker...", self.log_identifier)
+            # Get messaging service from broker_output
+            if not hasattr(self.broker_output, 'messaging_service'):
+                log.warning(
+                    "%s Broker output does not have messaging_service - direct publisher unavailable",
+                    self.log_identifier
+                )
+                return
 
-            deployment_repo = DeploymentRepository()
-            agent_repo = AgentRepository()
+            messaging_service = self.broker_output.messaging_service
 
-            status_checker = DeploymentStatusChecker(
-                agent_registry=self.agent_registry,
-                deployment_repository=deployment_repo,
-                agent_repository=agent_repo,
-                timeout_minutes=self.deployment_timeout_minutes
-            )
+            from solace.messaging.publisher.direct_message_publisher import DirectMessagePublisher
 
-            self.background_scheduler = BackgroundScheduler(
-                status_checker=status_checker,
-                db_session_factory=PlatformSessionLocal,
-                interval_seconds=self.deployment_check_interval_seconds
-            )
+            self.direct_publisher = messaging_service.create_direct_message_publisher_builder().build()
+            self.direct_publisher.start()
 
-            await self.background_scheduler.start()
+            log.info("%s Direct message publisher initialized for deployer commands", self.log_identifier)
 
-            log.info(
-                "%s Deployment status checker started (interval: %ds, timeout: %dm)",
-                self.log_identifier,
-                self.deployment_check_interval_seconds,
-                self.deployment_timeout_minutes
-            )
-
-        except (ImportError, ModuleNotFoundError):
+        except Exception as e:
             log.warning(
-                "%s Enterprise package not found - deployment monitoring unavailable",
+                "%s Could not initialize direct publisher: %s (deployment commands will not work)",
+                self.log_identifier,
+                e
+            )
+
+    def _start_background_tasks(self):
+        """
+        Start background tasks for Platform Service.
+
+        This method calls the enterprise function to start background tasks
+        if the enterprise package is available. Follows the same pattern as
+        WebUI Gateway for graceful degradation.
+
+        Background tasks (enterprise-only):
+        - Heartbeat listener (monitors deployer heartbeats)
+        - Deployment status checker (checks deployment timeouts)
+        - Agent registry (tracks agent availability)
+        """
+        try:
+            from solace_agent_mesh_enterprise.init_enterprise import start_platform_background_tasks
+
+            log.info("%s Starting enterprise platform background tasks...", self.log_identifier)
+            start_platform_background_tasks(self)
+            log.info("%s Enterprise platform background tasks started", self.log_identifier)
+
+        except ImportError:
+            log.info(
+                "%s Enterprise package not available - no background tasks to start",
                 self.log_identifier
             )
         except Exception as e:
-            log.error("%s Failed to start deployment status checker: %s", self.log_identifier, e)
-            raise
+            log.error(
+                "%s Failed to start enterprise background tasks: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
 
     def cleanup(self):
         """
         Gracefully shut down the Platform Service Component.
 
         This method:
-        1. Stops background tasks (heartbeat listener, deployment checker)
-        2. Stops agent registry
-        3. Signals the uvicorn server to exit
-        4. Waits for the FastAPI thread to finish
-        5. Calls parent cleanup
+        1. Stops direct message publisher
+        2. Stops background tasks (heartbeat listener, deployment checker)
+        3. Stops agent registry
+        4. Signals the uvicorn server to exit
+        5. Waits for the FastAPI thread to finish
+        6. Calls parent cleanup
         """
         log.info("%s Cleaning up Platform Service Component...", self.log_identifier)
+
+        # Stop direct publisher
+        if self.direct_publisher:
+            try:
+                self.direct_publisher.terminate()
+                log.info("%s Direct message publisher stopped", self.log_identifier)
+            except Exception as e:
+                log.warning("%s Error stopping direct publisher: %s", self.log_identifier, e)
 
         # Stop background scheduler
         if self.background_scheduler:
@@ -462,26 +418,56 @@ class PlatformServiceComponent(ComponentBase):
         self, topic: str, payload: dict, user_properties: dict | None = None
     ):
         """
-        Publish an A2A message to the broker.
+        Publish direct message to deployer (not A2A protocol).
 
-        Used by deployment service to send commands to deployer:
+        Platform Service sends deployment commands directly to deployer service.
+        This is service-to-service communication, not agent-to-agent protocol.
+
+        Commands sent to:
         - {namespace}/deployer/agent/{agent_id}/deploy
         - {namespace}/deployer/agent/{agent_id}/update
         - {namespace}/deployer/agent/{agent_id}/undeploy
 
         Args:
             topic: Message topic
-            payload: Message payload dictionary
-            user_properties: Optional user properties for message metadata
+            payload: Message payload dictionary (will be JSON-serialized)
+            user_properties: Optional user properties (not used by deployer)
 
         Raises:
             Exception: If publishing fails
         """
-        log.debug("%s Publishing A2A message to topic: %s", self.log_identifier, topic)
+        import json
+        from solace.messaging.resources.topic import Topic
+
+        log.debug("%s Publishing deployer command to topic: %s", self.log_identifier, topic)
 
         try:
-            super().publish_a2a_message(payload, topic, user_properties)
-            log.debug("%s Successfully published to topic: %s", self.log_identifier, topic)
+            if not self.direct_publisher:
+                raise RuntimeError("Direct publisher not initialized")
+
+            # Serialize payload to JSON
+            message_body = json.dumps(payload)
+
+            # Build message
+            main_app = self.get_app()
+            messaging_service = main_app.connector.get_messaging_service()
+            message = messaging_service.message_builder().build(message_body)
+
+            # Publish directly to topic
+            self.direct_publisher.publish(message, Topic.of(topic))
+
+            log.debug(
+                "%s Successfully published deployer command to topic: %s (payload size: %d bytes)",
+                self.log_identifier,
+                topic,
+                len(message_body)
+            )
+
         except Exception as e:
-            log.error("%s Failed to publish A2A message: %s", self.log_identifier, e, exc_info=True)
+            log.error(
+                "%s Failed to publish deployer command: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
             raise

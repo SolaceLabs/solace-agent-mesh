@@ -183,6 +183,50 @@ def setup_dependencies(component: "PlatformServiceComponent", database_url: str)
     log.info("Platform Service dependencies initialized successfully")
 
 
+async def _start_enterprise_platform_tasks(component: "PlatformServiceComponent") -> None:
+    """
+    Start enterprise platform background tasks if enterprise package is available.
+
+    This follows the exact same pattern as WebUI Gateway:
+    - Community calls enterprise function
+    - Enterprise owns all background task logic
+    - Graceful degradation if enterprise not available
+
+    Background tasks (enterprise-only):
+    - Heartbeat listener (deployer monitoring)
+    - Deployment status checker (agent deployment monitoring)
+    - Agent registry (tracks deployed agents)
+
+    Args:
+        component: PlatformServiceComponent instance
+    """
+    try:
+        from solace_agent_mesh_enterprise.init_enterprise import (
+            start_platform_background_tasks,
+        )
+
+        log.info("Starting enterprise platform background tasks...")
+        await start_platform_background_tasks(component)
+        log.info("Enterprise platform background tasks started successfully")
+
+    except ImportError:
+        log.info(
+            "Enterprise package not available - platform background tasks will not start. "
+            "Platform Service will run without deployment monitoring and deployer heartbeat tracking."
+        )
+    except RuntimeError as enterprise_err:
+        log.warning(
+            "Enterprise platform tasks disabled: %s - Platform Service will continue without deployment monitoring",
+            enterprise_err,
+        )
+    except Exception as enterprise_err:
+        log.error(
+            "Failed to start enterprise platform tasks: %s - Platform Service will continue",
+            enterprise_err,
+            exc_info=True,
+        )
+
+
 def _setup_middleware(component: "PlatformServiceComponent"):
     """
     Add middleware to the FastAPI application.
