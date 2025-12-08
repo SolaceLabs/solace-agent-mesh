@@ -1,4 +1,5 @@
-export { PastedTextBadge } from "./PastedTextBadge";
+export { PastedTextBadge, PendingPastedTextBadge } from "./PastedTextBadge";
 export { PasteActionDialog } from "./PasteActionDialog";
-export { isLargeText, createPastedTextItem, getTextPreview, generateArtifactTitle, generateArtifactDescription } from "./pasteUtils";
+export type { PasteMetadata } from "./PasteActionDialog";
+export { isLargeText, createPastedTextItem, getTextPreview, generateArtifactDescription } from "./pasteUtils";
 export type { PastedTextItem, PastedArtifactItem } from "./pasteUtils";

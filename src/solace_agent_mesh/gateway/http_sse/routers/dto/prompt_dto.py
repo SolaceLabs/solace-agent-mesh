@@ -31,6 +31,11 @@ class PromptResponse(PromptBase):
     group_id: str = Field(alias="groupId")
     user_id: str = Field(alias="userId")
     version: int
+    # Versioned metadata fields
+    name: Optional[str] = Field(None, description="Prompt name at this version")
+    description: Optional[str] = Field(None, description="Prompt description at this version")
+    category: Optional[str] = Field(None, description="Prompt category at this version")
+    command: Optional[str] = Field(None, description="Prompt command at this version")
     created_at: int = Field(alias="createdAt")  # epoch milliseconds
     updated_at: int = Field(alias="updatedAt")  # epoch milliseconds
     

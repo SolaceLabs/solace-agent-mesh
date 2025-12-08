@@ -39,10 +39,11 @@ export type ButtonProps = React.ComponentProps<"button"> &
     VariantProps<typeof buttonVariants> & {
         asChild?: boolean;
         tooltip?: string;
+        tooltipSide?: "top" | "right" | "bottom" | "left";
         testid?: string;
     };
 
-function Button({ className, variant, size, asChild = false, tooltip = "", testid = "", ...props }: ButtonProps) {
+function Button({ className, variant, size, asChild = false, tooltip = "", tooltipSide, testid = "", ...props }: ButtonProps) {
     const Comp = asChild ? Slot : "button";
     const buttonProps = tooltip ? { ...props, "aria-label": tooltip } : props;
     const ButtonComponent = <Comp data-slot="button" data-testid={testid || tooltip || props.title} className={cn(buttonVariants({ variant, size, className }))} {...buttonProps} />;
@@ -51,7 +52,7 @@ function Button({ className, variant, size, asChild = false, tooltip = "", testi
         return (
             <Tooltip>
                 <TooltipTrigger asChild>{ButtonComponent}</TooltipTrigger>
-                <TooltipContent>{tooltip}</TooltipContent>
+                <TooltipContent side={tooltipSide}>{tooltip}</TooltipContent>
             </Tooltip>
         );
     }

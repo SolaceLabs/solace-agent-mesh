@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { useChatContext } from "@/lib/hooks";
 import { MessageBanner } from "@/lib/components/common";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { authenticatedFetch, fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
 
 interface VersionHistoryPageProps {
     group: PromptGroup;
@@ -19,7 +19,7 @@ interface VersionHistoryPageProps {
 }
 
 export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, onBack, onEdit, onDeleteAll, onRestoreVersion }) => {
-    const { addNotification } = useChatContext();
+    const { addNotification, displayError } = useChatContext();
     const [versions, setVersions] = useState<Prompt[]>([]);
     const [selectedVersion, setSelectedVersion] = useState<Prompt | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -36,41 +36,35 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         async (preserveSelection = false) => {
             setIsLoading(true);
             try {
-                const response = await authenticatedFetch(`/api/v1/prompts/groups/${group.id}/prompts`, {
-                    credentials: "include",
-                });
+                const data = await fetchJsonWithError(`/api/v1/prompts/groups/${group.id}/prompts`);
+                setVersions(data);
 
-                if (response.ok) {
-                    const data = await response.json();
-                    setVersions(data);
-
-                    // Use a function update to access the current selectedVersion without adding it to dependencies
-                    setSelectedVersion(currentSelected => {
-                        // If we have a _selectedVersionId from returning from edit, use that
-                        if (group._selectedVersionId) {
-                            const targetVersion = data.find((v: Prompt) => v.id === group._selectedVersionId);
-                            if (targetVersion) {
-                                return targetVersion;
-                            }
+                // Use a function update to access the current selectedVersion without adding it to dependencies
+                setSelectedVersion(currentSelected => {
+                    // If we have a _selectedVersionId from returning from edit, use that
+                    if (group._selectedVersionId) {
+                        const targetVersion = data.find((v: Prompt) => v.id === group._selectedVersionId);
+                        if (targetVersion) {
+                            return targetVersion;
                         }
+                    }
 
-                        // If preserving selection, try to keep the same version selected
-                        if (preserveSelection && currentSelected) {
-                            const stillExists = data.find((v: Prompt) => v.id === currentSelected.id);
-                            if (stillExists) {
-                                return stillExists;
-                            } else {
-                                // If the selected version was deleted, fall back to production
-                                return data.find((v: Prompt) => v.id === group.productionPromptId) || data[0];
-                            }
-                        } else if (data.length > 0 && !hasInitializedRef.current) {
-                            // Only set default selection on initial load
-                            hasInitializedRef.current = true;
+                    // If preserving selection, try to keep the same version selected
+                    if (preserveSelection && currentSelected) {
+                        const stillExists = data.find((v: Prompt) => v.id === currentSelected.id);
+                        if (stillExists) {
+                            return stillExists;
+                        } else {
+                            // If the selected version was deleted, fall back to production
                             return data.find((v: Prompt) => v.id === group.productionPromptId) || data[0];
                         }
-                        return currentSelected;
-                    });
-                }
+                    } else if (data.length > 0 && !hasInitializedRef.current) {
+                        // Only set default selection on initial load
+                        hasInitializedRef.current = true;
+                        return data.find((v: Prompt) => v.id === group.productionPromptId) || data[0];
+                    }
+                    return currentSelected;
+                });
             } catch (error) {
                 console.error("Failed to fetch versions:", error);
             } finally {
@@ -103,8 +97,14 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
     const handleEditVersion = () => {
         // Pass the group with the selected version as the production prompt
         // This allows editing any version, not just the active one
+        // Use versioned metadata from the selected version, falling back to group values
         const groupWithSelectedVersion: PromptGroup = {
             ...currentGroup,
+            // Override group metadata with version-specific values for editing
+            name: selectedVersion?.name || currentGroup.name,
+            description: selectedVersion?.description || currentGroup.description,
+            category: selectedVersion?.category || currentGroup.category,
+            command: selectedVersion?.command || currentGroup.command,
             productionPrompt: selectedVersion
                 ? {
                       id: selectedVersion.id,
@@ -112,6 +112,10 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                       groupId: selectedVersion.groupId,
                       userId: selectedVersion.userId,
                       version: selectedVersion.version,
+                      name: selectedVersion.name,
+                      description: selectedVersion.description,
+                      category: selectedVersion.category,
+                      command: selectedVersion.command,
                       createdAt: selectedVersion.createdAt,
                       updatedAt: selectedVersion.updatedAt,
                   }
@@ -136,24 +140,14 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         }
 
         try {
-            const response = await authenticatedFetch(`/api/v1/prompts/${selectedVersion.id}`, {
-                method: "DELETE",
-                credentials: "include",
-            });
+            await fetchWithError(`/api/v1/prompts/${selectedVersion.id}`, { method: "DELETE" });
+            addNotification("Version deleted successfully", "success");
 
-            if (response.ok) {
-                addNotification("Version deleted successfully", "success");
-                // Clear selection and refresh (don't preserve since we deleted it)
-                setSelectedVersion(null);
-                await fetchVersions(false);
-            } else {
-                const error = await response.json();
-                const errorMessage = error.message || error.detail || "Failed to delete version";
-                addNotification(errorMessage, "error");
-            }
+            // Clear selection and refresh (don't preserve since we deleted it)
+            setSelectedVersion(null);
+            await fetchVersions(false);
         } catch (error) {
-            console.error("Failed to delete version:", error);
-            addNotification("Failed to delete version", "error");
+            displayError({ title: "Failed to Delete Version", error: getErrorMessage(error, "An unknown error occurred while deleting the version.") });
         }
     };
 
@@ -212,7 +206,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                     const isSelected = selectedVersion?.id === version.id;
 
                                     return (
-                                        <button key={version.id} onClick={() => setSelectedVersion(version)} className={`w-full p-3 text-left transition-colors ${isSelected ? "bg-primary/5" : "hover:bg-muted/50"}`}>
+                                        <button data-testid={version.id} key={version.id} onClick={() => setSelectedVersion(version)} className={`w-full p-3 text-left transition-colors ${isSelected ? "bg-primary/5" : "hover:bg-muted/50"}`}>
                                             <div className="mb-1 flex items-center justify-between">
                                                 <span className="text-sm font-medium">Version {version.version}</span>
                                                 {isActive && <span className="rounded-full bg-[var(--color-success-w20)] px-2 py-0.5 text-xs text-[var(--color-success-wMain)]">Active</span>}
@@ -259,37 +253,37 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                     </DropdownMenu>
                                 </div>
 
-                                {/* Read-only version details */}
+                                {/* Read-only version details - use versioned fields from selectedVersion, fallback to group */}
                                 <div className="space-y-6">
                                     {/* Template Name */}
                                     <div className="space-y-2">
                                         <Label className="text-[var(--color-secondaryText-wMain)]">Name</Label>
-                                        <div className="rounded p-3 text-sm">{currentGroup.name}</div>
+                                        <div className="rounded p-3 text-sm">{selectedVersion.name || currentGroup.name}</div>
                                     </div>
 
                                     {/* Description */}
-                                    {currentGroup.description && (
+                                    {(selectedVersion.description || currentGroup.description) && (
                                         <div className="space-y-2">
                                             <Label className="text-[var(--color-secondaryText-wMain)]">Description</Label>
-                                            <div className="rounded p-3 text-sm">{currentGroup.description}</div>
+                                            <div className="rounded p-3 text-sm">{selectedVersion.description || currentGroup.description}</div>
                                         </div>
                                     )}
 
                                     {/* Chat Shortcut */}
-                                    {currentGroup.command && (
+                                    {(selectedVersion.command || currentGroup.command) && (
                                         <div className="space-y-2">
                                             <Label className="text-[var(--color-secondaryText-wMain)]">Chat Shortcut</Label>
                                             <div className="rounded p-3 text-sm">
-                                                <span className="text-primary font-mono">/{currentGroup.command}</span>
+                                                <span className="text-primary font-mono">/{selectedVersion.command || currentGroup.command}</span>
                                             </div>
                                         </div>
                                     )}
 
                                     {/* Tag */}
-                                    {currentGroup.category && (
+                                    {(selectedVersion.category || currentGroup.category) && (
                                         <div className="space-y-2">
                                             <Label className="text-[var(--color-secondaryText-wMain)]">Tag</Label>
-                                            <div className="rounded p-3 text-sm">{currentGroup.category}</div>
+                                            <div className="rounded p-3 text-sm">{selectedVersion.category || currentGroup.category}</div>
                                         </div>
                                     )}
 

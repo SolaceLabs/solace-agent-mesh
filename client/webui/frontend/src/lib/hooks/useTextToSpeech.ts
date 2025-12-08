@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { fetchJsonWithError, fetchWithError } from "@/lib/utils/api";
 
 interface UseTextToSpeechOptions {
     messageId?: string;
@@ -95,15 +95,12 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
             try {
                 // Include provider in query to get provider-specific voices
                 const provider = settings.ttsProvider || "gemini";
-                const response = await authenticatedFetch(`/api/v1/speech/voices?provider=${provider}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    const voiceOptions: VoiceOption[] = (data.voices || []).map((voice: string) => ({
-                        value: voice,
-                        label: voice,
-                    }));
-                    setVoices(voiceOptions);
-                }
+                const data = await fetchJsonWithError(`/api/v1/speech/voices?provider=${provider}`);
+                const voiceOptions: VoiceOption[] = (data.voices || []).map((voice: string) => ({
+                    value: voice,
+                    label: voice,
+                }));
+                setVoices(voiceOptions);
             } catch (err) {
                 console.error("Failed to load external voices:", err);
             }
@@ -294,7 +291,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 }
 
                 // Use streaming endpoint - play chunks as they arrive
-                const response = await authenticatedFetch("/api/v1/speech/tts/stream", {
+                const response = await fetchWithError("/api/v1/speech/tts/stream", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -306,10 +303,6 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                         provider: settings.ttsProvider,
                     }),
                 });
-
-                if (!response.ok) {
-                    throw new Error(`TTS streaming failed: ${response.statusText}`);
-                }
 
                 const reader = response.body?.getReader();
                 if (!reader) {
