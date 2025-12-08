@@ -4,10 +4,9 @@ import { fetchJsonWithError, fetchWithError } from "@/lib/utils";
 
 export const getProjects = async () => {
     const url = "/api/v1/projects?include_artifact_count=true";
-    const response = await fetchWithError(url, { credentials: "include" });
+    const response = await fetchJsonWithError(url, { credentials: "include" });
 
-    const data = await response.json();
-    return data as { projects: Project[]; total: number };
+    return response as { projects: Project[]; total: number };
 };
 
 export const createProject = async (data: CreateProjectRequest) => {
@@ -19,13 +18,13 @@ export const createProject = async (data: CreateProjectRequest) => {
     }
 
     const url = "/api/v1/projects";
-    const response = await fetchWithError(url, {
+    const response = await fetchJsonWithError(url, {
         method: "POST",
         body: formData,
         credentials: "include",
     });
 
-    return await response.json();
+    return response;
 };
 
 export const addFilesToProject = async (projectId: string, files: File[], fileMetadata?: Record<string, string>) => {
@@ -40,23 +39,23 @@ export const addFilesToProject = async (projectId: string, files: File[], fileMe
     }
 
     const url = `/api/v1/projects/${projectId}/artifacts`;
-    const response = await fetchWithError(url, {
+    const response = await fetchJsonWithError(url, {
         method: "POST",
         body: formData,
         credentials: "include",
     });
 
-    return await response.json();
+    return response;
 };
 
 export const removeFileFromProject = async (projectId: string, filename: string) => {
     const url = `/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`;
-    const response = await fetchWithError(url, {
+    const response = await fetchJsonWithError(url, {
         method: "DELETE",
         credentials: "include",
     });
 
-    return await response.json();
+    return response;
 };
 
 export const updateFileMetadata = async (projectId: string, filename: string, description: string) => {
@@ -64,25 +63,25 @@ export const updateFileMetadata = async (projectId: string, filename: string, de
     formData.append("description", description);
 
     const url = `/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`;
-    const response = await fetchWithError(url, {
+    const response = await fetchJsonWithError(url, {
         method: "PATCH",
         body: formData,
         credentials: "include",
     });
 
-    return await response.json();
+    return response;
 };
 
 export const updateProject = async (projectId: string, data: UpdateProjectData) => {
     const url = `/api/v1/projects/${projectId}`;
-    const response = await fetchWithError(url, {
+    const response = await fetchJsonWithError(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
         credentials: "include",
     });
 
-    return await response.json();
+    return response;
 };
 
 export const deleteProject = async (projectId: string) => {
