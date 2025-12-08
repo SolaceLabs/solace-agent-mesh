@@ -218,13 +218,33 @@ apps:
       agent_card:
         version: "1.0.0"
         description: |
-          Conducts comprehensive, iterative research on complex topics and generates well-cited research reports.
+          ONLY use this agent when the user EXPLICITLY requests deep research, comprehensive analysis, or a detailed research report.
+          
+          DO NOT use for:
+          - Simple factual questions (e.g., "How does X work?", "What is Y?", "Tell me about Z")
+          - Quick lookups or definitions
+          - General knowledge questions
+          - Questions that can be answered with a single web search
+          
+          ONLY use when user explicitly asks for:
+          - "Do deep research on..."
+          - "Write a comprehensive research report about..."
+          - "I need an in-depth analysis of..."
+          - "Research this topic thoroughly and provide citations..."
+          - Multi-source analysis with academic-style citations
+          - Long-form research reports (3000+ words)
+          
+          This agent takes 5-10 minutes to complete and generates lengthy reports. Use web_search for quick answers.
         defaultInputModes: ["text"]
         defaultOutputModes: ["text"]
         skills:
           - id: "deep_research"
             name: "Deep Research"
-            description: "Iterative research with query refinement, gap analysis, and comprehensive report generation with citations."
+            description: |
+              ONLY invoke when user EXPLICITLY requests comprehensive research or a detailed report with citations.
+              NOT for simple questions like "What is X?" or "How does Y work?" - use web_search instead.
+              This tool takes 5-10 minutes and generates 3000+ word reports with academic citations.
+              Use ONLY when user says: "research thoroughly", "comprehensive analysis", "detailed report", "in-depth study".
       
       # Discovery & Communication
       agent_card_publishing:
