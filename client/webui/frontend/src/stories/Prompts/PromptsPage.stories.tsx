@@ -123,6 +123,15 @@ export const WithTagSelected: Story = {
 };
 
 export const NoPrompts: Story = {
+    parameters: {
+        msw: {
+            handlers: [
+                http.get("*/api/v1/prompts/groups/all", () => {
+                    return HttpResponse.json([]);
+                }),
+            ],
+        },
+    },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         const buildWithAIButton = await canvas.findByTestId("Build with AI");
