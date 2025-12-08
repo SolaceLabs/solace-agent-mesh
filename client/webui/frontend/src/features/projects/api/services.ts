@@ -4,7 +4,7 @@ import { fetchJsonWithError, fetchWithError } from "@/lib/utils";
 
 export const getProjects = async () => {
     const url = "/api/v1/projects?include_artifact_count=true";
-    const response = await fetchJsonWithError(url, { credentials: "include" });
+    const response = await fetchJsonWithError(url);
 
     return response as { projects: Project[]; total: number };
 };
@@ -21,7 +21,6 @@ export const createProject = async (data: CreateProjectRequest) => {
     const response = await fetchJsonWithError(url, {
         method: "POST",
         body: formData,
-        credentials: "include",
     });
 
     return response;
@@ -42,7 +41,6 @@ export const addFilesToProject = async (projectId: string, files: File[], fileMe
     const response = await fetchJsonWithError(url, {
         method: "POST",
         body: formData,
-        credentials: "include",
     });
 
     return response;
@@ -52,7 +50,6 @@ export const removeFileFromProject = async (projectId: string, filename: string)
     const url = `/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`;
     const response = await fetchJsonWithError(url, {
         method: "DELETE",
-        credentials: "include",
     });
 
     return response;
@@ -66,7 +63,6 @@ export const updateFileMetadata = async (projectId: string, filename: string, de
     const response = await fetchJsonWithError(url, {
         method: "PATCH",
         body: formData,
-        credentials: "include",
     });
 
     return response;
@@ -78,7 +74,6 @@ export const updateProject = async (projectId: string, data: UpdateProjectData) 
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-        credentials: "include",
     });
 
     return response;
@@ -88,20 +83,19 @@ export const deleteProject = async (projectId: string) => {
     const url = `/api/v1/projects/${projectId}`;
     await fetchWithError(url, {
         method: "DELETE",
-        credentials: "include",
     });
 };
 
 export const getProjectArtifacts = async (projectId: string) => {
     const url = `/api/v1/projects/${projectId}/artifacts`;
-    const response = (await fetchJsonWithError(url, { credentials: "include" })) as ArtifactInfo[];
+    const response = (await fetchJsonWithError(url)) as ArtifactInfo[];
 
     return response;
 };
 
 export const getProjectSessions = async (projectId: string) => {
     const url = `/api/v1/sessions?project_id=${projectId}&pageNumber=1&pageSize=100`;
-    const response = (await fetchJsonWithError(url, { credentials: "include" })) as PaginatedSessionsResponse;
+    const response = (await fetchJsonWithError(url)) as PaginatedSessionsResponse;
 
     return response.data;
 };
