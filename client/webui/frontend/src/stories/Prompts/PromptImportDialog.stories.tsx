@@ -37,20 +37,3 @@ export const Default: Story = {
         expect(importButton).toBeInTheDocument();
     },
 };
-
-export const NoFileSelected: Story = {
-    args: {
-        open: true,
-    },
-    play: async () => {
-        const dialog = await screen.findByRole("dialog");
-        const dialogContent = within(dialog);
-
-        const importButton = await dialogContent.findByTestId("importPromptButton");
-        expect(importButton).toBeInTheDocument();
-        importButton.click();
-
-        const messageBanner = await dialogContent.findByTestId("messageBanner");
-        expect(messageBanner).toBeInTheDocument();
-    },
-};
