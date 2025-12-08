@@ -14,7 +14,7 @@ interface VisualizerStepCardProps {
 }
 
 const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlighted, onClick, variant = "list" }) => {
-    const { artifacts, setPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed } = useChatContext();
+    const { artifacts, setPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed, navigateArtifactVersion } = useChatContext();
 
     const getStepIcon = () => {
         switch (step.type) {
@@ -160,7 +160,7 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         </div>
     );
     const renderArtifactNotificationData = (data: ArtifactNotificationData) => {
-        const handleViewFile = (e: React.MouseEvent) => {
+        const handleViewFile = async (e: React.MouseEvent) => {
             e.stopPropagation();
 
             // Find the artifact by filename
@@ -173,8 +173,16 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
                 // Expand side panel if collapsed
                 setIsSidePanelCollapsed(false);
 
-                // Set preview artifact to open the file
+                // Set preview artifact to open the file (loads latest by default)
                 setPreviewArtifact(artifact);
+
+                // If a specific version is indicated in the workflow data, navigate to it
+                if (data.version !== undefined && data.version !== artifact.version) {
+                    // Wait a bit for the file to load, then navigate to the specific version
+                    setTimeout(() => {
+                        navigateArtifactVersion(artifact.filename, data.version!);
+                    }, 100);
+                }
             }
             // If artifact not found, do nothing (silent failure)
         };

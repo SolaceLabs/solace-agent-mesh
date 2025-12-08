@@ -28,7 +28,6 @@ from ...agent.utils.artifact_helpers import (
     METADATA_SUFFIX,
     format_metadata_for_llm,
 )
-from ...common.data_parts import ArtifactCreationProgressData
 from ...agent.utils.context_helpers import (
     get_original_session_id,
     get_session_from_callback_context,
