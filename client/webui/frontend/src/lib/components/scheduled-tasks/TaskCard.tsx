@@ -2,13 +2,7 @@ import React, { useState } from "react";
 import { Pencil, Trash2, Calendar, Clock, MoreHorizontal, Play, Pause, History } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
-import {
-    Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/lib/components/ui";
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import type { ScheduledTask } from "@/lib/types/scheduled-tasks";
 
 interface TaskCardProps {
@@ -21,15 +15,7 @@ interface TaskCardProps {
     onViewExecutions: (task: ScheduledTask) => void;
 }
 
-export const TaskCard: React.FC<TaskCardProps> = ({
-    task,
-    isSelected = false,
-    onTaskClick,
-    onEdit,
-    onDelete,
-    onToggleEnabled,
-    onViewExecutions,
-}) => {
+export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, onTaskClick, onEdit, onDelete, onToggleEnabled, onViewExecutions }) => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
     const handleEdit = (e: React.MouseEvent) => {
@@ -57,50 +43,53 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     };
 
     const formatSchedule = (task: ScheduledTask): string => {
-        if (task.schedule_type === "cron") {
+        if (task.scheduleType === "cron") {
             // Parse common cron patterns into human-readable format
-            const cron = task.schedule_expression;
+            const cron = task.scheduleExpression;
             const parts = cron.trim().split(/\s+/);
-            
+
             if (parts.length === 5) {
                 const [minute, hour, dayOfMonth, , dayOfWeek] = parts;
-                
+
                 // Hourly pattern (e.g., "0 */6 * * *")
-                if (hour.includes('/')) {
-                    const interval = hour.split('/')[1];
+                if (hour.includes("/")) {
+                    const interval = hour.split("/")[1];
                     return `Every ${interval} hours`;
                 }
-                
+
                 // Weekly pattern (e.g., "0 9 * * 1,3,5")
-                if (dayOfWeek !== '*') {
-                    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                    const days = dayOfWeek.split(',').map(d => dayNames[parseInt(d)]).join(', ');
-                    const time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+                if (dayOfWeek !== "*") {
+                    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                    const days = dayOfWeek
+                        .split(",")
+                        .map(d => dayNames[parseInt(d)])
+                        .join(", ");
+                    const time = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
                     return `${days} at ${time}`;
                 }
-                
+
                 // Monthly pattern (e.g., "0 9 15 * *")
-                if (dayOfMonth !== '*') {
-                    const time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+                if (dayOfMonth !== "*") {
+                    const time = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
                     return `Monthly on day ${dayOfMonth} at ${time}`;
                 }
-                
+
                 // Daily pattern (e.g., "0 9 * * *")
-                if (hour !== '*' && minute !== '*') {
-                    const time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+                if (hour !== "*" && minute !== "*") {
+                    const time = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
                     return `Daily at ${time}`;
                 }
             }
-            
+
             // Fallback to showing cron expression
             return `Cron: ${cron}`;
-        } else if (task.schedule_type === "interval") {
-            return `Every ${task.schedule_expression}`;
+        } else if (task.scheduleType === "interval") {
+            return `Every ${task.scheduleExpression}`;
         } else {
             try {
-                return `Once at ${new Date(task.schedule_expression).toLocaleString()}`;
+                return `Once at ${new Date(task.scheduleExpression).toLocaleString()}`;
             } catch {
-                return `Once at ${task.schedule_expression}`;
+                return `Once at ${task.scheduleExpression}`;
             }
         }
     };
@@ -178,32 +167,22 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 </div>
                 <div className="flex flex-grow flex-col overflow-hidden px-4">
                     <div className="mb-2 flex items-center gap-2">
-                        <span
-                            className={`inline-block rounded-full px-2 py-0.5 text-xs ${
-                                task.enabled
-                                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                    : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-                            }`}
-                        >
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${task.enabled ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"}`}>
                             {task.enabled ? "Enabled" : "Disabled"}
                         </span>
                     </div>
-                    {task.description && (
-                        <div className="mb-3 line-clamp-2 text-sm leading-5">
-                            {task.description}
-                        </div>
-                    )}
+                    {task.description && <div className="mb-3 line-clamp-2 text-sm leading-5">{task.description}</div>}
                     <div className="mt-auto space-y-1">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <div className="text-muted-foreground flex items-center gap-1 text-xs">
                             <Clock className="h-3 w-3" />
                             <span className="truncate">{formatSchedule(task)}</span>
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <div className="text-muted-foreground flex items-center gap-1 text-xs">
                             <Calendar className="h-3 w-3" />
-                            <span>Next: {formatNextRun(task.next_run_at)}</span>
+                            <span>Next: {formatNextRun(task.nextRunAt)}</span>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                            <span className="truncate">Agent: {task.target_agent_name}</span>
+                        <div className="text-muted-foreground text-xs">
+                            <span className="truncate">Agent: {task.targetAgentName}</span>
                         </div>
                     </div>
                 </div>

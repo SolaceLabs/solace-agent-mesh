@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { MoreHorizontal, FileText, Download, ArrowLeft, ChevronRight, ChevronLeft } from "lucide-react";
 import type { ScheduledTask, TaskExecution, ArtifactInfo } from "@/lib/types/scheduled-tasks";
+import { transformApiExecution } from "@/lib/types/scheduled-tasks";
 import { Header } from "@/lib/components/header";
 import { Button, Label } from "@/lib/components/ui";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -40,7 +41,8 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
             if (response.ok) {
                 const data = await response.json();
                 // API returns { executions: [], total: number, skip: number, limit: number }
-                const executionsList = data.executions || [];
+                // Transform from snake_case to camelCase
+                const executionsList = (data.executions || []).map(transformApiExecution);
                 setExecutions(executionsList);
 
                 // Auto-select the first execution on initial load
@@ -92,14 +94,14 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
     };
 
     const renderResponse = (execution: TaskExecution) => {
-        const summary = execution.result_summary;
+        const summary = execution.resultSummary;
         if (!summary) return <p className="text-muted-foreground">No response available</p>;
 
-        // For RUN_BASED sessions, show agent_response
-        if (summary.agent_response) {
+        // For RUN_BASED sessions, show agentResponse
+        if (summary.agentResponse) {
             return (
                 <div className="space-y-2">
-                    <div className="bg-muted/30 rounded p-3 text-sm break-words whitespace-pre-wrap">{summary.agent_response}</div>
+                    <div className="bg-muted/30 rounded p-3 text-sm break-words whitespace-pre-wrap">{summary.agentResponse}</div>
                 </div>
             );
         }
@@ -108,7 +110,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
         if (summary.messages && Array.isArray(summary.messages) && summary.messages.length > 0) {
             return (
                 <div className="space-y-3">
-                    {summary.messages.map((msg, idx: number) => (
+                    {summary.messages.map((msg: { role: string; text: string }, idx: number) => (
                         <div key={idx} className="space-y-1">
                             <div className="text-muted-foreground text-xs font-medium capitalize">{msg.role || "Unknown"}</div>
                             <div className="bg-muted/30 rounded p-3 text-sm break-words whitespace-pre-wrap">{msg.text || "No content"}</div>
@@ -155,9 +157,9 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
     };
 
     const renderArtifacts = (execution: TaskExecution) => {
-        // Artifacts can be in execution.artifacts (top-level) or execution.result_summary.artifacts
+        // Artifacts can be in execution.artifacts (top-level) or execution.resultSummary.artifacts
         const topLevelArtifacts = execution.artifacts || [];
-        const summaryArtifacts = execution.result_summary?.artifacts || [];
+        const summaryArtifacts = execution.resultSummary?.artifacts || [];
 
         // Combine and normalize artifacts
         const allArtifacts = [...topLevelArtifacts.map(a => (typeof a === "string" ? { name: a, uri: `artifact://${a}` } : a)), ...summaryArtifacts];
@@ -203,20 +205,20 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
     };
 
     const formatScheduleExpression = (task: ScheduledTask) => {
-        if (task.schedule_type === "cron") {
-            return task.schedule_expression;
-        } else if (task.schedule_type === "interval") {
-            return `Every ${task.schedule_expression}`;
-        } else if (task.schedule_type === "one_time") {
+        if (task.scheduleType === "cron") {
+            return task.scheduleExpression;
+        } else if (task.scheduleType === "interval") {
+            return `Every ${task.scheduleExpression}`;
+        } else if (task.scheduleType === "one_time") {
             // Parse ISO timestamp and format it
             try {
-                const date = new Date(task.schedule_expression);
+                const date = new Date(task.scheduleExpression);
                 return date.toLocaleString();
             } catch {
-                return task.schedule_expression;
+                return task.scheduleExpression;
             }
         }
-        return task.schedule_expression;
+        return task.scheduleExpression;
     };
 
     return (
@@ -265,9 +267,9 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                                         >
                                             <div className="mb-2 flex items-center justify-between">
                                                 {getStatusBadge(execution.status)}
-                                                <span className="text-muted-foreground text-xs">{execution.duration_ms ? formatDuration(execution.duration_ms) : "-"}</span>
+                                                <span className="text-muted-foreground text-xs">{execution.durationMs ? formatDuration(execution.durationMs) : "-"}</span>
                                             </div>
-                                            <span className="text-muted-foreground block text-xs">{execution.started_at ? formatTimestamp(execution.started_at) : "Pending"}</span>
+                                            <span className="text-muted-foreground block text-xs">{execution.startedAt ? formatTimestamp(execution.startedAt) : "Pending"}</span>
                                         </button>
                                     );
                                 })}
@@ -291,33 +293,33 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                                 <div className="bg-muted/30 grid grid-cols-2 gap-4 rounded p-4">
                                     <div>
                                         <Label className="text-muted-foreground text-xs">Started</Label>
-                                        <div className="mt-1 text-sm">{selectedExecution.started_at ? formatTimestamp(selectedExecution.started_at) : "Pending"}</div>
+                                        <div className="mt-1 text-sm">{selectedExecution.startedAt ? formatTimestamp(selectedExecution.startedAt) : "Pending"}</div>
                                     </div>
-                                    {selectedExecution.completed_at && (
+                                    {selectedExecution.completedAt && (
                                         <div>
                                             <Label className="text-muted-foreground text-xs">Completed</Label>
-                                            <div className="mt-1 text-sm">{formatTimestamp(selectedExecution.completed_at)}</div>
+                                            <div className="mt-1 text-sm">{formatTimestamp(selectedExecution.completedAt)}</div>
                                         </div>
                                     )}
-                                    {selectedExecution.duration_ms && (
+                                    {selectedExecution.durationMs && (
                                         <div>
                                             <Label className="text-muted-foreground text-xs">Duration</Label>
-                                            <div className="mt-1 text-sm">{formatDuration(selectedExecution.duration_ms)}</div>
+                                            <div className="mt-1 text-sm">{formatDuration(selectedExecution.durationMs)}</div>
                                         </div>
                                     )}
-                                    {selectedExecution.retry_count > 0 && (
+                                    {selectedExecution.retryCount > 0 && (
                                         <div>
                                             <Label className="text-muted-foreground text-xs">Retries</Label>
-                                            <div className="mt-1 text-sm">{selectedExecution.retry_count}</div>
+                                            <div className="mt-1 text-sm">{selectedExecution.retryCount}</div>
                                         </div>
                                     )}
                                 </div>
 
                                 {/* Error Message */}
-                                {selectedExecution.error_message && (
+                                {selectedExecution.errorMessage && (
                                     <div className="space-y-2">
                                         <Label className="text-[var(--color-secondaryText-wMain)]">Error</Label>
-                                        <div className="rounded bg-[var(--color-error-w20)] p-3 text-sm break-words whitespace-pre-wrap text-[var(--color-error-wMain)]">{selectedExecution.error_message}</div>
+                                        <div className="rounded bg-[var(--color-error-w20)] p-3 text-sm break-words whitespace-pre-wrap text-[var(--color-error-wMain)]">{selectedExecution.errorMessage}</div>
                                     </div>
                                 )}
 
@@ -328,9 +330,9 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                                 </div>
 
                                 {/* Artifacts */}
-                                {((selectedExecution.artifacts && selectedExecution.artifacts.length > 0) || (selectedExecution.result_summary?.artifacts && selectedExecution.result_summary.artifacts.length > 0)) && (
+                                {((selectedExecution.artifacts && selectedExecution.artifacts.length > 0) || (selectedExecution.resultSummary?.artifacts && selectedExecution.resultSummary.artifacts.length > 0)) && (
                                     <div className="space-y-2">
-                                        <Label className="text-[var(--color-secondaryText-wMain)]">Artifacts ({(selectedExecution.artifacts?.length || 0) + (selectedExecution.result_summary?.artifacts?.length || 0)})</Label>
+                                        <Label className="text-[var(--color-secondaryText-wMain)]">Artifacts ({(selectedExecution.artifacts?.length || 0) + (selectedExecution.resultSummary?.artifacts?.length || 0)})</Label>
                                         {renderArtifacts(selectedExecution)}
                                     </div>
                                 )}
@@ -341,7 +343,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
 
                                     <div className="space-y-2">
                                         <Label className="text-muted-foreground text-xs">Agent</Label>
-                                        <div className="text-sm">{task.target_agent_name}</div>
+                                        <div className="text-sm">{task.targetAgentName}</div>
                                     </div>
 
                                     <div className="space-y-2">
@@ -349,10 +351,10 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                                         <div className="text-sm">{formatScheduleExpression(task)}</div>
                                     </div>
 
-                                    {task.task_message && task.task_message.length > 0 && (
+                                    {task.taskMessage && task.taskMessage.length > 0 && (
                                         <div className="space-y-2">
                                             <Label className="text-muted-foreground text-xs">Message</Label>
-                                            <div className="bg-muted/30 rounded p-3 text-sm break-words whitespace-pre-wrap">{task.task_message.map(part => part.text).join("\n")}</div>
+                                            <div className="bg-muted/30 rounded p-3 text-sm break-words whitespace-pre-wrap">{task.taskMessage.map((part: { text?: string }) => part.text).join("\n")}</div>
                                         </div>
                                     )}
                                 </div>
