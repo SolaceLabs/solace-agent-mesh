@@ -370,7 +370,7 @@ async def save_artifact_with_metadata(
                         mime_type=mime_type,
                         size=len(content_bytes),
                         description=metadata_dict.get("description") if metadata_dict else None,
-                        version_count=1,  # We just saved version data_version
+                        version_count=None,  # Count not available in save context
                     )
 
                     # Publish artifact saved notification via component method

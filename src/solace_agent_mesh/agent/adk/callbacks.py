@@ -685,7 +685,7 @@ async def process_artifact_blocks_callback(
                             mime_type=block_info.get("mime_type") or "application/octet-stream",
                             size=block_info.get("bytes_transferred", 0),
                             description=block_info.get("description"),
-                            version_count=1,  # We just saved this version
+                            version_count=None,  # Count not available in save context
                         )
                         await host_component.notify_artifact_saved(
                             artifact_info=artifact_info,
