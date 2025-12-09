@@ -124,6 +124,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
             self.model_config = self.get_config("model", None)
 
+            # OAuth2 configuration (enterprise feature - defaults to community mode)
+            self.external_auth_service_url = self.get_config("external_auth_service_url", "")
+            self.external_auth_provider = self.get_config("external_auth_provider", "generic")
+            self.use_authorization = self.get_config("use_authorization", False)
+
             # Auto-construct frontend_server_url if not provided
             configured_frontend_url = self.get_config("frontend_server_url", "")
             if configured_frontend_url:
