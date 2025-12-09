@@ -23,45 +23,78 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     const [visualizedTask, setVisualizedTask] = useState<VisualizedTask | null>(null);
     const [isLoadingTask, setIsLoadingTask] = useState<boolean>(false);
 
-    // Process task data for visualization when the selected workflow task ID changes
-    useEffect(() => {
-        const loadTask = async () => {
-            if (!taskIdInSidePanel) {
-                setVisualizedTask(null);
-                return;
-            }
+    // Track which task IDs we've already attempted to load to prevent duplicate loads
+    const loadAttemptedRef = React.useRef<Set<string>>(new Set());
 
-            // Check if task is already in monitoredTasks
-            if (monitoredTasks[taskIdInSidePanel]) {
-                const taskDetails = monitoredTasks[taskIdInSidePanel];
-                const vizTask = processTaskForVisualization(taskDetails.events || [], monitoredTasks, taskDetails);
-                setVisualizedTask(vizTask);
-            } else {
-                // Task not in monitoredTasks, load from backend
-                setIsLoadingTask(true);
-                try {
-                    const loadedTask = await loadTaskFromBackend(taskIdInSidePanel);
-                    if (loadedTask) {
-                        // Process the loaded task for visualization
-                        // Note: loadTaskFromBackend already added all child tasks to monitoredTasks
-                        // so we can now pass the full monitoredTasks object
-                        const vizTask = processTaskForVisualization(loadedTask.events || [], monitoredTasks, loadedTask);
+    // Process task data for visualization when the selected workflow task ID changes
+    // or when monitoredTasks is updated with new data
+    useEffect(() => {
+        if (!taskIdInSidePanel) {
+            setVisualizedTask(null);
+            return;
+        }
+
+        // Check if task is already in monitoredTasks with events
+        const existingTask = monitoredTasks[taskIdInSidePanel];
+
+        // Always try to load from backend first if we haven't already
+        // This ensures we get historical events that may not be in the SSE stream
+        // (e.g., after browser refresh for a running background task)
+        if (!loadAttemptedRef.current.has(taskIdInSidePanel)) {
+            loadAttemptedRef.current.add(taskIdInSidePanel);
+            setIsLoadingTask(true);
+
+            loadTaskFromBackend(taskIdInSidePanel)
+                .then(loadedTask => {
+                    if (!loadedTask) {
+                        // Backend load failed, but we might still have SSE events
+                        // Check if we have any events from SSE stream
+                        if (existingTask && existingTask.events && existingTask.events.length > 0) {
+                            const vizTask = processTaskForVisualization(existingTask.events, monitoredTasks, existingTask);
+                            setVisualizedTask(vizTask);
+                        } else {
+                            setVisualizedTask(null);
+                        }
+                    }
+                    // loadTaskFromBackend updates monitoredTasks, which will trigger this effect again
+                    // to process the visualization with the updated data
+                })
+                .catch(() => {
+                    // On error, try to use existing SSE events if available
+                    if (existingTask && existingTask.events && existingTask.events.length > 0) {
+                        const vizTask = processTaskForVisualization(existingTask.events, monitoredTasks, existingTask);
                         setVisualizedTask(vizTask);
                     } else {
-                        console.error(`ChatSidePanel: Failed to load task ${taskIdInSidePanel} from backend`);
                         setVisualizedTask(null);
                     }
-                } catch (error) {
-                    console.error(`ChatSidePanel: Error loading task ${taskIdInSidePanel}:`, error);
-                    setVisualizedTask(null);
-                } finally {
+                })
+                .finally(() => {
                     setIsLoadingTask(false);
-                }
-            }
-        };
-
-        loadTask();
+                });
+        } else if (existingTask && existingTask.events && existingTask.events.length > 0) {
+            // Already loaded from backend, now process with latest events from monitoredTasks
+            const vizTask = processTaskForVisualization(existingTask.events, monitoredTasks, existingTask);
+            setVisualizedTask(vizTask);
+            setIsLoadingTask(false);
+        } else {
+            // Already attempted to load but no data - show empty state
+            setVisualizedTask(null);
+        }
     }, [taskIdInSidePanel, monitoredTasks, loadTaskFromBackend]);
+
+    // Reset load attempts when task ID changes
+    useEffect(() => {
+        if (taskIdInSidePanel) {
+            // Clear the load attempt for the previous task when switching to a new one
+            // This allows re-loading if the user navigates away and back
+            return () => {
+                // Don't clear immediately - only clear after a delay to allow for state updates
+                setTimeout(() => {
+                    loadAttemptedRef.current.delete(taskIdInSidePanel);
+                }, 1000);
+            };
+        }
+    }, [taskIdInSidePanel]);
 
     // Helper function to determine what to display in the workflow panel
     const getWorkflowPanelContent = () => {
@@ -163,6 +196,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                 value="files"
                                 title="Files"
                                 className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-l-md border border-r-0 data-[state=active]:z-10 data-[state=active]:border-r-0"
+                                onClick={() => setPreviewArtifact(null)}
                             >
                                 <FileText className="mr-2 h-4 w-4" />
                                 Files

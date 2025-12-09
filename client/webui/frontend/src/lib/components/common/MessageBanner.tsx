@@ -34,7 +34,7 @@ function MessageBanner({ className, variant = "error", message, icon, dismissibl
     const IconComponent = iconMap[variant || "error"];
 
     return (
-        <div className={cn(messageBannerVariants({ variant, className }), "items-start")} role="alert" aria-live="polite" {...props}>
+        <div data-testid="messageBanner" className={cn(messageBannerVariants({ variant, className }), "items-start")} role="alert" aria-live="polite" {...props}>
             {icon || <IconComponent className="size-5 shrink-0" />}
             {typeof message === "string" ? <span>{message}</span> : message}
 

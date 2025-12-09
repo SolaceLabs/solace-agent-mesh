@@ -55,6 +55,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, ti
                         </Button>
                     </DialogClose>
                     <Button
+                        data-testid="dialogConfirmButton"
                         variant="outline"
                         title={confirmTitle}
                         onClick={async e => {
