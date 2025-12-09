@@ -5,10 +5,16 @@ Hosts the FastAPI REST API server for platform configuration management.
 
 import logging
 import threading
+import json
+from typing import Any, Dict
 
 import uvicorn
-from solace_ai_connector.components.component_base import ComponentBase
+from solace_ai_connector.common.message import Message as SolaceMessage
+from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
 from solace_agent_mesh.common.middleware.config_resolver import ConfigResolver
+from solace_agent_mesh.core_a2a.service import CoreA2AService
+from solace_agent_mesh.common import a2a
+from a2a.types import AgentCard
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +41,7 @@ info = {
 }
 
 
-class PlatformServiceComponent(ComponentBase):
+class PlatformServiceComponent(SamComponentBase):
     """
     Platform Service Component - Management plane for SAM platform.
 
@@ -59,6 +65,27 @@ class PlatformServiceComponent(ComponentBase):
     - NOT A2A communication (deployer is a service, not an agent)
     """
 
+    def get_config(self, key: str, default: Any = None) -> Any:
+        """
+        Override get_config to look inside nested 'app_config' dictionary.
+
+        PlatformServiceApp places configuration in component_config['app_config'],
+        following the same pattern as BaseGatewayApp.
+
+        Args:
+            key: Configuration key to retrieve
+            default: Default value if key not found
+
+        Returns:
+            Configuration value or default
+        """
+        if "app_config" in self.component_config:
+            value = self.component_config["app_config"].get(key)
+            if value is not None:
+                return value
+
+        return super().get_config(key, default)
+
     def __init__(self, **kwargs):
         """
         Initialize the PlatformServiceComponent.
@@ -66,12 +93,15 @@ class PlatformServiceComponent(ComponentBase):
         Retrieves configuration, initializes FastAPI server state,
         and starts the FastAPI/Uvicorn server.
         """
+        # Initialize SamComponentBase (provides namespace, max_message_size, async loop)
         super().__init__(info, **kwargs)
         log.info("%s Initializing Platform Service Component...", self.log_identifier)
 
+        # Note: self.namespace is already set by SamComponentBase
+        # Note: self.max_message_size_bytes is already set by SamComponentBase
+
         try:
-            # Retrieve configuration
-            self.namespace = self.get_config("namespace")
+            # Retrieve Platform Service specific configuration
             self.database_url = self.get_config("database_url")
             self.fastapi_host = self.get_config("fastapi_host", "127.0.0.1")
             self.fastapi_port = int(self.get_config("fastapi_port", 8001))
@@ -111,8 +141,19 @@ class PlatformServiceComponent(ComponentBase):
         # but now work with Platform Service via dependency abstraction
         self.session_manager = _StubSessionManager(use_authorization=self.use_authorization)
 
+        # Agent discovery (like BaseGatewayComponent)
+        # Initialize here so CoreA2AService can use it
+        from solace_agent_mesh.common.agent_registry import AgentRegistry
+        self.agent_registry = AgentRegistry()
+        self.core_a2a_service = CoreA2AService(
+            agent_registry=self.agent_registry,
+            namespace=self.namespace,
+            component_id="Platform"
+        )
+        log.info("%s Agent discovery service initialized", self.log_identifier)
+
         # Background task state (for heartbeat monitoring and deployment status checking)
-        self.agent_registry = None
+        # Note: agent_registry already initialized above
         self.heartbeat_tracker = None
         self.heartbeat_listener = None
         self.background_scheduler = None
@@ -123,14 +164,29 @@ class PlatformServiceComponent(ComponentBase):
 
         log.info("%s Platform Service Component initialized.", self.log_identifier)
 
-        # Start FastAPI server
+        # Start FastAPI server immediately (doesn't depend on broker)
         self._start_fastapi_server()
 
-        # Initialize direct message publisher
+        # Note: Direct publisher and background tasks are started in _late_init()
+        # after SamComponentBase.run() is called and broker is guaranteed ready
+
+    def _late_init(self):
+        """
+        Late initialization called by SamComponentBase.run() after broker is ready.
+
+        This is the proper place to initialize services that require broker connectivity:
+        - Direct message publisher (for deployer commands)
+        - Background tasks (heartbeat listener, deployment checker)
+        """
+        log.info("%s Starting late initialization (broker-dependent services)...", self.log_identifier)
+
+        # Initialize direct message publisher for deployer commands
         self._init_direct_publisher()
 
         # Start background tasks (heartbeat listener + deployment checker)
         self._start_background_tasks()
+
+        log.info("%s Late initialization complete", self.log_identifier)
 
     def _start_fastapi_server(self):
         """
@@ -209,24 +265,21 @@ class PlatformServiceComponent(ComponentBase):
         Uses direct publishing (not A2A protocol) since deployer is a
         standalone service, not an A2A agent.
 
-        Note: Direct publisher initialization is optional. If broker connection
-        is not available, deployment commands will not work but the Platform
-        Service API will still function for CRUD operations.
+        Called from _late_init() after broker is guaranteed to be connected.
         """
         try:
-            # For simplified apps, the component needs to wait for broker connection
-            # The broker_output attribute will be set by the framework after broker connects
+            # Get messaging service from broker_output
+            # Note: broker_output might not be ready yet in _late_init (timing varies)
             if not hasattr(self, 'broker_output') or not self.broker_output:
-                log.warning(
-                    "%s Broker not yet connected - direct publisher will be initialized later",
+                log.info(
+                    "%s Broker output not yet available - direct publisher will be initialized later if needed",
                     self.log_identifier
                 )
                 return
 
-            # Get messaging service from broker_output
             if not hasattr(self.broker_output, 'messaging_service'):
                 log.warning(
-                    "%s Broker output does not have messaging_service - direct publisher unavailable",
+                    "%s Broker output missing messaging_service - deployment commands unavailable",
                     self.log_identifier
                 )
                 return
@@ -279,6 +332,128 @@ class PlatformServiceComponent(ComponentBase):
                 e,
                 exc_info=True
             )
+
+    async def _handle_message_async(self, message, topic: str) -> None:
+        """
+        Handle incoming broker messages asynchronously (required by SamComponentBase).
+
+        Processes agent discovery messages and updates AgentRegistry.
+
+        Args:
+            message: The broker message
+            topic: The topic the message was received on
+        """
+        log.debug(
+            "%s Received async message on topic: %s",
+            self.log_identifier,
+            topic,
+        )
+
+        processed_successfully = False
+
+        try:
+            if a2a.topic_matches_subscription(
+                topic, a2a.get_discovery_topic(self.namespace)
+            ):
+                payload = message.get_payload()
+
+                # Parse JSON if payload is string/bytes (defensive coding)
+                if isinstance(payload, bytes):
+                    payload = json.loads(payload.decode('utf-8'))
+                elif isinstance(payload, str):
+                    payload = json.loads(payload)
+                # else: payload is already a dict (SAC framework auto-parses)
+
+                processed_successfully = self._handle_discovery_message(payload)
+            else:
+                log.debug(
+                    "%s Ignoring message on non-discovery topic: %s",
+                    self.log_identifier,
+                    topic,
+                )
+                processed_successfully = True
+
+        except Exception as e:
+            log.error(
+                "%s Error handling async message on topic %s: %s",
+                self.log_identifier,
+                topic,
+                e,
+                exc_info=True
+            )
+            processed_successfully = False
+        finally:
+            # Acknowledge message (like BaseGatewayComponent pattern)
+            if hasattr(message, 'call_acknowledgements'):
+                try:
+                    if processed_successfully:
+                        message.call_acknowledgements()
+                    else:
+                        message.call_negative_acknowledgements()
+                except Exception as ack_error:
+                    log.warning(
+                        "%s Error acknowledging message: %s",
+                        self.log_identifier,
+                        ack_error
+                    )
+
+    def _handle_discovery_message(self, payload: Dict) -> bool:
+        """
+        Handle incoming agent discovery messages.
+
+        Follows the same pattern as BaseGatewayComponent for consistency.
+
+        Args:
+            payload: The message payload dictionary
+
+        Returns:
+            True if processed successfully, False otherwise
+        """
+        try:
+            agent_card = AgentCard(**payload)
+            self.core_a2a_service.process_discovery_message(agent_card)
+            log.debug(
+                "%s Processed agent discovery: %s",
+                self.log_identifier,
+                agent_card.name
+            )
+            return True
+        except Exception as e:
+            log.error(
+                "%s Failed to process discovery message: %s. Payload: %s",
+                self.log_identifier,
+                e,
+                payload,
+                exc_info=True
+            )
+            return False
+
+    def _get_component_id(self) -> str:
+        """
+        Return unique identifier for this component (required by SamComponentBase).
+
+        Returns:
+            Component identifier string
+        """
+        return "platform_service"
+
+    def _get_component_type(self) -> str:
+        """
+        Return component type (required by SamComponentBase).
+
+        Returns:
+            Component type string
+        """
+        return "service"
+
+    def _pre_async_cleanup(self) -> None:
+        """
+        Cleanup before async operations stop (required by SamComponentBase).
+
+        Platform Service doesn't have async-specific resources to clean up here.
+        Main cleanup happens in cleanup() method.
+        """
+        pass
 
     def cleanup(self):
         """
@@ -345,7 +520,7 @@ class PlatformServiceComponent(ComponentBase):
                     self.log_identifier,
                 )
 
-        # Call parent cleanup
+        # Call SamComponentBase cleanup (stops async loop and threads)
         super().cleanup()
         log.info("%s Platform Service Component cleanup finished.", self.log_identifier)
 

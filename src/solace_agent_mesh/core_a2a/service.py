@@ -22,13 +22,14 @@ class CoreA2AService:
     and SAC messaging implementation.
     """
 
-    def __init__(self, agent_registry: AgentRegistry, namespace: str):
+    def __init__(self, agent_registry: AgentRegistry, namespace: str, component_id: str = None):
         """
         Initializes the CoreA2AService.
 
         Args:
             agent_registry: An instance of the shared AgentRegistry.
             namespace: The namespace string.
+            component_id: Optional component identifier for distinguishing logs (e.g., "Platform", "WebUI")
         """
         if not isinstance(agent_registry, AgentRegistry):
             raise TypeError("agent_registry must be an instance of AgentRegistry")
@@ -37,7 +38,7 @@ class CoreA2AService:
 
         self.agent_registry = agent_registry
         self.namespace = namespace
-        self.log_identifier = "[CoreA2AService]"
+        self.log_identifier = f"[CoreA2AService-{component_id}]" if component_id else "[CoreA2AService]"
         log.info("%s Initialized with namespace: %s", self.log_identifier, namespace)
 
     def submit_task(
