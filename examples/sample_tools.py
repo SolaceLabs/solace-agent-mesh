@@ -9,6 +9,67 @@ def calculate_square(number: float) -> float:
     return number * number
 
 
+def add_two_numbers(
+    number1: float,
+    number2: float,
+) -> dict:
+    """
+    Calculator tool that adds two numbers together.
+    
+    This tool performs basic addition of two numbers and returns the result.
+    Supports integers and floating-point numbers, including negative values.
+    
+    Args:
+        number1: The first number to add.
+        number2: The second number to add.
+        
+    Returns:
+        A dictionary containing the calculation result and metadata.
+    """
+    try:
+        # Validate inputs
+        if not isinstance(number1, (int, float)) or not isinstance(number2, (int, float)):
+            return {
+                "status": "error",
+                "message": f"Invalid input types. Expected numbers, got {type(number1).__name__} and {type(number2).__name__}.",
+                "result": None
+            }
+        
+        # Handle potential overflow or very large numbers
+        if abs(number1) > 1e308 or abs(number2) > 1e308:
+            return {
+                "status": "error", 
+                "message": "Input numbers are too large to process safely.",
+                "result": None
+            }
+        
+        # Perform the addition
+        result = number1 + number2
+        
+        # Check for overflow in result
+        if abs(result) > 1e308:
+            return {
+                "status": "error",
+                "message": "Result is too large to represent.",
+                "result": None
+            }
+        
+        return {
+            "status": "success",
+            "message": f"Successfully added {number1} + {number2}",
+            "result": result,
+            "operation": "addition",
+            "operands": [number1, number2]
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Calculation failed: {str(e)}",
+            "result": None
+        }
+
+
 def create_file(
     filename: str,
     mimeType: str,
