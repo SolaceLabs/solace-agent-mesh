@@ -640,50 +640,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setIsArtifactEditMode(false);
     }, [selectedArtifactFilenames, addNotification, artifactsRefetch, sessionId, setError]);
 
-    // Helper function to fetch artifact version content (used by openArtifactForPreview, navigateArtifactVersion, and auto-refresh)
-    const fetchArtifactVersionContent = useCallback(
-        async (artifactFilename: string, version: number): Promise<FileAttachment | null> => {
-            // Determine the correct URL based on context
-            let contentUrl: string;
-            if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                contentUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${version}`;
-            } else if (activeProject?.id) {
-                contentUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${version}?project_id=${activeProject.id}`;
-            } else {
-                throw new Error("No valid context for artifact content");
-            }
-
-            const contentResponse = await fetchWithError(contentUrl);
-
-            // Get MIME type from response headers - this is the correct MIME type for this specific version
-            const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
-            // Strip charset and other parameters from Content-Type
-            const mimeType = contentType.split(";")[0].trim();
-
-            // Get version-specific timestamp from Last-Modified header if available
-            const lastModifiedHeader = contentResponse.headers.get("Last-Modified");
-            const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
-            const versionTimestamp = lastModifiedHeader || artifactInfo?.last_modified || new Date().toISOString();
-
-            const blob = await contentResponse.blob();
-            const base64Content = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
-
-            return {
-                name: artifactFilename,
-                // Use MIME type from response headers (version-specific), not from artifact list (latest version)
-                mime_type: mimeType,
-                content: base64Content,
-                last_modified: versionTimestamp,
-            };
-        },
-        [apiPrefix, sessionId, activeProject?.id, artifacts]
-    );
-
     const openArtifactForPreview = useCallback(
         async (artifactFilename: string): Promise<FileAttachment | null> => {
             // Prevent duplicate fetches for the same file
@@ -760,11 +716,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 artifactFetchInProgressRef.current.delete(artifactFilename);
             }
         },
-<<<<<<< HEAD
         [sessionId, activeProject?.id, artifacts, previewArtifactFilename, setError]
-=======
-        [apiPrefix, sessionId, activeProject?.id, previewArtifactFilename, setError, fetchArtifactVersionContent]
->>>>>>> b3825256 (fix: refactor to prevent re-rendering)
     );
 
     const navigateArtifactVersion = useCallback(
@@ -781,6 +733,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 console.warn(`Requested version ${targetVersion} not available for ${artifactFilename}`);
                 return null;
             }
+            setPreviewFileContent(null);
             try {
                 // Determine the correct URL based on context
                 let contentUrl: string;
@@ -813,6 +766,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     finalTimestamp: versionTimestamp,
                     allHeaders: Object.fromEntries(contentResponse.headers.entries()),
                 });
+                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
+                const fileData: FileAttachment = {
+                    name: artifactFilename,
+                    // Use MIME type from response headers (version-specific), not from artifact list (latest version)
+                    mime_type: mimeType,
+                    content: base64Content,
+                    last_modified: artifactInfo?.last_modified || new Date().toISOString(),
+                };
+                setCurrentPreviewedVersionNumber(targetVersion);
+                setPreviewFileContent(fileData);
                 return fileData;
             } catch (error) {
                 setError({ title: "Artifact Version Preview Failed", error: getErrorMessage(error, "Failed to fetch artifact version.") });
@@ -2235,21 +2198,43 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
                     const newVersion = Math.max(...availableVersions);
 
-                    // Fetch and display the new version using the helper function
-                    const fileData = await fetchArtifactVersionContent(previewArtifactFilename, newVersion);
-                    if (fileData) {
-                        // Batch state updates to reduce re-renders
-                        React.startTransition(() => {
-                            setCurrentPreviewedVersionNumber(newVersion);
-                            setPreviewFileContent(fileData);
-                        });
+                    // Fetch and display the new version
+                    let contentUrl: string;
+                    if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
+                        contentUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(previewArtifactFilename)}/versions/${newVersion}`;
+                    } else if (activeProject?.id) {
+                        contentUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(previewArtifactFilename)}/versions/${newVersion}?project_id=${activeProject.id}`;
+                    } else {
+                        return;
                     }
+
+                    const contentResponse = await fetchWithError(contentUrl);
+                    const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
+                    const mimeType = contentType.split(";")[0].trim();
+
+                    const blob = await contentResponse.blob();
+                    const base64Content = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+
+                    const fileData: FileAttachment = {
+                        name: previewArtifactFilename,
+                        mime_type: mimeType,
+                        content: base64Content,
+                        last_modified: previewedArtifact?.last_modified || new Date().toISOString(),
+                    };
+
+                    setCurrentPreviewedVersionNumber(newVersion);
+                    setPreviewFileContent(fileData);
                 } catch (error) {
                     console.error("Failed to refresh preview after artifact update:", error);
                 }
             })();
         }
-    }, [artifacts, previewArtifactFilename, previewedArtifactAvailableVersions, sessionId, apiPrefix, activeProject, fetchArtifactVersionContent]);
+    }, [artifacts, previewArtifactFilename, previewedArtifactAvailableVersions, sessionId, apiPrefix, activeProject]);
 
     useEffect(() => {
         const handleProjectDeleted = (deletedProjectId: string) => {

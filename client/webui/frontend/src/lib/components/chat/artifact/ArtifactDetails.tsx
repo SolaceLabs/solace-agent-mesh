@@ -23,11 +23,8 @@ interface ArtifactDetailsProps {
 }
 
 export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, isPreview = false, isExpanded = false, onDelete, onDownload, setIsExpanded, badge }) => {
-    const { previewedArtifactAvailableVersions, currentPreviewedVersionNumber, navigateArtifactVersion, previewFileContent } = useChatContext();
+    const { previewedArtifactAvailableVersions, currentPreviewedVersionNumber, navigateArtifactVersion } = useChatContext();
     const versions = useMemo(() => previewedArtifactAvailableVersions ?? [], [previewedArtifactAvailableVersions]);
-
-    // Use version-specific timestamp when in preview mode, otherwise use artifact's latest timestamp
-    const displayTimestamp = useMemo(() => (isPreview && previewFileContent?.last_modified ? previewFileContent.last_modified : artifactInfo.last_modified), [isPreview, previewFileContent?.last_modified, artifactInfo.last_modified]);
 
     return (
         <div className="flex flex-row justify-between gap-1">
@@ -39,8 +36,8 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, 
                         </div>
                         {badge && badge.badgeComponent}
                     </div>
-                    <div className="truncate text-xs" title={formatRelativeTime(displayTimestamp)}>
-                        {formatRelativeTime(displayTimestamp)}
+                    <div className="truncate text-xs" title={formatRelativeTime(artifactInfo.last_modified)}>
+                        {formatRelativeTime(artifactInfo.last_modified)}
                     </div>
                 </div>
 
