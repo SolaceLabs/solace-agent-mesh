@@ -19,7 +19,7 @@ interface ProjectCardsProps {
 
 export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, onExport, isLoading = false }) => {
     return (
-        <div className="bg-background flex h-full flex-col">
+        <div className="bg-card-background flex h-full flex-col">
             <div className="flex h-full flex-col pt-6 pb-6 pl-6">
                 {projects.length > 0 || searchQuery ? <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Filter by name..." className="mb-4 w-xs" /> : null}
 

@@ -28,7 +28,7 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
             {agents.length === 0 ? (
                 <EmptyState image={AgentImage} title="No agents found" subtitle="No agents discovered in the current namespace." />
             ) : (
-                <div className="h-full w-full pt-2 pl-2">
+                <div className="bg-card-background h-full w-full pt-2 pl-2">
                     <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="agentSearchInput" className="mb-4 w-xs" />
 
                     {filteredAgents.length === 0 && searchQuery ? (
