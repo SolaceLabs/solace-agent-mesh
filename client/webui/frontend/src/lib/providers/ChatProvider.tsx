@@ -2167,7 +2167,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Auto-refresh preview when the previewed artifact gets updated
     const lastCheckedVersionRef = useRef<number | null>(null);
     useEffect(() => {
-        if (!previewArtifactFilename || !previewedArtifactAvailableVersions) return;
+        if (!previewArtifactFilename || !previewedArtifactAvailableVersions) {
+            // Reset ref when preview is closed or not yet initialized
+            lastCheckedVersionRef.current = null;
+            return;
+        }
 
         const previewedArtifact = artifacts.find(a => a.filename === previewArtifactFilename);
         if (!previewedArtifact) return;
@@ -2178,16 +2182,28 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         // If the artifact has a newer version, refresh the preview
         if (artifactLatestVersion && artifactLatestVersion > currentMaxVersion && lastCheckedVersionRef.current !== artifactLatestVersion) {
-            lastCheckedVersionRef.current = artifactLatestVersion;
+            // Prevent concurrent fetches for the same file
+            if (artifactFetchInProgressRef.current.has(previewArtifactFilename)) {
+                return;
+            }
+
+            // Capture values at effect start to avoid stale closures
+            let cancelled = false;
+            const currentFilename = previewArtifactFilename;
+            const currentTimestamp = previewedArtifact?.last_modified || new Date().toISOString();
+            const versionToFetch = artifactLatestVersion;
+
+            // Mark as in-progress to prevent duplicate fetches
+            artifactFetchInProgressRef.current.add(currentFilename);
 
             // Refresh versions and switch to latest
             (async () => {
                 try {
                     let versionsUrl: string;
                     if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                        versionsUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(previewArtifactFilename)}/versions`;
+                        versionsUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(currentFilename)}/versions`;
                     } else if (activeProject?.id) {
-                        versionsUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(previewArtifactFilename)}/versions?project_id=${activeProject.id}`;
+                        versionsUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(currentFilename)}/versions?project_id=${activeProject.id}`;
                     } else {
                         return;
                     }
@@ -2195,15 +2211,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     const availableVersions: number[] = await fetchJsonWithError(versionsUrl);
                     if (!availableVersions || availableVersions.length === 0) return;
 
+                    // Check if we're still relevant before updating state
+                    if (cancelled || previewArtifactFilename !== currentFilename) {
+                        return;
+                    }
+
                     setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
                     const newVersion = Math.max(...availableVersions);
 
                     // Fetch and display the new version
                     let contentUrl: string;
                     if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                        contentUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(previewArtifactFilename)}/versions/${newVersion}`;
+                        contentUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(currentFilename)}/versions/${newVersion}`;
                     } else if (activeProject?.id) {
-                        contentUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(previewArtifactFilename)}/versions/${newVersion}?project_id=${activeProject.id}`;
+                        contentUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(currentFilename)}/versions/${newVersion}?project_id=${activeProject.id}`;
                     } else {
                         return;
                     }
@@ -2220,19 +2241,38 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         reader.readAsDataURL(blob);
                     });
 
+                    // Final check before updating state
+                    if (cancelled || previewArtifactFilename !== currentFilename) {
+                        return;
+                    }
+
                     const fileData: FileAttachment = {
-                        name: previewArtifactFilename,
+                        name: currentFilename,
                         mime_type: mimeType,
                         content: base64Content,
-                        last_modified: previewedArtifact?.last_modified || new Date().toISOString(),
+                        last_modified: currentTimestamp,
                     };
 
                     setCurrentPreviewedVersionNumber(newVersion);
                     setPreviewFileContent(fileData);
+
+                    // Only mark as processed after successful completion
+                    lastCheckedVersionRef.current = versionToFetch;
                 } catch (error) {
-                    console.error("Failed to refresh preview after artifact update:", error);
+                    if (!cancelled) {
+                        console.error("Failed to refresh preview after artifact update:", error);
+                    }
+                    // Don't update lastCheckedVersionRef on error - allow retry on next effect run
+                } finally {
+                    // Always remove from in-progress set
+                    artifactFetchInProgressRef.current.delete(currentFilename);
                 }
             })();
+
+            // Cleanup function to cancel in-flight requests
+            return () => {
+                cancelled = true;
+            };
         }
     }, [artifacts, previewArtifactFilename, previewedArtifactAvailableVersions, sessionId, apiPrefix, activeProject]);
 
