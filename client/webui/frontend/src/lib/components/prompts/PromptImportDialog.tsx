@@ -372,16 +372,12 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                         <div className="space-y-1">
                                             <Input id="import-name" {...register("name")} className={`${errors.name || conflicts.hasNameConflict ? "border-red-500 focus-visible:ring-red-500" : ""}`} maxLength={PROMPT_FIELD_LIMITS.NAME_MAX} />
                                             {conflicts.hasNameConflict && !errors.name && (
-                                                <p className="flex items-center gap-1 text-xs" style={{ color: "#B1B9C0" }}>
+                                                <p className="flex items-center gap-1 text-xs text-[#647481] dark:text-[#B1B9C0]">
                                                     <XCircle className="h-3 w-3 text-red-500" />
                                                     Already exists. Change name.
                                                 </p>
                                             )}
-                                            {errors.name && (
-                                                <p className="text-xs" style={{ color: "#B1B9C0" }}>
-                                                    {errors.name.message}
-                                                </p>
-                                            )}
+                                            {errors.name && <p className="text-xs text-[#647481] dark:text-[#B1B9C0]">{errors.name.message}</p>}
                                         </div>
                                     ) : (
                                         <p className="overflow-wrap-anywhere text-sm break-words">{watchedName}</p>
@@ -422,16 +418,12 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                                 />
                                             </div>
                                             {conflicts.hasCommandConflict && !errors.command && (
-                                                <p className="flex items-center gap-1 text-xs" style={{ color: "#B1B9C0" }}>
+                                                <p className="flex items-center gap-1 text-xs text-[#647481] dark:text-[#B1B9C0]">
                                                     <XCircle className="h-3 w-3 text-red-500" />
                                                     Already exists. Change chat shortcut.
                                                 </p>
                                             )}
-                                            {errors.command && (
-                                                <p className="text-xs" style={{ color: "#B1B9C0" }}>
-                                                    {errors.command.message}
-                                                </p>
-                                            )}
+                                            {errors.command && <p className="text-xs text-[#647481] dark:text-[#B1B9C0]">{errors.command.message}</p>}
                                         </div>
                                     ) : watchedCommand ? (
                                         <p className="font-mono text-sm break-all">{watchedCommand}</p>
