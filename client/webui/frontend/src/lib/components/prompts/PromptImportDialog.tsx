@@ -360,7 +360,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                             )}
 
                             {/* Review Prompt Section */}
-                            <div className="space-y-4">
+                            <div className="flex flex-col gap-4">
                                 <h3 className="text-sm font-semibold">Review Prompt</h3>
 
                                 {/* Name Field - Editable only when there's a conflict */}
@@ -385,20 +385,16 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                 </div>
 
                                 {/* Description - Always read-only */}
-                                {importData.prompt.description && (
-                                    <div className="space-y-1">
-                                        <Label className="text-muted-foreground text-xs">Description</Label>
-                                        <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.description}</p>
-                                    </div>
-                                )}
+                                <div className="space-y-1">
+                                    <Label className="text-muted-foreground text-xs">Description</Label>
+                                    {importData.prompt.description ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.description}</p> : <p className="text-muted-foreground text-sm italic">No description</p>}
+                                </div>
 
                                 {/* Tag - Always read-only */}
-                                {importData.prompt.category && (
-                                    <div className="space-y-1">
-                                        <Label className="text-muted-foreground text-xs">Tag</Label>
-                                        <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.category}</p>
-                                    </div>
-                                )}
+                                <div className="space-y-1">
+                                    <Label className="text-muted-foreground text-xs">Tag</Label>
+                                    {importData.prompt.category ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.category}</p> : <p className="text-muted-foreground text-sm italic">No tag</p>}
+                                </div>
 
                                 {/* Chat Shortcut Field - Editable only when there's a conflict */}
                                 <div className="space-y-1">
@@ -433,12 +429,10 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                 </div>
 
                                 {/* Original Author - Always read-only */}
-                                {importData.prompt.metadata?.authorName && (
-                                    <div className="space-y-1">
-                                        <Label className="text-muted-foreground text-xs">Original Author</Label>
-                                        <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.metadata.authorName}</p>
-                                    </div>
-                                )}
+                                <div className="space-y-1">
+                                    <Label className="text-muted-foreground text-xs">Original Author</Label>
+                                    {importData.prompt.metadata?.authorName ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.metadata.authorName}</p> : <p className="text-muted-foreground text-sm italic">No author</p>}
+                                </div>
                             </div>
                         </div>
                     )}
