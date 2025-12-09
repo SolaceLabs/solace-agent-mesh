@@ -56,7 +56,6 @@ jobs:
       (needs.security-checks.result == 'success' || needs.security-checks.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: pypi
     outputs:
       new_version: ${{ steps.prep.outputs.new_version }}
       commit_hash: ${{ steps.prep.outputs.commit_hash }}
