@@ -14,6 +14,9 @@ export enum MessageType {
   AGENT_CALL = 'sam:agent:call',
   AGENT_RESPONSE = 'sam:agent:response',
   AGENT_ERROR = 'sam:agent:error',
+  AGENT_STREAM = 'sam:agent:stream',
+  AGENT_STATUS = 'sam:agent:status',
+  AGENT_ARTIFACT = 'sam:agent:artifact',
 
   // Storage operations
   STORAGE_GET = 'sam:storage:get',
@@ -55,6 +58,9 @@ export interface AgentCallOptions {
   prompt: string;
   context?: Record<string, any>;
   stream?: boolean;
+  onText?: (text: string) => void;
+  onStatus?: (status: string) => void;
+  onArtifact?: (artifact: any) => void;
 }
 
 /**

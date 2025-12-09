@@ -27,7 +27,7 @@ function generateId(): string {
 export class SAMClient {
   private isReady = false;
   private readyPromise: Promise<void>;
-  private pendingMessages = new Map<string, { resolve: (value: any) => void; reject: (error: any) => void }>();
+  private pendingMessages = new Map<string, { resolve: (value: any) => void; reject: (error: any) => void; options?: any }>();
   private themeCallbacks = new Set<(theme: Theme) => void>();
   private currentTheme: Theme = 'light';
 
@@ -74,11 +74,11 @@ export class SAMClient {
   /**
    * Send message and wait for response.
    */
-  private async sendRequest<T = any>(type: MessageType, payload: any): Promise<T> {
+  private async sendRequest<T = any>(type: MessageType, payload: any, options?: any): Promise<T> {
     const id = this.sendMessage(type, payload);
 
     return new Promise((resolve, reject) => {
-      this.pendingMessages.set(id, { resolve, reject });
+      this.pendingMessages.set(id, { resolve, reject, options });
 
       // Timeout after 30 seconds
       setTimeout(() => {
@@ -117,6 +117,20 @@ export class SAMClient {
     // Handle responses to pending requests
     const pending = this.pendingMessages.get(message.id);
     if (pending) {
+      // Handle streaming events
+      if (message.type === MessageType.AGENT_STREAM) {
+        pending.options?.onText?.(message.payload.text);
+        return;
+      }
+      if (message.type === MessageType.AGENT_STATUS) {
+        pending.options?.onStatus?.(message.payload.status);
+        return;
+      }
+      if (message.type === MessageType.AGENT_ARTIFACT) {
+        pending.options?.onArtifact?.(message.payload);
+        return;
+      }
+
       this.pendingMessages.delete(message.id);
 
       if (message.type.endsWith(':error')) {
@@ -134,7 +148,9 @@ export class SAMClient {
     return {
       call: async (agentName: string, options: AgentCallOptions): Promise<AgentCallResult> => {
         await this.ready();
-        return this.sendRequest(MessageType.AGENT_CALL, { agentName, options });
+        // Don't send callbacks over postMessage
+        const { onText, onStatus, onArtifact, ...payloadOptions } = options;
+        return this.sendRequest(MessageType.AGENT_CALL, { agentName, ...payloadOptions }, options);
       },
     };
   }

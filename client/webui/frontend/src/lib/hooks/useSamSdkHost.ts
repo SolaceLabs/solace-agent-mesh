@@ -1,9 +1,24 @@
-import { useCallback, useEffect } from "react";
-import { authenticatedFetch } from "@/lib/utils/api";
-import { useThemeContext } from "@/lib/hooks";
+import { useCallback, useEffect, useRef } from "react";
+import { v4 } from "uuid";
+import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
+import { useThemeContext, useConfigContext } from "@/lib/hooks";
+import type { Message, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, TaskStatusUpdateEvent } from "@/lib/types";
 
 export function useSamSdkHost(appId: string) {
     const { currentTheme } = useThemeContext();
+    const { configServerUrl } = useConfigContext();
+    const apiPrefix = `${configServerUrl}/api/v1`;
+
+    // Keep track of active SSE connections to clean them up if the component unmounts
+    const activeConnections = useRef<Map<string, EventSource>>(new Map());
+
+    useEffect(() => {
+        return () => {
+            // Cleanup all active connections on unmount
+            activeConnections.current.forEach((source) => source.close());
+            activeConnections.current.clear();
+        };
+    }, []);
 
     const handleMessage = useCallback(
         async (event: MessageEvent) => {
@@ -12,48 +27,130 @@ export function useSamSdkHost(appId: string) {
 
             const sourceWindow = event.source as Window;
 
-            const sendResponse = (responseType: string, responsePayload: any) => {
+            const sendToChild = (msgType: string, msgPayload: any) => {
                 sourceWindow.postMessage(
                     {
-                        type: responseType,
-                        id,
-                        payload: responsePayload,
+                        type: msgType,
+                        id, // Correlate with the original request ID
+                        payload: msgPayload,
                     },
                     { targetOrigin: "*" }
                 );
             };
 
             const sendError = (errorMessage: string) => {
-                sourceWindow.postMessage(
-                    {
-                        type: `${type}:error`,
-                        id,
-                        payload: { error: errorMessage },
-                    },
-                    { targetOrigin: "*" }
-                );
+                sendToChild(`${type}:error`, { error: errorMessage });
             };
 
             try {
                 switch (type) {
                     case "sam:init":
-                        sendResponse("sam:ready", { theme: currentTheme });
+                        sendToChild("sam:ready", { theme: currentTheme });
                         break;
 
                     case "sam:theme:get":
-                        sendResponse("sam:theme:response", { theme: currentTheme });
+                        sendToChild("sam:theme:response", { theme: currentTheme });
                         break;
 
                     case "sam:agent:call":
-                        const agentResponse = await authenticatedFetch("/api/v1/agents/call", {
+                        // 1. Construct the A2A Message
+                        const { agentName, prompt, context } = payload;
+                        
+                        const a2aMessage: Message = {
+                            role: "user",
+                            parts: [{ kind: "text", text: prompt }],
+                            messageId: `msg-${v4()}`,
+                            kind: "message",
+                            metadata: {
+                                agent_name: agentName,
+                                app_id: appId, // Enforce app context
+                                ...context
+                            },
+                        };
+
+                        // 2. Start the Task via HTTP
+                        const req: SendStreamingMessageRequest = {
+                            jsonrpc: "2.0",
+                            id: `req-${v4()}`,
+                            method: "message/stream",
+                            params: { message: a2aMessage },
+                        };
+
+                        const initRes = await authenticatedFetch(`${apiPrefix}/message:stream`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(payload),
+                            body: JSON.stringify(req),
                         });
-                        if (!agentResponse.ok) {
-                            throw new Error(await agentResponse.text());
-                        }
-                        sendResponse("sam:agent:response", await agentResponse.json());
+
+                        if (!initRes.ok) throw new Error(await initRes.text());
+                        
+                        const initData = await initRes.json();
+                        const taskId = initData.result?.id;
+                        
+                        if (!taskId) throw new Error("Failed to start agent task");
+
+                        // 3. Subscribe to SSE for this Task
+                        const token = getAccessToken();
+                        const sseUrl = `${apiPrefix}/sse/subscribe/${taskId}${token ? `?token=${token}` : ""}`;
+                        const eventSource = new EventSource(sseUrl, { withCredentials: true });
+                        
+                        activeConnections.current.set(id, eventSource);
+
+                        let accumulatedText = "";
+                        const accumulatedArtifacts: string[] = [];
+
+                        eventSource.addEventListener("status_update", (e) => {
+                            try {
+                                const data = JSON.parse(e.data) as SendStreamingMessageSuccessResponse;
+                                const result = data.result as TaskStatusUpdateEvent;
+                                
+                                if (result.status?.message?.parts) {
+                                    for (const part of result.status.message.parts) {
+                                        // Handle Text Streaming
+                                        if (part.kind === "text" && part.text) {
+                                            sendToChild("sam:agent:stream", { text: part.text });
+                                            accumulatedText += part.text;
+                                        }
+                                        
+                                        // Handle Artifacts
+                                        if (part.kind === "artifact" && part.status === "completed") {
+                                            sendToChild("sam:agent:artifact", { 
+                                                name: part.name,
+                                                file: part.file 
+                                            });
+                                            accumulatedArtifacts.push(part.name);
+                                        }
+
+                                        // Handle Status/Progress
+                                        if (part.kind === "data") {
+                                            const meta = part.data as any;
+                                            if (meta?.type === "agent_progress_update") {
+                                                sendToChild("sam:agent:status", { status: meta.status_text });
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (err) {
+                                console.error("Error parsing SSE", err);
+                            }
+                        });
+
+                        eventSource.addEventListener("final_response", () => {
+                            // Task Complete
+                            sendToChild("sam:agent:response", {
+                                response: accumulatedText,
+                                artifacts: accumulatedArtifacts
+                            });
+                            eventSource.close();
+                            activeConnections.current.delete(id);
+                        });
+
+                        eventSource.addEventListener("error", (e) => {
+                            console.error("SSE Error", e);
+                            sendError("Connection to agent lost");
+                            eventSource.close();
+                            activeConnections.current.delete(id);
+                        });
                         break;
 
                     case "sam:storage:get":
@@ -87,12 +184,12 @@ export function useSamSdkHost(appId: string) {
                         });
 
                         if (storageRes.status === 404 && type === "sam:storage:get") {
-                            sendResponse("sam:storage:response", { value: null });
+                            sendToChild("sam:storage:response", { value: null });
                         } else if (!storageRes.ok) {
                             throw new Error(await storageRes.text());
                         } else {
                             const data = await storageRes.json().catch(() => ({}));
-                            sendResponse("sam:storage:response", data);
+                            sendToChild("sam:storage:response", data);
                         }
                         break;
 
@@ -117,7 +214,7 @@ export function useSamSdkHost(appId: string) {
 
                         if (!uploadRes.ok) throw new Error(await uploadRes.text());
                         const uploadData = await uploadRes.json();
-                        sendResponse("sam:artifact:response", { artifactId: uploadData.uri });
+                        sendToChild("sam:artifact:response", { artifactId: uploadData.uri });
                         break;
                 }
             } catch (err: any) {
@@ -125,7 +222,7 @@ export function useSamSdkHost(appId: string) {
                 sendError(err.message || "Unknown error");
             }
         },
-        [appId, currentTheme]
+        [appId, currentTheme, apiPrefix]
     );
 
     useEffect(() => {

@@ -125,6 +125,9 @@ interface AgentCallOptions {
   prompt: string                    // Required: The prompt/instruction for the agent
   context?: Record<string, any>     // Optional: Additional context data
   stream?: boolean                  // Optional: Enable streaming response
+  onText?: (text: string) => void   // Optional: Callback for streaming text chunks
+  onStatus?: (status: string) => void // Optional: Callback for status updates
+  onArtifact?: (artifact: any) => void // Optional: Callback when an artifact is created
 }
 
 interface AgentCallResult {
@@ -143,7 +146,9 @@ const analyzeData = async () => {
       year: 2024,
       quarter: 4,
       metrics: ['revenue', 'growth']
-    }
+    },
+    onText: (text) => console.log('Stream:', text),
+    onStatus: (status) => console.log('Status:', status)
   })
 
   console.log('Analysis:', result.response)
