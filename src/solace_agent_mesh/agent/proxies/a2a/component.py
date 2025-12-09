@@ -91,6 +91,21 @@ class A2AProxyComponent(BaseProxyComponent):
             agent["name"]: agent for agent in self.proxied_agents_config
         }
 
+        # NEW: OAuth 2.0 authorization code support (enterprise feature)
+        # Stores paused tasks waiting for user authorization
+        self._paused_a2a_oauth2_tasks: Dict[str, Dict[str, Any]] = {}
+        # Caches CredentialManagerWithDiscovery instances per agent
+        self._a2a_oauth2_credential_managers: Dict[str, Any] = {}
+
+        # NEW: Initialize enterprise features for OAuth2 support
+        try:
+            from solace_agent_mesh_enterprise.init_enterprise_component import (
+                init_enterprise_proxy_features
+            )
+            init_enterprise_proxy_features(self)
+        except ImportError:
+            pass  # Enterprise not installed
+
         # OAuth 2.0 configuration is now validated by Pydantic models at app initialization
         # No need for separate _validate_oauth_config() method
 
@@ -248,6 +263,9 @@ class A2AProxyComponent(BaseProxyComponent):
             f"{self.log_identifier}[ForwardRequest:{task_context.task_id}:{agent_name}]"
         )
 
+        # Store original request for potential resumption (OAuth2 authorization code flow)
+        task_context.original_request = request
+
         # Step 1: Initialize retry counter
         # Why only retry once: Prevents infinite loops on persistent auth failures.
         # First 401 may be due to token expiration between cache check and request;
@@ -255,7 +273,55 @@ class A2AProxyComponent(BaseProxyComponent):
         max_auth_retries: int = 1
         auth_retry_count: int = 0
 
-        # Step 2: Create while loop for retry logic
+        # Step 2: Check for OAuth2 authorization code flow
+        # This auth type requires user interaction and can pause the task,
+        # so we check it before attempting normal request flow
+        agent_config = self._get_agent_config(agent_name)
+        auth_config = agent_config.get("authentication") if agent_config else None
+        auth_type = auth_config.get("type") if auth_config else None
+
+        if auth_type == "oauth2_authorization_code":
+            try:
+                from solace_agent_mesh_enterprise.auth.a2a import (
+                    check_authorization_required,
+                    request_authorization,
+                )
+
+                # Check if user authorization is needed
+                needs_auth = await check_authorization_required(
+                    component=self,
+                    agent_name=agent_name,
+                    task_context=task_context,
+                )
+
+                if needs_auth:
+                    # Pause task and request authorization
+                    log.info(
+                        "%s User authorization required for agent '%s'. Pausing task.",
+                        log_identifier,
+                        agent_name,
+                    )
+                    await request_authorization(
+                        component=self,
+                        agent_name=agent_name,
+                        task_context=task_context,
+                    )
+                    return  # Exit - task paused, will resume after OAuth callback
+
+            except ImportError:
+                log.error(
+                    "%s Agent '%s' requires OAuth2 authorization code flow, "
+                    "but solace-agent-mesh-enterprise is not installed.",
+                    log_identifier,
+                    agent_name,
+                )
+                raise ValueError(
+                    f"Agent '{agent_name}' requires OAuth2 authorization code flow, "
+                    "but solace-agent-mesh-enterprise is not installed."
+                )
+
+        # Step 3: Normal request flow for all other auth types
+        # (static_bearer, static_apikey, oauth2_client_credentials, or authorized oauth2_authorization_code)
         while auth_retry_count <= max_auth_retries:
             try:
                 # Get or create A2AClient
@@ -724,6 +790,7 @@ class A2AProxyComponent(BaseProxyComponent):
         - static_bearer: Static bearer token authentication
         - static_apikey: Static API key authentication
         - oauth2_client_credentials: OAuth 2.0 Client Credentials flow with automatic token refresh
+        - oauth2_authorization_code: OAuth 2.0 Authorization Code flow
 
         For backward compatibility, legacy configurations without a 'type' field
         will have their type inferred from the 'scheme' field.
@@ -873,10 +940,63 @@ class A2AProxyComponent(BaseProxyComponent):
                     )
                     raise
 
+            elif auth_type == "oauth2_authorization_code":
+                # NEW: OAuth 2.0 Authorization Code Flow (enterprise feature)
+                # At this point, user has already authorized (checked in _forward_request)
+                # We just need to get the access token from enterprise helpers
+                try:
+                    from solace_agent_mesh_enterprise.auth.a2a import get_access_token
+
+                    # Get access token (enterprise handles refresh if needed)
+                    access_token = await get_access_token(
+                        component=self,
+                        agent_name=agent_name,
+                        task_context=task_context,
+                    )
+
+                    if not access_token:
+                        raise ValueError(
+                            f"No OAuth2 credential found for agent '{agent_name}'. "
+                            "User authorization should have completed in _forward_request()."
+                        )
+
+                    # Find the OAuth2 authorization code scheme name from agent card
+                    oauth_scheme_name = None
+                    if agent_card and agent_card.security_schemes:
+                        for scheme_name, scheme_wrapper in agent_card.security_schemes.items():
+                            scheme = scheme_wrapper.root
+                            if (hasattr(scheme, 'type') and scheme.type.lower() == 'oauth2' and
+                                    hasattr(scheme, 'flows') and scheme.flows and
+                                    scheme.flows.authorization_code):
+                                oauth_scheme_name = scheme_name
+                                break
+
+                    # Fallback if not found
+                    if not oauth_scheme_name:
+                        oauth_scheme_name = "oauth2_authorization_code"
+                        log.warning(
+                            "%s No OAuth2 authorization code scheme found in agent card, using default name",
+                            self.log_identifier
+                        )
+
+                    # Store in credential store for AuthInterceptor
+                    await self._credential_store.set_credentials(
+                        session_id, oauth_scheme_name, access_token
+                    )
+
+                except ImportError:
+                    log.error(
+                        "%s OAuth2 authorization code requires solace-agent-mesh-enterprise package",
+                        self.log_identifier,
+                    )
+                    raise ValueError(
+                        "OAuth2 authorization code requires solace-agent-mesh-enterprise package"
+                    )
+
             else:
                 raise ValueError(
                     f"Unsupported authentication type '{auth_type}' for agent '{agent_name}'. "
-                    f"Supported types: static_bearer, static_apikey, oauth2_client_credentials."
+                    f"Supported types: static_bearer, static_apikey, oauth2_client_credentials, oauth2_authorization_code."
                 )
 
         # Create ClientConfig for the modern client

@@ -28,7 +28,7 @@ class AuthenticationConfig(SamConfigBase):
     """Authentication configuration for downstream A2A agents."""
 
     type: Optional[
-        Literal["static_bearer", "static_apikey", "oauth2_client_credentials"]
+        Literal["static_bearer", "static_apikey", "oauth2_client_credentials", "oauth2_authorization_code"]
     ] = Field(
         default=None,
         description="Authentication type. If not specified, inferred from 'scheme' for backward compatibility.",
@@ -47,11 +47,11 @@ class AuthenticationConfig(SamConfigBase):
     )
     client_id: Optional[str] = Field(
         default=None,
-        description="OAuth 2.0 client identifier (required for oauth2_client_credentials type).",
+        description="OAuth 2.0 client identifier (required for oauth2_client_credentials and oauth2_authorization_code types).",
     )
     client_secret: Optional[str] = Field(
         default=None,
-        description="OAuth 2.0 client secret (required for oauth2_client_credentials type).",
+        description="OAuth 2.0 client secret (required for oauth2_client_credentials type, optional for oauth2_authorization_code).",
     )
     scope: Optional[str] = Field(
         default=None,
@@ -61,6 +61,20 @@ class AuthenticationConfig(SamConfigBase):
         default=3300,
         gt=0,
         description="How long to cache OAuth 2.0 tokens before refresh, in seconds (default: 3300 = 55 minutes).",
+    )
+
+    # NEW fields for oauth2_authorization_code
+    authorization_url: Optional[str] = Field(
+        default=None,
+        description="OAuth 2.0 authorization endpoint URL (for oauth2_authorization_code type). Can override agent card URL.",
+    )
+    redirect_uri: Optional[str] = Field(
+        default=None,
+        description="OAuth 2.0 redirect URI (required for oauth2_authorization_code type).",
+    )
+    scopes: Optional[List[str]] = Field(
+        default=None,
+        description="OAuth 2.0 scopes as a list of strings (optional for oauth2_authorization_code type).",
     )
 
     @model_validator(mode="after")
@@ -121,10 +135,35 @@ class AuthenticationConfig(SamConfigBase):
                     "OAuth 2.0 client credentials flow requires 'client_secret'."
                 )
 
+        elif auth_type == "oauth2_authorization_code":
+            # Validate client_id
+            if not self.client_id:
+                raise ValueError(
+                    "OAuth 2.0 authorization code flow requires 'client_id'."
+                )
+
+            # Validate redirect_uri
+            if not self.redirect_uri:
+                raise ValueError(
+                    "OAuth 2.0 authorization code flow requires 'redirect_uri'."
+                )
+
+            # Optional: Validate authorization_url if provided (can also come from agent card)
+            if self.authorization_url:
+                try:
+                    parsed_url = urlparse(self.authorization_url)
+                    if parsed_url.scheme not in ["https", "http"]:
+                        raise ValueError(
+                            f"OAuth 2.0 'authorization_url' must use HTTP(S). "
+                            f"Got scheme: '{parsed_url.scheme}'"
+                        )
+                except Exception as e:
+                    raise ValueError(f"Failed to parse 'authorization_url': {e}")
+
         else:
             raise ValueError(
                 f"Unsupported authentication type '{auth_type}'. "
-                f"Supported types: static_bearer, static_apikey, oauth2_client_credentials."
+                f"Supported types: static_bearer, static_apikey, oauth2_client_credentials, oauth2_authorization_code."
             )
 
         return self
