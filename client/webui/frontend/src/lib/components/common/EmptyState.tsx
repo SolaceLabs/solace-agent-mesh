@@ -14,7 +14,7 @@ export interface ButtonWithCallback {
 
 interface EmptyStateProps {
     title: string;
-    subtitle?: string;
+    subtitle?: string | React.ReactNode;
     variant?: "error" | "notFound" | "loading" | "noImage";
     image?: ReactElement;
     buttons?: ButtonWithCallback[];
@@ -34,7 +34,7 @@ function EmptyState({ title, subtitle, image, variant = "error", buttons, classN
             {image || illustrations[variant] || null}
 
             <p className="mt-4 text-lg">{title}</p>
-            {subtitle ? <p className="text-sm">{subtitle}</p> : null}
+            {subtitle ? <p className="max-w-xl text-center text-sm">{subtitle}</p> : null}
 
             <div className="flex min-w-50 flex-col gap-2">
                 {buttons &&
