@@ -4,6 +4,7 @@ Router for handling authentication-related endpoints.
 
 import logging
 import secrets
+import time
 from urllib.parse import urlencode
 
 import httpx
@@ -110,47 +111,132 @@ async def auth_callback(
             log.error(f"Error during code exchange: {e}")
             raise HTTPException(status_code=500, detail="Error during code exchange")
 
-    access_token = token_data.get("access_token")
-    refresh_token = token_data.get("refresh_token")
+    idp_access_token = token_data.get("access_token")
+    idp_refresh_token = token_data.get("refresh_token")
+    user_claims = token_data.get("user_claims", {})
 
-    if not access_token:
+    if not idp_access_token:
         raise HTTPException(
             status_code=400, detail="Access token not in response from exchange service"
         )
 
-    request.session["access_token"] = access_token
-    if refresh_token:
-        request.session["refresh_token"] = refresh_token
+    # Extract user identity from user_claims
+    user_identity = user_claims.get("email") or user_claims.get("sub")
+    if not user_identity:
+        log.warning("No user identity found in user_claims, fetching from user_info")
+        # Fallback to user_info endpoint if user_claims doesn't have identity
+        try:
+            async with httpx.AsyncClient() as client:
+                user_info_response = await client.get(
+                    f"{external_auth_url}/user_info",
+                    params={"provider": config.get("external_auth_provider", "azure")},
+                    headers={"Authorization": f"Bearer {idp_access_token}"},
+                )
+                user_info_response.raise_for_status()
+                user_info = user_info_response.json()
+                user_identity = user_info.get("email") or user_info.get("sub", "authenticated_user")
+        except Exception as e:
+            log.error(f"Error getting user info: {e}")
+            user_identity = "authenticated_user"
+
+    log.info(
+        "%s Received tokens and user_claims from OAuth2Service for user '%s'",
+        component.log_identifier,
+        user_identity
+    )
+
+    request.session["access_token"] = idp_access_token
+    if idp_refresh_token:
+        request.session["refresh_token"] = idp_refresh_token
     log.debug("Tokens stored directly in session.")
 
-    try:
-        async with httpx.AsyncClient() as client:
-            user_info_response = await client.get(
-                f"{external_auth_url}/user_info",
-                params={"provider": config.get("external_auth_provider", "azure")},
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-            user_info_response.raise_for_status()
-            user_info = user_info_response.json()
+    # Store user_id in session
+    if user_identity:
+        session_manager = component.get_session_manager()
+        session_manager.store_user_id(request, user_identity)
 
-            user_id = user_info.get("email", "authenticated_user")
-            if user_id:
-                session_manager = component.get_session_manager()
-                session_manager.store_user_id(request, user_id)
+    # Mint sam_access_token (NEW!)
+    sam_access_token = None
+    if (
+        hasattr(component, "trust_manager")
+        and component.trust_manager
+        and hasattr(component.trust_manager, "config")
+        and component.trust_manager.config.access_token_enabled
+    ):
+        try:
+            # Resolve authorization using user_claims
+            gateway_context = {
+                "gateway_id": component.gateway_id,
+                "idp_claims": user_claims,
+            }
+
+            # Get authorization_service if available
+            authorization_service = getattr(component, "authorization_service", None)
+            if authorization_service:
+                roles = await authorization_service.get_roles_for_user(
+                    user_identity=user_identity,
+                    gateway_context=gateway_context
+                )
+                scopes = await authorization_service.get_scopes_for_user(
+                    user_identity=user_identity,
+                    gateway_context=gateway_context
+                )
+
+                log.info(
+                    "%s Resolved authorization for '%s': roles=%s, scopes=%d",
+                    component.log_identifier,
+                    user_identity,
+                    roles,
+                    len(scopes)
+                )
             else:
-                log.warning("Could not find 'email' in user info response.")
+                log.warning("%s No authorization_service available, using empty roles/scopes", component.log_identifier)
+                roles = []
+                scopes = []
 
-    except httpx.HTTPStatusError as e:
-        log.error(f"Failed to get user info: {e.response.text}")
+            # Build JWT payload
+            ttl = component.trust_manager.config.access_token_ttl_seconds
+            provider = config.get("external_auth_provider", "azure")
 
-    except Exception as e:
-        log.error(f"Error getting user info: {e}")
+            jwt_payload = {
+                "iss": f"webui_gateway_{component.gateway_id}",
+                "sub": user_identity,
+                "email": user_claims.get("email"),
+                "name": user_claims.get("name"),
+                "roles": roles,
+                "scopes": scopes,
+                "iat": int(time.time()),
+                "exp": int(time.time()) + ttl,
+                "provider": provider,
+            }
+
+            # Sign with trust_manager
+            sam_access_token = component.trust_manager.sign_user_claims(jwt_payload)
+
+            log.info(
+                "%s Minted sam_access_token for '%s' with %d scopes, TTL=%ds",
+                component.log_identifier,
+                user_identity,
+                len(scopes),
+                ttl
+            )
+        except Exception as e:
+            log.error(
+                "%s Failed to mint sam_access_token: %s",
+                component.log_identifier,
+                e,
+                exc_info=True
+            )
+            # Don't fail auth flow if minting fails
 
     frontend_base_url = config.get("frontend_redirect_url", "http://localhost:3000")
 
-    hash_params = {"access_token": access_token}
-    if refresh_token:
-        hash_params["refresh_token"] = refresh_token
+    # Build hash params with all three tokens
+    hash_params = {"access_token": idp_access_token}
+    if idp_refresh_token:
+        hash_params["refresh_token"] = idp_refresh_token
+    if sam_access_token:
+        hash_params["sam_access_token"] = sam_access_token
 
     hash_fragment = urlencode(hash_params)
 
@@ -197,22 +283,107 @@ async def refresh_token(
             log.error(f"Error during token refresh: {e}")
             raise HTTPException(status_code=500, detail="Error during token refresh")
 
-    access_token = token_data.get("access_token")
-    new_refresh_token = token_data.get("refresh_token")
+    idp_access_token = token_data.get("access_token")
+    idp_refresh_token = token_data.get("refresh_token")
+    user_claims = token_data.get("user_claims", {})
 
-    if not access_token:
+    if not idp_access_token:
         raise HTTPException(
             status_code=400, detail="Access token not in response from refresh service"
         )
 
+    # Extract user identity from user_claims
+    user_identity = user_claims.get("email") or user_claims.get("sub")
+    if not user_identity:
+        log.warning("No user identity found in user_claims during refresh")
+        user_identity = "authenticated_user"
+
     session_manager = component.get_session_manager()
-    session_manager.store_auth_tokens(request, access_token, new_refresh_token)
+    session_manager.store_auth_tokens(request, idp_access_token, idp_refresh_token)
     log.info("Successfully refreshed and updated tokens in session.")
 
-    return {
-        "access_token": access_token,
-        "refresh_token": new_refresh_token,
+    # Mint fresh sam_access_token (NEW!)
+    sam_access_token = None
+    if (
+        hasattr(component, "trust_manager")
+        and component.trust_manager
+        and hasattr(component.trust_manager, "config")
+        and component.trust_manager.config.access_token_enabled
+    ):
+        try:
+            # Re-resolve authorization (roles may have changed!)
+            gateway_context = {
+                "gateway_id": component.gateway_id,
+                "idp_claims": user_claims,
+            }
+
+            # Get authorization_service if available
+            authorization_service = getattr(component, "authorization_service", None)
+            if authorization_service:
+                roles = await authorization_service.get_roles_for_user(
+                    user_identity=user_identity,
+                    gateway_context=gateway_context
+                )
+                scopes = await authorization_service.get_scopes_for_user(
+                    user_identity=user_identity,
+                    gateway_context=gateway_context
+                )
+
+                log.info(
+                    "%s Re-resolved authorization for '%s': roles=%s, scopes=%d",
+                    component.log_identifier,
+                    user_identity,
+                    roles,
+                    len(scopes)
+                )
+            else:
+                log.warning("%s No authorization_service available, using empty roles/scopes", component.log_identifier)
+                roles = []
+                scopes = []
+
+            # Build JWT payload with fresh claims
+            ttl = component.trust_manager.config.access_token_ttl_seconds
+            provider = config.get("external_auth_provider", "azure")
+
+            jwt_payload = {
+                "iss": f"webui_gateway_{component.gateway_id}",
+                "sub": user_identity,
+                "email": user_claims.get("email"),
+                "name": user_claims.get("name"),
+                "roles": roles,
+                "scopes": scopes,
+                "iat": int(time.time()),
+                "exp": int(time.time()) + ttl,
+                "provider": provider,
+            }
+
+            # Sign with trust_manager
+            sam_access_token = component.trust_manager.sign_user_claims(jwt_payload)
+
+            log.info(
+                "%s Minted fresh sam_access_token for '%s' with %d scopes, TTL=%ds",
+                component.log_identifier,
+                user_identity,
+                len(scopes),
+                ttl
+            )
+        except Exception as e:
+            log.error(
+                "%s Failed to mint sam_access_token during refresh: %s",
+                component.log_identifier,
+                e,
+                exc_info=True
+            )
+            # Don't fail refresh flow if minting fails
+
+    response = {
+        "access_token": idp_access_token,
+        "refresh_token": idp_refresh_token,
     }
+    if sam_access_token:
+        response["sam_access_token"] = sam_access_token
+
+    return response
 
 
 @router.get("/auth/tool/callback")
