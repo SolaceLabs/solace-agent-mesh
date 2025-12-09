@@ -102,6 +102,7 @@ class TestArtifactWorkflowSignals:
         assert captured_artifact_info is not None
         assert captured_artifact_info.filename == "output.json"
         assert captured_artifact_info.version == 1
+        assert captured_artifact_info.version_count is None  # Not populated during save
         assert captured_artifact_info.mime_type == "application/json"
         assert captured_artifact_info.size == len(b'{"result": "test"}')
         assert captured_artifact_info.description == "Test output"
