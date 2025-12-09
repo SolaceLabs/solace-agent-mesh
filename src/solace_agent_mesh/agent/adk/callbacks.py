@@ -2024,10 +2024,12 @@ def solace_llm_response_callback(
                 "model": model_name,
             }
 
-            # Check for cached tokens (provider-specific)
+            # Check for cached tokens from ADK's GenerateContentResponseUsageMetadata
+            # The cached_content_token_count field is set by lite_llm.py from LiteLLM's
+            # prompt_tokens_details.cached_tokens
             cached_tokens = 0
-            if hasattr(usage, "prompt_tokens_details") and usage.prompt_tokens_details:
-                cached_tokens = getattr(usage.prompt_tokens_details, "cached_tokens", 0)
+            if hasattr(usage, "cached_content_token_count") and usage.cached_content_token_count:
+                cached_tokens = usage.cached_content_token_count
                 if cached_tokens > 0:
                     usage_dict["cached_input_tokens"] = cached_tokens
 
