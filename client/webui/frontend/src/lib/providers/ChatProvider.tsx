@@ -2,10 +2,11 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEvent, type ReactNode } from "react";
 import { v4 } from "uuid";
 
-import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog } from "@/lib/hooks";
+import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 
 import { authenticatedFetch, fetchWithError, getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
+import { createFileSizeErrorMessage } from "@/lib/utils/file-validation";
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import type {
@@ -78,7 +79,7 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback } = useConfigContext();
+    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs } = useConfigContext();
     const { chat: chatBaseUrl } = api.getBaseUrls();
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { ErrorDialog, setError } = useErrorDialog();
@@ -116,6 +117,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const isFinalizing = useRef(false);
     const latestStatusText = useRef<string | null>(null);
     const sseEventSequenceRef = useRef<number>(0);
+    const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
+    const messagesRef = useRef<MessageFE[]>([]);
 
     // Agents State
     const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
@@ -160,8 +163,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
 
     // Notification Helper
-    // Note: "error" type is deprecated in favor of useErrorDialog
-    const addNotification = useCallback((message: string, type?: "success" | "info" | "error") => {
+    const addNotification = useCallback((message: string, type?: "success" | "info" | "warning") => {
         setNotifications(prev => {
             const existingNotification = prev.find(n => n.message === message);
 
@@ -180,10 +182,79 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         });
     }, []);
 
+    // Background Task Monitoring (placed after addNotification is defined)
+    const {
+        backgroundTasks,
+        notifications: backgroundNotifications,
+        registerBackgroundTask,
+        unregisterBackgroundTask,
+        updateTaskTimestamp,
+        isTaskRunningInBackground,
+        checkTaskStatus,
+    } = useBackgroundTaskMonitor({
+        apiPrefix,
+        userId: "sam_dev_user", // TODO: Get from auth context when available
+        currentSessionId: sessionId,
+        onTaskCompleted: useCallback(
+            (taskId: string) => {
+                addNotification("Background task completed", "success");
+
+                // Trigger session list refresh to update background task indicators
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(
+                        new CustomEvent("background-task-completed", {
+                            detail: { taskId },
+                        })
+                    );
+                    // Also trigger general session list refresh
+                    window.dispatchEvent(new CustomEvent("new-chat-session"));
+                }
+            },
+            [addNotification]
+        ),
+        onTaskFailed: useCallback(
+            (taskId: string, error: string) => {
+                setError({ title: "Background Task Failed", error });
+
+                // Trigger session list refresh to update background task indicators
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(
+                        new CustomEvent("background-task-completed", {
+                            detail: { taskId },
+                        })
+                    );
+                    // Also trigger general session list refresh
+                    window.dispatchEvent(new CustomEvent("new-chat-session"));
+                }
+            },
+            [setError]
+        ),
+    });
+
+    // Keep refs in sync with state
+    useEffect(() => {
+        backgroundTasksRef.current = backgroundTasks;
+    }, [backgroundTasks]);
+
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
     // Helper function to serialize a MessageFE to MessageBubble format for backend
     const serializeMessageBubble = useCallback((message: MessageFE) => {
-        const textParts = message.parts?.filter(p => p.kind === "text") as TextPart[] | undefined;
-        const combinedText = textParts?.map(p => p.text).join("") || "";
+        // Build text with artifact markers embedded
+        let combinedText = "";
+        const parts = message.parts || [];
+
+        for (const part of parts) {
+            if (part.kind === "text") {
+                combinedText += (part as TextPart).text;
+            } else if (part.kind === "artifact") {
+                // Add artifact marker for artifact parts
+                const artifactPart = part as ArtifactPart;
+                combinedText += `«artifact_return:${artifactPart.name}»`;
+            }
+        }
 
         return {
             id: message.metadata?.messageId || `msg-${v4()}`,
@@ -200,20 +271,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Helper function to save task data to backend
     const saveTaskToBackend = useCallback(
-        async (taskData: { task_id: string; user_message?: string; message_bubbles: any[]; task_metadata?: any }) => {
-            if (!persistenceEnabled || !sessionId) return;
+        async (taskData: { task_id: string; user_message?: string; message_bubbles: any[]; task_metadata?: any }, overrideSessionId?: string): Promise<boolean> => {
+            const effectiveSessionId = overrideSessionId || sessionId;
+
+            if (!persistenceEnabled || !effectiveSessionId) {
+                return false;
+            }
 
             // Prevent duplicate saves (handles React Strict Mode + race conditions)
             if (savingTasksRef.current.has(taskData.task_id)) {
-                return;
+                return false;
             }
 
             // Mark as saving
             savingTasksRef.current.add(taskData.task_id);
 
             try {
-                const response = await authenticatedFetch(`${chatBaseUrl}/api/v1/sessions/${sessionId}/chat-tasks`, {
-                    method: "POST",
+                const response = await authenticatedFetch(`${chatBaseUrl}/api/v1/sessions/${effectiveSessionId}/chat-tasks`, {                    method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         taskId: taskData.task_id,
@@ -228,9 +302,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     const errorData = await response.json().catch(() => ({ detail: "Failed saving task" }));
                     throw new Error(errorData.message || `HTTP error ${response.status}`);
                 }
+                return true;
             } catch (error) {
                 console.error(`Failed saving task ${taskData.task_id}:`, error);
                 // Don't throw - saving is best-effort and silent per NFR-1
+                return false;
             } finally {
                 // Always remove from saving set after a delay to handle rapid re-renders
                 setTimeout(() => {
@@ -241,24 +317,106 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [chatBaseUrl, sessionId, persistenceEnabled]
     );
 
+    // Helper function to extract artifact markers and create artifact parts
+    const extractArtifactMarkers = useCallback((text: string, sessionId: string, addedArtifacts: Set<string>, processedParts: any[]) => {
+        const ARTIFACT_RETURN_REGEX = /«artifact_return:([^»]+)»/g;
+        const ARTIFACT_REGEX = /«artifact:([^»]+)»/g;
+
+        const createArtifactPart = (filename: string) => ({
+            kind: "artifact",
+            status: "completed",
+            name: filename,
+            file: {
+                name: filename,
+                uri: `artifact://${sessionId}/${filename}`,
+            },
+        });
+
+        // Extract artifact_return markers
+        let match;
+        while ((match = ARTIFACT_RETURN_REGEX.exec(text)) !== null) {
+            const artifactFilename = match[1];
+            if (!addedArtifacts.has(artifactFilename)) {
+                addedArtifacts.add(artifactFilename);
+                processedParts.push(createArtifactPart(artifactFilename));
+            }
+        }
+
+        // Extract artifact: markers
+        while ((match = ARTIFACT_REGEX.exec(text)) !== null) {
+            const artifactFilename = match[1];
+            if (!addedArtifacts.has(artifactFilename)) {
+                addedArtifacts.add(artifactFilename);
+                processedParts.push(createArtifactPart(artifactFilename));
+            }
+        }
+    }, []);
+
     // Helper function to deserialize task data to MessageFE objects
     const deserializeTaskToMessages = useCallback((task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, sessionId: string): MessageFE[] => {
-        return task.messageBubbles.map(bubble => ({
-            taskId: task.taskId,
-            role: bubble.type === "user" ? "user" : "agent",
-            parts: bubble.parts || [{ kind: "text", text: bubble.text || "" }],
-            isUser: bubble.type === "user",
-            isComplete: true,
-            files: bubble.files,
-            uploadedFiles: bubble.uploadedFiles,
-            artifactNotification: bubble.artifactNotification,
-            isError: bubble.isError,
-            metadata: {
-                messageId: bubble.id,
-                sessionId: sessionId,
-                lastProcessedEventSequence: 0,
-            },
-        }));
+        return task.messageBubbles.map(bubble => {
+            // Process parts to handle markers and reconstruct artifact parts if needed
+            const processedParts: any[] = [];
+            const originalParts = bubble.parts || [{ kind: "text", text: bubble.text || "" }];
+
+            // Track artifact names we've already added to avoid duplicates
+            const addedArtifacts = new Set<string>();
+
+            // First, check the bubble.text field for artifact markers (TaskLoggerService saves markers there)
+            // This handles the case where backend saves text with markers but parts without artifacts
+            if (bubble.text) {
+                extractArtifactMarkers(bubble.text, sessionId, addedArtifacts, processedParts);
+            }
+
+            for (const part of originalParts) {
+                if (part.kind === "text" && part.text) {
+                    let textContent = part.text;
+
+                    // Extract artifact markers and convert them to artifact parts
+                    extractArtifactMarkers(textContent, sessionId, addedArtifacts, processedParts);
+
+                    // Remove artifact markers from text content
+                    textContent = textContent.replace(/«artifact_return:[^»]+»/g, "");
+                    textContent = textContent.replace(/«artifact:[^»]+»/g, "");
+
+                    // Remove status update markers
+                    textContent = textContent.replace(/«status_update:[^»]+»\n?/g, "");
+
+                    // Add text part if there's content
+                    if (textContent.trim()) {
+                        processedParts.push({ kind: "text", text: textContent });
+                    }
+                } else if (part.kind === "artifact") {
+                    // Only add artifact part if not already added (from markers)
+                    const artifactName = part.name;
+                    if (artifactName && !addedArtifacts.has(artifactName)) {
+                        addedArtifacts.add(artifactName);
+                        processedParts.push(part);
+                    }
+                    // Skip duplicate artifacts
+                } else {
+                    // Keep other non-text parts as-is
+                    processedParts.push(part);
+                }
+            }
+
+            return {
+                taskId: task.taskId,
+                role: bubble.type === "user" ? "user" : "agent",
+                parts: processedParts,
+                isUser: bubble.type === "user",
+                isComplete: true,
+                files: bubble.files,
+                uploadedFiles: bubble.uploadedFiles,
+                artifactNotification: bubble.artifactNotification,
+                isError: bubble.isError,
+                metadata: {
+                    messageId: bubble.id,
+                    sessionId: sessionId,
+                    lastProcessedEventSequence: 0,
+                },
+            };
+        });
     }, []);
 
     // Helper function to apply migrations to a task
@@ -343,6 +501,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             if (agentName) {
                 setSelectedAgentName(agentName);
             }
+
+            // Set taskIdInSidePanel to the most recent task for workflow visualization
+            if (migratedTasks.length > 0) {
+                const mostRecentTask = migratedTasks[migratedTasks.length - 1];
+                setTaskIdInSidePanel(mostRecentTask.taskId);
+            }
         },
         [deserializeTaskToMessages, migrateTask]
     );
@@ -371,18 +535,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Special handling for 413 status before checking response.ok
                 if (response.status === 413) {
                     const errorData = await response.json().catch(() => ({ message: `Failed to upload ${file.name}.` }));
-                    // Extract file size information if available
+                    // Extract file size information if available and use common utility
                     const actualSize = errorData.actual_size_bytes;
                     const maxSize = errorData.max_size_bytes;
 
-                    let errorMessage;
-                    if (actualSize && maxSize) {
-                        const actualSizeMB = (actualSize / (1024 * 1024)).toFixed(2);
-                        const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(2);
-                        errorMessage = `File "${file.name}" is too large: ${actualSizeMB} MB exceeds the maximum allowed size of ${maxSizeMB} MB.`;
-                    } else {
-                        errorMessage = errorData.message || `File "${file.name}" exceeds the maximum allowed size.`;
-                    }
+                    const errorMessage = actualSize && maxSize ? createFileSizeErrorMessage(file.name, actualSize, maxSize) : errorData.message || `File "${file.name}" exceeds the maximum allowed size.`;
 
                     setError({ title: "File Upload Failed", error: errorMessage });
                     return { error: errorMessage };
@@ -740,6 +897,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             } catch (error: unknown) {
                 console.error("Failed to parse SSE message:", error);
                 return;
+            }
+
+            // Update background task timestamp if this is a background task
+            if ("result" in rpcResponse && rpcResponse.result) {
+                const result = rpcResponse.result;
+                const taskIdFromResult = result.kind === "task" ? result.id : result.kind === "status-update" ? result.taskId : undefined;
+
+                if (taskIdFromResult && isTaskRunningInBackground(taskIdFromResult)) {
+                    updateTaskTimestamp(taskIdFromResult, Date.now());
+                }
             }
 
             // Handle RPC Error
@@ -1159,10 +1326,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Save complete task when agent response is done (Step 10.5-10.9)
-                if (currentTaskIdFromResult && sessionId) {
-                    // Gather all messages for this task, filtering out status bubbles
-                    setMessages(currentMessages => {
-                        const taskMessages = currentMessages.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
+                // Note: For background tasks, the backend TaskLoggerService handles saving automatically
+                // For non-background tasks, we save here
+                if (currentTaskIdFromResult) {
+                    const isBackgroundTask = isTaskRunningInBackground(currentTaskIdFromResult);
+
+                    // Only save non-background tasks from frontend
+                    // Background tasks are saved by TaskLoggerService to avoid race conditions
+                    if (!isBackgroundTask) {
+                        // Use messagesRef to get the latest messages
+                        const taskMessages = messagesRef.current.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
 
                         if (taskMessages.length > 0) {
                             // Serialize all message bubbles
@@ -1180,21 +1353,41 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             const hasError = taskMessages.some(m => m.isError);
                             const taskStatus = hasError ? "error" : "completed";
 
-                            // Save complete task (don't wait for completion)
-                            saveTaskToBackend({
-                                task_id: currentTaskIdFromResult,
-                                user_message: userMessageText,
-                                message_bubbles: messageBubbles,
-                                task_metadata: {
-                                    schema_version: CURRENT_SCHEMA_VERSION,
-                                    status: taskStatus,
-                                    agent_name: selectedAgentName,
-                                },
-                            });
-                        }
+                            // Get the session ID from the task's context
+                            const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
 
-                        return currentMessages;
-                    });
+                            // Save complete task
+                            saveTaskToBackend(
+                                {
+                                    task_id: currentTaskIdFromResult,
+                                    user_message: userMessageText,
+                                    message_bubbles: messageBubbles,
+                                    task_metadata: {
+                                        schema_version: CURRENT_SCHEMA_VERSION,
+                                        status: taskStatus,
+                                        agent_name: selectedAgentName,
+                                    },
+                                },
+                                taskSessionId
+                            )
+                                .then(saved => {
+                                    if (saved && typeof window !== "undefined") {
+                                        window.dispatchEvent(new CustomEvent("new-chat-session"));
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error(`[ChatProvider] Error saving task ${currentTaskIdFromResult}:`, error);
+                                });
+                        }
+                    } else {
+                        // For background tasks, just unregister after completion
+                        unregisterBackgroundTask(currentTaskIdFromResult);
+
+                        // Trigger session list refresh
+                        if (typeof window !== "undefined") {
+                            window.dispatchEvent(new CustomEvent("new-chat-session"));
+                        }
+                    }
                 }
 
                 // Mark all in-progress artifacts as completed when task finishes
@@ -1230,6 +1423,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     });
                 });
 
+                // Background task unregistration is now handled in the saveTaskToBackend promise above
+                // This ensures the database save completes before we unregister and refresh
+
                 setIsResponding(false);
                 closeCurrentEventSource();
                 setCurrentTaskId(null);
@@ -1240,7 +1436,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
-        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble, downloadAndResolveArtifact, setArtifacts]
+        [
+            addNotification,
+            closeCurrentEventSource,
+            artifactsRefetch,
+            sessionId,
+            selectedAgentName,
+            saveTaskToBackend,
+            serializeMessageBubble,
+            downloadAndResolveArtifact,
+            setArtifacts,
+            isTaskRunningInBackground,
+            updateTaskTimestamp,
+            unregisterBackgroundTask,
+        ]
     );
 
     const handleNewSession = useCallback(
@@ -1249,6 +1458,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             closeCurrentEventSource();
 
+            // Only cancel task if it's not a background task
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
                 try {
                     const cancelRequest = {
@@ -1274,9 +1484,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 cancelTimeoutRef.current = null;
             }
             setIsCancelling(false);
-
-            // Reset frontend state - session will be created lazily when first message is sent
-            console.log(`${log_prefix} Resetting session state - new session will be created when first message is sent`);
 
             // Clear session ID - will be set by backend when first message is sent
             setSessionId("");
@@ -1335,9 +1542,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             console.log(`${log_prefix} Switching to session ${newSessionId}...`);
 
             setIsLoadingSession(true);
-            setMessages([]);
+
+            // Check if we're switching away from a session with a running background task
+            const currentSessionBackgroundTasks = backgroundTasks.filter(t => t.sessionId === sessionId);
+            const hasRunningBackgroundTask = currentSessionBackgroundTasks.some(t => t.taskId === currentTaskId);
+
+            // DON'T clear messages if there are background tasks in the current session
+            // This ensures the messages are available for saving when the task completes
+            const hasAnyBackgroundTasks = currentSessionBackgroundTasks.length > 0;
+
+            if (!hasRunningBackgroundTask && !hasAnyBackgroundTasks) {
+                setMessages([]);
+            }
+
             closeCurrentEventSource();
 
+            // Only cancel task if it's not a background task
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
                 console.log(`${log_prefix} Cancelling current task ${currentTaskId}`);
                 try {
@@ -1413,6 +1633,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 sseEventSequenceRef.current = 0;
 
                 await loadSessionTasks(newSessionId);
+
+                // Check for running background tasks in this session and reconnect
+                const sessionBackgroundTasks = backgroundTasks.filter(t => t.sessionId === newSessionId);
+                if (sessionBackgroundTasks.length > 0) {
+                    // Check if any are still running
+                    for (const bgTask of sessionBackgroundTasks) {
+                        const status = await checkTaskStatus(bgTask.taskId);
+                        if (status && status.is_running) {
+                            console.log(`[ChatProvider] Reconnecting to running background task ${bgTask.taskId}`);
+                            setCurrentTaskId(bgTask.taskId);
+                            setIsResponding(true);
+                            if (bgTask.agentName) {
+                                setSelectedAgentName(bgTask.agentName);
+                            }
+                            // Only reconnect to the first running task
+                            break;
+                        } else {
+                            // Task is no longer running - unregister it immediately
+                            // This prevents the SSE useEffect from trying to reconnect
+                            console.log(`[ChatProvider] Background task ${bgTask.taskId} is not running, unregistering`);
+                            unregisterBackgroundTask(bgTask.taskId);
+                        }
+                    }
+                }
             } catch (error) {
                 setError({ title: "Switching Chats Failed", error: getErrorMessage(error, "Failed to switch chat sessions.") });
             } finally {
@@ -1773,17 +2017,37 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // 3. Construct the A2A message
                 console.log(`ChatProvider handleSubmit: Using effectiveSessionId for contextId: ${effectiveSessionId}`);
+
+                // Check if background execution is enabled via gateway config
+                const enableBackgroundExecution = backgroundTasksEnabled ?? false;
+                console.log(`[ChatProvider] Building metadata for ${selectedAgentName}, enableBackground=${enableBackgroundExecution}`);
+
+                // Build metadata object
+                const messageMetadata: Record<string, any> = {
+                    agent_name: selectedAgentName,
+                };
+
+                if (activeProject?.id) {
+                    messageMetadata.project_id = activeProject.id;
+                }
+
+                if (enableBackgroundExecution) {
+                    messageMetadata.background_execution = true;
+                    messageMetadata.max_execution_time_ms = backgroundTasksDefaultTimeoutMs ?? 3600000; // Default 1 hour
+                    console.log(`[ChatProvider] Enabling background execution for ${selectedAgentName}`);
+                    console.log(`[ChatProvider] Metadata object:`, messageMetadata);
+                }
+
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
                     messageId: `msg-${v4()}`,
                     kind: "message",
                     contextId: effectiveSessionId,
-                    metadata: {
-                        agent_name: selectedAgentName,
-                        project_id: activeProject?.id || null,
-                    },
+                    metadata: messageMetadata,
                 };
+
+                console.log(`[ChatProvider] A2A message metadata:`, a2aMessage.metadata);
 
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
@@ -1817,24 +2081,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // Update session ID if backend provided one (for new sessions)
                 console.log(`ChatProvider handleSubmit: Checking session update condition - responseSessionId: ${responseSessionId}, sessionId: ${sessionId}, different: ${responseSessionId !== sessionId}`);
+                const isNewSession = !sessionId || sessionId === "";
+                const finalSessionId = responseSessionId || sessionId;
+
                 if (responseSessionId && responseSessionId !== sessionId) {
                     console.log(`ChatProvider handleSubmit: Updating sessionId from ${sessionId} to ${responseSessionId}`);
-                    const isNewSession = !sessionId || sessionId === "";
                     setSessionId(responseSessionId);
                     // Update the user message metadata with the new session ID
                     setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, metadata: { ...msg.metadata, sessionId: responseSessionId } } : msg)));
-
-                    // Save initial task with user message (Step 10.2-10.3)
-                    await saveTaskToBackend({
-                        task_id: taskId,
-                        user_message: currentInput,
-                        message_bubbles: [serializeMessageBubble(userMsg)],
-                        task_metadata: {
-                            schema_version: CURRENT_SCHEMA_VERSION,
-                            status: "pending",
-                            agent_name: selectedAgentName,
-                        },
-                    });
 
                     // If it was a new session, generate and persist its name
                     if (isNewSession) {
@@ -1868,9 +2122,41 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     }
                 }
 
+                // Save initial task with user message
+                // For background tasks, we save with "pending" status so the session list shows the spinner
+                // The backend TaskLoggerService will update this with the full response when complete
+                const enabledForBackground = backgroundTasksEnabled ?? false;
+                if (finalSessionId) {
+                    await saveTaskToBackend(
+                        {
+                            task_id: taskId,
+                            user_message: currentInput,
+                            message_bubbles: [serializeMessageBubble(userMsg)],
+                            task_metadata: {
+                                schema_version: CURRENT_SCHEMA_VERSION,
+                                status: "pending",
+                                agent_name: selectedAgentName,
+                                is_background_task: enabledForBackground,
+                            },
+                        },
+                        finalSessionId
+                    ); // Pass session ID explicitly
+                }
+
                 console.log(`ChatProvider handleSubmit: Received taskId ${taskId}. Setting currentTaskId and taskIdInSidePanel.`);
                 setCurrentTaskId(taskId);
                 setTaskIdInSidePanel(taskId);
+
+                // Check if this should be a background task (enabled via gateway config)
+                if (enabledForBackground) {
+                    console.log(`[ChatProvider] Registering ${taskId} as background task`);
+                    registerBackgroundTask(taskId, finalSessionId, selectedAgentName);
+
+                    // Trigger session list refresh to show spinner immediately
+                    if (typeof window !== "undefined") {
+                        window.dispatchEvent(new CustomEvent("new-chat-session"));
+                    }
+                }
 
                 // Update user message with taskId so it's included in final save
                 setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, taskId: taskId } : msg)));
@@ -1929,6 +2215,35 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             window.removeEventListener("session-moved", handleSessionMoved);
         };
     }, [sessionId, projects, setActiveProject]);
+
+    useEffect(() => {
+        // Listen for background task completion events
+        // When a background task completes, reload ANY session it belongs to (not just current)
+        // This ensures we get the latest data even if the task completed while we were in a different session
+        const handleBackgroundTaskCompleted = async (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const { taskId: completedTaskId } = customEvent.detail;
+
+            // Find the completed task
+            const completedTask = backgroundTasksRef.current.find(t => t.taskId === completedTaskId);
+            if (completedTask) {
+                console.log(`[ChatProvider] Background task ${completedTaskId} completed, will reload session ${completedTask.sessionId} after delay`);
+                // Wait a bit to ensure any pending operations complete
+                setTimeout(async () => {
+                    // Reload the session if it's currently active
+                    if (currentSessionIdRef.current === completedTask.sessionId) {
+                        console.log(`[ChatProvider] Reloading current session ${completedTask.sessionId} to get latest data`);
+                        await loadSessionTasks(completedTask.sessionId);
+                    }
+                }, 1500); // Increased delay to ensure save completes
+            }
+        };
+
+        window.addEventListener("background-task-completed", handleBackgroundTaskCompleted);
+        return () => {
+            window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
+        };
+    }, [loadSessionTasks]);
 
     useEffect(() => {
         // When the active project changes, reset the chat view to a clean slate
@@ -2143,6 +2458,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         pendingPrompt,
         startNewChatWithPrompt,
         clearPendingPrompt,
+
+        /** Background Task Monitoring */
+        backgroundTasks,
+        backgroundNotifications,
+        isTaskRunningInBackground,
     };
 
     return (

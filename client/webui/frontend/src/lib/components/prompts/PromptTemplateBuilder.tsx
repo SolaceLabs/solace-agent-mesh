@@ -178,13 +178,13 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                     buttons={
                         builderMode === "ai-assisted"
                             ? [
-                                  <Button key="edit-manually" onClick={handleSwitchToManual} variant="ghost" size="sm">
+                                  <Button data-testid="editManuallyButton" key="edit-manually" onClick={handleSwitchToManual} variant="ghost" size="sm">
                                       <Pencil className="mr-1 h-3 w-3" />
                                       Edit Manually
                                   </Button>,
                               ]
                             : [
-                                  <Button key="build-with-ai" onClick={handleSwitchToAI} variant="ghost" size="sm">
+                                  <Button data-testid="buildWithAIButton" key="build-with-ai" onClick={handleSwitchToAI} variant="ghost" size="sm">
                                       <Sparkles className="mr-1 h-3 w-3" />
                                       {isEditing ? "Edit with AI" : "Build with AI"}
                                   </Button>,
@@ -354,7 +354,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                             )}
                         </Button>
                     )}
-                    <Button onClick={handleSave} disabled={isLoading}>
+                    <Button data-testid="createPromptButton" onClick={handleSave} disabled={isLoading}>
                         {isLoading ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

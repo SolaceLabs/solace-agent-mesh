@@ -65,12 +65,15 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
 
             // Clear the programmatic scroll flag after animation completes
             // Update lastScrollTop after the animation to prevent false detection
-            setTimeout(() => {
-                if (scrollRef.current) {
-                    lastScrollTop.current = scrollRef.current.scrollTop;
-                }
-                isProgrammaticScroll.current = false;
-            }, instant ? 50 : 500);
+            setTimeout(
+                () => {
+                    if (scrollRef.current) {
+                        lastScrollTop.current = scrollRef.current.scrollTop;
+                    }
+                    isProgrammaticScroll.current = false;
+                },
+                instant ? 50 : 500
+            );
         },
         [smooth]
     );

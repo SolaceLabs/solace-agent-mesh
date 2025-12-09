@@ -16,20 +16,20 @@ import { Spinner } from "../../ui";
 
 type ArtifactMessageProps = (
     | {
-        status: "in-progress";
-        name: string;
-        bytesTransferred: number;
-    }
+          status: "in-progress";
+          name: string;
+          bytesTransferred: number;
+      }
     | {
-        status: "completed";
-        name: string;
-        fileAttachment: FileAttachment;
-    }
+          status: "completed";
+          name: string;
+          fileAttachment: FileAttachment;
+      }
     | {
-        status: "failed";
-        name: string;
-        error?: string;
-    }
+          status: "failed";
+          name: string;
+          error?: string;
+      }
 ) & {
     context?: "chat" | "list";
     uniqueKey?: string; // Optional unique key for expansion state (e.g., taskId-filename)
@@ -355,8 +355,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 content: contentToRender,
                 // @ts-expect-error - Add flag to indicate if content is plain text from streaming
                 // Content is plain text if: (1) it's from accumulated content during streaming, OR (2) we're in progress state
-                isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) ||
-                    (props.status === "in-progress" && !!fetchedContent)
+                isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) || (props.status === "in-progress" && !!fetchedContent),
             });
 
             if (finalContent) {
