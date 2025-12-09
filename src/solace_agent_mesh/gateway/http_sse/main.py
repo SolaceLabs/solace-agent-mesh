@@ -674,7 +674,7 @@ def _setup_static_files() -> None:
         )
         log.info("Mounted static files directory '%s' at '/'", static_files_dir)
     except Exception as static_mount_err:
-        log.warning(
+        log.error(
             "Failed to mount static files directory '%s': %s",
             static_files_dir,
             static_mount_err,
