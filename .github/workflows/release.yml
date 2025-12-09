@@ -24,9 +24,9 @@ permissions:
   pull-requests: read
 
 jobs:
-  # Run security checks first via reusable workflow
+  # Run security checks first via reusable workflow (conditionally)
   security-checks:
-    if: ${{ !fromJson(inputs.skip_security_checks) }}
+    if: ${{ github.event.inputs.skip_security_checks != 'true' }}
     uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
     with:
       whitesource_project_name: "solace-agent-mesh"
@@ -49,6 +49,11 @@ jobs:
   # Release to PyPI using Trusted Publishing
   release:
     name: Release to PyPI
+    # Run if security checks passed OR if security checks were skipped
+    needs: security-checks
+    if: |
+      always() && 
+      (needs.security-checks.result == 'success' || needs.security-checks.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: pypi
