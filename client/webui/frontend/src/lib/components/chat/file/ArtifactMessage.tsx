@@ -259,15 +259,18 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 const parsedUri = parseArtifactUri(fileUri);
                 if (!parsedUri) throw new Error("Invalid artifact URI.");
 
-                const { filename, version } = parsedUri;
+                const { sessionId: uriSessionId, filename, version } = parsedUri;
 
                 // Construct API URL based on context
-                // Priority 1: Session context (active chat)
+                // Priority 1: Session ID from URI (artifact was created in this session)
+                // Priority 2: Current session context (active chat)
+                // Priority 3: Project context (pre-session, project artifacts)
                 let apiUrl: string;
-                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    apiUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
+                const effectiveSessionId = uriSessionId || sessionId;
+                if (effectiveSessionId && effectiveSessionId.trim() && effectiveSessionId !== "null" && effectiveSessionId !== "undefined") {
+                    apiUrl = `/api/v1/artifacts/${effectiveSessionId}/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
                 }
-                // Priority 2: Project context (pre-session, project artifacts)
+                // Priority 3: Project context (pre-session, project artifacts)
                 else if (activeProject?.id) {
                     apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version || "latest"}?project_id=${activeProject.id}`;
                 }
