@@ -82,7 +82,7 @@ jobs:
 
       - name: Prepare Release
         id: prep
-        uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-prep@main
+        uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-prep@fix-prisma-scans
         with:
           version: ${{ github.event.inputs.version }}
 
