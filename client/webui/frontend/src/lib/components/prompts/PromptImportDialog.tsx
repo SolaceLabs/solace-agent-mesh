@@ -41,6 +41,9 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
     const [selectedFileName, setSelectedFileName] = useState<string>("");
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const [initialNameConflict, setInitialNameConflict] = useState(false);
+    const [initialCommandConflict, setInitialCommandConflict] = useState(false);
+
     // Form for the editable name and command fields
     const {
         register,
@@ -155,6 +158,30 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         }
     }, []);
 
+    // Check for initial conflicts when file is loaded
+    const checkInitialConflicts = useCallback(
+        (data: PromptImportData) => {
+            const importedName = data.prompt.name?.trim().toLowerCase() || "";
+            const importedCommand = data.prompt.command?.trim().toLowerCase() || "";
+
+            let nameConflict = false;
+            let commandConflict = false;
+
+            for (const prompt of existingPrompts) {
+                if (importedName && prompt.name?.toLowerCase() === importedName) {
+                    nameConflict = true;
+                }
+                if (importedCommand && prompt.command?.toLowerCase() === importedCommand) {
+                    commandConflict = true;
+                }
+            }
+
+            setInitialNameConflict(nameConflict);
+            setInitialCommandConflict(commandConflict);
+        },
+        [existingPrompts]
+    );
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (!selectedFile) return;
@@ -167,6 +194,8 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
             // Initialize the form with the imported name and command
             setValue("name", data.prompt.name || "");
             setValue("command", data.prompt.command || "");
+            // Check for initial conflicts
+            checkInitialConflicts(data);
         }
 
         // Reset file input
@@ -202,6 +231,8 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                 setSelectedFileName(file.name);
                 setValue("name", data.prompt.name || "");
                 setValue("command", data.prompt.command || "");
+                // Check for initial conflicts
+                checkInitialConflicts(data);
             }
         }
     };
@@ -257,6 +288,8 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         setFileError(null);
         setValidationErrors([]);
         setTruncationWarnings([]);
+        setInitialNameConflict(false);
+        setInitialCommandConflict(false);
         resetForm();
     };
 
@@ -363,12 +396,12 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                             <div className="flex flex-col gap-4">
                                 <h3 className="text-sm font-semibold">Review Prompt</h3>
 
-                                {/* Name Field - Editable only when there's a conflict */}
+                                {/* Name Field - Editable when there's a conflict or was initially in conflict */}
                                 <div className="space-y-1">
                                     <Label htmlFor="import-name" className="text-muted-foreground text-xs">
                                         Name<span className="text-red-500">*</span>
                                     </Label>
-                                    {conflicts.hasNameConflict ? (
+                                    {initialNameConflict ? (
                                         <div className="space-y-1">
                                             <Input id="import-name" {...register("name")} className={`${errors.name || conflicts.hasNameConflict ? "border-red-500 focus-visible:ring-red-500" : ""}`} maxLength={PROMPT_FIELD_LIMITS.NAME_MAX} />
                                             {conflicts.hasNameConflict && !errors.name && (
@@ -396,12 +429,12 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                     {importData.prompt.category ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.category}</p> : <p className="text-muted-foreground text-sm italic">No tag</p>}
                                 </div>
 
-                                {/* Chat Shortcut Field - Editable only when there's a conflict */}
+                                {/* Chat Shortcut Field - Editable when there's a conflict or was initially in conflict */}
                                 <div className="space-y-1">
                                     <Label htmlFor="import-command" className="text-muted-foreground text-xs">
                                         Chat Shortcut{importData.prompt.command ? <span className="text-red-500">*</span> : ""}
                                     </Label>
-                                    {conflicts.hasCommandConflict ? (
+                                    {initialCommandConflict ? (
                                         <div className="space-y-1">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-muted-foreground text-sm">/</span>
