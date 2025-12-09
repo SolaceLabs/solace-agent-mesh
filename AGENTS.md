@@ -51,6 +51,12 @@ The plan must be:
 - Actionable  
 - Detailed enough to guide LLM-assisted implementation  
 
+The generated agent, plugin and gateway must be stored in a separated folder with the following structure:
+- <agent name>
+-- src <include codes>
+-- tests <include tests>
+- README.md <description and installation instruction>
+
 ### Step 3 – Implement step by step with verification  
 For each step of the plan:
 - Write or update tests to cover 80% of functionality
