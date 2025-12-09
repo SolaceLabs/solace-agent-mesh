@@ -227,6 +227,37 @@ def create_oauth_middleware(component):
                 await response(scope, receive, send)
                 return
 
+            # NEW: Try sam_access_token validation first
+            trust_manager = getattr(self.component, "trust_manager", None)
+            if trust_manager and trust_manager.config.access_token_enabled:
+                try:
+                    # Validate as sam_access_token using trust_manager (local JWT verification)
+                    claims = trust_manager.verify_user_claims(access_token)
+
+                    # Success! It's a valid sam_access_token
+                    request.state.user = {
+                        "id": claims["sub"],
+                        "email": claims.get("email", claims["sub"]),
+                        "name": claims.get("name", claims["sub"]),
+                        "authenticated": True,
+                        "auth_method": "sam_access_token",
+                        "roles": claims.get("roles", []),      # NEW: Available in sam_access_token
+                        "scopes": claims.get("scopes", []),    # NEW: Available in sam_access_token
+                    }
+                    log.debug(
+                        f"AuthMiddleware: Validated sam_access_token for user '{claims['sub']}' "
+                        f"with roles={claims.get('roles', [])} scopes={len(claims.get('scopes', []))}"
+                    )
+                    # Success - continue to app (skip IdP validation)
+                    await self.app(scope, receive, send)
+                    return
+
+                except Exception as e:
+                    # Not a sam_access_token or verification failed
+                    # Fall through to IdP token validation
+                    log.debug(f"AuthMiddleware: Token is not a sam_access_token, trying IdP validation: {e}")
+
+            # EXISTING: Fall back to IdP token validation (unchanged logic below this point)
             auth_service_url = getattr(self.component, "external_auth_service_url", None)
             auth_provider = getattr(self.component, "external_auth_provider", "generic")
 
