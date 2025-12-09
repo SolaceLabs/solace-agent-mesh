@@ -42,8 +42,8 @@ jobs:
       SONARQUBE_QUERY_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
       SONARQUBE_HOTSPOTS_API_URL: ${{ secrets.SONARQUBE_HOTSPOTS_API_URL }}
       WHITESOURCE_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
-      MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
-      MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+      MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
+      MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
       MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
 
   # Release to PyPI using Trusted Publishing
@@ -88,31 +88,31 @@ jobs:
 
       # Publish using Trusted Publishing - must be directly in workflow, not in composite action
       # See: https://docs.pypi.org/trusted-publishers/using-a-publisher/
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          verbose: true
+      # - name: Publish package distributions to PyPI
+      #   uses: pypa/gh-action-pypi-publish@release/v1
+      #   with:
+      #     verbose: true
 
-      - name: Finalize Release
-        uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-post@main
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          new_version: ${{ steps.prep.outputs.new_version }}
-          current_version: ${{ steps.prep.outputs.current_version }}
-          skip_bump: ${{ steps.prep.outputs.skip_bump }}
+      # - name: Finalize Release
+      #   uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-post@main
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     new_version: ${{ steps.prep.outputs.new_version }}
+      #     current_version: ${{ steps.prep.outputs.current_version }}
+      #     skip_bump: ${{ steps.prep.outputs.skip_bump }}
 
-  build_and_push_docker:
-    name: Build and Push to DockerHub
-    needs: release
-    uses: SolaceLabs/solace-agent-mesh/.github/workflows/build-push-dockerhub.yml@main
-    with:
-      version: ${{ needs.release.outputs.new_version }}
-      commit_hash: ${{ needs.release.outputs.commit_hash }}
-      push_latest: true
-    secrets:
-      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-      SAM_AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
-      SAM_AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-      SAM_AWS_ECR_REGISTRY: ${{ secrets.SAM_AWS_ECR_REGISTRY }}
+  # build_and_push_docker:
+  #   name: Build and Push to DockerHub
+  #   needs: release
+  #   uses: SolaceLabs/solace-agent-mesh/.github/workflows/build-push-dockerhub.yml@main
+  #   with:
+  #     version: ${{ needs.release.outputs.new_version }}
+  #     commit_hash: ${{ needs.release.outputs.commit_hash }}
+  #     push_latest: true
+  #   secrets:
+  #     DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  #     DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+  #     SAM_AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+  #     SAM_AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+  #     AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+  #     SAM_AWS_ECR_REGISTRY: ${{ secrets.SAM_AWS_ECR_REGISTRY }}
