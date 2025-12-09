@@ -18,10 +18,11 @@
         ".gitignore"
     ],
     "rules": [
-        "find valid templates of plugins, gateways and agents in 'templates' folder and 'examples' folder and use them as references to create new ones.",
+        "find valid templates of plugins, gateways and agents in 'templates', 'preset' and 'examples' folders and use them as references to create new ones.",
         "find the main concepts, architecture and instructions in the 'docs' folder.",
+        "find frontend related code in client folder",
         "double check the value of configurations with templates, examples and documents",
         "add simplest configuration for new agents, plugins or gateways based on the existing ones that do not need extra dependencies.",
-        "self-criticise the code and improve it if necessary."
+        "self-criticise the generated code and configuration in a loop and improve it if necessary."
     ]
 }
