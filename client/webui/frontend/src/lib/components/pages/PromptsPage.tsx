@@ -378,7 +378,7 @@ export const PromptsPage: React.FC = () => {
                 />
             )}
 
-            <PromptImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
+            <PromptImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} existingPrompts={promptGroups} />
         </div>
     );
 };
