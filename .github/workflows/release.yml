@@ -49,7 +49,10 @@ jobs:
   # Release to PyPI using Trusted Publishing
   release:
     name: Release to PyPI
-    # Run if security checks passed OR if security checks were skipped
+    # We need always() here because when security-checks is skipped (via skip_security_checks input),
+    # GitHub Actions would by default skip ALL dependent jobs. The always() forces evaluation of our
+    # condition, allowing the release to proceed when security-checks was either successful OR skipped.
+    # This enables emergency releases when security checks need to be bypassed.
     needs: security-checks
     if: |
       always() && 
