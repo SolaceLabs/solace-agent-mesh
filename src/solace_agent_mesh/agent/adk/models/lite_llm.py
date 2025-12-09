@@ -31,6 +31,7 @@ from typing import Tuple
 from typing import Union
 
 from google.genai import types
+import litellm
 from litellm import acompletion
 from litellm import ChatCompletionAssistantMessage
 from litellm import ChatCompletionAssistantToolCall
@@ -56,7 +57,8 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from .oauth2_token_manager import OAuth2ClientCredentialsTokenManager
 
-logger = logging.getLogger("google_adk." + __name__)
+logger = logging.getLogger("solace_agent_mesh.agent.adk.models.lite_llm")
+
 
 _NEW_LINE = "\n"
 _EXCLUDED_PART_FIELD = {"inline_data": {"data"}}
@@ -79,6 +81,83 @@ class UsageMetadataChunk(BaseModel):
     total_tokens: int
     cached_tokens: int = 0
 
+class OpenAIDirectStreamWrapper:
+    """Wrapper to make OpenAI library's streaming response compatible with LiteLLM's interface.
+    
+    This wrapper allows us to use the OpenAI library directly for streaming requests,
+    bypassing LiteLLM's bug that loses prompt_tokens_details. The wrapper makes the
+    OpenAI response look like a LiteLLM CustomStreamWrapper so the rest of the code
+    works unchanged.
+    """
+    
+    def __init__(self, openai_stream, model_name: str):
+        self._stream = openai_stream
+        self._model_name = model_name
+        
+    def __aiter__(self):
+        return self
+    
+    async def __anext__(self):
+        try:
+            # Get the next chunk from OpenAI
+            openai_chunk = await self._stream.__anext__()
+            
+            # Convert OpenAI chunk to LiteLLM-compatible format
+            # LiteLLM expects a ModelResponse-like dict
+            litellm_chunk = {
+                "id": openai_chunk.id,
+                "object": "chat.completion.chunk",
+                "created": openai_chunk.created,
+                "model": self._model_name,
+                "choices": []
+            }
+            
+            # Convert choices
+            for choice in openai_chunk.choices:
+                litellm_choice = {
+                    "index": choice.index,
+                    "delta": {},
+                    "finish_reason": choice.finish_reason
+                }
+                
+                # Add delta content
+                if choice.delta.content:
+                    litellm_choice["delta"]["content"] = choice.delta.content
+                
+                # Add tool calls if present
+                if choice.delta.tool_calls:
+                    litellm_choice["delta"]["tool_calls"] = [
+                        {
+                            "index": tc.index,
+                            "id": tc.id,
+                            "type": tc.type,
+                            "function": {
+                                "name": tc.function.name if tc.function else None,
+                                "arguments": tc.function.arguments if tc.function else None
+                            }
+                        }
+                        for tc in choice.delta.tool_calls
+                    ]
+                
+                litellm_chunk["choices"].append(litellm_choice)
+            
+            # Add usage if present - keep the OpenAI CompletionUsage object as-is
+            # This preserves prompt_tokens_details which LiteLLM would lose
+            if openai_chunk.usage:
+                litellm_chunk["usage"] = openai_chunk.usage
+                logger.debug(
+                    "[OpenAIDirectStreamWrapper] Preserved OpenAI CompletionUsage: %s",
+                    openai_chunk.usage
+                )
+            
+            # Return the dict directly - don't use ModelResponse constructor
+            # ModelResponse would convert CompletionUsage to LiteLLM Usage, losing prompt_tokens_details
+            # The rest of the code expects a dict-like object anyway
+            return litellm_chunk
+            
+        except StopAsyncIteration:
+            raise
+
 
 class LiteLLMClient:
     """Provides acompletion method (for better testability)."""
@@ -97,6 +176,19 @@ class LiteLLMClient:
         Returns:
           The model response as a message.
         """
+        
+        # WORKAROUND for LiteLLM bug: Use OpenAI library directly for OpenAI/Azure streaming
+        # LiteLLM v1.80.9 loses prompt_tokens_details during streaming, but OpenAI library works correctly
+        if kwargs.get('stream') and model.startswith('openai/'):
+            try:
+                logger.info("[OpenAIDirectClient] Using OpenAI library directly for model: %s", model)
+                return await self._acompletion_via_openai_direct(model, messages, tools, **kwargs)
+            except Exception as e:
+                logger.warning(
+                    "[OpenAIDirectClient] Failed to use OpenAI library directly, falling back to LiteLLM: %s",
+                    e
+                )
+                # Fall through to LiteLLM
 
         return await acompletion(
             model=model,
@@ -104,6 +196,73 @@ class LiteLLMClient:
             tools=tools,
             **kwargs,
         )
+    
+    async def _acompletion_via_openai_direct(
+        self, model, messages, tools, **kwargs
+    ):
+        """Use OpenAI library directly to avoid LiteLLM's prompt_tokens_details bug.
+        
+        This method bypasses LiteLLM and uses the OpenAI library directly for streaming
+        requests to OpenAI/Azure models. This preserves prompt_tokens_details which
+        LiteLLM loses due to a bug in its streaming handler.
+        """
+        from openai import AsyncOpenAI
+        
+        # Extract the actual model name (remove 'openai/' prefix)
+        actual_model = model.replace('openai/', '')
+        
+        # Get API configuration from kwargs or environment
+        api_key = kwargs.get('api_key')
+        base_url = kwargs.get('api_base')
+        
+        # If not in kwargs, try to get from environment or extra_headers
+        if not api_key:
+            import os
+            api_key = os.environ.get('OPENAI_API_KEY')
+            # Also check extra_headers for Authorization
+            if not api_key and 'extra_headers' in kwargs:
+                auth_header = kwargs.get('extra_headers', {}).get('Authorization', '')
+                if auth_header.startswith('Bearer '):
+                    api_key = auth_header.replace('Bearer ', '')
+        
+        if not base_url:
+            import os
+            base_url = os.environ.get('OPENAI_API_BASE')
+        
+        # Create OpenAI client
+        client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url
+        )
+        
+        # Prepare request parameters
+        request_params = {
+            'model': actual_model,
+            'messages': messages,
+            'stream': True,
+            'stream_options': kwargs.get('stream_options', {'include_usage': True})
+        }
+        
+        # Add tools if present
+        if tools:
+            request_params['tools'] = tools
+        
+        # Add other common parameters
+        for key in ['temperature', 'max_completion_tokens', 'max_tokens', 'top_p', 'stop',
+                    'presence_penalty', 'frequency_penalty']:
+            if key in kwargs:
+                request_params[key] = kwargs[key]
+        
+        logger.debug(
+            "[OpenAIDirectClient] Making request with model=%s, stream=True, stream_options=%s",
+            actual_model, request_params['stream_options']
+        )
+        
+        # Make the request using OpenAI library
+        response = await client.chat.completions.create(**request_params)
+        
+        # Wrap the response to be compatible with LiteLLM's interface
+        return OpenAIDirectStreamWrapper(response, model)
 
     def completion(
         self, model, messages, tools, stream=False, **kwargs
@@ -412,10 +571,11 @@ def _model_response_to_chunk(
         if message is None and response["choices"][0].get("delta", None):
             message = response["choices"][0]["delta"]
 
-        if message.get("content", None):
+        # Add null check for message before calling .get()
+        if message and message.get("content", None):
             yield TextChunk(text=message.get("content")), finish_reason
 
-        if message.get("tool_calls", None):
+        if message and message.get("tool_calls", None):
             for tool_call in message.get("tool_calls"):
                 if tool_call.type == "function":
                     yield FunctionChunk(
@@ -426,7 +586,7 @@ def _model_response_to_chunk(
                     ), finish_reason
 
         if finish_reason and not (
-            message.get("content", None) or message.get("tool_calls", None)
+            (message and message.get("content", None)) or (message and message.get("tool_calls", None))
         ):
             yield None, finish_reason
 
@@ -438,21 +598,80 @@ def _model_response_to_chunk(
     # So we are sending it as a separate chunk to be set on the llm_response.
     if response.get("usage", None):
         usage = response["usage"]
-        # Extract cached tokens from prompt_tokens_details if available
-        # LiteLLM returns this as PromptTokensDetailsWrapper with cached_tokens attribute
+        # Extract cached tokens from multiple possible locations:
+        # 1. Anthropic/Vertex AI: cache_read_input_tokens (direct attribute on usage)
+        # 2. OpenAI: prompt_tokens_details.cached_tokens
+        # 3. Some providers: cache_hit_tokens
         cached_tokens = 0
-        prompt_tokens_details = usage.get("prompt_tokens_details")
-        if prompt_tokens_details:
-            # Handle both dict and object with cached_tokens attribute
-            if isinstance(prompt_tokens_details, dict):
-                cached_tokens = prompt_tokens_details.get("cached_tokens", 0) or 0
-            elif hasattr(prompt_tokens_details, "cached_tokens"):
-                cached_tokens = prompt_tokens_details.cached_tokens or 0
+        
+        # Log the raw usage object to understand its structure (INFO level for visibility)
+        usage_dump = usage if isinstance(usage, dict) else (usage.model_dump() if hasattr(usage, 'model_dump') else str(usage))
+        logger.info(
+            "[CacheTokenDebug] Raw usage object: %s",
+            usage_dump
+        )
+        
+        # Also log the type and all attributes for debugging
+        logger.info(
+            "[CacheTokenDebug] Usage type: %s, has prompt_tokens_details attr: %s",
+            type(usage).__name__,
+            hasattr(usage, 'prompt_tokens_details')
+        )
+        if hasattr(usage, 'prompt_tokens_details'):
+            ptd = usage.prompt_tokens_details
+            logger.info(
+                "[CacheTokenDebug] prompt_tokens_details type: %s, value: %s",
+                type(ptd).__name__ if ptd else "None",
+                ptd.model_dump() if hasattr(ptd, 'model_dump') else str(ptd)
+            )
+        
+        # Check for Anthropic-style cache tokens (cache_read_input_tokens)
+        # This is returned by Anthropic via Vertex AI and direct API
+        if hasattr(usage, "cache_read_input_tokens") and usage.cache_read_input_tokens:
+            cached_tokens = usage.cache_read_input_tokens
+            logger.info("[CacheTokenDebug] Found cache_read_input_tokens (attr): %d", cached_tokens)
+        elif isinstance(usage, dict) and usage.get("cache_read_input_tokens"):
+            cached_tokens = usage.get("cache_read_input_tokens", 0)
+            logger.info("[CacheTokenDebug] Found cache_read_input_tokens (dict): %d", cached_tokens)
+        
+        # Also check for cache_creation_input_tokens (tokens written to cache)
+        cache_creation_tokens = 0
+        if hasattr(usage, "cache_creation_input_tokens") and usage.cache_creation_input_tokens:
+            cache_creation_tokens = usage.cache_creation_input_tokens
+        elif isinstance(usage, dict) and usage.get("cache_creation_input_tokens"):
+            cache_creation_tokens = usage.get("cache_creation_input_tokens", 0)
+        if cache_creation_tokens > 0:
+            logger.info("[CacheTokenDebug] cache_creation_input_tokens: %d", cache_creation_tokens)
+        
+        # Check for Gemini-style cached_content_token_count (native Google API field)
+        # This may be returned by some LiteLLM proxy configurations
+        if cached_tokens == 0:
+            if hasattr(usage, "cached_content_token_count") and usage.cached_content_token_count:
+                cached_tokens = usage.cached_content_token_count
+                logger.info("[CacheTokenDebug] Found cached_content_token_count (attr): %d", cached_tokens)
+            elif isinstance(usage, dict) and usage.get("cached_content_token_count"):
+                cached_tokens = usage.get("cached_content_token_count", 0)
+                logger.info("[CacheTokenDebug] Found cached_content_token_count (dict): %d", cached_tokens)
+        
+        # Fallback to OpenAI-style prompt_tokens_details.cached_tokens
+        if cached_tokens == 0:
+            prompt_tokens_details = usage.get("prompt_tokens_details") if isinstance(usage, dict) else getattr(usage, "prompt_tokens_details", None)
+            if prompt_tokens_details:
+                logger.info("[CacheTokenDebug] prompt_tokens_details: %s", prompt_tokens_details)
+                # Handle both dict and object with cached_tokens attribute
+                if isinstance(prompt_tokens_details, dict):
+                    cached_tokens = prompt_tokens_details.get("cached_tokens", 0) or 0
+                elif hasattr(prompt_tokens_details, "cached_tokens"):
+                    cached_tokens = prompt_tokens_details.cached_tokens or 0
+                if cached_tokens > 0:
+                    logger.info("[CacheTokenDebug] Found cached_tokens from prompt_tokens_details: %d", cached_tokens)
+        
+        logger.info("[CacheTokenDebug] Final cached_tokens value: %d", cached_tokens)
         
         yield UsageMetadataChunk(
-            prompt_tokens=usage.get("prompt_tokens", 0),
-            completion_tokens=usage.get("completion_tokens", 0),
-            total_tokens=usage.get("total_tokens", 0),
+            prompt_tokens=usage.get("prompt_tokens", 0) if isinstance(usage, dict) else getattr(usage, "prompt_tokens", 0),
+            completion_tokens=usage.get("completion_tokens", 0) if isinstance(usage, dict) else getattr(usage, "completion_tokens", 0),
+            total_tokens=usage.get("total_tokens", 0) if isinstance(usage, dict) else getattr(usage, "total_tokens", 0),
             cached_tokens=cached_tokens,
         ), None
 
@@ -479,21 +698,40 @@ def _model_response_to_generate_content_response(
     llm_response = _message_to_generate_content_response(message)
     if response.get("usage", None):
         usage = response["usage"]
-        # Extract cached tokens from prompt_tokens_details if available
-        # LiteLLM returns this as PromptTokensDetailsWrapper with cached_tokens attribute
+        # Extract cached tokens from multiple possible locations:
+        # 1. Anthropic/Vertex AI: cache_read_input_tokens (direct attribute on usage)
+        # 2. OpenAI: prompt_tokens_details.cached_tokens
+        # 3. Some providers: cache_hit_tokens
         cached_tokens = 0
-        prompt_tokens_details = usage.get("prompt_tokens_details")
-        if prompt_tokens_details:
-            # Handle both dict and object with cached_tokens attribute
-            if isinstance(prompt_tokens_details, dict):
-                cached_tokens = prompt_tokens_details.get("cached_tokens", 0) or 0
-            elif hasattr(prompt_tokens_details, "cached_tokens"):
-                cached_tokens = prompt_tokens_details.cached_tokens or 0
+        
+        # Check for Anthropic-style cache tokens (cache_read_input_tokens)
+        # This is returned by Anthropic via Vertex AI and direct API
+        if hasattr(usage, "cache_read_input_tokens") and usage.cache_read_input_tokens:
+            cached_tokens = usage.cache_read_input_tokens
+        elif isinstance(usage, dict) and usage.get("cache_read_input_tokens"):
+            cached_tokens = usage.get("cache_read_input_tokens", 0)
+        
+        # Check for Gemini-style cached_content_token_count (native Google API field)
+        if cached_tokens == 0:
+            if hasattr(usage, "cached_content_token_count") and usage.cached_content_token_count:
+                cached_tokens = usage.cached_content_token_count
+            elif isinstance(usage, dict) and usage.get("cached_content_token_count"):
+                cached_tokens = usage.get("cached_content_token_count", 0)
+        
+        # Fallback to OpenAI-style prompt_tokens_details.cached_tokens
+        if cached_tokens == 0:
+            prompt_tokens_details = usage.get("prompt_tokens_details") if isinstance(usage, dict) else getattr(usage, "prompt_tokens_details", None)
+            if prompt_tokens_details:
+                # Handle both dict and object with cached_tokens attribute
+                if isinstance(prompt_tokens_details, dict):
+                    cached_tokens = prompt_tokens_details.get("cached_tokens", 0) or 0
+                elif hasattr(prompt_tokens_details, "cached_tokens"):
+                    cached_tokens = prompt_tokens_details.cached_tokens or 0
         
         llm_response.usage_metadata = types.GenerateContentResponseUsageMetadata(
-            prompt_token_count=usage.get("prompt_tokens", 0),
-            candidates_token_count=usage.get("completion_tokens", 0),
-            total_token_count=usage.get("total_tokens", 0),
+            prompt_token_count=usage.get("prompt_tokens", 0) if isinstance(usage, dict) else getattr(usage, "prompt_tokens", 0),
+            candidates_token_count=usage.get("completion_tokens", 0) if isinstance(usage, dict) else getattr(usage, "completion_tokens", 0),
+            total_token_count=usage.get("total_tokens", 0) if isinstance(usage, dict) else getattr(usage, "total_tokens", 0),
             cached_content_token_count=cached_tokens if cached_tokens > 0 else None,
         )
     return llm_response
@@ -573,8 +811,10 @@ def _get_completion_inputs(
 
         # Add cache control based on strategy
         # LiteLLM translates this to provider-specific format (Anthropic, OpenAI, Bedrock, Deepseek)
+        # For Anthropic/Bedrock: cache_control with type "ephemeral" enables prompt caching
+        # For OpenAI: Uses their automatic caching (no explicit cache_control needed)
         if cache_strategy == "5m":
-            # 5-minute ephemeral cache (Anthropic default)
+            # 5-minute ephemeral cache (Anthropic/Bedrock default)
             system_content["cache_control"] = {"type": "ephemeral"}
         elif cache_strategy == "1h":
             # 1-hour extended cache (Anthropic extended)
@@ -604,6 +844,7 @@ def _get_completion_inputs(
         # Enable tool caching via LiteLLM's generic interface
         # LiteLLM handles provider-specific translation (Anthropic, OpenAI, Bedrock, Deepseek)
         # Tools are stable because peer agents are alphabetically sorted (component.py)
+        # For Anthropic/Bedrock: cache_control on last tool enables caching of tool definitions
         if tools and cache_strategy != "none":
             # Add cache_control to the LAST tool (required by caching providers)
             if cache_strategy == "5m":
@@ -872,6 +1113,39 @@ class LiteLlm(BaseLlm):
         messages, tools, response_format, generation_params = _get_completion_inputs(
             llm_request, self._cache_strategy
         )
+        
+        # Debug: Log the messages to verify cache_control is present
+        if self._cache_strategy != "none":
+            # Log the first message in detail to check cache_control
+            if messages:
+                first_msg = messages[0]
+                # Check if it's a Pydantic model and convert to dict
+                if hasattr(first_msg, 'model_dump'):
+                    first_msg_dict = first_msg.model_dump()
+                elif hasattr(first_msg, '__dict__'):
+                    first_msg_dict = dict(first_msg.__dict__)
+                else:
+                    first_msg_dict = first_msg
+                logger.info(
+                    "[CacheControlDebug] First message type: %s, content: %s",
+                    type(messages[0]).__name__,
+                    json.dumps(first_msg_dict, indent=2, default=str)[:1500]
+                )
+                # Also check if content has cache_control
+                if isinstance(first_msg_dict, dict) and 'content' in first_msg_dict:
+                    content = first_msg_dict['content']
+                    if isinstance(content, list) and len(content) > 0:
+                        logger.info(
+                            "[CacheControlDebug] First content block keys: %s",
+                            list(content[0].keys()) if isinstance(content[0], dict) else type(content[0]).__name__
+                        )
+            if tools:
+                logger.info(
+                    "[CacheControlDebug] Last tool keys: %s, has cache_control: %s",
+                    list(tools[-1].keys()) if isinstance(tools[-1], dict) else "not a dict",
+                    "cache_control" in tools[-1] if isinstance(tools[-1], dict) else False
+                )
+        
         completion_args = {
             "model": self.model,
             "messages": messages,
@@ -880,6 +1154,38 @@ class LiteLlm(BaseLlm):
             "stream_options": {"include_usage": True},
         }
         completion_args.update(self._additional_args)
+
+        # Enable prompt caching beta for Anthropic models (direct API or via proxy)
+        # This is required for cache_control to work with Anthropic's prompt caching
+        # NOTE: Vertex AI has its own caching mechanism and does NOT support anthropic_beta flag
+        if self._cache_strategy != "none":
+            model_lower = self.model.lower()
+            # Check if this is an Anthropic model (direct, via bedrock, or via proxy)
+            is_anthropic = any(x in model_lower for x in ["anthropic", "claude"])
+            # Vertex AI does NOT support anthropic_beta - it has automatic caching
+            is_vertex = "vertex" in model_lower
+            # Bedrock supports prompt caching via anthropic_beta
+            is_bedrock = "bedrock" in model_lower
+            
+            if is_anthropic and not is_vertex:
+                # Add the anthropic-beta header for prompt caching (direct Anthropic or Bedrock)
+                extra_headers = completion_args.get("extra_headers", {})
+                # Anthropic prompt caching beta header
+                extra_headers["anthropic-beta"] = "prompt-caching-2024-07-31"
+                completion_args["extra_headers"] = extra_headers
+                
+                # Also add extra_body for LiteLLM proxy compatibility
+                # When using OpenAI client format with LiteLLM proxy, the anthropic_beta
+                # parameter needs to be in extra_body to be passed to the underlying API
+                extra_body = completion_args.get("extra_body", {})
+                extra_body["anthropic_beta"] = ["prompt-caching-2024-07-31"]
+                completion_args["extra_body"] = extra_body
+                
+                logger.debug("Added anthropic-beta header and extra_body for prompt caching (non-Vertex)")
+            elif is_vertex:
+                # Vertex AI has automatic context caching - no special headers needed
+                # Cache tokens will be returned in the response if caching is enabled on the model
+                logger.debug("Vertex AI model detected - using automatic context caching (no anthropic_beta)")
 
         # Inject OAuth token if OAuth is configured
         if self._oauth_token_manager:
@@ -914,145 +1220,149 @@ class LiteLlm(BaseLlm):
             aggregated_llm_response_with_tool_call = None
             usage_metadata = None
             fallback_index = 0
-            async for part in await self.llm_client.acompletion(**completion_args):
-                for chunk, finish_reason in _model_response_to_chunk(part):
-                    if isinstance(chunk, FunctionChunk):
-                        index = chunk.index or fallback_index
-                        if index not in function_calls:
-                            function_calls[index] = {"name": "", "args": "", "id": None}
+            
+            try:
+                async for part in await self.llm_client.acompletion(**completion_args):
+                    for chunk, finish_reason in _model_response_to_chunk(part):
+                        if isinstance(chunk, FunctionChunk):
+                            index = chunk.index or fallback_index
+                            if index not in function_calls:
+                                function_calls[index] = {"name": "", "args": "", "id": None}
 
-                        if chunk.name:
-                            function_calls[index]["name"] += chunk.name
-                        if chunk.args:
-                            function_calls[index]["args"] += chunk.args
+                            if chunk.name:
+                                function_calls[index]["name"] += chunk.name
+                            if chunk.args:
+                                function_calls[index]["args"] += chunk.args
 
-                            # check if args is completed (workaround for improper chunk
-                            # indexing)
-                            try:
-                                json.loads(function_calls[index]["args"])
-                                fallback_index += 1
-                            except json.JSONDecodeError:
-                                pass
+                                # check if args is completed (workaround for improper chunk
+                                # indexing)
+                                try:
+                                    json.loads(function_calls[index]["args"])
+                                    fallback_index += 1
+                                except json.JSONDecodeError:
+                                    pass
 
-                        function_calls[index]["id"] = (
-                            chunk.id or function_calls[index]["id"] or str(index)
-                        )
-                    elif isinstance(chunk, TextChunk):
-                        text += chunk.text
-                        yield _message_to_generate_content_response(
-                            ChatCompletionAssistantMessage(
-                                role="assistant",
-                                content=chunk.text,
-                            ),
-                            is_partial=True,
-                        )
-                    elif isinstance(chunk, UsageMetadataChunk):
-                        # Only include usage metadata if track_token_usage is enabled
-                        if self._track_token_usage:
-                            cached_token_count = chunk.cached_tokens if chunk.cached_tokens > 0 else None
-                            usage_metadata = types.GenerateContentResponseUsageMetadata(
-                                prompt_token_count=chunk.prompt_tokens,
-                                candidates_token_count=chunk.completion_tokens,
-                                total_token_count=chunk.total_tokens,
-                                cached_content_token_count=cached_token_count,
+                            function_calls[index]["id"] = (
+                                chunk.id or function_calls[index]["id"] or str(index)
                             )
-                        # When track_token_usage is False, usage_metadata remains None
-
-                    if (
-                        finish_reason == "tool_calls" or finish_reason == "stop"
-                    ) and function_calls:
-                        tool_calls = []
-                        for index, func_data in function_calls.items():
-                            if func_data["id"]:
-                                tool_calls.append(
-                                    ChatCompletionMessageToolCall(
-                                        type="function",
-                                        id=_truncate_tool_call_id(func_data["id"]),
-                                        function=Function(
-                                            name=func_data["name"],
-                                            arguments=func_data["args"],
-                                            index=index,
-                                        ),
-                                    )
-                                )
-                        aggregated_llm_response_with_tool_call = (
-                            _message_to_generate_content_response(
+                        elif isinstance(chunk, TextChunk):
+                            text += chunk.text
+                            yield _message_to_generate_content_response(
                                 ChatCompletionAssistantMessage(
                                     role="assistant",
-                                    content=text or "",
-                                    tool_calls=tool_calls,
-                                )
+                                    content=chunk.text,
+                                ),
+                                is_partial=True,
                             )
-                        )
-                        function_calls.clear()
-                        text = ""
-                    elif finish_reason == "length":
-                        # The stream was interrupted due to token limit.
-                        # Create a final response indicating interruption, including any
-                        # buffered text AND any buffered tool calls.
-                        tool_calls = []
-                        for index, func_data in function_calls.items():
-                            if func_data["id"]:
-                                tool_calls.append(
-                                    ChatCompletionMessageToolCall(
-                                        type="function",
-                                        id=_truncate_tool_call_id(func_data["id"]),
-                                        function=Function(
-                                            name=func_data["name"],
-                                            arguments=func_data["args"],
-                                            index=index,
-                                        ),
+                        elif isinstance(chunk, UsageMetadataChunk):
+                            # Only include usage metadata if track_token_usage is enabled
+                            if self._track_token_usage:
+                                usage_metadata = types.GenerateContentResponseUsageMetadata(
+                                    prompt_token_count=chunk.prompt_tokens,
+                                    candidates_token_count=chunk.completion_tokens,
+                                    total_token_count=chunk.total_tokens,
+                                    cached_content_token_count=chunk.cached_tokens if chunk.cached_tokens > 0 else None,
+                                )
+                            # When track_token_usage is False, usage_metadata remains None
+
+                        if (
+                            finish_reason == "tool_calls" or finish_reason == "stop"
+                        ) and function_calls:
+                            tool_calls = []
+                            for index, func_data in function_calls.items():
+                                if func_data["id"]:
+                                    tool_calls.append(
+                                        ChatCompletionMessageToolCall(
+                                            type="function",
+                                            id=_truncate_tool_call_id(func_data["id"]),
+                                            function=Function(
+                                                name=func_data["name"],
+                                                arguments=func_data["args"],
+                                                index=index,
+                                            ),
+                                        )
+                                    )
+                            aggregated_llm_response_with_tool_call = (
+                                _message_to_generate_content_response(
+                                    ChatCompletionAssistantMessage(
+                                        role="assistant",
+                                        content=text or "",
+                                        tool_calls=tool_calls,
                                     )
                                 )
-
-                        aggregated_llm_response = _message_to_generate_content_response(
-                            ChatCompletionAssistantMessage(
-                                role="assistant",
-                                content=text or None,
-                                tool_calls=tool_calls or None,
                             )
-                        )
-                        aggregated_llm_response.interrupted = True
+                            function_calls.clear()
+                            text = ""
+                        elif finish_reason == "length":
+                            # The stream was interrupted due to token limit.
+                            # Create a final response indicating interruption, including any
+                            # buffered text AND any buffered tool calls.
+                            tool_calls = []
+                            for index, func_data in function_calls.items():
+                                if func_data["id"]:
+                                    tool_calls.append(
+                                        ChatCompletionMessageToolCall(
+                                            type="function",
+                                            id=_truncate_tool_call_id(func_data["id"]),
+                                            function=Function(
+                                                name=func_data["name"],
+                                                arguments=func_data["args"],
+                                                index=index,
+                                            ),
+                                        )
+                                    )
 
-                        # Yield the interrupted response immediately and stop processing this stream.
-                        # This ensures the partial text and tool calls are preserved.
-                        if usage_metadata:
-                            aggregated_llm_response.usage_metadata = usage_metadata
-                        yield aggregated_llm_response
-                        return
-                    elif finish_reason == "MALFORMED_FUNCTION_CALL":
-                        # Create an error response that will allow the LLM to continue
-                        aggregated_llm_response = _message_to_generate_content_response(
-                            ChatCompletionAssistantMessage(
-                                role="assistant",
-                                content="I attempted to call a function that doesn't exist or with invalid parameters. Let me try a different approach or provide a direct response instead.",
-                            ),
-                            is_partial=True,
-                        )
-                        text = ""
-                    elif finish_reason == "stop" and text:
-                        aggregated_llm_response = _message_to_generate_content_response(
-                            ChatCompletionAssistantMessage(
-                                role="assistant", content=text
+                            aggregated_llm_response = _message_to_generate_content_response(
+                                ChatCompletionAssistantMessage(
+                                    role="assistant",
+                                    content=text or None,
+                                    tool_calls=tool_calls or None,
+                                )
                             )
+                            aggregated_llm_response.interrupted = True
+
+                            # Yield the interrupted response immediately and stop processing this stream.
+                            # This ensures the partial text and tool calls are preserved.
+                            if usage_metadata:
+                                aggregated_llm_response.usage_metadata = usage_metadata
+                            yield aggregated_llm_response
+                            return
+                        elif finish_reason == "MALFORMED_FUNCTION_CALL":
+                            # Create an error response that will allow the LLM to continue
+                            aggregated_llm_response = _message_to_generate_content_response(
+                                ChatCompletionAssistantMessage(
+                                    role="assistant",
+                                    content="I attempted to call a function that doesn't exist or with invalid parameters. Let me try a different approach or provide a direct response instead.",
+                                ),
+                                is_partial=True,
+                            )
+                            text = ""
+                        elif finish_reason == "stop" and text:
+                            aggregated_llm_response = _message_to_generate_content_response(
+                                ChatCompletionAssistantMessage(
+                                    role="assistant", content=text
+                                )
+                            )
+                            text = ""
+
+                # waiting until streaming ends to yield the llm_response as litellm tends
+                # to send chunk that contains usage_metadata after the chunk with
+                # finish_reason set to tool_calls or stop.
+                
+                if aggregated_llm_response:
+                    if usage_metadata:
+                        aggregated_llm_response.usage_metadata = usage_metadata
+                        usage_metadata = None
+                    yield aggregated_llm_response
+
+                if aggregated_llm_response_with_tool_call:
+                    if usage_metadata:
+                        aggregated_llm_response_with_tool_call.usage_metadata = (
+                            usage_metadata
                         )
-                        text = ""
-
-            # waiting until streaming ends to yield the llm_response as litellm tends
-            # to send chunk that contains usage_metadata after the chunk with
-            # finish_reason set to tool_calls or stop.
-            if aggregated_llm_response:
-                if usage_metadata:
-                    aggregated_llm_response.usage_metadata = usage_metadata
-                    usage_metadata = None
-                yield aggregated_llm_response
-
-            if aggregated_llm_response_with_tool_call:
-                if usage_metadata:
-                    aggregated_llm_response_with_tool_call.usage_metadata = (
-                        usage_metadata
-                    )
-                yield aggregated_llm_response_with_tool_call
+                    yield aggregated_llm_response_with_tool_call
+            finally:
+                pass
 
         else:
             response = await self.llm_client.acompletion(**completion_args)
