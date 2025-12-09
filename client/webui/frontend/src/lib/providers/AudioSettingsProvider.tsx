@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { fetchJsonWithError } from "@/lib/utils/api";
-import { useConfigContext } from "@/lib/hooks/useConfigContext";
+import { api } from "@/lib/api";
 
 export interface SpeechSettings {
     // STT Settings
@@ -113,7 +112,6 @@ function loadSettingsFromStorage(): SpeechSettings {
 }
 
 export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { configServerUrl } = useConfigContext();
     const [settings, setSettings] = useState<SpeechSettings>(loadSettingsFromStorage);
     const [isInitialized, setIsInitialized] = useState(false);
     const [isTTSPlaying, setIsTTSPlaying] = useState(false);
@@ -123,14 +121,14 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         const fetchServerConfig = async () => {
             try {
                 // Fetch main config
-                const config = await fetchJsonWithError(`${configServerUrl}/api/v1/config`);
+                const config = await api.chat.get("/api/v1/config");
                 const ttsSettings = config.tts_settings || {};
 
                 // Check speech config for external availability
                 let sttExternal = false;
                 let ttsExternal = false;
                 try {
-                    const speechConfig = await fetchJsonWithError(`${configServerUrl}/api/v1/speech/config`);
+                    const speechConfig = await api.chat.get("/api/v1/speech/config");
                     sttExternal = speechConfig.sttExternal || false;
                     ttsExternal = speechConfig.ttsExternal || false;
                 } catch (error) {
@@ -175,7 +173,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         };
 
         fetchServerConfig();
-    }, [configServerUrl]);
+    }, []);
 
     const updateSetting = useCallback(<K extends keyof SpeechSettings>(key: K, value: SpeechSettings[K]) => {
         setSettings(prev => {

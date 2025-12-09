@@ -4,9 +4,10 @@ import type { Prompt, PromptGroup } from "@/lib/types/prompts";
 import { Header } from "@/lib/components/header";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Label } from "@/lib/components/ui";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
-import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { MessageBanner } from "@/lib/components/common";
-import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { getErrorMessage } from "@/lib/utils/api";
+import { api } from "@/lib/api";
+import { useChatContext } from "@/lib/hooks";
 
 interface VersionHistoryPageProps {
     group: PromptGroup;
@@ -19,7 +20,6 @@ interface VersionHistoryPageProps {
 
 export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, onBack, onEdit, onDeleteAll, onRestoreVersion }) => {
     const { addNotification, displayError } = useChatContext();
-    const { configServerUrl } = useConfigContext();
     const [versions, setVersions] = useState<Prompt[]>([]);
     const [selectedVersion, setSelectedVersion] = useState<Prompt | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -36,7 +36,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         async (preserveSelection = false) => {
             setIsLoading(true);
             try {
-                const data = await fetchJsonWithError(`${configServerUrl}/api/v1/prompts/groups/${group.id}/prompts`);
+                const data = await api.chat.get(`/api/v1/prompts/groups/${group.id}/prompts`);
                 setVersions(data);
 
                 // Use a function update to access the current selectedVersion without adding it to dependencies
@@ -76,14 +76,12 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
 
     const fetchGroupData = useCallback(async () => {
         try {
-            const data = await fetchJsonWithError(`${configServerUrl}/api/v1/prompts/groups/${group.id}`, {
-                credentials: "include",
-            });
+            const data = await api.chat.get(`/api/v1/prompts/groups/${group.id}`);
             setCurrentGroup(data);
         } catch (error) {
             console.error("Failed to fetch group data:", error);
         }
-    }, [group.id, configServerUrl]);
+    }, [group.id]);
 
     useEffect(() => {
         // Preserve selection when the component updates (e.g., after editing)
@@ -136,7 +134,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         }
 
         try {
-            await fetchWithError(`${configServerUrl}/api/v1/prompts/${selectedVersion.id}`, { method: "DELETE" });
+            await api.chat.delete(`/api/v1/prompts/${selectedVersion.id}`);
             addNotification("Version deleted successfully", "success");
 
             // Clear selection and refresh (don't preserve since we deleted it)

@@ -3,8 +3,8 @@ import { Send, Loader2, Sparkles } from "lucide-react";
 
 import { AudioRecorder, Button, MessageBanner, Textarea } from "@/lib/components";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
-import { fetchJsonWithError } from "@/lib/utils";
 import type { TemplateConfig } from "@/lib/types";
+import { api } from "@/lib/api";
 
 interface Message {
     role: "user" | "assistant";
@@ -39,7 +39,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
     // Speech-to-text support
     const { settings } = useAudioSettings();
-    const { configFeatureEnablement, configServerUrl } = useConfigContext();
+    const { configFeatureEnablement } = useConfigContext();
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
     const [sttError, setSttError] = useState<string | null>(null);
     const [isRecording, setIsRecording] = useState(false);
@@ -61,7 +61,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
         const initChat = async () => {
             try {
-                const data = await fetchJsonWithError(`${configServerUrl}/api/v1/prompts/chat/init`);
+                const data = await api.chat.get(`/api/v1/prompts/chat/init`);
 
                 // Use different greeting message for editing mode
                 const greetingMessage = isEditing ? "Hi! I'll help you edit this prompt template. What changes would you like to make?" : data.message;
@@ -88,22 +88,15 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
                     // Send the message to the API
                     try {
-                        const chatData: ChatResponse = await fetchJsonWithError(`${configServerUrl}/api/v1/prompts/chat`, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            credentials: "include",
-                            body: JSON.stringify({
-                                message: initialMessage,
-                                conversation_history: [
-                                    {
-                                        role: "assistant",
-                                        content: data.message,
-                                    },
-                                ],
-                                current_template: currentConfig,
-                            }),
+                        const chatData: ChatResponse = await api.chat.post(`/api/v1/prompts/chat`, {
+                            message: initialMessage,
+                            conversation_history: [
+                                {
+                                    role: "assistant",
+                                    content: data.message,
+                                },
+                            ],
+                            current_template: currentConfig,
                         });
 
                         const assistantMessage: Message = {
@@ -211,12 +204,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
         setHasUserMessage(true);
 
         try {
-            const data: ChatResponse = await fetchJsonWithError(`${configServerUrl}/api/v1/prompts/chat`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                credentials: "include",
+            const data: ChatResponse = await api.chat.post(`/api/v1/prompts/chat`, {
                 body: JSON.stringify({
                     message: userMessage.content,
                     conversation_history: messages

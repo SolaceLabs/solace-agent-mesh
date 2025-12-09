@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
-import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
-import { useConfigContext } from "./useConfigContext";
+import { fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 interface UseSpeechToTextOptions {
     onTranscriptionComplete?: (text: string) => void;
@@ -109,7 +109,6 @@ function getFileExtension(mimeType: string): string {
 export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeechToTextReturn {
     const { onTranscriptionComplete, onTranscriptionUpdate, onError } = options;
     const { settings, updateSetting } = useAudioSettings();
-    const { configServerUrl } = useConfigContext();
 
     const [isListening, setIsListening] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -236,7 +235,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
     const startExternalRecording = useCallback(async () => {
         // Check if external STT is configured
         try {
-            const config = await fetchJsonWithError(`${configServerUrl}/api/v1/speech/config`);
+            const config = await api.chat.get("/api/v1/speech/config");
 
             if (!config.sttExternal) {
                 // Auto-switch to browser mode
@@ -297,7 +296,8 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                         formData.append("language", settings.languageSTT);
                     }
 
-                    const response = await fetchWithError(`${configServerUrl}/api/v1/speech/stt`, {
+                    const { chat } = api.getBaseUrls();
+                    const response = await fetchWithError(`${chat}/api/v1/speech/stt`, {
                         method: "POST",
                         body: formData,
                     });
@@ -327,7 +327,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
             onError?.(errorMsg);
             cleanup();
         }
-    }, [settings.sttProvider, settings.languageSTT, configServerUrl, onTranscriptionComplete, onError, cleanup, updateSetting]);
+    }, [settings.sttProvider, settings.languageSTT, onTranscriptionComplete, onError, cleanup, updateSetting]);
 
     const stopExternalRecording = useCallback(async () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {

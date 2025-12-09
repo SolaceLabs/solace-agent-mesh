@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
+import { api } from "@/lib/api";
 
 import type { Session } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
 
-import { useConfigContext } from "./useConfigContext";
 
 interface UseProjectSessionsReturn {
     sessions: Session[];
@@ -18,12 +18,12 @@ interface UseProjectSessionsReturn {
  * @returns Object containing sessions data, loading state, error state, and refetch function.
  */
 export const useProjectSessions = (projectId?: string | null): UseProjectSessionsReturn => {
-    const { configServerUrl } = useConfigContext();
+    // Migrated to api client
     const [sessions, setSessions] = useState<Session[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    const apiPrefix = `${configServerUrl}/api/v1`;
+    const { chat: chatBaseUrl } = api.getBaseUrls();
 
     const fetchSessions = useCallback(async () => {
         if (!projectId) {
@@ -36,7 +36,7 @@ export const useProjectSessions = (projectId?: string | null): UseProjectSession
         setError(null);
         
         try {
-            const url = `${apiPrefix}/sessions?project_id=${projectId}&pageNumber=1&pageSize=100`;
+            const url = `${chatBaseUrl}/api/v1/sessions?project_id=${projectId}&pageNumber=1&pageSize=100`;
             const response = await authenticatedFetch(url, { credentials: "include" });
             
             if (!response.ok) {
@@ -55,7 +55,7 @@ export const useProjectSessions = (projectId?: string | null): UseProjectSession
         } finally {
             setIsLoading(false);
         }
-    }, [apiPrefix, projectId]);
+    }, [ projectId]);
 
     useEffect(() => {
         fetchSessions();

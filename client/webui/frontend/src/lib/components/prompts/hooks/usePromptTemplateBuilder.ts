@@ -1,9 +1,10 @@
 import { useState, useCallback } from "react";
+import { useChatContext } from "@/lib/hooks";
+import { getErrorMessage } from "@/lib/utils";
 import { detectVariables, validatePromptText } from "@/lib/utils/promptUtils";
-import { useChatContext, useConfigContext } from "@/lib/hooks";
 import type { PromptGroup, TemplateConfig } from "@/lib/types/prompts";
 import { isReservedCommand } from "@/lib/constants/reservedCommands";
-import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 export interface ValidationErrors {
     name?: string;
@@ -14,7 +15,7 @@ export interface ValidationErrors {
 
 export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
     const { addNotification } = useChatContext();
-    const { configServerUrl } = useConfigContext();
+    // Migrated to api client
     const [config, setConfig] = useState<TemplateConfig>(() => {
         if (editingGroup) {
             return {
@@ -121,13 +122,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             };
 
             // Call API to create prompt group
-            const createdGroup = await fetchJsonWithError(`${configServerUrl}/api/v1/prompts/groups`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(templateData),
-            });
+            const createdGroup = await api.chat.post(`/api/v1/prompts/groups`, templateData);
 
             setSaveStatus("success");
             addNotification("Template saved", "success");
@@ -178,7 +173,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                     if (config.command !== editingGroup?.command) updateData.command = config.command;
                     updateData.initial_prompt = config.promptText;
 
-                    await fetchWithError(`${configServerUrl}/api/v1/prompts/groups/${groupId}`, {
+                    await api.chat.delete(`/api/v1/prompts/groups/${groupId}`, {
                         method: "PATCH",
                         headers: {
                             "Content-Type": "application/json",
@@ -203,7 +198,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                         if (config.category !== editingGroup?.category) updateData.category = config.category;
                         if (config.command !== editingGroup?.command) updateData.command = config.command;
 
-                        await fetchWithError(`${configServerUrl}/api/v1/prompts/groups/${groupId}`, {
+                        await api.chat.delete(`/api/v1/prompts/groups/${groupId}`, {
                             method: "PATCH",
                             headers: {
                                 "Content-Type": "application/json",
@@ -214,7 +209,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
 
                     // Then update prompt text if it changed
                     if (promptTextChanged && editingPromptId) {
-                        await fetchWithError(`${configServerUrl}/api/v1/prompts/${editingPromptId}`, {
+                        await api.chat.delete(`/api/v1/prompts/${editingPromptId}`, {
                             method: "PATCH",
                             headers: {
                                 "Content-Type": "application/json",

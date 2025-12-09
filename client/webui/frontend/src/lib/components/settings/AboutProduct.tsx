@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Table, TableBody, TableCell, TableRow } from "@/lib/components/ui";
-import { fetchJsonWithError } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 interface Product {
     id: string;
@@ -48,7 +48,7 @@ export const AboutProduct: React.FC = () => {
     useEffect(() => {
         const fetchVersions = async (): Promise<void> => {
             try {
-                const data: VersionResponse = await fetchJsonWithError("/api/v1/version");
+                const data: VersionResponse = await api.chat.get("/api/v1/version");
                 setVersionData(data);
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Unknown error");

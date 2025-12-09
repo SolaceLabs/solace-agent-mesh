@@ -2,11 +2,13 @@ import React, { useEffect, useState } from "react";
 import { Mic, Volume2, AlertCircle, Play, Loader2 } from "lucide-react";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
 import { Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input, Button } from "@/lib/components/ui";
-import { fetchJsonWithError, fetchWithError } from "@/lib/utils/api";
+import { api } from "@/lib/api";
+import { fetchWithError } from "@/lib/utils/api";
 
 export const SpeechSettingsPanel: React.FC = () => {
+    const { chat: chatBaseUrl } = api.getBaseUrls();
     const { settings, updateSetting } = useAudioSettings();
-    const { configFeatureEnablement, configServerUrl } = useConfigContext();
+    const { configFeatureEnablement } = useConfigContext();
     const [availableVoices, setAvailableVoices] = useState<string[]>([]);
     const [loadingVoices, setLoadingVoices] = useState(false);
     const [sttConfigured, setSttConfigured] = useState<boolean | null>(null);
@@ -26,7 +28,7 @@ export const SpeechSettingsPanel: React.FC = () => {
     useEffect(() => {
         const checkConfig = async () => {
             try {
-                const config = await fetchJsonWithError(`${configServerUrl}/api/v1/speech/config`);
+                const config = await api.chat.get(`/api/v1/speech/config`);
                 const sttExt = config.sttExternal || false;
                 const ttsExt = config.ttsExternal || false;
 
@@ -57,7 +59,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             }
         };
         checkConfig();
-    }, [settings.sttProvider, settings.ttsProvider, updateSetting, configServerUrl]);
+    }, [settings.sttProvider, settings.ttsProvider, updateSetting]);
 
     // Load voices when TTS provider changes
     useEffect(() => {
@@ -71,7 +73,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             setLoadingVoices(true);
             try {
                 const provider = settings.ttsProvider || "gemini";
-                const data = await fetchJsonWithError(`${configServerUrl}/api/v1/speech/voices?provider=${provider}`);
+                const data = await api.chat.get(`/api/v1/speech/voices?provider=${provider}`);
                 setAvailableVoices(data.voices || []);
             } catch (error) {
                 console.error("Error loading voices:", error);
@@ -81,7 +83,7 @@ export const SpeechSettingsPanel: React.FC = () => {
         };
 
         loadVoices();
-    }, [settings.ttsProvider, configServerUrl]);
+    }, [settings.ttsProvider]);
 
     // Cleanup audio element on unmount
     useEffect(() => {
@@ -116,7 +118,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             }
 
             // Fetch voice sample
-            const response = await fetchWithError(`${configServerUrl}/api/v1/speech/voice-sample`, {
+            const response = await fetchWithError(`${chatBaseUrl}/api/v1/speech/voice-sample`, {
                 method: "POST",
                 body: formData,
             });

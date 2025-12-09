@@ -1,6 +1,6 @@
 import React, { useState, useEffect, type ReactNode } from "react";
 
-import { fetchJsonWithError } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 import { AuthContext } from "@/lib/contexts/AuthContext";
 import { useConfigContext, useCsrfContext } from "@/lib/hooks";
 
@@ -9,7 +9,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-    const { frontend_use_authorization: useAuthorization, configAuthLoginUrl: authLoginUrl, configServerUrl } = useConfigContext();
+    const { frontend_use_authorization: useAuthorization, configAuthLoginUrl: authLoginUrl } = useConfigContext();
     const { fetchCsrfToken, clearCsrfToken } = useCsrfContext();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -28,10 +28,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
 
             try {
-                const userData = await fetchJsonWithError(`${configServerUrl}/api/v1/users/me`, {
-                    credentials: "include",
-                    headers: { Accept: "application/json" },
-                });
+                const userData = await api.chat.get(`/api/v1/users/me`);
 
                 console.log("User is authenticated:", userData);
 
@@ -69,7 +66,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             isMounted = false;
             window.removeEventListener("storage", handleStorageChange);
         };
-    }, [useAuthorization, authLoginUrl, fetchCsrfToken, configServerUrl]);
+    }, [useAuthorization, authLoginUrl, fetchCsrfToken]);
 
     const login = () => {
         window.location.href = authLoginUrl;

@@ -3,6 +3,7 @@ import { authenticatedFetch } from "../utils/api";
 import { ConfigContext, type ConfigContextValue } from "../contexts";
 import { useCsrfContext } from "../hooks/useCsrfContext";
 import { EmptyState } from "../components";
+import { api } from "../api";
 
 interface BackendConfig {
     frontend_server_url: string;
@@ -99,8 +100,8 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
 
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
-                    configServerUrl: data.frontend_server_url,
-                    configPlatformServerUrl: data.frontend_platform_server_url,
+                    chatServerUrl: data.frontend_server_url,
+                    platformServerUrl: data.frontend_platform_server_url,
                     configAuthLoginUrl: data.frontend_auth_login_url,
                     configUseAuthorization: effectiveUseAuthorization,
                     configWelcomeMessage: data.frontend_welcome_message,
@@ -117,6 +118,12 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;
                     setConfig(mappedConfig);
+
+                    api.configure(mappedConfig.chatServerUrl, mappedConfig.platformServerUrl);
+                    console.log("API client configured with:", {
+                        chat: mappedConfig.chatServerUrl,
+                        platform: mappedConfig.platformServerUrl,
+                    });
                 }
                 console.log("App config processed and set:", mappedConfig);
             } catch (err: unknown) {

@@ -1,10 +1,11 @@
 import { ConfigContext, type ConfigContextValue } from "@/lib/contexts/ConfigContext";
-import React from "react";
+import { api } from "@/lib/api";
+import React, { useEffect } from "react";
 
 // Default mock values for ConfigContext
 const defaultMockConfigContext: ConfigContextValue = {
-    configServerUrl: "http://localhost:8000",
-    configPlatformServerUrl: "http://localhost:8001",
+    chatServerUrl: "http://localhost:8000",
+    platformServerUrl: "http://localhost:8001",
     configAuthLoginUrl: "http://localhost:8000/auth/login",
     configUseAuthorization: false,
     configWelcomeMessage: "Welcome to the mock Solace Agent Mesh!",
@@ -31,6 +32,10 @@ export const MockConfigProvider: React.FC<MockConfigProviderProps> = ({ children
         ...defaultMockConfigContext,
         ...mockValues,
     };
+
+    useEffect(() => {
+        api.configure(contextValue.chatServerUrl, contextValue.platformServerUrl);
+    }, [contextValue.chatServerUrl, contextValue.platformServerUrl]);
 
     return <ConfigContext.Provider value={contextValue}>{children}</ConfigContext.Provider>;
 };

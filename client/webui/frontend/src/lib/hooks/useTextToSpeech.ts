@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
-import { fetchJsonWithError, fetchWithError } from "@/lib/utils/api";
-import { useConfigContext } from "./useConfigContext";
+import { fetchWithError } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 interface UseTextToSpeechOptions {
     messageId?: string;
@@ -29,7 +29,6 @@ export interface VoiceOption {
 export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextToSpeechReturn {
     const { messageId, onStart, onEnd, onError } = options;
     const { settings } = useAudioSettings();
-    const { configServerUrl } = useConfigContext();
 
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -97,7 +96,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
             try {
                 // Include provider in query to get provider-specific voices
                 const provider = settings.ttsProvider || "gemini";
-                const data = await fetchJsonWithError(`${configServerUrl}/api/v1/speech/voices?provider=${provider}`);
+                const data = await api.chat.get(`/api/v1/speech/voices?provider=${provider}`);
                 const voiceOptions: VoiceOption[] = (data.voices || []).map((voice: string) => ({
                     value: voice,
                     label: voice,
@@ -293,7 +292,8 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 }
 
                 // Use streaming endpoint - play chunks as they arrive
-                const response = await fetchWithError(`${configServerUrl}/api/v1/speech/tts/stream`, {
+                const { chat } = api.getBaseUrls();
+                const response = await fetchWithError(`${chat}/api/v1/speech/tts/stream`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
