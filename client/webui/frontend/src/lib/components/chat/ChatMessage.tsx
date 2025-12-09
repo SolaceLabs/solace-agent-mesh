@@ -535,7 +535,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         // If there are multiple report artifacts and we couldn't find one,
         // don't show any inline report to avoid showing the wrong one
         return null;
-    }, [message, isLastWithTaskId, artifacts, taskRagData]);
+    }, [message, isLastWithTaskId, artifacts, taskRagData, sessionId]);
 
     // Get the last RAG data entry for this task (for citations in report)
     const lastTaskRagData = useMemo(() => {

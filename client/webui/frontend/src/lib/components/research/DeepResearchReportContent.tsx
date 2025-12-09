@@ -67,6 +67,7 @@ export const DeepResearchReportContent: React.FC<DeepResearchReportContentProps>
                 // Use session ID from URI if available, otherwise fall back to prop
                 // This ensures we fetch from the correct session where the artifact was created
                 const effectiveSessionId = uriSessionId || sessionId;
+
                 const apiUrl = `/api/v1/artifacts/${effectiveSessionId}/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
 
                 const response = await authenticatedFetch(apiUrl);

@@ -9,23 +9,18 @@ export const parseArtifactUri = (uri: string): { sessionId: string | null; filen
         if (url.protocol !== "artifact:") {
             return null;
         }
-        const pathParts = url.pathname.split("/").filter(p => p);
-        // Path format: /{sessionId}/{filename} or just /{filename}
-        // pathParts[0] = sessionId (if present), pathParts[1] = filename (if sessionId present)
-        // or pathParts[0] = filename (if no sessionId)
-        let sessionId: string | null = null;
-        let filename: string;
 
-        if (pathParts.length >= 2) {
-            // URI has sessionId: artifact://{sessionId}/{filename}
-            sessionId = pathParts[0];
-            filename = pathParts[pathParts.length - 1];
-        } else if (pathParts.length === 1) {
-            // URI has only filename: artifact://{filename}
-            filename = pathParts[0];
-        } else {
+        const sessionId = url.hostname || null;
+        const pathParts = url.pathname.split("/").filter(p => p);
+
+        // The filename is in the pathname
+        if (pathParts.length === 0) {
+            // No filename in path - this shouldn't happen for valid URIs
             return null;
         }
+
+        // Get the filename (last part of the path)
+        const filename = pathParts[pathParts.length - 1];
 
         const version = url.searchParams.get("version");
         return { sessionId, filename, version };
