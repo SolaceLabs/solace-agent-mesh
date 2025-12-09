@@ -15,7 +15,7 @@ permissions:
 jobs:
   # Run security checks first via reusable workflow
   security-checks:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@fix-prisma-scans
     with:
       whitesource_project_name: "solace-agent-mesh"
       whitesource_product_name: "solaceai"
