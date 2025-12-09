@@ -1602,7 +1602,8 @@ async def deep_research(
             )
         
         if artifact_result.get("status") not in ["success", "partial_success"]:
-            log.warning("%s Failed to create artifact for research report", log_identifier)
+            log.error("%s Failed to create artifact for research report. Status: %s, Message: %s",
+                     log_identifier, artifact_result.get("status"), artifact_result.get("message"))
             artifact_version = None
         else:
             artifact_version = artifact_result.get("data_version", 1)
@@ -1624,23 +1625,30 @@ async def deep_research(
             
         
         # Build the response artifact reference for the embed pattern
-        artifact_version = artifact_result.get("data_version", 1) if artifact_result.get("status") in ["success", "partial_success"] else None
+        artifact_save_success = artifact_result.get("status") in ["success", "partial_success"]
+        artifact_version = artifact_result.get("data_version", 1) if artifact_save_success else None
         
         # Create a structured response that the agent can use with artifact_content embed
+        # Only include artifact_filename if the save was successful
         result_dict = {
             "status": "success",
             "message": f"Research complete: analyzed {len(all_findings)} sources.",
-            "artifact_filename": artifact_filename,
-            "artifact_version": artifact_version,
             "total_sources": len(all_findings),
             "iterations_completed": min(iteration, max_iterations),
-            "rag_metadata": citation_tracker.get_rag_metadata(artifact_filename=artifact_filename),
-            # Include the response_artifact for the agent to use with artifact_content embed
-            "response_artifact": {
+            "rag_metadata": citation_tracker.get_rag_metadata(artifact_filename=artifact_filename if artifact_save_success else None),
+        }
+        
+        # Only include artifact info if save was successful
+        if artifact_save_success:
+            result_dict["artifact_filename"] = artifact_filename
+            result_dict["artifact_version"] = artifact_version
+            result_dict["response_artifact"] = {
                 "filename": artifact_filename,
                 "version": artifact_version
             }
-        }
+        else:
+            log.warning("%s Artifact save failed, not including artifact_filename in response", log_identifier)
+            result_dict["artifact_error"] = artifact_result.get("message", "Failed to save artifact")
         
         return result_dict
         
