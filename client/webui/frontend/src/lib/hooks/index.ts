@@ -21,3 +21,4 @@ export * from "./useProjectSessions";
 export * from "./useAgentSelection";
 export * from "./useNavigationBlocker";
 export * from "./useErrorDialog";
+export * from "./useSamSdkHost";

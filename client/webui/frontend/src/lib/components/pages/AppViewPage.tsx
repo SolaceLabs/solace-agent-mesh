@@ -2,11 +2,15 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Button, Header } from "@/lib/components";
 import { ArrowLeft, Edit } from "lucide-react";
 import { useApp } from "@/lib/hooks/useApp";
+import { useSamSdkHost } from "@/lib/hooks";
 
 export function AppViewPage() {
     const { appId } = useParams<{ appId: string }>();
     const navigate = useNavigate();
     const { app, loading, error } = useApp(appId!);
+
+    // Enable SAM SDK host communication
+    useSamSdkHost(appId!);
 
     const handleBack = () => {
         navigate("/apps");
@@ -106,7 +110,7 @@ export function AppViewPage() {
                     src={deployedUrl}
                     className="w-full h-full border-0"
                     title={app.name}
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    sandbox="allow-scripts allow-forms allow-popups"
                 />
             </div>
         </div>

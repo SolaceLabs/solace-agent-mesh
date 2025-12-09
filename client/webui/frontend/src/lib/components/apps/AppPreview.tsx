@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
+import { useSamSdkHost } from "@/lib/hooks";
 
 interface AppPreviewProps {
     appId: string;
@@ -8,6 +9,9 @@ interface AppPreviewProps {
 export function AppPreview({ appId }: AppPreviewProps) {
     const [error, setError] = useState<string | null>(null);
     const [key, setKey] = useState(0);
+
+    // Enable SAM SDK host communication
+    useSamSdkHost(appId);
 
     const handleRefresh = () => {
         setKey(prev => prev + 1);
@@ -60,7 +64,7 @@ export function AppPreview({ appId }: AppPreviewProps) {
                     src={`/api/v1/apps/preview/${appId}/`}
                     className="w-full h-full border-0"
                     title="App Preview"
-                    sandbox="allow-scripts allow-same-origin allow-forms"
+                    sandbox="allow-scripts allow-forms allow-popups"
                     onError={handleIframeError}
                 />
             </div>
