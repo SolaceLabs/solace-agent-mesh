@@ -22,6 +22,6 @@
         "find the main concepts, architecture and instructions in the 'docs' folder.",
         "double check the value of configurations with templates, examples and documents",
         "add simplest configuration for new agents, plugins or gateways based on the existing ones that do not need extra dependencies.",
-        "self-criticise the code and improve it if necessary.",
+        "self-criticise the code and improve it if necessary."
     ]
 }
