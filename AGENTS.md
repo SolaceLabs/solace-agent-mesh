@@ -63,6 +63,9 @@ For each step of the plan:
 - Run tests/benchmarks  
 - Summarize what changed and how it was validated
 
+Consider to the following error while generating codes:
+- AnyOf is not supported in function declaration schema for Google AI.
+
 ### Step 4 – Iterative refinement
 - Collect logs from tests
 - Analyze logs and find the root cause of errors
