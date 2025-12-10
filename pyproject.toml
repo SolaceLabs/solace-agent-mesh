@@ -39,7 +39,7 @@ dependencies = [
     "kaleido==0.2.1",
     "PyYAML==6.0.2",
     "python-multipart==0.0.20",
-    "markitdown[all]==0.1.1",
+    "markitdown[all]==0.1.4",
     "jmespath==1.0.1",
     "mermaid_cli==0.1.2",
     "playwright==1.55.0",
