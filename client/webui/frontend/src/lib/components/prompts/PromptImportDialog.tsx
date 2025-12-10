@@ -399,7 +399,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                 {/* Name Field - Editable when there's a conflict or was initially in conflict */}
                                 <div className="space-y-1">
                                     <Label htmlFor="import-name" className="text-muted-foreground text-xs">
-                                        Name<span className="text-red-500">*</span>
+                                        Name{conflicts.hasNameConflict && <span className="text-red-500">*</span>}
                                     </Label>
                                     {initialNameConflict ? (
                                         <div className="space-y-1">
@@ -432,7 +432,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                 {/* Chat Shortcut Field - Editable when there's a conflict or was initially in conflict */}
                                 <div className="space-y-1">
                                     <Label htmlFor="import-command" className="text-muted-foreground text-xs">
-                                        Chat Shortcut{importData.prompt.command ? <span className="text-red-500">*</span> : ""}
+                                        Chat Shortcut{conflicts.hasCommandConflict && <span className="text-red-500">*</span>}
                                     </Label>
                                     {initialCommandConflict ? (
                                         <div className="space-y-1">
