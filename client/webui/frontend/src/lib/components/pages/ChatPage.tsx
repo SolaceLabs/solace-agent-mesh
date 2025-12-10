@@ -130,9 +130,10 @@ export function ChatPage() {
     }, [sessionName, appId, app]);
 
     // Initialize app editor mode when appId is present
+    // Set appEditorMode immediately from URL parameter to avoid race condition with initial message
     useEffect(() => {
-        if (appId && app) {
-            setAppEditorMode({ appId: app.appId });
+        if (appId) {
+            setAppEditorMode({ appId });
             // Automatically select AppAgent when in app editor mode
             setSelectedAgentName("AppAgent");
             // Open side panel to app-preview tab by default
@@ -141,7 +142,7 @@ export function ChatPage() {
         } else {
             setAppEditorMode(null);
         }
-    }, [appId, app, setAppEditorMode, setSelectedAgentName, setIsSidePanelCollapsed, openSidePanelTab]);
+    }, [appId, setAppEditorMode, setSelectedAgentName, setIsSidePanelCollapsed, openSidePanelTab]);
 
     // Auto-fill initial message when coming from CreateAppPage
     // We use the pendingPrompt mechanism to fill the input field

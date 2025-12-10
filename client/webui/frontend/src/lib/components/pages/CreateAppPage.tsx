@@ -64,8 +64,9 @@ export function CreateAppPage() {
             }
 
             // Navigate to chat with app editor mode enabled and initial message in state
+            // Pass appId in state to enable immediate appEditorMode setup (before app fetch completes)
             navigate(`/chat?appId=${appId}`, {
-                state: { initialMessage }
+                state: { initialMessage, appId }
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : "Unknown error");
