@@ -221,7 +221,7 @@ async def test_peer_task_cancellation_propagation(
                                 "type": "function",
                                 "function": {
                                     "name": "peer_TestPeerAgentA",
-                                    "arguments": '{"task_description": "Please wait for 10 seconds.", "user_query": "Delegate a 10 second wait."}',
+                                    "arguments": '{"task_description": "Please wait for 10 seconds."}',
                                 },
                             }
                         ],

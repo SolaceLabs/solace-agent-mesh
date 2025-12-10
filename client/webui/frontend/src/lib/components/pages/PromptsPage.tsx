@@ -27,6 +27,7 @@ export const PromptsPage: React.FC = () => {
     const [initialMessage, setInitialMessage] = useState<string | null>(null);
     const [editingGroup, setEditingGroup] = useState<PromptGroup | null>(null);
     const [builderInitialMode, setBuilderInitialMode] = useState<"manual" | "ai-assisted">("ai-assisted");
+    const [builderKey, setBuilderKey] = useState(0); // Key to force fresh PromptTemplateBuilder instance
     const [versionHistoryGroup, setVersionHistoryGroup] = useState<PromptGroup | null>(null);
     const [deletingPrompt, setDeletingPrompt] = useState<{ id: string; name: string } | null>(null);
     const [newlyCreatedPromptId, setNewlyCreatedPromptId] = useState<string | null>(null);
@@ -76,8 +77,13 @@ export const PromptsPage: React.FC = () => {
                 // Check for pending task description from router state
                 if (mode === "ai-assisted" && location.state?.taskDescription) {
                     setInitialMessage(location.state.taskDescription);
+                } else {
+                    // Clear any previous initial message when starting fresh
+                    setInitialMessage(null);
                 }
 
+                // Increment key to force fresh PromptTemplateBuilder instance
+                setBuilderKey(prev => prev + 1);
                 setShowBuilder(true);
             }
         } else if (loaderData?.view === "versions" && loaderData.promptId) {
@@ -281,6 +287,7 @@ export const PromptsPage: React.FC = () => {
         return (
             <>
                 <PromptTemplateBuilder
+                    key={`builder-${builderKey}-${editingGroup?.id || "new"}`}
                     onBack={() => {
                         navigate("/prompts");
                     }}

@@ -25,6 +25,10 @@ class TaskRepository(ITaskRepository):
             model.total_output_tokens = task.total_output_tokens
             model.total_cached_input_tokens = task.total_cached_input_tokens
             model.token_usage_details = task.token_usage_details
+            model.execution_mode = task.execution_mode
+            model.last_activity_time = task.last_activity_time
+            model.background_execution_enabled = task.background_execution_enabled
+            model.max_execution_time_ms = task.max_execution_time_ms
         else:
             model = TaskModel(
                 id=task.id,
@@ -38,6 +42,10 @@ class TaskRepository(ITaskRepository):
                 total_output_tokens=task.total_output_tokens,
                 total_cached_input_tokens=task.total_cached_input_tokens,
                 token_usage_details=task.token_usage_details,
+                execution_mode=task.execution_mode,
+                last_activity_time=task.last_activity_time,
+                background_execution_enabled=task.background_execution_enabled,
+                max_execution_time_ms=task.max_execution_time_ms,
             )
             session.add(model)
 
@@ -201,6 +209,35 @@ class TaskRepository(ITaskRepository):
                     to_process.append(child.id)
 
         return list(all_task_ids)
+
+    def find_background_tasks_by_status(
+        self, session: DBSession, status: str | None = None
+    ) -> list[Task]:
+        """Find all background tasks, optionally filtered by status."""
+        query = session.query(TaskModel).filter(
+            TaskModel.execution_mode == "background"
+        )
+        
+        if status:
+            query = query.filter(TaskModel.status == status)
+        
+        models = query.all()
+        return [self._task_model_to_entity(model) for model in models]
+    
+    def find_timed_out_background_tasks(
+        self, session: DBSession, cutoff_time_ms: int
+    ) -> list[Task]:
+        """Find background tasks that have exceeded their timeout."""
+        models = (
+            session.query(TaskModel)
+            .filter(
+                TaskModel.execution_mode == "background",
+                TaskModel.status.in_(["running", "pending"]),
+                TaskModel.last_activity_time < cutoff_time_ms
+            )
+            .all()
+        )
+        return [self._task_model_to_entity(model) for model in models]
 
     def _task_model_to_entity(self, model: TaskModel) -> Task:
         """Convert SQLAlchemy task model to domain entity."""

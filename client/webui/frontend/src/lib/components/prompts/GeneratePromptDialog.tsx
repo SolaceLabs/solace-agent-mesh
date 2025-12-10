@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Button, Textarea, Badge } from '@/lib/components/ui';
-import { MessageBanner } from '@/lib/components/common';
-import { FileText, Mail, Code, Sparkles } from 'lucide-react';
+import React, { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Button, Textarea, Badge } from "@/lib/components/ui";
+import { MessageBanner } from "@/lib/components/common";
+import { FileText, Mail, Code, Sparkles } from "lucide-react";
 
 interface GeneratePromptDialogProps {
     isOpen: boolean;
@@ -10,17 +10,13 @@ interface GeneratePromptDialogProps {
 }
 
 const QUICK_SUGGESTIONS = [
-    { icon: FileText, label: 'Summarize a document' },
-    { icon: Mail, label: 'Write me an email' },
-    { icon: Code, label: 'Translate code' },
+    { icon: FileText, label: "Summarize a document" },
+    { icon: Mail, label: "Write me an email" },
+    { icon: Code, label: "Translate code" },
 ];
 
-export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({
-    isOpen,
-    onClose,
-    onGenerate,
-}) => {
-    const [taskDescription, setTaskDescription] = useState('');
+export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({ isOpen, onClose, onGenerate }) => {
+    const [taskDescription, setTaskDescription] = useState("");
     const [showError, setShowError] = useState(false);
 
     const handleGenerate = () => {
@@ -30,7 +26,7 @@ export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({
         }
         setShowError(false);
         onGenerate(taskDescription.trim());
-        setTaskDescription('');
+        setTaskDescription("");
     };
 
     const handleSuggestionClick = (suggestion: string) => {
@@ -38,7 +34,7 @@ export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({
     };
 
     const handleClose = () => {
-        setTaskDescription('');
+        setTaskDescription("");
         setShowError(false);
         onClose();
     };
@@ -60,14 +56,7 @@ export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({
                     </DialogDescription>
                 </DialogHeader>
 
-                {showError && (
-                    <MessageBanner
-                        variant="error"
-                        message="Please describe your task before generating a prompt."
-                        dismissible
-                        onDismiss={() => setShowError(false)}
-                    />
-                )}
+                {showError && <MessageBanner variant="error" message="Please describe your task before generating a prompt." dismissible onDismiss={() => setShowError(false)} />}
 
                 <div className="space-y-4 py-4">
                     <Textarea
@@ -76,8 +65,8 @@ export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({
                         onChange={handleTextChange}
                         rows={6}
                         className="resize-none"
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        onKeyDown={e => {
+                            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                                 handleGenerate();
                             }
                         }}
@@ -88,13 +77,8 @@ export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({
                         {QUICK_SUGGESTIONS.map((suggestion, index) => {
                             const Icon = suggestion.icon;
                             return (
-                                <Badge
-                                    key={index}
-                                    variant="outline"
-                                    className="cursor-pointer hover:bg-primary/10 transition-colors px-3 py-1.5"
-                                    onClick={() => handleSuggestionClick(suggestion.label)}
-                                >
-                                    <Icon className="h-3 w-3 mr-1.5" />
+                                <Badge key={index} variant="outline" className="hover:bg-primary/10 cursor-pointer px-3 py-1.5 transition-colors" onClick={() => handleSuggestionClick(suggestion.label)}>
+                                    <Icon className="mr-1.5 h-3 w-3" />
                                     {suggestion.label}
                                 </Badge>
                             );
@@ -106,10 +90,8 @@ export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({
                     <Button variant="ghost" onClick={handleClose}>
                         Cancel
                     </Button>
-                    <Button
-                        onClick={handleGenerate}
-                    >
-                        <Sparkles className="h-4 w-4 mr-2" />
+                    <Button data-testid="generatePromptButton" onClick={handleGenerate}>
+                        <Sparkles className="mr-2 h-4 w-4" />
                         Generate
                     </Button>
                 </div>

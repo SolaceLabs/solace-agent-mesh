@@ -231,7 +231,7 @@ export function ChatPage() {
                             minSize={chatPanelSizes.min}
                             maxSize={chatPanelSizes.max}
                             id="chat-panel"
-                            style={{ backgroundColor: currentTheme === 'dark' ? 'var(--color-background-w100)' : 'var(--color-background-w20)' }}
+                            style={{ backgroundColor: currentTheme === "dark" ? "var(--color-background-w100)" : "var(--color-background-w20)" }}
                         >
                             <div className="flex h-full w-full flex-col">
                                 <div className="flex min-h-0 flex-1 flex-col py-6">
