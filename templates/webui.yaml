@@ -37,7 +37,7 @@ apps:
       # OAuth2 Authentication (Community: false, Enterprise: true)
       external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL}
       external_auth_provider: ${EXTERNAL_AUTH_PROVIDER, generic}
-      use_authorization: ${USE_AUTHORIZATION, false}
+      frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION, false}
 
       enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution
       gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds

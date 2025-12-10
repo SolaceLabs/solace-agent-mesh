@@ -110,7 +110,7 @@ class PlatformServiceComponent(SamComponentBase):
             # OAuth2 configuration (enterprise feature - defaults to community mode)
             self.external_auth_service_url = self.get_config("external_auth_service_url", "")
             self.external_auth_provider = self.get_config("external_auth_provider", "generic")
-            self.use_authorization = self.get_config("use_authorization", False)
+            self.use_authorization = self.get_config("frontend_use_authorization", False)
 
             # Background task configuration
             self.deployment_timeout_minutes = self.get_config("deployment_timeout_minutes", 5)
