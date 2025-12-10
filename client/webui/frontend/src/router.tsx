@@ -1,6 +1,6 @@
 import { createHashRouter, Navigate } from "react-router-dom";
 
-import { AgentMeshPage, ChatPage, ProjectsPage, PromptsPage } from "./lib";
+import { AgentMeshPage, ChatPage, ProjectsPage, PromptsPage, AppsPage, CreateAppPage, AppViewPage } from "./lib";
 import AppLayout from "./AppLayout";
 
 export const createRouter = () => {
@@ -68,6 +68,23 @@ export const createRouter = () => {
                 {
                     path: "agents",
                     element: <AgentMeshPage />,
+                },
+                {
+                    path: "apps",
+                    children: [
+                        {
+                            index: true,
+                            element: <AppsPage />,
+                        },
+                        {
+                            path: "new",
+                            element: <CreateAppPage />,
+                        },
+                        {
+                            path: ":appId/view",
+                            element: <AppViewPage />,
+                        },
+                    ],
                 },
                 {
                     path: "*",

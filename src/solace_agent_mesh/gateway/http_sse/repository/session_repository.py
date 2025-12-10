@@ -26,9 +26,9 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         return "session"
 
     def find_by_user(
-        self, session: DBSession, user_id: UserId, pagination: PaginationParams | None = None, project_id: str | None = None
+        self, session: DBSession, user_id: UserId, pagination: PaginationParams | None = None, project_id: str | None = None, app_id: str | None = None
     ) -> list[Session]:
-        """Find all sessions for a specific user with optional project filtering."""
+        """Find all sessions for a specific user with optional project/app filtering."""
         query = session.query(SessionModel).filter(
             SessionModel.user_id == user_id,
             SessionModel.deleted_at.is_(None)  # Exclude soft-deleted sessions
@@ -37,6 +37,10 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         # Optional project filtering for project-specific views
         if project_id is not None:
             query = query.filter(SessionModel.project_id == project_id)
+
+        # Optional app filtering for app-specific views
+        if app_id is not None:
+            query = query.filter(SessionModel.app_id == app_id)
 
         # Eager load project relationship
         query = query.options(joinedload(SessionModel.project))
@@ -48,8 +52,8 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         models = query.all()
         return [Session.model_validate(model) for model in models]
 
-    def count_by_user(self, session: DBSession, user_id: UserId, project_id: str | None = None) -> int:
-        """Count total sessions for a specific user with optional project filtering."""
+    def count_by_user(self, session: DBSession, user_id: UserId, project_id: str | None = None, app_id: str | None = None) -> int:
+        """Count total sessions for a specific user with optional project/app filtering."""
         query = session.query(SessionModel).filter(
             SessionModel.user_id == user_id,
             SessionModel.deleted_at.is_(None)  # Exclude soft-deleted sessions
@@ -58,6 +62,10 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         # Optional project filtering for project-specific views
         if project_id is not None:
             query = query.filter(SessionModel.project_id == project_id)
+
+        # Optional app filtering for app-specific views
+        if app_id is not None:
+            query = query.filter(SessionModel.app_id == app_id)
 
         return query.count()
 
@@ -87,6 +95,7 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
                 name=session.name,
                 agent_id=session.agent_id,
                 project_id=session.project_id,
+                app_id=session.app_id,
                 updated_time=session.updated_time,
             )
             return self.update(
@@ -99,6 +108,7 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
                 user_id=session.user_id,
                 agent_id=session.agent_id,
                 project_id=session.project_id,
+                app_id=session.app_id,
                 created_time=session.created_time,
                 updated_time=session.updated_time,
             )

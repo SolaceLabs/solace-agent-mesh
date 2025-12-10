@@ -69,6 +69,13 @@ const defaultMockChatContext: DefaultMockContextType = {
     backgroundTasks: [],
     backgroundNotifications: [],
 
+    // App Editor Mode
+    appEditorMode: null,
+
+    // App Preview Auto-Refresh
+    autoRefreshEnabled: true,
+    triggerPreviewRefresh: 0,
+
     // No-op functions
     setMessages: () => {},
     setTaskIdInSidePanel: () => {},
@@ -115,6 +122,13 @@ const defaultMockChatContext: DefaultMockContextType = {
     startNewChatWithPrompt: async () => {},
     clearPendingPrompt: () => {},
     isTaskRunningInBackground: () => false,
+
+    // App Editor Mode Actions
+    setAppEditorMode: () => {},
+
+    // App Preview Auto-Refresh Actions
+    setAutoRefreshEnabled: () => {},
+    refreshPreview: () => {},
 };
 
 interface MockChatProviderProps {

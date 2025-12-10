@@ -1094,6 +1094,19 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
+        # Workspace Context Injector (for app mode with APP_CONTEXT.md)
+        workspace_context_config = component.get_config("workspace_context_injection")
+        if workspace_context_config:
+            workspace_callback_with_config = functools.partial(
+                adk_callbacks.inject_workspace_context_callback,
+                workspace_config=workspace_context_config,
+            )
+            callbacks_in_order_for_before_model.append(workspace_callback_with_config)
+            log.debug(
+                "%s Added inject_workspace_context_callback to before_model chain.",
+                component.log_identifier,
+            )
+
         solace_llm_trigger_callback_with_component = functools.partial(
             adk_callbacks.solace_llm_invocation_callback, host_component=component
         )

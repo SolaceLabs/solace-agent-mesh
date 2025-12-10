@@ -57,11 +57,15 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    # Get the database URL from the Alembic config
+    # Get the database URL from the Alembic config or environment variable
     url = config.get_main_option("sqlalchemy.url")
     if not url:
+        # Fall back to DATABASE_URL environment variable
+        import os
+        url = os.getenv("DATABASE_URL")
+    if not url:
         raise ValueError(
-            "Database URL is not set. Please set sqlalchemy.url in alembic.ini or via command line."
+            "Database URL is not set. Please set sqlalchemy.url in alembic.ini, via command line, or DATABASE_URL env var."
         )
 
     # Create a configuration dictionary for the engine

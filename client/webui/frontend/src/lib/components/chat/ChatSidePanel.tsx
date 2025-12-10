@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 
-import { PanelRightIcon, FileText, Network, RefreshCw } from "lucide-react";
+import { PanelRightIcon, FileText, Network, RefreshCw, Monitor } from "lucide-react";
 
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui";
 import { useTaskContext, useChatContext } from "@/lib/hooks";
 import { FlowChartPanel, processTaskForVisualization } from "@/lib/components/activities";
 import type { VisualizedTask } from "@/lib/types";
+import { AppPreview } from "@/lib/components/apps/AppPreview";
 
 import { ArtifactPanel } from "./artifact/ArtifactPanel";
 import { FlowChartDetails } from "../activities/FlowChartDetails";
@@ -15,9 +16,10 @@ interface ChatSidePanelProps {
     isSidePanelCollapsed: boolean;
     setIsSidePanelCollapsed: (isSidePanelCollapsed: boolean) => void;
     isSidePanelTransitioning: boolean;
+    appId?: string;
 }
 
-export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning }) => {
+export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning, appId }) => {
     const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel } = useChatContext();
     const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream, loadTaskFromBackend } = useTaskContext();
     const [visualizedTask, setVisualizedTask] = useState<VisualizedTask | null>(null);
@@ -144,7 +146,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
         onCollapsedToggle(newCollapsed);
     };
 
-    const handleTabClick = (tab: "files" | "workflow") => {
+    const handleTabClick = (tab: "app-preview" | "files" | "workflow") => {
         if (tab === "files") {
             setPreviewArtifact(null);
         }
@@ -152,7 +154,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
         setActiveSidePanelTab(tab);
     };
 
-    const handleIconClick = (tab: "files" | "workflow") => {
+    const handleIconClick = (tab: "app-preview" | "files" | "workflow") => {
         if (isSidePanelCollapsed) {
             setIsSidePanelCollapsed(false);
             onCollapsedToggle?.(false);
@@ -171,6 +173,12 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
 
                 <div className="bg-border my-4 h-px w-8"></div>
 
+                {appId && (
+                    <Button variant="ghost" size="sm" onClick={() => handleIconClick("app-preview")} className="mb-2 h-10 w-10 p-0" tooltip="App Preview">
+                        <Monitor className="size-5" />
+                    </Button>
+                )}
+
                 <Button variant="ghost" size="sm" onClick={() => handleIconClick("files")} className="mb-2 h-10 w-10 p-0" tooltip="Files">
                     <FileText className="size-5" />
                 </Button>
@@ -186,16 +194,26 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     return (
         <div className="bg-background flex h-full flex-col border-l">
             <div className="m-1 min-h-0 flex-1">
-                <Tabs value={activeSidePanelTab} onValueChange={value => handleTabClick(value as "files" | "workflow")} className="flex h-full flex-col">
+                <Tabs value={activeSidePanelTab} onValueChange={value => handleTabClick(value as "app-preview" | "files" | "workflow")} className="flex h-full flex-col">
                     <div className="flex gap-2 p-2">
                         <Button data-testid="collapsePanel" variant="ghost" onClick={toggleCollapsed} className="p-1" tooltip="Collapse Panel">
                             <PanelRightIcon className="size-5" />
                         </Button>
-                        <TabsList className="grid w-full grid-cols-2 bg-transparent p-0">
+                        <TabsList className={`grid w-full ${appId ? "grid-cols-3" : "grid-cols-2"} bg-transparent p-0`}>
+                            {appId && (
+                                <TabsTrigger
+                                    value="app-preview"
+                                    title="App Preview"
+                                    className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-l-md border border-r-0 data-[state=active]:z-10"
+                                >
+                                    <Monitor className="mr-2 h-4 w-4" />
+                                    App Preview
+                                </TabsTrigger>
+                            )}
                             <TabsTrigger
                                 value="files"
                                 title="Files"
-                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-l-md border border-r-0 data-[state=active]:z-10 data-[state=active]:border-r-0"
+                                className={`border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none ${appId ? "border" : "rounded-l-md border border-r-0"} ${appId ? "border-x-0" : ""} data-[state=active]:z-10`}
                                 onClick={() => setPreviewArtifact(null)}
                             >
                                 <FileText className="mr-2 h-4 w-4" />
@@ -204,7 +222,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                             <TabsTrigger
                                 value="workflow"
                                 title="Workflow"
-                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-r-md border border-l-0 data-[state=active]:z-10 data-[state=active]:border-l-0"
+                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-r-md border border-l-0 data-[state=active]:z-10"
                             >
                                 <Network className="mr-2 h-4 w-4" />
                                 Workflow
@@ -212,6 +230,13 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                         </TabsList>
                     </div>
                     <div className="min-h-0 flex-1">
+                        {appId && (
+                            <TabsContent value="app-preview" className="m-0 h-full">
+                                <div className="h-full">
+                                    <AppPreview appId={appId} />
+                                </div>
+                            </TabsContent>
+                        )}
                         <TabsContent value="files" className="m-0 h-full">
                             <div className="h-full">
                                 <ArtifactPanel />

@@ -583,8 +583,19 @@ async def handle_a2a_request(component, message: SolaceMessage):
             original_session_id = a2a_message.context_id
             message_id = a2a_message.message_id
             task_metadata = a2a_message.metadata or {}
+            log.info(
+                "%s Task metadata received: %s",
+                component.log_identifier,
+                task_metadata,
+            )
             system_purpose = task_metadata.get("system_purpose")
             response_format = task_metadata.get("response_format")
+            app_id = task_metadata.get("app_id")  # Extract app_id for app mode
+            log.info(
+                "%s Extracted app_id from task metadata: %s",
+                component.log_identifier,
+                app_id,
+            )
             session_behavior_from_meta = task_metadata.get("sessionBehavior")
             if session_behavior_from_meta:
                 session_behavior = str(session_behavior_from_meta).upper()
@@ -757,6 +768,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 "system_purpose": system_purpose,
                 "response_format": response_format,
                 "host_agent_name": agent_name,
+                "app_id": app_id,  # Add app_id for Claude Code app mode
             }
 
             # Store verified user identity claims in a2a_context (not the raw token)

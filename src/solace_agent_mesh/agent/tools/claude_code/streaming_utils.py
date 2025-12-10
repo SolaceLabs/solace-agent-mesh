@@ -41,7 +41,23 @@ async def process_claude_stream(
     session_id = ""
 
     while True:
-        line_bytes = await stdout.readline()
+        # Read line with increased buffer limit to handle long lines
+        # Default is 2**16 (64KB), we increase to 10MB to handle large prompts/outputs
+        try:
+            line_bytes = await stdout.readline()
+        except ValueError as e:
+            # If we hit buffer limit, log and try to recover
+            if "chunk is longer than limit" in str(e):
+                log.error(f"Buffer overflow in stream reading: {e}")
+                log.error("Line exceeds asyncio StreamReader buffer limit")
+                # Try to read remaining data and skip this line
+                try:
+                    # Read and discard up to the next newline
+                    await stdout.readuntil(b'\n')
+                except Exception:
+                    pass
+                continue
+            raise
         if not line_bytes:
             break
 

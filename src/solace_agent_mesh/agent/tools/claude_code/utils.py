@@ -282,7 +282,16 @@ async def run_claude_code_headless(
 
     log.info(f"Path validation complete")
 
-    image_name = f"claude-code-{environment}:latest"
+    # Determine image name
+    # For SAM apps, always use claude-code-sam-app regardless of environment parameter
+    # Check workspace path to determine if this is a SAM app (workspace path contains /apps/)
+    is_sam_app = "/apps/" in str(workspace_path)
+
+    if is_sam_app:
+        image_name = "claude-code-sam-app:latest"
+        log.info("Detected SAM app workspace, using claude-code-sam-app image")
+    else:
+        image_name = f"claude-code-{environment}:latest"
 
     # Use container runtime from config, or auto-detect
     if tool_config and "container_runtime" in tool_config:
@@ -344,7 +353,7 @@ async def run_claude_code_headless(
     # Note: Don't include "claude" here because Dockerfile has ENTRYPOINT ["claude"]
     output_format = "stream-json" if stream else "json"
     docker_cmd.extend([
-        "-p", autonomous_prompt,
+        "--print",  # Non-interactive mode
         "--output-format", output_format,
         "--dangerously-skip-permissions",  # Required for headless autonomous execution in sandbox
     ])
@@ -373,16 +382,25 @@ async def run_claude_code_headless(
             log.debug(f"Session ID available ({session_id}) but not resuming (fresh execution)")
         log.info("Starting new Claude Code session")
 
+    # Add the prompt as the final positional argument
+    # This is passed as a single argument to avoid shell parsing issues
+    docker_cmd.append(autonomous_prompt)
+
     log.info(f"Executing Claude Code in {environment} environment")
     log.info(f"Container runtime: {container_runtime}")
     log.info(f"Image: {image_name}")
     log.debug(f"Full command: {' '.join(docker_cmd)}")
 
     try:
+        # Increase buffer limit to 10MB to handle large prompts/outputs
+        # Default is 64KB which is too small for large prompts passed via command line
+        limit = 10 * 1024 * 1024  # 10MB
+
         proc = await asyncio.create_subprocess_exec(
             *docker_cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            limit=limit,
         )
 
         # Handle streaming vs non-streaming modes
@@ -478,6 +496,111 @@ async def run_claude_code_headless(
             "raw_output": "",
             "metadata": {},
         }
+
+
+async def initialize_workspace_if_needed(
+    workspace_path: Path,
+    workspace_type: str,
+    workspace_id: str,
+    workspace_name: str,
+    environment: str,
+    tool_config: Optional[Dict[str, Any]],
+) -> bool:
+    """
+    Check if workspace needs initialization and run container init script if needed.
+
+    For SAM apps (workspace_type='app'), this runs the claude-code-sam-app container's
+    init script to copy the template. For other workspaces, this is a no-op since
+    the init script only sets up git, which is already done by _initialize_workspace.
+
+    Args:
+        workspace_path: Path to workspace directory
+        workspace_type: Type of workspace ('session', 'app', etc.)
+        workspace_id: Workspace identifier
+        workspace_name: Display name for workspace
+        environment: Environment name (node, python, go, or 'sam-app')
+        tool_config: Tool configuration
+
+    Returns:
+        True if initialization was run, False if skipped
+    """
+    # Check if workspace needs initialization
+    # We consider it initialized if it has a .git directory or substantial content
+    if (workspace_path / ".git").exists():
+        log.debug(f"Workspace already initialized (has .git): {workspace_path}")
+        return False
+
+    # Count files (excluding hidden files)
+    try:
+        file_count = len([f for f in workspace_path.iterdir() if not f.name.startswith('.')])
+        if file_count > 1:  # More than just CLAUDE.md
+            log.debug(f"Workspace already has content ({file_count} files): {workspace_path}")
+            return False
+    except Exception as e:
+        log.warning(f"Failed to check workspace content: {e}")
+        return False
+
+    # Only run container init for SAM apps
+    # For other workspace types, _initialize_workspace already handles git setup
+    if workspace_type != "app":
+        log.debug(f"Skipping container init for workspace_type={workspace_type}")
+        return False
+
+    log.info(f"Initializing SAM app workspace: {workspace_id}")
+
+    # Determine container runtime
+    if tool_config and "container_runtime" in tool_config:
+        container_runtime = tool_config["container_runtime"]
+    else:
+        container_runtime = detect_container_runtime()
+
+    # For SAM apps, use the claude-code-sam-app image
+    image_name = "claude-code-sam-app:latest"
+
+    # Convert workspace path to absolute string
+    workspace_path_str = str(workspace_path.absolute())
+
+    # Build container command to run init script
+    init_cmd = [
+        container_runtime,
+        "run",
+        "--rm",
+        "--user", "node",  # SAM app container uses node user
+        "-v", f"{workspace_path_str}:/workspace:Z",
+        "-e", f"APP_ID={workspace_id}",
+        "-e", f"APP_NAME={workspace_name}",
+        "--entrypoint", "/usr/local/bin/init-workspace.sh",
+        image_name,
+    ]
+
+    log.info(f"Running workspace initialization in container")
+    log.debug(f"Init command: {' '.join(init_cmd)}")
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *init_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout, stderr = await proc.communicate()
+        stdout_str = stdout.decode() if stdout else ""
+        stderr_str = stderr.decode() if stderr else ""
+
+        if proc.returncode != 0:
+            log.error(f"Workspace initialization failed with code {proc.returncode}")
+            log.error(f"STDOUT: {stdout_str}")
+            log.error(f"STDERR: {stderr_str}")
+            raise RuntimeError(f"Workspace initialization failed: {stderr_str}")
+
+        log.info(f"Workspace initialized successfully")
+        log.debug(f"Init output: {stdout_str}")
+
+        return True
+
+    except Exception as e:
+        log.error(f"Failed to initialize workspace: {e}")
+        raise
 
 
 def generate_claude_md(

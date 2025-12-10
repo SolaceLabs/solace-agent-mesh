@@ -36,7 +36,7 @@ interface SessionListProps {
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError } = useChatContext();
+    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, appEditorMode } = useChatContext();
     const { configServerUrl, persistenceEnabled } = useConfigContext();
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -58,7 +58,12 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const fetchSessions = useCallback(
         async (pageNumber: number = 1, append: boolean = false) => {
             setIsLoading(true);
-            const url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`;
+
+            // Build URL with app_id parameter if in app editor mode
+            let url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`;
+            if (appEditorMode?.appId) {
+                url += `&app_id=${appEditorMode.appId}`;
+            }
 
             try {
                 const result: PaginatedSessionsResponse = await fetchJsonWithError(url);
@@ -78,7 +83,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 setIsLoading(false);
             }
         },
-        [configServerUrl]
+        [configServerUrl, appEditorMode]
     );
 
     useEffect(() => {

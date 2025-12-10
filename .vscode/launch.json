@@ -317,6 +317,30 @@
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
+        },
+        {
+            "name": "App Agent (Standalone)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/agents/app-agent.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
+            }
+        },
+        {
+            "name": "App Agent (With WebUI)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/app-agent.yaml examples/agents/a2a_multimodal_example.yaml examples/gateways/webui_gateway_example.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
+            }
         }
     ],
     "inputs": [

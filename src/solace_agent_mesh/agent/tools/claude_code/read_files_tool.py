@@ -13,14 +13,28 @@ from google.genai import types as adk_types
 
 from ....common.workspace import BaseWorkspaceService
 from ..dynamic_tool import DynamicTool
+from .context_helpers import (
+    resolve_workspace_params,
+    should_hide_workspace_params,
+)
 
 log = logging.getLogger(__name__)
 
 
 def get_user_id_from_context(tool_context: Optional[ToolContext]) -> str:
     """Extract user ID from tool context."""
-    if tool_context and hasattr(tool_context, "user_id"):
-        return tool_context.user_id
+    if tool_context:
+        # First try tool_context.user_id (ADK standard)
+        if hasattr(tool_context, "user_id") and tool_context.user_id:
+            return tool_context.user_id
+
+        # Fall back to a2a_context.user_id (SAM pattern)
+        if hasattr(tool_context, "state"):
+            a2a_context = tool_context.state.get("a2a_context", {})
+            user_id = a2a_context.get("user_id")
+            if user_id:
+                return user_id
+
     return "default_user"
 
 
@@ -86,23 +100,32 @@ class ClaudeCodeReadFilesTool(DynamicTool):
 
     @property
     def parameters_schema(self) -> adk_types.Schema:
+        """Build schema dynamically based on app_mode config."""
+        properties = {}
+        required = []
+
+        # Only include workspace parameters if not in app mode with hidden params
+        if not should_hide_workspace_params(self.tool_config):
+            properties["workspace_id"] = adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Workspace identifier",
+            )
+            properties["workspace_type"] = adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="'session' or 'app'",
+            )
+            required.append("workspace_id")
+
+        # Always include file_pattern parameter
+        properties["file_pattern"] = adk_types.Schema(
+            type=adk_types.Type.STRING,
+            description="Glob pattern for files (e.g., '**/*.ts')",
+        )
+
         return adk_types.Schema(
             type=adk_types.Type.OBJECT,
-            properties={
-                "workspace_id": adk_types.Schema(
-                    type=adk_types.Type.STRING,
-                    description="Workspace identifier",
-                ),
-                "workspace_type": adk_types.Schema(
-                    type=adk_types.Type.STRING,
-                    description="'session' or 'app'",
-                ),
-                "file_pattern": adk_types.Schema(
-                    type=adk_types.Type.STRING,
-                    description="Glob pattern for files (e.g., '**/*.ts')",
-                ),
-            },
-            required=["workspace_id"],
+            properties=properties,
+            required=required,
         )
 
     async def _run_async_impl(
@@ -111,10 +134,27 @@ class ClaudeCodeReadFilesTool(DynamicTool):
         tool_context: Optional[ToolContext] = None,
         credential: Optional[str] = None,
     ) -> dict:
-        """Read files from workspace."""
+        """Read files from workspace with app_id override if configured."""
         user_id = get_user_id_from_context(tool_context)
-        workspace_id = args["workspace_id"]
-        workspace_type = args.get("workspace_type", "session")
+
+        # Resolve workspace_id and workspace_type (applies app_mode overrides)
+        try:
+            workspace_id, workspace_type = resolve_workspace_params(
+                args, tool_context, self.tool_config, default_workspace_type="session"
+            )
+        except ValueError as e:
+            # Return error message to agent so it can adapt
+            error_msg = str(e)
+            log.warning(f"Workspace parameter resolution failed: {error_msg}")
+            return {
+                "status": "error",
+                "error": error_msg,
+                "message": (
+                    f"Claude Code tool is not available in this context: {error_msg}. "
+                    "This tool is designed for use in app development workflows."
+                )
+            }
+
         file_pattern = args.get("file_pattern", "**/*")
 
         log.info(

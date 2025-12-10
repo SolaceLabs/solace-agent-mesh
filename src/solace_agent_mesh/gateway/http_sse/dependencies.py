@@ -649,5 +649,18 @@ def get_user_display_name(
         user_info = request.state.user
         # Try email first, then name, then fall back to user_id
         return user_info.get("email") or user_info.get("name") or user_id
-    
+
     return user_id
+
+
+def get_workspace_base(
+    app_config: dict[str, Any] = Depends(get_app_config),
+) -> str:
+    """
+    FastAPI dependency to get the workspace base directory from configuration.
+    Returns the configured workspace_base or default to ~/.claude-workspaces.
+    """
+    import os
+    workspace_base = app_config.get("workspace_base", "~/.claude-workspaces")
+    # Expand ~ to home directory
+    return os.path.expanduser(workspace_base)

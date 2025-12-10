@@ -126,7 +126,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Side Panel Control State
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
-    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow">("files");
+    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"app-preview" | "files" | "workflow">("files");
+
+    // App Editor Mode State
+    const [appEditorMode, setAppEditorMode] = useState<{ appId: string } | null>(null);
+
+    // App Preview Auto-Refresh State
+    const [autoRefreshEnabled, setAutoRefreshEnabled] = useState<boolean>(true); // Default to ON
+    const [triggerPreviewRefresh, setTriggerPreviewRefresh] = useState<number>(0);
 
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -496,8 +503,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setMessages(allMessages);
             setSubmittedFeedback(feedbackMap);
 
-            // Set the agent name if found
-            if (agentName) {
+            // Set the agent name if found, but NOT if we're in app editor mode
+            // (app editor mode always uses AppAgent, set by ChatPage)
+            if (agentName && !appEditorMode) {
                 setSelectedAgentName(agentName);
             }
 
@@ -507,7 +515,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setTaskIdInSidePanel(mostRecentTask.taskId);
             }
         },
-        [apiPrefix, deserializeTaskToMessages, migrateTask]
+        [apiPrefix, deserializeTaskToMessages, migrateTask, appEditorMode]
     );
 
     const uploadArtifactFile = useCallback(
@@ -796,7 +804,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [apiPrefix, artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id, setError]
     );
 
-    const openSidePanelTab = useCallback((tab: "files" | "workflow") => {
+    const openSidePanelTab = useCallback((tab: "app-preview" | "files" | "workflow") => {
         setIsSidePanelCollapsed(false);
         setActiveSidePanelTab(tab);
 
@@ -890,6 +898,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         },
         [apiPrefix, sessionId, artifacts, setArtifacts, setError]
     );
+
+    // Refresh preview callback - triggers re-render in AppPreview component
+    const refreshPreview = useCallback(() => {
+        setTriggerPreviewRefresh(prev => prev + 1);
+    }, []);
 
     const handleSseMessage = useCallback(
         (event: MessageEvent) => {
@@ -1432,6 +1445,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // This ensures the database save completes before we unregister and refresh
 
                 setIsResponding(false);
+
+                // Trigger auto-refresh for app preview if enabled and in app editor mode
+                if (autoRefreshEnabled && appEditorMode) {
+                    refreshPreview();
+                }
+
                 closeCurrentEventSource();
                 setCurrentTaskId(null);
                 isFinalizing.current = true;
@@ -1454,6 +1473,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             isTaskRunningInBackground,
             updateTaskTimestamp,
             unregisterBackgroundTask,
+            autoRefreshEnabled,
+            appEditorMode,
+            refreshPreview,
         ]
     );
 
@@ -1508,7 +1530,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 console.log(`${log_prefix} Preserving project context: ${activeProject.name}`);
             }
 
-            setSelectedAgentName("");
+            // Clear agent name UNLESS we're in app editor mode (which always uses AppAgent)
+            if (!appEditorMode) {
+                setSelectedAgentName("");
+            }
             setMessages([]);
             setIsResponding(false);
             setCurrentTaskId(null);
@@ -1527,7 +1552,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact, isTaskRunningInBackground]
+        [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact, isTaskRunningInBackground, appEditorMode]
     );
 
     // Start a new chat session with a prompt template pre-filled
@@ -1658,7 +1683,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             console.log(`[ChatProvider] Reconnecting to running background task ${bgTask.taskId}`);
                             setCurrentTaskId(bgTask.taskId);
                             setIsResponding(true);
-                            if (bgTask.agentName) {
+                            // Only set agent name if NOT in app editor mode (which always uses AppAgent)
+                            if (bgTask.agentName && !appEditorMode) {
                                 setSelectedAgentName(bgTask.agentName);
                             }
                             // Only reconnect to the first running task
@@ -1694,6 +1720,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             backgroundTasks,
             checkTaskStatus,
             unregisterBackgroundTask,
+            appEditorMode,
         ]
     );
 
@@ -2062,6 +2089,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     messageMetadata.project_id = activeProject.id;
                 }
 
+                // Add app_id to metadata if in app editor mode
+                if (appEditorMode?.appId) {
+                    messageMetadata.app_id = appEditorMode.appId;
+                    console.log(`[ChatProvider] Including app_id in metadata: ${appEditorMode.appId}`);
+                }
+
                 if (enableBackgroundExecution) {
                     messageMetadata.background_execution = true;
                     messageMetadata.max_execution_time_ms = backgroundTasksDefaultTimeoutMs ?? 3600000; // Default 1 hour
@@ -2212,6 +2245,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             saveTaskToBackend,
             serializeMessageBubble,
             activeProject,
+            appEditorMode,
             cleanupUploadedFiles,
             setError,
             registerBackgroundTask,
@@ -2312,9 +2346,100 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isSessionMoveRef.current = false;
     }, [activeProject, handleNewSession]);
 
+    // Track if we've already loaded sessions for this app to prevent re-running on every render
+    const loadedAppIdRef = useRef<string | null>(null);
+
+    // App Editor Mode - Session Management
     useEffect(() => {
-        // Don't show welcome message if we're loading a session
-        if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
+        if (!appEditorMode) {
+            loadedAppIdRef.current = null;
+            return;
+        }
+
+        // Only load sessions once per app (when first entering app editor mode)
+        // Don't re-run when session changes or messages are sent
+        if (loadedAppIdRef.current === appEditorMode.appId) {
+            return;
+        }
+
+        const loadAppSessions = async () => {
+            const log_prefix = "ChatProvider.loadAppSessions:";
+            console.log(`${log_prefix} Loading sessions for app ${appEditorMode.appId}`);
+
+            try {
+                // 1. Query sessions for this app
+                const response = await fetchJsonWithError(`${apiPrefix}/sessions?app_id=${appEditorMode.appId}&pageSize=100`);
+                const sessions = response.data || [];
+
+                console.log(`${log_prefix} Found ${sessions.length} session(s) for app ${appEditorMode.appId}`);
+
+                // 2. Auto-selection logic
+                if (sessions.length === 0) {
+                    // No sessions - clear current session and prepare for new one
+                    // Session will be created when user sends first message (with app_id in metadata)
+                    console.log(`${log_prefix} No sessions found, clearing current session for new app session`);
+
+                    // Clear session state without triggering project context changes
+                    setSessionId("");
+                    setSessionName(null);
+                    setMessages([]);
+                    setIsResponding(false);
+                    setCurrentTaskId(null);
+                    setTaskIdInSidePanel(null);
+                    setPreviewArtifact(null);
+                    isFinalizing.current = false;
+                    latestStatusText.current = null;
+                    sseEventSequenceRef.current = 0;
+                } else if (sessions.length === 1) {
+                    // One session - auto-select it (only if not already selected)
+                    const targetSessionId = sessions[0].id;
+                    if (sessionId !== targetSessionId) {
+                        console.log(`${log_prefix} Auto-selecting single session: ${targetSessionId}`);
+                        await handleSwitchSession(targetSessionId);
+                    } else {
+                        console.log(`${log_prefix} Already in session ${targetSessionId}, skipping switch`);
+                    }
+                } else {
+                    // Multiple sessions - auto-select most recent (only if not already selected)
+                    const targetSessionId = sessions[0].id;
+                    if (sessionId !== targetSessionId) {
+                        console.log(`${log_prefix} Auto-selecting most recent session: ${targetSessionId}`);
+                        await handleSwitchSession(targetSessionId);
+                    } else {
+                        console.log(`${log_prefix} Already in most recent session ${targetSessionId}, skipping switch`);
+                    }
+                }
+
+                // Mark this app as loaded
+                loadedAppIdRef.current = appEditorMode.appId;
+            } catch (error) {
+                console.error(`${log_prefix} Failed to load app sessions:`, error);
+                setError({ title: "App Sessions Load Failed", error: getErrorMessage(error, "Failed to load app sessions.") });
+            }
+        };
+
+        loadAppSessions();
+    }, [appEditorMode, apiPrefix, sessionId, handleSwitchSession, setError, setPreviewArtifact]);
+
+    // Initialize appEditorMode from URL parameter (for testing or direct app editing)
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlAppId = urlParams.get("appId");
+
+        if (urlAppId && !appEditorMode) {
+            console.log(`[ChatProvider] Setting appEditorMode from URL parameter: ${urlAppId}`);
+            setAppEditorMode({ appId: urlAppId });
+        }
+    }, []); // Run once on mount
+
+    useEffect(() => {
+        // Don't show welcome message if we're loading a session or in app editor mode
+        // (app editor mode always uses AppAgent, set by ChatPage)
+        // Also check URL for appId parameter as appEditorMode might not be set yet on mount
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlAppId = urlParams.get("appId");
+
+        if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession && !appEditorMode && !urlAppId) {
             // Priority order for agent selection:
             // 1. URL parameter agent (?agent=AgentName)
             // 2. Project's default agent (if in project context)
@@ -2322,8 +2447,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // 4. First available agent
             let selectedAgent = agents[0];
 
-            // Check URL parameter first
-            const urlParams = new URLSearchParams(window.location.search);
+            // Check URL parameter for agent name
             const urlAgentName = urlParams.get("agent");
             let urlAgent: AgentCardInfo | undefined;
 
@@ -2369,7 +2493,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             ]);
         }
-    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject]);
+    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject, appEditorMode]);
 
     // Store the latest handlers in refs so they can be accessed without triggering effect re-runs
     const handleSseMessageRef = useRef(handleSseMessage);
@@ -2550,6 +2674,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         backgroundTasks,
         backgroundNotifications,
         isTaskRunningInBackground,
+
+        /** App Editor Mode */
+        appEditorMode,
+        setAppEditorMode,
+
+        /** App Preview Auto-Refresh */
+        autoRefreshEnabled,
+        setAutoRefreshEnabled,
+        triggerPreviewRefresh,
+        refreshPreview,
     };
 
     return (

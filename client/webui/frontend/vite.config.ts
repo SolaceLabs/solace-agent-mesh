@@ -74,10 +74,31 @@ export default defineConfig(({ mode }) => {
                     target: backendTarget,
                     changeOrigin: true,
                     secure: false,
+                    ws: true, // Support WebSocket proxying for HMR
+                    autoRewrite: true, // Rewrite location headers
+                    protocolRewrite: 'http', // Force http protocol in rewrites
+                    // Ensure we don't bypass the proxy for any /api requests
+                    bypass: (req, _res, _options) => {
+                        const shouldProxy = req.url?.startsWith('/api');
+                        console.log(`[Vite Proxy] ${req.method} ${req.url} -> ${shouldProxy ? 'PROXY' : 'BYPASS'}`);
+                        // Return null to proxy, return anything else to bypass
+                        return shouldProxy ? null : undefined;
+                    },
+                    configure: (proxy, _options) => {
+                        proxy.on('error', (err, _req, _res) => {
+                            console.log('[Vite Proxy] ERROR:', err);
+                        });
+                        proxy.on('proxyReq', (proxyReq, req, _res) => {
+                            console.log('[Vite Proxy] Proxying:', req.method, req.url, '->', backendTarget + req.url);
+                        });
+                        proxy.on('proxyRes', (proxyRes, req, _res) => {
+                            console.log('[Vite Proxy] Proxied:', req.method, req.url, '-> Status:', proxyRes.statusCode);
+                        });
+                    },
                 },
             },
-            port: 3000, // Explicitly set frontend dev server port (optional)
-            host: true, // Allow access from network (optional)
+            port: 3000,
+            host: true,
         },
     };
 });

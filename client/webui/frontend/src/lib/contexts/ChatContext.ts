@@ -35,7 +35,7 @@ export interface ChatState {
     taskIdInSidePanel: string | null;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
-    activeSidePanelTab: "files" | "workflow";
+    activeSidePanelTab: "app-preview" | "files" | "workflow";
     // Delete Modal State
     isDeleteModalOpen: boolean;
     artifactToDelete: ArtifactInfo | null;
@@ -57,6 +57,11 @@ export interface ChatState {
     // Background Task Monitoring State
     backgroundTasks: BackgroundTaskState[];
     backgroundNotifications: BackgroundTaskNotification[];
+    // App Editor Mode State
+    appEditorMode: { appId: string } | null;
+    // App Preview Auto-Refresh State
+    autoRefreshEnabled: boolean;
+    triggerPreviewRefresh: number;
 }
 
 export interface ChatActions {
@@ -77,8 +82,15 @@ export interface ChatActions {
     uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string, silent?: boolean) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
-    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;
-    openSidePanelTab: (tab: "files" | "workflow") => void;
+    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"app-preview" | "files" | "workflow">>;
+    openSidePanelTab: (tab: "app-preview" | "files" | "workflow") => void;
+
+    /** App Editor Mode Actions */
+    setAppEditorMode: React.Dispatch<React.SetStateAction<{ appId: string } | null>>;
+
+    /** App Preview Auto-Refresh Actions */
+    setAutoRefreshEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+    refreshPreview: () => void;
 
     openDeleteModal: (artifact: ArtifactInfo) => void;
     closeDeleteModal: () => void;

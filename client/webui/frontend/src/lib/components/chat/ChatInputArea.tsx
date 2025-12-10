@@ -46,7 +46,7 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
     }
 };
 
-export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
+export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void; hideAgentSelector?: boolean }> = ({ agents = [], scrollToBottom, hideAgentSelector = false }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt } = useChatContext();
@@ -129,16 +129,31 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 } as PromptGroup);
                 setShowVariableDialog(true);
             } else {
-                setInputValue(promptText);
-                setTimeout(() => {
-                    chatInputRef.current?.focus();
-                }, 100);
+                // Auto-submit if this is the initial app message (not a regular prompt template)
+                if (groupId === 'initial-app-message') {
+                    // Don't set inputValue - just submit directly with promptText
+                    // This avoids the input box showing the text
+                    setTimeout(() => {
+                        handleSubmit(
+                            { preventDefault: () => {} } as FormEvent,
+                            null,
+                            promptText, // Pass the text directly to handleSubmit
+                            null
+                        );
+                    }, 50);
+                } else {
+                    // For regular prompt templates, set input value and focus
+                    setInputValue(promptText);
+                    setTimeout(() => {
+                        chatInputRef.current?.focus();
+                    }, 100);
+                }
             }
 
             // Clear the pending prompt from provider
             clearPendingPrompt();
         }
-    }, [pendingPrompt, selectedAgentName, clearPendingPrompt]);
+    }, [pendingPrompt, selectedAgentName, clearPendingPrompt, handleSubmit]);
 
     // Handle session changes (for normal session switching, not prompt template usage)
     useEffect(() => {
@@ -811,19 +826,23 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     <Paperclip className="size-4" />
                 </Button>
 
-                <div>Agent: </div>
-                <Select value={selectedAgentName} onValueChange={handleAgentSelection} disabled={isResponding || agents.length === 0}>
-                    <SelectTrigger className="w-[250px]">
-                        <SelectValue placeholder="Select an agent..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {agents.map(agent => (
-                            <SelectItem key={agent.name} value={agent.name}>
-                                {agent.displayName || agent.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                {!hideAgentSelector && (
+                    <>
+                        <div>Agent: </div>
+                        <Select value={selectedAgentName} onValueChange={handleAgentSelection} disabled={isResponding || agents.length === 0}>
+                            <SelectTrigger className="w-[250px]">
+                                <SelectValue placeholder="Select an agent..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {agents.map(agent => (
+                                    <SelectItem key={agent.name} value={agent.name}>
+                                        {agent.displayName || agent.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </>
+                )}
 
                 {/* Spacer to push buttons to the right */}
                 <div className="flex-1" />

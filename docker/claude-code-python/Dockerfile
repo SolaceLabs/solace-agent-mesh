@@ -39,4 +39,8 @@ RUN git config --global user.name "Claude Code" && \
     git config --global user.email "cc@workspace" && \
     git config --global init.defaultBranch main
 
+# Copy workspace initialization script (invoked by agent when needed)
+COPY --chown=python:python docker/init-workspace.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/init-workspace.sh
+
 ENTRYPOINT ["claude"]

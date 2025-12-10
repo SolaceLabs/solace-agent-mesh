@@ -1,68 +1,89 @@
-# Python compiled files
-*.pyc
-*.pyo
-*.pyd
-__pycache__
-.pytest_cache
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Environment files
-.env*
-.env
-.env_template
-
-# Development files
-docker-compose-local.yaml
-Makefile
-CODE_OF_CONDUCT.md
-CONTRIBUTING.md
-
-# Dependencies
-node_modules
-venv
+# Virtual environments
+venv/
+ENV/
+env/
 .venv
-.venv*
 
-# IDE and editor files
-.vscode
-.idea
+# IDE
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
 
-# Version control
-.git
+# Git
+.git/
 .gitignore
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node modules (except the ones we need for the build)
+node_modules/
+
+# But include packages/sam-sdk/node_modules since we need it
+!packages/sam-sdk/node_modules/
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose*.yml
+
+# Documentation
+docs/
+*.md
+!packages/sam-sdk/README.md
+
+# Logs
+*.log
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# Logs and temporary files
-*.log
-*.out
-*.txt
-project_notes.txt
-*.trace
-trace_*
+# Temporary files
+tmp/
+temp/
+*.tmp
 
-# Build artifacts
-dist
-build
-tmp
-var
-*.egg-info
+# Alembic
+**/alembic/versions/*.py
+!**/alembic/versions/__init__.py
 
-# Test files and coverage
-tests/
-.coverage
-.tox
-.pytest_cache
-coverage.xml
-htmlcov/
-client/webui/frontend/cypress/
+# Database files
+*.db
+*.sqlite
+*.sqlite3
 
+# Environment files
+.env
+.env.*
+!.env.example
 
-# CI/CD files
-.github/actions
-.github/workflows
-wss-unified-agent.config
+# CI/CD
+.github/
+.gitlab-ci.yml

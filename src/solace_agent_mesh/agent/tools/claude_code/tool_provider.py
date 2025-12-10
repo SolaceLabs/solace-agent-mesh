@@ -36,6 +36,12 @@ class ClaudeCodeToolProvider(DynamicToolProvider):
         - settings_base: Base path for Claude Code settings
         - environment_variables: Dict of arbitrary env vars
         - settings: Overrides for settings.json
+        - app_mode: Optional app mode configuration
+            - enabled: Enable app mode behavior
+            - extract_app_id_from_context: Extract app_id from a2a_context
+            - fixed_workspace_type: Force workspace_type to this value
+            - hide_workspace_params: Remove workspace params from schemas
+            - hidden_tools: List of tool names to exclude
     """
 
     def __init__(self):
@@ -76,14 +82,14 @@ class ClaudeCodeToolProvider(DynamicToolProvider):
         tool_config: Optional[Dict] = None,
     ) -> List[DynamicTool]:
         """
-        Create the Claude Code tools.
+        Create the Claude Code tools, filtering based on app_mode config.
         Called by framework to get tool instances.
 
         Args:
             tool_config: Optional tool configuration
 
         Returns:
-            List of DynamicTool instances
+            List of DynamicTool instances (filtered if app_mode.hidden_tools is configured)
         """
         # Initialize the provider with the config
         if tool_config:
@@ -97,36 +103,50 @@ class ClaudeCodeToolProvider(DynamicToolProvider):
         from .export_workspace_tool import ClaudeCodeExportWorkspaceTool
         from .import_workspace_tool import ClaudeCodeImportWorkspaceTool
 
-        return [
-            ClaudeCodeExecuteTool(
+        # Create all available tools in a dictionary
+        all_tools = {
+            "claude_code_execute": ClaudeCodeExecuteTool(
                 self.workspace_service,
                 self.cc_sessions,
                 self.settings_base,
                 self.tool_config or tool_config,
             ),
-            ClaudeCodeListWorkspacesTool(
+            "claude_code_list_workspaces": ClaudeCodeListWorkspacesTool(
                 self.workspace_service,
                 self.tool_config or tool_config,
             ),
-            ClaudeCodeListSessionsTool(
+            "claude_code_list_sessions": ClaudeCodeListSessionsTool(
                 self.cc_sessions,
                 self.tool_config or tool_config,
             ),
-            ClaudeCodeReadFilesTool(
+            "claude_code_read_files": ClaudeCodeReadFilesTool(
                 self.workspace_service,
                 self.tool_config or tool_config,
             ),
-            ClaudeCodeCreateVersionTool(
+            "claude_code_create_version": ClaudeCodeCreateVersionTool(
                 self.workspace_service,
                 self.tool_config or tool_config,
             ),
-            ClaudeCodeExportWorkspaceTool(
+            "claude_code_export_workspace": ClaudeCodeExportWorkspaceTool(
                 self.workspace_service,
                 self.tool_config or tool_config,
             ),
-            ClaudeCodeImportWorkspaceTool(
+            "claude_code_import_workspace": ClaudeCodeImportWorkspaceTool(
                 self.workspace_service,
                 self.tool_config or tool_config,
             ),
-        ]
+        }
+
+        # Filter tools based on app_mode configuration
+        config = self.tool_config or tool_config
+        if config and config.get("app_mode", {}).get("enabled"):
+            hidden_tools = set(config.get("app_mode", {}).get("hidden_tools", []))
+            if hidden_tools:
+                log.info(f"[App Mode] Hiding tools: {hidden_tools}")
+                filtered_tools = [tool for name, tool in all_tools.items() if name not in hidden_tools]
+                log.info(f"[App Mode] Providing {len(filtered_tools)} tools (hidden {len(hidden_tools)})")
+                return filtered_tools
+
+        # Return all tools if no filtering configured
+        return list(all_tools.values())
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-import { PanelLeftIcon } from "lucide-react";
+import { ArrowLeft, PanelLeftIcon, Save } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
@@ -12,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/too
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useChatContext, useTaskContext, useThemeContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
+import { useApp } from "@/lib/hooks/useApp";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
@@ -39,6 +41,9 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const [searchParams] = useSearchParams();
     const { activeProject } = useProjectContext();
     const { currentTheme } = useThemeContext();
     const {
@@ -56,7 +61,16 @@ export function ChatPage() {
         closeSessionDeleteModal,
         confirmSessionDelete,
         currentTaskId,
+        appEditorMode,
+        setAppEditorMode,
+        selectedAgentName,
+        setSelectedAgentName,
+        startNewChatWithPrompt,
     } = useChatContext();
+
+    // Detect app editor mode from URL parameters
+    const appId = searchParams.get('appId');
+    const { app, deploy, deploying } = useApp(appId || undefined);
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
@@ -109,8 +123,49 @@ export function ChatPage() {
 
     // Determine the page title
     const pageTitle = useMemo(() => {
+        if (appId && app) {
+            return app.name;
+        }
         return sessionName || "New Chat";
-    }, [sessionName]);
+    }, [sessionName, appId, app]);
+
+    // Initialize app editor mode when appId is present
+    useEffect(() => {
+        if (appId && app) {
+            setAppEditorMode({ appId: app.appId });
+            // Automatically select AppAgent when in app editor mode
+            setSelectedAgentName("AppAgent");
+            // Open side panel to app-preview tab by default
+            setIsSidePanelCollapsed(false);
+            openSidePanelTab("app-preview");
+        } else {
+            setAppEditorMode(null);
+        }
+    }, [appId, app, setAppEditorMode, setSelectedAgentName, setIsSidePanelCollapsed, openSidePanelTab]);
+
+    // Auto-fill initial message when coming from CreateAppPage
+    // We use the pendingPrompt mechanism to fill the input field
+    // IMPORTANT: Only trigger after both AppAgent is selected AND appEditorMode is set
+    const [initialMessageProcessed, setInitialMessageProcessed] = useState(false);
+    useEffect(() => {
+        const state = location.state as { initialMessage?: string } | null;
+
+        // Wait for both AppAgent to be selected AND appEditorMode to be set before processing
+        // This ensures the message metadata includes app_id
+        if (state?.initialMessage && !initialMessageProcessed && selectedAgentName === "AppAgent" && appEditorMode?.appId) {
+            // Use the pendingPrompt mechanism to pre-fill the input
+            // We use dummy groupId and groupName since this isn't a template
+            startNewChatWithPrompt({
+                promptText: state.initialMessage,
+                groupId: 'initial-app-message',
+                groupName: 'Initial App Setup'
+            });
+            setInitialMessageProcessed(true);
+
+            // Clear the state to prevent re-processing on navigation
+            navigate(location.pathname + location.search, { replace: true, state: {} });
+        }
+    }, [location.state, initialMessageProcessed, selectedAgentName, appEditorMode, startNewChatWithPrompt, navigate, location.pathname, location.search]);
 
     useEffect(() => {
         if (chatSidePanelRef.current && isSidePanelCollapsed) {
@@ -201,7 +256,7 @@ export function ChatPage() {
                                     <p>{pageTitle}</p>
                                 </TooltipContent>
                             </Tooltip>
-                            {activeProject && (
+                            {activeProject && !appEditorMode && (
                                 <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary max-w-[200px] px-2 py-0.5 text-xs font-semibold shadow-sm" title={activeProject.name}>
                                     <span className="block truncate text-left">{activeProject.name}</span>
                                 </Badge>
@@ -210,7 +265,12 @@ export function ChatPage() {
                     }
                     breadcrumbs={breadcrumbs}
                     leadingAction={
-                        isSessionSidePanelCollapsed ? (
+                        appEditorMode ? (
+                            <Button variant="ghost" onClick={() => navigate("/apps")}>
+                                <ArrowLeft className="size-4" />
+                                Back
+                            </Button>
+                        ) : isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
                                 <Button data-testid="showSessionsPanel" variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
                                     <PanelLeftIcon className="size-5" />
@@ -220,6 +280,19 @@ export function ChatPage() {
                                 <ChatSessionDialog />
                             </div>
                         ) : null
+                    }
+                    buttons={
+                        appEditorMode && app ? [
+                            <Button
+                                key="deploy"
+                                variant="default"
+                                onClick={() => deploy()}
+                                disabled={deploying}
+                            >
+                                <Save className="size-4" />
+                                {deploying ? "Deploying..." : "Deploy"}
+                            </Button>,
+                        ] : undefined
                     }
                 />
             </div>
@@ -252,7 +325,7 @@ export function ChatPage() {
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
                                                 {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
-                                                <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                                <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} hideAgentSelector={!!appEditorMode} />
                                             </div>
                                         </>
                                     )}
@@ -274,7 +347,7 @@ export function ChatPage() {
                             className={isSidePanelTransitioning ? "transition-all duration-300 ease-in-out" : ""}
                         >
                             <div className="h-full">
-                                <ChatSidePanel onCollapsedToggle={handleSidepanelToggle} isSidePanelCollapsed={isSidePanelCollapsed} setIsSidePanelCollapsed={setIsSidePanelCollapsed} isSidePanelTransitioning={isSidePanelTransitioning} />
+                                <ChatSidePanel onCollapsedToggle={handleSidepanelToggle} isSidePanelCollapsed={isSidePanelCollapsed} setIsSidePanelCollapsed={setIsSidePanelCollapsed} isSidePanelTransitioning={isSidePanelTransitioning} appId={appId || undefined} />
                             </div>
                         </ResizablePanel>
                     </ResizablePanelGroup>

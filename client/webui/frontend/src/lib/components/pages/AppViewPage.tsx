@@ -4,6 +4,24 @@ import { ArrowLeft, Edit } from "lucide-react";
 import { useApp } from "@/lib/hooks/useApp";
 import { useSamSdkHost } from "@/lib/hooks";
 
+/**
+ * Converts integer version (e.g., 123) to semantic version string (e.g., "1.2.3")
+ * Backend stores versions as integers by removing dots, so we convert back to semver.
+ */
+function formatVersion(version: number): string {
+    if (version === 0) return "0.0.0";
+
+    const versionStr = version.toString();
+    if (versionStr.length === 1) {
+        return `${versionStr}.0.0`;
+    } else if (versionStr.length === 2) {
+        return `${versionStr[0]}.${versionStr[1]}.0`;
+    } else if (versionStr.length >= 3) {
+        return `${versionStr[0]}.${versionStr[1]}.${versionStr.slice(2)}`;
+    }
+    return versionStr;
+}
+
 export function AppViewPage() {
     const { appId } = useParams<{ appId: string }>();
     const navigate = useNavigate();
@@ -86,18 +104,20 @@ export function AppViewPage() {
     }
 
     // Construct URL to deployed app
-    const deployedUrl = `/api/v1/apps/${app.appId}/deployed/`;
+    const deployedUrl = `/api/v1/apps/deployed/${app.appId}/`;
 
     return (
         <div className="flex h-full w-full flex-col">
             <Header
                 title={app.name}
-                subtitle={`Version ${app.currentVersion}`}
-                buttons={[
-                    <Button key="back" variant="ghost" onClick={handleBack}>
+                subtitle={`Version ${formatVersion(app.currentVersion)}`}
+                leadingAction={
+                    <Button variant="ghost" onClick={handleBack}>
                         <ArrowLeft className="size-4" />
                         Back
-                    </Button>,
+                    </Button>
+                }
+                buttons={[
                     <Button key="edit" variant="outline" onClick={handleEdit}>
                         <Edit className="size-4" />
                         Edit
@@ -110,7 +130,7 @@ export function AppViewPage() {
                     src={deployedUrl}
                     className="w-full h-full border-0"
                     title={app.name}
-                    sandbox="allow-scripts allow-forms allow-popups"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                 />
             </div>
         </div>

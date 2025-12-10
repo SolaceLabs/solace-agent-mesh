@@ -11,6 +11,7 @@ from .session_model import SessionModel, CreateSessionModel, UpdateSessionModel
 from .task_event_model import TaskEventModel
 from .task_model import TaskModel
 from .prompt_model import PromptGroupModel, PromptModel, PromptGroupUserModel
+from .app_model import AppModel, AppVersionModel, CreateAppModel, UpdateAppModel
 
 __all__ = [
     "Base",
@@ -31,4 +32,8 @@ __all__ = [
     "PromptGroupModel",
     "PromptModel",
     "PromptGroupUserModel",
+    "AppModel",
+    "AppVersionModel",
+    "CreateAppModel",
+    "UpdateAppModel",
 ]

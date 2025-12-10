@@ -339,9 +339,18 @@ async def _submit_task(
 
     agent_name = None
     project_id = None
+    app_id = None
     if payload.params and payload.params.message and payload.params.message.metadata:
         agent_name = payload.params.message.metadata.get("agent_name")
         project_id = payload.params.message.metadata.get("project_id")
+        app_id = payload.params.message.metadata.get("app_id")
+        log.info(
+            "%sExtracted metadata - agent_name: %s, project_id: %s, app_id: %s",
+            log_prefix,
+            agent_name,
+            project_id,
+            app_id,
+        )
 
     if not agent_name:
         raise HTTPException(
@@ -430,6 +439,7 @@ async def _submit_task(
                         agent_id=agent_name,
                         session_id=session_id,
                         project_id=project_id,
+                        app_id=app_id,
                     )
                     db.commit()
                     log.debug(
@@ -537,12 +547,21 @@ async def _submit_task(
             "target_agent_name": agent_name,
         }
 
+        # Build metadata dictionary for the task
+        task_metadata = {}
+        if app_id:
+            task_metadata["app_id"] = app_id
+            log.info("%sIncluding app_id in task metadata: %s", log_prefix, app_id)
+        if project_id:
+            task_metadata["project_id"] = project_id
+
         task_id = await component.submit_a2a_task(
             target_agent_name=agent_name,
             a2a_parts=a2a_parts,
             external_request_context=external_req_ctx,
             user_identity=user_identity,
             is_streaming=is_streaming,
+            metadata=task_metadata if task_metadata else None,
         )
 
         log.info("%sTask submitted successfully. TaskID: %s", log_prefix, task_id)

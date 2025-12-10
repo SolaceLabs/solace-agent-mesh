@@ -36,6 +36,11 @@ apps:
         type: "sql"
         database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
         default_behavior: "PERSISTENT"
+
+      # --- Workspace Configuration ---
+      # Base directory for user workspaces (apps, claude-code sessions, etc.)
+      workspace_base: "${WORKSPACE_BASE, ~/.claude-workspaces}"
+
       # --- Optional with Defaults ---
       model: *general_model # Optional: defaults to None - Points to shared_config.yaml
       gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.

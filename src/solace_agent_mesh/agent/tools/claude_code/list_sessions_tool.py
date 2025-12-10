@@ -17,8 +17,18 @@ log = logging.getLogger(__name__)
 
 def get_user_id_from_context(tool_context: Optional[ToolContext]) -> str:
     """Extract user ID from tool context."""
-    if tool_context and hasattr(tool_context, "user_id"):
-        return tool_context.user_id
+    if tool_context:
+        # First try tool_context.user_id (ADK standard)
+        if hasattr(tool_context, "user_id") and tool_context.user_id:
+            return tool_context.user_id
+
+        # Fall back to a2a_context.user_id (SAM pattern)
+        if hasattr(tool_context, "state"):
+            a2a_context = tool_context.state.get("a2a_context", {})
+            user_id = a2a_context.get("user_id")
+            if user_id:
+                return user_id
+
     return "default_user"
 
 

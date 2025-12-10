@@ -2316,3 +2316,44 @@ def auto_continue_on_max_tokens_callback(
     )
 
     return hijacked_response
+
+
+def inject_workspace_context_callback(
+    callback_context: CallbackContext,
+    llm_request: LlmRequest,
+    workspace_config: Dict[str, Any],
+) -> None:
+    """
+    Injects workspace file content (like APP_CONTEXT.md) into system instruction.
+
+    This callback reads configured files from the workspace and injects them
+    into the system instruction before each LLM call, ensuring the agent always
+    has the latest workspace context without requiring explicit file reads.
+
+    Args:
+        callback_context: ADK callback context
+        llm_request: LLM request to modify (in-place)
+        workspace_config: Configuration dict with:
+            - workspace_base: Base path for workspaces
+            - files: List of files to inject
+
+    Example workspace_config:
+        {
+            "workspace_base": "~/.claude-workspaces",
+            "files": [
+                {
+                    "path": "APP_CONTEXT.md",
+                    "header": "## Current Application State (Auto-Updated)",
+                    "required": False,
+                    "max_size": 50000
+                }
+            ]
+        }
+    """
+    from .workspace_callbacks.workspace_context_injector import WorkspaceContextInjector
+
+    # Create injector instance with config
+    injector = WorkspaceContextInjector(workspace_config)
+
+    # Call the synchronous injection method
+    injector.on_llm_request(llm_request, callback_context)

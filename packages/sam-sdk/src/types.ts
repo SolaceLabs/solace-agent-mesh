@@ -17,6 +17,8 @@ export enum MessageType {
   AGENT_STREAM = 'sam:agent:stream',
   AGENT_STATUS = 'sam:agent:status',
   AGENT_ARTIFACT = 'sam:agent:artifact',
+  AGENT_LIST = 'sam:agent:list',
+  AGENT_LIST_RESPONSE = 'sam:agent:list:response',
 
   // Storage operations
   STORAGE_GET = 'sam:storage:get',
@@ -58,9 +60,12 @@ export interface AgentCallOptions {
   prompt: string;
   context?: Record<string, any>;
   stream?: boolean;
+  files?: File[]; // Optional: Attach documents/images to agent call
+  sessionId?: string; // Optional: Explicit session ID (SDK manages automatically if not provided)
+  timeout?: number; // Optional: Timeout in milliseconds (default: 300000 / 5 minutes)
   onText?: (text: string) => void;
   onStatus?: (status: string) => void;
-  onArtifact?: (artifact: any) => void;
+  onArtifact?: (artifact: ArtifactObject) => void;
 }
 
 /**
@@ -68,8 +73,20 @@ export interface AgentCallOptions {
  */
 export interface AgentCallResult {
   response: string;
-  artifacts?: string[];
+  sessionId: string; // Session ID for this conversation (for subsequent calls)
+  artifacts?: ArtifactObject[]; // Array of artifact objects with .download() method
   metadata?: Record<string, any>;
+}
+
+/**
+ * Agent metadata.
+ */
+export interface AgentInfo {
+  id: string;
+  name: string;
+  description?: string;
+  version?: string;
+  capabilities?: string[];
 }
 
 /**
@@ -88,14 +105,50 @@ export interface StorageAPI {
  */
 export interface AgentsAPI {
   call(agentName: string, options: AgentCallOptions): Promise<AgentCallResult>;
+  list(): Promise<AgentInfo[]>;
+}
+
+/**
+ * Result of artifact upload operation.
+ */
+export interface ArtifactUploadResult {
+  artifactId: string;       // URI of the uploaded artifact
+  sessionId: string;        // Session ID for this upload
+  filename: string;         // Original filename
+  size: number;             // File size in bytes
+  mimeType: string;         // MIME type of the file
+  metadata: Record<string, any>;  // Additional metadata
+  createdAt: string;        // ISO timestamp of creation
+}
+
+/**
+ * Options for artifact upload.
+ */
+export interface ArtifactUploadOptions {
+  sessionId?: string | null;  // Explicit session ID (null = force new session, undefined = use persistent session)
+}
+
+/**
+ * Artifact object with download capability.
+ * Can be received from onArtifact callbacks or created from URIs.
+ */
+export interface ArtifactObject {
+  name: string;
+  file?: {
+    uri?: string;
+    bytes?: string;
+    mimeType?: string;
+  };
+  download(): Promise<Blob>;
 }
 
 /**
  * Artifact operations.
  */
 export interface ArtifactsAPI {
-  upload(file: File): Promise<string>;
-  download(artifactId: string): Promise<Blob>;
+  upload(file: File, options?: ArtifactUploadOptions): Promise<ArtifactUploadResult>;
+  download(uriOrArtifact: string | ArtifactObject): Promise<Blob>;
+  fromUri(uri: string): ArtifactObject;
 }
 
 /**

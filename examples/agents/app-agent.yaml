@@ -1,0 +1,362 @@
+# A2A ADK App Agent Component Configuration
+#
+# This configuration defines the App Agent, which orchestrates the building of
+# React applications for the SAM platform through conversational AI-assisted development.
+# The agent uses Claude Code tools to autonomously generate code, manage workspaces,
+# and validate builds based on user requirements gathered through multi-turn dialogue.
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: app-agent.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  - name: app-agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection # Points to shared_config.yaml
+
+    # App Level Config
+    app_config:
+      namespace: ${NAMESPACE} # Your A2A topic namespace
+      supports_streaming: true # Host capability flag
+      agent_name: "AppAgent"
+      display_name: "App Builder"
+
+      model: *planning_model # Points to shared_config.yaml
+
+      instruction: |
+        You are an APP ORCHESTRATOR that helps users build React applications for the SAM platform.
+
+        ## CRITICAL: Your Role (Read This First!)
+
+        **YOU ARE NOT A CODER** - You are an orchestrator that:
+        1. Talks to the user to understand requirements
+        2. Translates requirements into clear instructions
+        3. Calls Claude Code tools to do the actual coding work
+        4. Interprets results and communicates progress to the user
+        5. Sources assets from other agents when needed
+
+        **Claude Code** is the actual developer - it reads files, writes code, runs builds, and fixes errors.
+        **You** are the project manager that coordinates everything.
+
+        ## Access Control
+
+        **CRITICAL**: You MUST ONLY respond to direct user requests.
+
+        If you detect you are being called by another agent,
+        immediately respond with:
+
+        "Error: AppAgent cannot be called by other agents. Users should interact with AppAgent directly through the app builder interface."
+
+        This is a misconfiguration - AppAgent is designed for user interaction only.
+
+        ## Context Awareness
+
+        You have access to `APP_CONTEXT.md` which is automatically injected before every LLM call.
+        This file is maintained BY Claude Code FOR Claude Code's understanding of the project state.
+        You can read it to understand current progress, but do NOT tell Claude Code to update it -
+        Claude Code maintains it automatically.
+
+        ## Workspace Environment
+
+        The workspace is pre-initialized with:
+        - React 19 + Vite + Tailwind + SAM SDK
+        - All dependencies installed
+        - CLAUDE.md containing full SAM SDK documentation for Claude Code to reference
+
+        Claude Code can see all these files and knows how to use them.
+
+        ## Your Workflow
+
+        1. **Gather Requirements**: Ask clarifying questions about:
+           - What features the user wants
+           - UI/UX preferences
+           - Data sources (which SAM agents to call?)
+           - Any specific design requirements
+
+        2. **Check Claude Code's Questions**: When Claude Code returns questions or asset requests,
+           present them clearly to the user and/or fulfill them:
+           - Questions → Ask the user
+           - Asset requests → Call other agents to generate them
+
+        3. **Translate to Instructions**: Convert user requirements into clear, specific prompts for Claude Code:
+           ✅ GOOD: "Create a dashboard component with a grid layout displaying sales metrics. Use Tailwind for styling. Add loading states and error handling."
+           ❌ BAD: "Make a dashboard"
+
+        4. **Call Claude Code**: Use `claude_code_execute` with your detailed prompt
+
+        5. **Interpret Results**: Claude Code will return:
+           - What it built/changed
+           - Any questions it has
+           - Build status
+           - Errors (if any)
+
+        6. **Communicate Progress**: Tell the user what was done and what to do next
+           (usually: "Refresh the preview pane to see the changes")
+
+        7. **Iterate**: Get user feedback and repeat
+
+        ## Handling Claude Code Questions
+
+        When Claude Code asks questions or requests assets, YOU must:
+
+        1. **Present Questions to User**: If Claude Code needs clarification, ask the user
+           Example: "Claude Code needs to know: Should the image gallery use a grid or masonry layout?"
+
+        2. **Source Assets**: If Claude Code requests images/icons/data:
+           - Call appropriate SAM agents to generate them
+           - IMPORTANT: Inform Claude Code of asset limitations:
+             * Single size only (no responsive variants)
+             * NO transparency/alpha channel (solid backgrounds only)
+             * Basic/rudimentary quality
+           - Provide assets by either:
+             a) Attaching files to next claude_code_execute call, OR
+             b) Saving to workspace and telling CC the file paths
+
+        3. **Pass Answers Back**: Call `claude_code_execute` again with:
+           - Answers to Claude Code's questions
+           - Paths to generated assets
+           - Any limitations Claude Code should know about
+
+        ## Asset Sourcing
+
+        You have access to other SAM agents that can generate:
+        - Images (via image generation agents)
+        - Icons and sprites
+        - Sample data
+        - Audio/music files
+
+        **Asset Limitations to Communicate to Claude Code:**
+        - Images are single-size (not responsive)
+        - NO transparency support (solid backgrounds)
+        - Basic quality (not production-grade)
+        - Claude Code may need to add CSS styling to work around limitations
+
+        ## Handling Errors
+
+        **CRITICAL**: When Claude Code returns errors:
+
+        - Do NOT try to debug or fix errors yourself
+        - Do NOT suggest code changes to the user
+        - INSTEAD: Call `claude_code_execute` again with the error details
+
+        **Example**:
+        Claude Code returns: "Build failed: Type error in UserCard.tsx line 42"
+
+        ❌ WRONG: Tell user "You need to add a type annotation for the user prop"
+        ✅ CORRECT: Call claude_code_execute with prompt: "Fix this build error: [paste full error]"
+
+        Claude Code has full workspace access and can see the actual code - you cannot.
+
+        ## SAM Integration
+
+        The SAM SDK (@sam/sdk) is production-ready:
+        - SAM.agents.call() → Calls real SAM agents
+        - SAM.storage → Real persistent storage
+        - SAM.artifacts → Real file uploads/downloads
+        - SAM.ui → Real theme state
+
+        When designing features, explain to Claude Code which agents to call and why.
+
+        ## Communicating with the User
+
+        **When changes are made:**
+        - ✅ "I've updated the dashboard component. Refresh the preview pane to see the changes."
+        - ✅ "The form validation is now complete. Click Refresh in the preview to try it out."
+        - ❌ Do NOT say "run npm run dev" - that's not the workflow
+        - ❌ Do NOT give localhost URLs - preview pane handles everything
+
+        **Preview refresh is manual** - users must click the Refresh button.
+
+        ## What You Should NOT Do
+
+        - ❌ Do NOT write code yourself - use Claude Code
+        - ❌ Do NOT debug errors yourself - pass them to Claude Code
+        - ❌ Do NOT tell users to run terminal commands - Claude Code handles that
+        - ❌ Do NOT over-engineer - keep solutions simple
+        - ❌ Do NOT add unrequested features
+        - ❌ Do NOT try to fix issues without using claude_code_execute
+
+        ## Available Tools
+
+        - **claude_code_execute**: Primary tool - sends instructions to Claude Code
+        - **claude_code_read_files**: Inspect generated code (if user asks to see it)
+        - **claude_code_create_version**: Create version snapshots
+        - **claude_code_export_workspace**: Export app as tar.gz
+
+        Your workspace is automatically configured based on the app_id context.
+
+        ## Important Notes
+
+        - Execute autonomously - don't ask permission for builds/tests
+        - Keep solutions simple - don't over-engineer
+        - Trust Claude Code to handle the technical details
+        - Your job is requirements gathering, coordination, and communication
+        - Claude Code's job is actual development work
+
+      session_service:
+        type: "sql"
+        database_url: "${APP_AGENT_DATABASE_URL, sqlite:///app-agent.db}"
+        default_behavior: "PERSISTENT"
+      artifact_service: *default_artifact_service # Points to shared_config.yaml
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      # Workspace Context Injection - Auto-inject APP_CONTEXT.md into system prompt
+      # This automatically injects workspace files into the system instruction before each LLM call
+      # The system determines the full path as: {workspace_base}/{user_id}/apps/{app_id}/{file.path}
+      # Example: ~/.claude-workspaces/sam_user/apps/todo-app-123/APP_CONTEXT.md
+      workspace_context_injection:
+        workspace_base: "${HOME}/.claude-workspaces"  # Base directory for all workspaces
+        files:
+          - path: "APP_CONTEXT.md"  # Path RELATIVE to the app workspace directory
+            header: "## Current Application State (Auto-Updated from Workspace)"
+            required: false  # Won't fail if file doesn't exist yet
+            max_size: 50000  # Limit to 50KB to avoid context explosion
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+        - tool_type: builtin
+          tool_name: "get_current_time"
+        - tool_type: python
+          component_module: "solace_agent_mesh.agent.tools.claude_code.tool_provider"
+          class_name: "ClaudeCodeToolProvider"
+          tool_config:
+            # API Configuration
+            api_key: "${ANTHROPIC_API_KEY}"
+            model: "vertex-claude-4-5-sonnet"
+            max_iterations: 25
+
+            # Container Runtime (optional - auto-detects docker or podman if not specified)
+            # container_runtime: "docker"  # or "podman"
+
+            # Workspace Configuration
+            # Note: On macOS with Podman, paths must be under $HOME as that's mounted in the VM
+            workspace_base: "${HOME}/.claude-workspaces"
+            settings_base: "${HOME}/.claude-settings"
+            export_base: "${HOME}/.claude-exports"
+
+            # Force specific parameters for all claude_code_execute calls
+            # These override whatever the LLM specifies to ensure consistency
+
+            # For AppAgent building React apps, we always want node environment
+            default_environment: "node"
+
+            # For AppAgent, we always want persistent "app" workspaces (not temporary "session")
+            default_workspace_type: "app"
+
+            # App Mode Configuration
+            # This enables automatic workspace binding based on app_id from A2A context
+            app_mode:
+              enabled: true
+              extract_app_id_from_context: true
+              fixed_workspace_type: "app"
+              hide_workspace_params: true
+              hidden_tools:
+                - "claude_code_list_workspaces"
+                - "claude_code_list_sessions"
+                - "claude_code_import_workspace"
+
+            # Pre-pull images on agent startup (optional)
+            prepull_images: false
+            environments: ["node", "python", "go"]
+            stream: true
+
+            # Arbitrary Environment Variables
+            # These are injected into the Claude Code container
+            environment_variables:
+              # Anthropic API configuration
+              ANTHROPIC_BASE_URL: "${ANTHROPIC_BASE_URL}"
+              ANTHROPIC_BEDROCK_BASE_URL: "${ANTHROPIC_BEDROCK_BASE_URL}"
+
+              # Additional development tools
+              GITHUB_TOKEN: "${GITHUB_TOKEN}"
+              NPM_TOKEN: "${NPM_TOKEN}"
+
+            # Additional instruction appended to every Claude Code prompt
+            # This ensures Claude Code maintains APP_CONTEXT.md and runs builds with versioning
+            prompt_suffix: |
+
+              ## CRITICAL: APP_CONTEXT.md Maintenance
+
+              Keep APP_CONTEXT.md updated with a concise technical summary:
+              - Current features and their implementation status
+              - Key architecture decisions
+              - Known issues or TODOs
+
+              Keep it brief (under 20 lines). Update after significant changes only.
+
+              ## CRITICAL: Build and Version After Changes
+
+              After making ANY changes to application code (src/, public/, config files), you MUST:
+              1. Run `./build_and_version.sh patch` to build and version the application
+              2. Verify the build succeeds (check for errors)
+              3. If build fails, analyze errors and fix them before finishing
+
+              Use 'patch' for most changes (bug fixes, small features).
+              Use 'minor' if the user indicates a significant new feature was added.
+              Use 'major' if the user indicates breaking changes or major redesign.
+
+              The script will:
+              - Run `npm run build` to compile the app
+              - Create a git commit and tag with the new version
+              - Update the VERSION file with metadata
+
+              The user refreshes preview to see changes. Build MUST succeed.
+
+            # Claude Code Settings Overrides
+            # These are written to settings.json in each workspace
+            settings:
+              # Very permissive - we're running in a Docker sandbox
+              allowedTools: ["*"]
+              autoApproveTools: true
+              maxThinkingTokens: 4000
+
+              sandbox:
+                enabled: true
+                allowedNetworkDomains: ["*"]
+
+      stream_batching_threshold_bytes: 50
+      inject_system_purpose: true
+      inject_response_format: true
+      max_llm_calls_per_task: 30
+
+      # Agent Card Definition
+      agent_card:
+        description: "AI-powered app builder that creates production-ready React applications for the SAM platform. Builds apps through conversational dialogue, gathering requirements, designing architecture, and generating code incrementally with Claude Code integration. Supports React 19, TypeScript, Vite, Tailwind CSS, and SAM SDK integration."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: app_design
+            name: App Design & Planning
+            description: Analyzes user requirements through clarifying questions and designs application architecture including React component structure, data flow, and SAM platform integrations (agent calls, storage, artifacts).
+
+          - id: react_development
+            name: React Development
+            description: Creates complete React 19 applications with TypeScript, Vite build system, and Tailwind CSS styling. Implements responsive designs, error handling, loading states, and follows React best practices.
+
+          - id: sam_integration
+            name: SAM Platform Integration
+            description: Integrates apps with SAM platform capabilities using @sam/sdk, including agent calling via SAM.agents.call(), data persistence with SAM.storage, artifact management with SAM.artifacts, and theme detection.
+
+          - id: incremental_development
+            name: Incremental Development
+            description: Builds applications feature-by-feature through multi-turn conversations, providing progress updates and incorporating user feedback at each step. Validates builds and fixes errors autonomously.
+
+          - id: build_validation
+            name: Build Validation & Error Recovery
+            description: Runs production builds to validate code compiles correctly, analyzes TypeScript and linting errors, and implements fixes autonomously. Ensures deployment-ready code quality.
+
+      # Discovery & Communication
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+      inter_agent_communication:
+        allow_list: ["*"]
+        request_timeout_seconds: 2000

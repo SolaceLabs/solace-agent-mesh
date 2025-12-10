@@ -20,6 +20,7 @@ class SessionModel(Base):
     user_id = Column(String, nullable=False)
     agent_id = Column(String, nullable=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=True)
+    app_id = Column(String, nullable=True)  # Link to app (no FK since apps table may not exist)
     created_time = Column(BigInteger, nullable=False, default=now_epoch_ms)
     updated_time = Column(
         BigInteger, nullable=False, default=now_epoch_ms, onupdate=now_epoch_ms
@@ -41,6 +42,7 @@ class CreateSessionModel(BaseModel):
     user_id: str
     agent_id: str | None
     project_id: str | None = None
+    app_id: str | None = None
     created_time: int
     updated_time: int
 
@@ -50,4 +52,5 @@ class UpdateSessionModel(BaseModel):
     name: str | None = None
     agent_id: str | None = None
     project_id: str | None = None
+    app_id: str | None = None
     updated_time: int

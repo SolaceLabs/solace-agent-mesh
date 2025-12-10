@@ -21,14 +21,14 @@ class ISessionRepository(ABC):
 
     @abstractmethod
     def find_by_user(
-        self, session: DBSession, user_id: UserId, pagination: PaginationParams | None = None, project_id: str | None = None
+        self, session: DBSession, user_id: UserId, pagination: PaginationParams | None = None, project_id: str | None = None, app_id: str | None = None
     ) -> list[Session]:
-        """Find all sessions for a specific user, optionally filtered by project."""
+        """Find all sessions for a specific user, optionally filtered by project or app."""
         pass
 
     @abstractmethod
-    def count_by_user(self, session: DBSession, user_id: UserId, project_id: str | None = None) -> int:
-        """Count total sessions for a specific user, optionally filtered by project."""
+    def count_by_user(self, session: DBSession, user_id: UserId, project_id: str | None = None, app_id: str | None = None) -> int:
+        """Count total sessions for a specific user, optionally filtered by project or app."""
         pass
 
     @abstractmethod

@@ -77,6 +77,16 @@ async def run_adk_async_task_thread_wrapper(
         if adk_session and component.session_service and append_context_event:
             context_setting_invocation_id = logical_task_id
             try:
+                # IMPORTANT: Directly update session state so tools in this turn can access a2a_context
+                # The state_delta in the event below is for persistence, but tools need immediate access
+                adk_session.state.update({"a2a_context": a2a_context})
+                log.debug(
+                    "%s Directly updated ADK session state with a2a_context for task %s: %s",
+                    component.log_identifier,
+                    logical_task_id,
+                    a2a_context,
+                )
+
                 context_setting_event = ADKEvent(
                     invocation_id=context_setting_invocation_id,
                     author="A2A_Host_System",

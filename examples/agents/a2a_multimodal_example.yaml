@@ -297,7 +297,7 @@ apps:
           tool_name: "edit_image_with_gemini"
           tool_config:
             gemini_api_key: ${GEMINI_API_KEY}
-            model: "gemini-2.0-flash-preview-image-generation"
+            model: "gemini-2.5-flash-image"
         - tool_type: builtin-group
           group_name: "artifact_management"
 

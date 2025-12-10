@@ -15,10 +15,15 @@ from ....common.workspace import BaseWorkspaceService
 from ....common.data_parts import AgentProgressUpdateData
 from ...utils.context_helpers import get_host_component_from_tool_context
 from ..dynamic_tool import DynamicTool
+from .context_helpers import (
+    resolve_workspace_params,
+    should_hide_workspace_params,
+)
 from .utils import (
     ensure_settings_directory,
     generate_claude_md,
     get_settings_path,
+    initialize_workspace_if_needed,
     run_claude_code_headless,
 )
 
@@ -27,8 +32,18 @@ log = logging.getLogger(__name__)
 
 def get_user_id_from_context(tool_context: Optional[ToolContext]) -> str:
     """Extract user ID from tool context."""
-    if tool_context and hasattr(tool_context, "user_id"):
-        return tool_context.user_id
+    if tool_context:
+        # First try tool_context.user_id (ADK standard)
+        if hasattr(tool_context, "user_id") and tool_context.user_id:
+            return tool_context.user_id
+
+        # Fall back to a2a_context.user_id (SAM pattern)
+        if hasattr(tool_context, "state"):
+            a2a_context = tool_context.state.get("a2a_context", {})
+            user_id = a2a_context.get("user_id")
+            if user_id:
+                return user_id
+
     # Fallback to a default user ID if context is not available
     return "default_user"
 
@@ -65,39 +80,50 @@ Sessions persist automatically - just keep using the same workspace_id."""
 
     @property
     def parameters_schema(self) -> adk_types.Schema:
+        """Build schema dynamically based on app_mode config."""
+        properties = {
+            "prompt": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Instruction for Claude Code",
+            ),
+        }
+
+        required = ["prompt"]
+
+        # Only include workspace parameters if not in app mode with hidden params
+        if not should_hide_workspace_params(self.tool_config):
+            properties["workspace_id"] = adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Unique workspace identifier",
+            )
+            properties["workspace_type"] = adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="'session' (temporary) or 'app' (persistent)",
+            )
+            required.append("workspace_id")
+
+        # Always include optional parameters that aren't workspace-related
+        properties["environment"] = adk_types.Schema(
+            type=adk_types.Type.STRING,
+            description="'node', 'python', or 'go'",
+        )
+        properties["workspace_name"] = adk_types.Schema(
+            type=adk_types.Type.STRING,
+            description="Display name for workspace",
+        )
+        properties["workspace_description"] = adk_types.Schema(
+            type=adk_types.Type.STRING,
+            description="Description for CLAUDE.md",
+        )
+        properties["resume_session_id"] = adk_types.Schema(
+            type=adk_types.Type.STRING,
+            description="Claude Code session ID to resume (from previous response)",
+        )
+
         return adk_types.Schema(
             type=adk_types.Type.OBJECT,
-            properties={
-                "prompt": adk_types.Schema(
-                    type=adk_types.Type.STRING,
-                    description="Instruction for Claude Code",
-                ),
-                "workspace_id": adk_types.Schema(
-                    type=adk_types.Type.STRING,
-                    description="Unique workspace identifier",
-                ),
-                "workspace_type": adk_types.Schema(
-                    type=adk_types.Type.STRING,
-                    description="'session' (temporary) or 'app' (persistent)",
-                ),
-                "environment": adk_types.Schema(
-                    type=adk_types.Type.STRING,
-                    description="'node', 'python', or 'go'",
-                ),
-                "workspace_name": adk_types.Schema(
-                    type=adk_types.Type.STRING,
-                    description="Display name for workspace",
-                ),
-                "workspace_description": adk_types.Schema(
-                    type=adk_types.Type.STRING,
-                    description="Description for CLAUDE.md",
-                ),
-                "resume_session_id": adk_types.Schema(
-                    type=adk_types.Type.STRING,
-                    description="Claude Code session ID to resume (from previous response)",
-                ),
-            },
-            required=["prompt", "workspace_id"],
+            properties=properties,
+            required=required,
         )
 
     async def _run_async_impl(
@@ -106,16 +132,47 @@ Sessions persist automatically - just keep using the same workspace_id."""
         tool_context: Optional[ToolContext] = None,
         credential: Optional[str] = None,
     ) -> dict:
-        """Execute Claude Code."""
+        """Execute Claude Code with app_id override if configured."""
         user_id = get_user_id_from_context(tool_context)
-        workspace_id = args["workspace_id"]
-        workspace_type = args.get("workspace_type", "session")
-        environment = args.get("environment", "node")
+
+        # Resolve workspace_id and workspace_type (applies app_mode overrides)
+        try:
+            workspace_id, workspace_type = resolve_workspace_params(
+                args, tool_context, self.tool_config, default_workspace_type="session"
+            )
+        except ValueError as e:
+            # Return error message to agent so it can adapt
+            error_msg = str(e)
+            log.warning(f"Workspace parameter resolution failed: {error_msg}")
+            return {
+                "status": "error",
+                "error": error_msg,
+                "message": (
+                    f"Claude Code tool is not available in this context: {error_msg}. "
+                    "This tool is designed for use in app development workflows."
+                )
+            }
+
+        # Check for forced environment in tool_config, otherwise use LLM's choice or default
+        if self.tool_config and "default_environment" in self.tool_config:
+            environment = self.tool_config["default_environment"]
+            log.info(f"Using forced environment from config: {environment}")
+        else:
+            environment = args.get("environment", "node")
+
         prompt = args["prompt"]
+
+        # Append prompt_suffix from tool_config if configured
+        # This allows adding instructions like APP_CONTEXT.md maintenance to every prompt
+        if self.tool_config and "prompt_suffix" in self.tool_config:
+            prompt_suffix = self.tool_config["prompt_suffix"]
+            if prompt_suffix:
+                prompt = f"{prompt}\n\n{prompt_suffix}"
+                log.debug(f"Appended prompt_suffix from tool_config ({len(prompt_suffix)} chars)")
 
         log.info(
             f"Executing Claude Code for user {user_id}, "
-            f"workspace {workspace_id}, type {workspace_type}"
+            f"workspace {workspace_id}, type {workspace_type}, environment {environment}"
         )
 
         # Get or create workspace
@@ -149,6 +206,23 @@ Sessions persist automatically - just keep using the same workspace_id."""
             log.info(f"Workspace initialization complete")
         else:
             log.info(f"Using existing workspace at: {workspace_path}")
+
+        # Initialize workspace using container init script if needed
+        # This is especially important for SAM apps which need the template copied
+        try:
+            was_initialized = await initialize_workspace_if_needed(
+                workspace_path=workspace_path,
+                workspace_type=workspace_type,
+                workspace_id=workspace_id,
+                workspace_name=args.get("workspace_name", workspace_id),
+                environment=environment,
+                tool_config=self.tool_config,
+            )
+            if was_initialized:
+                log.info(f"Workspace initialized from container template")
+        except Exception as e:
+            log.error(f"Failed to initialize workspace: {e}")
+            # Continue anyway - Claude Code might still work without template
 
         # Get session ID for this workspace
         # Priority: 1) Explicit resume_session_id from LLM, 2) Stored session_id
@@ -209,17 +283,36 @@ Sessions persist automatically - just keep using the same workspace_id."""
             status_callback = status_callback_impl
 
         # Execute Claude Code
-        result = await run_claude_code_headless(
-            workspace_path=workspace_path,
-            settings_path=settings_path,
-            prompt=prompt,
-            environment=environment,
-            tool_config=self.tool_config,
-            session_id=session_id,
-            resume_session=bool(resume_session_id),  # Only resume if explicitly requested
-            stream=enable_streaming,
-            status_callback=status_callback,
-        )
+        try:
+            result = await run_claude_code_headless(
+                workspace_path=workspace_path,
+                settings_path=settings_path,
+                prompt=prompt,
+                environment=environment,
+                tool_config=self.tool_config,
+                session_id=session_id,
+                resume_session=bool(resume_session_id),  # Only resume if explicitly requested
+                stream=enable_streaming,
+                status_callback=status_callback,
+            )
+        except RuntimeError as e:
+            # Handle container runtime not found or other runtime errors
+            error_msg = str(e)
+            log.error(f"Claude Code execution failed: {error_msg}")
+            return {
+                "status": "error",
+                "error": error_msg,
+                "message": f"Failed to execute Claude Code: {error_msg}"
+            }
+        except Exception as e:
+            # Handle any other unexpected errors
+            error_msg = str(e)
+            log.exception(f"Unexpected error during Claude Code execution: {error_msg}")
+            return {
+                "status": "error",
+                "error": error_msg,
+                "message": f"Claude Code execution failed with unexpected error: {error_msg}"
+            }
 
         # Save session ID for next invocation
         if result.get("session_id"):

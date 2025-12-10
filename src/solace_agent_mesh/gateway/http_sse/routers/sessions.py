@@ -29,6 +29,7 @@ SESSION_NOT_FOUND_MSG = "Session not found."
 @router.get("/sessions", response_model=PaginatedResponse[SessionResponse])
 async def get_all_sessions(
     project_id: Optional[str] = Query(default=None, alias="project_id"),
+    app_id: Optional[str] = Query(default=None, alias="app_id"),
     page_number: int = Query(default=1, ge=1, alias="pageNumber"),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
     db: Session = Depends(get_db),
@@ -39,11 +40,13 @@ async def get_all_sessions(
     log_msg = f"User '{user_id}' is listing sessions with pagination (page={page_number}, size={page_size})"
     if project_id:
         log_msg += f" filtered by project_id={project_id}"
+    if app_id:
+        log_msg += f" filtered by app_id={app_id}"
     log.info(log_msg)
 
     try:
         pagination = PaginationParams(page_number=page_number, page_size=page_size)
-        paginated_response = session_service.get_user_sessions(db, user_id, pagination, project_id=project_id)
+        paginated_response = session_service.get_user_sessions(db, user_id, pagination, project_id=project_id, app_id=app_id)
 
         session_responses = []
         for session_domain in paginated_response.data:
@@ -54,6 +57,7 @@ async def get_all_sessions(
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
                 project_name=session_domain.project_name,
+                app_id=session_domain.app_id,
                 has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
@@ -107,6 +111,7 @@ async def search_sessions(
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
                 project_name=session_domain.project_name,
+                app_id=session_domain.app_id,
                 has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
