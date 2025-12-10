@@ -21,10 +21,6 @@ SQL connectors support three database types:
 
 Each database type follows the same configuration process but may have specific connection string requirements or authentication methods.
 
-:::tip
-For Supabase, use the Session Pooler string. Refer to the [Troubleshooting](#troubleshooting) section for more info.
-:::
-
 ### Creating SQL Connectors
 
 You create SQL connectors in the Connectors section of the Enterprise web interface. This process must be completed before you can assign connectors to agents.
