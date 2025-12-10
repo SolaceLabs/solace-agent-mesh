@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FileJson, XCircle } from "lucide-react";
+import { FileJson } from "lucide-react";
 import { z } from "zod";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
@@ -20,8 +20,6 @@ type PromptImportForm = z.infer<typeof promptImportFormSchema>;
 interface ConflictInfo {
     hasNameConflict: boolean;
     hasCommandConflict: boolean;
-    conflictingNamePrompt?: string;
-    conflictingCommandPrompt?: string;
 }
 
 interface PromptImportDialogProps {
@@ -65,36 +63,43 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
     const watchedName = watch("name");
     const watchedCommand = watch("command");
 
+    // Helper function to detect conflicts with existing prompts
+    const detectConflicts = useCallback(
+        (name: string, command: string): ConflictInfo => {
+            const normalizedName = name.trim().toLowerCase();
+            const normalizedCommand = command.trim().toLowerCase();
+
+            let hasNameConflict = false;
+            let hasCommandConflict = false;
+
+            for (const prompt of existingPrompts) {
+                // Check name conflict
+                if (normalizedName && prompt.name?.toLowerCase() === normalizedName) {
+                    hasNameConflict = true;
+                }
+
+                // Check command conflict (only if command is provided)
+                if (normalizedCommand && prompt.command?.toLowerCase() === normalizedCommand) {
+                    hasCommandConflict = true;
+                }
+            }
+
+            return { hasNameConflict, hasCommandConflict };
+        },
+        [existingPrompts]
+    );
+
     // Check for conflicts with existing prompts
     const conflicts = useMemo((): ConflictInfo => {
         if (!importData) {
             return { hasNameConflict: false, hasCommandConflict: false };
         }
 
-        const currentName = watchedName?.trim().toLowerCase() || "";
-        const currentCommand = watchedCommand?.trim().toLowerCase() || "";
+        const currentName = watchedName || "";
+        const currentCommand = watchedCommand || "";
 
-        let hasNameConflict = false;
-        let hasCommandConflict = false;
-        let conflictingNamePrompt: string | undefined;
-        let conflictingCommandPrompt: string | undefined;
-
-        for (const prompt of existingPrompts) {
-            // Check name conflict
-            if (currentName && prompt.name?.toLowerCase() === currentName) {
-                hasNameConflict = true;
-                conflictingNamePrompt = prompt.name;
-            }
-
-            // Check command conflict (only if command is provided)
-            if (currentCommand && prompt.command?.toLowerCase() === currentCommand) {
-                hasCommandConflict = true;
-                conflictingCommandPrompt = prompt.command;
-            }
-        }
-
-        return { hasNameConflict, hasCommandConflict, conflictingNamePrompt, conflictingCommandPrompt };
-    }, [importData, watchedName, watchedCommand, existingPrompts]);
+        return detectConflicts(currentName, currentCommand);
+    }, [importData, watchedName, watchedCommand, detectConflicts]);
 
     const hasConflicts = conflicts.hasNameConflict || conflicts.hasCommandConflict;
 
@@ -161,25 +166,15 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
     // Check for initial conflicts when file is loaded
     const checkInitialConflicts = useCallback(
         (data: PromptImportData) => {
-            const importedName = data.prompt.name?.trim().toLowerCase() || "";
-            const importedCommand = data.prompt.command?.trim().toLowerCase() || "";
+            const importedName = data.prompt.name || "";
+            const importedCommand = data.prompt.command || "";
 
-            let nameConflict = false;
-            let commandConflict = false;
+            const conflictInfo = detectConflicts(importedName, importedCommand);
 
-            for (const prompt of existingPrompts) {
-                if (importedName && prompt.name?.toLowerCase() === importedName) {
-                    nameConflict = true;
-                }
-                if (importedCommand && prompt.command?.toLowerCase() === importedCommand) {
-                    commandConflict = true;
-                }
-            }
-
-            setInitialNameConflict(nameConflict);
-            setInitialCommandConflict(commandConflict);
+            setInitialNameConflict(conflictInfo.hasNameConflict);
+            setInitialCommandConflict(conflictInfo.hasCommandConflict);
         },
-        [existingPrompts]
+        [detectConflicts]
     );
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -357,22 +352,24 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                         <div className="space-y-4">
                             {/* Conflict Error Banner */}
                             {hasConflicts && (
-                                <div className="flex items-start gap-3 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/30">
-                                    <XCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400" />
-                                    <div className="text-sm text-red-800 dark:text-red-200">
-                                        <span className="font-medium">Conflicts found: </span>
-                                        {conflicts.hasNameConflict && <span className="font-semibold text-red-600 dark:text-red-400">{conflicts.conflictingNamePrompt}</span>}
-                                        {conflicts.hasNameConflict && conflicts.hasCommandConflict && " name and "}
-                                        {conflicts.hasCommandConflict && (
-                                            <>
-                                                <span className="font-semibold text-red-600 dark:text-red-400">{conflicts.conflictingCommandPrompt}</span>
-                                                {" chat shortcut"}
-                                            </>
-                                        )}
-                                        {conflicts.hasNameConflict && !conflicts.hasCommandConflict && " name"}
-                                        {conflicts.hasNameConflict && conflicts.hasCommandConflict ? " already exist." : " already exists."}
-                                    </div>
-                                </div>
+                                <MessageBanner
+                                    variant="error"
+                                    message={
+                                        <>
+                                            <span className="font-medium">Conflicts found: </span>
+                                            {conflicts.hasNameConflict && <span className="font-semibold">{watchedName}</span>}
+                                            {conflicts.hasNameConflict && conflicts.hasCommandConflict && " name and "}
+                                            {conflicts.hasCommandConflict && (
+                                                <>
+                                                    <span className="font-semibold">{watchedCommand}</span>
+                                                    {" chat shortcut"}
+                                                </>
+                                            )}
+                                            {conflicts.hasNameConflict && !conflicts.hasCommandConflict && " name"}
+                                            {conflicts.hasNameConflict && conflicts.hasCommandConflict ? " already exist." : " already exists."}
+                                        </>
+                                    }
+                                />
                             )}
 
                             {/* Truncation Warnings */}
@@ -399,17 +396,12 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                 {/* Name Field - Editable when there's a conflict or was initially in conflict */}
                                 <div className="space-y-1">
                                     <Label htmlFor="import-name" className="text-muted-foreground text-xs">
-                                        Name{conflicts.hasNameConflict && <span className="text-red-500">*</span>}
+                                        Name{conflicts.hasNameConflict && <span className="text-destructive">*</span>}
                                     </Label>
                                     {initialNameConflict ? (
-                                        <div className="space-y-1">
+                                        <div className="space-y-2">
                                             <Input id="import-name" {...register("name")} className={`${errors.name || conflicts.hasNameConflict ? "border-red-500 focus-visible:ring-red-500" : ""}`} maxLength={PROMPT_FIELD_LIMITS.NAME_MAX} />
-                                            {conflicts.hasNameConflict && !errors.name && (
-                                                <p className="flex items-center gap-1 text-xs text-[#647481] dark:text-[#B1B9C0]">
-                                                    <XCircle className="h-3 w-3 text-red-500" />
-                                                    Already exists. Change name.
-                                                </p>
-                                            )}
+                                            {conflicts.hasNameConflict && !errors.name && <MessageBanner variant="error" message="Already exists. Change name." />}
                                             {errors.name && <p className="text-xs text-[#647481] dark:text-[#B1B9C0]">{errors.name.message}</p>}
                                         </div>
                                     ) : (
@@ -432,10 +424,10 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                 {/* Chat Shortcut Field - Editable when there's a conflict or was initially in conflict */}
                                 <div className="space-y-1">
                                     <Label htmlFor="import-command" className="text-muted-foreground text-xs">
-                                        Chat Shortcut{conflicts.hasCommandConflict && <span className="text-red-500">*</span>}
+                                        Chat Shortcut{conflicts.hasCommandConflict && <span className="text-destructive">*</span>}
                                     </Label>
                                     {initialCommandConflict ? (
-                                        <div className="space-y-1">
+                                        <div className="space-y-2">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-muted-foreground text-sm">/</span>
                                                 <Input
@@ -446,12 +438,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                                     maxLength={PROMPT_FIELD_LIMITS.COMMAND_MAX}
                                                 />
                                             </div>
-                                            {conflicts.hasCommandConflict && !errors.command && (
-                                                <p className="flex items-center gap-1 text-xs text-[#647481] dark:text-[#B1B9C0]">
-                                                    <XCircle className="h-3 w-3 text-red-500" />
-                                                    Already exists. Change chat shortcut.
-                                                </p>
-                                            )}
+                                            {conflicts.hasCommandConflict && !errors.command && <MessageBanner variant="error" message="Already exists. Change chat shortcut." />}
                                             {errors.command && <p className="text-xs text-[#647481] dark:text-[#B1B9C0]">{errors.command.message}</p>}
                                         </div>
                                     ) : watchedCommand ? (
