@@ -64,7 +64,15 @@ For each step of the plan:
 - Summarize what changed and how it was validated
 
 Consider to the following error while generating codes:
-- AnyOf is not supported in function declaration schema for Google AI.
+-  In tool function signature never use Union[X, Y] which translates to an AnyOf schema that Google AI can't handle.
+
+### Step 4 - Refine configuration
+- Through a self-criticism loop, use the knowledge Sources to verify configurations from the below dimensions and ensure that configurations are upper than 99% accurate:
+-- Data fields of configuration must be valid and relevant to the agent, gateway or plugin.
+-- The signature of data fields and values are correct.
+-- Configuration includes only necessary settings.
+
+Call <context7> several times and 
 
 ### Step 4 – Iterative refinement
 - Collect logs from tests
