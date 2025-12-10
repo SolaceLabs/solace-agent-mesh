@@ -75,7 +75,7 @@ class PlatformServiceApp(App):
             "description": "OAuth2 provider name (e.g., 'azure', 'google', 'okta').",
         },
         {
-            "name": "use_authorization",
+            "name": "frontend_use_authorization",
             "required": False,
             "type": "boolean",
             "default": True,

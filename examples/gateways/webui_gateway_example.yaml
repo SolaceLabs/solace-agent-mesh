@@ -44,11 +44,11 @@ apps:
         url: "${PLATFORM_SERVICE_URL, http://localhost:8001}"
 
       # --- OAuth2 Authentication (Optional - Enterprise Feature) ---
-      # Community mode: use_authorization=false (default) - uses dev user (sam_dev_user)
-      # Enterprise mode: use_authorization=true - validates tokens with external OAuth service
+      # Community mode: frontend_use_authorization=false (default) - uses dev user (sam_dev_user)
+      # Enterprise mode: frontend_use_authorization=true - validates tokens with external OAuth service
       external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL}
       external_auth_provider: ${EXTERNAL_AUTH_PROVIDER, generic}
-      use_authorization: ${USE_AUTHORIZATION, false}  # Set to true for production with OAuth
+      frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION, false}  # Set to true for production with OAuth
 
       # --- Optional with Defaults ---
       model: *general_model # Optional: defaults to None - Points to shared_config.yaml

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Table, TableBody, TableCell, TableRow } from "@/lib/components/ui";
+import { Spinner, Table, TableBody, TableCell, TableRow } from "@/lib/components/ui";
+import { getErrorMessage } from "@/lib/utils/api";
+import { MessageBanner } from "../common";
 import { api } from "@/lib/api";
 
 interface Product {
@@ -21,10 +23,10 @@ export const AboutProduct: React.FC = () => {
 
     const renderVersionTable = () => {
         if (loading) {
-            return <div className="text-muted-foreground text-sm">Loading version information...</div>;
+            return <Spinner className="mt-8" />;
         }
         if (error) {
-            return <div className="text-destructive text-sm">Error: {error}</div>;
+            return <MessageBanner variant="error" message={`Error loading application information. ${error}`} />;
         }
         if (!versionData) {
             return null;
@@ -51,7 +53,7 @@ export const AboutProduct: React.FC = () => {
                 const data: VersionResponse = await api.chat.get("/api/v1/version");
                 setVersionData(data);
             } catch (err) {
-                setError(err instanceof Error ? err.message : "Unknown error");
+                setError(getErrorMessage(err));
             } finally {
                 setLoading(false);
             }
@@ -62,10 +64,9 @@ export const AboutProduct: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {/* Versions Section */}
             <div className="space-y-4">
                 <div className="border-b pb-2">
-                    <h3 className="text-lg font-semibold">Application Versions</h3>
+                    <div className="text-lg font-semibold">Application Versions</div>
                 </div>
 
                 {renderVersionTable()}
