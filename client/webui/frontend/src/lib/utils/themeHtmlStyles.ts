@@ -14,6 +14,7 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
     /* Paragraphs */
     [&_p]:leading-[24px] [&_p]:text-foreground [&_p]:whitespace-pre-wrap [&_p]:mb-6
     [&_p:last-child]:mb-0
+    [&_li>p]:mb-0
 
     /* Text formatting */
     [&_strong]:font-semibold [&_strong]:text-foreground
