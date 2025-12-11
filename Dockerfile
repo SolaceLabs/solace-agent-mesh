@@ -121,8 +121,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Install minimal runtime dependencies (no uv for licensing compliance)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    git \
-    ffmpeg=7:5.1.7-0+deb12u1 && \
+    ffmpeg=7:5.1.7-0+deb12u1 \
+    git && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
