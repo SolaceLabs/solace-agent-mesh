@@ -15,7 +15,7 @@ def create_platform_service_config(
     project_root: Path, options: dict, skip_interactive: bool, default_values: dict
 ) -> bool:
     """
-    Gathers Platform Service options and creates the configuration file (configs/services/platform_service.yaml)
+    Gathers Platform Service options and creates the configuration file (configs/services/platform.yaml)
     if the user opts in. It customizes the template based on user input or defaults.
     Returns True on success or if skipped, False on failure.
     """
@@ -91,10 +91,10 @@ def create_platform_service_config(
     # options["platform_database_url"] = platform_database_url
 
     click.echo("Creating Platform Service configuration file...")
-    destination_path = project_root / "configs" / "services" / "platform_service.yaml"
+    destination_path = project_root / "configs" / "services" / "platform.yaml"
 
     try:
-        template_content = load_template("platform_service.yaml")
+        template_content = load_template("platform.yaml")
 
         # No placeholder replacements needed - template uses env vars directly
         modified_content = template_content

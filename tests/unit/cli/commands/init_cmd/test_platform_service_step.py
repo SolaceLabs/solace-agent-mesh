@@ -22,7 +22,7 @@ class TestCreatePlatformServiceConfig:
         )
 
         assert result is True
-        assert not (temp_project_dir / "configs" / "services" / "platform_service.yaml").exists()
+        assert not (temp_project_dir / "configs" / "services" / "platform.yaml").exists()
 
         echo_calls = [str(call) for call in mock_echo.call_args_list]
         assert any("Skipping Platform Service" in call for call in echo_calls)
@@ -54,9 +54,9 @@ class TestCreatePlatformServiceConfig:
         )
 
         assert result is True
-        assert (temp_project_dir / "configs" / "services" / "platform_service.yaml").exists()
+        assert (temp_project_dir / "configs" / "services" / "platform.yaml").exists()
 
-        config_content = (temp_project_dir / "configs" / "services" / "platform_service.yaml").read_text()
+        config_content = (temp_project_dir / "configs" / "services" / "platform.yaml").read_text()
         # The template uses environment variables
         assert "namespace" in config_content
         assert "database_url" in config_content
@@ -113,7 +113,7 @@ class TestCreatePlatformServiceConfig:
         # Mock open to fail
         original_open = open
         def mock_open(file, *args, **kwargs):
-            if "platform_service.yaml" in str(file):
+            if "platform.yaml" in str(file):
                 raise IOError("Write error")
             return original_open(file, *args, **kwargs)
 
