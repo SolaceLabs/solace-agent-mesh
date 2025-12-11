@@ -48,12 +48,23 @@ RUN npm run build
 # ============================================================
 FROM python:3.11-slim AS builder
 
+# Debug
+RUN set -eux; \
+  cat /etc/os-release; \
+  ls -la /etc/apt/; \
+  cat /etc/apt/sources.list || true; \
+  ls -la /etc/apt/sources.list.d/; \
+  for f in /etc/apt/sources.list.d/*; do echo "---- $f"; cat "$f"; done || true; \
+  apt-get update; \
+  apt-cache policy; \
+  apt-cache search '^ffmpeg$' || true
+
 # Install system dependencies and uv
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
     curl \
-    ffmpeg=7:5.1.7-0+deb12u1  \
+    ffmpeg=7:7.1.3-0+deb13u1  \
     git && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
@@ -121,7 +132,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Install minimal runtime dependencies (no uv for licensing compliance)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    ffmpeg=7:5.1.7-0+deb12u1 \
+    ffmpeg=7:7.1.3-0+deb13u1 \
     git && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
