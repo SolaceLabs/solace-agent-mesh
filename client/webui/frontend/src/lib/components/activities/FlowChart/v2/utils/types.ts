@@ -1,0 +1,91 @@
+import type { VisualizerStep } from "@/lib/types";
+
+/**
+ * Represents a node in the layout tree structure.
+ * Nodes can contain children (tools/LLMs/sub-agents) and have calculated positions/dimensions.
+ */
+export interface LayoutNode {
+    id: string;
+    type: 'agent' | 'tool' | 'llm' | 'user' | 'conditional' | 'group' | 'workflow';
+    data: {
+        label: string;
+        visualizerStepId?: string;
+        description?: string;
+        status?: string;
+        variant?: 'default' | 'pill';
+        condition?: string;
+        trueBranch?: string;
+        falseBranch?: string;
+        conditionResult?: boolean;
+        isTopNode?: boolean;
+        isBottomNode?: boolean;
+        isSkipped?: boolean;
+        [key: string]: any;
+    };
+
+    // Layout properties
+    x: number; // Absolute X position
+    y: number; // Absolute Y position
+    width: number; // Calculated width
+    height: number; // Calculated height
+
+    // Hierarchy
+    children: LayoutNode[]; // Sequential children (tools, LLMs, sub-agents)
+    parallelBranches?: LayoutNode[][]; // For Map/Fork - each array is a parallel branch
+
+    // Context
+    owningTaskId?: string;
+    parentTaskId?: string;
+    functionCallId?: string;
+}
+
+/**
+ * Represents an edge between two nodes in the visualization.
+ */
+export interface Edge {
+    id: string;
+    source: string; // Node ID
+    target: string; // Node ID
+    sourceX: number;
+    sourceY: number;
+    targetX: number;
+    targetY: number;
+    visualizerStepId?: string;
+    label?: string;
+    isError?: boolean;
+    isSelected?: boolean;
+}
+
+/**
+ * Context for building the layout tree from VisualizerSteps
+ */
+export interface BuildContext {
+    steps: VisualizerStep[];
+    stepIndex: number;
+    nodeCounter: number;
+
+    // Map task IDs to their container nodes
+    taskToNodeMap: Map<string, LayoutNode>;
+
+    // Map function call IDs to nodes (for tool results)
+    functionCallToNodeMap: Map<string, LayoutNode>;
+
+    // Current agent node being built
+    currentAgentNode: LayoutNode | null;
+
+    // Root nodes (top-level user/agent pairs)
+    rootNodes: LayoutNode[];
+
+    // Agent name display map
+    agentNameMap: Record<string, string>;
+}
+
+/**
+ * Layout calculation result
+ */
+export interface LayoutResult {
+    nodes: LayoutNode[];
+    edges: Edge[];
+    totalWidth: number;
+    totalHeight: number;
+}

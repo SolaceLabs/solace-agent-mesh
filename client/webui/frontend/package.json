@@ -97,6 +97,7 @@
         "react-resizable-panels": "^3.0.3",
         "react-router-dom": "^7.9.6",
         "react-router-form": "^3.0.0",
+        "react-zoom-pan-pinch": "^3.7.0",
         "recharts": "^2.15.3",
         "tailwind-merge": "^3.3.0",
         "tailwind-scrollbar-hide": "^4.0.0",

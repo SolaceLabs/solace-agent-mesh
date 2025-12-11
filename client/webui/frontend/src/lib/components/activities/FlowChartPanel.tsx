@@ -23,6 +23,7 @@ import LLMNode from "./FlowChart/customNodes/LLMNode";
 import OrchestratorAgentNode from "./FlowChart/customNodes/OrchestratorAgentNode";
 import UserNode from "./FlowChart/customNodes/UserNode";
 import { VisualizerStepCard } from "./VisualizerStepCard";
+import { FlowChartPanelV2 } from "./FlowChart/v2";
 
 interface FlowChartPanelProps {
     processedSteps: VisualizerStep[];
@@ -323,6 +324,13 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
 };
 
 const FlowChartPanel: React.FC<FlowChartPanelProps> = props => {
+    // Use V2 by default - set to false to use legacy React Flow layout
+    const useV2Layout = true;
+
+    if (useV2Layout) {
+        return <FlowChartPanelV2 {...props} />;
+    }
+
     return (
         <ReactFlowProvider>
             <FlowRenderer {...props} />
