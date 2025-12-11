@@ -223,7 +223,7 @@ apps:
           # Step 2: Generate Data (Agent) - Only runs if mode == 'generate'
           - id: generate_data
             type: agent
-            agent_persona: "DataGenerator"
+            agent_name: "DataGenerator"
             depends_on: [mode_check]
             # Implicit input: None (uses workflow input, but agent ignores it)
 
@@ -241,12 +241,12 @@ apps:
 
           - id: process_single_item
             type: agent
-            agent_persona: "ItemProcessor"
+            agent_name: "ItemProcessor"
             # Implicit Input: The MapNode passes the item as input to the agent.
             # The agent expects {"id":..., "name":...}. The item is exactly that.
             # So we can omit 'input' mapping!
             # The MapNode logic injects _map_item.
-            # Wait, PersonaCaller._resolve_node_input logic for implicit input:
+            # Wait, AgentCaller._resolve_node_input logic for implicit input:
             # "If input is not provided... infer it from dependencies."
             # But a MapNode's target node doesn't have 'depends_on' set in the YAML usually?
             # Actually, the MapNode executes it.
@@ -254,7 +254,7 @@ apps:
             # Does it set dependencies? No.
             # But it sets `_map_item` in `node_outputs`.
             #
-            # We need to update `PersonaCaller` to handle implicit input from `_map_item` if present!
+            # We need to update `AgentCaller` to handle implicit input from `_map_item` if present!
             # OR we must explicit map it:
             input:
               id: "{{_map_item.id}}"
@@ -263,7 +263,7 @@ apps:
           # Step 4: Summarize
           - id: summarize_results
             type: agent
-            agent_persona: "Summarizer"
+            agent_name: "Summarizer"
             depends_on: [process_items]
             # Explicit mapping from Map output
             input:

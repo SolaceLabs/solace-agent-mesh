@@ -203,3 +203,272 @@ Result preview settings control how much data agents display when showing query 
 | `sqlite_memory_threshold_mb` | `integer` | The memory threshold in megabytes for using an in-memory SQLite database. | `100` |
 | `max_result_preview_rows` | `integer` | The maximum number of rows to show in a result preview. | `50` |
 | `max_result_preview_bytes` | `integer` | The maximum number of bytes to show in a result preview. | `4096` |
+
+## Workflow Configuration
+
+Workflows orchestrate multiple agents in coordinated sequences to accomplish complex, multi-step tasks. They use the `solace_agent_mesh.workflow.app` module and are configured with a workflow definition that specifies nodes, dependencies, and data flow.
+
+For detailed information on creating workflows, see [Creating Workflows](../developing/create-workflows.md). For conceptual information about workflows, see [Workflows](../components/workflows.md).
+
+### Workflow App Configuration
+
+The workflow app configuration extends the standard agent configuration with workflow-specific execution settings:
+
+| Parameter | Type | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `max_workflow_execution_time_seconds` | `integer` | Maximum time in seconds for entire workflow execution before timeout. | `1800` (30 minutes) |
+| `default_node_timeout_seconds` | `integer` | Default timeout in seconds for individual node execution. | `300` (5 minutes) |
+| `node_cancellation_timeout_seconds` | `integer` | Time in seconds to wait for a node to confirm cancellation before force-failing. | `30` |
+| `default_max_map_items` | `integer` | Default maximum number of items to process in map nodes. | `100` |
+
+Example workflow app configuration:
+
+```yaml
+apps:
+  - name: my_workflow
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "MyWorkflow"
+      max_workflow_execution_time_seconds: 3600
+      default_node_timeout_seconds: 600
+```
+
+### Workflow Definition Fields
+
+The workflow definition lives under `app_config.workflow` and specifies the DAG structure:
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `description` | `string` | Yes | Human-readable description of the workflow's purpose, inputs, and outputs. |
+| `input_schema` | `object` | No | JSON Schema defining expected workflow inputs for validation. |
+| `output_schema` | `object` | No | JSON Schema defining expected workflow outputs for validation. |
+| `nodes` | `array` | Yes | Array of workflow nodes defining the DAG structure. |
+| `output_mapping` | `object` | Yes | Mapping from node outputs to final workflow output using template expressions. |
+
+Example workflow definition:
+
+```yaml
+workflow:
+  description: "Processes orders by evaluating risk and routing accordingly"
+
+  input_schema:
+    type: object
+    properties:
+      order_id: {type: string}
+      amount: {type: integer}
+    required: [order_id, amount]
+
+  output_schema:
+    type: object
+    properties:
+      final_status: {type: string}
+    required: [final_status]
+
+  nodes:
+    # Node definitions here
+
+  output_mapping:
+    final_status: "{{final_node.output.status}}"
+```
+
+### Node Type Reference
+
+Workflows support four node types: agent, conditional, map, and fork.
+
+#### Agent Node
+
+Agent nodes invoke agents and wait for their response.
+
+```yaml
+- id: node_id
+  type: agent
+  agent_name: "AgentName"
+  depends_on: [dependency_node_ids]
+  input:
+    field1: "{{workflow.input.value}}"
+    field2: "{{other_node.output.value}}"
+  input_schema_override:
+    type: object
+    properties: {}
+  output_schema_override:
+    type: object
+    properties: {}
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | Yes | Unique identifier for the node. |
+| `type` | `string` | Yes | Must be `"agent"`. |
+| `agent_name` | `string` | Yes | Name of the agent to invoke (matches agent's `agent_name`). |
+| `depends_on` | `array[string]` | No | List of node IDs that must complete before this node runs. |
+| `input` | `object` | No | Input mapping using template expressions. If omitted, inferred from dependencies. |
+| `input_schema_override` | `object` | No | Override the agent's input schema for this invocation. |
+| `output_schema_override` | `object` | No | Override the agent's output schema for this invocation. |
+
+#### Conditional Node
+
+Conditional nodes evaluate expressions and route execution to different branches.
+
+```yaml
+- id: node_id
+  type: conditional
+  depends_on: [dependency_node_ids]
+  condition: "'{{node.output.value}}' == 'expected'"
+  true_branch: true_node_id
+  false_branch: false_node_id
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | Yes | Unique identifier for the node. |
+| `type` | `string` | Yes | Must be `"conditional"`. |
+| `depends_on` | `array[string]` | No | List of node IDs that must complete before this node runs. |
+| `condition` | `string` | Yes | Python expression evaluated using simpleeval. Use string comparisons with quotes. |
+| `true_branch` | `string` | Yes | Node ID to execute if condition evaluates to true. |
+| `false_branch` | `string` | No | Node ID to execute if condition evaluates to false. |
+
+:::important
+Both `true_branch` and `false_branch` target nodes must include the conditional node in their `depends_on` list to ensure proper execution order.
+:::
+
+#### Map Node
+
+Map nodes process arrays by executing a target node for each item, with optional parallel execution.
+
+```yaml
+- id: node_id
+  type: map
+  depends_on: [dependency_node_ids]
+  items: "{{other_node.output.array}}"
+  node: target_node_id
+  concurrency_limit: 5
+  max_items: 100
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | Yes | Unique identifier for the node. |
+| `type` | `string` | Yes | Must be `"map"`. |
+| `depends_on` | `array[string]` | No | List of node IDs that must complete before this node runs. |
+| `items` | `string` or `object` | Yes | Template expression referencing an array, or object with operators like `coalesce`. |
+| `node` | `string` | Yes | ID of the node to execute for each item. The target node accesses items via `{{_map_item}}`. |
+| `concurrency_limit` | `integer` | No | Maximum number of concurrent executions. If not specified, all items execute in parallel. |
+| `max_items` | `integer` | No | Maximum number of items to process. | `100` |
+
+The map node produces output with a `results` array:
+
+```yaml
+{
+  "results": [
+    {/* result from item 1 */},
+    {/* result from item 2 */}
+  ]
+}
+```
+
+#### Fork Node
+
+Fork nodes execute multiple branches in parallel and merge their outputs.
+
+```yaml
+- id: node_id
+  type: fork
+  depends_on: [dependency_node_ids]
+  branches:
+    - id: branch1
+      agent_name: "AgentA"
+      input:
+        field: "{{workflow.input.value}}"
+      output_key: result_a
+    - id: branch2
+      agent_name: "AgentB"
+      input:
+        field: "{{workflow.input.value}}"
+      output_key: result_b
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | Yes | Unique identifier for the node. |
+| `type` | `string` | Yes | Must be `"fork"`. |
+| `depends_on` | `array[string]` | No | List of node IDs that must complete before this node runs. |
+| `branches` | `array[object]` | Yes | Array of branch definitions to execute in parallel. |
+
+Each branch requires:
+- `id` (string): Branch identifier
+- `agent_name` (string): Agent to invoke
+- `input` (object): Input mapping for the agent
+- `output_key` (string): Key name for this branch's output in the merged result
+
+Fork node output is an object with keys from `output_key` fields:
+
+```yaml
+{
+  "result_a": {/* output from branch 1 */},
+  "result_b": {/* output from branch 2 */}
+}
+```
+
+### Template Expression Syntax
+
+Template expressions enable data flow between workflow nodes using the syntax `{{path.to.value}}`.
+
+**Supported Contexts:**
+
+- **Workflow Input**: `{{workflow.input.field_name}}`
+- **Node Outputs**: `{{node_id.output.field_name}}`
+- **Map Items**: `{{_map_item.field_name}}` (available only within map target nodes)
+
+**Nested Access:**
+
+You can access nested fields using dot notation:
+
+```yaml
+input:
+  value: "{{workflow.input.metadata.user.id}}"
+  score: "{{analyze_node.output.results.scores.final}}"
+```
+
+### Operator Reference
+
+Workflows support special operators for data transformation and conditional logic.
+
+#### Coalesce Operator
+
+The `coalesce` operator returns the first non-null value from a list. This is useful for handling optional conditional branches or providing default values.
+
+```yaml
+output_mapping:
+  final_status:
+    coalesce:
+      - "{{manual_review.output.status}}"
+      - "{{auto_approve.output.status}}"
+      - "pending"
+```
+
+Use cases:
+- Selecting output from conditional branches where only one executes
+- Providing fallback values when optional nodes may not run
+- Setting defaults when data might be missing
+
+#### Concat Operator
+
+The `concat` operator joins strings or arrays into a single value.
+
+```yaml
+output_mapping:
+  summary_message:
+    concat:
+      - "Processed "
+      - "{{workflow.input.count}}"
+      - " items. Status: "
+      - "{{final_node.output.status}}"
+```
+
+Use cases:
+- Building composite messages from multiple sources
+- Constructing dynamic strings for output
+- Combining array results from multiple nodes

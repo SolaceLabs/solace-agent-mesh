@@ -19,7 +19,7 @@ class ForkBranch(BaseModel):
     """A single branch in a fork node."""
 
     id: str = Field(..., description="Branch identifier")
-    agent_persona: str = Field(..., description="Agent for this branch")
+    agent_name: str = Field(..., description="Agent for this branch")
     input: Dict[str, Any] = Field(..., description="Input mapping")
     output_key: str = Field(..., description="Key for merging result")
 
@@ -38,7 +38,7 @@ class AgentNode(WorkflowNode):
     """Agent invocation node."""
 
     type: Literal["agent"] = "agent"
-    agent_persona: str = Field(..., description="Name of agent to invoke")
+    agent_name: str = Field(..., description="Name of agent to invoke")
     input: Optional[Dict[str, Any]] = Field(
         None, description="Input mapping. If omitted, inferred from dependencies."
     )
@@ -269,7 +269,7 @@ class WorkflowApp(App):
         """Generate Solace topic subscriptions for workflow."""
         subscriptions = []
 
-        # Discovery topic for persona agent cards
+        # Discovery topic for agent cards
         subscriptions.append({"topic": a2a.get_discovery_topic(namespace)})
 
         # Workflow's agent request topic
@@ -277,7 +277,7 @@ class WorkflowApp(App):
             {"topic": a2a.get_agent_request_topic(namespace, workflow_name)}
         )
 
-        # Persona response topics (wildcard)
+        # Agent response topics (wildcard)
         subscriptions.append(
             {
                 "topic": a2a.get_agent_response_subscription_topic(
@@ -286,7 +286,7 @@ class WorkflowApp(App):
             }
         )
 
-        # Persona status topics (wildcard)
+        # Agent status topics (wildcard)
         subscriptions.append(
             {
                 "topic": a2a.get_agent_status_subscription_topic(

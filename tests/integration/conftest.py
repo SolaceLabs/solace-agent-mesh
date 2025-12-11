@@ -1156,7 +1156,7 @@ def shared_solace_connector(
                         {
                             "id": "step_1",
                             "type": "agent",
-                            "agent_persona": "TestPeerAgentA",
+                            "agent_name": "TestPeerAgentA",
                             "input": {
                                 "task_description": "{{workflow.input.input_text}}"
                             }
@@ -1164,7 +1164,7 @@ def shared_solace_connector(
                         {
                             "id": "step_2",
                             "type": "agent",
-                            "agent_persona": "TestPeerAgentB",
+                            "agent_name": "TestPeerAgentB",
                             "depends_on": ["step_1"],
                             "input": {
                                 "task_description": "Process the output from step 1"
@@ -1216,7 +1216,7 @@ def shared_solace_connector(
                         {
                             "id": "validate_order",
                             "type": "agent",
-                            "agent_persona": "TestPeerAgentA",
+                            "agent_name": "TestPeerAgentA",
                             "input": {
                                 "customer_name": "{{workflow.input.customer_name}}",
                                 "order_id": "{{workflow.input.order_id}}",
@@ -1245,7 +1245,7 @@ def shared_solace_connector(
                         {
                             "id": "process_order",
                             "type": "agent",
-                            "agent_persona": "TestPeerAgentB",
+                            "agent_name": "TestPeerAgentB",
                             "depends_on": ["validate_order"],
                             "input": {
                                 "customer_name": "{{validate_order.output.customer_name}}",

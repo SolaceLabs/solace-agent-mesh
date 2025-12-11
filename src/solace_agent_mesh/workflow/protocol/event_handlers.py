@@ -246,10 +246,10 @@ async def _initialize_workflow_state(
     return state
 
 
-async def handle_persona_response(
+async def handle_agent_response(
     component: "WorkflowExecutorComponent", message: SolaceMessage
 ):
-    """Handle response from a persona agent."""
+    """Handle response from an agent."""
     try:
         topic = message.get_topic()
         payload = message.get_payload()
@@ -263,7 +263,7 @@ async def handle_persona_response(
 
         # Find workflow context
         # We need to map sub_task_id to workflow_task_id
-        # This mapping is stored in the cache service by PersonaCaller
+        # This mapping is stored in the cache service by AgentCaller
         workflow_task_id = component.cache_service.get_data(sub_task_id)
         
         if not workflow_task_id:
@@ -312,7 +312,7 @@ async def handle_persona_response(
         message.call_acknowledgements()
 
     except Exception as e:
-        log.exception(f"{component.log_identifier} Error handling persona response: {e}")
+        log.exception(f"{component.log_identifier} Error handling agent response: {e}")
         
         # If we have a workflow context, fail the workflow gracefully
         if 'workflow_context' in locals() and workflow_context:

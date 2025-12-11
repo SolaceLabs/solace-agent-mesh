@@ -202,7 +202,7 @@ apps:
           # Step 1: Check Risk
           - id: check_risk
             type: agent
-            agent_persona: "RiskEvaluator"
+            agent_name: "RiskEvaluator"
             input:
               amount: "{{workflow.input.amount}}"
 
@@ -218,7 +218,7 @@ apps:
           # Step 3a: High Risk
           - id: send_to_review
             type: agent
-            agent_persona: "ManualReviewer"
+            agent_name: "ManualReviewer"
             depends_on: [risk_branch]
             input:
               order_id: "{{workflow.input.order_id}}"
@@ -226,7 +226,7 @@ apps:
           # Step 3b: Low Risk
           - id: auto_approve
             type: agent
-            agent_persona: "AutoApprover"
+            agent_name: "AutoApprover"
             depends_on: [risk_branch]
             input:
               order_id: "{{workflow.input.order_id}}"

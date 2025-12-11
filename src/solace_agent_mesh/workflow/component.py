@@ -1,6 +1,6 @@
 """
 WorkflowExecutorComponent implementation.
-Orchestrates workflow execution by coordinating persona agents.
+Orchestrates workflow execution by coordinating agents.
 """
 
 import logging
@@ -37,10 +37,10 @@ from ..agent.adk.services import (
 from .app import WorkflowDefinition
 from .workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
 from .dag_executor import DAGExecutor, WorkflowNodeFailureError
-from .persona_caller import PersonaCaller
+from .agent_caller import AgentCaller
 from .protocol.event_handlers import (
     handle_task_request,
-    handle_persona_response,
+    handle_agent_response,
     handle_cancel_request,
     handle_agent_card_message,
 )
@@ -56,14 +56,14 @@ log = logging.getLogger(__name__)
 
 info = {
     "class_name": "WorkflowExecutorComponent",
-    "description": "Orchestrates workflow execution by coordinating persona agents.",
+    "description": "Orchestrates workflow execution by coordinating agents.",
     "config_parameters": [],
 }
 
 
 class WorkflowExecutorComponent(SamComponentBase):
     """
-    Orchestrates workflow execution by coordinating persona agents.
+    Orchestrates workflow execution by coordinating agents.
 
     Extends SamComponentBase to leverage:
     - Dedicated asyncio event loop
@@ -100,9 +100,9 @@ class WorkflowExecutorComponent(SamComponentBase):
 
         # Initialize executor components
         self.dag_executor = DAGExecutor(self.workflow_definition, self)
-        self.persona_caller = PersonaCaller(self)
+        self.agent_caller = AgentCaller(self)
 
-        # Create agent registry for persona discovery
+        # Create agent registry for agent discovery
         self.agent_registry = AgentRegistry()
 
     def invoke(self, message: SolaceMessage, data: dict) -> dict:
@@ -138,7 +138,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         elif a2a.topic_matches_subscription(
             topic, response_sub
         ) or a2a.topic_matches_subscription(topic, status_sub):
-            await handle_persona_response(self, message)
+            await handle_agent_response(self, message)
         else:
             log.warning(f"{self.log_identifier} Unknown topic: {topic}")
             message.call_acknowledgements()
@@ -221,61 +221,195 @@ class WorkflowExecutorComponent(SamComponentBase):
         def sanitize(node_id):
             return node_id.replace("-", "_").replace(".", "_")
 
-        # 1. Define Nodes
+        # Helper to make IDs displayable (convert snake_case/camelCase to Title Case)
+        def prettify_id(node_id):
+            # Split on underscores and hyphens
+            parts = node_id.replace("_", " ").replace("-", " ").split()
+            # Split camelCase (insert space before capitals)
+            expanded_parts = []
+            for part in parts:
+                # Insert space before capital letters in camelCase
+                import re
+                expanded = re.sub(r'([a-z])([A-Z])', r'\1 \2', part)
+                expanded_parts.extend(expanded.split())
+            # Capitalize each word
+            return " ".join(word.capitalize() for word in expanded_parts if word)
+
+        # Add Start node (stadium/pill shape)
+        lines.append('    Start([Start])')
+
+        # Collect map target nodes first so we can exclude them from regular rendering
+        map_target_node_ids = set()
         for node in nodes:
+            if node.type == "map":
+                map_target_node_ids.add(node.node)
+
+        # 1. Define Nodes (excluding map targets - they'll be rendered as instances)
+        for node in nodes:
+            # Skip nodes that are targets of map operations
+            if node.id in map_target_node_ids:
+                continue
+
             safe_id = sanitize(node.id)
 
             if node.type == "agent":
-                # Rectangular box
-                lines.append(f'    {safe_id}["{node.id}<br/>({node.agent_persona})"]')
+                # Rounded rectangle for agents (looks more friendly/professional)
+                # Use agent name as the primary label
+                label = f"<b>Agent</b><br/>{node.agent_name}"
+                lines.append(f'    {safe_id}("{label}")')
             elif node.type == "conditional":
-                # Diamond
+                # Diamond for conditionals
                 # Escape quotes in condition if needed
                 condition = node.condition.replace('"', "'")
-                lines.append(f'    {safe_id}{{"{node.id}<br/>{condition}?"}}')
+                pretty_id = prettify_id(node.id)
+                label = f"<b>Decision</b><br/>{pretty_id}<br/>{condition}?"
+                lines.append(f'    {safe_id}{{"{label}"}}')
             elif node.type == "fork":
-                # Hexagon (using {{ }})
-                lines.append(f'    {safe_id}{{{{ "{node.id} (Fork)" }}}}')
+                # Hexagon for fork nodes
+                pretty_id = prettify_id(node.id)
+                label = f"<b>Fork</b><br/>{pretty_id}"
+                lines.append(f'    {safe_id}{{{{"{label}"}}}}')
             elif node.type == "map":
-                # Double circle (using (( )))
-                lines.append(f'    {safe_id}(("{node.id} (Map)"))')
+                # Circle for map nodes
+                pretty_id = prettify_id(node.id)
+                label = f"<b>Map</b><br/>{pretty_id}"
+                lines.append(f'    {safe_id}(("{label}"))')
+
+        # Add Finish node (stadium/pill shape)
+        lines.append('    Finish([Finish])')
 
         # 2. Define Edges
+        # First, collect all conditional node IDs to avoid duplicate edges
+        conditional_node_ids = {n.id for n in nodes if n.type == "conditional"}
+
+        # Find map target nodes (they should not be entry/exit nodes in the normal sense)
+        # Also create a mapping from map node ID to its join node ID
+        map_target_nodes = set()
+        map_to_join = {}
+        for node in nodes:
+            if node.type == "map":
+                map_target_nodes.add(node.node)
+                map_to_join[node.id] = f"{sanitize(node.id)}_join"
+
+        # Find entry nodes (nodes with no dependencies) and exit nodes (nodes that no other node depends on)
+        all_node_ids = {node.id for node in nodes}
+        entry_nodes = []
+        nodes_with_dependents = set()
+
+        for node in nodes:
+            # Entry nodes have no dependencies AND are not map targets
+            if not node.depends_on and node.id not in map_target_nodes:
+                entry_nodes.append(node.id)
+
+            # Track which nodes have dependents
+            if node.depends_on:
+                for dep in node.depends_on:
+                    nodes_with_dependents.add(dep)
+
+            # Also track conditional branches
+            if node.type == "conditional":
+                if node.true_branch:
+                    nodes_with_dependents.add(node.id)
+                if node.false_branch:
+                    nodes_with_dependents.add(node.id)
+
+            # Track map nodes as having dependents (they produce children)
+            if node.type == "map":
+                nodes_with_dependents.add(node.id)
+
+        # Exit nodes are those that no other node depends on (excluding map targets)
+        exit_nodes = (all_node_ids - nodes_with_dependents) - map_target_nodes
+
+        # Connect Start to entry nodes
+        for entry_node_id in entry_nodes:
+            safe_entry = sanitize(entry_node_id)
+            lines.append(f"    Start --> {safe_entry}")
+
         for node in nodes:
             safe_id = sanitize(node.id)
 
-            # Standard dependencies
+            # Standard dependencies - draw edges TO this node from its dependencies
+            # Skip dependencies that point FROM conditional nodes (they're handled by conditional branches below)
             if node.depends_on:
                 for dep in node.depends_on:
-                    safe_dep = sanitize(dep)
-                    lines.append(f"    {safe_dep} --> {safe_id}")
+                    # Only draw edge if dependency is NOT a conditional node
+                    if dep not in conditional_node_ids:
+                        # If the dependency is a map node, connect from its join instead
+                        if dep in map_to_join:
+                            join_node = map_to_join[dep]
+                            lines.append(f"    {join_node} --> {safe_id}")
+                        else:
+                            safe_dep = sanitize(dep)
+                            lines.append(f"    {safe_dep} --> {safe_id}")
 
-            # Conditional branches (Outgoing edges)
+            # Conditional branches (Outgoing edges) - handle these specially
             if node.type == "conditional":
                 if node.true_branch:
                     safe_true = sanitize(node.true_branch)
-                    lines.append(f"    {safe_id} -- Yes --> {safe_true}")
+                    lines.append(f"    {safe_id} -- True --> {safe_true}")
                 if node.false_branch:
                     safe_false = sanitize(node.false_branch)
-                    lines.append(f"    {safe_id} -- No --> {safe_false}")
+                    lines.append(f"    {safe_id} -- False --> {safe_false}")
+                else:
+                    # If no explicit false branch, find what depends on this conditional
+                    # and draw a "False" edge to it
+                    for other_node in nodes:
+                        if other_node.depends_on and node.id in other_node.depends_on:
+                            # This node depends on the conditional
+                            # If it's not the true branch, it's implicitly the false branch
+                            if node.true_branch != other_node.id:
+                                safe_other = sanitize(other_node.id)
+                                lines.append(f"    {safe_id} -- False --> {safe_other}")
 
             # Fork branches
             if node.type == "fork":
                 for branch in node.branches:
                     branch_safe_id = sanitize(branch.id)
-                    # Define branch node
+                    # Define branch node with type label
+                    branch_label = f"<b>Agent</b><br/>{branch.agent_name}"
                     lines.append(
-                        f'    {branch_safe_id}["{branch.id}<br/>({branch.agent_persona})"]'
+                        f'    {branch_safe_id}["{branch_label}"]'
                     )
                     # Connect fork to branch
                     lines.append(
                         f"    {safe_id} -- {branch.output_key} --> {branch_safe_id}"
                     )
 
-            # Map node
+            # Map node - create join node and show parallel pattern with multiple instances
             if node.type == "map":
-                target_safe_id = sanitize(node.node)
-                lines.append(f"    {safe_id} -- Map --> {target_safe_id}")
+                target_node = next((n for n in nodes if n.id == node.node), None)
+                if not target_node:
+                    continue
+
+                join_id = f"{safe_id}_join"
+
+                # Get the label for the target node
+                if target_node.type == "agent":
+                    target_label = f"<b>Agent</b><br/>{target_node.agent_name}"
+                else:
+                    pretty_target_id = prettify_id(node.node)
+                    target_label = f"<b>{target_node.type.capitalize()}</b><br/>{pretty_target_id}"
+
+                # Create 3 parallel instances to show the map pattern
+                for i in range(1, 4):
+                    instance_id = f"{safe_id}_instance_{i}"
+                    # Rounded rectangle for each instance
+                    lines.append(f'    {instance_id}("{target_label}")')
+                    # Map -> Instance (dotted)
+                    lines.append(f"    {safe_id} -.-> {instance_id}")
+
+                # Create join node (circle shape)
+                lines.append(f'    {join_id}(("Join"))')
+
+                # Each instance -> Join (dotted)
+                for i in range(1, 4):
+                    instance_id = f"{safe_id}_instance_{i}"
+                    lines.append(f"    {instance_id} -.-> {join_id}")
+
+        # Connect exit nodes to Finish
+        for exit_node_id in exit_nodes:
+            safe_exit = sanitize(exit_node_id)
+            lines.append(f"    {safe_exit} --> Finish")
 
         return "\n".join(lines)
 
@@ -344,7 +478,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         )
 
     async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
-        """Handle persona call timeout via cache expiry."""
+        """Handle agent call timeout via cache expiry."""
         sub_task_id = cache_data.get("key")
         workflow_task_id = cache_data.get("expired_data")
 
@@ -369,7 +503,7 @@ class WorkflowExecutorComponent(SamComponentBase):
 
         timeout_seconds = self.get_config("default_node_timeout_seconds", 300)
         log.error(
-            f"{self.log_identifier} Persona call timed out for node '{node_id}' "
+            f"{self.log_identifier} Agent call timed out for node '{node_id}' "
             f"(sub-task: {sub_task_id})"
         )
 
@@ -379,7 +513,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         result_data = WorkflowNodeResultData(
             type="workflow_node_result",
             status="failure",
-            error_message=f"Persona agent timed out after {timeout_seconds} seconds",
+            error_message=f"Agent timed out after {timeout_seconds} seconds",
         )
 
         # Handle as node failure

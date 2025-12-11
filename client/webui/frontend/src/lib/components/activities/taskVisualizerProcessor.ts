@@ -399,12 +399,12 @@ export const processTaskForVisualization = (
                                     timestamp: eventTimestamp,
                                     title: `Node Started: ${signalData.node_id} (${signalData.node_type})`,
                                     source: "Workflow",
-                                    target: signalData.agent_persona || signalData.node_id,
+                                    target: signalData.agent_name || signalData.node_id,
                                     data: {
                                         workflowNodeExecutionStart: {
                                             nodeId: signalData.node_id,
                                             nodeType: signalData.node_type,
-                                            agentPersona: signalData.agent_persona,
+                                            agentName: signalData.agent_name,
                                             inputArtifactRef: signalData.input_artifact_ref,
                                             iterationIndex: signalData.iteration_index,
                                             condition: signalData.condition,

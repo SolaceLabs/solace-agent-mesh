@@ -170,7 +170,7 @@ export interface WorkflowExecutionStartData {
 export interface WorkflowNodeExecutionStartData {
     nodeId: string;
     nodeType: string;
-    agentPersona?: string;
+    agentName?: string;
     inputArtifactRef?: ArtifactRef;
     iterationIndex?: number;
     condition?: string;

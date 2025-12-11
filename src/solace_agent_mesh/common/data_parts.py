@@ -238,7 +238,7 @@ class WorkflowNodeExecutionStartData(BaseModel):
     )
     node_id: str = Field(..., description="ID of the node")
     node_type: str = Field(..., description="Type of the node (agent, conditional, etc.)")
-    agent_persona: Optional[str] = Field(
+    agent_name: Optional[str] = Field(
         None, description="Name of the agent persona if applicable"
     )
     input_artifact_ref: Optional[ArtifactRef] = Field(

@@ -773,7 +773,7 @@ export class BlockBuilder {
     private handleWorkflowNodeStart(step: VisualizerStep) {
         const nodeType = step.data.workflowNodeExecutionStart?.nodeType;
         const nodeId = step.data.workflowNodeExecutionStart?.nodeId || "unknown";
-        const label = step.data.workflowNodeExecutionStart?.agentPersona || nodeId;
+        const label = step.data.workflowNodeExecutionStart?.agentName || nodeId;
         const taskId = step.owningTaskId; // This is the Workflow Execution ID
         const container = this.getBlockForTask(taskId);
         const parentNodeId = step.data.workflowNodeExecutionStart?.parentNodeId;

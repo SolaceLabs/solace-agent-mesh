@@ -5,7 +5,7 @@
 # and creates customer accounts.
 #
 # This example includes:
-# 1. Three persona agents (ExtractInfoAgent, ValidateInfoAgent, CreateAccountAgent)
+# 1. Three agents (ExtractInfoAgent, ValidateInfoAgent, CreateAccountAgent)
 # 2. A workflow that orchestrates these agents with schema validation
 
 log:
@@ -48,7 +48,7 @@ shared_config:
 
 apps:
   # ============================================================================
-  # PERSONA AGENT 1: ExtractInfoAgent
+  # AGENT 1: ExtractInfoAgent
   # Extracts customer information from documents
   # ============================================================================
   - name: extract_info_agent_app
@@ -144,7 +144,7 @@ apps:
       agent_discovery: { enabled: false }
 
   # ============================================================================
-  # PERSONA AGENT 2: ValidateInfoAgent
+  # AGENT 2: ValidateInfoAgent
   # Validates extracted customer information
   # ============================================================================
   - name: validate_info_agent_app
@@ -246,7 +246,7 @@ apps:
       agent_discovery: { enabled: false }
 
   # ============================================================================
-  # PERSONA AGENT 3: CreateAccountAgent
+  # AGENT 3: CreateAccountAgent
   # Creates customer accounts (simulated)
   # ============================================================================
   - name: create_account_agent_app
@@ -389,7 +389,7 @@ apps:
           # Node 1: Extract customer info from document
           - id: extract_info
             type: agent
-            agent_persona: "ExtractInfoAgent"
+            agent_name: "ExtractInfoAgent"
             input:
               # Map workflow input to node input
               document_filename: "{{workflow.input.document_filename}}"
@@ -397,7 +397,7 @@ apps:
           # Node 2: Validate extracted info
           - id: validate_info
             type: agent
-            agent_persona: "ValidateInfoAgent"
+            agent_name: "ValidateInfoAgent"
             depends_on: [extract_info]
             input:
               # Map previous node output to this node input
@@ -416,7 +416,7 @@ apps:
           # Node 4: Create account if validation passed
           - id: create_account
             type: agent
-            agent_persona: "CreateAccountAgent"
+            agent_name: "CreateAccountAgent"
             depends_on: [validation_check]
             input:
               customer_name: "{{extract_info.output.customer_name}}"

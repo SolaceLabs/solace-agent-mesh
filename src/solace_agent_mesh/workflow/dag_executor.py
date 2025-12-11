@@ -153,10 +153,11 @@ class DAGExecutor:
                         f"Node '{node_id}' depends on non-existent node '{dep}'"
                     )
 
-        # Check for unreachable nodes
+        # Check for unreachable nodes (excluding inner nodes which are reached via map execution)
         reachable = self._get_reachable_nodes()
         for node_id in self.nodes:
-            if node_id not in reachable:
+            # Inner nodes (map targets) are reachable via their parent map node
+            if node_id not in reachable and node_id not in self.inner_nodes:
                 errors.append(f"Node '{node_id}' is unreachable")
 
         return errors
@@ -284,7 +285,7 @@ class DAGExecutor:
                 "type": "workflow_node_execution_start",
                 "node_id": node_id,
                 "node_type": node.type,
-                "agent_persona": getattr(node, "agent_persona", None),
+                "agent_name": getattr(node, "agent_name", None),
                 "sub_task_id": sub_task_id,
             }
 
@@ -296,13 +297,13 @@ class DAGExecutor:
                 # Resolve labels for branches
                 if node.true_branch and node.true_branch in self.nodes:
                     true_node = self.nodes[node.true_branch]
-                    if hasattr(true_node, "agent_persona"):
-                        start_data_args["true_branch_label"] = true_node.agent_persona
+                    if hasattr(true_node, "agent_name"):
+                        start_data_args["true_branch_label"] = true_node.agent_name
 
                 if node.false_branch and node.false_branch in self.nodes:
                     false_node = self.nodes[node.false_branch]
-                    if hasattr(false_node, "agent_persona"):
-                        start_data_args["false_branch_label"] = false_node.agent_persona
+                    if hasattr(false_node, "agent_name"):
+                        start_data_args["false_branch_label"] = false_node.agent_name
 
             start_data = WorkflowNodeExecutionStartData(**start_data_args)
             await self.host.publish_workflow_event(workflow_context, start_data)
@@ -342,8 +343,8 @@ class DAGExecutor:
         workflow_context: WorkflowExecutionContext,
         sub_task_id: Optional[str] = None,
     ):
-        """Execute an agent node by calling the persona."""
-        await self.host.persona_caller.call_persona(
+        """Execute an agent node by calling the agent."""
+        await self.host.agent_caller.call_agent(
             node, workflow_state, workflow_context, sub_task_id
         )
 
@@ -519,7 +520,7 @@ class DAGExecutor:
             branch_node = AgentNode(
                 id=branch.id,
                 type="agent",
-                agent_persona=branch.agent_persona,
+                agent_name=branch.agent_name,
                 input=branch.input,
                 depends_on=[node.id],  # Depends on fork node
             )
@@ -533,13 +534,13 @@ class DAGExecutor:
                 type="workflow_node_execution_start",
                 node_id=branch.id,
                 node_type="agent",
-                agent_persona=branch.agent_persona,
+                agent_name=branch.agent_name,
                 sub_task_id=sub_task_id,
             )
             await self.host.publish_workflow_event(workflow_context, start_data)
 
             # Execute branch
-            await self.host.persona_caller.call_persona(
+            await self.host.agent_caller.call_agent(
                 branch_node, workflow_state, workflow_context, sub_task_id=sub_task_id
             )
 
@@ -666,7 +667,7 @@ class DAGExecutor:
                 type="workflow_node_execution_start",
                 node_id=iter_node.id,
                 node_type="agent",
-                agent_persona=iter_node.agent_persona,
+                agent_name=iter_node.agent_name,
                 iteration_index=index,
                 sub_task_id=sub_task_id,
                 parent_node_id=map_node_id,
@@ -674,7 +675,7 @@ class DAGExecutor:
             await self.host.publish_workflow_event(workflow_context, start_data)
 
             # Execute
-            await self.host.persona_caller.call_persona(
+            await self.host.agent_caller.call_agent(
                 iter_node, iteration_state, workflow_context, sub_task_id=sub_task_id
             )
 

@@ -48,7 +48,8 @@
       "Bash(/usr/bin/env /Users/edfunnekotter/github/solace-agent-mesh/.venv/bin/python -m solace_ai_connector.main:*)",
       "Bash(/usr/bin/env:*)",
       "Bash(timeout:*)",
-      "Bash(.venv/bin/python -m pytest:*)"
+      "Bash(.venv/bin/python -m pytest:*)",
+      "Bash(git mv:*)"
     ],
     "deny": [],
     "ask": []

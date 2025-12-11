@@ -63,7 +63,7 @@ class WorkflowExecutionContext:
         # Stored here instead of a2a_context to avoid serialization issues
         self._original_solace_message: Optional[Any] = None
 
-    def track_persona_call(self, node_id: str, sub_task_id: str):
+    def track_agent_call(self, node_id: str, sub_task_id: str):
         """Track correlation between node and sub-task."""
         with self.lock:
             self.sub_task_to_node[sub_task_id] = node_id

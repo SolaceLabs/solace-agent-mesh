@@ -1,5 +1,5 @@
 """
-PersonaCaller component for invoking persona agents via A2A.
+AgentCaller component for invoking agents via A2A.
 """
 
 import logging
@@ -27,13 +27,13 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-class PersonaCaller:
-    """Manages A2A calls to persona agents from workflow."""
+class AgentCaller:
+    """Manages A2A calls to agents from workflow."""
 
     def __init__(self, host_component: "WorkflowExecutorComponent"):
         self.host = host_component
 
-    async def call_persona(
+    async def call_agent(
         self,
         node: WorkflowNode,
         workflow_state: WorkflowExecutionState,
@@ -41,10 +41,10 @@ class PersonaCaller:
         sub_task_id: Optional[str] = None,
     ) -> str:
         """
-        Invoke a persona agent for a workflow node.
+        Invoke an agent for a workflow node.
         Returns sub-task ID for correlation.
         """
-        log_id = f"{self.host.log_identifier}[CallPersona:{node.agent_persona}]"
+        log_id = f"{self.host.log_identifier}[CallAgent:{node.agent_name}]"
 
         # Generate sub-task ID if not provided
         if not sub_task_id:
@@ -56,15 +56,15 @@ class PersonaCaller:
         input_data = await self._resolve_node_input(node, workflow_state)
 
         # Get schemas from agent card extensions if available
-        persona_card = self.host.agent_registry.get_agent(node.agent_persona)
-        card_input_schema, card_output_schema = get_schemas_from_agent_card(persona_card)
+        agent_card = self.host.agent_registry.get_agent(node.agent_name)
+        card_input_schema, card_output_schema = get_schemas_from_agent_card(agent_card)
 
         # Use override schemas if provided, otherwise use schemas from agent card
         input_schema = node.input_schema_override or card_input_schema
         output_schema = node.output_schema_override or card_output_schema
 
         # Construct A2A message
-        message = await self._construct_persona_message(
+        message = await self._construct_agent_message(
             node,
             input_data,
             input_schema,
@@ -75,12 +75,12 @@ class PersonaCaller:
         )
 
         # Publish request
-        await self._publish_persona_request(
-            node.agent_persona, message, sub_task_id, workflow_context
+        await self._publish_agent_request(
+            node.agent_name, message, sub_task_id, workflow_context
         )
 
         # Track in workflow context
-        workflow_context.track_persona_call(node.id, sub_task_id)
+        workflow_context.track_agent_call(node.id, sub_task_id)
 
         return sub_task_id
 
@@ -160,7 +160,7 @@ REMINDER: When you complete this task, you MUST end your response with:
 This is MANDATORY for the workflow to continue.
 """
 
-    async def _construct_persona_message(
+    async def _construct_agent_message(
         self,
         node: WorkflowNode,
         input_data: Dict[str, Any],
@@ -170,7 +170,7 @@ This is MANDATORY for the workflow to continue.
         sub_task_id: str,
         workflow_context: WorkflowExecutionContext,
     ) -> A2AMessage:
-        """Construct A2A message for persona agent."""
+        """Construct A2A message for agent."""
 
         # Build message parts
         parts = []
@@ -284,18 +284,18 @@ This is MANDATORY for the workflow to continue.
 
         return message
 
-    async def _publish_persona_request(
+    async def _publish_agent_request(
         self,
-        persona_name: str,
+        agent_name: str,
         message: A2AMessage,
         sub_task_id: str,
         workflow_context: WorkflowExecutionContext,
     ):
-        """Publish A2A request to persona agent."""
-        log_id = f"{self.host.log_identifier}[PublishPersonaRequest:{persona_name}]"
+        """Publish A2A request to agent."""
+        log_id = f"{self.host.log_identifier}[PublishAgentRequest:{agent_name}]"
 
-        # Get persona request topic
-        request_topic = a2a.get_agent_request_topic(self.host.namespace, persona_name)
+        # Get agent request topic
+        request_topic = a2a.get_agent_request_topic(self.host.namespace, agent_name)
 
         # Create SendMessageRequest
         send_params = MessageSendParams(message=message)
@@ -323,8 +323,8 @@ This is MANDATORY for the workflow to continue.
             topic=request_topic,
             user_properties=user_properties,
         )
-        
-        log.debug(f"{log_id} Published persona request to {request_topic} (sub_task_id: {sub_task_id})")
+
+        log.debug(f"{log_id} Published agent request to {request_topic} (sub_task_id: {sub_task_id})")
 
         # Set timeout tracking
         timeout_seconds = self.host.get_config("default_node_timeout_seconds", 300)

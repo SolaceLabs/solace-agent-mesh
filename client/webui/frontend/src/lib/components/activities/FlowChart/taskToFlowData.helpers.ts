@@ -668,7 +668,7 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
     const parentNodeId = data.parentNodeId;
 
     // Use agent persona for label if available, otherwise node ID. Add type for clarity if not an agent.
-    let label = data.agentPersona || nodeId;
+    let label = data.agentName || nodeId;
     if (nodeType !== "agent") {
         label = nodeType === "conditional" ? "Decision" : `${nodeId} (${nodeType})`;
     }
