@@ -329,8 +329,8 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
     const isDeepResearch = ragData.some(search => search.searchType === "deep_research");
     const showGroupedSources = isDeepResearch && (fullyReadSources.length > 0 || snippetSources.length > 0);
 
-    // Get the title from the first ragData entry (research question or user query)
-    const panelTitle = ragData && ragData.length > 0 ? ragData[0].query : "";
+    // Get the title from the first ragData entry (prefer LLM-generated title, fallback to query)
+    const panelTitle = ragData && ragData.length > 0 ? ragData[0].title || ragData[0].query : "";
 
     // Check if research is complete by looking for sources with fetched metadata
     const hasAnyFetchedSources = isDeepResearch && ragData.some(search => search.sources.some(s => s.metadata?.fetched === true || s.metadata?.fetch_status === "success"));

@@ -1331,6 +1331,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                                             const ragSearchResult: RAGSearchResult = {
                                                 query: ragMetadata.query,
+                                                title: ragMetadata.title,
                                                 searchType: ragMetadata.searchType,
                                                 timestamp: ragMetadata.timestamp,
                                                 sources: ragMetadata.sources,
