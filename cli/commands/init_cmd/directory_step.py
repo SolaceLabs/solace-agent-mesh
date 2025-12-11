@@ -11,9 +11,9 @@ def create_project_directories(project_root: Path) -> bool:
         project_root / "configs",
         project_root / "configs" / "gateways",
         project_root / "configs" / "agents",
+        project_root / "configs" / "services",
         project_root / "src",
     ]
-
     click.echo("Creating directory structure...")
     for dir_path in dirs_to_create:
         try:

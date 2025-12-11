@@ -33,7 +33,13 @@ ENV_DEFAULTS = {
     "LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS": "300",
     "LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME": "YOUR_LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME_HERE",
     "LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME": "YOUR_LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME_HERE",
-    "LLM_SERVICE_OAUTH_ENDPOINT": "YOUR_LLM_SERVICE_OAUTH_ENDPOINT_HERE"
+    "LLM_SERVICE_OAUTH_ENDPOINT": "YOUR_LLM_SERVICE_OAUTH_ENDPOINT_HERE",
+    "PLATFORM_API_HOST": "127.0.0.1",
+    "PLATFORM_API_PORT": "8001",
+    "PLATFORM_DATABASE_URL": "sqlite:///platform.db",
+    "EXTERNAL_AUTH_SERVICE_URL": "",
+    "EXTERNAL_AUTH_PROVIDER": "azure",
+    "USE_AUTHORIZATION": "false",
 }
 
 
@@ -200,6 +206,48 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             "Enter S3 Region (for S3 artifact service)",
             False,
             "S3_REGION",
+        ),
+        (
+            "platform_api_host",
+            "PLATFORM_API_HOST",
+            "Enter Platform API Host",
+            False,
+            "PLATFORM_API_HOST",
+        ),
+        (
+            "platform_api_port",
+            "PLATFORM_API_PORT",
+            "Enter Platform API Port",
+            False,
+            "PLATFORM_API_PORT",
+        ),
+        (
+            "platform_database_url",
+            "PLATFORM_DATABASE_URL",
+            "Enter Platform Database URL",
+            False,
+            "PLATFORM_DATABASE_URL",
+        ),
+        (
+            "external_auth_service_url",
+            "EXTERNAL_AUTH_SERVICE_URL",
+            "Enter External Auth Service URL (for OAuth2)",
+            False,
+            "EXTERNAL_AUTH_SERVICE_URL",
+        ),
+        (
+            "external_auth_provider",
+            "EXTERNAL_AUTH_PROVIDER",
+            "Enter External Auth Provider (generic, azure, okta)",
+            False,
+            "EXTERNAL_AUTH_PROVIDER",
+        ),
+        (
+            "use_authorization",
+            "USE_AUTHORIZATION",
+            "Enable Authorization? (true/false)",
+            False,
+            "USE_AUTHORIZATION",
         ),
     ]
 

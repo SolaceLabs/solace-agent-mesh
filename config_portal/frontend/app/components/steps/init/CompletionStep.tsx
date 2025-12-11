@@ -55,6 +55,15 @@ const CONFIG_GROUPS: Record<string, string[]> = {
     "webui_fastapi_port",
     "webui_enable_embed_resolution",
   ],
+  "Platform Service": [
+    "add_platform_service",
+    "platform_api_host",
+    "platform_api_port",
+    "platform_database_url",
+    "use_authorization",
+    "external_auth_service_url",
+    "external_auth_provider",
+  ],
 };
 
 export default function CompletionStep({

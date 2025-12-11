@@ -6,6 +6,7 @@ import BrokerSetup from "./steps/init/BrokerSetup";
 import AIProviderSetup from "./steps/init/AIProviderSetup";
 import OrchestratorSetup from "./steps/init/OrchestratorSetup";
 import WebUIGatewaySetup from "./steps/init/WebUIGatewaySetup";
+import PlatformServiceSetup from "./steps/init/PlatformServiceSetup";
 import CompletionStep from "./steps/init/CompletionStep";
 import SuccessScreen from "./steps/InitSuccessScreen/SuccessScreen";
 
@@ -60,6 +61,12 @@ export const advancedInitSteps: Step[] = [
     title: "Web UI Gateway",
     description: "Configure the optional Web UI Gateway",
     component: WebUIGatewaySetup,
+  },
+  {
+    id: "platform-service-setup",
+    title: "Platform Service",
+    description: "Configure the optional Platform Service",
+    component: PlatformServiceSetup,
   },
   {
     id: "completion",

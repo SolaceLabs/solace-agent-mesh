@@ -8,6 +8,7 @@ from .directory_step import create_project_directories
 from .env_step import ENV_DEFAULTS, create_env_file
 from .orchestrator_step import ORCHESTRATOR_DEFAULTS as O_DEFAULTS
 from .orchestrator_step import create_orchestrator_config
+from .platform_service_step import PLATFORM_SERVICE_DEFAULTS, create_platform_service_config
 from .project_files_step import create_project_files
 from .web_init_step import perform_web_init
 from .webui_gateway_step import WEBUI_GATEWAY_DEFAULTS, create_webui_gateway_config
@@ -107,6 +108,15 @@ DEFAULT_INIT_VALUES = {
     "webui_frontend_collect_feedback": WEBUI_GATEWAY_DEFAULTS.get(
         "frontend_collect_feedback", False
     ),
+    "add_platform_service": True,
+    "platform_api_host": PLATFORM_SERVICE_DEFAULTS.get("platform_api_host"),
+    "platform_api_port": PLATFORM_SERVICE_DEFAULTS.get("platform_api_port"),
+    "platform_database_url": PLATFORM_SERVICE_DEFAULTS.get("platform_database_url"),
+    "external_auth_service_url": PLATFORM_SERVICE_DEFAULTS.get(
+        "external_auth_service_url"
+    ),
+    "external_auth_provider": PLATFORM_SERVICE_DEFAULTS.get("external_auth_provider"),
+    "use_authorization": PLATFORM_SERVICE_DEFAULTS.get("use_authorization"),
 }
 
 
@@ -161,6 +171,12 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
         (
             "Web UI Gateway Configuration",
             lambda opts, defs, skip: create_webui_gateway_config(
+                project_root, opts, skip, defs
+            ),
+        ),
+        (
+            "Platform Service Configuration",
+            lambda opts, defs, skip: create_platform_service_config(
                 project_root, opts, skip, defs
             ),
         ),
@@ -409,6 +425,37 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
     "--orchestrator-database-url",
     type=str,
     help="Database URL for the Orchestrator.",
+)
+@click.option(
+    "--add-platform-service",
+    is_flag=True,
+    default=None,
+    help="Add a default Platform Service configuration.",
+)
+@click.option(
+    "--platform-api-host", type=str, help="Host for Platform API server."
+)
+@click.option(
+    "--platform-api-port", type=int, help="Port for Platform API server."
+)
+@click.option(
+    "--platform-database-url", type=str, help="Database URL for the Platform Service."
+)
+@click.option(
+    "--external-auth-service-url",
+    type=str,
+    help="External Auth Service URL for OAuth2.",
+)
+@click.option(
+    "--external-auth-provider",
+    type=str,
+    help="External Auth Provider (generic, azure, okta).",
+)
+@click.option(
+    "--use-authorization",
+    is_flag=True,
+    default=None,
+    help="Enable authorization for Platform Service.",
 )
 def init(**kwargs):
     """
