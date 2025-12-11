@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
 import { RefreshCcw, Upload } from "lucide-react";
 
-import { useChatContext } from "@/lib/hooks";
 import type { PromptGroup } from "@/lib/types/prompts";
 import type { PromptImportData } from "@/lib/schemas";
 import { Button, EmptyState, Header, VariableDialog } from "@/lib/components";
 import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage, PromptImportDialog } from "@/lib/components/prompts";
-import { fetchWithError, detectVariables, downloadBlob, getErrorMessage, fetchJsonWithError } from "@/lib/utils";
+import { detectVariables, downloadBlob, getErrorMessage } from "@/lib/utils";
+import { api } from "@/lib/api";
+import { useChatContext } from "@/lib/hooks";
 
 /**
  * Main page for managing prompt library with AI-assisted builder
@@ -18,6 +19,7 @@ export const PromptsPage: React.FC = () => {
     const loaderData = useLoaderData<{ promptId?: string; view?: string; mode?: string }>();
 
     const { addNotification, displayError } = useChatContext();
+    // Migrated to api client
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [showBuilder, setShowBuilder] = useState(false);
@@ -25,6 +27,7 @@ export const PromptsPage: React.FC = () => {
     const [initialMessage, setInitialMessage] = useState<string | null>(null);
     const [editingGroup, setEditingGroup] = useState<PromptGroup | null>(null);
     const [builderInitialMode, setBuilderInitialMode] = useState<"manual" | "ai-assisted">("ai-assisted");
+    const [builderKey, setBuilderKey] = useState(0); // Key to force fresh PromptTemplateBuilder instance
     const [versionHistoryGroup, setVersionHistoryGroup] = useState<PromptGroup | null>(null);
     const [deletingPrompt, setDeletingPrompt] = useState<{ id: string; name: string } | null>(null);
     const [newlyCreatedPromptId, setNewlyCreatedPromptId] = useState<string | null>(null);
@@ -35,7 +38,7 @@ export const PromptsPage: React.FC = () => {
     const fetchPromptGroups = useCallback(async () => {
         setIsLoading(true);
         try {
-            const data = await fetchJsonWithError("/api/v1/prompts/groups/all");
+            const data = await api.chat.get(`/api/v1/prompts/groups/all`);
             setPromptGroups(data);
         } catch (error) {
             displayError({ title: "Failed to Load Prompts", error: getErrorMessage(error, "An error occurred while fetching prompt groups.") });
@@ -56,7 +59,7 @@ export const PromptsPage: React.FC = () => {
                 // Load the prompt group for editing
                 const loadPromptForEdit = async () => {
                     try {
-                        const data = await fetchJsonWithError(`/api/v1/prompts/groups/${loaderData.promptId}`);
+                        const data = await api.chat.get(`/api/v1/prompts/groups/${loaderData.promptId}`);
                         setEditingGroup(data);
                         setBuilderInitialMode("manual");
                         setShowBuilder(true);
@@ -74,15 +77,20 @@ export const PromptsPage: React.FC = () => {
                 // Check for pending task description from router state
                 if (mode === "ai-assisted" && location.state?.taskDescription) {
                     setInitialMessage(location.state.taskDescription);
+                } else {
+                    // Clear any previous initial message when starting fresh
+                    setInitialMessage(null);
                 }
 
+                // Increment key to force fresh PromptTemplateBuilder instance
+                setBuilderKey(prev => prev + 1);
                 setShowBuilder(true);
             }
         } else if (loaderData?.view === "versions" && loaderData.promptId) {
             // Load the prompt group for version history
             const loadPromptGroup = async () => {
                 try {
-                    const data = await fetchJsonWithError(`/api/v1/prompts/groups/${loaderData.promptId}`);
+                    const data = await api.chat.get(`/api/v1/prompts/groups/${loaderData.promptId}`);
                     setVersionHistoryGroup(data);
                 } catch (error) {
                     displayError({ title: "Failed to View Versions", error: getErrorMessage(error, "An error occurred while fetching versions.") });
@@ -105,7 +113,7 @@ export const PromptsPage: React.FC = () => {
         if (!deletingPrompt) return;
 
         try {
-            await fetchWithError(`/api/v1/prompts/groups/${deletingPrompt.id}`, {
+            await api.chat.delete(`/api/v1/prompts/groups/${deletingPrompt.id}`, {
                 method: "DELETE",
             });
             if (versionHistoryGroup?.id === deletingPrompt.id) {
@@ -126,7 +134,7 @@ export const PromptsPage: React.FC = () => {
 
     const handleRestoreVersion = async (promptId: string) => {
         try {
-            await fetchWithError(`/api/v1/prompts/${promptId}/make-production`, {
+            await api.chat.delete(`/api/v1/prompts/${promptId}/make-production`, {
                 method: "PATCH",
             });
             fetchPromptGroups();
@@ -191,7 +199,7 @@ export const PromptsPage: React.FC = () => {
             // Optimistic update
             setPromptGroups(prev => prev.map(p => (p.id === id ? { ...p, isPinned: !currentStatus } : p)));
 
-            await fetchWithError(`/api/v1/prompts/groups/${id}/pin`, {
+            await api.chat.delete(`/api/v1/prompts/groups/${id}/pin`, {
                 method: "PATCH",
             });
         } catch (error) {
@@ -203,7 +211,7 @@ export const PromptsPage: React.FC = () => {
 
     const handleExport = async (prompt: PromptGroup) => {
         try {
-            const data = await fetchJsonWithError(`/api/v1/prompts/groups/${prompt.id}/export`);
+            const data = await api.chat.get(`/api/v1/prompts/groups/${prompt.id}/export`);
 
             // Create a blob and trigger download using utility
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -244,11 +252,7 @@ export const PromptsPage: React.FC = () => {
                 },
             };
 
-            const result = await fetchJsonWithError("/api/v1/prompts/import", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+            const result = await api.chat.post(`/api/v1/prompts/import`, {
                 body: JSON.stringify(apiPayload),
             });
 
@@ -283,6 +287,7 @@ export const PromptsPage: React.FC = () => {
         return (
             <>
                 <PromptTemplateBuilder
+                    key={`builder-${builderKey}-${editingGroup?.id || "new"}`}
                     onBack={() => {
                         navigate("/prompts");
                     }}

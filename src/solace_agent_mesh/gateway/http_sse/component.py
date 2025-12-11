@@ -124,6 +124,35 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
             self.model_config = self.get_config("model", None)
 
+            # OAuth2 configuration (enterprise feature - defaults to community mode)
+            self.external_auth_service_url = self.get_config("external_auth_service_url", "")
+            self.external_auth_provider = self.get_config("external_auth_provider", "generic")
+            self.use_authorization = self.get_config("frontend_use_authorization", False)
+
+            # Auto-construct frontend_server_url if not provided
+            configured_frontend_url = self.get_config("frontend_server_url", "")
+            if configured_frontend_url:
+                self.frontend_server_url = configured_frontend_url
+            else:
+                # Determine protocol and port based on SSL configuration
+                if self.ssl_keyfile and self.ssl_certfile:
+                    protocol = "https"
+                    port = self.fastapi_https_port
+                else:
+                    protocol = "http"
+                    port = self.fastapi_port
+
+                # Construct URL
+                # Use 'localhost' if host is 127.0.0.1 for better compatibility
+                host = "localhost" if self.fastapi_host == "127.0.0.1" else self.fastapi_host
+                self.frontend_server_url = f"{protocol}://{host}:{port}"
+
+                log.info(
+                    "%s frontend_server_url not configured, auto-constructed: %s",
+                    self.log_identifier,
+                    self.frontend_server_url,
+                )
+
             log.info(
                 "%s WebUI-specific configuration retrieved (Host: %s, Port: %d).",
                 self.log_identifier,
@@ -134,16 +163,15 @@ class WebUIBackendComponent(BaseGatewayComponent):
             log.error("%s Failed to retrieve configuration: %s", self.log_identifier, e)
             raise ValueError(f"Configuration retrieval error: {e}") from e
 
-        sse_max_queue_size = self.get_config("sse_max_queue_size", 200)
+        self.sse_max_queue_size = self.get_config("sse_max_queue_size", 200)
         sse_buffer_max_age_seconds = self.get_config("sse_buffer_max_age_seconds", 600)
 
         self.sse_event_buffer = SSEEventBuffer(
-            max_queue_size=sse_max_queue_size,
+            max_queue_size=self.sse_max_queue_size,
             max_age_seconds=sse_buffer_max_age_seconds,
         )
-        self.sse_manager = SSEManager(
-            max_queue_size=sse_max_queue_size, event_buffer=self.sse_event_buffer
-        )
+        # SSE manager will be initialized after database setup
+        self.sse_manager = None
 
         self._sse_cleanup_timer_id = f"sse_cleanup_{self.gateway_id}"
         cleanup_interval_sec = self.get_config(
@@ -240,6 +268,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._task_logger_broker_input: BrokerInput | None = None
         self._task_logger_processor_task: asyncio.Task | None = None
         self.task_logger_service: TaskLoggerService | None = None
+        
+        # Background task monitor
+        self.background_task_monitor = None
+        self._background_task_monitor_timer_id = None
 
         # Initialize SAM Events service for system events
         from ...common.sam_events import SamEventService
@@ -330,6 +362,27 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 else:
                     log.warning(
                         "%s Data retention timer fired but service is not initialized.",
+                        self.log_identifier,
+                    )
+                return
+            
+            if timer_id == self._background_task_monitor_timer_id:
+                log.debug("%s Background task monitor timer triggered.", self.log_identifier)
+                if self.background_task_monitor:
+                    loop = self.get_async_loop()
+                    if loop and loop.is_running():
+                        asyncio.run_coroutine_threadsafe(
+                            self.background_task_monitor.check_timeouts(),
+                            loop
+                        )
+                    else:
+                        log.warning(
+                            "%s Async loop not available for background task monitor.",
+                            self.log_identifier
+                        )
+                else:
+                    log.warning(
+                        "%s Background task monitor timer fired but service is not initialized.",
                         self.log_identifier,
                     )
                 return
@@ -812,11 +865,34 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                     event_details["direction"],
                                 )
                             except asyncio.QueueFull:
-                                log.warning(
-                                    "%s SSE queue full for stream %s. Visualization message dropped.",
-                                    log_id_prefix,
-                                    stream_id,
-                                )
+                                # Check if this is a background task
+                                is_background = False
+                                if task_id_for_context and self.database_url:
+                                    try:
+                                        from .repository.task_repository import TaskRepository
+                                        db = dependencies.SessionLocal()
+                                        try:
+                                            repo = TaskRepository()
+                                            task = repo.find_by_id(db, task_id_for_context)
+                                            is_background = task and task.background_execution_enabled
+                                        finally:
+                                            db.close()
+                                    except Exception:
+                                        pass
+                                
+                                if is_background:
+                                    log.debug(
+                                        "%s SSE queue full for stream %s. Dropping visualization message for background task %s.",
+                                        log_id_prefix,
+                                        stream_id,
+                                        task_id_for_context,
+                                    )
+                                else:
+                                    log.warning(
+                                        "%s SSE queue full for stream %s. Visualization message dropped.",
+                                        log_id_prefix,
+                                        stream_id,
+                                    )
                             except Exception as send_err:
                                 log.error(
                                     "%s Error sending formatted message to SSE queue for stream %s: %s",
@@ -1234,6 +1310,17 @@ class WebUIBackendComponent(BaseGatewayComponent):
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.
             session_factory = dependencies.SessionLocal if self.database_url else None
+            
+            # Initialize SSE manager with session factory for background task detection
+            self.sse_manager = SSEManager(
+                max_queue_size=self.sse_max_queue_size,
+                event_buffer=self.sse_event_buffer,
+                session_factory=session_factory
+            )
+            log.debug(
+                "%s SSE manager initialized with database session factory.",
+                self.log_identifier,
+            )
             task_logging_config = self.get_config("task_logging", {})
             self.task_logger_service = TaskLoggerService(
                 session_factory=session_factory, config=task_logging_config
@@ -1242,6 +1329,55 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Services dependent on database session factory have been initialized.",
                 self.log_identifier,
             )
+            
+            # Initialize background task monitor if task logging is enabled
+            if self.database_url and task_logging_config.get("enabled", False):
+                from .services.background_task_monitor import BackgroundTaskMonitor
+                from .services.task_service import TaskService
+                
+                # Create task service for cancellation operations
+                task_service = TaskService(
+                    core_a2a_service=self.core_a2a_service,
+                    publish_func=self.publish_a2a,
+                    namespace=self.namespace,
+                    gateway_id=self.gateway_id,
+                    sse_manager=self.sse_manager,
+                    task_context_map=self.task_context_manager._contexts,
+                    task_context_lock=self.task_context_manager._lock,
+                    app_name=self.name,
+                )
+                
+                # Get timeout configuration
+                background_config = self.get_config("background_tasks", {})
+                default_timeout_ms = background_config.get("default_timeout_ms", 3600000)  # 1 hour
+                
+                self.background_task_monitor = BackgroundTaskMonitor(
+                    session_factory=session_factory,
+                    task_service=task_service,
+                    default_timeout_ms=default_timeout_ms,
+                )
+                
+                # Create timer for periodic timeout checks
+                monitor_interval_ms = background_config.get("monitor_interval_ms", 300000)  # 5 minutes
+                self._background_task_monitor_timer_id = f"background_task_monitor_{self.gateway_id}"
+                
+                self.add_timer(
+                    delay_ms=monitor_interval_ms,
+                    timer_id=self._background_task_monitor_timer_id,
+                    interval_ms=monitor_interval_ms,
+                )
+                
+                log.info(
+                    "%s Background task monitor initialized with %dms check interval and %dms default timeout",
+                    self.log_identifier,
+                    monitor_interval_ms,
+                    default_timeout_ms
+                )
+            else:
+                log.info(
+                    "%s Background task monitor not initialized (task logging disabled or no database)",
+                    self.log_identifier
+                )
 
             port = (
                 self.fastapi_https_port
@@ -1421,11 +1557,20 @@ class WebUIBackendComponent(BaseGatewayComponent):
         if self._data_retention_timer_id:
             self.cancel_timer(self._data_retention_timer_id)
             log.info("%s Cancelled data retention cleanup timer.", self.log_identifier)
+        
+        if self._background_task_monitor_timer_id:
+            self.cancel_timer(self._background_task_monitor_timer_id)
+            log.info("%s Cancelled background task monitor timer.", self.log_identifier)
 
         # Clean up data retention service
         if self.data_retention_service:
             self.data_retention_service = None
             log.info("%s Data retention service cleaned up.", self.log_identifier)
+        
+        # Clean up background task monitor
+        if self.background_task_monitor:
+            self.background_task_monitor = None
+            log.info("%s Background task monitor cleaned up.", self.log_identifier)
 
         self.cancel_timer(self.health_check_timer_id)
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
@@ -2129,6 +2274,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log_id_prefix,
                 sse_task_id,
             )
+            
 
     async def _send_error_to_external(
         self, external_request_context: dict[str, Any], error_data: JSONRPCError

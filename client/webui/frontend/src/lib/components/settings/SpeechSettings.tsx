@@ -2,9 +2,11 @@ import React, { useEffect, useState } from "react";
 import { Mic, Volume2, AlertCircle, Play, Loader2 } from "lucide-react";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
 import { Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input, Button } from "@/lib/components/ui";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { api } from "@/lib/api";
+import { fetchWithError } from "@/lib/utils/api";
 
 export const SpeechSettingsPanel: React.FC = () => {
+    const { chat: chatBaseUrl } = api.getBaseUrls();
     const { settings, updateSetting } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
     const [availableVoices, setAvailableVoices] = useState<string[]>([]);
@@ -26,34 +28,31 @@ export const SpeechSettingsPanel: React.FC = () => {
     useEffect(() => {
         const checkConfig = async () => {
             try {
-                const response = await authenticatedFetch("/api/v1/speech/config");
-                if (response.ok) {
-                    const config = await response.json();
-                    const sttExt = config.sttExternal || false;
-                    const ttsExt = config.ttsExternal || false;
+                const config = await api.chat.get(`/api/v1/speech/config`);
+                const sttExt = config.sttExternal || false;
+                const ttsExt = config.ttsExternal || false;
 
-                    setSttConfigured(sttExt);
-                    setTtsConfigured(ttsExt);
+                setSttConfigured(sttExt);
+                setTtsConfigured(ttsExt);
 
-                    // Set per-provider status
-                    if (config.sttProviders) {
-                        setSttProviders(config.sttProviders);
-                    }
-                    if (config.ttsProviders) {
-                        setTtsProviders(config.ttsProviders);
-                    }
+                // Set per-provider status
+                if (config.sttProviders) {
+                    setSttProviders(config.sttProviders);
+                }
+                if (config.ttsProviders) {
+                    setTtsProviders(config.ttsProviders);
+                }
 
-                    // Auto-reset provider to browser if external not configured
-                    if (!sttExt && settings.sttProvider !== "browser") {
-                        console.warn("External STT not configured, resetting provider to browser");
-                        updateSetting("sttProvider", "browser");
-                        updateSetting("engineSTT", "browser");
-                    }
-                    if (!ttsExt && settings.ttsProvider !== "browser") {
-                        console.warn("External TTS not configured, resetting provider to browser");
-                        updateSetting("ttsProvider", "browser");
-                        updateSetting("engineTTS", "browser");
-                    }
+                // Auto-reset provider to browser if external not configured
+                if (!sttExt && settings.sttProvider !== "browser") {
+                    console.warn("External STT not configured, resetting provider to browser");
+                    updateSetting("sttProvider", "browser");
+                    updateSetting("engineSTT", "browser");
+                }
+                if (!ttsExt && settings.ttsProvider !== "browser") {
+                    console.warn("External TTS not configured, resetting provider to browser");
+                    updateSetting("ttsProvider", "browser");
+                    updateSetting("engineTTS", "browser");
                 }
             } catch (error) {
                 console.error("Error checking speech config:", error);
@@ -74,13 +73,8 @@ export const SpeechSettingsPanel: React.FC = () => {
             setLoadingVoices(true);
             try {
                 const provider = settings.ttsProvider || "gemini";
-                const response = await authenticatedFetch(`/api/v1/speech/voices?provider=${provider}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setAvailableVoices(data.voices || []);
-                } else {
-                    console.error("Failed to load voices:", response.statusText);
-                }
+                const data = await api.chat.get(`/api/v1/speech/voices?provider=${provider}`);
+                setAvailableVoices(data.voices || []);
             } catch (error) {
                 console.error("Error loading voices:", error);
             } finally {
@@ -124,14 +118,10 @@ export const SpeechSettingsPanel: React.FC = () => {
             }
 
             // Fetch voice sample
-            const response = await authenticatedFetch("/api/v1/speech/voice-sample", {
+            const response = await fetchWithError(`${chatBaseUrl}/api/v1/speech/voice-sample`, {
                 method: "POST",
                 body: formData,
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to load voice sample: ${response.statusText}`);
-            }
 
             // Create blob from response
             const blob = await response.blob();

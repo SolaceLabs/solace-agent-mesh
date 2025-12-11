@@ -21,6 +21,7 @@ from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
 
 from ...common import a2a
 from ...gateway.http_sse import dependencies
+from ...shared.auth.middleware import create_oauth_middleware
 from .routers import (
     agent_cards,
     artifacts,
@@ -54,333 +55,6 @@ app = FastAPI(
 # Global flag to track if dependencies have been initialized
 _dependencies_initialized = False
 
-
-def _extract_access_token(request: FastAPIRequest) -> str:
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        return auth_header[7:]
-
-    try:
-        if "access_token" in request.session:
-            log.debug("AuthMiddleware: Found token in session.")
-            return request.session["access_token"]
-    except AssertionError:
-        log.debug("AuthMiddleware: Could not access request.session.")
-
-    if "token" in request.query_params:
-        return request.query_params["token"]
-
-    return None
-
-
-async def _validate_token(
-    auth_service_url: str, auth_provider: str, access_token: str
-) -> bool:
-    async with httpx.AsyncClient() as client:
-        validation_response = await client.post(
-            f"{auth_service_url}/is_token_valid",
-            json={"provider": auth_provider},
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-    return validation_response.status_code == 200
-
-
-async def _get_user_info(
-    auth_service_url: str, auth_provider: str, access_token: str
-) -> dict:
-    async with httpx.AsyncClient() as client:
-        userinfo_response = await client.get(
-            f"{auth_service_url}/user_info?provider={auth_provider}",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-
-    if userinfo_response.status_code != 200:
-        return None
-
-    return userinfo_response.json()
-
-
-def _extract_user_identifier(user_info: dict) -> str:
-    user_identifier = (
-        user_info.get("sub")
-        or user_info.get("client_id")
-        or user_info.get("username")
-        or user_info.get("oid")
-        or user_info.get("preferred_username")
-        or user_info.get("upn")
-        or user_info.get("unique_name")
-        or user_info.get("email")
-        or user_info.get("name")
-        or user_info.get("azp")
-        or user_info.get("user_id") # internal /user_info endpoint format maps identifier to user_id
-    )
-
-    if user_identifier and user_identifier.lower() == "unknown":
-        log.warning(
-            "AuthMiddleware: IDP returned 'Unknown' as user identifier. Using fallback."
-        )
-        return "sam_dev_user"
-
-    return user_identifier
-
-
-def _extract_user_details(user_info: dict, user_identifier: str) -> tuple:
-    email_from_auth = (
-        user_info.get("email")
-        or user_info.get("preferred_username")
-        or user_info.get("upn")
-        or user_identifier
-    )
-
-    display_name = (
-        user_info.get("name")
-        or user_info.get("given_name", "") + " " + user_info.get("family_name", "")
-        or user_info.get("preferred_username")
-        or user_identifier
-    ).strip()
-
-    return email_from_auth, display_name
-
-
-async def _create_user_state_without_identity_service(
-    user_identifier: str, email_from_auth: str, display_name: str
-) -> dict:
-    final_user_id = user_identifier or email_from_auth or "sam_dev_user"
-    if not final_user_id or final_user_id.lower() in ["unknown", "null", "none", ""]:
-        final_user_id = "sam_dev_user"
-        log.warning(
-            "AuthMiddleware: Had to use fallback user ID due to invalid identifier: %s",
-            user_identifier,
-        )
-
-    log.debug(
-        "AuthMiddleware: Internal IdentityService not configured on component. Using user ID: %s",
-        final_user_id,
-    )
-    return {
-        "id": final_user_id,
-        "email": email_from_auth or final_user_id,
-        "name": display_name or final_user_id,
-        "authenticated": True,
-        "auth_method": "oidc",
-    }
-
-
-async def _create_user_state_with_identity_service(
-    identity_service,
-    user_identifier: str,
-    email_from_auth: str,
-    display_name: str,
-    user_info: dict,
-) -> dict:
-    lookup_value = email_from_auth if "@" in email_from_auth else user_identifier
-    user_profile = await identity_service.get_user_profile(
-        {identity_service.lookup_key: lookup_value, "user_info": user_info}
-    )
-
-    if not user_profile:
-        return None
-
-    user_state = user_profile.copy()
-    if not user_state.get("id"):
-        user_state["id"] = user_identifier
-    if not user_state.get("email"):
-        user_state["email"] = email_from_auth
-    if not user_state.get("name"):
-        user_state["name"] = display_name
-    user_state["authenticated"] = True
-    user_state["auth_method"] = "oidc"
-
-    return user_state
-
-
-def _create_auth_middleware(component):
-    class AuthMiddleware:
-        def __init__(self, app, component):
-            self.app = app
-            self.component = component
-
-        async def __call__(self, scope, receive, send):
-            if scope["type"] != "http":
-                await self.app(scope, receive, send)
-                return
-
-            request = FastAPIRequest(scope, receive)
-
-            if not request.url.path.startswith("/api"):
-                await self.app(scope, receive, send)
-                return
-
-            skip_paths = [
-                "/api/v1/config",
-                "/api/v1/auth/callback",
-                "/api/v1/auth/tool/callback",
-                "/api/v1/auth/login",
-                "/api/v1/auth/refresh",
-                "/api/v1/csrf-token",
-                "/health",
-            ]
-
-            if any(request.url.path.startswith(path) for path in skip_paths):
-                await self.app(scope, receive, send)
-                return
-
-            use_auth = dependencies.api_config and dependencies.api_config.get(
-                "frontend_use_authorization"
-            )
-
-            if use_auth:
-                await self._handle_authenticated_request(request, scope, receive, send)
-            else:
-                request.state.user = {
-                    "id": "sam_dev_user",
-                    "name": "Sam Dev User",
-                    "email": "sam@dev.local",
-                    "authenticated": True,
-                    "auth_method": "development",
-                }
-                log.debug(
-                    "AuthMiddleware: Set development user state with id: sam_dev_user"
-                )
-
-            await self.app(scope, receive, send)
-
-        async def _handle_authenticated_request(self, request, scope, receive, send):
-            access_token = _extract_access_token(request)
-
-            if not access_token:
-                log.warning("AuthMiddleware: No access token found. Returning 401.")
-                response = JSONResponse(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    content={
-                        "detail": "Not authenticated",
-                        "error_type": "authentication_required",
-                    },
-                )
-                await response(scope, receive, send)
-                return
-
-            try:
-                auth_service_url = dependencies.api_config.get(
-                    "external_auth_service_url"
-                )
-                auth_provider = dependencies.api_config.get("external_auth_provider")
-
-                if not auth_service_url:
-                    log.error("Auth service URL not configured.")
-                    response = JSONResponse(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        content={"detail": "Auth service not configured"},
-                    )
-                    await response(scope, receive, send)
-                    return
-
-                if not await _validate_token(
-                    auth_service_url, auth_provider, access_token
-                ):
-                    log.warning("AuthMiddleware: Token validation failed")
-                    response = JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={
-                            "detail": "Invalid token",
-                            "error_type": "invalid_token",
-                        },
-                    )
-                    await response(scope, receive, send)
-                    return
-
-                user_info = await _get_user_info(
-                    auth_service_url, auth_provider, access_token
-                )
-                if not user_info:
-                    log.warning(
-                        "AuthMiddleware: Failed to get user info from external auth service"
-                    )
-                    response = JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={
-                            "detail": "Could not retrieve user info from auth provider",
-                            "error_type": "user_info_failed",
-                        },
-                    )
-                    await response(scope, receive, send)
-                    return
-
-                user_identifier = _extract_user_identifier(user_info)
-                if not user_identifier or user_identifier.lower() in [
-                    "null",
-                    "none",
-                    "",
-                ]:
-                    log.error(
-                        "AuthMiddleware: No valid user identifier from OAuth provider"
-                    )
-                    response = JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={
-                            "detail": "OAuth provider returned no valid user identifier",
-                            "error_type": "invalid_user_identifier_from_provider",
-                        },
-                    )
-                    await response(scope, receive, send)
-                    return
-
-                email_from_auth, display_name = _extract_user_details(
-                    user_info, user_identifier
-                )
-
-                identity_service = self.component.identity_service
-                if not identity_service:
-                    request.state.user = (
-                        await _create_user_state_without_identity_service(
-                            user_identifier, email_from_auth, display_name
-                        )
-                    )
-                else:
-                    user_state = await _create_user_state_with_identity_service(
-                        identity_service,
-                        user_identifier,
-                        email_from_auth,
-                        display_name,
-                        user_info,
-                    )
-                    if not user_state:
-                        log.error(
-                            "AuthMiddleware: User authenticated but not found in internal IdentityService"
-                        )
-                        response = JSONResponse(
-                            status_code=status.HTTP_403_FORBIDDEN,
-                            content={
-                                "detail": "User not authorized for this application",
-                                "error_type": "not_authorized",
-                            },
-                        )
-                        await response(scope, receive, send)
-                        return
-                    request.state.user = user_state
-
-            except httpx.RequestError as exc:
-                log.error("Error calling auth service: %s", exc)
-                response = JSONResponse(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    content={"detail": "Auth service is unavailable"},
-                )
-                await response(scope, receive, send)
-                return
-            except Exception as exc:
-                log.error(
-                    "An unexpected error occurred during token validation: %s", exc
-                )
-                response = JSONResponse(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    content={
-                        "detail": "An internal error occurred during authentication"
-                    },
-                )
-                await response(scope, receive, send)
-                return
-
-    return AuthMiddleware
 
 
 def _setup_alembic_config(database_url: str) -> Config:
@@ -547,9 +221,13 @@ def _setup_middleware(component: "WebUIBackendComponent") -> None:
     app.add_middleware(SessionMiddleware, secret_key=session_manager.secret_key)
     log.info("SessionMiddleware added.")
 
-    auth_middleware_class = _create_auth_middleware(component)
+    auth_middleware_class = create_oauth_middleware(component)
     app.add_middleware(auth_middleware_class, component=component)
-    log.info("AuthMiddleware added.")
+
+    if component.use_authorization:
+        log.info("OAuth middleware added (real token validation enabled)")
+    else:
+        log.info("OAuth middleware added (development mode - community/dev user)")
 
 
 def _setup_routers() -> None:
@@ -595,18 +273,18 @@ def _setup_static_files() -> None:
             "Static files directory '%s' not found. Frontend may not be served.",
             static_files_dir,
         )
-    else:
-        try:
-            app.mount(
-                "/", StaticFiles(directory=static_files_dir, html=True), name="static"
-            )
-            log.info("Mounted static files directory '%s' at '/'", static_files_dir)
-        except Exception as static_mount_err:
-            log.error(
-                "Failed to mount static files directory '%s': %s",
-                static_files_dir,
-                static_mount_err,
-            )
+    # try to mount static files directory anyways, might work for enterprise
+    try:
+        app.mount(
+            "/", StaticFiles(directory=static_files_dir, html=True), name="static"
+        )
+        log.info("Mounted static files directory '%s' at '/'", static_files_dir)
+    except Exception as static_mount_err:
+        log.error(
+            "Failed to mount static files directory '%s': %s",
+            static_files_dir,
+            static_mount_err,
+        )
 
 
 @app.exception_handler(HTTPException)

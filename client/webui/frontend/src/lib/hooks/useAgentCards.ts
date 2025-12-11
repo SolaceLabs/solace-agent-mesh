@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { api } from "@/lib/api";
 
 import type { AgentCard, AgentExtension, AgentCardInfo, AgentSkill } from "@/lib/types";
-import { fetchJsonWithError } from "@/lib/utils/api";
 
-import { useConfigContext } from "./useConfigContext";
 
 const DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-name";
 const PEER_AGENT_TOPOLOGY_EXTENSION_URI = "https://solace.com/a2a/extensions/peer-agent-topology";
@@ -55,7 +54,7 @@ interface useAgentCardsReturn {
 }
 
 export const useAgentCards = (): useAgentCardsReturn => {
-    const { configServerUrl } = useConfigContext();
+    // Migrated to api client
     const [agents, setAgents] = useState<AgentCardInfo[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -64,8 +63,8 @@ export const useAgentCards = (): useAgentCardsReturn => {
         setIsLoading(true);
         setError(null);
         try {
-            const apiPrefix = `${configServerUrl}/api/v1`;
-            const data: AgentCard[] = await fetchJsonWithError(`${apiPrefix}/agentCards`);
+            const { chat: chatBaseUrl } = api.getBaseUrls();
+            const data: AgentCard[] = await api.chat.get(`${chatBaseUrl}/api/v1/agentCards`);
             const transformedAgents = data.map(transformAgentCard);
             setAgents(transformedAgents);
         } catch (err: unknown) {
@@ -75,7 +74,7 @@ export const useAgentCards = (): useAgentCardsReturn => {
         } finally {
             setIsLoading(false);
         }
-    }, [configServerUrl]);
+    }, []);
 
     useEffect(() => {
         fetchAgents();

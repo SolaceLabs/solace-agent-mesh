@@ -237,8 +237,48 @@ def _setup_middleware(component: "PlatformServiceComponent"):
     Args:
         component: PlatformServiceComponent instance for configuration access.
     """
-    # CORS middleware
-    allowed_origins = component.get_cors_origins()
+    # CORS middleware - automatically trust configured UI origins
+    configured_origins = component.get_cors_origins().copy()
+
+    # Automatically add frontend and platform service URLs as trusted origins
+    # These are admin-controlled values that should always be trusted
+    frontend_url = os.getenv("FRONTEND_SERVER_URL", "").strip()
+    platform_url = os.getenv("PLATFORM_SERVICE_URL", "").strip()
+
+    # Auto-construct frontend URL if not provided
+    if not frontend_url:
+        # Read WebUI Gateway configuration from environment variables
+        fastapi_host = os.getenv("FASTAPI_HOST", "127.0.0.1").strip()
+        fastapi_port = os.getenv("FASTAPI_PORT", "8000").strip()
+        ssl_keyfile = os.getenv("SSL_KEYFILE", "").strip()
+        ssl_certfile = os.getenv("SSL_CERTFILE", "").strip()
+
+        # Determine protocol and port based on SSL configuration
+        if ssl_keyfile and ssl_certfile:
+            protocol = "https"
+            port = os.getenv("FASTAPI_HTTPS_PORT", "8443").strip()
+        else:
+            protocol = "http"
+            port = fastapi_port
+
+        # Use 'localhost' if host is 127.0.0.1 for better compatibility
+        host = "localhost" if fastapi_host == "127.0.0.1" else fastapi_host
+        frontend_url = f"{protocol}://{host}:{port}"
+
+        log.info(
+            "FRONTEND_SERVER_URL not configured, auto-constructed from WebUI Gateway settings: %s",
+            frontend_url
+        )
+
+    auto_trusted_origins = []
+    if frontend_url:
+        auto_trusted_origins.append(frontend_url)
+    if platform_url:
+        auto_trusted_origins.append(platform_url)
+
+    # Combine and deduplicate
+    allowed_origins = list(set(auto_trusted_origins + configured_origins))
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
@@ -247,6 +287,8 @@ def _setup_middleware(component: "PlatformServiceComponent"):
         allow_headers=["*"],
     )
     log.info(f"CORS middleware added with origins: {allowed_origins}")
+    if auto_trusted_origins:
+        log.info(f"  Auto-added trusted origins: {auto_trusted_origins}")
 
     # OAuth2 authentication middleware
     from solace_agent_mesh.shared.auth.middleware import create_oauth_middleware

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
+import { api } from "@/lib/api";
 
 import type { ArtifactInfo } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
 
-import { useConfigContext } from "./useConfigContext";
 import { useProjectContext } from "../providers/ProjectProvider";
 
 interface UseArtifactsReturn {
@@ -21,13 +21,13 @@ interface UseArtifactsReturn {
  * @returns Object containing artifacts data, loading state, error state, and refetch function
  */
 export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
-    const { configServerUrl } = useConfigContext();
+    // Migrated to api client
     const { activeProject } = useProjectContext();
     const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    const apiPrefix = `${configServerUrl}/api/v1`;
+    const { chat: chatBaseUrl } = api.getBaseUrls();
 
     const fetchArtifacts = useCallback(async () => {
         setIsLoading(true);
@@ -38,11 +38,11 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
             
             // Priority 1: Session context (active chat)
             if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                url = `${apiPrefix}/artifacts/${sessionId}`;
+                url = `${chatBaseUrl}/api/v1/artifacts/${sessionId}`;
             }
             // Priority 2: Project context (pre-session, project artifacts)
             else if (activeProject?.id) {
-                url = `${apiPrefix}/artifacts/null?project_id=${activeProject.id}`;
+                url = `${chatBaseUrl}/api/v1/artifacts/null?project_id=${activeProject.id}`;
             }
             // No valid context
             else {
@@ -74,7 +74,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         } finally {
             setIsLoading(false);
         }
-    }, [apiPrefix, sessionId, activeProject?.id]);
+    }, [chatBaseUrl, sessionId, activeProject?.id]);
 
     useEffect(() => {
         fetchArtifacts();

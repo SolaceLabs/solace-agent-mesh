@@ -25,11 +25,16 @@ from google.adk.agents import RunConfig
 from google.adk.agents.run_config import StreamingMode
 from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.common.message import Message as SolaceMessage
+from sqlalchemy.exc import OperationalError
 
 from ...agent.adk.callbacks import _publish_data_part_status_update
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common import a2a
+from ...common.utils.embeds.constants import (
+    EMBED_DELIMITER_OPEN,
+    EMBED_DELIMITER_CLOSE,
+)
 from ...common.a2a import (
     get_agent_request_topic,
     get_agent_response_subscription_topic,
@@ -970,6 +975,56 @@ async def handle_a2a_request(component, message: SolaceMessage):
         component.handle_error(e, Event(EventType.MESSAGE, message))
         return None
 
+    except OperationalError as e:
+        log.error(
+            "%s Database error while processing A2A request: %s",
+            component.log_identifier,
+            e,
+        )
+
+        # Check if it's a schema error
+        error_msg = str(e).lower()
+        if "no such column" in error_msg or "no such table" in error_msg:
+            user_message = (
+                "Database schema update required. "
+                "Please contact your administrator to run database migrations."
+            )
+        else:
+            user_message = (
+                "Database error occurred. Please try again or contact support."
+            )
+
+        error_response = a2a.create_internal_error_response(
+            message=user_message,
+            request_id=jsonrpc_request_id,
+            data={"taskId": logical_task_id} if logical_task_id else None,
+        )
+
+        target_topic = reply_topic_from_peer or (
+            get_client_response_topic(namespace, client_id) if client_id else None
+        )
+        if target_topic:
+            component.publish_a2a_message(
+                error_response.model_dump(exclude_none=True),
+                target_topic,
+            )
+
+        try:
+            message.call_negative_acknowledgements()
+            log.warning(
+                "%s NACKed A2A request due to database error.",
+                component.log_identifier,
+            )
+        except Exception as nack_e:
+            log.error(
+                "%s Failed to NACK message after database error: %s",
+                component.log_identifier,
+                nack_e,
+            )
+
+        component.handle_error(e, Event(EventType.MESSAGE, message))
+        return None
+
     except Exception as e:
         log.exception(
             "%s Unexpected error handling A2A request: %s", component.log_identifier, e
@@ -1636,6 +1691,16 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                             header_text=header_text,
                                         )
                                     )
+
+                                    # Add guidance about artifact_return responsibility
+                                    artifact_return_guidance = (
+                                        f"\n\n**Note:** If any of these artifacts fulfill the user's request, "
+                                        f"you should return them directly to the user using the "
+                                        f"{EMBED_DELIMITER_OPEN}artifact_return:filename:version{EMBED_DELIMITER_CLOSE} embed. "
+                                        f"This is more convenient for the user than just describing the artifacts. "
+                                        f"Replace 'filename' and 'version' with the actual values from the artifact metadata above."
+                                    )
+                                    artifact_summary += artifact_return_guidance
                                 else:
                                     log.warning(
                                         "%s Could not generate artifact summary: missing user_id or session_id in correlation data.",
@@ -1658,7 +1723,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
 
             full_response_text = final_text
             if artifact_summary:
-                full_response_text = f"{artifact_summary}\n\n{full_response_text}"
+                full_response_text = f"{artifact_summary}\n---\n\nPeer Agent Response:\n\n{full_response_text}"
 
             await _publish_peer_tool_result_notification(
                 component=component,

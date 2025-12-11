@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 from solace_ai_connector.flow.app import App
 
 from .component import PlatformServiceComponent
+from ...common.a2a import get_discovery_topic
 
 log = logging.getLogger(__name__)
 
@@ -70,15 +71,15 @@ class PlatformServiceApp(App):
             "name": "external_auth_provider",
             "required": False,
             "type": "string",
-            "default": "azure",
-            "description": "OAuth2 provider name (e.g., 'azure', 'google', 'okta').",
+            "default": "",
+            "description": "The external authentication provider.",
         },
         {
-            "name": "use_authorization",
+            "name": "frontend_use_authorization",
             "required": False,
             "type": "boolean",
-            "default": True,
-            "description": "Enable OAuth2 token validation. Set to false for development mode.",
+            "default": False,
+            "description": "Tell frontend whether backend expects authorization.",
         },
         {
             "name": "max_message_size_bytes",
@@ -128,25 +129,32 @@ class PlatformServiceApp(App):
         if not namespace:
             raise ValueError("Namespace is required in app_config for PlatformServiceApp")
 
-        # Create component definition
+        # Create subscriptions for agent discovery
+        subscriptions = [
+            {"topic": get_discovery_topic(namespace)},
+        ]
+
+        # Create component definition with subscriptions
+        # (SAC framework looks for subscriptions in component definition for simplified apps)
         component_definition = {
             "name": f"{app_info.get('name', 'platform_service')}_component",
             "component_class": PlatformServiceComponent,
             "component_config": {"app_config": app_config},
+            "subscriptions": subscriptions,
         }
 
         modified_app_info["components"] = [component_definition]
 
-        # Configure broker connection (similar to BaseGatewayApp)
-        # This enables the component to receive broker input/output
+        # Configure broker connection
         broker_config = modified_app_info.setdefault("broker", {})
         broker_config["input_enabled"] = True
         broker_config["output_enabled"] = True
-        # Platform Service doesn't need a queue (it only publishes)
-        # but we enable broker connection for direct publisher access
-        log.debug(
-            "Configured broker for Platform Service with namespace: %s",
-            namespace
+
+        log.info(
+            "Configured broker for Platform Service with namespace: %s and %d subscription(s): %s",
+            namespace,
+            len(subscriptions),
+            subscriptions
         )
 
         super().__init__(modified_app_info, **kwargs)

@@ -3,6 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState, use
 import { useConfigContext } from "@/lib/hooks";
 import type { Project, ProjectContextValue, ProjectListResponse, UpdateProjectData } from "@/lib/types/projects";
 import { authenticatedFetch } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 const LAST_VIEWED_PROJECT_KEY = "lastViewedProjectId";
 
@@ -16,7 +17,7 @@ export const registerProjectDeletedCallback = (callback: OnProjectDeletedCallbac
 };
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { configServerUrl, projectsEnabled } = useConfigContext();
+    const { projectsEnabled } = useConfigContext();
     const [projects, setProjects] = useState<Project[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -25,7 +26,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [activeProject, setActiveProject] = useState<Project | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
 
-    const apiPrefix = `${configServerUrl}/api/v1`;
 
     // Computed filtered projects based on search query
     const filteredProjects = useMemo(() => {
@@ -46,7 +46,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setError(null);
         try {
             // Fetch projects with artifact counts
-            const response = await authenticatedFetch(`${apiPrefix}/projects?include_artifact_count=true`, {
+            const response = await authenticatedFetch(`${api.getBaseUrls().chat}/api/v1/projects?include_artifact_count=true`, {
                 credentials: "include",
             });
 
@@ -70,7 +70,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         } finally {
             setIsLoading(false);
         }
-    }, [apiPrefix, projectsEnabled]);
+    }, [projectsEnabled]);
 
     const createProject = useCallback(
         async (projectData: FormData): Promise<Project> => {
@@ -79,7 +79,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
 
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/projects`, {
+                const response = await authenticatedFetch(`${api.getBaseUrls().chat}/api/v1/projects`, {
                     method: "POST",
                     // No 'Content-Type' header, browser will set it for FormData
                     body: projectData,
@@ -117,7 +117,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix, projectsEnabled]
+        [projectsEnabled]
     );
 
     const addFilesToProject = useCallback(
@@ -127,17 +127,36 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
 
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts`, {
+                const response = await authenticatedFetch(`${api.getBaseUrls().chat}/api/v1/projects/${projectId}/artifacts`, {
                     method: "POST",
                     body: formData,
                     credentials: "include",
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({
-                        detail: `Failed to add files: ${response.statusText}`,
-                    }));
-                    throw new Error(errorData.detail || `Failed to add files: ${response.statusText}`);
+                    const responseText = await response.text();
+                    let errorMessage = `Failed to add files: ${response.statusText}`;
+
+                    try {
+                        const errorData = JSON.parse(responseText);
+                        errorMessage = errorData.detail || errorData.message || errorMessage;
+                    } catch {
+                        // If JSON parsing fails, check if we have a meaningful response text
+                        if (responseText && responseText.length < 500) {
+                            errorMessage = responseText;
+                        }
+                    }
+
+                    // Provide user-friendly message for file size errors
+                    if (response.status === 413) {
+                        // If we have a detailed message from the backend, use it
+                        // Otherwise provide a generic but helpful message
+                        if (!errorMessage.includes("exceeds maximum") && !errorMessage.includes("too large")) {
+                            errorMessage = "One or more files exceed the maximum allowed size. Please try uploading smaller files.";
+                        }
+                    }
+
+                    throw new Error(errorMessage);
                 }
                 // Clear any previous errors on success
                 setError(null);
@@ -151,7 +170,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix, projectsEnabled, fetchProjects]
+        [projectsEnabled, fetchProjects]
     );
 
     const removeFileFromProject = useCallback(
@@ -161,7 +180,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
 
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
+                const response = await authenticatedFetch(`${api.getBaseUrls().chat}/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
                     credentials: "include",
                 });
@@ -184,7 +203,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix, projectsEnabled, fetchProjects]
+        [projectsEnabled, fetchProjects]
     );
 
     const updateFileMetadata = useCallback(
@@ -197,7 +216,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 const formData = new FormData();
                 formData.append("description", description);
 
-                const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
+                const response = await authenticatedFetch(`${api.getBaseUrls().chat}/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
                     method: "PATCH",
                     body: formData,
                     credentials: "include",
@@ -218,7 +237,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix, projectsEnabled]
+        [projectsEnabled]
     );
 
     const updateProject = useCallback(
@@ -228,7 +247,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
 
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}`, {
+                const response = await authenticatedFetch(`${api.getBaseUrls().chat}/api/v1/projects/${projectId}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(data),
@@ -294,7 +313,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix, projectsEnabled]
+        [projectsEnabled]
     );
 
     const deleteProject = useCallback(
@@ -304,7 +323,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
 
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}`, {
+                const response = await authenticatedFetch(`${api.getBaseUrls().chat}/api/v1/projects/${projectId}`, {
                     method: "DELETE",
                     credentials: "include",
                 });
@@ -335,7 +354,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix, projectsEnabled]
+        [projectsEnabled]
     );
 
     useEffect(() => {

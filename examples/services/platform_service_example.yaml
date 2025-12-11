@@ -22,7 +22,7 @@ apps:
     app_config:
       # --- Required ---
       namespace: ${NAMESPACE} # Namespace for A2A communication
-      database_url: "${PLATFORM_DATABASE_URL}" # Platform database (agents, connectors, deployments)
+      database_url: "${PLATFORM_DATABASE_URL, sqlite:///platform-service.db}" # Platform database (agents, connectors, deployments)
 
       # --- FastAPI Server Configuration ---
       fastapi_host: ${PLATFORM_API_HOST, localhost}
@@ -32,10 +32,13 @@ apps:
         - "http://127.0.0.1:3000"
         # Add other origins as needed
 
+      # --- Message Size Configuration ---
+      max_message_size_bytes: ${MAX_MESSAGE_SIZE_BYTES, 10000000} # 10MB default
+
       # --- OAuth2 Authentication ---
       external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL}
       external_auth_provider: ${EXTERNAL_AUTH_PROVIDER, generic}
-      use_authorization: ${USE_AUTHORIZATION, false} # Set to true for production
+      frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION, false} # Set to true for production
 
       # --- Background Task Configuration ---
       # Deployment monitoring
