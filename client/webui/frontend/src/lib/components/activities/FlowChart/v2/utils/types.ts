@@ -78,6 +78,16 @@ export interface BuildContext {
 
     // Agent name display map
     agentNameMap: Record<string, string>;
+
+    // Map workflow nodeId to Map/Fork node for parallel branch tracking
+    parallelContainerMap: Map<string, LayoutNode>;
+
+    // Track current branch within a parallel container
+    currentBranchMap: Map<string, LayoutNode[]>;
+
+    // Track if we've created top/bottom user nodes (only one each for entire flow)
+    hasTopUserNode: boolean;
+    hasBottomUserNode: boolean;
 }
 
 /**

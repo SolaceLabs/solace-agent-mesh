@@ -30,7 +30,6 @@ const UserNodeV2: React.FC<UserNodeV2Props> = ({ node, isSelected, onClick }) =>
                 isSelected ? "ring-2 ring-blue-500" : ""
             }`}
             style={{
-                width: `${node.width}px`,
                 minWidth: "120px",
                 textAlign: "center",
             }}

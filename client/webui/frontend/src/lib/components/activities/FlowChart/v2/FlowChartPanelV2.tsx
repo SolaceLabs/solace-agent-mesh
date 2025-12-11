@@ -109,7 +109,7 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
                 {({ zoomIn, zoomOut, resetTransform }) => (
                     <>
                         {/* Show Detail Toggle Switch */}
-                        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-2 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
+                        <div className="absolute top-4 right-4 z-50 flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-2 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
                             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Show Detail
                             </span>
@@ -128,31 +128,6 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
                             </button>
                         </div>
 
-                        {/* Zoom Controls */}
-                        <div className="absolute top-4 right-4 z-50 flex flex-col gap-2">
-                            <button
-                                onClick={() => zoomIn()}
-                                className={`${getThemeButtonHtmlStyles()} px-3 py-2 rounded-md`}
-                                title="Zoom In"
-                            >
-                                +
-                            </button>
-                            <button
-                                onClick={() => zoomOut()}
-                                className={`${getThemeButtonHtmlStyles()} px-3 py-2 rounded-md`}
-                                title="Zoom Out"
-                            >
-                                −
-                            </button>
-                            <button
-                                onClick={() => resetTransform()}
-                                className={`${getThemeButtonHtmlStyles()} px-3 py-2 rounded-md text-xs`}
-                                title="Reset View"
-                            >
-                                Reset
-                            </button>
-                        </div>
-
                         <TransformComponent
                             wrapperStyle={{
                                 width: "100%",
@@ -164,7 +139,6 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
                             }}
                         >
                             <div
-                                className="bg-gray-50 dark:bg-gray-900"
                                 style={{
                                     minWidth: "100%",
                                     minHeight: "100%",

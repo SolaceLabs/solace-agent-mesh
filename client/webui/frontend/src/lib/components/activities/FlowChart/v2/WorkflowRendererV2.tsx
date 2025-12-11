@@ -11,7 +11,37 @@ import EdgeLayerV2 from "./EdgeLayerV2";
  * Recursively collapse nested agents (level > 0) and recalculate their dimensions
  */
 function collapseNestedAgents(node: LayoutNode, nestingLevel: number): LayoutNode {
-    // For agents at level > 0, collapse them
+    // Special handling for Map/Fork nodes (pill variant with parallel branches)
+    // Don't collapse these - instead, flatten their parallel branches
+    if (node.type === 'agent' && node.data.variant === 'pill' && node.parallelBranches && node.parallelBranches.length > 0) {
+        // Flatten all branches into a single array of children
+        const flattenedChildren: LayoutNode[] = [];
+        for (const branch of node.parallelBranches) {
+            for (const child of branch) {
+                flattenedChildren.push(collapseNestedAgents(child, nestingLevel + 1));
+            }
+        }
+
+        // Recalculate height based on flattened children
+        const padding = 16;
+        const gap = 16;
+
+        const childrenHeight = flattenedChildren.reduce((sum, child, idx) => {
+            return sum + child.height + (idx < flattenedChildren.length - 1 ? gap : 0);
+        }, 0);
+
+        // Height includes the pill itself (40px) + padding + children
+        const newHeight = 40 + padding * 2 + childrenHeight;
+
+        return {
+            ...node,
+            children: flattenedChildren,
+            parallelBranches: undefined, // Clear parallel branches
+            height: newHeight,
+        };
+    }
+
+    // For regular agents at level > 0, collapse them
     if (node.type === 'agent' && nestingLevel > 0) {
         // Collapsed agent: just header + padding, no children
         const headerHeight = 50;
@@ -67,15 +97,32 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number): LayoutNod
         };
     }
 
-    // Handle parallel branches
+    // Handle parallel branches - flatten them into sequential children when collapsed
     if (node.parallelBranches && node.parallelBranches.length > 0) {
-        const collapsedBranches = node.parallelBranches.map(branch =>
-            branch.map(child => collapseNestedAgents(child, nestingLevel + 1))
-        );
+        // Flatten all branches into a single array of children
+        const flattenedChildren: LayoutNode[] = [];
+        for (const branch of node.parallelBranches) {
+            for (const child of branch) {
+                flattenedChildren.push(collapseNestedAgents(child, nestingLevel + 1));
+            }
+        }
+
+        // Recalculate height based on flattened children
+        const headerHeight = node.type === 'agent' ? 50 : 0;
+        const padding = node.type === 'agent' ? 16 : (node.type === 'group' ? 24 : 0);
+        const gap = 16;
+
+        const childrenHeight = flattenedChildren.reduce((sum, child, idx) => {
+            return sum + child.height + (idx < flattenedChildren.length - 1 ? gap : 0);
+        }, 0);
+
+        const newHeight = headerHeight + padding * 2 + childrenHeight;
 
         return {
             ...node,
-            parallelBranches: collapsedBranches,
+            children: flattenedChildren,
+            parallelBranches: undefined, // Clear parallel branches
+            height: newHeight,
         };
     }
 
@@ -143,21 +190,15 @@ const WorkflowRendererV2: React.FC<WorkflowRendererV2Props> = ({
     };
 
     // Render a top-level node
-    const renderNode = (node: LayoutNode) => {
+    const renderNode = (node: LayoutNode, index: number) => {
         const isSelected = node.data.visualizerStepId === selectedStepId;
+        const nextNode = nodes[index + 1];
 
         const nodeProps = {
             node,
             isSelected,
             onClick: handleNodeClick,
             onChildClick: handleNodeClick, // For nested clicks
-        };
-
-        const style: React.CSSProperties = {
-            position: "absolute",
-            left: `${node.x}px`,
-            top: `${node.y}px`,
-            zIndex: 1,
         };
 
         let component: React.ReactNode;
@@ -177,9 +218,13 @@ const WorkflowRendererV2: React.FC<WorkflowRendererV2Props> = ({
         }
 
         return (
-            <div key={node.id} style={style}>
+            <React.Fragment key={node.id}>
                 {component}
-            </div>
+                {/* Add connector line between nodes */}
+                {index < nodes.length - 1 && (
+                    <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
+                )}
+            </React.Fragment>
         );
     };
 
@@ -193,23 +238,14 @@ const WorkflowRendererV2: React.FC<WorkflowRendererV2Props> = ({
 
     return (
         <div
+            className="flex flex-col items-center p-12"
             style={{
-                position: "relative",
-                width: `${totalWidth}px`,
-                height: `${totalHeight}px`,
                 minWidth: "100%",
                 minHeight: "100%",
             }}
         >
-            {/* Edge Layer (SVG) */}
-            <EdgeLayerV2
-                edges={edges}
-                selectedEdgeId={selectedEdgeId}
-                onEdgeClick={handleEdgeClick}
-            />
-
-            {/* Nodes */}
-            {nodes.map(renderNode)}
+            {/* Nodes in vertical flow */}
+            {nodes.map((node, index) => renderNode(node, index))}
         </div>
     );
 };

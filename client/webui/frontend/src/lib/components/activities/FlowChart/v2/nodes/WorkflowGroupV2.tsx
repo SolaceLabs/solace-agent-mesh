@@ -34,7 +34,7 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
                 isSelected ? "ring-2 ring-blue-500" : ""
             }`}
             style={{
-                width: `${node.width}px`,
+                minWidth: "200px",
                 position: "relative",
             }}
             onClick={() => onClick?.(node)}

@@ -39,6 +39,10 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
         currentAgentNode: null,
         rootNodes: [],
         agentNameMap,
+        parallelContainerMap: new Map(),
+        currentBranchMap: new Map(),
+        hasTopUserNode: false,
+        hasBottomUserNode: false,
     };
 
     // Process all steps to build tree structure
@@ -94,6 +98,9 @@ function processStep(step: VisualizerStep, context: BuildContext): void {
         case "WORKFLOW_EXECUTION_RESULT":
             handleWorkflowExecutionResult(step, context);
             break;
+        case "WORKFLOW_NODE_EXECUTION_RESULT":
+            handleWorkflowNodeResult(step, context);
+            break;
         // Add other cases as needed
     }
 }
@@ -102,17 +109,21 @@ function processStep(step: VisualizerStep, context: BuildContext): void {
  * Handle USER_REQUEST step - creates User node + Agent node
  */
 function handleUserRequest(step: VisualizerStep, context: BuildContext): void {
-    // Create User node (top)
-    const userNode = createNode(
-        context,
-        'user',
-        {
-            label: 'User',
-            visualizerStepId: step.id,
-            isTopNode: true,
-        },
-        step.owningTaskId
-    );
+    // Only create top User node once, and only for top-level requests
+    if (!context.hasTopUserNode && step.nestingLevel === 0) {
+        const userNode = createNode(
+            context,
+            'user',
+            {
+                label: 'User',
+                visualizerStepId: step.id,
+                isTopNode: true,
+            },
+            step.owningTaskId
+        );
+        context.rootNodes.push(userNode);
+        context.hasTopUserNode = true;
+    }
 
     // Create Agent node
     const agentName = step.target || 'Agent';
@@ -128,8 +139,7 @@ function handleUserRequest(step: VisualizerStep, context: BuildContext): void {
         step.owningTaskId
     );
 
-    // Add to root nodes
-    context.rootNodes.push(userNode);
+    // Add agent to root nodes
     context.rootNodes.push(agentNode);
 
     // Set as current agent
@@ -247,24 +257,34 @@ function handleToolResult(step: VisualizerStep, context: BuildContext): void {
 }
 
 /**
- * Handle AGENT_RESPONSE_TEXT - create bottom User node
+ * Handle AGENT_RESPONSE_TEXT - create bottom User node (only once at the end)
  */
 function handleAgentResponse(step: VisualizerStep, context: BuildContext): void {
     // Only for top-level tasks
     if (step.nestingLevel && step.nestingLevel > 0) return;
 
-    const userNode = createNode(
-        context,
-        'user',
-        {
-            label: 'User',
-            visualizerStepId: step.id,
-            isBottomNode: true,
-        },
-        step.owningTaskId
+    // Only create bottom user node once, and only for the last response
+    // We'll check if this is the last top-level AGENT_RESPONSE_TEXT
+    const remainingSteps = context.steps.slice(context.stepIndex + 1);
+    const hasMoreTopLevelResponses = remainingSteps.some(
+        s => s.type === 'AGENT_RESPONSE_TEXT' && s.nestingLevel === 0
     );
 
-    context.rootNodes.push(userNode);
+    if (!hasMoreTopLevelResponses && !context.hasBottomUserNode) {
+        const userNode = createNode(
+            context,
+            'user',
+            {
+                label: 'User',
+                visualizerStepId: step.id,
+                isBottomNode: true,
+            },
+            step.owningTaskId
+        );
+
+        context.rootNodes.push(userNode);
+        context.hasBottomUserNode = true;
+    }
 }
 
 /**
@@ -325,10 +345,12 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
     const nodeType = step.data.workflowNodeExecutionStart?.nodeType;
     const nodeId = step.data.workflowNodeExecutionStart?.nodeId || 'unknown';
     const agentName = step.data.workflowNodeExecutionStart?.agentName;
+    const parentNodeId = step.data.workflowNodeExecutionStart?.parentNodeId;
+    const taskId = step.owningTaskId;
 
-    // Find parent group
-    const groupNode = findAgentForStep(step, context);
-    if (!groupNode) return;
+    // Check if this node is a child of a Map/Fork (parallel execution)
+    const parallelContainerKey = parentNodeId ? `${taskId}:${parentNodeId}` : null;
+    const parallelContainer = parallelContainerKey ? context.parallelContainerMap.get(parallelContainerKey) : null;
 
     // Determine node type and variant
     let type: LayoutNode['type'] = 'agent';
@@ -373,7 +395,48 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
         }
     }
 
-    groupNode.children.push(workflowNode);
+    // Handle Map/Fork nodes - these create parallel branches
+    if (nodeType === 'map' || nodeType === 'fork') {
+        // Find parent group
+        const groupNode = findAgentForStep(step, context);
+        if (!groupNode) return;
+
+        // Initialize parallel branches
+        workflowNode.parallelBranches = [];
+
+        // Store in parallel container map for child nodes to find
+        const containerKey = `${taskId}:${nodeId}`;
+        context.parallelContainerMap.set(containerKey, workflowNode);
+
+        // Add to parent group
+        groupNode.children.push(workflowNode);
+    }
+    // Handle nodes that are children of Map/Fork (parallel branches)
+    else if (parallelContainer) {
+        // Use iterationIndex to separate branches (each iteration gets its own branch)
+        const iterationIndex = step.data.workflowNodeExecutionStart?.iterationIndex ?? 0;
+        const branchKey = `${parallelContainerKey}:branch:${iterationIndex}`;
+        let currentBranch = context.currentBranchMap.get(branchKey);
+
+        if (!currentBranch) {
+            // Start a new branch for this iteration
+            currentBranch = [];
+            context.currentBranchMap.set(branchKey, currentBranch);
+            // Immediately add it to parallelBranches to preserve order
+            parallelContainer.parallelBranches!.push(currentBranch);
+        }
+
+        // Add this node to the current branch
+        currentBranch.push(workflowNode);
+    }
+    // Regular workflow node (not in parallel context)
+    else {
+        // Find parent group
+        const groupNode = findAgentForStep(step, context);
+        if (!groupNode) return;
+
+        groupNode.children.push(workflowNode);
+    }
 }
 
 /**
@@ -397,6 +460,46 @@ function handleWorkflowExecutionResult(step: VisualizerStep, context: BuildConte
     );
 
     groupNode.children.push(finishNode);
+}
+
+/**
+ * Handle WORKFLOW_NODE_EXECUTION_RESULT - cleanup and add Join node
+ */
+function handleWorkflowNodeResult(step: VisualizerStep, context: BuildContext): void {
+    const nodeId = step.data.workflowNodeExecutionResult?.nodeId;
+    const taskId = step.owningTaskId;
+
+    if (!nodeId) return;
+
+    const containerKey = `${taskId}:${nodeId}`;
+    const parallelContainer = context.parallelContainerMap.get(containerKey);
+
+    // If this result is for a Map/Fork node
+    if (parallelContainer) {
+        // Clean up the parallel container tracking
+        context.parallelContainerMap.delete(containerKey);
+
+        // Clean up all branch tracking for this container
+        Array.from(context.currentBranchMap.keys())
+            .filter(key => key.startsWith(`${containerKey}:branch:`))
+            .forEach(key => context.currentBranchMap.delete(key));
+
+        // Add a Join node after the Map/Fork
+        const groupNode = findAgentForStep(step, context);
+        if (groupNode) {
+            const joinNode = createNode(
+                context,
+                'agent',
+                {
+                    label: 'Join',
+                    variant: 'pill',
+                    visualizerStepId: step.id,
+                },
+                step.owningTaskId
+            );
+            groupNode.children.push(joinNode);
+        }
+    }
 }
 
 /**
@@ -454,13 +557,23 @@ function calculateLayout(rootNodes: LayoutNode[]): LayoutNode[] {
     // Second pass: position nodes centered
     let currentY = 50; // Start with offset from top
 
-    for (const node of rootNodes) {
+    for (let i = 0; i < rootNodes.length; i++) {
+        const node = rootNodes[i];
+        const nextNode = rootNodes[i + 1];
+
         // Center each node horizontally
         node.x = centerX - node.width / 2;
         node.y = currentY;
         positionNode(node);
 
-        currentY = node.y + node.height + SPACING.AGENT_VERTICAL;
+        // Use smaller spacing for User nodes (connector line spacing)
+        // Use larger spacing between agents
+        let spacing = SPACING.AGENT_VERTICAL;
+        if (node.type === 'user' || (nextNode && nextNode.type === 'user')) {
+            spacing = SPACING.VERTICAL;
+        }
+
+        currentY = node.y + node.height + spacing;
     }
 
     return rootNodes;

@@ -14,35 +14,6 @@ interface AgentNodeV2Props {
 }
 
 const AgentNodeV2: React.FC<AgentNodeV2Props> = ({ node, isSelected, onClick, onChildClick }) => {
-    // Pill variant for Start/Finish/Join nodes
-    if (node.data.variant === 'pill') {
-        const opacityClass = node.data.isSkipped ? "opacity-50" : "";
-        const borderStyleClass = node.data.isSkipped ? "border-dashed" : "border-solid";
-
-        return (
-            <div
-                className={`cursor-pointer rounded-full border-2 border-indigo-500 bg-indigo-50 px-4 py-2 text-indigo-900 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100 ${opacityClass} ${borderStyleClass} ${
-                    isSelected ? "ring-2 ring-blue-500" : ""
-                }`}
-                style={{
-                    width: `${node.width}px`,
-                    minWidth: "80px",
-                    textAlign: "center",
-                }}
-                onClick={() => onClick?.(node)}
-                title={node.data.description}
-            >
-                <div className="flex items-center justify-center">
-                    <div className="text-sm font-bold">{node.data.label}</div>
-                </div>
-            </div>
-        );
-    }
-
-    // Regular agent node with children
-    const opacityClass = node.data.isSkipped ? "opacity-50" : "";
-    const borderStyleClass = node.data.isSkipped ? "border-dashed" : "border-solid";
-
     // Render a child node recursively
     const renderChild = (child: LayoutNode) => {
         const childProps = {
@@ -67,13 +38,128 @@ const AgentNodeV2: React.FC<AgentNodeV2Props> = ({ node, isSelected, onClick, on
         }
     };
 
+    // Pill variant for Start/Finish/Join/Map/Fork nodes
+    if (node.data.variant === 'pill') {
+        const opacityClass = node.data.isSkipped ? "opacity-50" : "";
+        const borderStyleClass = node.data.isSkipped ? "border-dashed" : "border-solid";
+        const hasParallelBranches = node.parallelBranches && node.parallelBranches.length > 0;
+        const hasChildren = node.children && node.children.length > 0;
+
+        // If it's a simple pill (no parallel branches and no children), render compact version
+        if (!hasParallelBranches && !hasChildren) {
+            return (
+                <div
+                    className={`cursor-pointer rounded-full border-2 border-indigo-500 bg-indigo-50 px-4 py-2 text-indigo-900 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100 ${opacityClass} ${borderStyleClass} ${
+                        isSelected ? "ring-2 ring-blue-500" : ""
+                    }`}
+                    style={{
+                        width: `${node.width}px`,
+                        minWidth: "80px",
+                        textAlign: "center",
+                    }}
+                    onClick={() => onClick?.(node)}
+                    title={node.data.description}
+                >
+                    <div className="flex items-center justify-center">
+                        <div className="text-sm font-bold">{node.data.label}</div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Map/Fork pill with sequential children (flattened from parallel branches when detail is off)
+        if (hasChildren && !hasParallelBranches) {
+            return (
+                <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
+                    {/* Pill label */}
+                    <div
+                        className={`cursor-pointer rounded-full border-2 border-indigo-500 bg-indigo-50 px-4 py-2 text-indigo-900 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100 ${
+                            isSelected ? "ring-2 ring-blue-500" : ""
+                        }`}
+                        style={{
+                            minWidth: "80px",
+                            textAlign: "center",
+                        }}
+                        onClick={() => onClick?.(node)}
+                        title={node.data.description}
+                    >
+                        <div className="flex items-center justify-center">
+                            <div className="text-sm font-bold">{node.data.label}</div>
+                        </div>
+                    </div>
+
+                    {/* Connector line to children */}
+                    <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
+
+                    {/* Sequential children below */}
+                    {node.children.map((child, index) => (
+                        <React.Fragment key={child.id}>
+                            {renderChild(child)}
+                            {/* Connector line to next child */}
+                            {index < node.children.length - 1 && (
+                                <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
+                            )}
+                        </React.Fragment>
+                    ))}
+                </div>
+            );
+        }
+
+        // Map/Fork pill with parallel branches
+        return (
+            <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
+                {/* Pill label */}
+                <div
+                    className={`cursor-pointer rounded-full border-2 border-indigo-500 bg-indigo-50 px-4 py-2 text-indigo-900 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100 ${
+                        isSelected ? "ring-2 ring-blue-500" : ""
+                    }`}
+                    style={{
+                        minWidth: "80px",
+                        textAlign: "center",
+                    }}
+                    onClick={() => onClick?.(node)}
+                    title={node.data.description}
+                >
+                    <div className="flex items-center justify-center">
+                        <div className="text-sm font-bold">{node.data.label}</div>
+                    </div>
+                </div>
+
+                {/* Connector line to branches */}
+                <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
+
+                {/* Parallel branches below */}
+                <div className="p-4 border-2 border-indigo-200 dark:border-indigo-800 rounded-md bg-white dark:bg-gray-800">
+                    <div className="grid gap-4" style={{ gridAutoFlow: 'column', gridAutoColumns: '1fr' }}>
+                        {node.parallelBranches.map((branch, branchIndex) => (
+                            <div key={branchIndex} className="flex flex-col items-center">
+                                {branch.map((child, index) => (
+                                    <React.Fragment key={child.id}>
+                                        {renderChild(child)}
+                                        {/* Connector line to next child in branch */}
+                                        {index < branch.length - 1 && (
+                                            <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Regular agent node with children
+    const opacityClass = node.data.isSkipped ? "opacity-50" : "";
+    const borderStyleClass = node.data.isSkipped ? "border-dashed" : "border-solid";
+
     return (
         <div
             className={`rounded-md border-2 border-blue-700 bg-white shadow-md transition-all duration-200 ease-in-out hover:shadow-xl dark:border-blue-600 dark:bg-gray-800 ${opacityClass} ${borderStyleClass} ${
                 isSelected ? "ring-2 ring-blue-500" : ""
             }`}
             style={{
-                width: `${node.width}px`,
                 minWidth: "180px",
             }}
         >
@@ -113,10 +199,18 @@ const AgentNodeV2: React.FC<AgentNodeV2Props> = ({ node, isSelected, onClick, on
             {/* Parallel Branches */}
             {node.parallelBranches && node.parallelBranches.length > 0 && (
                 <div className="p-4 border-t-2 border-blue-200 dark:border-blue-800 rounded-b-md">
-                    <div className="flex gap-4">
+                    <div className="grid gap-4" style={{ gridAutoFlow: 'column', gridAutoColumns: '1fr' }}>
                         {node.parallelBranches.map((branch, branchIndex) => (
-                            <div key={branchIndex} className="flex flex-col gap-4 flex-1">
-                                {branch.map(renderChild)}
+                            <div key={branchIndex} className="flex flex-col items-center">
+                                {branch.map((child, index) => (
+                                    <React.Fragment key={child.id}>
+                                        {renderChild(child)}
+                                        {/* Connector line to next child in branch */}
+                                        {index < branch.length - 1 && (
+                                            <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
+                                        )}
+                                    </React.Fragment>
+                                ))}
                             </div>
                         ))}
                     </div>

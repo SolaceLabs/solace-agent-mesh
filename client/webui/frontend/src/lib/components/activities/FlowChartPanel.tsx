@@ -344,22 +344,20 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = props => {
 
     // Render version selector overlay
     const renderVersionSelector = () => (
-        <div className="absolute top-4 left-4 z-50">
+        <div className="absolute top-4 left-4 z-50 flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-2 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Layout
+            </span>
             <select
                 value={layoutVersion}
                 onChange={(e) => handleVersionChange(e.target.value as 'v1' | 'v2' | 'v3' | 'v4')}
-                className={`
-                    ${getThemeButtonHtmlStyles()}
-                    px-3 py-2 rounded-md text-sm font-medium
-                    cursor-pointer
-                    border border-gray-300 dark:border-gray-600
-                `}
+                className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer text-gray-900 dark:text-gray-100"
                 title="Select Layout Version"
             >
-                <option value="v4">V4: Hybrid (Containers + Tracks)</option>
-                <option value="v3">V3: Subway Graph</option>
-                <option value="v2">V2: Contained Layout</option>
-                <option value="v1">V1: React Flow (Original)</option>
+                <option value="v4">V4: Hybrid</option>
+                <option value="v3">V3: Subway</option>
+                <option value="v2">V2: Contained</option>
+                <option value="v1">V1: React Flow</option>
             </select>
         </div>
     );
