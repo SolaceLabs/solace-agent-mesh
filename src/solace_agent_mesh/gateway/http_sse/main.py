@@ -194,6 +194,112 @@ async def _create_user_state_with_identity_service(
 
     return user_state
 
+
+def _setup_alembic_config(database_url: str) -> Config:
+    alembic_cfg = Config()
+    alembic_cfg.set_main_option(
+        "script_location",
+        os.path.join(os.path.dirname(__file__), "alembic"),
+    )
+    alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+    return alembic_cfg
+
+
+def _run_community_migrations(database_url: str) -> None:
+    """
+    Run Alembic migrations for the community database schema.
+    This includes sessions, chat_messages tables and their indexes.
+    """
+    try:
+        from sqlalchemy import create_engine
+
+        log.info("Starting community migrations...")
+        engine = create_engine(database_url)
+        inspector = sa.inspect(engine)
+        existing_tables = inspector.get_table_names()
+
+        if not existing_tables or "sessions" not in existing_tables:
+            log.info("Running initial community database setup")
+            alembic_cfg = _setup_alembic_config(database_url)
+            command.upgrade(alembic_cfg, "head")
+            log.info("Community database migrations completed")
+        else:
+            log.info("Checking for community schema updates")
+            alembic_cfg = _setup_alembic_config(database_url)
+            command.upgrade(alembic_cfg, "head")
+            log.info("Community database schema is current")
+    except Exception as e:
+        log.warning(
+            "Community migration check failed: %s - attempting to run migrations",
+            e,
+        )
+        try:
+            alembic_cfg = _setup_alembic_config(database_url)
+            command.upgrade(alembic_cfg, "head")
+            log.info("Community database migrations completed")
+        except Exception as migration_error:
+            log.error("Community migration failed: %s", migration_error)
+            log.error("Check database connectivity and permissions")
+            raise RuntimeError(
+                f"Community database migration failed: {migration_error}"
+            ) from migration_error
+
+
+
+
+def _setup_database(
+    component: "WebUIBackendComponent",
+    database_url: str,
+) -> None:
+    """
+    Initialize database and run migrations for WebUI Gateway (chat only).
+
+    Platform database is no longer used by WebUI Gateway.
+    Platform migrations are handled by Platform Service.
+
+    Args:
+        component: WebUIBackendComponent instance
+        database_url: Chat database URL (sessions, tasks, feedback) - REQUIRED
+    """
+    dependencies.init_database(database_url)
+    log.info("Persistence enabled - sessions will be stored in database")
+    log.info("Running database migrations...")
+
+    _run_community_migrations(database_url)
+
+
+def _get_app_config(component: "WebUIBackendComponent") -> dict:
+    webui_app = component.get_app()
+    app_config = {}
+    if webui_app:
+        app_config = getattr(webui_app, "app_config", {})
+        if app_config is None:
+            log.warning("webui_app.app_config is None, using empty dict.")
+            app_config = {}
+    else:
+        log.warning("Could not get webui_app from component. Using empty app_config.")
+    return app_config
+
+
+def _create_api_config(app_config: dict, database_url: str) -> dict:
+    return {
+        "external_auth_service_url": app_config.get(
+            "external_auth_service_url", "http://localhost:8080"
+        ),
+        "external_auth_callback_uri": app_config.get(
+            "external_auth_callback_uri", "http://localhost:8000/api/v1/auth/callback"
+        ),
+        "external_auth_provider": app_config.get("external_auth_provider", "azure"),
+        "frontend_use_authorization": app_config.get(
+            "frontend_use_authorization", False
+        ),
+        "frontend_redirect_url": app_config.get(
+            "frontend_redirect_url", "http://localhost:3000"
+        ),
+        "persistence_enabled": database_url is not None,
+    }
+
+
 def setup_dependencies(
     component: "WebUIBackendComponent",
     database_url: str = None,
