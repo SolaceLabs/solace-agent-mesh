@@ -39,7 +39,7 @@ class ApiClient {
     chat = {
         get: (endpoint: string) => this.request(this.chatBaseUrl, endpoint),
 
-        post: (endpoint: string, body?: any, options?: RequestInit) => {
+        post: (endpoint: string, body?: unknown, options?: RequestInit) => {
             if (body === undefined || body === null) {
                 return this.request(this.chatBaseUrl, endpoint, {
                     ...options,
@@ -57,7 +57,7 @@ class ApiClient {
             });
         },
 
-        put: (endpoint: string, body?: any, options?: RequestInit) => {
+        put: (endpoint: string, body?: unknown, options?: RequestInit) => {
             if (body === undefined || body === null) {
                 return this.request(this.chatBaseUrl, endpoint, {
                     ...options,
@@ -81,7 +81,7 @@ class ApiClient {
                 method: "DELETE",
             }),
 
-        patch: (endpoint: string, body?: any, options?: RequestInit) => {
+        patch: (endpoint: string, body?: unknown, options?: RequestInit) => {
             if (body === undefined || body === null) {
                 return this.request(this.chatBaseUrl, endpoint, {
                     ...options,
@@ -103,7 +103,7 @@ class ApiClient {
     platform = {
         get: (endpoint: string) => this.request(this.platformBaseUrl, endpoint),
 
-        post: (endpoint: string, body?: any, options?: RequestInit) => {
+        post: (endpoint: string, body?: unknown, options?: RequestInit) => {
             if (body === undefined || body === null) {
                 return this.request(this.platformBaseUrl, endpoint, {
                     ...options,
@@ -121,7 +121,7 @@ class ApiClient {
             });
         },
 
-        put: (endpoint: string, body?: any, options?: RequestInit) => {
+        put: (endpoint: string, body?: unknown, options?: RequestInit) => {
             if (body === undefined || body === null) {
                 return this.request(this.platformBaseUrl, endpoint, {
                     ...options,
@@ -145,7 +145,7 @@ class ApiClient {
                 method: "DELETE",
             }),
 
-        patch: (endpoint: string, body?: any, options?: RequestInit) => {
+        patch: (endpoint: string, body?: unknown, options?: RequestInit) => {
             if (body === undefined || body === null) {
                 return this.request(this.platformBaseUrl, endpoint, {
                     ...options,

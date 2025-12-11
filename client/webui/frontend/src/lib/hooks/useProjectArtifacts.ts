@@ -22,8 +22,6 @@ export const useProjectArtifacts = (projectId?: string): UseProjectArtifactsRetu
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    const { chat: chatBaseUrl } = api.getBaseUrls();
-
     const fetchArtifacts = useCallback(async () => {
         if (!projectId) {
             setArtifacts([]);
@@ -35,8 +33,7 @@ export const useProjectArtifacts = (projectId?: string): UseProjectArtifactsRetu
         setError(null);
 
         try {
-            const url = `${chatBaseUrl}/api/v1/projects/${projectId}/artifacts`;
-            const data: ArtifactInfo[] = await api.chat.get(url);
+            const data: ArtifactInfo[] = await api.chat.get(`/api/v1/projects/${projectId}/artifacts`);
             setArtifacts(data);
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : "Failed to fetch project artifacts.";

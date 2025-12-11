@@ -183,6 +183,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     // Background Task Monitoring (placed after addNotification is defined)
+    const apiPrefix = `${chatBaseUrl}/api/v1`;
     const {
         backgroundTasks,
         notifications: backgroundNotifications,
@@ -417,7 +418,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             };
         });
-    }, []);
+    }, [extractArtifactMarkers]);
 
     // Helper function to apply migrations to a task
     const migrateTask = useCallback((task: any): any => {
@@ -1663,7 +1664,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setIsLoadingSession(false);
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, chatBaseUrl, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, chatBaseUrl, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError, backgroundTasks, checkTaskStatus, sessionId, unregisterBackgroundTask]
     );
 
     const updateSessionName = useCallback(
@@ -2169,7 +2170,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, chatBaseUrl, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, activeProject, cleanupUploadedFiles, setError]
+        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, activeProject, cleanupUploadedFiles, setError, backgroundTasksDefaultTimeoutMs, backgroundTasksEnabled, registerBackgroundTask]
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");

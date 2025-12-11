@@ -74,7 +74,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         } finally {
             setIsLoading(false);
         }
-    }, [ sessionId, activeProject?.id]);
+    }, [chatBaseUrl, sessionId, activeProject?.id]);
 
     useEffect(() => {
         fetchArtifacts();
