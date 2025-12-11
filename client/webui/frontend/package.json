@@ -159,6 +159,9 @@
         "@tailwindcss/oxide-darwin-arm64": "4.1.11",
         "@tailwindcss/oxide-darwin-x64": "4.1.11"
     },
+    "overrides": {
+        "cross-spawn": "^7.0.6"
+    },
     "msw": {
         "workerDirectory": [
             "public"
