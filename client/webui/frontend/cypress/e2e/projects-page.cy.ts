@@ -1,4 +1,4 @@
-import { CYPRESS_TAG, generateName } from "cypress/support/utils";
+import { generateName } from "cypress/support/utils";
 
 describe("Projects Page - Navigation and Layout", { tags: ["@community"] }, () => {
     beforeEach(() => {

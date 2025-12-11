@@ -2,7 +2,7 @@
 import "@testing-library/cypress/add-commands";
 
 import type { ByRoleOptions } from "@testing-library/dom";
-import { CYPRESS_TAG } from "./utils";
+import { CYPRESS_PREFIX } from "./utils";
 
 /* eslint-disable @typescript-eslint/no-namespace */
 declare global {
@@ -60,12 +60,12 @@ Cypress.Commands.add("navigateToProjects", () => {
 });
 
 Cypress.Commands.add("deleteCypressProjects", () => {
-    cy.log(`Cleaning up '${CYPRESS_TAG}' projects...`);
+    cy.log(`Cleaning up '${CYPRESS_PREFIX}' projects...`);
 
     cy.request("GET", "/api/v1/projects").then(response => {
         const projects = response.body.projects || [];
 
-        const projectsToDelete = projects.filter((project: any) => project.name && project.name.startsWith(CYPRESS_TAG));
+        const projectsToDelete = projects.filter((project: any) => project.name && project.name.startsWith(CYPRESS_PREFIX));
 
         cy.log(`Found ${projectsToDelete.length} projects to delete.`);
 
