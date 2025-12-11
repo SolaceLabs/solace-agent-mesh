@@ -10,7 +10,7 @@ describe("Projects Page - Navigation and Layout", { tags: ["@community"] }, () =
         cy.deleteCypressProjects();
     });
 
-    it("should create a project", () => {
+    it("should create a project and verify its details", () => {
         const projectName = generateName();
 
         cy.intercept("POST", "/api/v1/projects").as("createProject");
@@ -33,10 +33,8 @@ describe("Projects Page - Navigation and Layout", { tags: ["@community"] }, () =
             });
 
         cy.findByRole("dialog", { name: "Edit Project Instructions" }).within(() => {
-            // Find the textarea element directly within the dialog
             cy.get("textarea").type("You are a helpful assistant. Please respond only in French.");
 
-            // Click the Save button within the dialog
             cy.findByRole("button", { name: "Save" }).click();
         });
 
