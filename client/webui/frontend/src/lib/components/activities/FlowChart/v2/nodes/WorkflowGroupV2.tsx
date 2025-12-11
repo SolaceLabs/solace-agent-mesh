@@ -35,7 +35,6 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
             }`}
             style={{
                 width: `${node.width}px`,
-                minHeight: `${node.height}px`,
                 position: "relative",
             }}
             onClick={() => onClick?.(node)}
@@ -47,9 +46,17 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
                 </div>
             )}
 
-            {/* Children */}
-            <div className="p-6 flex flex-col gap-4 items-center">
-                {node.children.map(renderChild)}
+            {/* Children with inline connectors */}
+            <div className="p-6 flex flex-col items-center">
+                {node.children.map((child, index) => (
+                    <React.Fragment key={child.id}>
+                        {renderChild(child)}
+                        {/* Connector line to next child */}
+                        {index < node.children.length - 1 && (
+                            <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
+                        )}
+                    </React.Fragment>
+                ))}
             </div>
         </div>
     );

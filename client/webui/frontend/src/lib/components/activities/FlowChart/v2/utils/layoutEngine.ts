@@ -91,6 +91,9 @@ function processStep(step: VisualizerStep, context: BuildContext): void {
         case "WORKFLOW_NODE_EXECUTION_START":
             handleWorkflowNodeStart(step, context);
             break;
+        case "WORKFLOW_EXECUTION_RESULT":
+            handleWorkflowExecutionResult(step, context);
+            break;
         // Add other cases as needed
     }
 }
@@ -322,7 +325,6 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
     const nodeType = step.data.workflowNodeExecutionStart?.nodeType;
     const nodeId = step.data.workflowNodeExecutionStart?.nodeId || 'unknown';
     const agentName = step.data.workflowNodeExecutionStart?.agentName;
-    const label = agentName || nodeId;
 
     // Find parent group
     const groupNode = findAgentForStep(step, context);
@@ -331,11 +333,20 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
     // Determine node type and variant
     let type: LayoutNode['type'] = 'agent';
     let variant: 'default' | 'pill' = 'default';
+    let label: string;
 
     if (nodeType === 'conditional') {
         type = 'conditional';
-    } else if (nodeType === 'map' || nodeType === 'fork') {
+        label = 'Conditional';
+    } else if (nodeType === 'map') {
         variant = 'pill';
+        label = 'Map';
+    } else if (nodeType === 'fork') {
+        variant = 'pill';
+        label = 'Fork';
+    } else {
+        // Agent nodes use their actual name
+        label = agentName || nodeId;
     }
 
     const workflowNode = createNode(
@@ -348,6 +359,8 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
             condition: step.data.workflowNodeExecutionStart?.condition,
             trueBranch: step.data.workflowNodeExecutionStart?.trueBranch,
             falseBranch: step.data.workflowNodeExecutionStart?.falseBranch,
+            // Store the original nodeId for reference when clicked
+            nodeId,
         },
         step.owningTaskId
     );
@@ -361,6 +374,29 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
     }
 
     groupNode.children.push(workflowNode);
+}
+
+/**
+ * Handle WORKFLOW_EXECUTION_RESULT - creates Finish node
+ */
+function handleWorkflowExecutionResult(step: VisualizerStep, context: BuildContext): void {
+    // Find the workflow group node by owningTaskId (which should be the execution ID)
+    const groupNode = findAgentForStep(step, context);
+    if (!groupNode) return;
+
+    // Create Finish node
+    const finishNode = createNode(
+        context,
+        'agent',
+        {
+            label: 'Finish',
+            variant: 'pill',
+            visualizerStepId: step.id,
+        },
+        step.owningTaskId
+    );
+
+    groupNode.children.push(finishNode);
 }
 
 /**
@@ -542,8 +578,10 @@ function measureGroupNode(node: LayoutNode): void {
         contentHeight -= SPACING.VERTICAL;
     }
 
-    node.width = contentWidth + (SPACING.PADDING * 2);
-    node.height = contentHeight + (SPACING.PADDING * 2) + 30; // Extra for label
+    // Group uses p-6 (24px) padding in WorkflowGroupV2
+    const groupPadding = 24;
+    node.width = contentWidth + (groupPadding * 2);
+    node.height = contentHeight + (groupPadding * 2);
 }
 
 /**

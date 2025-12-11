@@ -1,4 +1,5 @@
 import React from "react";
+import { Bot } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 import LLMNodeV2 from "./LLMNodeV2";
 import ToolNodeV2 from "./ToolNodeV2";
@@ -78,25 +79,40 @@ const AgentNodeV2: React.FC<AgentNodeV2Props> = ({ node, isSelected, onClick, on
         >
             {/* Header */}
             <div
-                className="cursor-pointer border-b-2 border-blue-700 bg-blue-50 px-4 py-3 dark:border-blue-600 dark:bg-gray-700"
+                className={`cursor-pointer bg-blue-50 px-4 py-3 dark:bg-gray-700 ${
+                    node.children.length === 0 && (!node.parallelBranches || node.parallelBranches.length === 0)
+                        ? 'rounded-md'  // No content below, round all corners
+                        : 'rounded-t-md'  // Content below, round only top
+                }`}
                 onClick={() => onClick?.(node)}
                 title={node.data.description}
             >
-                <div className="text-center text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
-                    {node.data.label}
+                <div className="flex items-center justify-center gap-2">
+                    <Bot className="h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+                    <div className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
+                        {node.data.label}
+                    </div>
                 </div>
             </div>
 
-            {/* Content - Children */}
+            {/* Content - Children with inline connectors */}
             {node.children.length > 0 && (
-                <div className="p-4 flex flex-col gap-4 items-center">
-                    {node.children.map(renderChild)}
+                <div className={`p-4 flex flex-col items-center ${!node.parallelBranches || node.parallelBranches.length === 0 ? 'rounded-b-md' : ''}`}>
+                    {node.children.map((child, index) => (
+                        <React.Fragment key={child.id}>
+                            {renderChild(child)}
+                            {/* Connector line to next child */}
+                            {index < node.children.length - 1 && (
+                                <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
+                            )}
+                        </React.Fragment>
+                    ))}
                 </div>
             )}
 
             {/* Parallel Branches */}
             {node.parallelBranches && node.parallelBranches.length > 0 && (
-                <div className="p-4 border-t-2 border-blue-200 dark:border-blue-800">
+                <div className="p-4 border-t-2 border-blue-200 dark:border-blue-800 rounded-b-md">
                     <div className="flex gap-4">
                         {node.parallelBranches.map((branch, branchIndex) => (
                             <div key={branchIndex} className="flex flex-col gap-4 flex-1">

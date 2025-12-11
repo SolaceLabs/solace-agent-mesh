@@ -24,6 +24,8 @@ import OrchestratorAgentNode from "./FlowChart/customNodes/OrchestratorAgentNode
 import UserNode from "./FlowChart/customNodes/UserNode";
 import { VisualizerStepCard } from "./VisualizerStepCard";
 import { FlowChartPanelV2 } from "./FlowChart/v2";
+import { FlowChartPanelV3 } from "./FlowChart/v3";
+import { FlowChartPanelV4 } from "./FlowChart/v4";
 
 interface FlowChartPanelProps {
     processedSteps: VisualizerStep[];
@@ -324,17 +326,78 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
 };
 
 const FlowChartPanel: React.FC<FlowChartPanelProps> = props => {
-    // Use V2 by default - set to false to use legacy React Flow layout
-    const useV2Layout = true;
+    // Layout versions:
+    // 'v1' = React Flow (original)
+    // 'v2' = Contained layout (tools inside agents)
+    // 'v3' = Subway/git-style graph
+    // 'v4' = Hybrid: contained agents + subway tracks (default)
+    const [layoutVersion, setLayoutVersion] = useState<'v1' | 'v2' | 'v3' | 'v4'>(() => {
+        // Load from localStorage or default to v4
+        const stored = localStorage.getItem('flowChartLayoutVersion');
+        return (stored as 'v1' | 'v2' | 'v3' | 'v4') || 'v4';
+    });
 
-    if (useV2Layout) {
-        return <FlowChartPanelV2 {...props} />;
+    const handleVersionChange = useCallback((version: 'v1' | 'v2' | 'v3' | 'v4') => {
+        setLayoutVersion(version);
+        localStorage.setItem('flowChartLayoutVersion', version);
+    }, []);
+
+    // Render version selector overlay
+    const renderVersionSelector = () => (
+        <div className="absolute top-4 left-4 z-50">
+            <select
+                value={layoutVersion}
+                onChange={(e) => handleVersionChange(e.target.value as 'v1' | 'v2' | 'v3' | 'v4')}
+                className={`
+                    ${getThemeButtonHtmlStyles()}
+                    px-3 py-2 rounded-md text-sm font-medium
+                    cursor-pointer
+                    border border-gray-300 dark:border-gray-600
+                `}
+                title="Select Layout Version"
+            >
+                <option value="v4">V4: Hybrid (Containers + Tracks)</option>
+                <option value="v3">V3: Subway Graph</option>
+                <option value="v2">V2: Contained Layout</option>
+                <option value="v1">V1: React Flow (Original)</option>
+            </select>
+        </div>
+    );
+
+    if (layoutVersion === 'v4') {
+        return (
+            <div className="relative w-full h-full">
+                {renderVersionSelector()}
+                <FlowChartPanelV4 {...props} />
+            </div>
+        );
+    }
+
+    if (layoutVersion === 'v3') {
+        return (
+            <div className="relative w-full h-full">
+                {renderVersionSelector()}
+                <FlowChartPanelV3 {...props} />
+            </div>
+        );
+    }
+
+    if (layoutVersion === 'v2') {
+        return (
+            <div className="relative w-full h-full">
+                {renderVersionSelector()}
+                <FlowChartPanelV2 {...props} />
+            </div>
+        );
     }
 
     return (
-        <ReactFlowProvider>
-            <FlowRenderer {...props} />
-        </ReactFlowProvider>
+        <div className="relative w-full h-full">
+            {renderVersionSelector()}
+            <ReactFlowProvider>
+                <FlowRenderer {...props} />
+            </ReactFlowProvider>
+        </div>
     );
 };
 

@@ -1,42 +1,72 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import type { VisualizerStep } from "@/lib/types";
 import { PopoverManual } from "@/lib/components/ui";
 import { useTaskContext } from "@/lib/hooks";
 import { useAgentCards } from "@/lib/hooks";
 import { getThemeButtonHtmlStyles } from "@/lib/utils";
-import WorkflowRendererV2 from "./WorkflowRendererV2";
-import type { LayoutNode, Edge } from "./utils/types";
+import { processStepsToSubway } from "./utils/subwayEngine";
+import type { SubwayStop, TrackSegment } from "./utils/types";
+import SubwayStopComponent from "./components/SubwayStop";
+import SubwayTracks from "./components/SubwayTracks";
 import { VisualizerStepCard } from "../../VisualizerStepCard";
 
-interface FlowChartPanelV2Props {
+interface FlowChartPanelV3Props {
     processedSteps: VisualizerStep[];
     isRightPanelVisible?: boolean;
     isSidePanelTransitioning?: boolean;
 }
 
-// Stable offset object to prevent unnecessary re-renders
 const POPOVER_OFFSET = { x: 16, y: 0 };
+const LANE_WIDTH = 40;
+const LEFT_MARGIN = 50;
 
-const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
+const FlowChartPanelV3: React.FC<FlowChartPanelV3Props> = ({
     processedSteps,
-    isRightPanelVisible = false
+    isRightPanelVisible = false,
 }) => {
     const { highlightedStepId, setHighlightedStepId } = useTaskContext();
     const { agentNameMap } = useAgentCards();
 
-    // Popover state
     const [selectedStep, setSelectedStep] = useState<VisualizerStep | null>(null);
     const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+    const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
     const popoverAnchorRef = useRef<HTMLDivElement>(null);
 
-    // Show detail toggle - controls whether to show nested agent internals
-    const [showDetail, setShowDetail] = useState(true);
+    // Process steps into subway graph
+    const subwayGraph = useMemo(() => {
+        if (!processedSteps || processedSteps.length === 0) {
+            return { stops: [], tracks: [], branches: [], totalLanes: 1, totalHeight: 600 };
+        }
 
-    // Handle node click
-    const handleNodeClick = useCallback(
-        (node: LayoutNode) => {
-            const stepId = node.data.visualizerStepId;
+        try {
+            return processStepsToSubway(processedSteps, agentNameMap);
+        } catch (error) {
+            console.error("[FlowChartPanelV3] Error processing steps:", error);
+            return { stops: [], tracks: [], branches: [], totalLanes: 1, totalHeight: 600 };
+        }
+    }, [processedSteps, agentNameMap]);
+
+    // Calculate lane X positions
+    const laneXPositions = useMemo(() => {
+        const positions: number[] = [];
+        for (let i = 0; i < subwayGraph.totalLanes; i++) {
+            positions.push(LEFT_MARGIN + i * LANE_WIDTH);
+        }
+        return positions;
+    }, [subwayGraph.totalLanes]);
+
+    // Calculate total width
+    const totalWidth = useMemo(() => {
+        const laneAreaWidth = subwayGraph.totalLanes * LANE_WIDTH + LEFT_MARGIN;
+        const labelAreaWidth = 300;
+        return laneAreaWidth + labelAreaWidth + 100; // Add margin
+    }, [subwayGraph.totalLanes]);
+
+    // Handle stop click
+    const handleStopClick = useCallback(
+        (stop: SubwayStop) => {
+            const stepId = stop.visualizerStepId;
             if (!stepId) return;
 
             const step = processedSteps.find(s => s.id === stepId);
@@ -44,10 +74,7 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
 
             setHighlightedStepId(stepId);
 
-            if (isRightPanelVisible) {
-                // Right panel is open, just highlight
-            } else {
-                // Show popover
+            if (!isRightPanelVisible) {
                 setSelectedStep(step);
                 setIsPopoverOpen(true);
             }
@@ -55,21 +82,19 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
         [processedSteps, isRightPanelVisible, setHighlightedStepId]
     );
 
-    // Handle edge click
-    const handleEdgeClick = useCallback(
-        (edge: Edge) => {
-            const stepId = edge.visualizerStepId;
+    // Handle track click
+    const handleTrackClick = useCallback(
+        (track: TrackSegment) => {
+            const stepId = track.visualizerStepId;
             if (!stepId) return;
 
             const step = processedSteps.find(s => s.id === stepId);
             if (!step) return;
 
             setHighlightedStepId(stepId);
+            setSelectedTrackId(track.id);
 
-            if (isRightPanelVisible) {
-                // Right panel is open, just highlight
-            } else {
-                // Show popover
+            if (!isRightPanelVisible) {
                 setSelectedStep(step);
                 setIsPopoverOpen(true);
             }
@@ -77,57 +102,42 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
         [processedSteps, isRightPanelVisible, setHighlightedStepId]
     );
 
-    // Handle popover close
     const handlePopoverClose = useCallback(() => {
         setIsPopoverOpen(false);
         setSelectedStep(null);
+        setSelectedTrackId(null);
     }, []);
 
-    // Handle pane click (clear selection)
     const handlePaneClick = useCallback(
         (event: React.MouseEvent) => {
-            // Only clear if clicking on the wrapper itself, not on nodes
             if (event.target === event.currentTarget) {
                 setHighlightedStepId(null);
+                setSelectedTrackId(null);
                 handlePopoverClose();
             }
         },
         [setHighlightedStepId, handlePopoverClose]
     );
 
+    if (subwayGraph.stops.length === 0) {
+        return (
+            <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
+                {processedSteps.length > 0 ? "Processing subway graph..." : "No steps to display."}
+            </div>
+        );
+    }
+
     return (
         <div style={{ height: "100%", width: "100%" }} className="relative">
             <TransformWrapper
                 initialScale={1}
-                minScale={0.2}
-                maxScale={2}
+                minScale={0.3}
+                maxScale={3}
                 centerOnInit
                 limitToBounds={false}
-                panning={{ disabled: false }}
-                wheel={{ step: 0.1 }}
             >
                 {({ zoomIn, zoomOut, resetTransform }) => (
                     <>
-                        {/* Show Detail Toggle Switch */}
-                        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-2 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Show Detail
-                            </span>
-                            <button
-                                onClick={() => setShowDetail(!showDetail)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                    showDetail ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
-                                }`}
-                                title={showDetail ? "Hide nested agent details" : "Show nested agent details"}
-                            >
-                                <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                        showDetail ? "translate-x-6" : "translate-x-1"
-                                    }`}
-                                />
-                            </button>
-                        </div>
-
                         {/* Zoom Controls */}
                         <div className="absolute top-4 right-4 z-50 flex flex-col gap-2">
                             <button
@@ -154,14 +164,8 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
                         </div>
 
                         <TransformComponent
-                            wrapperStyle={{
-                                width: "100%",
-                                height: "100%",
-                            }}
-                            contentStyle={{
-                                width: "100%",
-                                height: "100%",
-                            }}
+                            wrapperStyle={{ width: "100%", height: "100%" }}
+                            contentStyle={{ width: "100%", height: "100%" }}
                         >
                             <div
                                 className="bg-gray-50 dark:bg-gray-900"
@@ -172,24 +176,40 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
                                 }}
                                 onClick={handlePaneClick}
                             >
-                                <WorkflowRendererV2
-                                    processedSteps={processedSteps}
-                                    agentNameMap={agentNameMap}
-                                    selectedStepId={highlightedStepId}
-                                    onNodeClick={handleNodeClick}
-                                    onEdgeClick={handleEdgeClick}
-                                    showDetail={showDetail}
-                                />
+                                <svg
+                                    width={totalWidth}
+                                    height={subwayGraph.totalHeight}
+                                    style={{ overflow: "visible" }}
+                                >
+                                    {/* Render tracks */}
+                                    <SubwayTracks
+                                        tracks={subwayGraph.tracks}
+                                        branches={subwayGraph.branches}
+                                        laneXPositions={laneXPositions}
+                                        selectedTrackId={selectedTrackId}
+                                        onTrackClick={handleTrackClick}
+                                    />
+
+                                    {/* Render stops */}
+                                    {subwayGraph.stops.map(stop => (
+                                        <SubwayStopComponent
+                                            key={stop.id}
+                                            stop={stop}
+                                            laneX={laneXPositions[stop.laneIndex] || 0}
+                                            isSelected={stop.visualizerStepId === highlightedStepId}
+                                            onClick={handleStopClick}
+                                        />
+                                    ))}
+                                </svg>
                             </div>
                         </TransformComponent>
 
-                        {/* Popover anchor point */}
                         <div ref={popoverAnchorRef} style={{ position: "absolute", top: "50%", right: "50px" }} />
                     </>
                 )}
             </TransformWrapper>
 
-            {/* Edge/Node Information Popover */}
+            {/* Popover */}
             <PopoverManual
                 isOpen={isPopoverOpen}
                 onClose={handlePopoverClose}
@@ -204,4 +224,4 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
     );
 };
 
-export default FlowChartPanelV2;
+export default FlowChartPanelV3;
