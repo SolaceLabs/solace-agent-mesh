@@ -32,6 +32,11 @@ import { createMemoryRouter, RouterProvider } from "react-router-dom";
  */
 export const withProviders: Decorator = (Story: StoryFn, context: StoryContext) => {
     // Extract mock values from story parameters or args
+    const authContextValues = {
+        ...(context.parameters.authContext || {}),
+        ...(context.args.authContext || {}),
+    };
+
     const chatContextValues = {
         ...(context.parameters.chatContext || {}),
         ...(context.args.chatContext || {}),
@@ -59,7 +64,7 @@ export const withProviders: Decorator = (Story: StoryFn, context: StoryContext) 
         {
             path: "*",
             element: (
-                <StoryProvider chatContextValues={chatContextValues} taskContextValues={taskContextValues} configContextValues={configContextValues} routerValues={routerValues}>
+                <StoryProvider authContextValues={authContextValues} chatContextValues={chatContextValues} taskContextValues={taskContextValues} configContextValues={configContextValues} routerValues={routerValues}>
                     <div style={{ height: "100vh", width: "100vw" }}>{Story(context.args, context)}</div>
                 </StoryProvider>
             ),
