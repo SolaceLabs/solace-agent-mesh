@@ -2,6 +2,7 @@
 import "@testing-library/cypress/add-commands";
 
 import type { ByRoleOptions } from "@testing-library/dom";
+import { CYPRESS_TAG } from "./utils";
 
 /* eslint-disable @typescript-eslint/no-namespace */
 declare global {
@@ -18,6 +19,8 @@ declare global {
             startNewChat(): Chainable;
             navigateToChat(): Chainable;
             navigateToAgents(): Chainable;
+            navigateToProjects(): Chainable;
+            deleteCypressProjects(): Chainable<void>;
         }
         interface SuiteConfigOverrides {
             tags?: string[];
@@ -51,4 +54,32 @@ Cypress.Commands.add("navigateToAgents", () => {
     cy.findByRole("button", { name: "Agents" }).should("be.visible").click();
 });
 
-export {};
+Cypress.Commands.add("navigateToProjects", () => {
+    cy.log("Navigating to Projects page");
+    cy.findByRole("button", { name: "Projects" }).should("be.visible").click();
+});
+
+Cypress.Commands.add("deleteCypressProjects", () => {
+    cy.log(`Cleaning up '${CYPRESS_TAG}' projects...`);
+
+    // 1. Fetch all projects
+    cy.request("GET", "/api/v1/projects").then(response => {
+        // Correctly access the 'projects' array from the response body
+        const projects = response.body.projects || [];
+
+        const projectsToDelete = projects.filter((project: any) => project.name && project.name.startsWith(CYPRESS_TAG));
+
+        cy.log(`Found ${projectsToDelete.length} projects to delete.`);
+
+        // 3. Delete each one
+        projectsToDelete.forEach((project: any) => {
+            cy.request({
+                method: "DELETE",
+                url: `/api/v1/projects/${project.id}`,
+                failOnStatusCode: false,
+            });
+        });
+    });
+});
+
+export { CYPRESS_TAG };
