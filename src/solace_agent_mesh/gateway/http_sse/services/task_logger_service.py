@@ -567,6 +567,18 @@ class TaskLoggerService:
             # Import here to avoid circular dependency
             from ..repository.chat_task_repository import ChatTaskRepository
             from ..repository.entities import ChatTask
+            from ..repository.session_repository import SessionRepository
+            
+            # Check if the session exists in this database
+            # Skip saving chat_tasks for sessions from other gateways (e.g., Slack)
+            session_repo = SessionRepository()
+            existing_session = session_repo.find_by_id(db, session_id)
+            if not existing_session:
+                log.info(
+                    f"{self.log_identifier} Session {session_id} not found in webui_gateway database "
+                    f"(likely from another gateway like Slack). Skipping chat message save for task {task_id}"
+                )
+                return
             
             # Create and save the chat task
             chat_task = ChatTask(
