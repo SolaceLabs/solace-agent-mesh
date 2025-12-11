@@ -4,6 +4,9 @@ This comprehensive reference provides configuration snippets, field descriptions
 
 ## Table of Contents
 
+- [Configuration File Structure](#configuration-file-structure)
+- [Log Configuration](#log-configuration)
+- [Apps Configuration](#apps-configuration)
 - [Shared Configuration](#shared-configuration)
 - [Agent Configuration](#agent-configuration)
 - [Gateway Configuration](#gateway-configuration)
@@ -13,14 +16,143 @@ This comprehensive reference provides configuration snippets, field descriptions
 
 ---
 
+## Configuration File Structure
+
+All Solace Agent Mesh configuration files follow a consistent YAML structure with three main top-level sections:
+
+```yaml
+# Logging configuration
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: agent.log
+
+# Include shared configuration (optional)
+!include ../shared_config.yaml
+
+# Application definitions
+apps:
+  - name: my_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      # Broker connection settings
+    app_config:
+      # Application-specific configuration
+```
+
+### Configuration Sections Overview
+
+1. **`log`**: Controls logging behavior for the application
+2. **`shared_config`** (via `!include`): Reusable configuration anchors for broker connections, models, and services
+3. **`apps`**: List of application instances to run (agents, gateways, etc.)
+
+---
+
+## Log Configuration
+
+The `log` section configures logging output for the application.
+
+### Complete Log Configuration Example
+
+```yaml
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: agent.log
+```
+
+### Log Configuration Fields
+
+- **`stdout_log_level`** (`string`, **required**): Logging level for console output
+  - **Valid Values**: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
+  - **Default**: `INFO`
+  - **Description**: Controls the verbosity of logs printed to standard output
+
+- **`log_file_level`** (`string`, optional): Logging level for file output
+  - **Valid Values**: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
+  - **Default**: Same as `stdout_log_level`
+  - **Description**: Controls the verbosity of logs written to the log file. Typically set to `DEBUG` for detailed troubleshooting
+
+- **`log_file`** (`string`, optional): Path to the log file
+  - **Example**: `agent.log`, `/var/log/sam/agent.log`
+  - **Description**: File path where logs will be written. If not specified, file logging is disabled
+
+---
+
+## Apps Configuration
+
+The `apps` section defines one or more application instances to run. Each app represents an agent, gateway, or other SAM component.
+
+### Complete Apps Configuration Example
+
+```yaml
+apps:
+  - name: my_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    
+    broker:
+      <<: *broker_connection
+      # Additional broker settings can override anchor values
+    
+    broker_request_response:
+      enabled: true
+      timeout_ms: 30000
+    
+    app_config:
+      # Application-specific configuration
+      namespace: "myorg/ai-agents"
+      agent_name: "MyAgent"
+      # ... additional config
+```
+
+### Apps Configuration Fields
+
+#### Top-Level App Fields
+
+- **`name`** (`string`, **required**): Unique identifier for this application instance
+  - **Example**: `my_agent_app`, `webui_gateway_app`
+  - **Description**: Used for logging and internal identification
+
+- **`app_base_path`** (`string`, **required**): Base path for module resolution
+  - **Valid Values**: `.` (current directory), or absolute/relative path
+  - **Default**: `.`
+  - **Description**: Base directory for resolving Python modules
+
+- **`app_module`** (`string`, **required**): Python module path for the application class
+  - **Valid Values**:
+    - `solace_agent_mesh.agent.sac.app` - For agents
+    - `solace_agent_mesh.gateway.http_sse.app` - For WebUI gateway
+    - `solace_agent_mesh.gateway.generic.app` - For custom gateways
+    - `solace_agent_mesh.agent.proxies.a2a.app` - For A2A proxy
+  - **Description**: Specifies which SAM application type to instantiate
+
+- **`broker`** (`object`, **required**): Broker connection configuration
+  - **Description**: Defines how the application connects to the Solace PubSub+ broker
+  - **See**: [Broker Configuration](#broker-configuration) for detailed fields
+
+- **`broker_request_response`** (`object`, optional): Request-response messaging configuration
+  - **Fields**:
+    - `enabled` (`boolean`): Enable request-response pattern
+    - `timeout_ms` (`integer`): Request timeout in milliseconds
+  - **Default**: `{ enabled: true, timeout_ms: 30000 }`
+
+- **`app_config`** (`object`, **required**): Application-specific configuration
+  - **Description**: Configuration specific to the application type (agent, gateway, etc.)
+  - **See**: [Agent Configuration](#agent-configuration) or [Gateway Configuration](#gateway-configuration)
+
+---
+
 ## Shared Configuration
 
-Shared configuration provides common settings that can be referenced across multiple components using YAML anchors.
+Shared configuration provides common settings that can be referenced across multiple components using YAML anchors. This promotes configuration reuse and consistency across agents and gateways.
 
 ### Complete Shared Config Example
 
 ```yaml
 shared_config:
+  # Broker Connection Configuration
   - broker_connection: &broker_connection
       dev_mode: ${SOLACE_DEV_MODE, false}
       broker_url: ${SOLACE_BROKER_URL, ws://localhost:8008}
@@ -29,78 +161,295 @@ shared_config:
       broker_vpn: ${SOLACE_BROKER_VPN, default}
       temporary_queue: ${USE_TEMPORARY_QUEUES, true}
       
+  # Model Configurations
   - models:
-    planning: &planning_model
-      model: ${LLM_SERVICE_PLANNING_MODEL_NAME}
-      api_base: ${LLM_SERVICE_ENDPOINT}
-      api_key: ${LLM_SERVICE_API_KEY}
-      parallel_tool_calls: true
-      cache_strategy: "5m"  # none, 5m, 1h
-      # max_tokens: ${MAX_TOKENS, 16000}
-      # temperature: 0.1
+      # Planning model for complex reasoning tasks
+      planning: &planning_model
+        model: ${LLM_SERVICE_PLANNING_MODEL_NAME}
+        api_base: ${LLM_SERVICE_ENDPOINT}
+        api_key: ${LLM_SERVICE_API_KEY}
+        parallel_tool_calls: true
+        max_tokens: ${MAX_TOKENS, 16000}
+        temperature: 0.1
+        cache_strategy: "5m"
 
-    general: &general_model
-      model: ${LLM_SERVICE_GENERAL_MODEL_NAME}
-      api_base: ${LLM_SERVICE_ENDPOINT}
-      api_key: ${LLM_SERVICE_API_KEY}
-      cache_strategy: "5m"
+      # General purpose model
+      general: &general_model
+        model: ${LLM_SERVICE_GENERAL_MODEL_NAME}
+        api_base: ${LLM_SERVICE_ENDPOINT}
+        api_key: ${LLM_SERVICE_API_KEY}
+        cache_strategy: "5m"
 
-    image_gen: &image_generation_model
-      model: ${IMAGE_MODEL_NAME}
-      api_base: ${IMAGE_SERVICE_ENDPOINT}
-      api_key: ${IMAGE_SERVICE_API_KEY}
+      # Image generation model
+      image_gen: &image_generation_model
+        model: ${IMAGE_MODEL_NAME}
+        api_base: ${IMAGE_SERVICE_ENDPOINT}
+        api_key: ${IMAGE_SERVICE_API_KEY}
 
-    oauth_planning: &oauth_planning_model
-      model: ${LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME}
-      api_base: ${LLM_SERVICE_OAUTH_ENDPOINT}
-      oauth_token_url: ${LLM_SERVICE_OAUTH_TOKEN_URL}
-      oauth_client_id: ${LLM_SERVICE_OAUTH_CLIENT_ID}
-      oauth_client_secret: ${LLM_SERVICE_OAUTH_CLIENT_SECRET}
-      oauth_scope: ${LLM_SERVICE_OAUTH_SCOPE}
-      oauth_token_refresh_buffer_seconds: ${LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
-      parallel_tool_calls: true
+      # Image description model
+      image_describe: &image_description_model
+        model: ${IMAGE_DESCRIPTION_MODEL_NAME}
+        api_base: ${IMAGE_SERVICE_ENDPOINT}
+        api_key: ${IMAGE_SERVICE_API_KEY}
 
+      # Audio transcription model
+      audio_transcription: &audio_transcription_model
+        model: ${AUDIO_TRANSCRIPTION_MODEL_NAME}
+        api_base: ${AUDIO_TRANSCRIPTION_API_BASE}
+        api_key: ${AUDIO_TRANSCRIPTION_API_KEY}
+
+      # Report generation model
+      report_gen: &report_generation_model
+        model: ${LLM_REPORT_MODEL_NAME}
+        api_base: ${LLM_SERVICE_ENDPOINT}
+        api_key: ${LLM_SERVICE_API_KEY}
+
+      # Multimodal model (simple string reference)
+      multimodal: &multimodal_model "gemini-2.5-flash-preview-04-17"
+      
+      # Gemini Pro model (simple string reference)
+      gemini_pro: &gemini_pro_model "gemini-2.5-pro-exp-03-25"
+
+      # OAuth-authenticated planning model
+      oauth_planning: &oauth_planning_model
+        model: ${LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME}
+        api_base: ${LLM_SERVICE_OAUTH_ENDPOINT}
+        oauth_token_url: ${LLM_SERVICE_OAUTH_TOKEN_URL}
+        oauth_client_id: ${LLM_SERVICE_OAUTH_CLIENT_ID}
+        oauth_client_secret: ${LLM_SERVICE_OAUTH_CLIENT_SECRET}
+        oauth_scope: ${LLM_SERVICE_OAUTH_SCOPE}
+        oauth_token_refresh_buffer_seconds: ${LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
+        parallel_tool_calls: true
+        max_tokens: ${MAX_TOKENS, 16000}
+        temperature: 0.1
+
+      # OAuth-authenticated general model
+      oauth_general: &oauth_general_model
+        model: ${LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME}
+        api_base: ${LLM_SERVICE_OAUTH_ENDPOINT}
+        oauth_token_url: ${LLM_SERVICE_OAUTH_TOKEN_URL}
+        oauth_client_id: ${LLM_SERVICE_OAUTH_CLIENT_ID}
+        oauth_client_secret: ${LLM_SERVICE_OAUTH_CLIENT_SECRET}
+        oauth_scope: ${LLM_SERVICE_OAUTH_SCOPE}
+        oauth_token_refresh_buffer_seconds: ${LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
+
+  # Service Configurations
   - services:
-    session_service: &default_session_service
-      type: "memory"
-      default_behavior: "PERSISTENT"
-    
-    artifact_service: &default_artifact_service
-      type: "filesystem"
-      base_path: "/tmp/samv2"
-      artifact_scope: "namespace"
-    
-    data_tools_config: &default_data_tools_config
-      sqlite_memory_threshold_mb: 100
-      max_result_preview_rows: 50
-      max_result_preview_bytes: 4096
+      # Default session service
+      session_service: &default_session_service
+        type: "sql"
+        default_behavior: "PERSISTENT"
+        database_url: ${SESSION_DATABASE_URL, sqlite:///session.db}
+      
+      # Default artifact service
+      artifact_service: &default_artifact_service
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      
+      # Default data tools configuration
+      data_tools_config: &default_data_tools_config
+        sqlite_memory_threshold_mb: 100
+        max_result_preview_rows: 50
+        max_result_preview_bytes: 4096
 ```
 
-### Field Descriptions
+### Broker Connection Section
+
+The `broker_connection` anchor defines how components connect to the Solace PubSub+ broker.
 
 #### Broker Connection Fields
-- **`dev_mode`** (`boolean`): Enable development mode for simplified broker setup
-- **`broker_url`** (`string`): Solace broker connection URL
-- **`broker_username`** (`string`): Authentication username
-- **`broker_password`** (`string`): Authentication password  
-- **`broker_vpn`** (`string`): Solace VPN name
-- **`temporary_queue`** (`boolean`): Use temporary queues for messaging
 
-#### Model Configuration Fields
-- **`model`** (`string`): LLM model identifier
-- **`api_base`** (`string`): LLM service endpoint URL
-- **`api_key`** (`string`): Authentication API key
-- **`parallel_tool_calls`** (`boolean`): Enable parallel tool execution
-- **`cache_strategy`** (`string`): Caching strategy - `none`, `5m`, `1h`
-- **`max_tokens`** (`integer`): Maximum token limit
-- **`temperature`** (`float`): Model temperature for randomness
+- **`dev_mode`** (`boolean`): Enable development mode for simplified broker setup
+  - **Valid Values**: `true`, `false`
+  - **Default**: `false`
+  - **Description**: Simplifies broker configuration for local development. When enabled, uses relaxed security settings
+
+- **`broker_url`** (`string`, **required**): Solace broker connection URL
+  - **Valid Values**: WebSocket URLs (`ws://` or `wss://`)
+  - **Examples**:
+    - `ws://localhost:8008` - Local development
+    - `wss://broker.example.com:443` - Production with TLS
+  - **Description**: The WebSocket endpoint for connecting to the Solace broker
+
+- **`broker_username`** (`string`, **required**): Authentication username
+  - **Default**: `default`
+  - **Description**: Username for broker authentication
+
+- **`broker_password`** (`string`, **required**): Authentication password
+  - **Default**: `default`
+  - **Description**: Password for broker authentication
+
+- **`broker_vpn`** (`string`, **required**): Solace VPN (Message VPN) name
+  - **Default**: `default`
+  - **Description**: The Message VPN to connect to on the broker
+
+- **`temporary_queue`** (`boolean`): Use temporary queues for messaging
+  - **Valid Values**: `true`, `false`
+  - **Default**: `true`
+  - **Description**: When true, uses temporary queues for request-response patterns. When false, uses durable queues
+
+- **`max_connection_retries`** (`integer`, optional): Maximum connection retry attempts
+  - **Valid Values**: `-1` (infinite), `0` (no retries), positive integers
+  - **Default**: `5`
+  - **Description**: Number of times to retry connection before failing. Use `-1` for infinite retries
+
+### Models Section
+
+The `models` section defines LLM model configurations that can be referenced by agents and gateways.
+
+#### Standard Model Configuration Fields
+
+- **`model`** (`string`, **required**): LLM model identifier
+  - **Examples**:
+    - `gpt-4o` - OpenAI GPT-4 Optimized
+    - `claude-3-5-sonnet-20241022` - Anthropic Claude 3.5 Sonnet
+    - `gemini-2.5-flash-preview-04-17` - Google Gemini 2.5 Flash
+  - **Description**: The specific model identifier expected by your LLM endpoint
+
+- **`api_base`** (`string`, **required**): LLM service endpoint URL
+  - **Examples**:
+    - `https://api.openai.com/v1` - OpenAI
+    - `https://api.anthropic.com/v1` - Anthropic
+    - `https://your-litellm-proxy.com` - Custom LiteLLM proxy
+  - **Description**: Base URL for the LLM API endpoint
+
+- **`api_key`** (`string`, **required**): Authentication API key
+  - **Description**: API key for authenticating with the LLM service
+  - **Security Note**: Use environment variables to avoid hardcoding secrets
+
+- **`parallel_tool_calls`** (`boolean`, optional): Enable parallel tool execution
+  - **Valid Values**: `true`, `false`
+  - **Default**: `false`
+  - **Description**: When true, allows the LLM to invoke multiple tools simultaneously
+
+- **`max_tokens`** (`integer`, optional): Maximum token limit for responses
+  - **Valid Values**: Positive integers (model-dependent)
+  - **Examples**: `4096`, `8192`, `16000`
+  - **Description**: Maximum number of tokens the model can generate in a single response
+
+- **`temperature`** (`float`, optional): Model temperature for randomness
+  - **Valid Values**: `0.0` to `2.0` (typically `0.0` to `1.0`)
+  - **Default**: Model-specific (often `1.0`)
+  - **Description**: Controls randomness in responses. Lower values (e.g., `0.1`) produce more deterministic outputs
+
+- **`cache_strategy`** (`string`, optional): Prompt caching strategy
+  - **Valid Values**: `none`, `5m`, `1h`
+  - **Default**: `none`
+  - **Description**:
+    - `none` - No caching
+    - `5m` - Cache prompts for 5 minutes
+    - `1h` - Cache prompts for 1 hour
 
 #### OAuth Model Configuration Fields
-- **`oauth_token_url`** (`string`): OAuth token endpoint URL
-- **`oauth_client_id`** (`string`): OAuth client identifier
-- **`oauth_client_secret`** (`string`): OAuth client secret
-- **`oauth_scope`** (`string`): OAuth scope (space-separated)
-- **`oauth_token_refresh_buffer_seconds`** (`integer`): Token refresh buffer time
+
+For models requiring OAuth 2.0 Client Credentials authentication:
+
+- **`oauth_token_url`** (`string`, **required**): OAuth token endpoint URL
+  - **Example**: `https://auth.example.com/oauth/token`
+  - **Description**: URL to obtain OAuth access tokens
+
+- **`oauth_client_id`** (`string`, **required**): OAuth client identifier
+  - **Description**: Client ID for OAuth authentication
+
+- **`oauth_client_secret`** (`string`, **required**): OAuth client secret
+  - **Description**: Client secret for OAuth authentication
+  - **Security Note**: Use environment variables
+
+- **`oauth_scope`** (`string`, optional): OAuth scope
+  - **Example**: `read write admin`
+  - **Description**: Space-separated list of OAuth scopes to request
+
+- **`oauth_token_refresh_buffer_seconds`** (`integer`, optional): Token refresh buffer time
+  - **Valid Values**: Positive integers
+  - **Default**: `300` (5 minutes)
+  - **Description**: Seconds before token expiry to trigger refresh
+
+- **`oauth_ca_cert`** (`string`, optional): Custom CA certificate path
+  - **Example**: `/path/to/ca-cert.pem`
+  - **Description**: Path to custom CA certificate for OAuth endpoint verification
+
+#### Simple Model References
+
+Models can also be defined as simple string references for use with ADK's LLM registry:
+
+```yaml
+multimodal: &multimodal_model "gemini-2.5-flash-preview-04-17"
+gemini_pro: &gemini_pro_model "gemini-2.5-pro-exp-03-25"
+```
+
+### Services Section
+
+The `services` section defines default configurations for session management, artifact storage, and data tools.
+
+#### Session Service Configuration
+
+- **`type`** (`string`, **required**): Session service type
+  - **Valid Values**: `memory`, `sql`, `vertex_rag`
+  - **Description**:
+    - `memory` - In-memory session storage (not persistent across restarts)
+    - `sql` - SQL database storage (persistent)
+    - `vertex_rag` - Google Vertex AI RAG storage
+
+- **`default_behavior`** (`string`): Session persistence behavior
+  - **Valid Values**: `PERSISTENT`, `RUN_BASED`
+  - **Default**: `PERSISTENT`
+  - **Description**:
+    - `PERSISTENT` - Sessions persist across multiple task runs
+    - `RUN_BASED` - Each task run creates a new session
+
+- **`database_url`** (`string`, required for `sql` type): Database connection URL
+  - **Examples**:
+    - `sqlite:///session.db` - SQLite file
+    - `sqlite:///:memory:` - In-memory SQLite
+    - `postgresql://user:pass@host:5432/db` - PostgreSQL
+  - **Description**: SQLAlchemy-compatible database URL
+
+#### Artifact Service Configuration
+
+- **`type`** (`string`, **required**): Artifact service type
+  - **Valid Values**: `memory`, `filesystem`, `gcs`
+  - **Description**:
+    - `memory` - In-memory storage (not persistent)
+    - `filesystem` - Local file system storage
+    - `gcs` - Google Cloud Storage
+
+- **`base_path`** (`string`, required for `filesystem` type): Base directory path
+  - **Example**: `/tmp/samv2`, `/var/lib/sam/artifacts`
+  - **Description**: Root directory for storing artifacts
+
+- **`bucket_name`** (`string`, required for `gcs` type): GCS bucket name
+  - **Example**: `my-artifacts-bucket`
+  - **Description**: Google Cloud Storage bucket for artifacts
+
+- **`artifact_scope`** (`string`): Scope for artifact organization
+  - **Valid Values**: `namespace`, `app`, `custom`
+  - **Default**: `namespace`
+  - **Description**:
+    - `namespace` - Artifacts scoped to A2A namespace
+    - `app` - Artifacts scoped to application instance
+    - `custom` - Custom scope (requires `artifact_scope_value`)
+
+- **`artifact_scope_value`** (`string`, required when `artifact_scope` is `custom`): Custom scope identifier
+  - **Example**: `my-custom-scope`
+  - **Description**: Custom identifier for artifact organization
+
+#### Data Tools Configuration
+
+- **`sqlite_memory_threshold_mb`** (`integer`): Memory threshold for SQLite operations
+  - **Valid Values**: Positive integers
+  - **Default**: `100`
+  - **Description**: Size threshold (MB) for using in-memory vs. temp file SQLite DB for CSV input
+
+- **`max_result_preview_rows`** (`integer`): Maximum rows in result previews
+  - **Valid Values**: Positive integers
+  - **Default**: `50`
+  - **Description**: Maximum number of rows to return in preview for SQL/JQ results
+
+- **`max_result_preview_bytes`** (`integer`): Maximum bytes in result previews
+  - **Valid Values**: Positive integers
+  - **Default**: `4096`
+  - **Description**: Maximum bytes to return in preview for SQL/JQ results (if row limit not hit first)
 
 ---
 
