@@ -62,16 +62,13 @@ Cypress.Commands.add("navigateToProjects", () => {
 Cypress.Commands.add("deleteCypressProjects", () => {
     cy.log(`Cleaning up '${CYPRESS_TAG}' projects...`);
 
-    // 1. Fetch all projects
     cy.request("GET", "/api/v1/projects").then(response => {
-        // Correctly access the 'projects' array from the response body
         const projects = response.body.projects || [];
 
         const projectsToDelete = projects.filter((project: any) => project.name && project.name.startsWith(CYPRESS_TAG));
 
         cy.log(`Found ${projectsToDelete.length} projects to delete.`);
 
-        // 3. Delete each one
         projectsToDelete.forEach((project: any) => {
             cy.request({
                 method: "DELETE",
