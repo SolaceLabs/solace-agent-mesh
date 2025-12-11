@@ -39,9 +39,6 @@ ENV_DEFAULTS = {
     "PLATFORM_API_HOST": "127.0.0.1",
     "PLATFORM_API_PORT": "8001",
     "PLATFORM_DATABASE_URL": "sqlite:///platform.db",
-    "EXTERNAL_AUTH_SERVICE_URL": "",
-    "EXTERNAL_AUTH_PROVIDER": "",
-    "USE_AUTHORIZATION": "false",
 }
 
 
@@ -243,27 +240,6 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             "Enter Platform Database URL",
             False,
             "PLATFORM_DATABASE_URL",
-        ),
-        (
-            "external_auth_service_url",
-            "EXTERNAL_AUTH_SERVICE_URL",
-            "Enter External Auth Service URL (for OAuth2)",
-            False,
-            "EXTERNAL_AUTH_SERVICE_URL",
-        ),
-        (
-            "external_auth_provider",
-            "EXTERNAL_AUTH_PROVIDER",
-            "Enter External Auth Provider (generic, azure, okta)",
-            False,
-            "EXTERNAL_AUTH_PROVIDER",
-        ),
-        (
-            "use_authorization",
-            "USE_AUTHORIZATION",
-            "Enable Authorization? (true/false)",
-            False,
-            "USE_AUTHORIZATION",
         ),
     ]
 
