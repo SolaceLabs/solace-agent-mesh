@@ -1,13 +1,10 @@
-import { useState } from "react";
-
-import { Button, EmptyState, Header, LayoutSelector } from "@/lib/components";
+import { Button, EmptyState, Header } from "@/lib/components";
 import { AgentMeshCards } from "@/lib/components/agents";
 import { useChatContext } from "@/lib/hooks";
 import { RefreshCcw } from "lucide-react";
 
 export function AgentMeshPage() {
     const { agents, agentsLoading, agentsError, agentsRefetch } = useChatContext();
-    const [currentLayout, setCurrentLayout] = useState<string>("cards");
 
     return (
         <div className="flex h-full w-full flex-col">
@@ -26,10 +23,7 @@ export function AgentMeshPage() {
             ) : agentsError ? (
                 <EmptyState variant="error" title="Error loading agents" subtitle={agentsError} />
             ) : (
-                <div className="bg-background-card relative flex-1">
-                    <div className="absolute right-8 z-20 flex items-center space-x-4">
-                        <LayoutSelector currentLayout={currentLayout} onLayoutChange={setCurrentLayout} />
-                    </div>
+                <div className="relative flex-1">
                     <AgentMeshCards agents={agents} />
                 </div>
             )}
