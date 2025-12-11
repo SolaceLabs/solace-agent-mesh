@@ -5,7 +5,6 @@ import Checkbox from "../../ui/Checkbox";
 import Button from "../../ui/Button";
 import { InfoBox } from "../../ui/InfoBoxes";
 import { StepComponentProps } from "../../InitializationFlow";
-import Select from "../../ui/Select";
 
 interface PlatformServiceData {
   add_platform_service?: boolean;
@@ -37,7 +36,7 @@ export default function PlatformServiceSetup({
       external_auth_service_url:
         platformServiceData.external_auth_service_url ?? "",
       external_auth_provider:
-        platformServiceData.external_auth_provider ?? "azure",
+        platformServiceData.external_auth_provider ?? "",
       use_authorization: platformServiceData.use_authorization ?? false,
     };
 
@@ -65,11 +64,6 @@ export default function PlatformServiceSetup({
     }
   };
 
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    updateData({ [name]: value });
-  };
-
   const handleCheckboxChange = (
     name: keyof PlatformServiceData,
     checked: boolean
@@ -87,7 +81,7 @@ export default function PlatformServiceSetup({
         isValid = false;
       }
       if (platformServiceData.platform_api_port === undefined) {
-        newErrors.platform_api_port = "Platform CAROL API Port is required.";
+        newErrors.platform_api_port = "Platform API Port is required.";
         isValid = false;
       } else if (
         isNaN(Number(platformServiceData.platform_api_port)) ||
@@ -107,11 +101,6 @@ export default function PlatformServiceSetup({
         if (!platformServiceData.external_auth_service_url) {
           newErrors.external_auth_service_url =
             "External Auth Service URL is required when authorization is enabled.";
-          isValid = false;
-        }
-        if (!platformServiceData.external_auth_provider) {
-          newErrors.external_auth_provider =
-            "External Auth Provider is required when authorization is enabled.";
           isValid = false;
         }
       }
@@ -220,16 +209,14 @@ export default function PlatformServiceSetup({
                 onChange={(checked) =>
                   handleCheckboxChange("use_authorization", checked)
                 }
-                label="Enable OAuth2 Authorization"
+                label="Enable OAuth2 token validation."
               />
             </FormField>
 
             {platformServiceData.use_authorization && (
               <div className="space-y-4 p-4 border border-gray-100 rounded-md bg-gray-50">
                 <InfoBox className="mb-3">
-                  Configure OAuth2 settings for production environments. The
-                  Platform Service will validate tokens from your OAuth2
-                  provider.
+                  Configure OAuth2 settings for production environments. The Platform Service will validate bearer tokens in API requests using the external OAuth2 provider.
                 </InfoBox>
 
                 <FormField
@@ -251,20 +238,14 @@ export default function PlatformServiceSetup({
                   label="External Auth Provider"
                   htmlFor="external_auth_provider"
                   error={errors.external_auth_provider}
-                  helpText="Select your OAuth2 provider type"
-                  required
+                  helpText="OAuth2 service provider identifier (e.g., azure, google, okta, auth0, keycloak, or custom)"
                 >
-                  <Select
+                  <Input
                     id="external_auth_provider"
                     name="external_auth_provider"
-                    value={platformServiceData.external_auth_provider || "azure"}
-                    onChange={handleSelectChange}
-                    options={[
-                      { value: "azure", label: "Azure AD" },
-                      { value: "generic", label: "Generic OAuth2" },
-                      { value: "google", label: "Google" },
-                      { value: "okta", label: "Okta" },
-                    ]}
+                    value={platformServiceData.external_auth_provider ?? ""}
+                    onChange={handleChange}
+                    placeholder="The external authentication provider."
                   />
                 </FormField>
               </div>

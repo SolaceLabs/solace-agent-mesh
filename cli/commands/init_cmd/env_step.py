@@ -40,7 +40,7 @@ ENV_DEFAULTS = {
     "PLATFORM_API_PORT": "8001",
     "PLATFORM_DATABASE_URL": "sqlite:///platform.db",
     "EXTERNAL_AUTH_SERVICE_URL": "",
-    "EXTERNAL_AUTH_PROVIDER": "azure",
+    "EXTERNAL_AUTH_PROVIDER": "",
     "USE_AUTHORIZATION": "false",
 }
 

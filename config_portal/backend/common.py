@@ -24,7 +24,7 @@ INIT_DEFAULT = {
     "platform_api_port": 8001,
     "platform_database_url": "sqlite:///platform.db",
     "external_auth_service_url": "",
-    "external_auth_provider": "azure",
+    "external_auth_provider": "",
     "use_authorization": False,
 }
 

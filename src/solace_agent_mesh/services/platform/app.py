@@ -79,7 +79,7 @@ class PlatformServiceApp(App):
             "required": False,
             "type": "boolean",
             "default": False,
-            "description": "Tell frontend whether backend expects authorization.",
+            "description": "Enable OAuth2 token validation. When true, all API requests must include valid OAuth2 bearer tokens.",
         },
         {
             "name": "max_message_size_bytes",

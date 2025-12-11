@@ -277,5 +277,5 @@ class TestCreatePlatformServiceConfig:
         assert PLATFORM_SERVICE_DEFAULTS["platform_api_host"] == "127.0.0.1"
         assert PLATFORM_SERVICE_DEFAULTS["platform_api_port"] == 8001
         assert PLATFORM_SERVICE_DEFAULTS["platform_database_url"] == "sqlite:///platform.db"
-        assert PLATFORM_SERVICE_DEFAULTS["external_auth_provider"] == "azure"
+        assert PLATFORM_SERVICE_DEFAULTS["external_auth_provider"] == ""
         assert PLATFORM_SERVICE_DEFAULTS["use_authorization"] is False

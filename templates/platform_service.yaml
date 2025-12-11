@@ -34,7 +34,7 @@ apps:
       # --- OAuth2 Authentication ---
       external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL}
       external_auth_provider: ${EXTERNAL_AUTH_PROVIDER}
-      use_authorization: ${USE_AUTHORIZATION}
+      frontend_use_authorization: ${USE_AUTHORIZATION}
 
       # --- Background Task Configuration ---
       # Deployment monitoring
