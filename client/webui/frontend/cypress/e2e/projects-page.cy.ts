@@ -13,8 +13,6 @@ describe("Projects Page - Navigation and Layout", { tags: ["@community"] }, () =
     it("should create a project and verify its details", () => {
         const projectName = generateName();
 
-        cy.intercept("POST", "/api/v1/projects").as("createProject");
-
         cy.findByRole("button", { name: "Create New Project" }).click();
 
         cy.findByLabelText(/Project Name/i).type(projectName);
