@@ -82,4 +82,4 @@ Cypress.Commands.add("deleteCypressProjects", () => {
     });
 });
 
-export { CYPRESS_TAG };
+export {};
