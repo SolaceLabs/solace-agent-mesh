@@ -4,30 +4,15 @@
  */
 
 /* eslint-disable react-refresh/only-export-components */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import type { ReactNode } from "react";
-import * as Ariakit from "@ariakit/react";
 import { ChevronDown, ExternalLink } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getCleanDomain, getFaviconUrl } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/lib/components/ui/popover";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 
-/**
- * Get favicon URL from Google's service
- */
-function getFaviconUrl(domain: string): string {
-    return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-}
-
-/**
- * Extract clean domain from URL
- */
-export function getCleanDomain(url: string): string {
-    try {
-        const domain = url.replace(/^https?:\/\//, "").split("/")[0];
-        return domain.startsWith("www.") ? domain.substring(4) : domain;
-    } catch {
-        return url;
-    }
-}
+// Re-export for backward compatibility
+export { getCleanDomain, getFaviconUrl } from "@/lib/utils";
 
 /**
  * Favicon image component
@@ -43,7 +28,7 @@ export function FaviconImage({ domain, className = "" }: { domain: string; class
 
 /**
  * Source Hovercard Component
- * Displays citation information in a hover card with Ariakit
+ * Displays citation information in a hover card with Radix UI Popover
  */
 interface SourceHovercardProps {
     source: {
@@ -63,7 +48,11 @@ interface SourceHovercardProps {
 
 function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, isFile = false, isLocalFile = false, children }: SourceHovercardProps) {
     const domain = getCleanDomain(source.link || "");
+    const [isOpen, setIsOpen] = useState(false);
     const [isDark, setIsDark] = useState(false);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const showTimeout = 150;
+    const hideTimeout = 150;
 
     // Detect dark mode
     useEffect(() => {
@@ -83,55 +72,100 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
         return () => observer.disconnect();
     }, []);
 
-    // Debug logging
-    console.log("🔍 SourceHovercard rendering:", { label, domain, isFile, isDark });
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
+
+    const handleMouseEnter = useCallback(() => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+        timeoutRef.current = setTimeout(() => {
+            setIsOpen(true);
+        }, showTimeout);
+        onMouseEnter?.();
+    }, [onMouseEnter]);
+
+    const handleMouseLeave = useCallback(() => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+        timeoutRef.current = setTimeout(() => {
+            setIsOpen(false);
+        }, hideTimeout);
+        onMouseLeave?.();
+    }, [onMouseLeave]);
+
+    const handleContentMouseEnter = useCallback(() => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+    }, []);
+
+    const handleContentMouseLeave = useCallback(() => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+        timeoutRef.current = setTimeout(() => {
+            setIsOpen(false);
+        }, hideTimeout);
+    }, []);
 
     return (
         <span className="relative ml-0.5 inline-block">
-            <Ariakit.HovercardProvider showTimeout={150} hideTimeout={150}>
+            <Popover open={isOpen} onOpenChange={setIsOpen}>
                 <span className="flex items-center">
-                    <Ariakit.HovercardAnchor
-                        render={
-                            isFile ? (
-                                <button
-                                    onClick={onClick}
-                                    className="border-border-heavy bg-surface-secondary hover:bg-surface-hover dark:border-border-medium dark:hover:bg-surface-tertiary ml-1 inline-block h-5 max-w-36 cursor-pointer items-center overflow-hidden rounded-xl border px-2 text-xs font-medium text-ellipsis whitespace-nowrap text-blue-600 no-underline transition-colors dark:text-blue-400"
-                                    onMouseEnter={onMouseEnter}
-                                    onMouseLeave={onMouseLeave}
-                                    title={isLocalFile ? "Download unavailable for local files" : undefined}
-                                >
-                                    {label}
-                                </button>
-                            ) : (
-                                <a
-                                    href={source.link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="border-border-heavy bg-surface-secondary hover:bg-surface-hover dark:border-border-medium dark:hover:bg-surface-tertiary ml-1 inline-flex h-5 max-w-36 cursor-pointer items-center gap-1 overflow-hidden rounded-xl border px-2 text-xs font-medium no-underline transition-colors"
-                                    onMouseEnter={onMouseEnter}
-                                    onMouseLeave={onMouseLeave}
-                                >
-                                    <span className="truncate">{label}</span>
-                                    <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-60" />
-                                </a>
-                            )
-                        }
-                    />
-                    <Ariakit.HovercardDisclosure className="text-text-primary focus:ring-ring ml-0.5 rounded-full focus:ring-2 focus:outline-none">
-                        <Ariakit.VisuallyHidden>More details about {label}</Ariakit.VisuallyHidden>
+                    <PopoverTrigger asChild>
+                        {isFile ? (
+                            <button
+                                onClick={onClick}
+                                onMouseEnter={handleMouseEnter}
+                                onMouseLeave={handleMouseLeave}
+                                className="border-border-heavy bg-surface-secondary hover:bg-surface-hover dark:border-border-medium dark:hover:bg-surface-tertiary ml-1 inline-block h-5 max-w-36 cursor-pointer items-center overflow-hidden rounded-xl border px-2 text-xs font-medium text-ellipsis whitespace-nowrap text-blue-600 no-underline transition-colors dark:text-blue-400"
+                                title={isLocalFile ? "Download unavailable for local files" : undefined}
+                            >
+                                {label}
+                            </button>
+                        ) : (
+                            <a
+                                href={source.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onMouseEnter={handleMouseEnter}
+                                onMouseLeave={handleMouseLeave}
+                                className="border-border-heavy bg-surface-secondary hover:bg-surface-hover dark:border-border-medium dark:hover:bg-surface-tertiary ml-1 inline-flex h-5 max-w-36 cursor-pointer items-center gap-1 overflow-hidden rounded-xl border px-2 text-xs font-medium no-underline transition-colors"
+                            >
+                                <span className="truncate">{label}</span>
+                                <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-60" />
+                            </a>
+                        )}
+                    </PopoverTrigger>
+                    <button
+                        onClick={() => setIsOpen(!isOpen)}
+                        onMouseEnter={handleMouseEnter}
+                        onMouseLeave={handleMouseLeave}
+                        className="text-text-primary focus:ring-ring ml-0.5 rounded-full focus:ring-2 focus:outline-none"
+                        aria-label={`More details about ${label}`}
+                    >
+                        <VisuallyHidden>More details about {label}</VisuallyHidden>
                         <ChevronDown className="h-4 w-4" />
-                    </Ariakit.HovercardDisclosure>
+                    </button>
 
-                    <Ariakit.Hovercard
-                        gutter={16}
+                    <PopoverContent
+                        sideOffset={16}
+                        onMouseEnter={handleContentMouseEnter}
+                        onMouseLeave={handleContentMouseLeave}
                         className="z-[999] w-[300px] max-w-[calc(100vw-2rem)] rounded-xl border p-3 shadow-lg"
                         style={{
                             backgroundColor: isDark ? "#1f2937" : "#ffffff",
                             borderColor: isDark ? "#4b5563" : "#d1d5db",
                             color: isDark ? "#f3f4f6" : "#111827",
                         }}
-                        portal={true}
-                        unmountOnHide={true}
                     >
                         {children}
                         {!children && (
@@ -173,9 +207,9 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                 )}
                             </>
                         )}
-                    </Ariakit.Hovercard>
+                    </PopoverContent>
                 </span>
-            </Ariakit.HovercardProvider>
+            </Popover>
         </span>
     );
 }

@@ -6,6 +6,9 @@
 
 import type { RAGSource, RAGSearchResult } from "@/lib/types/fe";
 
+// Re-export getCleanDomain for backward compatibility
+export { getCleanDomain } from "./url";
+
 // Citation marker pattern: [[cite:file0]], [[cite:ref0]], [[cite:search0]], [[cite:research0]], etc.
 // Also matches [[cite:0]] (treats as search citation when no type prefix)
 // Also matches single bracket [cite:xxx] in case LLM uses wrong format
@@ -168,7 +171,7 @@ export function getCitationTooltip(citation: Citation): string {
     // For web search and deep research citations, show the URL and title
     const isWebSearch = citation.source?.metadata?.type === "web_search" || citation.type === "search";
     const isDeepResearch = citation.source?.metadata?.type === "deep_research" || citation.type === "research";
-    const sourceUrl = citation.source?.sourceUrl || citation.source?.url;
+    const sourceUrl = citation.source?.sourceUrl || citation.source?.url || citation.source?.metadata?.link;
 
     if ((isWebSearch || isDeepResearch) && sourceUrl) {
         const title = citation.source?.metadata?.title || citation.source?.filename;

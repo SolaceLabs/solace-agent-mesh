@@ -1,7 +1,7 @@
 /**
  * Citation component for displaying clickable source citations
  */
-import React, { useState, useMemo, type ReactNode } from "react";
+import React, { useState, useMemo, useRef, useCallback, type ReactNode } from "react";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import parse, { type HTMLReactParserOptions, type DOMNode, Element, Text as DomText } from "html-react-parser";
@@ -9,7 +9,7 @@ import type { Citation as CitationType } from "@/lib/utils/citations";
 import { getCitationTooltip, CITATION_PATTERN } from "@/lib/utils/citations";
 import { MarkdownHTMLConverter } from "@/lib/components";
 import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
-import * as Ariakit from "@ariakit/react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/lib/components/ui/popover";
 import { ExternalLink } from "lucide-react";
 
 interface CitationProps {
@@ -131,9 +131,9 @@ export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
     const tooltip = getCitationTooltip(citation);
 
     // Check if this is a web search or deep research citation with a URL
-    const isWebSearch = citation.source?.metadata?.type === "web_search";
+    const isWebSearch = citation.source?.metadata?.type === "web_search" || citation.type === "search";
     const isDeepResearch = citation.source?.metadata?.type === "deep_research" || citation.type === "research";
-    const sourceUrl = citation.source?.sourceUrl || citation.source?.url;
+    const sourceUrl = citation.source?.sourceUrl || citation.source?.url || citation.source?.metadata?.link;
     const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
     const handleClick = (e: React.MouseEvent) => {
@@ -179,6 +179,10 @@ interface BundledCitationsProps {
 
 export function BundledCitations({ citations, onCitationClick }: BundledCitationsProps) {
     const [isDark, setIsDark] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const showTimeout = 150;
+    const hideTimeout = 150;
 
     // Detect dark mode
     React.useEffect(() => {
@@ -195,6 +199,48 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
         });
 
         return () => observer.disconnect();
+    }, []);
+
+    // Cleanup timeout on unmount
+    React.useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
+
+    const handleMouseEnter = useCallback(() => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+        timeoutRef.current = setTimeout(() => {
+            setIsOpen(true);
+        }, showTimeout);
+    }, []);
+
+    const handleMouseLeave = useCallback(() => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+        timeoutRef.current = setTimeout(() => {
+            setIsOpen(false);
+        }, hideTimeout);
+    }, []);
+
+    const handleContentMouseEnter = useCallback(() => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+    }, []);
+
+    const handleContentMouseLeave = useCallback(() => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+        timeoutRef.current = setTimeout(() => {
+            setIsOpen(false);
+        }, hideTimeout);
     }, []);
 
     if (citations.length === 0) return null;
@@ -214,9 +260,9 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
     const tooltip = getCitationTooltip(firstCitation);
 
     // Check if this is a web search or deep research citation
-    const isWebSearch = firstCitation.source?.metadata?.type === "web_search";
+    const isWebSearch = firstCitation.source?.metadata?.type === "web_search" || firstCitation.type === "search";
     const isDeepResearch = firstCitation.source?.metadata?.type === "deep_research" || firstCitation.type === "research";
-    const sourceUrl = firstCitation.source?.sourceUrl || firstCitation.source?.url;
+    const sourceUrl = firstCitation.source?.sourceUrl || firstCitation.source?.url || firstCitation.source?.metadata?.link;
     const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
     const handleFirstCitationClick = (e: React.MouseEvent) => {
@@ -236,32 +282,32 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
     };
 
     return (
-        <Ariakit.HovercardProvider showTimeout={150} hideTimeout={150}>
-            <Ariakit.HovercardAnchor
-                render={
-                    <button
-                        onClick={handleFirstCitationClick}
-                        className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
-                        title={tooltip}
-                        aria-label={`Citation: ${tooltip}`}
-                        type="button"
-                    >
-                        <span className="max-w-[200px] truncate">{firstDisplayText}</span>
-                        {hasClickableUrl && <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />}
-                        <span className="text-[10px] opacity-70">+{remainingCount}</span>
-                    </button>
-                }
-            />
-            <Ariakit.Hovercard
-                gutter={8}
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+            <PopoverTrigger asChild>
+                <button
+                    onClick={handleFirstCitationClick}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
+                    className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                    title={tooltip}
+                    aria-label={`Citation: ${tooltip}`}
+                    type="button"
+                >
+                    <span className="max-w-[200px] truncate">{firstDisplayText}</span>
+                    {hasClickableUrl && <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />}
+                    <span className="text-[10px] opacity-70">+{remainingCount}</span>
+                </button>
+            </PopoverTrigger>
+            <PopoverContent
+                sideOffset={8}
+                onMouseEnter={handleContentMouseEnter}
+                onMouseLeave={handleContentMouseLeave}
                 className="z-[999] max-h-[400px] w-[320px] max-w-[calc(100vw-2rem)] cursor-default overflow-y-auto rounded-lg border p-3 shadow-xl"
                 style={{
                     backgroundColor: isDark ? "#1f2937" : "#ffffff",
                     borderColor: isDark ? "#4b5563" : "#d1d5db",
                     color: isDark ? "#f3f4f6" : "#111827",
                 }}
-                portal={true}
-                unmountOnHide={true}
             >
                 <div className="cursor-default space-y-2">
                     <div className="mb-3 border-b pb-2" style={{ borderColor: isDark ? "#4b5563" : "#e5e7eb" }}>
@@ -269,9 +315,9 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                     </div>
                     {uniqueCitations.map((citation, index) => {
                         const displayText = getCitationDisplayText(citation, 50);
-                        const isWebSearch = citation.source?.metadata?.type === "web_search";
+                        const isWebSearch = citation.source?.metadata?.type === "web_search" || citation.type === "search";
                         const isDeepResearch = citation.source?.metadata?.type === "deep_research" || citation.type === "research";
-                        const sourceUrl = citation.source?.sourceUrl || citation.source?.url;
+                        const sourceUrl = citation.source?.sourceUrl || citation.source?.url || citation.source?.metadata?.link;
                         const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
                         // Get favicon for web sources (both web search and deep research)
@@ -325,8 +371,8 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                         );
                     })}
                 </div>
-            </Ariakit.Hovercard>
-        </Ariakit.HovercardProvider>
+            </PopoverContent>
+        </Popover>
     );
 }
 

@@ -194,6 +194,11 @@ class ResearchCitationTracker:
         self.queries: List[Dict[str, Any]] = []  # Track queries and their sources
         self.current_query: Optional[str] = None
         self.current_query_sources: List[str] = []
+        self.generated_title: Optional[str] = None  # LLM-generated human-readable title
+    
+    def set_title(self, title: str) -> None:
+        """Set the LLM-generated title for this research"""
+        self.generated_title = title
     
     def start_query(self, query: str):
         """Start tracking a new query"""
@@ -293,7 +298,8 @@ class ResearchCitationTracker:
             search_type="deep_research",
             timestamp=datetime.now(timezone.utc).isoformat(),
             sources=list(self.citations.values()),
-            metadata=metadata_dict
+            metadata=metadata_dict,
+            title=self.generated_title  
         )
 
 
@@ -538,6 +544,88 @@ Respond in JSON format:
     except Exception as e:
         log.error("%s LLM query generation failed: %s, using fallback", log_identifier, str(e))
         return [research_question]
+
+
+async def _generate_research_title(
+    research_question: str,
+    tool_context: ToolContext,
+    tool_config: Optional[Dict[str, Any]] = None
+) -> str:
+    """
+    Generate a concise, human-readable title for the research using LLM.
+    
+    The LLM converts the research question into a short, descriptive title
+    suitable for display in the UI.
+    
+    Args:
+        research_question: The original research question
+        tool_context: Tool context for accessing agent
+        tool_config: Optional tool configuration
+    
+    Returns:
+        A concise title string (typically 5-10 words)
+    """
+    log_identifier = "[DeepResearch:TitleGen]"
+    
+    try:
+        # Get phase-specific or default model (use query_generation model for efficiency)
+        llm = _get_model_for_phase("query_generation", tool_context, tool_config)
+        
+        title_prompt = f"""Generate a concise, human-readable title for this research topic.
+
+Research Question: {research_question}
+
+Requirements:
+1. The title should be 5-10 words maximum
+2. It should capture the essence of the research topic
+3. It should be suitable for display as a heading
+4. Do NOT include quotes around the title
+5. Do NOT include "Research:" or similar prefixes
+
+Respond with ONLY the title, nothing else."""
+
+        log.info("%s Calling LLM for title generation", log_identifier)
+        
+        # Create LLM request
+        llm_request = LlmRequest(
+            model=llm.model,
+            contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=title_prompt)])],
+            config=adk_types.GenerateContentConfig(
+                temperature=0.3,
+                max_output_tokens=50
+            )
+        )
+        
+        # Call LLM
+        if hasattr(llm, 'generate_content_async'):
+            async for response_event in llm.generate_content_async(llm_request):
+                response = response_event
+                break
+        else:
+            response = llm.generate_content(request=llm_request)
+        
+        # Extract text from response
+        response_text = ""
+        if hasattr(response, 'text') and response.text:
+            response_text = response.text
+        elif hasattr(response, 'parts') and response.parts:
+            response_text = "".join([part.text for part in response.parts if hasattr(part, 'text') and part.text])
+        
+        # Clean up the title
+        title = response_text.strip().strip('"').strip("'")
+        
+        # Fallback if title is too long or empty
+        if not title or len(title) > 100:
+            # Use first 60 chars of research question as fallback
+            title = research_question[:60] + "..." if len(research_question) > 60 else research_question
+        
+        log.info("%s Generated title: %s", log_identifier, title)
+        return title
+        
+    except Exception as e:
+        log.error("%s LLM title generation failed: %s, using fallback", log_identifier, str(e))
+        # Fallback: use truncated research question
+        return research_question[:60] + "..." if len(research_question) > 60 else research_question
 
 
 def _prepare_findings_summary(findings: List[SearchResult], max_findings: int = 20) -> str:
@@ -1199,11 +1287,20 @@ Write your research report now. Format in Markdown. Remember: NO word counts in 
             if extracted_text:
                 report_body += extracted_text
                 
-                # Send progress update every 500 characters to show activity
+                # Send progress update every 500 characters to show activity and reset peer timeout
                 if len(report_body) - last_progress_update >= 500:
                     last_progress_update = len(report_body)
                     progress_pct = min(95, 85 + int((len(report_body) / 3000) * 10))  # 85-95%
                     log.info("%s Report generation progress: %d chars written", log_identifier, len(report_body))
+                    
+                    # Send progress update to reset orchestrator's peer timeout
+                    await _send_research_progress(
+                        f"Writing report... ({len(report_body)} characters)",
+                        tool_context,
+                        phase="writing",
+                        progress_percentage=progress_pct,
+                        sources_found=len(all_findings)
+                    )
         
         log.info("%s Report generation complete. Events: %d, Final length: %d chars", log_identifier, response_count, len(report_body))
         
@@ -1369,20 +1466,32 @@ async def deep_research(
         queries = await _generate_initial_queries(research_question, tool_context, tool_config)
         log.info("%s Generated %d initial queries", log_identifier, len(queries))
         
+        # Generate human-readable title for the research (runs in parallel with first search)
+        research_title = await _generate_research_title(research_question, tool_context, tool_config)
+        citation_tracker.set_title(research_title)
+        log.info("%s Generated research title: %s", log_identifier, research_title)
+        
         # Iterative research loop
         all_findings: List[SearchResult] = []
         seen_sources_global = set()  # Track seen sources across ALL iterations
         
         for iteration in range(1, max_iterations + 1):
-            # Check runtime limit
+            # Check runtime limit - only applies to research iterations, not report generation
             if max_runtime_seconds:
                 elapsed = time.time() - start_time
                 if elapsed >= max_runtime_seconds:
-                    log.info("%s Runtime limit reached (%d seconds), stopping research gracefully",
-                            log_identifier, max_runtime_seconds)
+                    log.info("%s Runtime limit reached (%d seconds), stopping research iterations. Will proceed to generate report from %d sources.",
+                            log_identifier, max_runtime_seconds, len(all_findings))
                     await _send_research_progress(
-                        f"Runtime limit reached. Generating report from {len(all_findings)} sources collected so far...",
-                        tool_context
+                        f"Research time limit reached ({int(elapsed)}s). Proceeding to generate report from {len(all_findings)} sources...",
+                        tool_context,
+                        phase="writing",
+                        progress_percentage=80,
+                        current_iteration=iteration,
+                        total_iterations=max_iterations,
+                        sources_found=len(all_findings),
+                        elapsed_seconds=int(elapsed),
+                        max_runtime_seconds=max_runtime_seconds
                     )
                     break
             

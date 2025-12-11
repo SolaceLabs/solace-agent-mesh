@@ -4,6 +4,8 @@
  * Enhanced to support enterprise sources (Gmail, Outlook, Drive, SharePoint, KB)
  */
 
+import { getCleanDomain, getFaviconUrl } from "@/lib/utils";
+
 interface SearchSource {
     link: string;
     title?: string;
@@ -16,25 +18,6 @@ interface StackedFaviconsProps {
     start?: number;
     end?: number;
     size?: number;
-}
-
-/**
- * Get favicon URL from Google's favicon service
- */
-function getFaviconUrl(domain: string, size: number = 32): string {
-    return `https://www.google.com/s2/favicons?domain=${domain}&sz=${size}`;
-}
-
-/**
- * Extract clean domain from URL
- */
-function getCleanDomain(url: string): string {
-    try {
-        const domain = url.replace(/^https?:\/\//, "").split("/")[0];
-        return domain.startsWith("www.") ? domain.substring(4) : domain;
-    } catch {
-        return url;
-    }
 }
 
 /**
