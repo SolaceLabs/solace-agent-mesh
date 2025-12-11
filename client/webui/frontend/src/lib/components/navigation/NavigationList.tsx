@@ -1,8 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
+import { Settings, LogOut, User } from "lucide-react";
 
 import { NavigationButton } from "@/lib/components/navigation";
 import { UserMenu } from "@/lib/components/navigation/UserMenu";
-import { useConfigContext } from "@/lib/hooks";
+import { Popover, PopoverTrigger, PopoverContent, Tooltip, TooltipTrigger, TooltipContent, Menu } from "@/lib/components/ui";
+import { SettingsDialog } from "@/lib/components/settings";
+import { useAuthContext, useConfigContext } from "@/lib/hooks";
 import type { NavigationItem } from "@/lib/types";
 
 interface NavigationListProps {
@@ -20,6 +23,23 @@ const UserMenuWithConfig: React.FC<{ onUsageClick: () => void }> = ({ onUsageCli
 };
 
 export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomItems, activeItem, onItemClick }) => {
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+
+    // When authorization is enabled, show menu with user info and settings/logout
+    const { frontend_use_authorization: useAuthorization, configFeatureEnablement } = useConfigContext();
+    const logoutEnabled = useAuthorization && configFeatureEnablement?.logout ? true : false;
+    const { userInfo, logout } = useAuthContext();
+
+    const handleSettingsClick = () => {
+        setMenuOpen(false);
+        setSettingsDialogOpen(true);
+    };
+    const handleLogoutClick = () => {
+        setMenuOpen(false);
+        logout();
+    };
+
     return (
         <nav className="flex flex-1 flex-col" role="navigation" aria-label="Main navigation">
             {/* Main navigation items */}
@@ -44,11 +64,57 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                             <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
                         </li>
                     ))}
-                {/* User Menu with Settings and Token Usage */}
-                <li className="my-4 flex justify-center">
-                    <UserMenuWithConfig onUsageClick={() => onItemClick("usage")} />
-                </li>
+                {/* User Menu with Settings and Token Usage, or simple Settings/Logout menu */}
+                {logoutEnabled ? (
+                    <li className="my-4 flex justify-center">
+                        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <PopoverTrigger asChild>
+                                        <button
+                                            type="button"
+                                            className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)]"
+                                            aria-label="Open Menu"
+                                        >
+                                            <User className="h-6 w-6" />
+                                        </button>
+                                    </PopoverTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent side="right">User & Settings</TooltipContent>
+                            </Tooltip>
+                            <PopoverContent side="right" align="end" className="w-60 p-0">
+                                <div className="flex items-center gap-2 border-b px-3 py-4">
+                                    <User className="size-4" />
+                                    <span className="text-sm font-medium">{typeof userInfo?.username === "string" ? userInfo.username : "Guest"}</span>
+                                </div>
+                                <Menu
+                                    actions={[
+                                        {
+                                            id: "settings",
+                                            label: "Settings",
+                                            icon: <Settings />,
+                                            onClick: handleSettingsClick,
+                                        },
+                                        {
+                                            id: "logout",
+                                            label: "Log Out",
+                                            icon: <LogOut />,
+                                            onClick: handleLogoutClick,
+                                            divider: true,
+                                        },
+                                    ]}
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </li>
+                ) : (
+                    <li className="my-4 flex justify-center">
+                        <UserMenuWithConfig onUsageClick={() => onItemClick("usage")} />
+                    </li>
+                )}
             </ul>
+
+            {settingsDialogOpen && <SettingsDialog iconOnly={false} open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen} />}
         </nav>
     );
 };

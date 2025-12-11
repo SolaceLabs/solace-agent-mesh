@@ -29,12 +29,19 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick 
 
 interface SettingsDialogProps {
     iconOnly?: boolean;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 }
 
-export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false }) => {
+export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false, open: controlledOpen, onOpenChange }) => {
     const { configFeatureEnablement } = useConfigContext();
-    const [open, setOpen] = useState(false);
+    const [internalOpen, setInternalOpen] = useState(false);
     const [activeSection, setActiveSection] = useState<SettingsSection>("general");
+
+    // Use controlled state if provided, otherwise use internal state
+    const isControlled = controlledOpen !== undefined;
+    const open = isControlled ? controlledOpen : internalOpen;
+    const setOpen = onOpenChange || setInternalOpen;
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
@@ -69,32 +76,34 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            {iconOnly ? (
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <DialogTrigger asChild>
-                            <button
-                                type="button"
-                                className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)]"
-                                aria-label="Open Settings"
-                            >
-                                <Settings className="h-6 w-6" />
-                            </button>
-                        </DialogTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">Settings</TooltipContent>
-                </Tooltip>
-            ) : (
-                <DialogTrigger asChild>
-                    <DropdownMenuItem
-                        className="cursor-pointer hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)] focus:bg-[var(--color-primary-w90)] focus:text-[var(--color-primary-text-w10)]"
-                        onSelect={e => e.preventDefault()}
-                    >
-                        <Settings className="mr-2 h-4 w-4" />
-                        <span>Settings</span>
-                    </DropdownMenuItem>
-                </DialogTrigger>
-            )}
+            {/* When controlled externally (open prop is provided), don't render trigger */}
+            {!isControlled &&
+                (iconOnly ? (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <DialogTrigger asChild>
+                                <button
+                                    type="button"
+                                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)]"
+                                    aria-label="Open Settings"
+                                >
+                                    <Settings className="h-6 w-6" />
+                                </button>
+                            </DialogTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">Settings</TooltipContent>
+                    </Tooltip>
+                ) : (
+                    <DialogTrigger asChild>
+                        <DropdownMenuItem
+                            className="cursor-pointer hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)] focus:bg-[var(--color-primary-w90)] focus:text-[var(--color-primary-text-w10)]"
+                            onSelect={e => e.preventDefault()}
+                        >
+                            <Settings className="mr-2 h-4 w-4" />
+                            <span>Settings</span>
+                        </DropdownMenuItem>
+                    </DialogTrigger>
+                ))}
             <DialogContent className="max-h-[90vh] w-[90vw] !max-w-[1200px] gap-0 p-0" showCloseButton={true}>
                 <VisuallyHidden>
                     <DialogTitle>Settings</DialogTitle>

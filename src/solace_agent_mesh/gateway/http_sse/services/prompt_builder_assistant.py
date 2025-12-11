@@ -282,10 +282,18 @@ REMEMBER:
                 else:
                     raise
             
-            # Handle nested response structure (some LLMs wrap in "response" key)
+            # Handle nested response structure (some LLMs wrap in various keys)
             if "response" in parsed and isinstance(parsed["response"], dict):
                 logger.info("Unwrapping nested 'response' structure from LLM")
                 parsed = parsed["response"]
+            
+            # Handle case where LLM wraps response in an arbitrary key (e.g., "{}", "result", etc.)
+            # If we don't have a "message" key but have exactly one key with a dict value containing "message"
+            if "message" not in parsed and len(parsed) == 1:
+                single_key = list(parsed.keys())[0]
+                if isinstance(parsed[single_key], dict) and "message" in parsed[single_key]:
+                    logger.info(f"Unwrapping nested structure from key '{single_key}'")
+                    parsed = parsed[single_key]
             
             # Validate that we have a proper message
             message = parsed.get("message", "")
