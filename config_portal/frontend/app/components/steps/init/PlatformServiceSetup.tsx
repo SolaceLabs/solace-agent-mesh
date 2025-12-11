@@ -11,9 +11,6 @@ interface PlatformServiceData {
   platform_api_host?: string;
   platform_api_port?: number;
   platform_database_url?: string;
-  external_auth_service_url?: string;
-  external_auth_provider?: string;
-  use_authorization?: boolean;
   [key: string]: string | number | boolean | undefined;
 }
 
@@ -33,11 +30,6 @@ export default function PlatformServiceSetup({
       platform_api_port: platformServiceData.platform_api_port ?? 8001,
       platform_database_url:
         platformServiceData.platform_database_url ?? "sqlite:///platform.db",
-      external_auth_service_url:
-        platformServiceData.external_auth_service_url ?? "",
-      external_auth_provider:
-        platformServiceData.external_auth_provider ?? "",
-      use_authorization: platformServiceData.use_authorization ?? false,
     };
 
     const updatesNeeded: Partial<PlatformServiceData> = {};
@@ -95,14 +87,6 @@ export default function PlatformServiceSetup({
       if (!platformServiceData.platform_database_url) {
         newErrors.platform_database_url = "Platform Database URL is required.";
         isValid = false;
-      }
-
-      if (platformServiceData.use_authorization) {
-        if (!platformServiceData.external_auth_service_url) {
-          newErrors.external_auth_service_url =
-            "External Auth Service URL is required when authorization is enabled.";
-          isValid = false;
-        }
       }
     }
     setErrors(newErrors);
@@ -197,59 +181,6 @@ export default function PlatformServiceSetup({
                 placeholder="sqlite:///platform.db"
               />
             </FormField>
-
-            <h4 className="text-sm font-medium text-gray-700 mt-4 mb-2">
-              Authorization (Optional)
-            </h4>
-
-            <FormField label="" htmlFor="use_authorization">
-              <Checkbox
-                id="use_authorization"
-                checked={platformServiceData.use_authorization || false}
-                onChange={(checked) =>
-                  handleCheckboxChange("use_authorization", checked)
-                }
-                label="Enable OAuth2 token validation."
-              />
-            </FormField>
-
-            {platformServiceData.use_authorization && (
-              <div className="space-y-4 p-4 border border-gray-100 rounded-md bg-gray-50">
-                <InfoBox className="mb-3">
-                  Configure OAuth2 settings for production environments. The Platform Service will validate bearer tokens in API requests using the external OAuth2 provider.
-                </InfoBox>
-
-                <FormField
-                  label="External Auth Service URL"
-                  htmlFor="external_auth_service_url"
-                  error={errors.external_auth_service_url}
-                  required
-                >
-                  <Input
-                    id="external_auth_service_url"
-                    name="external_auth_service_url"
-                    value={platformServiceData.external_auth_service_url || ""}
-                    onChange={handleChange}
-                    placeholder="https://login.microsoftonline.com/your-tenant-id"
-                  />
-                </FormField>
-
-                <FormField
-                  label="External Auth Provider"
-                  htmlFor="external_auth_provider"
-                  error={errors.external_auth_provider}
-                  helpText="OAuth2 service provider identifier (e.g., azure, google, okta, auth0, keycloak, or custom)"
-                >
-                  <Input
-                    id="external_auth_provider"
-                    name="external_auth_provider"
-                    value={platformServiceData.external_auth_provider ?? ""}
-                    onChange={handleChange}
-                    placeholder="The external authentication provider."
-                  />
-                </FormField>
-              </div>
-            )}
           </div>
         )}
       </div>

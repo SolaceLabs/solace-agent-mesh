@@ -46,9 +46,6 @@ class TestCreatePlatformServiceConfig:
             "platform_api_host": "127.0.0.1",
             "platform_api_port": 8001,
             "platform_database_url": "sqlite:///platform.db",
-            "external_auth_service_url": "",
-            "external_auth_provider": "azure",
-            "use_authorization": False,
         }
         default_values = {}
 
@@ -232,50 +229,13 @@ class TestCreatePlatformServiceConfig:
         assert any("Creating Platform Service configuration" in call for call in echo_calls)
         assert any("Created" in call for call in echo_calls)
 
-    def test_platform_service_with_authorization_enabled(self, temp_project_dir, mocker, mock_templates):
-        """Test platform service creation with authorization enabled"""
-        mock_echo = mocker.patch("click.echo")
-        mock_ask = mocker.patch("cli.commands.init_cmd.platform_service_step.ask_if_not_provided")
-
-        # ask_if_not_provided should return values from options dict
-        def ask_side_effect(opts, key, *args, **kwargs):
-            if key in opts:
-                return opts[key]
-            return "test"
-
-        mock_ask.side_effect = ask_side_effect
-
-        options = {
-            "add_platform_service": True,
-            "platform_api_host": "0.0.0.0",
-            "platform_api_port": 8001,
-            "platform_database_url": "postgresql://user:pass@localhost/db",
-            "external_auth_service_url": "https://login.microsoftonline.com/tenant-id",
-            "external_auth_provider": "azure",
-            "use_authorization": True,
-        }
-        default_values = {}
-
-        result = create_platform_service_config(
-            temp_project_dir, options, skip_interactive=True, default_values=default_values
-        )
-
-        assert result is True
-        assert options["use_authorization"] is True
-        assert options["external_auth_service_url"] != ""
-
     def test_platform_service_defaults_values(self):
         """Test that PLATFORM_SERVICE_DEFAULTS contains expected values"""
         assert "platform_api_host" in PLATFORM_SERVICE_DEFAULTS
         assert "platform_api_port" in PLATFORM_SERVICE_DEFAULTS
         assert "platform_database_url" in PLATFORM_SERVICE_DEFAULTS
-        assert "external_auth_service_url" in PLATFORM_SERVICE_DEFAULTS
-        assert "external_auth_provider" in PLATFORM_SERVICE_DEFAULTS
-        assert "use_authorization" in PLATFORM_SERVICE_DEFAULTS
 
         # Verify default values
         assert PLATFORM_SERVICE_DEFAULTS["platform_api_host"] == "127.0.0.1"
         assert PLATFORM_SERVICE_DEFAULTS["platform_api_port"] == 8001
         assert PLATFORM_SERVICE_DEFAULTS["platform_database_url"] == "sqlite:///platform.db"
-        assert PLATFORM_SERVICE_DEFAULTS["external_auth_provider"] == ""
-        assert PLATFORM_SERVICE_DEFAULTS["use_authorization"] is False

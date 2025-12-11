@@ -8,9 +8,6 @@ PLATFORM_SERVICE_DEFAULTS = {
     "platform_api_host": "127.0.0.1",
     "platform_api_port": 8001,
     "platform_database_url": "sqlite:///platform.db",
-    "external_auth_service_url": "",
-    "external_auth_provider": "",
-    "use_authorization": False,
 }
 
 
@@ -92,37 +89,6 @@ def create_platform_service_config(
     #     platform_database_url = PLATFORM_SERVICE_DEFAULTS["platform_database_url"]
 
     # options["platform_database_url"] = platform_database_url
-
-    options["external_auth_service_url"] = ask_if_not_provided(
-        options,
-        "external_auth_service_url",
-        "Enter External Auth Service URL (leave empty to disable OAuth2)",
-        default=default_values.get(
-            "external_auth_service_url",
-            PLATFORM_SERVICE_DEFAULTS["external_auth_service_url"],
-        ),
-        none_interactive=skip_interactive,
-    )
-    options["external_auth_provider"] = ask_if_not_provided(
-        options,
-        "external_auth_provider",
-        "Enter External Auth Provider (generic, azure, okta)",
-        default=default_values.get(
-            "external_auth_provider",
-            PLATFORM_SERVICE_DEFAULTS["external_auth_provider"],
-        ),
-        none_interactive=skip_interactive,
-    )
-    options["use_authorization"] = ask_if_not_provided(
-        options,
-        "use_authorization",
-        "Enable Authorization? (true/false)",
-        default=default_values.get(
-            "use_authorization", PLATFORM_SERVICE_DEFAULTS["use_authorization"]
-        ),
-        none_interactive=skip_interactive,
-        is_bool=True,
-    )
 
     click.echo("Creating Platform Service configuration file...")
     destination_path = project_root / "configs" / "services" / "platform_service.yaml"

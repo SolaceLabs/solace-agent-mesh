@@ -112,11 +112,6 @@ DEFAULT_INIT_VALUES = {
     "platform_api_host": PLATFORM_SERVICE_DEFAULTS.get("platform_api_host"),
     "platform_api_port": PLATFORM_SERVICE_DEFAULTS.get("platform_api_port"),
     "platform_database_url": PLATFORM_SERVICE_DEFAULTS.get("platform_database_url"),
-    "external_auth_service_url": PLATFORM_SERVICE_DEFAULTS.get(
-        "external_auth_service_url"
-    ),
-    "external_auth_provider": PLATFORM_SERVICE_DEFAULTS.get("external_auth_provider"),
-    "use_authorization": PLATFORM_SERVICE_DEFAULTS.get("use_authorization"),
 }
 
 
@@ -440,22 +435,6 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
 )
 @click.option(
     "--platform-database-url", type=str, help="Database URL for the Platform Service."
-)
-@click.option(
-    "--external-auth-service-url",
-    type=str,
-    help="External Auth Service URL for OAuth2.",
-)
-@click.option(
-    "--external-auth-provider",
-    type=str,
-    help="External Auth Provider (generic, azure, okta).",
-)
-@click.option(
-    "--use-authorization",
-    is_flag=True,
-    default=None,
-    help="Enable authorization for Platform Service.",
 )
 def init(**kwargs):
     """

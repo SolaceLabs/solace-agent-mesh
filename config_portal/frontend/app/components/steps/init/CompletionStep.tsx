@@ -60,9 +60,6 @@ const CONFIG_GROUPS: Record<string, string[]> = {
     "platform_api_host",
     "platform_api_port",
     "platform_database_url",
-    "use_authorization",
-    "external_auth_service_url",
-    "external_auth_provider",
   ],
 };
 
