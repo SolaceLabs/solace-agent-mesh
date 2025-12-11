@@ -53,7 +53,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
     curl \
-    ffmpeg \
+    ffmpeg=7:5.1.8-0+deb12u1  \
     git && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
@@ -122,7 +122,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     git \
-    ffmpeg && \
+    ffmpeg=7:5.1.8-0+deb12u1 && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
