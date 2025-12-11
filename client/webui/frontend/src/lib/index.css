@@ -51,6 +51,7 @@
     --foreground: var(--color-primary-text-wMain);
     --card: var(--color-background-w10);
     --card-foreground: var(--color-primary-text-wMain);
+    --card-background: var(--color-background-w20);
     --popover: var(--color-background-w10);
     --popover-foreground: var(--color-primary-text-wMain);
     --primary: var(--color-primary-wMain);
@@ -61,7 +62,6 @@
     --muted-foreground: var(--color-secondary-text-wMain);
     --accent: var(--color-secondary-w10);
     --accent-foreground: var(--color-secondary-text-wMain);
-    --card-background: var(--color-background-w20);
     --destructive: var(--color-error-wMain);
     --border: var(--color-secondary-w40);
     --input: var(--color-secondary-w40);
@@ -91,6 +91,7 @@
     --foreground: var(--color-primary-text-w10);
     --card: var(--color-background-wMain);
     --card-foreground: var(--color-primary-text-w10);
+    --card-background: var(--color-background-w100);
     --popover: var(--color-background-wMain);
     --popover-foreground: var(--color-primary-text-w10);
     --primary: var(--color-primary-w60);
@@ -101,7 +102,6 @@
     --muted-foreground: var(--color-secondary-text-w50);
     --accent: var(--color-secondary-w80);
     --accent-foreground: var(--color-secondary-text-w50);
-    --card-background: var(--color-background-w100);
     --destructive: var(--color-error-w70);
     --border: var(--color-secondary-w70);
     --input: var(--color-secondary-w70);
