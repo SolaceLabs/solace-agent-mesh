@@ -70,26 +70,6 @@ def create_platform_service_config(
         none_interactive=skip_interactive,
     )
 
-    # Validate database URL (basic check)
-    # if not platform_database_url or not isinstance(platform_database_url, str):
-    #     click.echo(
-    #         click.style(
-    #             "  Warning: Invalid database URL. Using default SQLite database.",
-    #             fg="yellow",
-    #         )
-    #     )
-    #     platform_database_url = PLATFORM_SERVICE_DEFAULTS["platform_database_url"]
-    # elif not platform_database_url.strip():
-    #     click.echo(
-    #         click.style(
-    #             "  Warning: Empty database URL. Using default SQLite database.",
-    #             fg="yellow",
-    #         )
-    #     )
-    #     platform_database_url = PLATFORM_SERVICE_DEFAULTS["platform_database_url"]
-
-    # options["platform_database_url"] = platform_database_url
-
     click.echo("Creating Platform Service configuration file...")
     destination_path = project_root / "configs" / "services" / "platform.yaml"
 
