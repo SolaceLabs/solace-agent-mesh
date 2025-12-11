@@ -574,9 +574,9 @@ class TaskLoggerService:
             session_repo = SessionRepository()
             existing_session = session_repo.find_by_id(db, session_id)
             if not existing_session:
-                log.info(
+                log.debug(
                     f"{self.log_identifier} Session {session_id} not found in webui_gateway database "
-                    f"(likely from another gateway like Slack). Skipping chat message save for task {task_id}"
+                    f"(Skipping chat message save for task {task_id}"
                 )
                 return
             
