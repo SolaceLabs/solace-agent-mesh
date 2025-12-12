@@ -17,7 +17,7 @@ describe("Projects Page - Navigation and Layout", { tags: ["@community"] }, () =
 
         cy.findByLabelText(/Project Name/i).type(projectName);
 
-        cy.findByLabelText(/Description/i).type("Cleanup test project");
+        cy.findByLabelText(/Description/i).type("This is a test project created by Cypress.");
 
         cy.findByRole("button", { name: "Create Project" }).click();
 
@@ -31,7 +31,7 @@ describe("Projects Page - Navigation and Layout", { tags: ["@community"] }, () =
             });
 
         cy.findByRole("dialog", { name: "Edit Project Instructions" }).within(() => {
-            cy.get("textarea").type("You are a helpful assistant. Please respond only in French.");
+            cy.get("textarea").type("These are the updated instructions for the project.");
 
             cy.findByRole("button", { name: "Save" }).click();
         });
