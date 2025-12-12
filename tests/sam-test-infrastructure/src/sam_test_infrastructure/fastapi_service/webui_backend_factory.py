@@ -198,7 +198,6 @@ class WebUIBackendFactory:
             _create_api_config,
             _get_app_config,
             _run_community_migrations,
-            _run_enterprise_migrations,
             _setup_middleware,
             _setup_routers,
             generic_exception_handler,
@@ -213,7 +212,6 @@ class WebUIBackendFactory:
         log.info("[WebUIBackendFactory] Database initialized with shared engine")
         log.info("Running database migrations...")
         _run_community_migrations(database_url)
-        _run_enterprise_migrations(component, database_url)
 
         # Set up API config
         app_config = _get_app_config(component)
