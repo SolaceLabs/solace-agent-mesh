@@ -48,6 +48,7 @@ class McpToolConfig(BaseToolConfig):
     tool_type: Literal["mcp"]
     connection_params: Dict[str, Any]
     tool_name: Optional[str] = None # Optional filter
+    tool_name_prefix: Optional[str] = None # Optional prefix for tool names
     environment_variables: Optional[Dict[str, Any]] = None
     auth: dict[str, Any] | None = None
     manifest: list[dict[str, Any]] | None = None

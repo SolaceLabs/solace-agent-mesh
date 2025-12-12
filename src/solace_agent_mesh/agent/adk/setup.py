@@ -665,6 +665,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     toolset_params = {
         "connection_params": connection_params,
         "tool_filter": tool_filter_list,
+        "tool_name_prefix": tool_config_model.tool_name_prefix,
         "tool_config": tool_config,
     }
 
