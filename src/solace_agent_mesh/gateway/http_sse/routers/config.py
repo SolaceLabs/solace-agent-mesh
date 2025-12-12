@@ -347,7 +347,7 @@ async def get_app_config(
             "frontend_auth_login_url": component.get_config(
                 "frontend_auth_login_url", ""
             ),
-            "frontend_use_authorization": component.use_authorization,
+            "frontend_use_authorization": component.get_config("frontend_use_authorization", False),
             "frontend_welcome_message": component.get_config(
                 "frontend_welcome_message", ""
             ),

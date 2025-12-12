@@ -18,7 +18,7 @@ def mock_component():
     """Mock PlatformServiceComponent."""
     component = MagicMock()
     component.get_cors_origins.return_value = ["http://localhost:3000"]
-    component.use_authorization = False
+    component.get_config.return_value = False
     return component
 
 

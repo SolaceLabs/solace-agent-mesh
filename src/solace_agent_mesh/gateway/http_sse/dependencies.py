@@ -209,7 +209,7 @@ def get_user_id(
             )
 
     # If we reach here, AuthMiddleware didn't set user state properly
-    use_authorization = session_manager.use_authorization
+    use_authorization = api_config.get("frontend_use_authorization", False) if api_config else False
 
     if use_authorization:
         # When OAuth is enabled, we should never reach here - AuthMiddleware should have handled authentication
