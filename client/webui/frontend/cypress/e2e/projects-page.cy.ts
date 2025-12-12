@@ -36,13 +36,37 @@ describe("Projects Page - Navigation and Layout", { tags: ["@community"] }, () =
             cy.findByRole("button", { name: "Save" }).click();
         });
 
+        cy.fixture("test-upload.txt").then(fileContent => {
+            // 1. Upload the file
+            cy.get('input[type="file"]').selectFile(
+                {
+                    contents: Cypress.Buffer.from(fileContent),
+                    fileName: "test-upload.txt",
+                    mimeType: "text/plain",
+                },
+                { force: true }
+            );
+
+            cy.findByRole("dialog", { name: "Upload Files to Project" }).within(() => {
+                cy.contains("p", "test-upload.txt").closest("div[data-slot='card-content']").find("textarea").type("Description for the file");
+
+                cy.findByRole("button", { name: /Upload 1 File\(s\)/i }).click();
+            });
+        });
+
         cy.findByRole("heading", { name: "Chats" })
             .parent()
             .findByRole("button", { name: /New Chat/i })
             .click();
 
-        cy.findByRole("button", { name: "New Chat" }).should("be.visible");
+        cy.url().should("include", "/chat");
 
-        cy.findByText(projectName).should("be.visible");
+        cy.contains('[data-slot="badge"]', projectName).should("be.visible");
+
+        cy.findByTestId("expandPanel").click();
+
+        cy.findByText("test-upload.txt").should("be.visible");
+
+        cy.findByText("Description for the file").should("be.visible");
     });
 });
