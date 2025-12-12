@@ -1328,6 +1328,24 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     default_timeout_ms=default_timeout_ms,
                 )
                 
+                # Recover orphaned tasks from previous backend instance
+                # This marks any tasks that were "running" when the backend crashed as "interrupted"
+                try:
+                    recovery_stats = self.background_task_monitor.recover_orphaned_tasks()
+                    if recovery_stats.get("recovered", 0) > 0:
+                        log.info(
+                            "%s Recovered %d orphaned background tasks on startup",
+                            self.log_identifier,
+                            recovery_stats["recovered"]
+                        )
+                except Exception as e:
+                    log.error(
+                        "%s Failed to recover orphaned background tasks: %s",
+                        self.log_identifier,
+                        e,
+                        exc_info=True
+                    )
+                
                 # Create timer for periodic timeout checks
                 monitor_interval_ms = background_config.get("monitor_interval_ms", 300000)  # 5 minutes
                 self._background_task_monitor_timer_id = f"background_task_monitor_{self.gateway_id}"

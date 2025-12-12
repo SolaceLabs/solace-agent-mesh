@@ -1,6 +1,7 @@
 """
 Background Task Monitor Service.
 Monitors background tasks and enforces timeouts.
+Also handles recovery of orphaned tasks on startup.
 """
 
 import logging
@@ -18,6 +19,7 @@ class BackgroundTaskMonitor:
     """
     Monitors background tasks and enforces timeouts.
     Runs as a periodic background job in the gateway.
+    Also handles recovery of orphaned tasks on startup.
     """
 
     def __init__(
@@ -38,7 +40,93 @@ class BackgroundTaskMonitor:
         self.task_service = task_service
         self.default_timeout_ms = default_timeout_ms
         self.log_identifier = "[BackgroundTaskMonitor]"
+        self._startup_recovery_done = False
         log.info(f"{self.log_identifier} Initialized with default timeout {default_timeout_ms}ms")
+
+    def recover_orphaned_tasks(self) -> dict:
+        """
+        Mark all running background tasks as interrupted on startup.
+        
+        This should be called once during backend startup to handle tasks
+        that were running when the backend crashed or was restarted.
+        Tasks that were in "running" or "pending" state with no end_time
+        are marked as "interrupted" since we can't know their actual state.
+        
+        Returns:
+            Dictionary with statistics about the recovery
+        """
+        if self._startup_recovery_done:
+            log.debug(f"{self.log_identifier} Startup recovery already done, skipping")
+            return {"recovered": 0, "already_done": True}
+        
+        log.info(f"{self.log_identifier} Starting orphaned task recovery on startup")
+        
+        if not self.session_factory:
+            log.warning(f"{self.log_identifier} No database session factory, skipping recovery")
+            return {"recovered": 0, "error": "No database configured"}
+        
+        db = self.session_factory()
+        try:
+            repo = TaskRepository()
+            current_time = now_epoch_ms()
+            
+            # Get all running background tasks (these are orphaned since we just started)
+            running_tasks = repo.find_background_tasks_by_status(db, status=None)
+            orphaned_tasks = [
+                task for task in running_tasks
+                if task.status in [None, "running", "pending"] and task.end_time is None
+            ]
+            
+            log.info(
+                f"{self.log_identifier} Found {len(orphaned_tasks)} orphaned background tasks to recover"
+            )
+            
+            recovered_count = 0
+            for task in orphaned_tasks:
+                try:
+                    # Mark task as interrupted
+                    task.status = "interrupted"
+                    task.end_time = current_time
+                    repo.save_task(db, task)
+                    recovered_count += 1
+                    log.info(
+                        f"{self.log_identifier} Marked orphaned task {task.id} as interrupted "
+                        f"(was {task.status or 'running'}, started at {task.start_time})"
+                    )
+                except Exception as e:
+                    log.error(
+                        f"{self.log_identifier} Failed to recover task {task.id}: {e}",
+                        exc_info=True
+                    )
+            
+            db.commit()
+            self._startup_recovery_done = True
+            
+            stats = {
+                "found": len(orphaned_tasks),
+                "recovered": recovered_count,
+                "timestamp": current_time
+            }
+            
+            if orphaned_tasks:
+                log.info(
+                    f"{self.log_identifier} Orphaned task recovery complete: "
+                    f"found={stats['found']}, recovered={stats['recovered']}"
+                )
+            else:
+                log.info(f"{self.log_identifier} No orphaned tasks found during startup recovery")
+            
+            return stats
+            
+        except Exception as e:
+            log.error(
+                f"{self.log_identifier} Error during orphaned task recovery: {e}",
+                exc_info=True
+            )
+            db.rollback()
+            return {"recovered": 0, "error": str(e)}
+        finally:
+            db.close()
 
     async def check_timeouts(self) -> dict:
         """
@@ -168,6 +256,7 @@ class BackgroundTaskMonitor:
             failed = len([t for t in all_background if t.status in ["failed", "error"]])
             cancelled = len([t for t in all_background if t.status == "cancelled"])
             timeout = len([t for t in all_background if t.status == "timeout"])
+            interrupted = len([t for t in all_background if t.status == "interrupted"])
             
             return {
                 "total": len(all_background),
@@ -176,6 +265,7 @@ class BackgroundTaskMonitor:
                 "failed": failed,
                 "cancelled": cancelled,
                 "timeout": timeout,
+                "interrupted": interrupted,
                 "timestamp": now_epoch_ms()
             }
             
