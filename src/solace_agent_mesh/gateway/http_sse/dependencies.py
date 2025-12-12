@@ -395,11 +395,15 @@ async def get_user_config(
     FastAPI dependency to get the user-specific configuration.
     """
     log.debug(f"get_user_config called for user_id: {user_id}")
-    gateway_context = {
-        "gateway_id": component.gateway_id,
-        "gateway_app_config": app_config,
-        "request": request,
-    }
+
+    # TODO: DATAGO-114659-split-cleanup
+    gateway_context = {}
+    if getattr(component, "gateway_id", None):
+        gateway_context = {
+            "gateway_id": component.gateway_id,
+            "gateway_app_config": app_config,
+            "request": request,
+        }
     return await config_resolver.resolve_user_config(
         user_id, gateway_context, app_config
     )

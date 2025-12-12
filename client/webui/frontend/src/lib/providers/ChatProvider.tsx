@@ -6,6 +6,7 @@ import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackg
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 
 import { authenticatedFetch, fetchJsonWithError, fetchWithError, getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
+import { createFileSizeErrorMessage } from "@/lib/utils/file-validation";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import type {
     ArtifactInfo,
@@ -161,8 +162,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
 
     // Notification Helper
-    // Note: "error" type is deprecated in favor of useErrorDialog
-    const addNotification = useCallback((message: string, type?: "success" | "info" | "error") => {
+    const addNotification = useCallback((message: string, type?: "success" | "info" | "warning") => {
         setNotifications(prev => {
             const existingNotification = prev.find(n => n.message === message);
 
@@ -535,18 +535,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Special handling for 413 status before checking response.ok
                 if (response.status === 413) {
                     const errorData = await response.json().catch(() => ({ message: `Failed to upload ${file.name}.` }));
-                    // Extract file size information if available
+                    // Extract file size information if available and use common utility
                     const actualSize = errorData.actual_size_bytes;
                     const maxSize = errorData.max_size_bytes;
 
-                    let errorMessage;
-                    if (actualSize && maxSize) {
-                        const actualSizeMB = (actualSize / (1024 * 1024)).toFixed(2);
-                        const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(2);
-                        errorMessage = `File "${file.name}" is too large: ${actualSizeMB} MB exceeds the maximum allowed size of ${maxSizeMB} MB.`;
-                    } else {
-                        errorMessage = errorData.message || `File "${file.name}" exceeds the maximum allowed size.`;
-                    }
+                    const errorMessage = actualSize && maxSize ? createFileSizeErrorMessage(file.name, actualSize, maxSize) : errorData.message || `File "${file.name}" exceeds the maximum allowed size.`;
 
                     setError({ title: "File Upload Failed", error: errorMessage });
                     return { error: errorMessage };
