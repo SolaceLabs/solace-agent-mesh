@@ -173,13 +173,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                     if (config.command !== editingGroup?.command) updateData.command = config.command;
                     updateData.initial_prompt = config.promptText;
 
-                    await api.chat.delete(`/api/v1/prompts/groups/${groupId}`, {
-                        method: "PATCH",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(updateData),
-                    });
+                    await api.chat.patch(`/api/v1/prompts/groups/${groupId}`, updateData);
 
                     setSaveStatus("success");
                     const message = promptTextChanged ? "New version created and activated" : "Changes saved";
@@ -198,23 +192,13 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                         if (config.category !== editingGroup?.category) updateData.category = config.category;
                         if (config.command !== editingGroup?.command) updateData.command = config.command;
 
-                        await api.chat.delete(`/api/v1/prompts/groups/${groupId}`, {
-                            method: "PATCH",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify(updateData),
-                        });
+                        await api.chat.patch(`/api/v1/prompts/groups/${groupId}`, updateData);
                     }
 
                     // Then update prompt text if it changed
                     if (promptTextChanged && editingPromptId) {
-                        await api.chat.delete(`/api/v1/prompts/${editingPromptId}`, {
-                            method: "PATCH",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify({ promptText: config.promptText }),
+                        await api.chat.patch(`/api/v1/prompts/${editingPromptId}`, {
+                            promptText: config.promptText,
                         });
                     }
 
