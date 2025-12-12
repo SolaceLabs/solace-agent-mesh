@@ -21,12 +21,12 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 dependencies = [
-    "google-adk==1.18.0",
+    "google-adk==1.21.0",
     "a2a-sdk[http-server]==0.3.7",
     "pydantic==2.11.9",
     "click==8.1.8",
     "python-dotenv==1.1.1",
-    "google-genai==1.49.0",
+    "google-genai==1.55.0",
     "httpx==0.28.1",
     "jwcrypto==1.5.6",
     "python-jwt==4.1.0",
@@ -65,8 +65,8 @@ dependencies = [
     "openai==1.99.9",
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
-    "azure-cognitiveservices-speech==1.41.1",
-    "authlib==1.6.5"  # For CVE-2025-59420: May be removed if next update to google-adk upgrades its transitive dependency on authlib
+    "azure-cognitiveservices-speech==1.41.1", # For CVE-2025-59420: May be removed if next update to google-adk upgrades its transitive dependency on authlib
+    "authlib==1.6.5",
 ]
 
 [project.optional-dependencies]

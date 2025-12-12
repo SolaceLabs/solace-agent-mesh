@@ -74,6 +74,9 @@ class OpenApiToolConfig(BaseToolConfig):
     # Authentication
     auth: Optional[Dict[str, Any]] = None
 
+    # Tool name prefix
+    tool_name_prefix: Optional[str] = None  # Optional prefix for tool names
+
     @model_validator(mode='after')
     def validate_tool_filtering(self):
         """Ensure allow_list and deny_list are mutually exclusive."""

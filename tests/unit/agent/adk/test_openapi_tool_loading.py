@@ -201,3 +201,34 @@ class TestOpenApiToolDelegation:
         with patch('builtins.__import__', side_effect=mock_import):
             with pytest.raises(Exception):
                 await _load_openapi_tool(mock_component, tool_config)
+
+    @pytest.mark.asyncio
+    async def test_load_openapi_with_tool_name_prefix(self, mock_component, mock_enterprise_modules):
+        """Test that tool_name_prefix is passed through to enterprise configurator."""
+        mock_enterprise, modules = mock_enterprise_modules
+        mock_toolset = Mock(origin=None)
+        mock_configurator = Mock(return_value=mock_toolset)
+        mock_enterprise.auth.tool_configurator.configure_openapi_tool = mock_configurator
+
+        tool_config = {
+            "tool_type": "openapi",
+            "specification": '{"openapi": "3.0.0"}',
+            "tool_name_prefix": "petstore"
+        }
+
+        with patch.dict('sys.modules', modules):
+            result = await _load_openapi_tool(mock_component, tool_config)
+
+        # Verify result structure
+        assert len(result) == 3
+        assert len(result[0]) == 1
+        assert result[0][0].origin == "openapi"
+
+        # Verify configurator was called with config including prefix
+        mock_configurator.assert_called_once_with(
+            tool_type="openapi",
+            tool_config=tool_config
+        )
+        # Verify the tool_config passed includes tool_name_prefix
+        passed_config = mock_configurator.call_args[1]["tool_config"]
+        assert passed_config.get("tool_name_prefix") == "petstore"
