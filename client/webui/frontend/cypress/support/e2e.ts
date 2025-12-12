@@ -1,6 +1,8 @@
+import "./cleanup-commands";
 import "./commands";
-import "./workflow-commands";
+import "./project-commands";
 import "./simple-session-commands";
+import "./workflow-commands";
 
 // Hide fetch/XHR requests in the command log
 const app = window.top;

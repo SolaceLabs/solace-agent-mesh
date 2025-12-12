@@ -18,6 +18,7 @@ declare global {
             startNewChat(): Chainable;
             navigateToChat(): Chainable;
             navigateToAgents(): Chainable;
+            navigateToProjects(): Chainable;
         }
         interface SuiteConfigOverrides {
             tags?: string[];
@@ -49,6 +50,11 @@ Cypress.Commands.add("navigateToChat", () => {
 Cypress.Commands.add("navigateToAgents", () => {
     cy.log("Navigating to Agents page");
     cy.findByRole("button", { name: "Agents" }).should("be.visible").click();
+});
+
+Cypress.Commands.add("navigateToProjects", () => {
+    cy.log("Navigating to Projects page");
+    cy.findByRole("button", { name: "Projects" }).should("be.visible").click();
 });
 
 export {};
