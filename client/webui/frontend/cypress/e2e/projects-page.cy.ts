@@ -10,7 +10,7 @@ describe("Projects Page - Navigation and Layout", { tags: ["@community"] }, () =
         cy.deleteCypressProjects();
     });
 
-    it("should create a project and verify its details", () => {
+    it("should create a project, upload files, and transition to chat", () => {
         const projectName = generateName();
 
         cy.createProject(projectName, "This is a test project created by Cypress.");
@@ -23,10 +23,7 @@ describe("Projects Page - Navigation and Layout", { tags: ["@community"] }, () =
             cy.uploadFileToProject(fileContent, "test-upload.txt", "Description for the file");
         });
 
-        cy.findByRole("heading", { name: "Chats" })
-            .parent()
-            .findByRole("button", { name: /New Chat/i })
-            .click();
+        cy.findByRole("button", { name: /Start New Chat/i }).click();
 
         cy.url().should("include", "/chat");
 
