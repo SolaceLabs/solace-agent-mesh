@@ -121,7 +121,10 @@ class SessionService:
                         try:
                             metadata = json.loads(chat_task.task_metadata) if isinstance(chat_task.task_metadata, str) else chat_task.task_metadata
                             task_status = metadata.get("status")
-                            is_completed = task_status in ["completed", "error", "failed"]
+                            # Include "interrupted" and "timeout" as completed states
+                            # "interrupted" is set when backend restarts and orphaned tasks are recovered
+                            # "timeout" is set when a background task exceeds its max execution time
+                            is_completed = task_status in ["completed", "error", "failed", "interrupted", "timeout", "cancelled"]
                             log.info(f"[get_user_sessions] Task {chat_task.id} metadata status: {task_status}, is_completed: {is_completed}")
                         except Exception as e:
                             log.warning(f"[get_user_sessions] Failed to parse task metadata for {chat_task.id}: {e}")
@@ -479,7 +482,10 @@ class SessionService:
                         try:
                             metadata = json.loads(chat_task.task_metadata) if isinstance(chat_task.task_metadata, str) else chat_task.task_metadata
                             task_status = metadata.get("status")
-                            is_completed = task_status in ["completed", "error", "failed"]
+                            # Include "interrupted" and "timeout" as completed states
+                            # "interrupted" is set when backend restarts and orphaned tasks are recovered
+                            # "timeout" is set when a background task exceeds its max execution time
+                            is_completed = task_status in ["completed", "error", "failed", "interrupted", "timeout", "cancelled"]
                             log.info(f"[search_sessions] Task {chat_task.id} metadata status: {task_status}, is_completed: {is_completed}")
                         except Exception as e:
                             log.warning(f"[search_sessions] Failed to parse task metadata for {chat_task.id}: {e}")
