@@ -79,6 +79,11 @@ class WorkflowExecutionContext:
         with self.lock:
             return self.node_to_sub_task.get(node_id)
 
+    def get_all_sub_task_ids(self) -> List[str]:
+        """Get all tracked sub-task IDs."""
+        with self.lock:
+            return list(self.sub_task_to_node.keys())
+
     def cancel(self):
         """Signal cancellation."""
         self.cancellation_event.set()

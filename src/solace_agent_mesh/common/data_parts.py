@@ -173,6 +173,9 @@ class WorkflowNodeRequestData(BaseModel):
     output_schema: Optional[Dict[str, Any]] = Field(
         None, description="JSON Schema for output (overrides agent card)"
     )
+    suggested_output_filename: Optional[str] = Field(
+        None, description="Suggested unique filename for the output artifact"
+    )
 
 
 class WorkflowNodeResultData(BaseModel):

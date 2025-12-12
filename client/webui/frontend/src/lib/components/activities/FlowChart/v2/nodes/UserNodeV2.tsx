@@ -33,7 +33,10 @@ const UserNodeV2: React.FC<UserNodeV2Props> = ({ node, isSelected, onClick }) =>
                 minWidth: "120px",
                 textAlign: "center",
             }}
-            onClick={() => onClick?.(node)}
+            onClick={(e) => {
+                e.stopPropagation();
+                onClick?.(node);
+            }}
         >
             <div className="flex items-center justify-center">
                 <div className={`mr-2 h-3 w-3 rounded-full ${getStatusColor()}`} />

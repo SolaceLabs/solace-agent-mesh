@@ -52,6 +52,7 @@ export interface PerformanceReport {
  */
 export type VisualizerStepType =
     | "USER_REQUEST" // User's initial input to the agent/system
+    | "WORKFLOW_AGENT_REQUEST" // Workflow executor's request to an agent node
     | "AGENT_LLM_CALL" // An agent making a call to an LLM
     | "AGENT_LLM_RESPONSE_TOOL_DECISION" // LLM response includes a decision to call a tool
     | "AGENT_LLM_RESPONSE_TO_AGENT" // LLM response back to the calling agent
@@ -82,7 +83,8 @@ export interface LLMCallData {
  */
 export interface LLMResponseToAgentData {
     modelName?: string; // Optional, as it might be part of the preceding LLMCallData
-    responsePreview: string; // Snippet or summary of the LLM's response to the agent
+    responsePreview: string; // Snippet or summary of the LLM's response to the agent (first 200 chars)
+    response: string; // Full LLM response text
     isFinalResponse?: boolean; // Indicates if this is the complete final response from the LLM to agent for that turn
     // Potentially add response token counts if available
 }
@@ -167,6 +169,19 @@ export interface WorkflowExecutionStartData {
     workflowInput?: Record<string, any>;
 }
 
+export interface WorkflowAgentRequestData {
+    agentName: string;
+    nodeId?: string;
+    workflowName?: string;
+    inputText?: string; // Text input if sent as text parts
+    inputArtifactRef?: {
+        name: string;
+        version?: number;
+        uri?: string; // Full artifact URI for fetching content
+        mimeType?: string;
+    };
+}
+
 export interface WorkflowNodeExecutionStartData {
     nodeId: string;
     nodeType: string;
@@ -228,6 +243,7 @@ export interface VisualizerStep {
         statusText?: string; // For AGENT_STATUS_UPDATE
         finalMessage?: string; // For TASK_COMPLETED (if there's a final summary message)
         workflowExecutionStart?: WorkflowExecutionStartData; // For WORKFLOW_EXECUTION_START
+        workflowAgentRequest?: WorkflowAgentRequestData; // For WORKFLOW_AGENT_REQUEST
         workflowNodeExecutionStart?: WorkflowNodeExecutionStartData; // For WORKFLOW_NODE_EXECUTION_START
         workflowNodeExecutionResult?: WorkflowNodeExecutionResultData; // For WORKFLOW_NODE_EXECUTION_RESULT
         workflowMapProgress?: WorkflowMapProgressData; // For WORKFLOW_MAP_PROGRESS

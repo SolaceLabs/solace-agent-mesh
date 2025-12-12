@@ -301,6 +301,9 @@ async def handle_agent_response(
                     break
             
             if node_result:
+                # Remove the cache entry for timeout tracking since we received a response
+                component.cache_service.remove_data(sub_task_id)
+
                 await component.dag_executor.handle_node_completion(
                     workflow_context, sub_task_id, node_result
                 )

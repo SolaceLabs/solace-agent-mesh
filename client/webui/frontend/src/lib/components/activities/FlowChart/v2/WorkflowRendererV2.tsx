@@ -8,9 +8,36 @@ import WorkflowGroupV2 from "./nodes/WorkflowGroupV2";
 import EdgeLayerV2 from "./EdgeLayerV2";
 
 /**
+ * Check if a node or any of its descendants has status 'in-progress'
+ */
+function hasProcessingDescendant(node: LayoutNode): boolean {
+    if (node.data.status === 'in-progress') {
+        return true;
+    }
+    for (const child of node.children) {
+        if (hasProcessingDescendant(child)) {
+            return true;
+        }
+    }
+    if (node.parallelBranches) {
+        for (const branch of node.parallelBranches) {
+            for (const branchNode of branch) {
+                if (hasProcessingDescendant(branchNode)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+/**
  * Recursively collapse nested agents (level > 0) and recalculate their dimensions
  */
-function collapseNestedAgents(node: LayoutNode, nestingLevel: number): LayoutNode {
+function collapseNestedAgents(node: LayoutNode, nestingLevel: number, expandedNodeIds: Set<string> = new Set()): LayoutNode {
+    // Check if this node is manually expanded
+    const isManuallyExpanded = expandedNodeIds.has(node.id);
+
     // Special handling for Map/Fork nodes (pill variant with parallel branches)
     // Don't collapse these - instead, flatten their parallel branches
     if (node.type === 'agent' && node.data.variant === 'pill' && node.parallelBranches && node.parallelBranches.length > 0) {
@@ -18,7 +45,7 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number): LayoutNod
         const flattenedChildren: LayoutNode[] = [];
         for (const branch of node.parallelBranches) {
             for (const child of branch) {
-                flattenedChildren.push(collapseNestedAgents(child, nestingLevel + 1));
+                flattenedChildren.push(collapseNestedAgents(child, nestingLevel + 1, expandedNodeIds));
             }
         }
 
@@ -41,8 +68,35 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number): LayoutNod
         };
     }
 
-    // For regular agents at level > 0, collapse them
+    // For regular agents at level > 0, collapse them (unless manually expanded)
     if (node.type === 'agent' && nestingLevel > 0) {
+        if (isManuallyExpanded) {
+            // Node is manually expanded - process children but mark as expanded
+            const expandedChildren = node.children.map(child => collapseNestedAgents(child, nestingLevel + 1, expandedNodeIds));
+
+            // Recalculate height
+            const headerHeight = 50;
+            const padding = 16;
+            const gap = 16;
+            const childrenHeight = expandedChildren.reduce((sum, child, idx) => {
+                return sum + child.height + (idx < expandedChildren.length - 1 ? gap : 0);
+            }, 0);
+            const newHeight = headerHeight + padding * 2 + childrenHeight;
+
+            return {
+                ...node,
+                children: expandedChildren,
+                height: newHeight,
+                data: {
+                    ...node.data,
+                    isExpanded: true, // Mark as expanded so collapse icon shows
+                },
+            };
+        }
+
+        // Check if any children are processing before we collapse them
+        const childrenProcessing = hasProcessingDescendant(node);
+
         // Collapsed agent: just header + padding, no children
         const headerHeight = 50;
         const padding = 16;
@@ -53,31 +107,65 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number): LayoutNod
             children: [],
             parallelBranches: undefined,
             height: collapsedHeight,
+            data: {
+                ...node.data,
+                isCollapsed: true,
+                // If children were processing, mark the collapsed node as processing
+                hasProcessingChildren: childrenProcessing,
+            },
         };
     }
 
-    // For workflow groups at level > 0, collapse nested agents inside them
-    if (node.type === 'group' && nestingLevel > 0) {
-        const collapsedChildren = node.children.map(child => collapseNestedAgents(child, nestingLevel + 1));
+    // For workflow groups, collapse them entirely (unless manually expanded)
+    if (node.type === 'group') {
+        if (isManuallyExpanded) {
+            // Node is manually expanded - process children but mark as expanded
+            const expandedChildren = node.children.map(child => collapseNestedAgents(child, nestingLevel + 1, expandedNodeIds));
 
-        // Recalculate height based on collapsed children
-        const padding = 24; // p-6
-        const gap = 16;
-        const childrenHeight = collapsedChildren.reduce((sum, child, idx) => {
-            return sum + child.height + (idx < collapsedChildren.length - 1 ? gap : 0);
-        }, 0);
-        const newHeight = padding * 2 + childrenHeight;
+            // Recalculate height (group uses 24px padding)
+            const padding = 24;
+            const gap = 16;
+            const childrenHeight = expandedChildren.reduce((sum, child, idx) => {
+                return sum + child.height + (idx < expandedChildren.length - 1 ? gap : 0);
+            }, 0);
+            const newHeight = padding * 2 + childrenHeight;
+
+            return {
+                ...node,
+                children: expandedChildren,
+                height: newHeight,
+                data: {
+                    ...node.data,
+                    isExpanded: true, // Mark as expanded so collapse icon shows
+                },
+            };
+        }
+
+        // Check if any children are processing before we collapse them
+        const childrenProcessing = hasProcessingDescendant(node);
+
+        // Collapsed workflow: just header + padding, no children
+        const headerHeight = 50;
+        const padding = 16;
+        const collapsedHeight = headerHeight + padding;
 
         return {
             ...node,
-            children: collapsedChildren,
-            height: newHeight,
+            children: [],
+            parallelBranches: undefined,
+            height: collapsedHeight,
+            data: {
+                ...node.data,
+                isCollapsed: true,
+                // If children were processing, mark the collapsed node as processing
+                hasProcessingChildren: childrenProcessing,
+            },
         };
     }
 
     // For top-level nodes or non-agent nodes, process children recursively
     if (node.children.length > 0) {
-        const collapsedChildren = node.children.map(child => collapseNestedAgents(child, nestingLevel + 1));
+        const collapsedChildren = node.children.map(child => collapseNestedAgents(child, nestingLevel + 1, expandedNodeIds));
 
         // Recalculate height
         const headerHeight = node.type === 'agent' ? 50 : 0;
@@ -103,7 +191,7 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number): LayoutNod
         const flattenedChildren: LayoutNode[] = [];
         for (const branch of node.parallelBranches) {
             for (const child of branch) {
-                flattenedChildren.push(collapseNestedAgents(child, nestingLevel + 1));
+                flattenedChildren.push(collapseNestedAgents(child, nestingLevel + 1, expandedNodeIds));
             }
         }
 
@@ -147,6 +235,20 @@ const WorkflowRendererV2: React.FC<WorkflowRendererV2Props> = ({
     showDetail = true,
 }) => {
     const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+    const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
+
+    // Handle expand toggle for a node
+    const handleExpandNode = (nodeId: string) => {
+        setExpandedNodeIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(nodeId)) {
+                newSet.delete(nodeId);
+            } else {
+                newSet.add(nodeId);
+            }
+            return newSet;
+        });
+    };
 
     // Process steps into layout
     const baseLayoutResult = useMemo(() => {
@@ -168,13 +270,13 @@ const WorkflowRendererV2: React.FC<WorkflowRendererV2Props> = ({
             return baseLayoutResult;
         }
 
-        // Deep clone and collapse nodes
-        const collapsedNodes = baseLayoutResult.nodes.map(node => collapseNestedAgents(node, 0));
+        // Deep clone and collapse nodes (respecting manually expanded nodes)
+        const collapsedNodes = baseLayoutResult.nodes.map(node => collapseNestedAgents(node, 0, expandedNodeIds));
         return {
             ...baseLayoutResult,
             nodes: collapsedNodes,
         };
-    }, [baseLayoutResult, showDetail]);
+    }, [baseLayoutResult, showDetail, expandedNodeIds]);
 
     const { nodes, edges, totalWidth, totalHeight } = layoutResult;
 
@@ -199,6 +301,8 @@ const WorkflowRendererV2: React.FC<WorkflowRendererV2Props> = ({
             isSelected,
             onClick: handleNodeClick,
             onChildClick: handleNodeClick, // For nested clicks
+            onExpand: handleExpandNode,
+            onCollapse: handleExpandNode, // Same handler - toggles expanded state
         };
 
         let component: React.ReactNode;

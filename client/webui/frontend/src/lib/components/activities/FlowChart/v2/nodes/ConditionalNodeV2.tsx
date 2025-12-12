@@ -25,7 +25,10 @@ const ConditionalNodeV2: React.FC<ConditionalNodeV2Props> = ({ node, isSelected,
         <div
             className="relative flex items-center justify-center cursor-pointer"
             style={{ width: `${node.width}px`, height: `${node.height}px` }}
-            onClick={() => onClick?.(node)}
+            onClick={(e) => {
+                e.stopPropagation();
+                onClick?.(node);
+            }}
             title={node.data.description}
         >
             {/* Diamond Shape using rotation */}

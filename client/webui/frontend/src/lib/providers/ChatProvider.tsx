@@ -351,13 +351,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             formData.append("filename", file.name);
             // Send sessionId as form field (can be empty string for new sessions)
             formData.append("sessionId", effectiveSessionId || "");
-            
+
             // Add description as metadata if provided
             if (description) {
                 const metadata = { description };
                 formData.append("metadata_json", JSON.stringify(metadata));
             }
-            
+
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",
@@ -686,10 +686,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     return prevArtifacts.map(art =>
                         art.filename === filename
                             ? {
-                                  ...art,
-                                  accumulatedContent: undefined,
-                                  needsEmbedResolution: false,
-                              }
+                                ...art,
+                                accumulatedContent: undefined,
+                                needsEmbedResolution: false,
+                            }
                             : art
                     );
                 });
@@ -842,8 +842,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     status === "in-progress" && artifact_chunk
                                                         ? (existingArtifact.accumulatedContent || "") + artifact_chunk
                                                         : status === "completed" && !isDisplayed
-                                                          ? undefined // Clear accumulated content when completed if NOT displayed
-                                                          : existingArtifact.accumulatedContent, // Keep for displayed artifacts
+                                                            ? undefined // Clear accumulated content when completed if NOT displayed
+                                                            : existingArtifact.accumulatedContent, // Keep for displayed artifacts
                                                 // Mark that streaming content is plain text (not base64)
                                                 isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : existingArtifact.isAccumulatedContentPlainText,
                                                 // Update mime_type when completed
@@ -1010,7 +1010,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     break;
                                 }
                                 default:
-                                    console.warn("Received unknown data part type:", data.type);
+                                    console.log("Received unknown data part type:", data.type);
                             }
                         } else if (part.metadata?.tool_name === "_notify_artifact_save") {
                             // Handle artifact completion notification
@@ -1875,7 +1875,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const urlParams = new URLSearchParams(window.location.search);
             const urlAgentName = urlParams.get('agent');
             let urlAgent: AgentCardInfo | undefined;
-            
+
             if (urlAgentName) {
                 urlAgent = agents.find(agent => agent.name === urlAgentName);
                 if (urlAgent) {

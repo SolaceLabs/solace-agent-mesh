@@ -7,7 +7,8 @@ import { useAgentCards } from "@/lib/hooks";
 import { getThemeButtonHtmlStyles } from "@/lib/utils";
 import WorkflowRendererV2 from "./WorkflowRendererV2";
 import type { LayoutNode, Edge } from "./utils/types";
-import { VisualizerStepCard } from "../../VisualizerStepCard";
+import { findNodeDetails, type NodeDetails } from "./utils/nodeDetailsHelper";
+import NodeDetailsCard from "./NodeDetailsCard";
 
 interface FlowChartPanelV2Props {
     processedSteps: VisualizerStep[];
@@ -26,7 +27,7 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
     const { agentNameMap } = useAgentCards();
 
     // Popover state
-    const [selectedStep, setSelectedStep] = useState<VisualizerStep | null>(null);
+    const [selectedNodeDetails, setSelectedNodeDetails] = useState<NodeDetails | null>(null);
     const [isPopoverOpen, setIsPopoverOpen] = useState(false);
     const popoverAnchorRef = useRef<HTMLDivElement>(null);
 
@@ -37,18 +38,20 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
     const handleNodeClick = useCallback(
         (node: LayoutNode) => {
             const stepId = node.data.visualizerStepId;
-            if (!stepId) return;
 
-            const step = processedSteps.find(s => s.id === stepId);
-            if (!step) return;
+            // Find detailed information about this node
+            const nodeDetails = findNodeDetails(node, processedSteps);
 
-            setHighlightedStepId(stepId);
+            // Set highlighted step for synchronization with other views
+            if (stepId) {
+                setHighlightedStepId(stepId);
+            }
 
             if (isRightPanelVisible) {
                 // Right panel is open, just highlight
             } else {
-                // Show popover
-                setSelectedStep(step);
+                // Show popover with node details
+                setSelectedNodeDetails(nodeDetails);
                 setIsPopoverOpen(true);
             }
         },
@@ -61,26 +64,19 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
             const stepId = edge.visualizerStepId;
             if (!stepId) return;
 
-            const step = processedSteps.find(s => s.id === stepId);
-            if (!step) return;
-
+            // For edges, just highlight the step
             setHighlightedStepId(stepId);
 
-            if (isRightPanelVisible) {
-                // Right panel is open, just highlight
-            } else {
-                // Show popover
-                setSelectedStep(step);
-                setIsPopoverOpen(true);
-            }
+            // Note: Edges don't have request/result pairs like nodes do,
+            // so we don't show a popover for them
         },
-        [processedSteps, isRightPanelVisible, setHighlightedStepId]
+        [setHighlightedStepId]
     );
 
     // Handle popover close
     const handlePopoverClose = useCallback(() => {
         setIsPopoverOpen(false);
-        setSelectedStep(null);
+        setSelectedNodeDetails(null);
     }, []);
 
     // Handle pane click (clear selection)
@@ -157,22 +153,22 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
                             </div>
                         </TransformComponent>
 
-                        {/* Popover anchor point */}
-                        <div ref={popoverAnchorRef} style={{ position: "absolute", top: "50%", right: "50px" }} />
+                        {/* Popover anchor point - positioned near top to allow room for content to expand */}
+                        <div ref={popoverAnchorRef} style={{ position: "absolute", top: "80px", right: "50px" }} />
                     </>
                 )}
             </TransformWrapper>
 
-            {/* Edge/Node Information Popover */}
+            {/* Node Details Popover */}
             <PopoverManual
                 isOpen={isPopoverOpen}
                 onClose={handlePopoverClose}
                 anchorRef={popoverAnchorRef}
                 offset={POPOVER_OFFSET}
                 placement="right-start"
-                className="max-w-[500px] min-w-[400px] p-2"
+                className="max-w-[900px] min-w-[600px] max-h-[80vh] overflow-y-auto"
             >
-                {selectedStep && <VisualizerStepCard step={selectedStep} variant="popover" />}
+                {selectedNodeDetails && <NodeDetailsCard nodeDetails={selectedNodeDetails} />}
             </PopoverManual>
         </div>
     );

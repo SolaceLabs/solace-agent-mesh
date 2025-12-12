@@ -51,7 +51,8 @@
       "Bash(.venv/bin/python -m pytest:*)",
       "Bash(git mv:*)",
       "Bash(while read file)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

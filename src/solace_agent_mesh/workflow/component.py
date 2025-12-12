@@ -741,6 +741,11 @@ class WorkflowExecutorComponent(SamComponentBase):
         session.state["workflow_execution"] = state.model_dump()
         # Note: Session state is persisted automatically by the SessionService
 
+        # Clean up any remaining cache entries for timeout tracking
+        # These should normally be removed when nodes complete, but this is a safety net
+        for sub_task_id in workflow_context.get_all_sub_task_ids():
+            self.cache_service.remove_data(sub_task_id)
+
         # Remove from active workflows
         with self.active_workflows_lock:
             self.active_workflows.pop(workflow_context.workflow_task_id, None)

@@ -52,6 +52,34 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
         processStep(step, context);
     }
 
+    // Debug: Find any LLM nodes still in-progress
+    const inProgressLLMs: { nodeId: string; agentLabel: string; stepId: string }[] = [];
+    const findInProgressLLMs = (node: LayoutNode, parentLabel: string) => {
+        if (node.type === 'llm' && node.data.status === 'in-progress') {
+            inProgressLLMs.push({
+                nodeId: node.id,
+                agentLabel: parentLabel,
+                stepId: node.data.visualizerStepId || 'unknown',
+            });
+        }
+        for (const child of node.children) {
+            findInProgressLLMs(child, node.type === 'agent' ? node.data.label : parentLabel);
+        }
+        if (node.parallelBranches) {
+            for (const branch of node.parallelBranches) {
+                for (const branchNode of branch) {
+                    findInProgressLLMs(branchNode, node.type === 'agent' ? node.data.label : parentLabel);
+                }
+            }
+        }
+    };
+    for (const rootNode of context.rootNodes) {
+        findInProgressLLMs(rootNode, rootNode.data.label);
+    }
+    if (inProgressLLMs.length > 0) {
+        console.log('[LLM_DEBUG] In-progress LLM nodes after processing:', inProgressLLMs);
+    }
+
     // Calculate layout (positions and dimensions)
     const nodes = calculateLayout(context.rootNodes);
 
@@ -85,6 +113,10 @@ function processStep(step: VisualizerStep, context: BuildContext): void {
             break;
         case "AGENT_TOOL_EXECUTION_RESULT":
             handleToolResult(step, context);
+            break;
+        case "AGENT_LLM_RESPONSE_TO_AGENT":
+        case "AGENT_LLM_RESPONSE_TOOL_DECISION":
+            handleLLMResponse(step, context);
             break;
         case "AGENT_RESPONSE_TEXT":
             handleAgentResponse(step, context);
@@ -179,6 +211,23 @@ function handleLLMCall(step: VisualizerStep, context: BuildContext): void {
 }
 
 /**
+ * Handle AGENT_LLM_RESPONSE_TO_AGENT or AGENT_LLM_RESPONSE_TOOL_DECISION - marks LLM as completed
+ */
+function handleLLMResponse(step: VisualizerStep, context: BuildContext): void {
+    const agentNode = findAgentForStep(step, context);
+    if (!agentNode) return;
+
+    // Find the most recent LLM node in this agent and mark it as completed
+    for (let i = agentNode.children.length - 1; i >= 0; i--) {
+        const child = agentNode.children[i];
+        if (child.type === 'llm' && child.data.status === 'in-progress') {
+            child.data.status = 'completed';
+            break;
+        }
+    }
+}
+
+/**
  * Handle AGENT_TOOL_INVOCATION_START
  */
 function handleToolInvocation(step: VisualizerStep, context: BuildContext): void {
@@ -237,8 +286,10 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
 
         agentNode.children.push(toolNode);
 
-        if (step.functionCallId) {
-            context.functionCallToNodeMap.set(step.functionCallId, toolNode);
+        // Also check for functionCallId in the data
+        const functionCallId = step.functionCallId || step.data.toolInvocationStart?.functionCallId;
+        if (functionCallId) {
+            context.functionCallToNodeMap.set(functionCallId, toolNode);
         }
     }
 }
@@ -498,6 +549,26 @@ function handleWorkflowNodeResult(step: VisualizerStep, context: BuildContext): 
                 step.owningTaskId
             );
             groupNode.children.push(joinNode);
+        }
+    }
+
+    // For agent node results, mark any remaining in-progress LLM nodes as completed
+    // This handles the case where the final LLM response doesn't emit a separate event
+    const nodeType = step.data.workflowNodeExecutionResult?.metadata?.node_type;
+    if (nodeType === 'agent' || !parallelContainer) {
+        // Find the agent node for this workflow node by looking for it in the task map
+        // The agent node was registered with its subTaskId
+        for (const [subTaskId, agentNode] of context.taskToNodeMap.entries()) {
+            // Check if this subTaskId matches the pattern for this nodeId
+            if (subTaskId.includes(nodeId) || agentNode.data.nodeId === nodeId) {
+                // Mark all in-progress LLM children as completed
+                for (const child of agentNode.children) {
+                    if (child.type === 'llm' && child.data.status === 'in-progress') {
+                        child.data.status = 'completed';
+                    }
+                }
+                break;
+            }
         }
     }
 }

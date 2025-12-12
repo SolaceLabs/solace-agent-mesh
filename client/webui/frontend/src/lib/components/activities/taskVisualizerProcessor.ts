@@ -203,7 +203,7 @@ export const processTaskForVisualization = (
 
             const nestingLevelForFlush = taskNestingLevels.get(owningTaskIdForFlush) ?? 0;
             const functionCallIdForStep = subTaskToFunctionCallIdMap.get(owningTaskIdForFlush) || activeFunctionCallIdByTask.get(owningTaskIdForFlush);
-            
+
             const taskForFlush = allMonitoredTasks[owningTaskIdForFlush];
             const parentTaskIdForFlush = getParentTaskIdFromTaskObject(taskForFlush);
 
@@ -231,9 +231,6 @@ export const processTaskForVisualization = (
         aggregatedTextIsForwardedContext = undefined;
     };
 
-    // Debug: Log all monitored tasks keys
-    console.log("[Visualizer] All Monitored Tasks Keys:", Object.keys(allMonitoredTasks));
-
     // 3. Process the sorted, combined event stream
     sortedEvents.forEach((event, index) => {
         const eventTimestamp = getEventTimestamp(event);
@@ -241,11 +238,9 @@ export const processTaskForVisualization = (
         const payload = event.full_payload;
         const currentEventOwningTaskId = event.task_id || parentTaskObject.taskId;
         const currentEventNestingLevel = taskNestingLevels.get(currentEventOwningTaskId) ?? 0;
-        
+
         const currentTask = allMonitoredTasks[currentEventOwningTaskId];
         const parentTaskId = getParentTaskIdFromTaskObject(currentTask);
-
-        console.log(`[Visualizer] Processing event: ${event.direction} (Task: ${currentEventOwningTaskId}, Level: ${currentEventNestingLevel})`, payload);
 
         // Determine agent name
         let eventAgentName = event.source_entity || "UnknownAgent";
@@ -275,14 +270,75 @@ export const processTaskForVisualization = (
 
         // Handle sub-task creation requests to establish the mapping early
         if (event.direction === "request" && currentEventNestingLevel > 0) {
-            const metadata = payload.params?.metadata as any;
-            const functionCallId = metadata?.function_call_id;
+            // Note: metadata can be at params level (for tool delegation) or message level (for workflow agent calls)
+            const paramsMetadata = payload.params?.metadata as any;
+            const messageMetadata = payload.params?.message?.metadata as any;
+            const functionCallId = paramsMetadata?.function_call_id || messageMetadata?.function_call_id;
             const subTaskId = event.task_id;
 
             if (subTaskId && functionCallId) {
                 subTaskToFunctionCallIdMap.set(subTaskId, functionCallId);
                 // This event's only purpose is to create the mapping.
                 // It doesn't create a visual step itself, so we return.
+                return;
+            }
+
+            // Check if this is a workflow agent request (has workflow_name in message metadata)
+            const workflowName = messageMetadata?.workflow_name;
+            const nodeId = messageMetadata?.node_id;
+            if (workflowName && nodeId) {
+                // This is a workflow agent invocation - create a WORKFLOW_AGENT_REQUEST step
+                const params = payload.params as any;
+                let inputText: string | undefined;
+                let inputArtifactRef: { name: string; version?: number } | undefined;
+
+                if (params?.message?.parts) {
+                    // Extract text parts (skip the workflow_node_request data part and reminder text)
+                    const textParts = params.message.parts.filter((p: any) =>
+                        p.kind === "text" && p.text && !p.text.includes("REMINDER:")
+                    );
+                    if (textParts.length > 0) {
+                        inputText = textParts[0].text;
+                    }
+
+                    // Extract file parts (artifact references)
+                    const fileParts = params.message.parts.filter((p: any) =>
+                        p.kind === "file" && p.file
+                    );
+                    if (fileParts.length > 0) {
+                        const file = fileParts[0].file;
+                        inputArtifactRef = {
+                            name: file.name || "input",
+                            version: file.version,
+                            uri: file.uri,
+                            mimeType: file.mimeType,
+                        };
+                    }
+                }
+
+                const stepData = {
+                    id: `vstep-wfagentreq-${visualizerSteps.length}-${eventId}`,
+                    type: "WORKFLOW_AGENT_REQUEST" as const,
+                    timestamp: eventTimestamp,
+                    title: `Workflow Request to ${event.target_entity || eventAgentName}`,
+                    source: "Workflow",
+                    target: event.target_entity || eventAgentName,
+                    data: {
+                        workflowAgentRequest: {
+                            agentName: event.target_entity || eventAgentName || "Unknown",
+                            nodeId,
+                            workflowName,
+                            inputText,
+                            inputArtifactRef,
+                        },
+                    },
+                    rawEventIds: [eventId],
+                    isSubTaskStep: true,
+                    nestingLevel: currentEventNestingLevel,
+                    owningTaskId: currentEventOwningTaskId,
+                    parentTaskId: parentTaskId || undefined,
+                };
+                visualizerSteps.push(stepData);
                 return;
             }
         }
@@ -328,7 +384,7 @@ export const processTaskForVisualization = (
             let statusUpdateAgentName: string;
             // Check both message metadata and result metadata for forwarding flag
             const isForwardedMessage = !!messageMetadata?.forwarded_from_peer || !!result.metadata?.forwarded_from_peer;
-            
+
             if (isForwardedMessage) {
                 statusUpdateAgentName = messageMetadata?.forwarded_from_peer || result.metadata?.forwarded_from_peer;
             } else if (result.metadata?.agent_name) {
@@ -360,7 +416,6 @@ export const processTaskForVisualization = (
                         switch (signalType) {
                             case "workflow_execution_start": {
                                 const dedupKey = `start:${signalData.execution_id}`;
-                                console.log(`[Visualizer] Processing WORKFLOW_EXECUTION_START. ExecutionID: ${signalData.execution_id}, DedupKey: ${dedupKey}, Seen: ${processedWorkflowEvents.has(dedupKey)}`);
                                 if (processedWorkflowEvents.has(dedupKey)) break;
                                 processedWorkflowEvents.add(dedupKey);
 
@@ -669,6 +724,7 @@ export const processTaskForVisualization = (
                                             .join("\n") || "";
                                     const llmResponseToAgentData: LLMResponseToAgentData = {
                                         responsePreview: llmResponseText.substring(0, 200) + (llmResponseText.length > 200 ? "..." : ""),
+                                        response: llmResponseText, // Store full response
                                         isFinalResponse: llmResponseData?.partial === false,
                                     };
                                     visualizerSteps.push({
@@ -770,7 +826,7 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             default:
-                                console.warn(`Received unknown data part type: ${signalType}`, signalData);
+                                console.log(`Received unknown data part type: ${signalType}`, signalData);
                                 break;
                         }
                     } else if (part.kind === "text" && part.text) {

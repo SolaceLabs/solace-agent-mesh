@@ -602,6 +602,16 @@ class WorkflowNodeHandler:
 You are executing as node '{workflow_data.node_id}' in workflow '{workflow_data.workflow_name}'.
 """
 
+        # Add required output filename if provided
+        if workflow_data.suggested_output_filename:
+            workflow_instructions += f"""
+=== REQUIRED OUTPUT ARTIFACT FILENAME ===
+You MUST save your output artifact with this exact filename:
+{workflow_data.suggested_output_filename}
+
+When you complete this task, use: «result:artifact={workflow_data.suggested_output_filename} status=success»
+"""
+
         # Add output schema requirement if present
         if output_schema:
             workflow_instructions += f"""

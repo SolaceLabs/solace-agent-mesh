@@ -201,7 +201,7 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
             <div className="mb-1 flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400">{data.nodeType} Node</span>
-                {data.iterationIndex !== undefined && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-800 dark:bg-blue-900 dark:text-blue-200">Iter #{data.iterationIndex}</span>}
+                {(data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === 'number') && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-800 dark:bg-blue-900 dark:text-blue-200">Iter #{data.iterationIndex}</span>}
             </div>
 
             {data.condition && (

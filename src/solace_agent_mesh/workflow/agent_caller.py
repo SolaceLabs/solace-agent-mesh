@@ -138,7 +138,6 @@ class AgentCaller:
             "Please provide an explicit 'input' mapping."
         )
 
-
     def _generate_result_embed_reminder(
         self, output_schema: Optional[Dict[str, Any]]
     ) -> str:
@@ -146,16 +145,16 @@ class AgentCaller:
         if output_schema:
             return """
 REMINDER: When you complete this task, you MUST end your response with:
-«result:artifact=<your_artifact_name>:v<version> status=success»
+«result:artifact=<your_artifact_name>:<version> status=success»
 
-For example: «result:artifact=analysis_results.json:v0 status=success»
+For example: «result:artifact=analysis_results.json:0 status=success»
 
 This is required for the workflow to continue. Without this result embed, the workflow will fail.
 """
         else:
             return """
 REMINDER: When you complete this task, you MUST end your response with:
-«result:artifact=<your_artifact_name>:v<version> status=success»
+«result:artifact=<your_artifact_name>:<version> status=success»
 
 This is MANDATORY for the workflow to continue.
 """
@@ -175,6 +174,16 @@ This is MANDATORY for the workflow to continue.
         # Build message parts
         parts = []
 
+        # Generate unique output filename for this workflow node
+        # Use last 8 chars of sub_task_id for uniqueness (contains UUID)
+        unique_suffix = sub_task_id[-8:] if len(sub_task_id) >= 8 else sub_task_id
+        # Sanitize workflow name (replace spaces/special chars with underscore)
+        safe_workflow_name = re.sub(
+            r"[^a-zA-Z0-9_-]", "_", workflow_state.workflow_name
+        )
+        # node.id already includes iteration index for map nodes (e.g., "generate_data_0")
+        suggested_output_filename = f"{safe_workflow_name}_{node.id}_{unique_suffix}.json"
+
         # 1. Workflow context (must be first)
         workflow_data = WorkflowNodeRequestData(
             type="workflow_node_request",
@@ -182,6 +191,7 @@ This is MANDATORY for the workflow to continue.
             node_id=node.id,
             input_schema=input_schema,
             output_schema=output_schema,
+            suggested_output_filename=suggested_output_filename,
         )
         parts.append(a2a.create_data_part(data=workflow_data.model_dump()))
 
@@ -324,7 +334,9 @@ This is MANDATORY for the workflow to continue.
             user_properties=user_properties,
         )
 
-        log.debug(f"{log_id} Published agent request to {request_topic} (sub_task_id: {sub_task_id})")
+        log.debug(
+            f"{log_id} Published agent request to {request_topic} (sub_task_id: {sub_task_id})"
+        )
 
         # Set timeout tracking
         timeout_seconds = self.host.get_config("default_node_timeout_seconds", 300)
