@@ -290,7 +290,7 @@ class WebUIBackendFactory:
             get_sac_component,
             get_user_id,
         )
-        from solace_agent_mesh.gateway.http_sse.shared.auth_utils import (
+        from solace_agent_mesh.shared.api.auth_utils import (
             get_current_user,
         )
 
@@ -333,7 +333,7 @@ class WebUIBackendFactory:
             get_task_logger_service,
             get_session_validator,
         )
-        from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+        from solace_agent_mesh.shared.api.auth_utils import get_current_user
         from solace_agent_mesh.gateway.http_sse.services.feedback_service import FeedbackService
         from solace_agent_mesh.gateway.http_sse.services.task_logger_service import TaskLoggerService
         from solace_agent_mesh.gateway.http_sse.repository import SessionRepository
