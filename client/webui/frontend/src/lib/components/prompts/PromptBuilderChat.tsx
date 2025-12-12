@@ -205,16 +205,14 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
         try {
             const data: ChatResponse = await api.chat.post(`/api/v1/prompts/chat`, {
-                body: JSON.stringify({
-                    message: userMessage.content,
-                    conversation_history: messages
-                        .filter(m => m.content && m.content.trim().length > 0)
-                        .map(m => ({
-                            role: m.role,
-                            content: m.content,
-                        })),
-                    current_template: currentConfig,
-                }),
+                message: userMessage.content,
+                conversation_history: messages
+                    .filter(m => m.content && m.content.trim().length > 0)
+                    .map(m => ({
+                        role: m.role,
+                        content: m.content,
+                    })),
+                current_template: currentConfig,
             });
 
             // Add assistant response

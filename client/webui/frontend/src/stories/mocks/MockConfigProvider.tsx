@@ -1,6 +1,6 @@
 import { ConfigContext, type ConfigContextValue } from "@/lib/contexts/ConfigContext";
 import { api } from "@/lib/api";
-import React, { useEffect } from "react";
+import React, { useMemo } from "react";
 
 // Default mock values for ConfigContext
 const defaultMockConfigContext: ConfigContextValue = {
@@ -28,14 +28,15 @@ interface MockConfigProviderProps {
  * @param props.mockValues - Optional partial ConfigContextValue to override default values
  */
 export const MockConfigProvider: React.FC<MockConfigProviderProps> = ({ children, mockValues = {} }) => {
-    const contextValue = {
-        ...defaultMockConfigContext,
-        ...mockValues,
-    };
+    const contextValue = useMemo(
+        () => ({
+            ...defaultMockConfigContext,
+            ...mockValues,
+        }),
+        [mockValues]
+    );
 
-    useEffect(() => {
-        api.configure(contextValue.chatServerUrl, contextValue.platformServerUrl);
-    }, [contextValue.chatServerUrl, contextValue.platformServerUrl]);
+    api.configure(contextValue.chatServerUrl, contextValue.platformServerUrl);
 
     return <ConfigContext.Provider value={contextValue}>{children}</ConfigContext.Provider>;
 };
