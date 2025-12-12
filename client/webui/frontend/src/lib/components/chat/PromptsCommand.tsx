@@ -9,7 +9,7 @@ import { Search, NotepadText, Plus } from "lucide-react";
 import type { MessageFE, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { VariableDialog } from "./VariableDialog";
-import { fetchJsonWithError } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 export type ChatCommand = "create-template";
 
@@ -40,6 +40,7 @@ interface PromptsCommandProps {
 
 export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose, textAreaRef, onPromptSelect, messages = [], onReservedCommand }) => {
     const navigate = useNavigate();
+    // Migrated to api client
     const [searchValue, setSearchValue] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
@@ -59,7 +60,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
         const fetchPromptGroups = async () => {
             setIsLoading(true);
             try {
-                const data = await fetchJsonWithError("/api/v1/prompts/groups/all");
+                const data = await api.chat.get(`/api/v1/prompts/groups/all`);
                 setPromptGroups(data);
             } catch (error) {
                 console.error("Failed to fetch prompt groups:", error);

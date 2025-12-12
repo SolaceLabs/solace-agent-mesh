@@ -9,7 +9,8 @@ export interface ValidationLimits {
 }
 
 export interface ConfigContextValue {
-    configServerUrl: string;
+    chatServerUrl: string;
+    platformServerUrl: string;
     configAuthLoginUrl: string;
     configUseAuthorization: boolean;
     configWelcomeMessage: string;

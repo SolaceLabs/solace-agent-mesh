@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, Query
 
 from ..dependencies import get_people_service
 from ..services.people_service import PeopleService
-from ..shared.pagination import DataResponse
-from ..shared.response_utils import create_data_response
+from solace_agent_mesh.shared.api.pagination import DataResponse
+from solace_agent_mesh.shared.api.response_utils import create_data_response
 
 log = logging.getLogger(__name__)
 

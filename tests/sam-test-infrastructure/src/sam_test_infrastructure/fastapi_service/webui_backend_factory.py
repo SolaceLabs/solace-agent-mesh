@@ -198,7 +198,6 @@ class WebUIBackendFactory:
             _create_api_config,
             _get_app_config,
             _run_community_migrations,
-            _run_enterprise_migrations,
             _setup_middleware,
             _setup_routers,
             generic_exception_handler,
@@ -213,7 +212,6 @@ class WebUIBackendFactory:
         log.info("[WebUIBackendFactory] Database initialized with shared engine")
         log.info("Running database migrations...")
         _run_community_migrations(database_url)
-        _run_enterprise_migrations(component, database_url)
 
         # Set up API config
         app_config = _get_app_config(component)
@@ -290,7 +288,7 @@ class WebUIBackendFactory:
             get_sac_component,
             get_user_id,
         )
-        from solace_agent_mesh.gateway.http_sse.shared.auth_utils import (
+        from solace_agent_mesh.shared.api.auth_utils import (
             get_current_user,
         )
 
@@ -333,7 +331,7 @@ class WebUIBackendFactory:
             get_task_logger_service,
             get_session_validator,
         )
-        from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+        from solace_agent_mesh.shared.api.auth_utils import get_current_user
         from solace_agent_mesh.gateway.http_sse.services.feedback_service import FeedbackService
         from solace_agent_mesh.gateway.http_sse.services.task_logger_service import TaskLoggerService
         from solace_agent_mesh.gateway.http_sse.repository import SessionRepository

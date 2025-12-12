@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy.orm import sessionmaker
 
 from solace_agent_mesh.gateway.http_sse.repository.models import TaskModel
-from solace_agent_mesh.gateway.http_sse.shared import now_epoch_ms
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 
 def _create_task_directly_in_db(db_engine, task_id: str, user_id: str, message: str):

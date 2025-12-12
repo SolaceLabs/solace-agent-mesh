@@ -1,17 +1,16 @@
 import React, { type ReactNode, useState, useRef, useEffect, useCallback } from "react";
 
-import { useConfigContext } from "@/lib/hooks/useConfigContext";
 import type { A2AEventSSEPayload, TaskFE } from "@/lib/types";
 import { TaskContext, type TaskContextValue } from "@/lib/contexts/TaskContext";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 interface TaskProviderProps {
     children: ReactNode;
 }
 
 export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
-    const { configServerUrl } = useConfigContext();
-    const apiPrefix = `${configServerUrl}/api/v1`;
+    const { chat: chatBaseUrl } = api.getBaseUrls();
 
     const [taskMonitorSseStreamId, setTaskMonitorSseStreamId] = useState<string | null>(null);
     const [isTaskMonitorConnecting, setIsTaskMonitorConnecting] = useState<boolean>(false);
@@ -135,7 +134,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         setIsTaskMonitorConnecting(true);
         try {
             const subscribePayload = { subscription_targets: [{ type: "my_a2a_messages" }] };
-            const subscribeResponse = await authenticatedFetch(`${apiPrefix}/visualization/subscribe`, {
+            const subscribeResponse = await authenticatedFetch(`${chatBaseUrl}/api/v1/visualization/subscribe`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(subscribePayload),
@@ -159,7 +158,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             }
             const subscriptionData = await subscribeResponse.json();
             setTaskMonitorSseStreamId(subscriptionData.stream_id);
-            const sseUrl = subscriptionData.sse_endpoint_url.startsWith("/") ? `${configServerUrl || ""}${subscriptionData.sse_endpoint_url}` : subscriptionData.sse_endpoint_url;
+            const sseUrl = subscriptionData.sse_endpoint_url.startsWith("/") ? `${chatBaseUrl || ""}${subscriptionData.sse_endpoint_url}` : subscriptionData.sse_endpoint_url;
 
             if (taskMonitorEventSourceRef.current) taskMonitorEventSourceRef.current.close();
             const accessToken = getAccessToken();
@@ -185,7 +184,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 reconnectionTimeoutRef.current = null;
             }
         }
-    }, [apiPrefix, configServerUrl, isTaskMonitorConnected, isTaskMonitorConnecting, handleTaskMonitorSseOpen, handleTaskMonitorSseMessage, handleTaskMonitorSseError]);
+    }, [chatBaseUrl, isTaskMonitorConnected, isTaskMonitorConnecting, handleTaskMonitorSseOpen, handleTaskMonitorSseMessage, handleTaskMonitorSseError]);
 
     const attemptReconnection = useCallback(() => {
         // Prevent multiple concurrent reconnection attempts
@@ -228,7 +227,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         const streamIdToUnsubscribe = taskMonitorSseStreamIdRef.current;
         if (streamIdToUnsubscribe) {
             try {
-                await authenticatedFetch(`${apiPrefix}/visualization/${streamIdToUnsubscribe}/unsubscribe`, {
+                await authenticatedFetch(`${chatBaseUrl}/api/v1/visualization/${streamIdToUnsubscribe}/unsubscribe`, {
                     method: "DELETE",
                     credentials: "include",
                 });
@@ -245,7 +244,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         setHighlightedStepIdState(null);
         setReconnectionAttempts(0);
         setIsReconnecting(false);
-    }, [apiPrefix]);
+    }, [chatBaseUrl]);
 
     useEffect(() => {
         return () => {
@@ -260,9 +259,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 if (navigator.sendBeacon) {
                     const formData = new FormData();
                     // For DELETE, this is a bit of a workaround. The key is that the request is made.
-                    navigator.sendBeacon(`${apiPrefix}/visualization/${streamIdForUnsubscribe}/unsubscribe`, formData);
+                    navigator.sendBeacon(`${chatBaseUrl}/api/v1/visualization/${streamIdForUnsubscribe}/unsubscribe`, formData);
                 } else {
-                    authenticatedFetch(`${apiPrefix}/visualization/${streamIdForUnsubscribe}/unsubscribe`, {
+                    authenticatedFetch(`${chatBaseUrl}/api/v1/visualization/${streamIdForUnsubscribe}/unsubscribe`, {
                         method: "DELETE",
                         credentials: "include",
                         keepalive: true,
@@ -270,7 +269,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 }
             }
         };
-    }, [apiPrefix]);
+    }, [chatBaseUrl]);
 
     useEffect(() => {
         if (!isTaskMonitorConnected && !isTaskMonitorConnecting) {
@@ -302,7 +301,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
     const loadTaskFromBackend = useCallback(async (taskId: string): Promise<TaskFE | null> => {
         try {
-            const response = await authenticatedFetch(`${apiPrefix}/tasks/${taskId}/events`, {
+            const response = await authenticatedFetch(`${chatBaseUrl}/api/v1/tasks/${taskId}/events`, {
                 method: "GET",
                 credentials: "include",
             });
@@ -351,7 +350,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             console.error(`TaskProvider: Error loading task ${taskId} from backend:`, error);
             return null;
         }
-    }, [apiPrefix]);
+    }, [chatBaseUrl]);
 
     const contextValue: TaskContextValue = {
         isTaskMonitorConnecting,

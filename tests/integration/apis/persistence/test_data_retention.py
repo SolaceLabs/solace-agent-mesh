@@ -10,7 +10,7 @@ from solace_agent_mesh.gateway.http_sse.repository.models import (
     TaskEventModel,
     TaskModel,
 )
-from solace_agent_mesh.gateway.http_sse.shared import now_epoch_ms
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 
 def _create_task_directly_in_db(

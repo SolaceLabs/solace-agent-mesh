@@ -1,6 +1,6 @@
 import React, { useState, useEffect, type ReactNode } from "react";
 
-import { authenticatedFetch } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 import { AuthContext } from "@/lib/contexts/AuthContext";
 import { useConfigContext, useCsrfContext } from "@/lib/hooks";
 
@@ -28,34 +28,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
 
             try {
-                const userResponse = await authenticatedFetch("/api/v1/users/me", {
-                    credentials: "include",
-                    headers: { Accept: "application/json" },
-                });
+                const userData = await api.chat.get(`/api/v1/users/me`);
 
-                if (userResponse.ok) {
-                    const userData = await userResponse.json();
-                    console.log("User is authenticated:", userData);
+                console.log("User is authenticated:", userData);
 
-                    if (isMounted) {
-                        setUserInfo(userData);
-                        setIsAuthenticated(true);
-                    }
-
-                    // Get CSRF token for authenticated requests if not already cached
-                    console.log("Fetching CSRF token for authenticated requests...");
-                    await fetchCsrfToken();
-                } else if (userResponse.status === 401) {
-                    console.log("User is not authenticated");
-                    if (isMounted) {
-                        setIsAuthenticated(false);
-                    }
-                } else {
-                    console.error("Unexpected response from /users/me:", userResponse.status);
-                    if (isMounted) {
-                        setIsAuthenticated(false);
-                    }
+                if (isMounted) {
+                    setUserInfo(userData);
+                    setIsAuthenticated(true);
                 }
+
+                // Get CSRF token for authenticated requests if not already cached
+                console.log("Fetching CSRF token for authenticated requests...");
+                await fetchCsrfToken();
             } catch (authError) {
                 console.error("Error checking authentication:", authError);
                 if (isMounted) {

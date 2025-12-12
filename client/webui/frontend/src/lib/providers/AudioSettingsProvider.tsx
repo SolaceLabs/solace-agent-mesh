@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 export interface SpeechSettings {
     // STT Settings
@@ -121,58 +121,52 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         const fetchServerConfig = async () => {
             try {
                 // Fetch main config
-                const response = await authenticatedFetch("/api/v1/config");
-                if (response.ok) {
-                    const config = await response.json();
-                    const ttsSettings = config.tts_settings || {};
+                const config = await api.chat.get("/api/v1/config");
+                const ttsSettings = config.tts_settings || {};
 
-                    // Check speech config for external availability
-                    let sttExternal = false;
-                    let ttsExternal = false;
-                    try {
-                        const speechResponse = await authenticatedFetch("/api/v1/speech/config");
-                        if (speechResponse.ok) {
-                            const speechConfig = await speechResponse.json();
-                            sttExternal = speechConfig.sttExternal || false;
-                            ttsExternal = speechConfig.ttsExternal || false;
+                // Check speech config for external availability
+                let sttExternal = false;
+                let ttsExternal = false;
+                try {
+                    const speechConfig = await api.chat.get("/api/v1/speech/config");
+                    sttExternal = speechConfig.sttExternal || false;
+                    ttsExternal = speechConfig.ttsExternal || false;
+                } catch (error) {
+                    console.error("Error fetching speech config:", error);
+                }
+
+                setSettings(prev => {
+                    const updated = { ...prev };
+
+                    // Apply TTS settings from server config
+                    Object.entries(ttsSettings).forEach(([key, value]) => {
+                        const settingKey = key as keyof SpeechSettings;
+                        const storageKey = STORAGE_KEY_MAP[settingKey];
+                        if (settingKey in updated && storageKey && localStorage.getItem(storageKey) === null) {
+                            (updated as Record<string, unknown>)[settingKey] = value;
                         }
-                    } catch (error) {
-                        console.error("Error fetching speech config:", error);
+                    });
+
+                    // Force browser mode if external is selected but not configured
+                    if (updated.engineSTT === "external" && !sttExternal) {
+                        console.warn("External STT not configured, falling back to browser mode");
+                        updated.engineSTT = "browser";
+                        updated.sttProvider = "browser";
+                        localStorage.setItem(STORAGE_KEY_MAP.engineSTT, "browser");
+                        localStorage.setItem(STORAGE_KEY_MAP.sttProvider, "browser");
+                    }
+                    if (updated.engineTTS === "external" && !ttsExternal) {
+                        console.warn("External TTS not configured, falling back to browser mode");
+                        updated.engineTTS = "browser";
+                        updated.ttsProvider = "browser";
+                        localStorage.setItem(STORAGE_KEY_MAP.engineTTS, "browser");
+                        localStorage.setItem(STORAGE_KEY_MAP.ttsProvider, "browser");
                     }
 
-                    setSettings(prev => {
-                        const updated = { ...prev };
-
-                        // Apply TTS settings from server config
-                        Object.entries(ttsSettings).forEach(([key, value]) => {
-                            const settingKey = key as keyof SpeechSettings;
-                            const storageKey = STORAGE_KEY_MAP[settingKey];
-                            if (settingKey in updated && storageKey && localStorage.getItem(storageKey) === null) {
-                                (updated as Record<string, unknown>)[settingKey] = value;
-                            }
-                        });
-
-                        // Force browser mode if external is selected but not configured
-                        if (updated.engineSTT === "external" && !sttExternal) {
-                            console.warn("External STT not configured, falling back to browser mode");
-                            updated.engineSTT = "browser";
-                            updated.sttProvider = "browser";
-                            localStorage.setItem(STORAGE_KEY_MAP.engineSTT, "browser");
-                            localStorage.setItem(STORAGE_KEY_MAP.sttProvider, "browser");
-                        }
-                        if (updated.engineTTS === "external" && !ttsExternal) {
-                            console.warn("External TTS not configured, falling back to browser mode");
-                            updated.engineTTS = "browser";
-                            updated.ttsProvider = "browser";
-                            localStorage.setItem(STORAGE_KEY_MAP.engineTTS, "browser");
-                            localStorage.setItem(STORAGE_KEY_MAP.ttsProvider, "browser");
-                        }
-
-                        return updated;
-                    });
-                }
+                    return updated;
+                });
             } catch (error) {
-                console.error("Error fetching TTS config from /api/v1/config:", error);
+                console.error("Error fetching TTS config from config endpoint:", error);
             } finally {
                 setIsInitialized(true);
             }

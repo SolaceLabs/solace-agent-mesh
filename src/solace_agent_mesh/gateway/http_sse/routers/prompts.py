@@ -27,7 +27,7 @@ from .dto.prompt_dto import (
     PromptImportRequest,
     PromptImportResponse,
 )
-from ..shared import now_epoch_ms
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_ai_connector.common.log import log
 
 from typing import TYPE_CHECKING

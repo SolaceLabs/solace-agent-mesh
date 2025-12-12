@@ -8,7 +8,7 @@ that can be properly handled by the API layer.
 
 from typing import Optional, Dict, List
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError, OperationalError, DatabaseError
-from .exceptions import ValidationError, DataIntegrityError, EntityAlreadyExistsError
+from ..exceptions.exceptions import ValidationError, DataIntegrityError, EntityAlreadyExistsError
 
 
 class DatabaseExceptionHandler:

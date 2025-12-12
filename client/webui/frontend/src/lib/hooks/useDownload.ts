@@ -1,9 +1,9 @@
 import type { ArtifactInfo } from "../types";
+import { api } from "@/lib/api";
 import { fetchWithError, getErrorMessage } from "../utils/api";
 import { downloadBlob } from "../utils/download";
 
 import { useChatContext } from "./useChatContext";
-import { useConfigContext } from "./useConfigContext";
 import { useProjectContext } from "../providers/ProjectProvider";
 
 /**
@@ -41,15 +41,16 @@ const downloadArtifactFile = async (apiPrefix: string, sessionId: string | null,
  * @returns Object containing download handler function
  */
 export const useDownload = (projectIdOverride?: string | null) => {
-    const { configServerUrl } = useConfigContext();
+    // Migrated to api client
     const { addNotification, sessionId, displayError } = useChatContext();
     const { activeProject } = useProjectContext();
 
     const onDownload = async (artifact: ArtifactInfo) => {
         try {
+            const { chat: chatBaseUrl } = api.getBaseUrls();
             const effectiveProjectId = projectIdOverride || activeProject?.id || null;
 
-            await downloadArtifactFile(configServerUrl, sessionId, effectiveProjectId, artifact);
+            await downloadArtifactFile(chatBaseUrl, sessionId, effectiveProjectId, artifact);
             addNotification(`Downloaded artifact: ${artifact.filename}.`, "success");
         } catch (error) {
             displayError({ title: "Failed to Download Artifact", error: getErrorMessage(error, "An unknown error occurred while downloading the artifact.") });

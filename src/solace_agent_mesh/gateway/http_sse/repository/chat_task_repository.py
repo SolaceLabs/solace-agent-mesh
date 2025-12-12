@@ -6,8 +6,8 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session as DBSession
 
-from ..shared import now_epoch_ms
-from ..shared.types import SessionId, UserId
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+from solace_agent_mesh.shared.utils.types import SessionId, UserId
 from .entities import ChatTask
 from .interfaces import IChatTaskRepository
 from .models import ChatTaskModel

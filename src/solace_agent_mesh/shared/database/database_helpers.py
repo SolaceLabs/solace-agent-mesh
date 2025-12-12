@@ -7,7 +7,7 @@ Separated from dependencies.py to avoid circular imports.
 
 import json
 from sqlalchemy import Text, TypeDecorator
-from .exceptions import DataIntegrityError
+from ..exceptions.exceptions import DataIntegrityError
 
 
 class SimpleJSON(TypeDecorator):

@@ -4,8 +4,8 @@ Session domain entity.
 
 from pydantic import BaseModel, ConfigDict
 
-from ...shared import now_epoch_ms
-from ...shared.types import AgentId, SessionId, UserId
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+from solace_agent_mesh.shared.utils.types import AgentId, SessionId, UserId
 
 
 class Session(BaseModel):

@@ -6,8 +6,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional
 from sqlalchemy.orm import Session as DBSession
 
-from ..shared.pagination import PaginationParams
-from ..shared.types import SessionId, UserId
+from solace_agent_mesh.shared.api.pagination import PaginationParams
+from solace_agent_mesh.shared.utils.types import SessionId, UserId
 from .entities import Feedback, Session, Task, TaskEvent
 from .entities.project import Project
 from ..routers.dto.requests.project_requests import ProjectFilter

@@ -167,6 +167,21 @@ class WebUIBackendApp(BaseGatewayApp):
             "description": "The passphrase for the SSL private key.",
         },
         {
+            "name": "frontend_server_url",
+            "required": False,
+            "type": "string",
+            "default": "",
+            "description": (
+                "The WebUI Gateway's public URL that the frontend uses for same-origin API requests. "
+                "If empty, automatically constructed from fastapi_host, fastapi_port, and SSL settings. "
+                "Examples: "
+                "  - Local HTTP: http://localhost:8000 "
+                "  - Local HTTPS: https://localhost:8443 "
+                "  - Docker: http://webui-gateway:8000 "
+                "  - K8s Ingress: https://agent-mesh.example.com"
+            ),
+        },
+        {
             "name": "session_service",
             "required": False,
             "type": "dict",
@@ -193,16 +208,19 @@ class WebUIBackendApp(BaseGatewayApp):
             "required": False,
             "type": "dict",
             "default": {},
-            "description": "Configuration for the Platform Service (enterprise features: agents, connectors, deployments).",
+            "description": "Configuration for connecting to the Platform Service (runs separately on port 8001).",
             "dict_schema": {
-                "database_url": {
+                "url": {
                     "type": "string",
                     "required": False,
-                    "default": None,
+                    "default": "",
                     "description": (
-                        "Database URL for platform data (agents, connectors, deployments). "
-                        "REQUIRED for platform features to be available. "
-                        "Example: postgresql://user:pass@host:5432/platform_db"
+                        "Platform Service URL for frontend API routing to enterprise endpoints. "
+                        "Frontend will call this URL for /api/v1/enterprise/* requests. "
+                        "Examples: "
+                        "  - Docker: http://platform-service:8001 "
+                        "  - K8s: http://platform-service:8001 "
+                        "  - Local: http://localhost:8001"
                     ),
                 },
             },

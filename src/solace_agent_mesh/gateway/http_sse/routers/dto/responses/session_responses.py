@@ -4,8 +4,8 @@ Session-related response DTOs.
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ....shared.pagination import PaginationMeta
-from ....shared.types import SessionId, UserId
+from solace_agent_mesh.shared.api.pagination import PaginationMeta
+from solace_agent_mesh.shared.utils.types import SessionId, UserId
 from .base_responses import BaseTimestampResponse
 
 

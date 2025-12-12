@@ -124,7 +124,6 @@ def mock_request():
 def mock_session_manager():
     """Mock SessionManager for testing."""
     manager = Mock()
-    manager.use_authorization = False
     manager.ensure_a2a_session.return_value = "test-session-123"
     manager.dep_get_client_id.return_value = Mock()
     manager.dep_ensure_session_id.return_value = Mock()
@@ -402,7 +401,7 @@ class TestUserIdExtraction:
     def test_get_user_id_missing_id_field(self, mock_request, mock_session_manager, caplog):
         """Test error when user object exists but has no ID field."""
         mock_request.state.user = {"name": "Test User"}  # No 'id' field
-        mock_session_manager.use_authorization = False
+        dependencies.api_config = {"frontend_use_authorization": False}
 
         result = get_user_id(mock_request, mock_session_manager)
 
@@ -413,7 +412,7 @@ class TestUserIdExtraction:
     def test_get_user_id_oauth_enabled_no_user(self, mock_request, mock_session_manager):
         """Test 401 error when OAuth enabled but no authenticated user."""
         mock_request.state.user = None
-        mock_session_manager.use_authorization = True
+        dependencies.api_config = {"frontend_use_authorization": True}
 
         with pytest.raises(HTTPException) as exc_info:
             get_user_id(mock_request, mock_session_manager)
@@ -424,7 +423,7 @@ class TestUserIdExtraction:
     def test_get_user_id_fallback_dev_user(self, mock_request, mock_session_manager):
         """Test fallback to development user when auth disabled and no user."""
         mock_request.state.user = None
-        mock_session_manager.use_authorization = False
+        dependencies.api_config = {"frontend_use_authorization": False}
 
         result = get_user_id(mock_request, mock_session_manager)
 

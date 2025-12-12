@@ -193,7 +193,7 @@ def register_exception_handlers(app):
 
     Example:
         from fastapi import FastAPI
-        from solace_agent_mesh.gateway.http_sse.shared.exception_handlers import register_exception_handlers
+        from solace_agent_mesh.shared.exceptions.exception_handlers import register_exception_handlers
 
         app = FastAPI()
         register_exception_handlers(app)
