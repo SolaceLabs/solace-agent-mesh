@@ -15,6 +15,7 @@ export interface ThemeMappings {
 export const customThemeMapping: ThemeMappings = {
     light: {
         background: "background.w10",
+        "card-background": "background.w20",
         foreground: "primary.text.wMain",
         card: "background.w10",
         "card-foreground": "primary.text.wMain",
@@ -57,6 +58,7 @@ export const customThemeMapping: ThemeMappings = {
     dark: {
         // Core theme colors (dark variants)
         background: "background.w100",
+        "card-background": "background.w100",
         foreground: "primary.text.w10",
         card: "background.wMain",
         "card-foreground": "primary.text.w10",

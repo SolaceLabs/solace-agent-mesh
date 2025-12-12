@@ -9,6 +9,7 @@ interface LayoutSelectorProps {
     className?: string;
 }
 
+// TBD: Move to enterprise
 export const LayoutSelector: React.FC<LayoutSelectorProps> = ({ currentLayout, onLayoutChange, className = "" }) => {
     const layouts = pluginRegistry.getPluginsByType(PLUGIN_TYPES.LAYOUT);
 

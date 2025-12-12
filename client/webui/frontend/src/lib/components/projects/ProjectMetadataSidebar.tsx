@@ -10,19 +10,15 @@ interface ProjectMetadataSidebarProps {
     selectedProject: Project | null;
 }
 
-export const ProjectMetadataSidebar: React.FC<ProjectMetadataSidebarProps> = ({
-    selectedProject,
-}) => {
+export const ProjectMetadataSidebar: React.FC<ProjectMetadataSidebarProps> = ({ selectedProject }) => {
     const { updateProject } = useProjectContext();
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     if (!selectedProject) {
         return (
-            <div className="flex h-full items-center justify-center bg-background border-l">
-                <p className="text-sm text-muted-foreground px-4 text-center">
-                    Select a project to view its details
-                </p>
+            <div className="bg-background flex h-full items-center justify-center border-l">
+                <p className="text-muted-foreground px-4 text-center text-sm">Select a project to view its details</p>
             </div>
         );
     }
@@ -56,19 +52,10 @@ export const ProjectMetadataSidebar: React.FC<ProjectMetadataSidebarProps> = ({
     };
 
     return (
-        <div className="flex h-full flex-col bg-background border-l overflow-y-auto">
-            <SystemPromptSection
-                project={selectedProject}
-                onSave={handleSaveSystemPrompt}
-                isSaving={isSaving}
-                error={error}
-            />
+        <div className="flex h-full flex-col overflow-y-auto border-l">
+            <SystemPromptSection project={selectedProject} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
 
-            <DefaultAgentSection
-                project={selectedProject}
-                onSave={handleSaveDefaultAgent}
-                isSaving={isSaving}
-            />
+            <DefaultAgentSection project={selectedProject} onSave={handleSaveDefaultAgent} isSaving={isSaving} />
 
             <KnowledgeSection project={selectedProject} />
         </div>

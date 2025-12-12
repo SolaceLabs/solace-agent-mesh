@@ -158,7 +158,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 </div>
 
                 {/* Right Panel - Metadata Sidebar */}
-                <div className="bg-muted/30 w-[40%] overflow-y-auto">
+                <div className="w-[40%] overflow-y-auto">
                     <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
 
                     <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />

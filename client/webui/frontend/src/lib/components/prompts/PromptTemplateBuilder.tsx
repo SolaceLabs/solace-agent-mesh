@@ -208,7 +208,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
 
                     {/* Right Panel - Template Preview (only in AI mode) */}
                     {builderMode === "ai-assisted" && (
-                        <div className="bg-muted/30 w-[60%] overflow-hidden">
+                        <div className="w-[60%] overflow-hidden">
                             <TemplatePreviewPanel config={config} highlightedFields={highlightedFields} isReadyToSave={isReadyToSave} />
                         </div>
                     )}
