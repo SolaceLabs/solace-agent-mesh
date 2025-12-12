@@ -65,7 +65,7 @@ Cypress.Commands.add("deleteCypressProjects", () => {
     cy.request("GET", "/api/v1/projects").then(response => {
         const projects = response.body.projects || [];
 
-        const projectsToDelete = projects.filter((project: any) => project.name && project.name.startsWith(CYPRESS_PREFIX));
+        const projectsToDelete = projects.filter((project: any) => project.name.startsWith(CYPRESS_PREFIX));
 
         cy.log(`Found ${projectsToDelete.length} projects to delete.`);
 
