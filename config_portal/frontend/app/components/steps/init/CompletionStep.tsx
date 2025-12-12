@@ -45,7 +45,7 @@ const CONFIG_GROUPS: Record<string, string[]> = {
     "inter_agent_communication_deny_list",
     "inter_agent_communication_timeout",
   ],
-  "Web UI": [
+  "Web UI & Platform Service": [
     "add_webui_gateway",
     "webui_frontend_welcome_message",
     "webui_frontend_bot_name",
@@ -54,12 +54,8 @@ const CONFIG_GROUPS: Record<string, string[]> = {
     "webui_fastapi_host",
     "webui_fastapi_port",
     "webui_enable_embed_resolution",
-  ],
-  "Platform Service": [
-    "add_platform_service",
     "platform_api_host",
     "platform_api_port",
-    "platform_database_url",
   ],
 };
 

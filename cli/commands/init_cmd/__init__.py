@@ -111,7 +111,6 @@ DEFAULT_INIT_VALUES = {
     "add_platform_service": True,
     "platform_api_host": PLATFORM_SERVICE_DEFAULTS.get("platform_api_host"),
     "platform_api_port": PLATFORM_SERVICE_DEFAULTS.get("platform_api_port"),
-    "platform_database_url": PLATFORM_SERVICE_DEFAULTS.get("platform_database_url"),
 }
 
 
@@ -432,9 +431,6 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
 )
 @click.option(
     "--platform-api-port", type=int, help="Port for Platform API server."
-)
-@click.option(
-    "--platform-database-url", type=str, help="Database URL for the Platform Service."
 )
 def init(**kwargs):
     """

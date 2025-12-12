@@ -22,7 +22,6 @@ INIT_DEFAULT = {
     "add_platform_service": True,
     "platform_api_host": "127.0.0.1",
     "platform_api_port": 8001,
-    "platform_database_url": "sqlite:///platform.db",
 }
 
 USE_DEFAULT_SHARED_SESSION = "use_default_shared_session"

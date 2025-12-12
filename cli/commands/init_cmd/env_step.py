@@ -38,7 +38,6 @@ ENV_DEFAULTS = {
     "LLM_SERVICE_OAUTH_ENDPOINT": "YOUR_LLM_SERVICE_OAUTH_ENDPOINT_HERE",
     "PLATFORM_API_HOST": "127.0.0.1",
     "PLATFORM_API_PORT": "8001",
-    "PLATFORM_DATABASE_URL": "sqlite:///platform.db",
 }
 
 
@@ -233,13 +232,6 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             "Enter Platform API Port",
             False,
             "PLATFORM_API_PORT",
-        ),
-        (
-            "platform_database_url",
-            "PLATFORM_DATABASE_URL",
-            "Enter Platform Database URL",
-            False,
-            "PLATFORM_DATABASE_URL",
         ),
     ]
 

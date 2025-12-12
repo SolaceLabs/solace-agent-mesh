@@ -45,7 +45,6 @@ class TestCreatePlatformServiceConfig:
             "add_platform_service": True,
             "platform_api_host": "127.0.0.1",
             "platform_api_port": 8001,
-            "platform_database_url": "sqlite:///platform.db",
         }
         default_values = {}
 
@@ -233,9 +232,7 @@ class TestCreatePlatformServiceConfig:
         """Test that PLATFORM_SERVICE_DEFAULTS contains expected values"""
         assert "platform_api_host" in PLATFORM_SERVICE_DEFAULTS
         assert "platform_api_port" in PLATFORM_SERVICE_DEFAULTS
-        assert "platform_database_url" in PLATFORM_SERVICE_DEFAULTS
 
         # Verify default values
         assert PLATFORM_SERVICE_DEFAULTS["platform_api_host"] == "127.0.0.1"
         assert PLATFORM_SERVICE_DEFAULTS["platform_api_port"] == 8001
-        assert PLATFORM_SERVICE_DEFAULTS["platform_database_url"] == "sqlite:///platform.db"

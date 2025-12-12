@@ -7,7 +7,6 @@ from ...utils import ask_if_not_provided, load_template
 PLATFORM_SERVICE_DEFAULTS = {
     "platform_api_host": "127.0.0.1",
     "platform_api_port": 8001,
-    "platform_database_url": "sqlite:///platform.db",
 }
 
 
@@ -57,15 +56,6 @@ def create_platform_service_config(
         "Enter Platform API Port",
         default=default_values.get(
             "platform_api_port", PLATFORM_SERVICE_DEFAULTS["platform_api_port"]
-        ),
-        none_interactive=skip_interactive,
-    )
-    options["platform_database_url"] = ask_if_not_provided(
-        options,
-        "platform_database_url",
-        "Enter Platform Database URL",
-        default=default_values.get(
-            "platform_database_url", PLATFORM_SERVICE_DEFAULTS["platform_database_url"]
         ),
         none_interactive=skip_interactive,
     )
