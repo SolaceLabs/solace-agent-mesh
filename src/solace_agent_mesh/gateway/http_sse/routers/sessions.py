@@ -631,4 +631,122 @@ async def move_session_to_project(
             detail="Failed to move session",
         ) from e
 
+# Compression endpoint
+from pydantic import BaseModel, Field
+
+
+class CompressAndBranchRequest(BaseModel):
+    """Request model for compressing and branching a session."""
+    agent_id: Optional[str] = Field(None, description="Agent ID for the new session", alias="agentId")
+    name: Optional[str] = Field(None, max_length=255, description="Custom name for the new session")
+    llm_provider: Optional[str] = Field(None, description="LLM provider for compression (e.g., 'openai', 'anthropic', 'gemini')", alias="llmProvider")
+    llm_model: Optional[str] = Field(None, description="LLM model for compression (e.g., 'gpt-4o-mini', 'claude-3-5-sonnet-20241022')", alias="llmModel")
+    
+    class Config:
+        populate_by_name = True
+
+
+class CompressAndBranchResponse(BaseModel):
+    """Response model for a compressed and branched session."""
+    new_session_id: str = Field(alias="newSessionId")
+    parent_session_id: str = Field(alias="parentSessionId")
+    summary_task_id: str = Field(alias="summaryTaskId")
+    compressed_message_count: int = Field(alias="compressedMessageCount")
+    session_name: str = Field(alias="sessionName")
+    created_time: int = Field(alias="createdTime")
+    
+    class Config:
+        populate_by_name = True
+
+
+@router.post("/sessions/{session_id}/compress-and-branch", response_model=CompressAndBranchResponse)
+async def compress_and_branch_session(
+    session_id: str,
+    request: CompressAndBranchRequest = Body(default=CompressAndBranchRequest()),
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """
+    Compress a session's conversation history and create a new session with the summary.
+    
+    This implements the "Compress-and-Branch" pattern where:
+    - The conversation history is compressed into an LLM-generated summary
+    - A new session is created as a child of the current session
+    - The summary is added as the first task in the new session
+    - The original session remains unchanged for reference
+    
+    This is useful for:
+    - Long conversations that are approaching token limits
+    - Starting a new phase of work while preserving context
+    - Cleaning up after exploratory conversations
+    """
+    user_id = user.get("id")
+    log.info(
+        "User %s attempting to compress and branch session %s",
+        user_id,
+        session_id,
+    )
+    
+    try:
+        if (
+            not session_id
+            or session_id.strip() == ""
+            or session_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Source session not found."
+            )
+        
+        # Compress and branch the session
+        new_session, summary_task, compressed_count = await session_service.compress_and_branch_session(
+            db=db,
+            source_session_id=session_id,
+            user_id=user_id,
+            agent_id=request.agent_id,
+            branch_name=request.name,
+            llm_provider=request.llm_provider,
+            llm_model=request.llm_model,
+        )
+        
+        log.info(
+            "Successfully compressed and branched session %s to %s (%d messages compressed)",
+            session_id,
+            new_session.id,
+            compressed_count,
+        )
+        
+        return CompressAndBranchResponse(
+            newSessionId=new_session.id,
+            parentSessionId=session_id,
+            summaryTaskId=summary_task["id"],
+            compressedMessageCount=compressed_count,
+            sessionName=new_session.name or "",
+            createdTime=new_session.created_time,
+        )
+        
+    except HTTPException:
+        raise
+    except ValueError as e:
+        log.warning(
+            "Validation error compressing and branching session %s: %s",
+            session_id,
+            e
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) from e
+    except Exception as e:
+        log.error(
+            "Error compressing and branching session %s for user %s: %s",
+            session_id,
+            user_id,
+            e
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to compress and branch session",
+        ) from e
 

@@ -8,6 +8,22 @@ export interface ValidationLimits {
     maxZipUploadSizeBytes?: number;
 }
 
+export interface UserInfo {
+    id: string;
+    name: string;
+    email: string;
+    authenticated: boolean;
+    auth_method: string;
+}
+
+export interface UserInfo {
+    id: string;
+    name: string;
+    email: string;
+    authenticated: boolean;
+    auth_method: string;
+}
+
 export interface ConfigContextValue {
     configServerUrl: string;
     configAuthLoginUrl: string;
@@ -51,6 +67,12 @@ export interface ConfigContextValue {
      * Tasks running longer than this will be automatically cancelled.
      */
     backgroundTasksDefaultTimeoutMs?: number;
+
+    /**
+     * Current user information from backend.
+     * Available when user is authenticated.
+     */
+    user?: UserInfo;
 }
 
 export const ConfigContext = createContext<ConfigContextValue | null>(null);

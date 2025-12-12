@@ -451,6 +451,10 @@ class SamAgentAppConfig(SamConfigBase):
         default_factory=McpProcessingConfig,
         description="Configuration for intelligent processing of MCP tool responses.",
     )
+    track_token_usage: Optional[bool] = Field(
+        default=None,
+        description="Enable token usage tracking. Reports prompt tokens, completion tokens, total tokens, and cached tokens from LLM providers. Set via YAML anchor reference to shared_config.yaml's track_token_usage setting.",
+    )
 
 
 class SamAgentApp(App):

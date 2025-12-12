@@ -209,7 +209,6 @@ class SessionService:
         session.update_name(name)
         updated_session = session_repository.save(db, session)
 
-        log.info("Updated session %s name to '%s'", session_id, name)
         return updated_session
 
     def delete_session_with_notifications(
@@ -239,8 +238,6 @@ class SessionService:
         deleted = session_repository.delete(db, session_id, user_id)
         if not deleted:
             return False
-
-        log.info("Session %s deleted successfully by user %s", session_id, user_id)
 
         if agent_id and self.component:
             self._notify_agent_of_session_deletion(session_id, user_id, agent_id)
@@ -284,7 +281,6 @@ class SessionService:
         if not deleted:
             return False
 
-        log.info("Session %s soft deleted successfully by user %s", session_id, user_id)
         return True
 
     async def move_session_to_project(
@@ -451,7 +447,7 @@ class SessionService:
             if task.status in [None, "running", "pending"] and task.end_time is None and task.user_id == user_id
         ]
         
-        log.info(f"[search_sessions] Found {len(running_bg_tasks)} running background tasks for user {user_id}")
+        log.debug(f"[search_sessions] Found {len(running_bg_tasks)} running background tasks for user {user_id}")
         
         # Create a map of session_id -> has_running_background_task
         # Query ChatTaskModel to find which sessions these tasks belong to
@@ -461,15 +457,13 @@ class SessionService:
         session_task_map = {}
         if running_bg_tasks:
             task_ids = [task.id for task in running_bg_tasks]
-            log.info(f"[search_sessions] Looking up chat tasks for task IDs: {task_ids}")
+            log.debug(f"[search_sessions] Looking up chat tasks for task IDs: {task_ids}")
             
             # Query chat tasks for these task IDs
             chat_tasks = db.query(ChatTaskModel).filter(
                 ChatTaskModel.id.in_(task_ids),
                 ChatTaskModel.user_id == user_id
             ).all()
-            
-            log.info(f"[search_sessions] Found {len(chat_tasks)} chat tasks")
             
             for chat_task in chat_tasks:
                 if chat_task.session_id:
@@ -495,15 +489,7 @@ class SessionService:
         for session in sessions:
             session.has_running_background_task = session_task_map.get(session.id, False)
             if session.has_running_background_task:
-                log.info(f"[search_sessions] Marking session {session.id} as having running background task")
-
-        log.info(
-            "Search for '%s' by user %s returned %d results (total: %d)",
-            query,
-            user_id,
-            len(sessions),
-            total_count,
-        )
+                log.debug(f"[search_sessions] Marking session {session.id} as having running background task")
 
         return PaginatedResponse.create(sessions, total_count, pagination)
 
@@ -561,7 +547,6 @@ class SessionService:
         session.mark_activity()
         session_repository.save(db, session)
         
-        log.info(f"Saved task {task_id} for session {session_id}")
         return saved_task
 
     def get_session_tasks(
@@ -664,12 +649,6 @@ class SessionService:
         self, session_id: SessionId, user_id: UserId, agent_id: str
     ) -> None:
         try:
-            log.info(
-                "Publishing session deletion event for session %s (agent %s, user %s)",
-                session_id,
-                agent_id,
-                user_id,
-            )
 
             if hasattr(self.component, "sam_events"):
                 success = self.component.sam_events.publish_session_deleted(
@@ -700,3 +679,241 @@ class SessionService:
                 agent_id,
                 e,
             )
+
+    async def compress_and_branch_session(
+        self,
+        db: DbSession,
+        source_session_id: SessionId,
+        user_id: UserId,
+        agent_id: str | None = None,
+        branch_name: str | None = None,
+        llm_provider: str | None = None,
+        llm_model: str | None = None,
+    ) -> tuple[Session, Dict[str, Any], int]:
+        """
+        Compress a session's conversation history and create a new session with the summary.
+        
+        This implements the "Compress-and-Branch" pattern where:
+        1. The conversation history is compressed into a summary
+        2. A new session is created as a child of the current session
+        3. The summary is added as the first task in the new session
+        4. The original session remains unchanged
+        
+        Args:
+            db: Database session
+            source_session_id: The session to compress
+            user_id: The user creating the compressed branch
+            agent_id: Optional agent ID for the new session
+            branch_name: Optional custom name for the branched session
+            llm_provider: LLM provider for compression (openai, anthropic, gemini)
+            llm_model: Specific model to use
+            
+        Returns:
+            Tuple of (new_session, summary_task_dict, compressed_message_count)
+            
+        Raises:
+            ValueError: If session not found or user not authorized
+        """
+        if not self._is_valid_session_id(source_session_id):
+            raise ValueError("Invalid source session ID")
+        
+        # 1. Verify source session exists and user owns it
+        session_repository = self._get_repositories(db)
+        source_session = session_repository.find_user_session(db, source_session_id, user_id)
+        if not source_session:
+            raise ValueError("Source session not found or access denied")
+        
+        # 2. Get all tasks from source session to compress
+        tasks = self.get_session_tasks(db, source_session_id, user_id)
+        if not tasks:
+            raise ValueError(f"No tasks found in session {source_session_id}")
+        
+        # Convert tasks to messages for compression
+        messages = self.get_session_messages_from_tasks(db, source_session_id, user_id)
+        
+        log.info(
+            "Found %d tasks (%d messages) to compress in session %s",
+            len(tasks),
+            len(messages),
+            source_session_id,
+        )
+        
+        # 3. Create new session ID first (needed for compression token tracking)
+        new_session_id = str(uuid.uuid4())
+        
+        # 4. Use source session name if not provided
+        if not branch_name:
+            branch_name = f"Continued: {source_session.name or 'Chat'}"
+        
+        now_ms = now_epoch_ms()
+        
+        new_session = Session(
+            id=new_session_id,
+            user_id=user_id,
+            name=branch_name,
+            agent_id=agent_id or source_session.agent_id,
+            project_id=source_session.project_id,
+            created_time=now_ms,
+            updated_time=now_ms,
+            is_compression_branch=True,
+            compression_metadata={},  # Will be updated after compression
+        )
+        
+        # Save the session to database so it exists for compression tracking
+        created_session = session_repository.save(db, new_session)
+        db.flush()  # Ensure session is committed before compression
+        
+        # 6. Get compression service and generate summary
+        # Pass new_session_id so compression tokens are tracked in the NEW session
+        from .compression_service import CompressionService
+        
+        compression_service = CompressionService(
+            session_repository,
+            self.component,
+        )
+        
+        compression_result = await compression_service.compress_conversation(
+            messages=messages,
+            session=source_session,
+            user_id=user_id,
+            compression_type="llm_summary",
+            llm_provider=llm_provider,
+            llm_model=llm_model,
+            db_session=db,
+            target_session_id=new_session_id,  # Track compression tokens in NEW session
+        )
+        
+
+        
+        # 7. Update session with compression metadata
+        # Get the model from the source session's agent_id to preserve context window info
+        # This ensures the compressed session shows the correct context limit
+        source_model = None
+        if source_session.agent_id and self.component:
+            try:
+                model_config = self.component.get_config("model", {})
+                if isinstance(model_config, dict):
+                    source_model = model_config.get("model")
+                elif isinstance(model_config, str):
+                    source_model = model_config
+            except Exception as e:
+                log.warning(f"Could not extract model from source session: {e}")
+        
+        compression_metadata = {
+            "compression_id": compression_result.compression_id,
+            "parent_session_id": source_session_id,
+            "compressed_message_count": compression_result.message_count,
+            "original_token_estimate": compression_result.original_token_estimate,
+            "compressed_token_estimate": compression_result.compressed_token_estimate,
+            "compression_timestamp": compression_result.compression_timestamp,
+            "artifacts": compression_result.artifacts_metadata,
+            "source_model": source_model,  # Store model for context window calculation
+        }
+        
+        # Update the session with compression metadata
+        created_session.compression_metadata = compression_metadata
+        created_session.updated_time = now_ms
+        session_repository.save(db, created_session)
+        
+
+        
+        # 8. Format and create summary task
+        summary_text = self._format_compression_summary(
+            compression_result,
+            source_session,
+        )
+        
+        # Create a summary task (similar to how tasks are saved)
+        summary_task_id = str(uuid.uuid4())
+        summary_bubble = {
+            "id": str(uuid.uuid4()),
+            "type": "system",
+            "text": summary_text,
+            "timestamp": now_ms,
+        }
+        
+        import json
+        task_metadata = {
+            "type": "compression_summary",
+            "parent_session_id": source_session_id,
+            "compressed_message_count": compression_result.message_count,
+        }
+        
+        summary_task = self.save_task(
+            db=db,
+            task_id=summary_task_id,
+            session_id=new_session_id,
+            user_id=user_id,
+            user_message=None,
+            message_bubbles=json.dumps([summary_bubble]),
+            task_metadata=json.dumps(task_metadata),
+        )
+        
+        
+        # Return summary as dict for API response
+        summary_dict = {
+            "id": summary_task_id,
+            "session_id": new_session_id,
+            "message": summary_text,
+            "sender_type": "system",
+            "sender_name": "System",
+            "created_time": now_ms,
+        }
+        
+        return created_session, summary_dict, compression_result.message_count
+    
+    def _format_compression_summary(
+        self,
+        compression_result,
+        source_session: Session,
+    ) -> str:
+        """
+        Format the compression summary for display in the new session.
+        
+        Args:
+            compression_result: The CompressionResult from compression service
+            source_session: The original session that was compressed
+            
+        Returns:
+            Formatted summary text
+        """
+        # Format the session date
+        from datetime import datetime
+        session_date = "Unknown"
+        if source_session.created_time:
+            try:
+                # created_time is in milliseconds
+                dt = datetime.fromtimestamp(source_session.created_time / 1000)
+                session_date = dt.strftime("%B %d, %Y")  # e.g., "November 21, 2025"
+            except Exception:
+                session_date = "Unknown"
+        
+        summary_parts = [
+            "📋 **Conversation Summary** (from previous session)",
+            "",
+            compression_result.summary,
+            "",
+            "---",
+            "",
+            "**Context from Previous Session:**",
+            f"- Session: {source_session.name or 'Untitled Chat'}",
+            f"- Date: {session_date}",
+            f"- Messages: {compression_result.message_count}",
+            f"- Token savings: ~{compression_result.original_token_estimate - compression_result.compressed_token_estimate} tokens",
+        ]
+        
+        if compression_result.artifacts_metadata:
+            summary_parts.append(f"- Artifacts created: {len(compression_result.artifacts_metadata)}")
+            summary_parts.append("")
+            summary_parts.append("**Files & Artifacts:**")
+            for artifact in compression_result.artifacts_metadata:
+                summary_parts.append(f"- {artifact['filename']} ({artifact['type']})")
+        
+        summary_parts.extend([
+            "",
+            "---",
+            "",
+            "*You can continue the conversation below. I have context from the previous session.*",
+        ])
+        
+        return "\n".join(summary_parts)

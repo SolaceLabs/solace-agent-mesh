@@ -7,6 +7,12 @@ shared_config:
       broker_vpn: ${SOLACE_BROKER_VPN, default}
       temporary_queue: ${USE_TEMPORARY_QUEUES, true}
 
+  # Global Token Usage Tracking: When enabled, reports token usage metadata from LLM providers
+  # (prompt tokens, completion tokens, total tokens, and cached tokens).
+  # When disabled, no usage metadata is reported to the frontend.
+  # Set TRACK_TOKEN_USAGE=true environment variable to enable.
+  - track_token_usage: &track_token_usage ${TRACK_TOKEN_USAGE, false}
+
   - models:
     planning: &planning_model
       # This dictionary structure tells ADK to use the LiteLlm wrapper.

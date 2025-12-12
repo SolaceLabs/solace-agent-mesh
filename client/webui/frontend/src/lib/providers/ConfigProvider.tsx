@@ -23,6 +23,13 @@ interface BackendConfig {
     background_tasks_config?: {
         default_timeout_ms?: number;
     };
+    user?: {
+        id: string;
+        name: string;
+        email: string;
+        authenticated: boolean;
+        auth_method: string;
+    };
 }
 
 interface ConfigProviderProps {
@@ -120,6 +127,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     validationLimits: data.validation_limits,
                     backgroundTasksEnabled,
                     backgroundTasksDefaultTimeoutMs,
+                    user: data.user,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;

@@ -22,6 +22,8 @@ from ....common import a2a
 from ..repository.entities import Task, TaskEvent
 from ..repository.task_repository import TaskRepository
 from ..shared import now_epoch_ms
+from ..services.usage_tracking_service import UsageTrackingService
+from ..services.litellm_cost_calculator import LiteLLMCostCalculator
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +36,8 @@ class TaskLoggerService:
         self.session_factory = session_factory
         self.config = config
         self.log_identifier = "[TaskLoggerService]"
+        # Initialize LiteLLM-based cost calculator for usage tracking
+        self.token_calculator = LiteLLMCostCalculator()
         log.info(f"{self.log_identifier} Initialized.")
 
     def log_event(self, event_data: Dict[str, Any]):
@@ -214,19 +218,44 @@ class TaskLoggerService:
                     task_to_update.last_activity_time = current_time
                     
                     # Extract and store token usage if present
-                    if isinstance(parsed_event, A2ATask) and parsed_event.metadata:
-                        token_usage = parsed_event.metadata.get("token_usage")
-                        if token_usage and isinstance(token_usage, dict):
-                            task_to_update.total_input_tokens = token_usage.get("total_input_tokens")
-                            task_to_update.total_output_tokens = token_usage.get("total_output_tokens")
-                            task_to_update.total_cached_input_tokens = token_usage.get("total_cached_input_tokens")
-                            task_to_update.token_usage_details = token_usage
-                            log.info(
-                                f"{self.log_identifier} Stored token usage for task {task_id}: "
-                                f"input={token_usage.get('total_input_tokens')}, "
-                                f"output={token_usage.get('total_output_tokens')}, "
-                                f"cached={token_usage.get('total_cached_input_tokens')}"
-                            )
+                    if isinstance(parsed_event, A2ATask):
+                        log.info(f"{self.log_identifier} Task is A2ATask, checking for metadata...")
+                        if parsed_event.metadata:
+                            log.info(f"{self.log_identifier} Metadata exists: {parsed_event.metadata.keys()}")
+                            token_usage = parsed_event.metadata.get("token_usage")
+                            if token_usage and isinstance(token_usage, dict):
+                                log.info(f"{self.log_identifier} Found token_usage in metadata: {token_usage}")
+                                # FIX: These lines MUST be indented under the if statement
+                                task_to_update.total_input_tokens = token_usage.get("total_input_tokens")
+                                task_to_update.total_output_tokens = token_usage.get("total_output_tokens")
+                                task_to_update.total_cached_input_tokens = token_usage.get("total_cached_input_tokens")
+                                task_to_update.token_usage_details = token_usage
+                                log.info(
+                                    f"{self.log_identifier} Stored token usage for task {task_id}: "
+                                    f"input={token_usage.get('total_input_tokens')}, "
+                                    f"output={token_usage.get('total_output_tokens')}, "
+                                    f"cached={token_usage.get('total_cached_input_tokens')}"
+                                )
+                                
+                                log.info(f"{self.log_identifier} Calling _record_token_usage_to_tracking_system for user {user_id}")
+                                try:
+                                    self._record_token_usage_to_tracking_system(
+                                        db=db,
+                                        user_id=user_id,
+                                        task_id=task_id,
+                                        token_usage=token_usage
+                                    )
+                                except Exception as usage_err:
+                                    log.error(
+                                        f"{self.log_identifier} Failed to record token usage to tracking system: {usage_err}",
+                                        exc_info=True
+                                    )
+                            else:
+                                log.info(f"{self.log_identifier} No token_usage found in metadata or token_usage is not a dict")
+                        else:
+                            log.info(f"{self.log_identifier} Task metadata is None or empty")
+                    else:
+                        log.info(f"{self.log_identifier} Parsed event is not an A2ATask instance")
 
                     repo.save_task(db, task_to_update)
                     log.info(
@@ -607,3 +636,81 @@ class TaskLoggerService:
                 f"{self.log_identifier} Failed to save chat messages for background task {task_id}: {e}",
                 exc_info=True
             )
+
+    def _record_token_usage_to_tracking_system(
+        self,
+        db: DBSession,
+        user_id: str | None,
+        task_id: str,
+        token_usage: Dict[str, Any]
+    ) -> None:
+        """
+        Record token usage to the usage tracking system.
+        
+        Args:
+            db: Database session
+            user_id: User identifier
+            task_id: Task identifier
+            token_usage: Token usage dictionary from task metadata
+        """
+        if not user_id:
+            log.debug(f"{self.log_identifier} No user_id available, skipping usage tracking")
+            return
+        
+        # Extract token counts
+        total_input = token_usage.get("total_input_tokens", 0)
+        total_output = token_usage.get("total_output_tokens", 0)
+        total_cached = token_usage.get("total_cached_input_tokens", 0)
+        
+        if total_input == 0 and total_output == 0:
+            log.debug(f"{self.log_identifier} No tokens to record for task {task_id}")
+            return
+        
+        # Extract model information from by_model breakdown
+        by_model = token_usage.get("by_model", {})
+        
+        # Record usage for each model
+        usage_service = UsageTrackingService(db, self.token_calculator)
+        
+        if by_model:
+            # Record per-model usage
+            for model, model_usage in by_model.items():
+                try:
+                    usage_service.record_token_usage(
+                        user_id=user_id,
+                        task_id=task_id,
+                        model=model,
+                        prompt_tokens=model_usage.get("input_tokens", 0),
+                        completion_tokens=model_usage.get("output_tokens", 0),
+                        cached_input_tokens=model_usage.get("cached_input_tokens", 0),
+                        source="agent",
+                    )
+                    log.info(
+                        f"{self.log_identifier} Recorded usage for model {model}: "
+                        f"input={model_usage.get('input_tokens')}, "
+                        f"output={model_usage.get('output_tokens')}"
+                    )
+                except Exception as model_err:
+                    log.error(
+                        f"{self.log_identifier} Failed to record usage for model {model}: {model_err}"
+                    )
+        else:
+            # Fallback: record total usage with unknown model
+            try:
+                usage_service.record_token_usage(
+                    user_id=user_id,
+                    task_id=task_id,
+                    model="unknown",
+                    prompt_tokens=total_input,
+                    completion_tokens=total_output,
+                    cached_input_tokens=total_cached,
+                    source="agent",
+                )
+                log.info(
+                    f"{self.log_identifier} Recorded total usage: "
+                    f"input={total_input}, output={total_output}"
+                )
+            except Exception as total_err:
+                log.error(
+                    f"{self.log_identifier} Failed to record total usage: {total_err}"
+                )

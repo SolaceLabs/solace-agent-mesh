@@ -1911,6 +1911,21 @@ def publish_agent_card(component):
                 skill["tags"] = []
             processed_skills.append(skill)
 
+        # Include model configuration in metadata for context window determination
+        model_config = component.get_config("model", {})
+        model_name = None
+        if isinstance(model_config, dict):
+            model_name = model_config.get("model") or model_config.get("name")
+        
+        metadata = {}
+        if model_name:
+            metadata["model"] = model_name
+            log.debug(
+                "%s Including model '%s' in agent card metadata",
+                component.log_identifier,
+                model_name,
+            )
+        
         agent_card = AgentCard(
             name=agent_name,
             protocol_version=card_config.get("protocolVersion", "0.3.0"),
@@ -1923,6 +1938,7 @@ def publish_agent_card(component):
             default_output_modes=card_config.get("defaultOutputModes", ["text"]),
             documentation_url=card_config.get("documentationUrl"),
             provider=card_config.get("provider"),
+            metadata=metadata if metadata else None,
         )
 
         discovery_topic = get_discovery_topic(namespace)

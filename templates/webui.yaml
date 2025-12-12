@@ -53,12 +53,12 @@ apps:
       frontend_logo_url: __FRONTEND_LOGO_URL__
       
       # --- Frontend Feature Flags ---
-      # Uncomment to control speech features in the UI
       frontend_feature_enablement:
       #   speechToText: true   # Set to false to hide Speech-to-Text settings & microphone
       #   textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
       #   projects: true
       #   promptLibrary: true
+        tokenUsageTracking: false  # Set to true to enable token usage UI components
         background_tasks: true  # Enable background task execution
 
       # --- Background Tasks Configuration ---

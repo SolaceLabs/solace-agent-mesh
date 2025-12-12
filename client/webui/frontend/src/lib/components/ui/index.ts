@@ -24,6 +24,7 @@ export { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./
 export { Menu, type MenuAction, type MenuProps } from "./menu";
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "./popover";
 export { PopoverManual } from "./popoverManual";
+export { Progress } from "./progress";
 export { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectScrollDownButton, SelectScrollUpButton, SelectTrigger, SelectValue } from "./select";
 export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
 export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel, DropdownMenuSeparator } from "./dropdown-menu";

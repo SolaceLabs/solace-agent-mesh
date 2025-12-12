@@ -30,6 +30,7 @@ from ...common import a2a
 from ...gateway.http_sse import dependencies
 from .routers import (
     agent_cards,
+    agent_model,
     artifacts,
     auth,
     config,
@@ -41,6 +42,8 @@ from .routers import (
     visualization,
     projects,
     prompts,
+    usage,
+    user_profile,
 )
 from .routers.sessions import router as session_router
 from .routers.tasks import router as task_router
@@ -233,6 +236,7 @@ def _create_auth_middleware(component):
                 "/api/v1/auth/login",
                 "/api/v1/auth/refresh",
                 "/api/v1/csrf-token",
+                "/api/v1/user/avatar/",  # Allow public access to avatar images
                 "/health",
             ]
 
@@ -608,6 +612,7 @@ def _setup_routers() -> None:
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(version.router, prefix=api_prefix, tags=["Version"])
     app.include_router(agent_cards.router, prefix=api_prefix, tags=["Agent Cards"])
+    app.include_router(agent_model.router, prefix=api_prefix, tags=["Agent Model"])
     app.include_router(task_router, prefix=api_prefix, tags=["Tasks"])
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
     app.include_router(
@@ -624,6 +629,9 @@ def _setup_routers() -> None:
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
     app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
+    app.include_router(user_profile.router, prefix=f"{api_prefix}/user", tags=["User Profile"])
+    app.include_router(usage.router, tags=["Usage"])
+    app.include_router(usage.admin_router, tags=["Admin Usage"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers from community repo

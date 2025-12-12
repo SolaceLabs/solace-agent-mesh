@@ -2,10 +2,11 @@ import React, { useState } from "react";
 import { Settings, LogOut, User } from "lucide-react";
 
 import { NavigationButton } from "@/lib/components/navigation";
-import type { NavigationItem } from "@/lib/types";
+import { UserMenu } from "@/lib/components/navigation/UserMenu";
 import { Popover, PopoverTrigger, PopoverContent, Tooltip, TooltipTrigger, TooltipContent, Menu } from "@/lib/components/ui";
 import { SettingsDialog } from "@/lib/components/settings";
 import { useAuthContext, useConfigContext } from "@/lib/hooks";
+import type { NavigationItem } from "@/lib/types";
 
 interface NavigationListProps {
     items: NavigationItem[];
@@ -13,6 +14,13 @@ interface NavigationListProps {
     activeItem: string | null;
     onItemClick: (itemId: string) => void;
 }
+
+// Wrapper component to inject user info from config
+const UserMenuWithConfig: React.FC<{ onUsageClick: () => void }> = ({ onUsageClick }) => {
+    const { user } = useConfigContext();
+
+    return <UserMenu userName={user?.name || "Username not found"} userEmail={user?.email || "Email not found"} onUsageClick={onUsageClick} />;
+};
 
 export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomItems, activeItem, onItemClick }) => {
     const [menuOpen, setMenuOpen] = useState(false);
@@ -56,7 +64,7 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                             <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
                         </li>
                     ))}
-                {/* User or Settings */}
+                {/* User Menu with Settings and Token Usage, or simple Settings/Logout menu */}
                 {logoutEnabled ? (
                     <li className="my-4 flex justify-center">
                         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
@@ -101,7 +109,7 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                     </li>
                 ) : (
                     <li className="my-4 flex justify-center">
-                        <SettingsDialog iconOnly={true} />
+                        <UserMenuWithConfig onUsageClick={() => onItemClick("usage")} />
                     </li>
                 )}
             </ul>

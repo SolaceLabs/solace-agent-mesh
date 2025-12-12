@@ -1,0 +1,202 @@
+/**
+ * User Menu Component
+ * Dropdown menu with user avatar, settings, and token usage
+ */
+
+import React, { useEffect, useState } from "react";
+import { BarChart3 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/lib/components/ui/dropdown-menu";
+import { SettingsDialog } from "@/lib/components/settings";
+import { getQuotaStatus } from "../../api/token-usage-api";
+import { getUserProfile } from "../../api/user-profile-api";
+import { useConfigContext } from "@/lib/hooks";
+import type { QuotaStatus } from "../../types/token-usage";
+import type { UserProfile } from "../../api/user-profile-api";
+
+interface UserMenuProps {
+    userName?: string;
+    userEmail?: string;
+    onUsageClick?: () => void;
+}
+
+export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail = "user@example.com", onUsageClick }) => {
+    const { configFeatureEnablement } = useConfigContext();
+    const tokenUsageTrackingEnabled = configFeatureEnablement?.tokenUsageTracking ?? false;
+
+    const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+    const [isOpen, setIsOpen] = useState(false);
+
+    // Get user initials
+    const getInitials = (name: string): string => {
+        return name
+            .split(" ")
+            .map(part => part[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2);
+    };
+
+    // Load user profile on mount and when avatar updates
+    useEffect(() => {
+        loadUserProfile();
+
+        const handleAvatarUpdate = () => {
+            loadUserProfile();
+        };
+
+        window.addEventListener("avatar-updated", handleAvatarUpdate);
+        return () => window.removeEventListener("avatar-updated", handleAvatarUpdate);
+    }, []);
+
+    // Load quota status when menu opens (only if token usage tracking is enabled)
+    useEffect(() => {
+        if (isOpen && tokenUsageTrackingEnabled) {
+            loadQuotaStatus();
+        }
+    }, [isOpen, tokenUsageTrackingEnabled]);
+
+    const loadQuotaStatus = async () => {
+        try {
+            const status = await getQuotaStatus();
+            console.log("Loaded quota status:", status);
+            setQuotaStatus(status);
+        } catch (error) {
+            console.error("Failed to load quota status:", error);
+            // Set null to hide usage section on error
+            setQuotaStatus(null);
+        }
+    };
+
+    const loadUserProfile = async () => {
+        try {
+            const profile = await getUserProfile();
+            console.log("Loaded user profile:", profile);
+            setUserProfile(profile);
+        } catch (error) {
+            console.error("Failed to load user profile:", error);
+            setUserProfile(null);
+        }
+    };
+
+    const getUsageColor = (percentage: number): string => {
+        if (percentage >= 90) return "text-red-600 dark:text-red-400";
+        if (percentage >= 75) return "text-orange-600 dark:text-orange-400";
+        if (percentage >= 50) return "text-yellow-600 dark:text-yellow-400";
+        return "text-green-600 dark:text-green-400";
+    };
+
+    const getUsageBarColor = (percentage: number): string => {
+        if (percentage >= 90) return "bg-red-500";
+        if (percentage >= 75) return "bg-orange-500";
+        if (percentage >= 50) return "bg-yellow-500";
+        return "bg-green-500";
+    };
+
+    const formatNumber = (num: number): string => {
+        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+        if (num >= 1000) return `${(num / 1000).toFixed(0)}K`;
+        return num.toString();
+    };
+
+    // Render avatar (either custom image or initials)
+    const renderAvatar = (size: "small" | "large") => {
+        const sizeClasses = size === "small" ? "h-10 w-10 text-base" : "h-12 w-12 text-lg";
+        const avatarUrl = userProfile?.avatarUrl;
+        // Use displayName from profile if available, otherwise fall back to userName prop
+        const displayName = userProfile?.displayName || userName;
+
+        if (avatarUrl) {
+            return (
+                <>
+                    <img
+                        src={avatarUrl}
+                        alt={displayName}
+                        className={`${sizeClasses} flex-shrink-0 rounded-full object-cover`}
+                        onError={e => {
+                            // Hide image on error, show fallback
+                            console.error("Failed to load avatar image:", avatarUrl);
+                            e.currentTarget.style.display = "none";
+                            const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.display = "flex";
+                        }}
+                    />
+                    <div className={`${sizeClasses} flex-shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-white`} style={{ display: "none" }}>
+                        {getInitials(displayName)}
+                    </div>
+                </>
+            );
+        }
+
+        return <div className={`${sizeClasses} flex flex-shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-white`}>{getInitials(displayName)}</div>;
+    };
+
+    return (
+        <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+            <DropdownMenuTrigger asChild>
+                <button
+                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)]"
+                    aria-label="User menu"
+                >
+                    {renderAvatar("small")}
+                </button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent className="w-72" align="end" side="top" sideOffset={16}>
+                {/* User Info */}
+                <DropdownMenuLabel className="font-normal">
+                    <div className="flex items-center space-x-3 py-2">
+                        {renderAvatar("large")}
+                        <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{userProfile?.displayName || userName}</p>
+                            <p className="truncate text-xs text-gray-500 dark:text-gray-400">{userProfile?.email || userEmail}</p>
+                        </div>
+                    </div>
+                </DropdownMenuLabel>
+
+                {/* Token Usage Section - Compact version below profile (only shown if feature is enabled) */}
+                {tokenUsageTrackingEnabled && quotaStatus && quotaStatus.usagePercentage !== undefined && (
+                    <>
+                        <div className="bg-gray-50 px-3 py-2 dark:bg-gray-900/50">
+                            <div className="mb-1.5 flex items-center justify-between">
+                                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Token Usage</span>
+                                <span className={`text-xs font-semibold ${getUsageColor(quotaStatus.usagePercentage || 0)}`}>{(quotaStatus.usagePercentage || 0).toFixed(1)}%</span>
+                            </div>
+
+                            {/* Narrower Progress Bar */}
+                            <div className="mb-1.5 h-1.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+                                <div className={`h-1.5 rounded-full ${getUsageBarColor(quotaStatus.usagePercentage || 0)} transition-all duration-300`} style={{ width: `${Math.min(quotaStatus.usagePercentage || 0, 100)}%` }}></div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                                <span>{formatNumber(quotaStatus.currentUsage || 0)} used</span>
+                                <span>{formatNumber(quotaStatus.remaining || 0)} left</span>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                <DropdownMenuSeparator />
+
+                {/* Menu Items - Usage Details only shown if feature is enabled */}
+                {tokenUsageTrackingEnabled && (
+                    <DropdownMenuItem
+                        className="cursor-pointer hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)] focus:bg-[var(--color-primary-w90)] focus:text-[var(--color-primary-text-w10)]"
+                        onClick={() => {
+                            setIsOpen(false);
+                            onUsageClick?.();
+                        }}
+                    >
+                        <BarChart3 className="mr-2 h-4 w-4" />
+                        <span>Usage Details</span>
+                    </DropdownMenuItem>
+                )}
+
+                {/* Settings - uses SettingsDialog component */}
+                <SettingsDialog iconOnly={false} />
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+};
+
+export default UserMenu;
