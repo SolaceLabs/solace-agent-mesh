@@ -245,7 +245,11 @@ def _create_auth_middleware(component):
             )
 
             if use_auth:
-                await self._handle_authenticated_request(request, scope, receive, send)
+                # _handle_authenticated_request returns True if auth succeeded and we should continue,
+                # False if a response was already sent (e.g., 401 error)
+                auth_succeeded = await self._handle_authenticated_request(request, scope, receive, send)
+                if not auth_succeeded:
+                    return  # Response already sent, don't call the next app
             else:
                 request.state.user = {
                     "id": "sam_dev_user",
@@ -260,7 +264,14 @@ def _create_auth_middleware(component):
 
             await self.app(scope, receive, send)
 
-        async def _handle_authenticated_request(self, request, scope, receive, send):
+        async def _handle_authenticated_request(self, request, scope, receive, send) -> bool:
+            """
+            Handle authenticated request validation.
+            
+            Returns:
+                True if authentication succeeded and the request should continue to the app.
+                False if a response was already sent (e.g., 401 error) and the request should stop.
+            """
             access_token = _extract_access_token(request)
 
             if not access_token:
@@ -273,7 +284,7 @@ def _create_auth_middleware(component):
                     },
                 )
                 await response(scope, receive, send)
-                return
+                return False
 
             try:
                 auth_service_url = dependencies.api_config.get(
@@ -288,7 +299,7 @@ def _create_auth_middleware(component):
                         content={"detail": "Auth service not configured"},
                     )
                     await response(scope, receive, send)
-                    return
+                    return False
 
                 if not await _validate_token(
                     auth_service_url, auth_provider, access_token
@@ -302,7 +313,7 @@ def _create_auth_middleware(component):
                         },
                     )
                     await response(scope, receive, send)
-                    return
+                    return False
 
                 user_info = await _get_user_info(
                     auth_service_url, auth_provider, access_token
@@ -319,7 +330,7 @@ def _create_auth_middleware(component):
                         },
                     )
                     await response(scope, receive, send)
-                    return
+                    return False
 
                 user_identifier = _extract_user_identifier(user_info)
                 if not user_identifier or user_identifier.lower() in [
@@ -338,7 +349,7 @@ def _create_auth_middleware(component):
                         },
                     )
                     await response(scope, receive, send)
-                    return
+                    return False
 
                 email_from_auth, display_name = _extract_user_details(
                     user_info, user_identifier
@@ -371,8 +382,11 @@ def _create_auth_middleware(component):
                             },
                         )
                         await response(scope, receive, send)
-                        return
+                        return False
                     request.state.user = user_state
+
+                # Authentication succeeded
+                return True
 
             except httpx.RequestError as exc:
                 log.error("Error calling auth service: %s", exc)
@@ -381,7 +395,7 @@ def _create_auth_middleware(component):
                     content={"detail": "Auth service is unavailable"},
                 )
                 await response(scope, receive, send)
-                return
+                return False
             except Exception as exc:
                 log.error(
                     "An unexpected error occurred during token validation: %s", exc
@@ -393,7 +407,7 @@ def _create_auth_middleware(component):
                     },
                 )
                 await response(scope, receive, send)
-                return
+                return False
 
     return AuthMiddleware
 

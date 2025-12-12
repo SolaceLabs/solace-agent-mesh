@@ -377,6 +377,80 @@ async def _send_research_progress(
         log.error("%s Error sending progress update: %s", log_identifier, str(e))
 
 
+async def _send_rag_info_update(
+    citation_tracker: 'ResearchCitationTracker',
+    tool_context: ToolContext,
+    is_complete: bool = False
+) -> None:
+    """
+    Send RAG info update to frontend via SSE for the RAG info panel.
+    
+    This sends the title and sources early so the UI can display them
+    while research is still in progress.
+    
+    Args:
+        citation_tracker: The citation tracker with title and sources
+        tool_context: Tool context for accessing agent
+        is_complete: Whether the research is complete
+    """
+    log_identifier = "[DeepResearch:RAGInfo]"
+    
+    try:
+        # Get a2a context from tool context state
+        a2a_context = tool_context.state.get("a2a_context")
+        if not a2a_context:
+            log.warning("%s No a2a_context found, cannot send RAG info update", log_identifier)
+            return
+
+        # Get the host component from invocation context
+        invocation_context = getattr(tool_context, '_invocation_context', None)
+        if not invocation_context:
+            log.warning("%s No invocation context found", log_identifier)
+            return
+            
+        agent = getattr(invocation_context, 'agent', None)
+        if not agent:
+            log.warning("%s No agent found in invocation context", log_identifier)
+            return
+            
+        host_component = getattr(agent, 'host_component', None)
+        if not host_component:
+            log.warning("%s No host component found on agent", log_identifier)
+            return
+
+        # Get title (use research question as fallback)
+        title = citation_tracker.generated_title or citation_tracker.research_question
+        
+        # Get sources in camelCase format for frontend
+        sources = list(citation_tracker.citations.values())
+        
+        log.info("%s Sending RAG info update: title='%s', sources=%d, is_complete=%s",
+                log_identifier, title[:50], len(sources), is_complete)
+
+        # Import and create the RAG info update data
+        from ...common.data_parts import RAGInfoUpdateData
+        
+        rag_info_data = RAGInfoUpdateData(
+            title=title,
+            query=citation_tracker.research_question,
+            search_type="deep_research",
+            sources=sources,
+            is_complete=is_complete,
+            timestamp=datetime.now(timezone.utc).isoformat()
+        )
+        
+        # Use the host component's helper method to publish the data signal
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=rag_info_data,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
+        )
+        
+    except Exception as e:
+        log.error("%s Error sending RAG info update: %s", log_identifier, str(e))
+
+
 async def _search_web(
     query: str,
     max_results: int,
@@ -584,8 +658,6 @@ Requirements:
 
 Respond with ONLY the title, nothing else."""
 
-        log.info("%s Calling LLM for title generation", log_identifier)
-        
         # Create LLM request
         llm_request = LlmRequest(
             model=llm.model,
@@ -597,6 +669,7 @@ Respond with ONLY the title, nothing else."""
         )
         
         # Call LLM
+        response = None
         if hasattr(llm, 'generate_content_async'):
             async for response_event in llm.generate_content_async(llm_request):
                 response = response_event
@@ -604,12 +677,27 @@ Respond with ONLY the title, nothing else."""
         else:
             response = llm.generate_content(request=llm_request)
         
-        # Extract text from response
+        # Extract text from response - try multiple extraction methods
         response_text = ""
+        
+        # Method 1: Direct text attribute
         if hasattr(response, 'text') and response.text:
             response_text = response.text
+        # Method 2: Parts attribute (for streaming responses)
         elif hasattr(response, 'parts') and response.parts:
             response_text = "".join([part.text for part in response.parts if hasattr(part, 'text') and part.text])
+        # Method 3: Content attribute with parts (for LlmResponse objects)
+        elif hasattr(response, 'content') and response.content:
+            content = response.content
+            if hasattr(content, 'parts') and content.parts:
+                response_text = "".join([part.text for part in content.parts if hasattr(part, 'text') and part.text])
+            elif hasattr(content, 'text') and content.text:
+                response_text = content.text
+            elif isinstance(content, str):
+                response_text = content
+        
+        if not response_text:
+            log.warning("%s Could not extract text from LLM response", log_identifier)
         
         # Clean up the title
         title = response_text.strip().strip('"').strip("'")
@@ -619,7 +707,7 @@ Respond with ONLY the title, nothing else."""
             # Use first 60 chars of research question as fallback
             title = research_question[:60] + "..." if len(research_question) > 60 else research_question
         
-        log.info("%s Generated title: %s", log_identifier, title)
+        log.info("%s Generated title: '%s'", log_identifier, title)
         return title
         
     except Exception as e:
@@ -991,10 +1079,11 @@ async def _fetch_selected_sources(
             "favicon": f"https://www.google.com/s2/favicons?domain={source.url}&sz=32" if source.url else ""
         }
         
-        # Send progress for each source being fetched (simple message, no full structured data here)
+        # Send progress for each source being fetched with phase info
         await _send_research_progress(
             f"Reading content from: {source.title[:50]}... ({i}/{len(selected_sources)})",
-            tool_context
+            tool_context,
+            phase="analyzing"
         )
         fetch_tasks.append(web_request(
             url=source.url,
@@ -1049,7 +1138,8 @@ async def _fetch_selected_sources(
     if failed_count > 0:
         await _send_research_progress(
             f"Content fetched: {success_count} succeeded, {failed_count} failed",
-            tool_context
+            tool_context,
+            phase="analyzing"
         )
     
     return {"success": success_count, "failed": failed_count}
@@ -1267,53 +1357,59 @@ Write your research report now. Format in Markdown. Remember: NO word counts in 
         )
         
         # Call LLM with streaming and progress updates
-        log.info("%s Starting LLM streaming for report generation", log_identifier)
         report_body = ""
         response_count = 0
         last_progress_update = 0
+        import time as time_module
+        stream_start_time = time_module.time()
         
-        async for response_event in llm.generate_content_async(llm_request):
-            response_count += 1
-            
-            # Try different extraction methods
-            extracted_text = ""
-            if hasattr(response_event, 'text') and response_event.text:
-                extracted_text = response_event.text
-            elif hasattr(response_event, 'parts') and response_event.parts:
-                extracted_text = "".join([part.text for part in response_event.parts if hasattr(part, 'text') and part.text])
-            elif hasattr(response_event, 'content') and hasattr(response_event.content, 'parts'):
-                extracted_text = "".join([part.text for part in response_event.content.parts if hasattr(part, 'text') and part.text])
-            
-            if extracted_text:
-                report_body += extracted_text
+        try:
+            # IMPORTANT: Pass stream=True to enable streaming mode
+            # Without this, the LLM call waits for the entire response before yielding,
+            # which can cause timeouts with large prompts or slow models
+            async for response_event in llm.generate_content_async(llm_request, stream=True):
+                response_count += 1
                 
-                # Send progress update every 500 characters to show activity and reset peer timeout
-                if len(report_body) - last_progress_update >= 500:
-                    last_progress_update = len(report_body)
-                    progress_pct = min(95, 85 + int((len(report_body) / 3000) * 10))  # 85-95%
-                    log.info("%s Report generation progress: %d chars written", log_identifier, len(report_body))
+                # Try different extraction methods
+                extracted_text = ""
+                if hasattr(response_event, 'text') and response_event.text:
+                    extracted_text = response_event.text
+                elif hasattr(response_event, 'parts') and response_event.parts:
+                    extracted_text = "".join([part.text for part in response_event.parts if hasattr(part, 'text') and part.text])
+                elif hasattr(response_event, 'content') and response_event.content:
+                    if hasattr(response_event.content, 'parts') and response_event.content.parts:
+                        extracted_text = "".join([part.text for part in response_event.content.parts if hasattr(part, 'text') and part.text])
+                
+                if extracted_text:
+                    report_body += extracted_text
                     
-                    # Send progress update to reset orchestrator's peer timeout
-                    await _send_research_progress(
-                        f"Writing report... ({len(report_body)} characters)",
-                        tool_context,
-                        phase="writing",
-                        progress_percentage=progress_pct,
-                        sources_found=len(all_findings)
-                    )
-        
-        log.info("%s Report generation complete. Events: %d, Final length: %d chars", log_identifier, response_count, len(report_body))
-        
-        log.info("%s DEBUG: LLM returned report_body length: %d chars", log_identifier, len(report_body))
-        log.info("%s DEBUG: Report body preview: %s", log_identifier, report_body[:500] if report_body else "[EMPTY]")
+                    # Send progress update every 500 characters to show activity and reset peer timeout
+                    if len(report_body) - last_progress_update >= 500:
+                        last_progress_update = len(report_body)
+                        progress_pct = min(95, 85 + int((len(report_body) / 3000) * 10))  # 85-95%
+                        
+                        # Send progress update to reset orchestrator's peer timeout
+                        await _send_research_progress(
+                            f"Writing report... ({len(report_body)} characters)",
+                            tool_context,
+                            phase="writing",
+                            progress_percentage=progress_pct,
+                            sources_found=len(all_findings)
+                        )
+            
+            log.info("%s Report generation complete: %d chars", log_identifier, len(report_body))
+                
+        except Exception as stream_error:
+            log.error("%s Error during LLM streaming: %s", log_identifier, str(stream_error))
+            raise
         
         # Add sources section
-        report_body += "\n\n" + _generate_sources_section(all_findings)
+        sources_section = _generate_sources_section(all_findings)
+        report_body += "\n\n" + sources_section
         
         # Add methodology section
-        report_body += "\n\n" + _generate_methodology_section(all_findings)
-        
-        log.info("%s LLM report generated: %d characters", log_identifier, len(report_body))
+        methodology_section = _generate_methodology_section(all_findings)
+        report_body += "\n\n" + methodology_section
         
         return report_body
         
@@ -1466,10 +1562,16 @@ async def deep_research(
         queries = await _generate_initial_queries(research_question, tool_context, tool_config)
         log.info("%s Generated %d initial queries", log_identifier, len(queries))
         
-        # Generate human-readable title for the research (runs in parallel with first search)
+        # Generate human-readable title for the research using LLM
+        log.info("%s Generating LLM title for research question: %s", log_identifier, research_question[:100])
         research_title = await _generate_research_title(research_question, tool_context, tool_config)
         citation_tracker.set_title(research_title)
-        log.info("%s Generated research title: %s", log_identifier, research_title)
+        log.info("%s LLM-generated research title: '%s' (original query: '%s')",
+                log_identifier, research_title, research_question[:50])
+        
+        # Send initial RAG info update with title (no sources yet)
+        # This allows the UI to display the title in the RAG info panel immediately
+        await _send_rag_info_update(citation_tracker, tool_context, is_complete=False)
         
         # Iterative research loop
         all_findings: List[SearchResult] = []
@@ -1547,6 +1649,11 @@ async def deep_research(
             
             log.info("%s Iteration %d found %d new sources (total: %d)",
                     log_identifier, iteration, len(iteration_findings), len(all_findings))
+            
+            # Send RAG info update with new sources after each iteration
+            # This allows the UI to display sources as they are discovered
+            if iteration_findings:
+                await _send_rag_info_update(citation_tracker, tool_context, is_complete=False)
             
             # Select and fetch full content from best sources in THIS iteration
             # This allows the LLM to reflect on full content, not just snippets
@@ -1670,7 +1777,6 @@ async def deep_research(
             max_length=50,
             suffix="_report.md"
         )
-        
         # Get artifact service from invocation context
         inv_context = tool_context._invocation_context
         artifact_service = inv_context.artifact_service
@@ -1679,9 +1785,13 @@ async def deep_research(
             artifact_result = {"status": "error", "message": "ArtifactService not available"}
         else:
             # Prepare content bytes and metadata
-            artifact_bytes, final_mime_type = decode_and_get_bytes(
-                report, "text/markdown", f"{log_identifier}[CreateArtifact]"
-            )
+            try:
+                artifact_bytes, final_mime_type = decode_and_get_bytes(
+                    report, "text/markdown", f"{log_identifier}[CreateArtifact]"
+                )
+            except Exception as decode_error:
+                log.error("%s Error preparing artifact bytes: %s", log_identifier, str(decode_error))
+                raise
             
             # Get timestamp from session
             session_last_update_time = inv_context.session.last_update_time
@@ -1696,19 +1806,23 @@ async def deep_research(
                 timestamp_for_artifact = datetime.now(timezone.utc)
             
             # Save artifact directly using artifact service
-            artifact_result = await save_artifact_with_metadata(
-                artifact_service=artifact_service,
-                app_name=inv_context.app_name,
-                user_id=inv_context.user_id,
-                session_id=get_original_session_id(inv_context),
-                filename=artifact_filename,
-                content_bytes=artifact_bytes,
-                mime_type=final_mime_type,
-                metadata_dict={"description": f"Deep research report on: {research_question}"},
-                timestamp=timestamp_for_artifact,
-                schema_max_keys=50,  # Default schema max keys
-                tool_context=tool_context,
-            )
+            try:
+                artifact_result = await save_artifact_with_metadata(
+                    artifact_service=artifact_service,
+                    app_name=inv_context.app_name,
+                    user_id=inv_context.user_id,
+                    session_id=get_original_session_id(inv_context),
+                    filename=artifact_filename,
+                    content_bytes=artifact_bytes,
+                    mime_type=final_mime_type,
+                    metadata_dict={"description": f"Deep research report on: {research_question}"},
+                    timestamp=timestamp_for_artifact,
+                    schema_max_keys=50,  # Default schema max keys
+                    tool_context=tool_context,
+                )
+            except Exception as save_error:
+                log.error("%s Error saving artifact: %s", log_identifier, str(save_error))
+                artifact_result = {"status": "error", "message": str(save_error)}
         
         if artifact_result.get("status") not in ["success", "partial_success"]:
             log.error("%s Failed to create artifact for research report. Status: %s, Message: %s",
@@ -1720,18 +1834,26 @@ async def deep_research(
                     log_identifier, artifact_filename, artifact_version)
             
             # Send final progress update
-            await _send_research_progress(
-                f"✅ Research complete! Report saved as '{artifact_filename}'",
-                tool_context,
-                phase="writing",
-                progress_percentage=100,
-                current_iteration=max_iterations,
-                total_iterations=max_iterations,
-                sources_found=len(all_findings),
-                elapsed_seconds=int(time.time() - start_time),
-                max_runtime_seconds=max_runtime_seconds or 0
-            )
-            
+            try:
+                await _send_research_progress(
+                    f"✅ Research complete! Report saved as '{artifact_filename}'",
+                    tool_context,
+                    phase="writing",
+                    progress_percentage=100,
+                    current_iteration=max_iterations,
+                    total_iterations=max_iterations,
+                    sources_found=len(all_findings),
+                    elapsed_seconds=int(time.time() - start_time),
+                    max_runtime_seconds=max_runtime_seconds or 0
+                )
+            except Exception as progress_error:
+                log.error("%s Error sending final progress update: %s", log_identifier, str(progress_error))
+        
+        # Send final RAG info update marking research as complete
+        try:
+            await _send_rag_info_update(citation_tracker, tool_context, is_complete=True)
+        except Exception as rag_error:
+            log.error("%s Error sending final RAG info update: %s", log_identifier, str(rag_error))
         
         # Build the response artifact reference for the embed pattern
         artifact_save_success = artifact_result.get("status") in ["success", "partial_success"]
@@ -1756,7 +1878,6 @@ async def deep_research(
                 "version": artifact_version
             }
         else:
-            log.warning("%s Artifact save failed, not including artifact_filename in response", log_identifier)
             result_dict["artifact_error"] = artifact_result.get("message", "Failed to save artifact")
         
         return result_dict

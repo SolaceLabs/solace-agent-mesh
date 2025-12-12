@@ -1236,75 +1236,81 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     }
                                     break;
                                 }
+                                case "rag_info_update": {
+                                    // Handle RAG info updates from deep research (title and sources)
+                                    // This is sent early during research so UI can display title and sources
+                                    const ragInfoData = data as {
+                                        type: "rag_info_update";
+                                        title: string;
+                                        query: string;
+                                        search_type: string;
+                                        sources: Array<{
+                                            url: string;
+                                            title: string;
+                                            favicon?: string;
+                                            source_type?: string;
+                                        }>;
+                                        is_complete: boolean;
+                                        timestamp: string;
+                                    };
+
+                                    if (ragEnabled) {
+                                        setRagData(prev => {
+                                            // Find existing entry for this task
+                                            const existingIndex = prev.findIndex(r => r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult);
+
+                                            // Convert sources to RAGSearchResult format
+                                            const formattedSources = (ragInfoData.sources || []).map((source, idx) => ({
+                                                citationId: `search${idx}`,
+                                                title: source.title || source.url,
+                                                sourceUrl: source.url,
+                                                url: source.url,
+                                                contentPreview: `Source: ${source.title || source.url}`,
+                                                relevanceScore: 1.0,
+                                                retrievedAt: ragInfoData.timestamp,
+                                                metadata: {
+                                                    favicon: source.favicon || `https://www.google.com/s2/favicons?domain=${source.url}&sz=32`,
+                                                    type: "web_search",
+                                                    source_type: source.source_type || "web",
+                                                },
+                                            }));
+
+                                            const newEntry: RAGSearchResult = {
+                                                query: ragInfoData.query,
+                                                title: ragInfoData.title, // Use LLM-generated title
+                                                searchType: "deep_research" as const,
+                                                timestamp: ragInfoData.timestamp,
+                                                sources: formattedSources,
+                                                taskId: currentTaskIdFromResult,
+                                            };
+
+                                            if (existingIndex !== -1) {
+                                                // Update existing entry - merge sources and update title
+                                                const updated = [...prev];
+                                                const existing = updated[existingIndex];
+
+                                                // Merge sources (avoid duplicates)
+                                                const existingUrls = new Set(existing.sources.map(s => s.sourceUrl || s.url));
+                                                const newSources = formattedSources.filter(s => !existingUrls.has(s.sourceUrl || s.url));
+
+                                                updated[existingIndex] = {
+                                                    ...existing,
+                                                    title: ragInfoData.title || existing.title, // Update title if provided
+                                                    sources: [...existing.sources, ...newSources],
+                                                };
+
+                                                return updated;
+                                            } else {
+                                                return [...prev, newEntry];
+                                            }
+                                        });
+                                    }
+                                    break;
+                                }
                                 case "deep_research_progress": {
                                     // Deep research progress tracking - keep the data part for ChatMessage to render
                                     // Clear latestStatusText so LoadingMessageRow doesn't show duplicate status
                                     latestStatusText.current = null;
-
-                                    // Also track queries and sources for RAG display
-                                    const progressData = data;
-                                    const currentQuery = progressData.current_query;
-                                    const fetchingUrls = progressData.fetching_urls || [];
-                                    const phase = progressData.phase;
-
-                                    // Convert deep research progress to RAG data for source display
-                                    if (phase === "searching" && currentQuery && currentQuery.trim()) {
-                                        // Track new query
-                                        setRagData(prev => {
-                                            const existingQuery = prev.find(r => r.searchType === "deep_research" && r.query === currentQuery && r.taskId === currentTaskIdFromResult);
-
-                                            if (!existingQuery) {
-                                                const newEntry = {
-                                                    query: currentQuery,
-                                                    searchType: "deep_research" as const,
-                                                    timestamp: new Date().toISOString(),
-                                                    sources: [],
-                                                    taskId: currentTaskIdFromResult,
-                                                };
-                                                return [...prev, newEntry];
-                                            }
-                                            return prev;
-                                        });
-                                    } else if (phase === "analyzing" && fetchingUrls.length > 0) {
-                                        // Add sources to most recent query
-                                        setRagData(prev => {
-                                            const deepResearchEntries = prev.filter(r => r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult);
-
-                                            if (deepResearchEntries.length > 0) {
-                                                const updated = [...prev];
-                                                const lastQueryIndex = updated.lastIndexOf(deepResearchEntries[deepResearchEntries.length - 1]);
-
-                                                if (lastQueryIndex !== -1) {
-                                                    const existingUrls = new Set(updated[lastQueryIndex].sources.map(s => s.sourceUrl || s.url));
-
-                                                    fetchingUrls.forEach((urlInfo: any) => {
-                                                        const url = urlInfo.url;
-                                                        const sourceType = urlInfo.source_type || "web";
-                                                        if (url && !existingUrls.has(url)) {
-                                                            updated[lastQueryIndex].sources.push({
-                                                                citationId: `search${updated[lastQueryIndex].sources.length}`,
-                                                                title: urlInfo.title || url,
-                                                                sourceUrl: url,
-                                                                url: url, // RAGInfoPanel checks for this field
-                                                                contentPreview: urlInfo.title ? `Analyzed: ${urlInfo.title}` : `Analyzed: ${url}`,
-                                                                relevanceScore: 1.0,
-                                                                retrievedAt: new Date().toISOString(),
-                                                                metadata: {
-                                                                    favicon: urlInfo.favicon || (sourceType === "web" ? `https://www.google.com/s2/favicons?domain=${url}&sz=32` : ""),
-                                                                    type: "web_search",
-                                                                    source_type: sourceType,
-                                                                },
-                                                            });
-                                                            existingUrls.add(url);
-                                                        }
-                                                    });
-                                                }
-
-                                                return updated;
-                                            }
-                                            return prev;
-                                        });
-                                    }
 
                                     // Don't return early - let the data part flow through to the message
                                     break;

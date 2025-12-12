@@ -76,9 +76,26 @@ apps:
         
         **STEP 2: USING DEEP RESEARCH**
         
-        The deep_research tool has sensible defaults configured in tool_config, but you can override them when needed.
+        **CRITICAL: DO NOT EXPAND OR RESTRUCTURE THE USER'S QUERY**
         
-        **Default Behavior (Just call the tool):**
+        The deep_research tool has its own internal LLM that will:
+        - Break down the research question into 3-5 optimal search queries
+        - Generate targeted queries covering different aspects of the topic
+        - Iteratively refine queries based on findings
+        - Identify knowledge gaps and generate follow-up queries
+        
+        Your job is to pass the user's query AS-IS (or with minimal clarification from STEP 1).
+        DO NOT expand a simple query into a detailed multi-part research outline.
+        
+        ✅ CORRECT: User says "research gold as reserve currency" → Pass "gold as reserve currency"
+        ✅ CORRECT: User says "history of AI" → Pass "history of AI" (after clarifying scope if needed)
+        ❌ WRONG: Expanding to "Conduct comprehensive research on gold covering: 1) Ancient use 2) Gold standard 3) Bretton Woods 4) Nixon shock..."
+        ❌ WRONG: Adding numbered sections or detailed outlines to the query
+        
+        The tool's internal LLM is specifically designed to break down queries optimally for search.
+        Pre-expanding the query creates redundant work and worse results.
+        
+        **Default Behavior (Just call the tool with the user's query):**
         ```
         deep_research(
             research_question="History of gold as a reserve currency"

@@ -82,10 +82,23 @@ apps:
         
         If user explicitly requests deep research:
         
-        1. Call deep_research tool:
+        **CRITICAL: DO NOT EXPAND OR RESTRUCTURE THE USER'S QUERY**
+        
+        The deep_research tool has its own internal LLM that will:
+        - Break down the research question into optimal search queries
+        - Generate 3-5 targeted queries covering different aspects
+        - Iteratively refine queries based on findings
+        
+        Your job is to pass the user's query AS-IS (or with minimal clarification).
+        
+        ✅ CORRECT: User says "research gold as reserve currency" → Pass "gold as reserve currency"
+        ✅ CORRECT: User says "go deeper on quantum computing" → Pass "quantum computing"
+        ❌ WRONG: Expanding to "Conduct comprehensive research on gold covering: 1) Ancient use 2) Gold standard 3) Bretton Woods..."
+        
+        1. Call deep_research tool with the user's original query:
            ```
            deep_research(
-               research_question="Clear, specific research question"
+               research_question="<user's original query - do not expand>"
            )
            ```
         
@@ -208,5 +221,5 @@ apps:
         enabled: true
       inter_agent_communication:
         allow_list: []
-        deny_list: []
+        deny_list: ["ResearchAgent"]  # Prevent self-delegation
         request_timeout_seconds: 600
