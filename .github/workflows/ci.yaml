@@ -304,7 +304,7 @@ jobs:
             const owner = 'SolaceDev';
             const repo = 'rc-sam-community';
             const workflow_id = 'rc-workflow.yaml';
-            const ref = 'main';
+            const ref = 'update-vault';
 
             const sha = '${{ needs.prepare-metadata.outputs.commit_hash }}';
             const version = '${{ needs.prepare-metadata.outputs.version }}';
