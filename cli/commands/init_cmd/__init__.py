@@ -420,12 +420,6 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
     help="Database URL for the Orchestrator.",
 )
 @click.option(
-    "--add-platform-service",
-    is_flag=True,
-    default=None,
-    help="Add a default Platform Service configuration.",
-)
-@click.option(
     "--platform-api-host", type=str, help="Host for Platform API server."
 )
 @click.option(
