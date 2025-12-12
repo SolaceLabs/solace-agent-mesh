@@ -16,6 +16,8 @@ interface WebUIGatewayData {
   webui_frontend_bot_name?: string;
   webui_frontend_logo_url?: string;
   webui_frontend_collect_feedback?: boolean;
+  platform_api_host?: string;
+  platform_api_port?: number;
   database_url?: string;
   [key: string]: string | number | boolean | undefined;
 }
@@ -42,6 +44,8 @@ export default function WebUIGatewaySetup({
       webui_frontend_logo_url: webUiGatewayData.webui_frontend_logo_url ?? "",
       webui_frontend_collect_feedback:
         webUiGatewayData.webui_frontend_collect_feedback ?? false,
+      platform_api_host: webUiGatewayData.platform_api_host ?? "127.0.0.1",
+      platform_api_port: webUiGatewayData.platform_api_port ?? 8001,
     };
 
     const updatesNeeded: Partial<WebUIGatewayData> = {};
@@ -89,7 +93,7 @@ export default function WebUIGatewaySetup({
         isValid = false;
       }
       if (
-        webUiGatewayData.webui_fastapi_port === undefined 
+        webUiGatewayData.webui_fastapi_port === undefined
       ) {
         newErrors.webui_fastapi_port = "FastAPI Port is required.";
         isValid = false;
@@ -99,6 +103,24 @@ export default function WebUIGatewaySetup({
       ) {
         newErrors.webui_fastapi_port =
           "FastAPI Port must be a positive number.";
+        isValid = false;
+      }
+
+      // Platform Service validation
+      if (!webUiGatewayData.platform_api_host) {
+        newErrors.platform_api_host = "Platform API Host is required.";
+        isValid = false;
+      }
+      if (webUiGatewayData.platform_api_port === undefined) {
+        newErrors.platform_api_port = "Platform API Port is required.";
+        isValid = false;
+      } else if (
+        isNaN(Number(webUiGatewayData.platform_api_port)) ||
+        Number(webUiGatewayData.platform_api_port) <= 0 ||
+        Number(webUiGatewayData.platform_api_port) > 65535
+      ) {
+        newErrors.platform_api_port =
+          "Platform API Port must be between 1 and 65535.";
         isValid = false;
       }
     }
@@ -261,28 +283,50 @@ export default function WebUIGatewaySetup({
               />
             </FormField>
 
-            {/* eslint-disable-next-line */}
-            {/* <h4 className="text-sm font-medium text-gray-700 mt-3 mb-2">
-              Database Configuration
+            <h4 className="text-sm font-medium text-gray-700 mt-4 mb-2">
+              Platform Service Configuration
             </h4>
-            <InfoBox className="mb-4">
-              A local SQLite database will be created for your Web UI Gateway to store chat
-              history and session data. You can override this by providing a
-              connection string to a different database.
+            <InfoBox className="mb-3">
+              Configure the Platform Service used for the management of agents,
+              connectors, deployments, and more.
             </InfoBox>
-            <FormField
-              label="Database URL"
-              htmlFor="database_url"
-              helpText="Leave blank to use the default SQLite database."
-            >
-              <Input
-                id="database_url"
-                name="database_url"
-                value={webUiGatewayData.database_url || ""}
-                onChange={handleChange}
-                placeholder="e.g., sqlite:///gatewayDatabase.db"
-              />
-            </FormField> */}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                label="Platform API Host"
+                htmlFor="platform_api_host"
+                error={errors.platform_api_host}
+                required
+              >
+                <Input
+                  id="platform_api_host"
+                  name="platform_api_host"
+                  value={webUiGatewayData.platform_api_host || "127.0.0.1"}
+                  onChange={handleChange}
+                  placeholder="127.0.0.1"
+                />
+              </FormField>
+
+              <FormField
+                label="Platform API Port"
+                htmlFor="platform_api_port"
+                error={errors.platform_api_port}
+                required
+              >
+                <Input
+                  id="platform_api_port"
+                  name="platform_api_port"
+                  type="number"
+                  value={
+                    webUiGatewayData.platform_api_port === undefined
+                      ? ""
+                      : String(webUiGatewayData.platform_api_port)
+                  }
+                  onChange={handleChange}
+                  placeholder="8001"
+                />
+              </FormField>
+            </div>
           </div>
         )}
       </div>

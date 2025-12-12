@@ -57,8 +57,8 @@ export const advancedInitSteps: Step[] = [
   },
   {
     id: "webui-gateway-setup",
-    title: "Web UI Gateway",
-    description: "Configure the optional Web UI Gateway",
+    title: "Web UI & Platform Service",
+    description: "Configure Web UI Gateway and Platform Service",
     component: WebUIGatewaySetup,
   },
   {
