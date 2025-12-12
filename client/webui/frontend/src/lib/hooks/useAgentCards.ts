@@ -63,8 +63,7 @@ export const useAgentCards = (): useAgentCardsReturn => {
         setIsLoading(true);
         setError(null);
         try {
-            const { chat: chatBaseUrl } = api.getBaseUrls();
-            const data: AgentCard[] = await api.chat.get(`${chatBaseUrl}/api/v1/agentCards`);
+            const data: AgentCard[] = await api.chat.get("/api/v1/agentCards");
             const transformedAgents = data.map(transformAgentCard);
             setAgents(transformedAgents);
         } catch (err: unknown) {
