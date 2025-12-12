@@ -1,4 +1,5 @@
 import "./commands";
+import "./project-commands";
 import "./workflow-commands";
 import "./simple-session-commands";
 
