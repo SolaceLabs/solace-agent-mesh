@@ -10,11 +10,11 @@ from cli.commands.init_cmd.platform_service_step import (
 class TestCreatePlatformServiceConfig:
     """Test create_platform_service_config function"""
 
-    def test_skip_platform_service_creation(self, temp_project_dir, mocker):
-        """Test skipping Platform Service creation"""
+    def test_skip_platform_service_when_webui_disabled(self, temp_project_dir, mocker):
+        """Test skipping Platform Service creation when WebUI Gateway is disabled"""
         mock_echo = mocker.patch("click.echo")
 
-        options = {"add_platform_service": False}
+        options = {"add_webui_gateway": False}
         default_values = {}
 
         result = create_platform_service_config(
@@ -42,7 +42,7 @@ class TestCreatePlatformServiceConfig:
         mock_ask.side_effect = ask_side_effect
 
         options = {
-            "add_platform_service": True,
+            "add_webui_gateway": True,
             "platform_api_host": "127.0.0.1",
             "platform_api_port": 8001,
         }
@@ -71,7 +71,7 @@ class TestCreatePlatformServiceConfig:
 
         mock_ask.side_effect = ask_side_effect
 
-        options = {"add_platform_service": True}
+        options = {"add_webui_gateway": True}
         default_values = PLATFORM_SERVICE_DEFAULTS.copy()
 
         result = create_platform_service_config(
@@ -91,7 +91,7 @@ class TestCreatePlatformServiceConfig:
             side_effect=FileNotFoundError("Template not found")
         )
 
-        options = {"add_platform_service": True}
+        options = {"add_webui_gateway": True}
         default_values = {}
 
         result = create_platform_service_config(
@@ -118,7 +118,7 @@ class TestCreatePlatformServiceConfig:
 
         mocker.patch("builtins.open", mock_open)
 
-        options = {"add_platform_service": True}
+        options = {"add_webui_gateway": True}
         default_values = {}
 
         result = create_platform_service_config(
@@ -145,7 +145,7 @@ class TestCreatePlatformServiceConfig:
 
         mock_ask.side_effect = ask_side_effect
 
-        options = {"add_platform_service": True}
+        options = {"add_webui_gateway": True}
         default_values = {}
 
         result = create_platform_service_config(
@@ -163,7 +163,7 @@ class TestCreatePlatformServiceConfig:
         mock_ask = mocker.patch("cli.commands.init_cmd.platform_service_step.ask_if_not_provided")
         mock_ask.return_value = "interactive_value"
 
-        options = {"add_platform_service": True}
+        options = {"add_webui_gateway": True}
         default_values = {}
 
         result = create_platform_service_config(
@@ -174,21 +174,21 @@ class TestCreatePlatformServiceConfig:
         # Verify ask_if_not_provided was called for various parameters
         assert mock_ask.call_count > 0
 
-    def test_platform_service_none_add_uses_default(self, temp_project_dir, mocker, mock_templates):
-        """Test that None add_platform_service uses default value"""
+    def test_platform_service_created_with_webui_enabled(self, temp_project_dir, mocker, mock_templates):
+        """Test that platform service is created when WebUI Gateway is enabled"""
         mock_echo = mocker.patch("click.echo")
         mock_ask = mocker.patch("cli.commands.init_cmd.platform_service_step.ask_if_not_provided")
         mock_ask.return_value = "test"
 
-        options = {"add_platform_service": None}
-        default_values = {"add_platform_service": True}
+        options = {"add_webui_gateway": True}
+        default_values = {}
 
         result = create_platform_service_config(
             temp_project_dir, options, skip_interactive=True, default_values=default_values
         )
 
         assert result is True
-        assert options["add_platform_service"] is True
+        assert (temp_project_dir / "configs" / "services" / "platform.yaml").exists()
 
     def test_platform_service_directory_creation(self, temp_project_dir, mocker, mock_templates):
         """Test that platform service directory is created if it doesn't exist"""
@@ -196,7 +196,7 @@ class TestCreatePlatformServiceConfig:
         mock_ask = mocker.patch("cli.commands.init_cmd.platform_service_step.ask_if_not_provided")
         mock_ask.return_value = "test"
 
-        options = {"add_platform_service": True}
+        options = {"add_webui_gateway": True}
         default_values = {}
 
         # Ensure directory doesn't exist
@@ -216,7 +216,7 @@ class TestCreatePlatformServiceConfig:
         mock_ask = mocker.patch("cli.commands.init_cmd.platform_service_step.ask_if_not_provided")
         mock_ask.return_value = "test"
 
-        options = {"add_platform_service": True}
+        options = {"add_webui_gateway": True}
         default_values = {}
 
         create_platform_service_config(

@@ -14,32 +14,21 @@ def create_platform_service_config(
     project_root: Path, options: dict, skip_interactive: bool, default_values: dict
 ) -> bool:
     """
-    Gathers Platform Service options and creates the configuration file (configs/services/platform.yaml)
-    if the user opts in. It customizes the template based on user input or defaults.
+    Gathers Platform Service options and creates the configuration file (configs/services/platform.yaml).
+    Platform Service is bundled with WebUI Gateway - only creates config if WebUI Gateway is enabled.
     Returns True on success or if skipped, False on failure.
     """
-    click.echo("Configuring Platform Service options...")
-
-    add_platform_service = options.get("add_platform_service")
-    if not skip_interactive and add_platform_service is None:
-        add_platform_service = ask_if_not_provided(
-            options,
-            "add_platform_service",
-            "Add Platform Service configuration? (Recommended for enterprise features)",
-            default=default_values.get("add_platform_service", True),
-            none_interactive=skip_interactive,
-            is_bool=True,
-        )
-    elif add_platform_service is None:
-        add_platform_service = default_values.get("add_platform_service", True)
-
-    options["add_platform_service"] = add_platform_service
-
-    if not add_platform_service:
+    # Platform Service is bundled with WebUI Gateway - skip if WebUI is disabled
+    add_webui_gateway = options.get("add_webui_gateway", True)
+    if not add_webui_gateway:
         click.echo(
-            click.style("  Skipping Platform Service file creation.", fg="yellow")
+            click.style(
+                "  Skipping Platform Service (disabled with Web UI Gateway).", fg="yellow"
+            )
         )
         return True
+
+    click.echo("Configuring Platform Service options...")
 
     options["platform_api_host"] = ask_if_not_provided(
         options,

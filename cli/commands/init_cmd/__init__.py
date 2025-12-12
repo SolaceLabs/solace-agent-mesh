@@ -108,7 +108,6 @@ DEFAULT_INIT_VALUES = {
     "webui_frontend_collect_feedback": WEBUI_GATEWAY_DEFAULTS.get(
         "frontend_collect_feedback", False
     ),
-    "add_platform_service": True,
     "platform_api_host": PLATFORM_SERVICE_DEFAULTS.get("platform_api_host"),
     "platform_api_port": PLATFORM_SERVICE_DEFAULTS.get("platform_api_port"),
 }
