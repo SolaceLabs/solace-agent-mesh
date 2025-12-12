@@ -96,6 +96,16 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     // Trim text for user messages to prevent trailing whitespace issues
     const displayText = message.isUser ? textContent.trim() : textContent;
 
+    // If user message has displayHtml (with mention chips), render that instead
+    if (message.isUser && message.displayHtml) {
+        return (
+            <div
+                className="message-with-mentions whitespace-pre-wrap break-words"
+                dangerouslySetInnerHTML={{ __html: message.displayHtml }}
+            />
+        );
+    }
+
     const renderContent = () => {
         if (message.isError) {
             return (

@@ -194,6 +194,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 type: f.type,
             })),
             isError: message.isError,
+            displayHtml: message.displayHtml,
         };
     }, []);
 
@@ -252,6 +253,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             uploadedFiles: bubble.uploadedFiles,
             artifactNotification: bubble.artifactNotification,
             isError: bubble.isError,
+            displayHtml: bubble.displayHtml,
             metadata: {
                 messageId: bubble.id,
                 sessionId: sessionId,
@@ -1640,7 +1642,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null) => {
+        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null) => {
             event.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
@@ -1659,6 +1661,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 parts: [{ kind: "text", text: currentInput }],
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
+                displayHtml: displayHtml || undefined,
                 metadata: {
                     messageId: `msg-${v4()}`,
                     sessionId: overrideSessionId || sessionId,

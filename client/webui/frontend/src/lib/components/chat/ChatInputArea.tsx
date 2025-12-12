@@ -4,16 +4,20 @@ import { useNavigate, useLocation } from "react-router-dom";
 
 import { Ban, Paperclip, Send, MessageSquarePlus } from "lucide-react";
 
-import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
+import { MentionContentEditable } from "@/lib/components/ui/chat/mention-contenteditable";
 import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext } from "@/lib/hooks";
-import type { AgentCardInfo } from "@/lib/types";
+import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables } from "@/lib/utils/promptUtils";
+import { detectMentionTrigger, insertMention, buildMessageFromDOM } from "@/lib/utils/mentionUtils";
+import { addRecentMention } from "@/lib/utils/recentMentions";
 
 import { FileBadge } from "./file/FileBadge";
 import { AudioRecorder } from "./AudioRecorder";
 import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
+import { MentionsCommand } from "./MentionsCommand";
 import { VariableDialog } from "./VariableDialog";
 import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
 
@@ -55,6 +59,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
+    const mentionsEnabled = configFeatureEnablement?.mentions ?? true;
 
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,12 +74,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const [contextText, setContextText] = useState<string | null>(null);
     const [showContextBadge, setShowContextBadge] = useState(false);
 
-    const chatInputRef = useRef<HTMLTextAreaElement>(null);
+    const chatInputRef = useRef<HTMLDivElement>(null);
     const prevIsRespondingRef = useRef<boolean>(isResponding);
 
     const [inputValue, setInputValue] = useState<string>("");
+    const [desiredCursorPosition, setDesiredCursorPosition] = useState<number | undefined>(undefined);
 
     const [showPromptsCommand, setShowPromptsCommand] = useState(false);
+    const [showMentionsCommand, setShowMentionsCommand] = useState(false);
+    const [mentionSearchQuery, setMentionSearchQuery] = useState("");
+    const [mentionMap, setMentionMap] = useState<Map<string, Person>>(new Map());
 
     const [showVariableDialog, setShowVariableDialog] = useState(false);
     const [pendingPromptGroup, setPendingPromptGroup] = useState<PromptGroup | null>(null);
@@ -324,7 +333,17 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
         if (isSubmittingEnabled) {
-            let fullMessage = inputValue.trim();
+            // Build message directly from DOM instead of using regex parsing
+            // This is more reliable because it uses the actual mention-chip spans
+            let fullMessage = chatInputRef.current ? buildMessageFromDOM(chatInputRef.current).trim() : inputValue.trim();
+
+            // Capture the display HTML for showing in user's message bubble
+            const displayHtml = chatInputRef.current?.innerHTML || null;
+
+            console.log("=== SUBMIT DEBUG ===");
+            console.log("fullMessage from DOM:", fullMessage);
+            console.log("displayHtml:", displayHtml);
+
             if (contextText && showContextBadge) {
                 fullMessage = `Context: "${contextText}"\n\n${fullMessage}`;
             }
@@ -425,10 +444,11 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
             // as the uploaded artifacts (avoids React state timing issues)
-            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null);
+            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml);
             setSelectedFiles([]);
             setPendingPastedTextItems([]);
             setInputValue("");
+            setMentionMap(new Map()); // Clear mention map after submit
             setContextText(null);
             setShowContextBadge(false);
             scrollToBottom?.();
@@ -451,28 +471,56 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         disabled: isResponding,
     });
 
-    // Handle input change with "/" detection
-    const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-        const value = event.target.value;
+    // Get cursor position for ContentEditable
+    const getCursorPosition = (): number => {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return 0;
+
+        const range = selection.getRangeAt(0);
+        const preCaretRange = range.cloneRange();
+        if (!chatInputRef.current) return 0;
+
+        preCaretRange.selectNodeContents(chatInputRef.current);
+        preCaretRange.setEnd(range.endContainer, range.endOffset);
+        return preCaretRange.toString().length;
+    };
+
+    // Handle input change with "/" and "@" detection
+    const handleInputChange = (value: string) => {
         setInputValue(value);
 
-        // Check if "/" is typed at start or after space
-        const cursorPosition = event.target.selectionStart;
+        // Get cursor position
+        const cursorPosition = getCursorPosition();
         const textBeforeCursor = value.substring(0, cursorPosition);
         const lastChar = textBeforeCursor[textBeforeCursor.length - 1];
         const charBeforeLast = textBeforeCursor[textBeforeCursor.length - 2];
 
+        // Check if "/" is typed at start or after space
         if (lastChar === "/" && (!charBeforeLast || charBeforeLast === " " || charBeforeLast === "\n")) {
             setShowPromptsCommand(true);
+            setShowMentionsCommand(false); // Close mentions if open
         } else if (showPromptsCommand && !textBeforeCursor.includes("/")) {
             setShowPromptsCommand(false);
+        }
+
+        // Check for "@" mention trigger
+        if (mentionsEnabled) {
+            const mentionQuery = detectMentionTrigger(value, cursorPosition);
+            if (mentionQuery !== null) {
+                setMentionSearchQuery(mentionQuery);
+                setShowMentionsCommand(true);
+                setShowPromptsCommand(false); // Close prompts if open
+            } else if (showMentionsCommand) {
+                setShowMentionsCommand(false);
+                setMentionSearchQuery("");
+            }
         }
     };
 
     // Handle prompt selection
     const handlePromptSelect = (promptText: string) => {
         // Remove the "/" trigger and insert the prompt
-        const cursorPosition = chatInputRef.current?.selectionStart || 0;
+        const cursorPosition = getCursorPosition();
         const textBeforeCursor = inputValue.substring(0, cursorPosition);
         const textAfterCursor = inputValue.substring(cursorPosition);
 
@@ -487,6 +535,47 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setTimeout(() => {
             chatInputRef.current?.focus();
         }, 100);
+    };
+
+    // Handle person selection for mentions
+    const handlePersonSelect = (person: Person) => {
+        const cursorPosition = getCursorPosition();
+        console.log("=== handlePersonSelect ===");
+        console.log("Current cursor position:", cursorPosition);
+        console.log("Current inputValue:", inputValue);
+        console.log("Person:", person);
+
+        const { newText, newCursorPosition } = insertMention(
+            inputValue,
+            cursorPosition,
+            person
+        );
+
+        console.log("After insertMention:");
+        console.log("  newText:", newText);
+        console.log("  newCursorPosition:", newCursorPosition);
+
+        // Store person for later parsing
+        setMentionMap(prev => {
+            const updated = new Map(prev);
+            updated.set(person.name, person);
+            return updated;
+        });
+
+        // Add to recent mentions
+        addRecentMention(person);
+
+        setInputValue(newText);
+        setDesiredCursorPosition(newCursorPosition); // Set cursor after the mention
+        setShowMentionsCommand(false);
+        setMentionSearchQuery("");
+
+        // Clear cursor position state after it's been applied
+        // Note: We don't need to call focus() because the element stays focused
+        setTimeout(() => {
+            console.log("Clearing desiredCursorPosition");
+            setDesiredCursorPosition(undefined); // Clear after setting
+        }, 10);
     };
 
     // Handle chat command
@@ -776,6 +865,20 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 onReservedCommand={handleChatCommand}
             />
 
+            {/* Mentions Command Popover */}
+            {mentionsEnabled && (
+                <MentionsCommand
+                    isOpen={showMentionsCommand}
+                    onClose={() => {
+                        setShowMentionsCommand(false);
+                        setMentionSearchQuery("");
+                    }}
+                    textAreaRef={chatInputRef}
+                    onPersonSelect={handlePersonSelect}
+                    searchQuery={mentionSearchQuery}
+                />
+            )}
+
             {/* Variable Dialog for "Use in Chat" */}
             {showVariableDialog && pendingPromptGroup && (
                 <VariableDialog
@@ -788,17 +891,29 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 />
             )}
 
-            {/* Chat Input */}
-            <ChatInput
+            {/* Chat Input with Mention Chips */}
+            <MentionContentEditable
                 ref={chatInputRef}
                 value={inputValue}
                 onChange={handleInputChange}
-                placeholder={isRecording ? "Recording..." : "How can I help you today? (Type '/' to insert a prompt)"}
-                className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none transition-[height] duration-500 ease-in-out focus-visible:outline-none"
-                rows={1}
+                cursorPosition={desiredCursorPosition}
+                mentionMap={mentionMap}
+                placeholder={
+                    isRecording
+                        ? "Recording..."
+                        : mentionsEnabled
+                            ? "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)"
+                            : "How can I help you today? (Type '/' to insert a prompt)"
+                }
+                className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
                 onPaste={handlePaste}
                 disabled={isRecording}
                 onKeyDown={event => {
+                    // Don't handle Enter if mentions or prompts popup is open
+                    if (showMentionsCommand || showPromptsCommand) {
+                        return;
+                    }
+
                     if (event.key === "Enter" && !event.shiftKey && isSubmittingEnabled) {
                         onSubmit(event);
                     }
