@@ -144,10 +144,10 @@ class SSEManager:
                     task_id,
                 )
 
-    def _is_background_task(self, task_id: str) -> bool:
+    def _is_background_task_sync(self, task_id: str) -> bool:
         """
-        Check if a task is a background task by querying the database.
-        Uses caching to avoid repeated queries.
+        Synchronous helper to check if a task is a background task.
+        This should only be called from within run_in_executor to avoid blocking.
         
         Args:
             task_id: The ID of the task to check
@@ -155,7 +155,7 @@ class SSEManager:
         Returns:
             True if the task is a background task, False otherwise
         """
-        # Check cache first
+        # Check cache first (cache is thread-safe for reads)
         if task_id in self._background_task_cache:
             return self._background_task_cache[task_id]
         
@@ -187,6 +187,36 @@ class SSEManager:
             )
             return False
 
+    async def _is_background_task(self, task_id: str) -> bool:
+        """
+        Check if a task is a background task by querying the database.
+        Uses caching to avoid repeated queries.
+        
+        This method is non-blocking - it runs the database query in an executor
+        to avoid blocking the event loop.
+        
+        Args:
+            task_id: The ID of the task to check
+            
+        Returns:
+            True if the task is a background task, False otherwise
+        """
+        # Check cache first (fast path, no executor needed)
+        if task_id in self._background_task_cache:
+            return self._background_task_cache[task_id]
+        
+        # If no session factory, assume not a background task
+        if not self._session_factory:
+            return False
+        
+        # Run the synchronous DB operation in an executor to avoid blocking
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None,  # Use default executor
+            self._is_background_task_sync,
+            task_id
+        )
+
     async def send_event(
         self, task_id: str, event_data: Dict[str, Any], event_type: str = "message"
     ):
@@ -199,44 +229,60 @@ class SSEManager:
             event_data: The dictionary representing the A2A event (e.g., TaskStatusUpdateEvent).
             event_type: The type of the SSE event (default: "message").
         """
-        lock = self._get_lock()
-        async with lock:
-            queues = self._connections.get(task_id)
+        try:
+            serialized_data = json.dumps(
+                self._sanitize_json(event_data), allow_nan=False
+            )
+        except Exception as json_err:
+            log.error(
+                "%s Failed to JSON serialize event data for Task ID %s: %s",
+                self.log_identifier,
+                task_id,
+                json_err,
+            )
+            return
 
-            try:
-                serialized_data = json.dumps(
-                    self._sanitize_json(event_data), allow_nan=False
-                )
-            except Exception as json_err:
-                log.error(
-                    "%s Failed to JSON serialize event data for Task ID %s: %s",
+        sse_payload = {"event": event_type, "data": serialized_data}
+
+        # Check if we have active connections BEFORE acquiring lock
+        has_connections = task_id in self._connections and bool(self._connections[task_id])
+        
+        if not has_connections:
+            # Check if this is a background task BEFORE acquiring lock
+            is_background_task = await self._is_background_task(task_id)
+            
+            if is_background_task:
+                # For background tasks with no active connections, drop events instead of buffering
+                # This prevents buffer overflow when clients disconnect
+                log.debug(
+                    "%s No active SSE connections for background task %s. Dropping event to prevent buffer overflow.",
                     self.log_identifier,
                     task_id,
-                    json_err,
                 )
-                return
+            else:
+                log.debug(
+                    "%s No active SSE connections for Task ID: %s. Buffering event.",
+                    self.log_identifier,
+                    task_id,
+                )
+                self._event_buffer.buffer_event(task_id, sse_payload)
+            return
 
-            sse_payload = {"event": event_type, "data": serialized_data}
-
+        # Now acquire lock only for the actual queue operations
+        lock = self._get_lock()
+        async with lock:
+            # Re-check connections after acquiring lock (they may have changed)
+            queues = self._connections.get(task_id)
+            
             if not queues:
-                # Check if this is a background task
-                is_background_task = self._is_background_task(task_id)
-                
-                if is_background_task:
-                    # For background tasks with no active connections, drop events instead of buffering
-                    # This prevents buffer overflow when clients disconnect
-                    log.debug(
-                        "%s No active SSE connections for background task %s. Dropping event to prevent buffer overflow.",
-                        self.log_identifier,
-                        task_id,
-                    )
-                else:
-                    log.debug(
-                        "%s No active SSE connections for Task ID: %s. Buffering event.",
-                        self.log_identifier,
-                        task_id,
-                    )
-                    self._event_buffer.buffer_event(task_id, sse_payload)
+                # Connections were removed while we were waiting for the lock
+                # Buffer the event for potential late-connecting clients
+                log.debug(
+                    "%s Connections removed while waiting for lock for Task ID: %s. Buffering event.",
+                    self.log_identifier,
+                    task_id,
+                )
+                self._event_buffer.buffer_event(task_id, sse_payload)
                 return
 
             if trace_logger.isEnabledFor(logging.DEBUG):
