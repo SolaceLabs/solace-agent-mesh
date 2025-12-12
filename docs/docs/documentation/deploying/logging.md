@@ -77,7 +77,7 @@ handlers:
   rotatingFileHandler:
     class: logging.handlers.RotatingFileHandler
     formatter: simpleFormatter
-    filename: sam.log
+    filename: ${LOGGING_FILE_NAME, sam.log}
     mode: a             # Append mode - don't overwrite existing logs
     maxBytes: 52428800  # 50 MB - rotate when file reaches this size
     backupCount: 10     # Keep up to 10 historical log files
@@ -165,7 +165,7 @@ handlers:
   rotatingFileHandler:
     class: logging.handlers.RotatingFileHandler
     formatter: jsonFormatter  # Changed from simpleFormatter
-    filename: sam.log
+    filename: ${LOGGING_FILE_NAME, sam.log}
     mode: a
     maxBytes: 52428800
     backupCount: 10
@@ -253,3 +253,19 @@ Once you've identified the logger names you need, you can:
 
 This approach keeps your logs clean while giving you detailed visibility into the specific components you're troubleshooting.
 :::
+
+### Agent-Specific Log File
+
+For debugging a specific agent in isolation, you can run your SAM solution across multiple processes, with the agent you want to isolate running by itself with its own dedicated log file. This is particularly useful during development and troubleshooting.
+
+To isolate an agent's logs, run your SAM solution in two separate processes:
+
+```bash
+# Process 1: Run your other components with default logging
+sam run configs/gateways/webui.yaml configs/agents/main_orchestrator.yaml configs/agents/some_other_agents.yaml # logs go to sam.log
+
+# Process 2: Run the isolated agent with its own log file
+export LOGGING_FILE_NAME=my_isolated_agent.log && sam run configs/agents/my_agent_with_isolated_logs.yaml # logs go to my_isolated_agent.log
+```
+
+This approach allows you to isolate and analyze a specific agent's behavior without interference from other components in your mesh. Each process writes to its own log file, making debugging much easier.
