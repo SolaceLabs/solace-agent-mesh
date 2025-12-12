@@ -30,6 +30,7 @@ import type {
     ArtifactPart,
     AgentCardInfo,
     Project,
+    RAGSearchResult,
 } from "@/lib/types";
 
 // Type for tasks loaded from the API
@@ -87,6 +88,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [isResponding, setIsResponding] = useState<boolean>(false);
+
+    // RAG State
+    const [ragData, _setRagData] = useState<RAGSearchResult[]>([]);
+    const ragDataRef = useRef<RAGSearchResult[]>([]);
+    const [ragEnabled] = useState<boolean>(true);
+
+    // Wrapper to keep ref in sync with state
+    const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
+        _setRagData(prev => {
+            const newData = typeof data === "function" ? data(prev) : data;
+            ragDataRef.current = newData;
+            return newData;
+        });
+    }, []);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const currentEventSource = useRef<EventSource | null>(null);
@@ -127,7 +142,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Side Panel Control State
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
-    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow">("files");
+    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow" | "rag">("files");
 
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -322,22 +337,40 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const ARTIFACT_RETURN_REGEX = /«artifact_return:([^»]+)»/g;
         const ARTIFACT_REGEX = /«artifact:([^»]+)»/g;
 
-        const createArtifactPart = (filename: string) => ({
-            kind: "artifact",
-            status: "completed",
-            name: filename,
-            file: {
-                name: filename,
-                uri: `artifact://${sessionId}/${filename}`,
-            },
-        });
+        const createArtifactPart = (filename: string) => {
+            // Strip version suffix if present (e.g., "file.md:0" -> "file.md")
+            // This handles artifact markers from agents that include version numbers
+            let cleanFilename = filename;
+            if (filename.includes(":")) {
+                const parts = filename.split(":");
+                // Check if the last part is a number (version)
+                const lastPart = parts[parts.length - 1];
+                if (/^\d+$/.test(lastPart)) {
+                    // It's a version number, remove it
+                    cleanFilename = parts.slice(0, -1).join(":");
+                }
+            }
+
+            return {
+                kind: "artifact",
+                status: "completed",
+                name: cleanFilename,
+                file: {
+                    name: cleanFilename,
+                    uri: `artifact://${sessionId}/${cleanFilename}`,
+                },
+            };
+        };
 
         // Extract artifact_return markers
         let match;
         while ((match = ARTIFACT_RETURN_REGEX.exec(text)) !== null) {
             const artifactFilename = match[1];
-            if (!addedArtifacts.has(artifactFilename)) {
-                addedArtifacts.add(artifactFilename);
+            // Normalize filename to avoid duplicates (strip version suffix)
+            const normalizedFilename = artifactFilename.includes(":") && /:\d+$/.test(artifactFilename) ? artifactFilename.substring(0, artifactFilename.lastIndexOf(":")) : artifactFilename;
+
+            if (!addedArtifacts.has(normalizedFilename)) {
+                addedArtifacts.add(normalizedFilename);
                 processedParts.push(createArtifactPart(artifactFilename));
             }
         }
@@ -474,12 +507,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Extract feedback state from task metadata
             const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
+            // Extract RAG data from task metadata
+            const allRagData: RAGSearchResult[] = [];
+
             for (const task of migratedTasks) {
                 if (task.taskMetadata?.feedback) {
                     feedbackMap[task.taskId] = {
                         type: task.taskMetadata.feedback.type,
                         text: task.taskMetadata.feedback.text || "",
                     };
+                }
+
+                // Restore RAG data if present
+                if (task.taskMetadata?.rag_data && Array.isArray(task.taskMetadata.rag_data)) {
+                    allRagData.push(...task.taskMetadata.rag_data);
                 }
             }
 
@@ -497,6 +538,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setMessages(allMessages);
             setSubmittedFeedback(feedbackMap);
 
+            // Restore RAG data
+            if (allRagData.length > 0) {
+                setRagData(allRagData);
+            }
+
             // Set the agent name if found
             if (agentName) {
                 setSelectedAgentName(agentName);
@@ -508,7 +554,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setTaskIdInSidePanel(mostRecentTask.taskId);
             }
         },
-        [apiPrefix, deserializeTaskToMessages, migrateTask]
+        [apiPrefix, deserializeTaskToMessages, migrateTask, setRagData]
     );
 
     const uploadArtifactFile = useCallback(
@@ -790,7 +836,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [apiPrefix, artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id, setError]
     );
 
-    const openSidePanelTab = useCallback((tab: "files" | "workflow") => {
+    const openSidePanelTab = useCallback((tab: "files" | "workflow" | "rag") => {
         setIsSidePanelCollapsed(false);
         setActiveSidePanelTab(tab);
 
@@ -822,7 +868,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         async (filename: string): Promise<FileAttachment | null> => {
             // Prevent duplicate downloads for the same file
             if (artifactDownloadInProgressRef.current.has(filename)) {
-                console.log(`[ChatProvider] Skipping duplicate download for ${filename} - already in progress`);
                 return null;
             }
 
@@ -1191,6 +1236,140 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     }
                                     break;
                                 }
+                                case "rag_info_update": {
+                                    // Handle RAG info updates from deep research (title and sources)
+                                    // This is sent early during research so UI can display title and sources
+                                    const ragInfoData = data as {
+                                        type: "rag_info_update";
+                                        title: string;
+                                        query: string;
+                                        search_type: string;
+                                        sources: Array<{
+                                            url: string;
+                                            title: string;
+                                            favicon?: string;
+                                            source_type?: string;
+                                        }>;
+                                        is_complete: boolean;
+                                        timestamp: string;
+                                    };
+
+                                    if (ragEnabled) {
+                                        setRagData(prev => {
+                                            // Find existing entry for this task
+                                            const existingIndex = prev.findIndex(r => r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult);
+
+                                            // Convert sources to RAGSearchResult format
+                                            const formattedSources = (ragInfoData.sources || []).map((source, idx) => ({
+                                                citationId: `search${idx}`,
+                                                title: source.title || source.url,
+                                                sourceUrl: source.url,
+                                                url: source.url,
+                                                contentPreview: `Source: ${source.title || source.url}`,
+                                                relevanceScore: 1.0,
+                                                retrievedAt: ragInfoData.timestamp,
+                                                metadata: {
+                                                    favicon: source.favicon || `https://www.google.com/s2/favicons?domain=${source.url}&sz=32`,
+                                                    type: "web_search",
+                                                    source_type: source.source_type || "web",
+                                                },
+                                            }));
+
+                                            const newEntry: RAGSearchResult = {
+                                                query: ragInfoData.query,
+                                                title: ragInfoData.title, // Use LLM-generated title
+                                                searchType: "deep_research" as const,
+                                                timestamp: ragInfoData.timestamp,
+                                                sources: formattedSources,
+                                                taskId: currentTaskIdFromResult,
+                                            };
+
+                                            if (existingIndex !== -1) {
+                                                // Update existing entry - merge sources and update title
+                                                const updated = [...prev];
+                                                const existing = updated[existingIndex];
+
+                                                // Merge sources (avoid duplicates)
+                                                const existingUrls = new Set(existing.sources.map(s => s.sourceUrl || s.url));
+                                                const newSources = formattedSources.filter(s => !existingUrls.has(s.sourceUrl || s.url));
+
+                                                updated[existingIndex] = {
+                                                    ...existing,
+                                                    title: ragInfoData.title || existing.title, // Update title if provided
+                                                    sources: [...existing.sources, ...newSources],
+                                                };
+
+                                                return updated;
+                                            } else {
+                                                return [...prev, newEntry];
+                                            }
+                                        });
+                                    }
+                                    break;
+                                }
+                                case "deep_research_progress": {
+                                    // Deep research progress tracking - keep the data part for ChatMessage to render
+                                    // Clear latestStatusText so LoadingMessageRow doesn't show duplicate status
+                                    latestStatusText.current = null;
+
+                                    // Don't return early - let the data part flow through to the message
+                                    break;
+                                }
+                                case "tool_result": {
+                                    // Handle tool results that may contain RAG metadata
+                                    const resultData = (data as any).result_data;
+
+                                    // Check if result_data contains rag_metadata
+                                    if (resultData && typeof resultData === "object" && resultData.rag_metadata) {
+                                        const ragMetadata = resultData.rag_metadata;
+                                        if (ragMetadata && ragEnabled) {
+                                            console.log("[ChatProvider] Received tool_result with RAG metadata:", {
+                                                searchType: ragMetadata.searchType,
+                                                sourcesCount: ragMetadata.sources?.length,
+                                                taskId: currentTaskIdFromResult,
+                                                sampleSources: ragMetadata.sources?.slice(0, 3).map((s: any) => ({
+                                                    title: s.title,
+                                                    fetched: s.metadata?.fetched,
+                                                    fetch_status: s.metadata?.fetch_status,
+                                                    contentPreview: s.contentPreview?.substring(0, 100),
+                                                })),
+                                            });
+
+                                            const ragSearchResult: RAGSearchResult = {
+                                                query: ragMetadata.query,
+                                                title: ragMetadata.title,
+                                                searchType: ragMetadata.searchType,
+                                                timestamp: ragMetadata.timestamp,
+                                                sources: ragMetadata.sources,
+                                                taskId: currentTaskIdFromResult,
+                                                metadata: ragMetadata.metadata, // Preserve metadata with query breakdown
+                                            };
+
+                                            // For deep research: REPLACE all previous entries for this task with the final metadata
+                                            // This ensures we have the complete, properly structured data with metadata.queries
+                                            if (ragMetadata.searchType === "deep_research") {
+                                                console.log("[ChatProvider] Replacing deep research RAG data for task", currentTaskIdFromResult);
+                                                setRagData(prev => {
+                                                    const beforeCount = prev.filter(r => r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult).length;
+                                                    // Remove all previous deep research entries for this task
+                                                    const filtered = prev.filter(r => !(r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult));
+                                                    // Add the final complete entry
+                                                    const result = [...filtered, ragSearchResult];
+                                                    console.log("[ChatProvider] Deep research RAG data replaced:", {
+                                                        removedEntries: beforeCount,
+                                                        newSourcesCount: ragSearchResult.sources.length,
+                                                    });
+                                                    return result;
+                                                });
+                                            } else {
+                                                // For regular web search: append as before
+                                                setRagData(prev => [...prev, ragSearchResult]);
+                                            }
+                                        }
+                                    }
+                                    // Don't add tool_result to content parts - it's metadata only
+                                    break;
+                                }
                                 default:
                                     console.warn("Received unknown data part type:", data.type);
                             }
@@ -1232,7 +1411,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
             }
 
-            const newContentParts = messageToProcess?.parts?.filter(p => p.kind !== "data") || [];
+            // Filter out data parts EXCEPT deep_research_progress which needs to be rendered
+            // Also filter out text parts when we have deep_research_progress to show progress-only
+            const hasDeepResearchProgress = messageToProcess?.parts?.some(p => {
+                if (p.kind === "data") {
+                    const dataPart = p as DataPart;
+                    return dataPart.data && (dataPart.data as any).type === "deep_research_progress";
+                }
+                return false;
+            });
+
+            const newContentParts =
+                messageToProcess?.parts?.filter(p => {
+                    // Keep deep_research_progress data parts
+                    if (p.kind === "data") {
+                        const dataPart = p as DataPart;
+                        return dataPart.data && (dataPart.data as any).type === "deep_research_progress";
+                    }
+                    // Filter out text parts if we have deep research progress (to show progress-only)
+                    if (p.kind === "text" && hasDeepResearchProgress) {
+                        return false;
+                    }
+                    // Keep files and artifacts
+                    return true;
+                }) || [];
             const hasNewFiles = newContentParts.some(p => p.kind === "file");
 
             // Update UI state based on processed parts
@@ -1247,8 +1449,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     lastMessage = newMessages[newMessages.length - 1];
                 }
 
-                // Check if we can append to the last message
-                if (lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
+                // Check if this is a deep research progress update
+                const isProgressUpdate = newContentParts.length === 1 && newContentParts[0].kind === "data" && (newContentParts[0] as DataPart).data && ((newContentParts[0] as DataPart).data as any).type === "deep_research_progress";
+
+                // For progress updates, always update the same message (don't replace, just update the data)
+                // The InlineResearchProgress component will handle showing all stages
+                if (isProgressUpdate && lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
+                    const updatedMessage: MessageFE = {
+                        ...lastMessage,
+                        parts: newContentParts,
+                        isComplete: isFinalEvent || hasNewFiles,
+                        metadata: {
+                            ...lastMessage.metadata,
+                            lastProcessedEventSequence: currentEventSequence,
+                        },
+                    };
+                    newMessages[newMessages.length - 1] = updatedMessage;
+                } else if (lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
+                    // Regular append for non-progress updates
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
                         parts: [...lastMessage.parts, ...newContentParts],
@@ -1261,7 +1479,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     newMessages[newMessages.length - 1] = updatedMessage;
                 } else {
                     // Only create a new bubble if there is visible content to render.
-                    const hasVisibleContent = newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file");
+                    // Include deep_research_progress data parts as visible content
+                    const hasVisibleContent = newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || (p.kind === "data" && (p as DataPart).data && (p as DataPart).data.type === "deep_research_progress"));
                     if (hasVisibleContent) {
                         const newBubble: MessageFE = {
                             role: "agent",
@@ -1352,6 +1571,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             const hasError = taskMessages.some(m => m.isError);
                             const taskStatus = hasError ? "error" : "completed";
 
+                            const taskRagData = ragDataRef.current.filter(r => r.taskId === currentTaskIdFromResult);
+
                             // Get the session ID from the task's context
                             const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
 
@@ -1365,6 +1586,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         schema_version: CURRENT_SCHEMA_VERSION,
                                         status: taskStatus,
                                         agent_name: selectedAgentName,
+                                        rag_data: taskRagData.length > 0 ? taskRagData : undefined, // Persist RAG data
                                     },
                                 },
                                 taskSessionId
@@ -1445,6 +1667,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             serializeMessageBubble,
             downloadAndResolveArtifact,
             setArtifacts,
+            setRagData,
+            ragEnabled,
             isTaskRunningInBackground,
             updateTaskTimestamp,
             unregisterBackgroundTask,
@@ -1511,6 +1735,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             isFinalizing.current = false;
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
+            // Clear RAG data on new session
+            setRagData([]);
             // Artifacts will be automatically refreshed by useArtifacts hook when sessionId changes
 
             // Dispatch event to focus chat input
@@ -1521,7 +1747,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact, isTaskRunningInBackground]
+        [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact, isTaskRunningInBackground, setRagData]
     );
 
     // Start a new chat session with a prompt template pre-filled
@@ -1639,6 +1865,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isFinalizing.current = false;
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
+                // Clear RAG data when switching sessions - will be repopulated by loadSessionTasks
+                setRagData([]);
 
                 await loadSessionTasks(newSessionId);
 
@@ -1684,6 +1912,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setActiveProject,
             setPreviewArtifact,
             setError,
+            setRagData,
             isTaskRunningInBackground,
             backgroundTasks,
             checkTaskStatus,
@@ -2456,6 +2685,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [currentTaskId, apiPrefix, closeCurrentEventSource]);
 
     const contextValue: ChatContextValue = {
+        ragData,
+        ragEnabled,
         configCollectFeedback,
         submittedFeedback,
         handleFeedbackSubmit,
