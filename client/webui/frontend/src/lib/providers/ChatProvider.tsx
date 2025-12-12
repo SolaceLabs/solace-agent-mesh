@@ -2062,11 +2062,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // 5. Send the request
                 console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
-                const result: SendStreamingMessageSuccessResponse = await api.chat.post(`/api/v1/message:stream`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(sendMessageRequest),
-                });
+                const result: SendStreamingMessageSuccessResponse = await api.chat.post(
+                    `/api/v1/message:stream`,
+                    sendMessageRequest
+                );
 
                 const task = result?.result as Task | undefined;
                 const taskId = task?.id;

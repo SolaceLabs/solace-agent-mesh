@@ -252,9 +252,7 @@ export const PromptsPage: React.FC = () => {
                 },
             };
 
-            const result = await api.chat.post(`/api/v1/prompts/import`, {
-                body: JSON.stringify(apiPayload),
-            });
+            const result = await api.chat.post(`/api/v1/prompts/import`, apiPayload);
 
             // Navigate back to prompts page
             setShowBuilder(false);
