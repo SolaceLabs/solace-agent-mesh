@@ -2,7 +2,6 @@
 import "@testing-library/cypress/add-commands";
 
 import type { ByRoleOptions } from "@testing-library/dom";
-import { CYPRESS_PREFIX } from "./utils";
 
 /* eslint-disable @typescript-eslint/no-namespace */
 declare global {
@@ -20,7 +19,6 @@ declare global {
             navigateToChat(): Chainable;
             navigateToAgents(): Chainable;
             navigateToProjects(): Chainable;
-            deleteCypressProjects(): Chainable<void>;
         }
         interface SuiteConfigOverrides {
             tags?: string[];
@@ -57,26 +55,6 @@ Cypress.Commands.add("navigateToAgents", () => {
 Cypress.Commands.add("navigateToProjects", () => {
     cy.log("Navigating to Projects page");
     cy.findByRole("button", { name: "Projects" }).should("be.visible").click();
-});
-
-Cypress.Commands.add("deleteCypressProjects", () => {
-    cy.log(`Cleaning up '${CYPRESS_PREFIX}' projects...`);
-
-    cy.request("GET", "/api/v1/projects").then(response => {
-        const projects = response.body.projects || [];
-
-        const projectsToDelete = projects.filter((project: any) => project.name.startsWith(CYPRESS_PREFIX));
-
-        cy.log(`Found ${projectsToDelete.length} projects to delete.`);
-
-        projectsToDelete.forEach((project: any) => {
-            cy.request({
-                method: "DELETE",
-                url: `/api/v1/projects/${project.id}`,
-                failOnStatusCode: false,
-            });
-        });
-    });
 });
 
 export {};
