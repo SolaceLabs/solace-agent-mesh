@@ -14,6 +14,8 @@ export type {
   ArtifactUploadOptions,
   ArtifactUploadResult,
   ArtifactsAPI,
+  ConsoleAPI,
+  LogEntry,
   SAMMessage,
   StorageAPI,
   Theme,

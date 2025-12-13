@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { AlertCircle, RefreshCw, ClipboardCopy, Check } from "lucide-react";
 import { useSamSdkHost, useChatContext } from "@/lib/hooks";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
@@ -13,8 +13,11 @@ export function AppPreview({ appId }: AppPreviewProps) {
     const [isNotBuilt, setIsNotBuilt] = useState<boolean>(false);
     const [key, setKey] = useState(0);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isCopying, setIsCopying] = useState(false);
+    const [justCopied, setJustCopied] = useState(false);
+    const iframeRef = useRef<HTMLIFrameElement>(null);
 
-    const { autoRefreshEnabled, setAutoRefreshEnabled, triggerPreviewRefresh } = useChatContext();
+    const { autoRefreshEnabled, setAutoRefreshEnabled, triggerPreviewRefresh, addNotification } = useChatContext();
 
     // Enable SAM SDK host communication
     useSamSdkHost(appId);
@@ -66,6 +69,73 @@ export function AppPreview({ appId }: AppPreviewProps) {
     const handleIframeError = () => {
         // iframe error - check if it's because app isn't built
         checkIfAppIsBuilt();
+    };
+
+    const handleCopyLogs = async () => {
+        if (!iframeRef.current?.contentWindow) {
+            addNotification("Preview iframe not ready", "warning");
+            return;
+        }
+
+        setIsCopying(true);
+
+        try {
+            // Request logs from the iframe via SAM SDK
+            const iframe = iframeRef.current.contentWindow;
+
+            // Get logs by calling SAM.console.getLogs() in the iframe
+            const logsPromise = new Promise<any[]>((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
+
+                const messageHandler = (event: MessageEvent) => {
+                    if (event.data?.type === "sam:console:response") {
+                        clearTimeout(timeout);
+                        window.removeEventListener("message", messageHandler);
+                        resolve(event.data.payload.logs || []);
+                    }
+                };
+
+                window.addEventListener("message", messageHandler);
+
+                // Send request to iframe
+                iframe.postMessage(
+                    { type: "sam:console:get-logs", id: Date.now().toString() },
+                    "*"
+                );
+            });
+
+            const logs = await logsPromise;
+
+            if (!logs || logs.length === 0) {
+                addNotification("No console logs captured yet", "info");
+                return;
+            }
+
+            // Format logs as readable text
+            const formattedLogs = logs
+                .map((log) => {
+                    const time = new Date(log.timestamp).toLocaleTimeString();
+                    return `[${time}] [${log.level.toUpperCase()}] ${log.message}`;
+                })
+                .join("\n");
+
+            // Copy to clipboard
+            await navigator.clipboard.writeText(formattedLogs);
+
+            setJustCopied(true);
+            addNotification(`${logs.length} console log${logs.length !== 1 ? "s" : ""} copied to clipboard`, "success");
+
+            // Reset the "just copied" state after 2 seconds
+            setTimeout(() => setJustCopied(false), 2000);
+        } catch (error) {
+            console.error("Failed to copy logs:", error);
+            addNotification(
+                error instanceof Error ? error.message : "Failed to retrieve console logs",
+                "warning"
+            );
+        } finally {
+            setIsCopying(false);
+        }
     };
 
     // Show placeholder when app isn't built yet
@@ -147,6 +217,21 @@ export function AppPreview({ appId }: AppPreviewProps) {
                     <Button
                         variant="secondary"
                         size="sm"
+                        onClick={handleCopyLogs}
+                        disabled={isCopying}
+                        className="h-8"
+                        tooltip="Copy console logs to clipboard"
+                    >
+                        {justCopied ? (
+                            <Check className="size-3 mr-1.5" />
+                        ) : (
+                            <ClipboardCopy className="size-3 mr-1.5" />
+                        )}
+                        {justCopied ? "Copied!" : "Copy Logs"}
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={handleRefresh}
                         disabled={isRefreshing}
                         className="h-8"
@@ -158,6 +243,7 @@ export function AppPreview({ appId }: AppPreviewProps) {
             </div>
             <div className="flex-1 bg-white overflow-hidden">
                 <iframe
+                    ref={iframeRef}
                     key={key}
                     src={`/api/v1/apps/preview/${appId}/`}
                     className="w-full h-full border-0"

@@ -11,6 +11,8 @@ import type {
   ArtifactUploadOptions,
   ArtifactUploadResult,
   ArtifactsAPI,
+  ConsoleAPI,
+  LogEntry,
   SAMMessage,
   StorageAPI,
   Theme,
@@ -22,7 +24,7 @@ import { MessageType } from './types';
  * Generate unique message ID.
  */
 function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 }
 
 /**
@@ -35,10 +37,16 @@ export class SAMClient {
   private themeCallbacks = new Set<(theme: Theme) => void>();
   private currentTheme: Theme = 'light';
   private persistentSessionId: string | null = null; // Auto-managed session for persistent mode
+  private logBuffer: LogEntry[] = [];
+  private readonly MAX_LOGS = 100;
+  private originalConsole: Record<string, Function> = {};
 
   constructor() {
     // Listen for messages from parent
     window.addEventListener('message', this.handleMessage.bind(this));
+
+    // Initialize console interception
+    this.interceptConsole();
 
     // Request initialization from parent
     this.readyPromise = new Promise((resolve) => {
@@ -53,6 +61,69 @@ export class SAMClient {
       };
       checkReady();
     });
+  }
+
+  /**
+   * Intercept console methods to capture logs.
+   */
+  private interceptConsole(): void {
+    const levels: Array<'log' | 'warn' | 'error' | 'info' | 'debug'> = ['log', 'warn', 'error', 'info', 'debug'];
+
+    levels.forEach((level) => {
+      // Save original console method
+      this.originalConsole[level] = console[level].bind(console);
+
+      // Override console method
+      console[level] = (...args: any[]) => {
+        // CRITICAL: Call original FIRST to preserve browser console behavior
+        (this.originalConsole[level] as Function)(...args);
+
+        // Then store log for later retrieval
+        try {
+          this.logBuffer.push({
+            timestamp: new Date().toISOString(),
+            level,
+            message: this.formatArgs(args),
+            args,
+          });
+
+          // Trim buffer to prevent memory issues
+          if (this.logBuffer.length > this.MAX_LOGS) {
+            this.logBuffer.shift();
+          }
+        } catch (error) {
+          // Fail silently if logging fails (don't break the app)
+          this.originalConsole.error?.('SAM SDK: Failed to capture console log', error);
+        }
+      };
+    });
+  }
+
+  /**
+   * Format console arguments into a readable string.
+   */
+  private formatArgs(args: any[]): string {
+    return args
+      .map((arg) => {
+        if (typeof arg === 'string') {
+          return arg;
+        }
+        if (arg === null) {
+          return 'null';
+        }
+        if (arg === undefined) {
+          return 'undefined';
+        }
+        if (typeof arg === 'object') {
+          try {
+            return JSON.stringify(arg, null, 2);
+          } catch (e) {
+            return String(arg);
+          }
+        }
+        return String(arg);
+      })
+      .join(' ');
   }
 
   /**
@@ -120,6 +191,25 @@ export class SAMClient {
     if (message.type === MessageType.THEME_CHANGED) {
       this.currentTheme = message.payload.theme;
       this.themeCallbacks.forEach((callback) => callback(message.payload.theme));
+      return;
+    }
+
+    // Handle console log requests from parent
+    if (message.type === MessageType.CONSOLE_GET_LOGS) {
+      // Parent is requesting logs, send them back
+      window.parent.postMessage(
+        {
+          type: MessageType.CONSOLE_RESPONSE,
+          id: message.id,
+          payload: { logs: [...this.logBuffer] },
+        },
+        '*'
+      );
+      return;
+    }
+
+    if (message.type === MessageType.CONSOLE_CLEAR) {
+      this.logBuffer = [];
       return;
     }
 
@@ -394,6 +484,22 @@ export class SAMClient {
         return () => {
           this.themeCallbacks.delete(callback);
         };
+      },
+    };
+  }
+
+  /**
+   * Console API.
+   */
+  get console(): ConsoleAPI {
+    return {
+      getLogs: async (): Promise<LogEntry[]> => {
+        // Return a copy of the log buffer
+        return [...this.logBuffer];
+      },
+
+      clear: (): void => {
+        this.logBuffer = [];
       },
     };
   }

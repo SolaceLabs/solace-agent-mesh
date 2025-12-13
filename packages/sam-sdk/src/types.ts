@@ -37,6 +37,11 @@ export enum MessageType {
   THEME_GET = 'sam:theme:get',
   THEME_RESPONSE = 'sam:theme:response',
   THEME_CHANGED = 'sam:theme:changed',
+
+  // Console logs
+  CONSOLE_GET_LOGS = 'sam:console:get-logs',
+  CONSOLE_RESPONSE = 'sam:console:response',
+  CONSOLE_CLEAR = 'sam:console:clear',
 }
 
 /**
@@ -160,6 +165,24 @@ export interface UIAPI {
 }
 
 /**
+ * Console log entry.
+ */
+export interface LogEntry {
+  timestamp: string;
+  level: 'log' | 'warn' | 'error' | 'info' | 'debug';
+  message: string;
+  args: any[];
+}
+
+/**
+ * Console operations.
+ */
+export interface ConsoleAPI {
+  getLogs(): Promise<LogEntry[]>;
+  clear(): void;
+}
+
+/**
  * Main SAM SDK interface.
  */
 export interface SAMAPI {
@@ -168,4 +191,5 @@ export interface SAMAPI {
   storage: StorageAPI;
   artifacts: ArtifactsAPI;
   ui: UIAPI;
+  console: ConsoleAPI;
 }

@@ -169,6 +169,95 @@ Example:
 />
 ```
 
+## Console Logging & Debugging
+
+### Automatic Log Capture
+
+**All console output is automatically captured** by the SAM SDK for debugging purposes.
+
+Every time you use `console.log()`, `console.warn()`, `console.error()`, `console.info()`, or `console.debug()`, the log is:
+1. **Displayed in the browser DevTools** (normal behavior preserved)
+2. **Captured in memory** (last 100 logs kept)
+3. **Available to the user** via a "Copy Logs" button in the preview pane
+
+### User Access to Logs
+
+The user can click the **"Copy Logs"** button in the app preview header to copy all captured console logs to their clipboard. They can then paste these logs into the chat to share them with the App Agent for debugging assistance.
+
+### Best Practices for Console Logging
+
+**CRITICAL**: Keep console output MINIMAL during normal operation.
+
+✅ **DO**:
+- Use `console.error()` for critical errors that need immediate attention
+- Log important state changes sparingly (e.g., "User authenticated", "Data loaded")
+- Add verbose logging TEMPORARILY when actively debugging an issue
+- Remove debug logging after the issue is resolved
+
+❌ **DON'T**:
+- Log every render cycle or frequent events
+- Log verbose information during normal operation
+- Use console.log() as a permanent debugging tool
+- Spam the console with unnecessary messages
+
+### Why Minimal Logging Matters
+
+1. **Memory**: Only the last 100 logs are kept, so excessive logging pushes out useful error messages
+2. **Performance**: Excessive logging can slow down your app
+3. **Usability**: When the user copies logs, they want to see errors and important events, not noise
+
+### Examples
+
+**Good** (Minimal, meaningful logging):
+```typescript
+// Log errors
+try {
+  await doSomething();
+} catch (error) {
+  console.error("Failed to do something:", error);
+}
+
+// Log important events
+const handleLogin = async () => {
+  const user = await authenticateUser();
+  console.log("User authenticated:", user.id);
+};
+```
+
+**Bad** (Excessive, noisy logging):
+```typescript
+// DON'T log every render
+function MyComponent() {
+  console.log("MyComponent rendering");  // ❌ Too frequent
+  return <div>Hello</div>;
+}
+
+// DON'T log trivial operations
+const handleClick = () => {
+  console.log("Button clicked");  // ❌ Unnecessary
+  setCount(count + 1);
+  console.log("Count updated");   // ❌ Unnecessary
+};
+```
+
+### Debugging Workflow
+
+When actively debugging an issue:
+1. Add verbose logging temporarily to track down the problem
+2. Use `console.error()` for errors, `console.warn()` for warnings
+3. Test the fix
+4. **Remove the verbose logging** before completing the task
+5. Keep only essential error logging
+
+### Browser DevTools
+
+Remember: All logs still appear in the browser's DevTools console. Users can:
+- Open DevTools (F12) for real-time log viewing
+- Use DevTools filtering and search features
+- Access the full console API (not just the captured logs)
+
+The "Copy Logs" button is a convenience feature for sharing logs with the App Agent, but it doesn't replace DevTools for interactive debugging.
+
 ## SAM SDK Documentation
 
 ### Overview
