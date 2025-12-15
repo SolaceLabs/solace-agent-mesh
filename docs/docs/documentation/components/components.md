@@ -15,6 +15,10 @@ Agents are the intelligent processing units that perform tasks within the mesh. 
 
 Gateways serve as the entry and exit points for your agent mesh, translating between external protocols and the internal A2A communication standard. Whether you need REST APIs, webhooks, WebSocket connections, or integrations with platforms like Slack, gateways handle the protocol conversion and session management. They also manage authentication and authorization, ensuring that user permissions are properly enforced throughout the system. For gateway development and configuration details, see [Gateways](./gateways.md).
 
+## Platform Service
+
+The Platform Service is a dedicated backend microservice that handles management operations for the Web UI Gateway. For more details, see [Platform Service](./platform-service.md).
+
 ## Orchestrator
 
 The orchestrator is a specialized agent that manages complex workflows by breaking down requests into smaller tasks and coordinating their execution across multiple agents. It understands dependencies between tasks, manages parallel execution, and aggregates results to provide comprehensive responses. The orchestrator is particularly valuable for scenarios that require multiple specialized agents to work together toward a common goal. For orchestrator configuration and workflow design patterns, see [Orchestrator](./orchestrator.md).
