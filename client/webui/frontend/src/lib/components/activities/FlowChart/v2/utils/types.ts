@@ -6,7 +6,7 @@ import type { VisualizerStep } from "@/lib/types";
  */
 export interface LayoutNode {
     id: string;
-    type: 'agent' | 'tool' | 'llm' | 'user' | 'conditional' | 'switch' | 'join' | 'loop' | 'group' | 'workflow';
+    type: 'agent' | 'tool' | 'llm' | 'user' | 'conditional' | 'switch' | 'join' | 'loop' | 'group' | 'workflow' | 'parallelBlock';
     data: {
         label: string;
         visualizerStepId?: string;
@@ -103,6 +103,13 @@ export interface BuildContext {
     // Track if we've created top/bottom user nodes (only one each for entire flow)
     hasTopUserNode: boolean;
     hasBottomUserNode: boolean;
+
+    // Track parallel peer delegation groups: maps a unique group key to the set of functionCallIds
+    // Key format: `${owningTaskId}:parallel:${stepId}` where stepId is from the TOOL_DECISION step
+    parallelPeerGroupMap: Map<string, Set<string>>;
+
+    // Track the parallelBlock node for each parallel peer group (for adding peer agents to it)
+    parallelBlockMap: Map<string, LayoutNode>;
 }
 
 /**

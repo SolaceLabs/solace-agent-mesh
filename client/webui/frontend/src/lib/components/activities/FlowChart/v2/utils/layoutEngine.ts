@@ -49,6 +49,8 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
         currentBranchMap: new Map(),
         hasTopUserNode: false,
         hasBottomUserNode: false,
+        parallelPeerGroupMap: new Map(),
+        parallelBlockMap: new Map(),
     };
 
     // Process all steps to build tree structure
@@ -231,6 +233,62 @@ function handleLLMResponse(step: VisualizerStep, context: BuildContext): void {
             break;
         }
     }
+
+    // Check for parallel tool calls in TOOL_DECISION
+    if (step.type === 'AGENT_LLM_RESPONSE_TOOL_DECISION') {
+        const toolDecision = step.data.toolDecision;
+        if (toolDecision?.isParallel && toolDecision.decisions) {
+            // Filter for peer delegations
+            const peerDecisions = toolDecision.decisions.filter(d => d.isPeerDelegation);
+
+            // Filter for workflow calls (non-peer, toolName contains 'workflow_')
+            const workflowDecisions = toolDecision.decisions.filter(
+                d => !d.isPeerDelegation && d.toolName.includes('workflow_')
+            );
+
+            // Handle parallel peer delegations
+            if (peerDecisions.length > 1) {
+                const groupKey = `${step.owningTaskId}:parallel-peer:${step.id}`;
+                const functionCallIds = new Set(peerDecisions.map(d => d.functionCallId));
+
+                context.parallelPeerGroupMap.set(groupKey, functionCallIds);
+
+                const parallelBlockNode = createNode(
+                    context,
+                    'parallelBlock',
+                    {
+                        label: 'Parallel',
+                        visualizerStepId: step.id,
+                    },
+                    step.owningTaskId
+                );
+
+                agentNode.children.push(parallelBlockNode);
+                context.parallelBlockMap.set(groupKey, parallelBlockNode);
+            }
+
+            // Handle parallel workflow calls
+            if (workflowDecisions.length > 1) {
+                const groupKey = `${step.owningTaskId}:parallel-workflow:${step.id}`;
+                const functionCallIds = new Set(workflowDecisions.map(d => d.functionCallId));
+
+                context.parallelPeerGroupMap.set(groupKey, functionCallIds);
+
+                const parallelBlockNode = createNode(
+                    context,
+                    'parallelBlock',
+                    {
+                        label: 'Parallel',
+                        visualizerStepId: step.id,
+                    },
+                    step.owningTaskId
+                );
+
+                agentNode.children.push(parallelBlockNode);
+                context.parallelBlockMap.set(groupKey, parallelBlockNode);
+            }
+        }
+    }
 }
 
 /**
@@ -264,8 +322,30 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
             step.delegationInfo?.[0]?.subTaskId || step.owningTaskId
         );
 
-        // Add as child (recursive nesting!)
-        agentNode.children.push(subAgentNode);
+        // Check if this peer invocation is part of a parallel group
+        const functionCallId = step.data.toolInvocationStart?.functionCallId || step.functionCallId;
+        let addedToParallelBlock = false;
+
+        if (functionCallId) {
+            // Search through all parallel peer groups to find if this functionCallId belongs to one
+            for (const [groupKey, functionCallIds] of context.parallelPeerGroupMap.entries()) {
+                if (functionCallIds.has(functionCallId)) {
+                    // This peer invocation is part of a parallel group
+                    const parallelBlock = context.parallelBlockMap.get(groupKey);
+                    if (parallelBlock) {
+                        // Add the sub-agent as a child of the parallelBlock
+                        parallelBlock.children.push(subAgentNode);
+                        addedToParallelBlock = true;
+                    }
+                    break;
+                }
+            }
+        }
+
+        // If not part of a parallel group, add as regular child
+        if (!addedToParallelBlock) {
+            agentNode.children.push(subAgentNode);
+        }
 
         // Map sub-task to this new agent
         const subTaskId = step.delegationInfo?.[0]?.subTaskId;
@@ -274,8 +354,8 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
         }
 
         // Track by functionCallId
-        if (step.functionCallId) {
-            context.functionCallToNodeMap.set(step.functionCallId, subAgentNode);
+        if (functionCallId) {
+            context.functionCallToNodeMap.set(functionCallId, subAgentNode);
         }
     } else {
         // Regular tool
@@ -382,11 +462,32 @@ function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void 
 
     groupNode.children.push(startNode);
 
-    // Add workflow to calling agent if available, otherwise to root
-    if (callingAgent) {
-        callingAgent.children.push(groupNode);
-    } else {
-        context.rootNodes.push(groupNode);
+    // Check if this workflow is part of a parallel group
+    const functionCallId = step.functionCallId;
+    let addedToParallelBlock = false;
+
+    if (functionCallId) {
+        // Search through all parallel groups to find if this functionCallId belongs to one
+        for (const [groupKey, functionCallIds] of context.parallelPeerGroupMap.entries()) {
+            if (functionCallIds.has(functionCallId)) {
+                // This workflow is part of a parallel group
+                const parallelBlock = context.parallelBlockMap.get(groupKey);
+                if (parallelBlock) {
+                    parallelBlock.children.push(groupNode);
+                    addedToParallelBlock = true;
+                }
+                break;
+            }
+        }
+    }
+
+    // If not part of a parallel group, add to calling agent or root
+    if (!addedToParallelBlock) {
+        if (callingAgent) {
+            callingAgent.children.push(groupNode);
+        } else {
+            context.rootNodes.push(groupNode);
+        }
     }
 
     // Map execution ID to group for workflow nodes
@@ -788,6 +889,9 @@ function measureNode(node: LayoutNode): void {
         case 'group':
             measureGroupNode(node);
             break;
+        case 'parallelBlock':
+            measureParallelBlockNode(node);
+            break;
     }
 }
 
@@ -817,6 +921,11 @@ function measureAgentNode(node: LayoutNode): void {
 
     // Measure parallel branches
     if (node.parallelBranches && node.parallelBranches.length > 0) {
+        // Add spacing between children and parallel branches if both exist
+        if (node.children.length > 0) {
+            contentHeight += SPACING.VERTICAL;
+        }
+
         let branchWidth = 0;
         let maxBranchHeight = 0;
 
@@ -829,8 +938,18 @@ function measureAgentNode(node: LayoutNode): void {
                 branchMaxWidth = Math.max(branchMaxWidth, branchNode.width);
             }
 
+            // Remove last spacing from branch height
+            if (branch.length > 0) {
+                branchHeight -= SPACING.VERTICAL;
+            }
+
             branchWidth += branchMaxWidth + SPACING.HORIZONTAL;
             maxBranchHeight = Math.max(maxBranchHeight, branchHeight);
+        }
+
+        // Remove last horizontal spacing
+        if (node.parallelBranches.length > 0) {
+            branchWidth -= SPACING.HORIZONTAL;
         }
 
         contentWidth = Math.max(contentWidth, branchWidth);
@@ -862,6 +981,29 @@ function measureGroupNode(node: LayoutNode): void {
     const groupPadding = 24;
     node.width = contentWidth + (groupPadding * 2);
     node.height = contentHeight + (groupPadding * 2);
+}
+
+/**
+ * Measure parallel block node - children are displayed side-by-side with bounding box
+ */
+function measureParallelBlockNode(node: LayoutNode): void {
+    let totalWidth = 0;
+    let maxHeight = 0;
+
+    for (const child of node.children) {
+        totalWidth += child.width + SPACING.HORIZONTAL;
+        maxHeight = Math.max(maxHeight, child.height);
+    }
+
+    // Remove last spacing
+    if (node.children.length > 0) {
+        totalWidth -= SPACING.HORIZONTAL;
+    }
+
+    // Add padding for the bounding box (p-4 = 16px on each side)
+    const blockPadding = 16;
+    node.width = totalWidth + (blockPadding * 2);
+    node.height = maxHeight + (blockPadding * 2);
 }
 
 /**
@@ -909,6 +1051,17 @@ function positionNode(node: LayoutNode): void {
             child.y = currentY;
             positionNode(child);
             currentY += child.height + SPACING.VERTICAL;
+        }
+    } else if (node.type === 'parallelBlock') {
+        // Position children side-by-side within the bounding box
+        const blockPadding = 16;
+        let currentX = node.x + blockPadding;
+
+        for (const child of node.children) {
+            child.x = currentX;
+            child.y = node.y + blockPadding;
+            positionNode(child);
+            currentX += child.width + SPACING.HORIZONTAL;
         }
     }
 }

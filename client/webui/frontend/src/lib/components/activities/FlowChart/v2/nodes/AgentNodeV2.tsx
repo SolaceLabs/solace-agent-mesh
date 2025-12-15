@@ -47,6 +47,16 @@ const AgentNodeV2: React.FC<AgentNodeV2Props> = ({ node, isSelected, onClick, on
                 return <LoopNodeV2 key={child.id} {...childProps} />;
             case 'group':
                 return <WorkflowGroupV2 key={child.id} {...childProps} onChildClick={onChildClick} />;
+            case 'parallelBlock':
+                // Render parallel block - children displayed side-by-side with bounding box
+                return (
+                    <div
+                        key={child.id}
+                        className="flex flex-row items-start gap-4 p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50/50 dark:bg-gray-800/50"
+                    >
+                        {child.children.map((parallelChild) => renderChild(parallelChild))}
+                    </div>
+                );
             default:
                 return null;
         }
