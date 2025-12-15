@@ -96,6 +96,7 @@ class WebUIBackendFactory:
         mock_component.frontend_server_url = "http://localhost:8000"
 
         # Mock get_config to return proper defaults instead of Mock objects
+        # Keep it as a Mock with side_effect so conftest.py can still access/modify side_effect
         def default_get_config(key, default=None):
             configs = {
                 "frontend_feature_enablement": {},
@@ -120,7 +121,7 @@ class WebUIBackendFactory:
             }
             return configs.get(key, default if default is not None else {})
 
-        mock_component.get_config = default_get_config
+        mock_component.get_config = Mock(side_effect=default_get_config)
 
         # Mock the config resolver to handle async user config resolution
         mock_config_resolver = Mock()
