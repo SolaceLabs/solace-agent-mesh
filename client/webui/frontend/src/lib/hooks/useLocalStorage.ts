@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useWebStorage } from "./useWebStorage";
 
 /**
  * Custom hook that synchronizes a state value with the browser's localStorage.
@@ -44,35 +44,5 @@ import { useState } from "react";
  * setPrefs(prev => ({ ...prev, theme: 'dark' })); // Update specific property
  */
 export function useLocalStorage<T>(key: string, initialValue: T) {
-    const [storedValue, setStoredValue] = useState<T>(() => {
-        if (typeof window === "undefined") {
-            return initialValue;
-        }
-        try {
-            const item = window.localStorage.getItem(key);
-
-            return item ? JSON.parse(item) : initialValue;
-        } catch (error) {
-            console.warn(`Error reading localStorage key “${key}”:`, error);
-            return initialValue;
-        }
-    });
-
-    const setValue = (value: T | ((val: T) => T)) => {
-        try {
-            setStoredValue(prevValue => {
-                const valueToStore = value instanceof Function ? value(prevValue) : value;
-
-                if (typeof window !== "undefined") {
-                    window.localStorage.setItem(key, JSON.stringify(valueToStore));
-                }
-
-                return valueToStore;
-            });
-        } catch (error) {
-            console.warn(`Error setting localStorage key “${key}”:`, error);
-        }
-    };
-
-    return [storedValue, setValue] as const;
+    return useWebStorage(key, initialValue, window.localStorage);
 }

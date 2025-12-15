@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useWebStorage } from "./useWebStorage";
 
 /**
  * Custom hook that synchronizes a state value with the browser's sessionStorage.
@@ -44,34 +44,5 @@ import { useState } from "react";
  * setWizard(prev => ({ ...prev, currentStep: 2 }));
  */
 export function useSessionStorage<T>(key: string, initialValue: T) {
-    const [storedValue, setStoredValue] = useState<T>(() => {
-        if (typeof window === "undefined") {
-            return initialValue;
-        }
-        try {
-            const item = window.sessionStorage.getItem(key);
-            return item ? JSON.parse(item) : initialValue;
-        } catch (error) {
-            console.warn(`Error reading sessionStorage key "${key}":`, error);
-            return initialValue;
-        }
-    });
-
-    const setValue = (value: T | ((val: T) => T)) => {
-        try {
-            setStoredValue(prevValue => {
-                const valueToStore = value instanceof Function ? value(prevValue) : value;
-
-                if (typeof window !== "undefined") {
-                    window.sessionStorage.setItem(key, JSON.stringify(valueToStore));
-                }
-
-                return valueToStore;
-            });
-        } catch (error) {
-            console.warn(`Error setting sessionStorage key "${key}":`, error);
-        }
-    };
-
-    return [storedValue, setValue] as const;
+    return useWebStorage(key, initialValue, window.sessionStorage);
 }
