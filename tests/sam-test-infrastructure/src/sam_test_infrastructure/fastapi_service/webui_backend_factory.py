@@ -92,6 +92,36 @@ class WebUIBackendFactory:
         # Store the user info on the component for dependency overrides
         mock_component._factory_user = user
 
+        # Set frontend_server_url attribute required by config router
+        mock_component.frontend_server_url = "http://localhost:8000"
+
+        # Mock get_config to return proper defaults instead of Mock objects
+        def default_get_config(key, default=None):
+            configs = {
+                "frontend_feature_enablement": {},
+                "task_logging": {"enabled": False},
+                "prompt_library": {"enabled": False},
+                "session_service": {"type": "sql"},
+                "frontend_collect_feedback": False,
+                "projects": {"enabled": True},
+                "background_tasks": {"default_timeout_ms": 3600000},
+                "speech": {},
+                "platform_service": {},
+                "frontend_auth_login_url": "",
+                "frontend_use_authorization": False,
+                "frontend_welcome_message": "",
+                "frontend_redirect_url": "",
+                "frontend_bot_name": "Test Bot",
+                "frontend_logo_url": "",
+                "gateway_max_upload_size_bytes": 52428800,
+                "gateway_max_zip_upload_size_bytes": 104857600,
+                "model": {},
+                "name": "A2A_WebUI_App",
+            }
+            return configs.get(key, default if default is not None else {})
+
+        mock_component.get_config = default_get_config
+
         # Mock the config resolver to handle async user config resolution
         mock_config_resolver = Mock()
         mock_config_resolver.resolve_user_config = AsyncMock(return_value={})
