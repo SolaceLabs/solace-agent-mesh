@@ -13,7 +13,7 @@ from ..routers.dto.requests.project_requests import CreateProjectRequest
 from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
 
 if TYPE_CHECKING:
-    from gateway.http_sse.component import WebUIBackendComponent
+    from ..component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
 
