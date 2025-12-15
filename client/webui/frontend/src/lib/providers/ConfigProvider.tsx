@@ -103,6 +103,9 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 const backgroundTasksEnabled = data.frontend_feature_enablement?.background_tasks ?? false;
                 const backgroundTasksDefaultTimeoutMs = data.background_tasks_config?.default_timeout_ms ?? 3600000;
 
+                // Extract auto title generation config from feature enablement
+                const autoTitleGenerationEnabled = data.frontend_feature_enablement?.auto_title_generation ?? false;
+
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
                     configServerUrl: data.frontend_server_url,
@@ -120,6 +123,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     validationLimits: data.validation_limits,
                     backgroundTasksEnabled,
                     backgroundTasksDefaultTimeoutMs,
+                    autoTitleGenerationEnabled,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;
