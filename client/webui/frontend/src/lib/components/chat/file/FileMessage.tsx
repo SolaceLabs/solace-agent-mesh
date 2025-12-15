@@ -8,7 +8,6 @@ import type { ArtifactInfo } from "@/lib/types";
 
 import { getFileIcon } from "./fileUtils";
 
-
 interface FileMessageProps {
     filename: string;
     mimeType?: string;
@@ -41,7 +40,7 @@ export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, mi
     }, [onDownload]);
 
     return (
-        <div className={`flex h-11 max-w-xs flex-shrink items-center gap-2 rounded-lg bg-[var(--accent-background)] px-2 py-1 ${className || ""}`}>
+        <div className={`flex h-11 max-w-xs flex-shrink items-center gap-2 rounded-lg bg-[var(--message-background)] px-2 py-1 ${className || ""}`}>
             {FileIcon}
             <span className="min-w-0 flex-1 truncate text-sm leading-9" title={filename}>
                 <strong>
