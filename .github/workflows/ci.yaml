@@ -272,7 +272,7 @@ jobs:
           # Set release manifest variables
           export release_version="${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}"
           export version="${{ needs.prepare-metadata.outputs.version }}"
-          export image_tag="${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}"
+          export image_tag="${{ needs.prepare-metadata.outputs.release_tag }}-${{ needs.prepare-metadata.outputs.short_sha }}"
           export chart_version="n/a"
           export sha="${{ needs.prepare-metadata.outputs.commit_hash }}"
           export squad="ai"
@@ -308,7 +308,7 @@ jobs:
 
             const sha = '${{ needs.prepare-metadata.outputs.commit_hash }}';
             const version = '${{ needs.prepare-metadata.outputs.version }}';
-            const image_tag = '${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}';
+            const image_tag = '${{ needs.prepare-metadata.outputs.release_tag }}-${{ needs.prepare-metadata.outputs.short_sha }}';
 
             console.log('Triggering RC workflow with:');
             console.log(`  SHA: ${sha}`);
