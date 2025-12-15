@@ -2,6 +2,7 @@
 Collection of Python tools that can be configured for general purpose agents.
 """
 
+import functools
 import logging
 import asyncio
 import inspect
@@ -11,7 +12,6 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
-from playwright.async_api import async_playwright
 
 from google.adk.tools import ToolContext
 
@@ -296,6 +296,15 @@ async def convert_file_to_markdown(
                     e_remove,
                 )
 
+
+@functools.cache
+def _import_playwright():
+    """Lazy import playwright - only loaded when SVG conversion is needed."""
+    from playwright.async_api import async_playwright
+
+    return async_playwright
+
+
 async def _convert_svg_to_png_with_playwright(svg_data: str, scale: int = 2) -> bytes:
     """
     Converts SVG data to a PNG image using Playwright.
@@ -311,6 +320,7 @@ async def _convert_svg_to_png_with_playwright(svg_data: str, scale: int = 2) -> 
         ValueError: If the SVG bounding box cannot be determined.
 
     """
+    async_playwright = _import_playwright()
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         context = await browser.new_context(device_scale_factor=scale)

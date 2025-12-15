@@ -2,6 +2,7 @@
 Initializes ADK Services based on configuration.
 """
 
+import functools
 import logging
 import os
 import re
@@ -9,7 +10,6 @@ from typing import Any, Dict, List, Optional
 
 from google.adk.artifacts import (
     BaseArtifactService,
-    GcsArtifactService,
     InMemoryArtifactService,
 )
 from google.adk.artifacts.base_artifact_service import ArtifactVersion
@@ -22,13 +22,11 @@ from google.adk.auth.credential_service.in_memory_credential_service import (
 from google.adk.memory import (
     BaseMemoryService,
     InMemoryMemoryService,
-    VertexAiRagMemoryService,
 )
 from google.adk.sessions import (
     BaseSessionService,
     DatabaseSessionService,
     InMemorySessionService,
-    VertexAiSessionService,
 )
 from google.genai import types as adk_types
 from typing_extensions import override
@@ -44,6 +42,30 @@ try:
     )
 except ImportError:
     TestInMemoryArtifactService = None
+
+
+@functools.cache
+def _import_gcs_artifact_service():
+    """Lazy import GcsArtifactService - only when GCS artifact service is configured."""
+    from google.adk.artifacts import GcsArtifactService
+
+    return GcsArtifactService
+
+
+@functools.cache
+def _import_vertex_memory_service():
+    """Lazy import VertexAiRagMemoryService - only when Vertex AI memory is configured."""
+    from google.adk.memory import VertexAiRagMemoryService
+
+    return VertexAiRagMemoryService
+
+
+@functools.cache
+def _import_vertex_session_service():
+    """Lazy import VertexAiSessionService - only when Vertex AI sessions are configured."""
+    from google.adk.sessions import VertexAiSessionService
+
+    return VertexAiSessionService
 
 
 class ScopedArtifactServiceWrapper(BaseArtifactService):
@@ -249,6 +271,7 @@ def initialize_session_service(component) -> BaseSessionService:
             raise ValueError(
                 f"{component.log_identifier} GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION env vars required for vertex session service."
             )
+        VertexAiSessionService = _import_vertex_session_service()
         return VertexAiSessionService(project=project, location=location)
     else:
         raise ValueError(
@@ -285,6 +308,7 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 for k, v in config.items()
                 if k not in ["type", "bucket_name", "artifact_scope"]
             }
+            GcsArtifactService = _import_gcs_artifact_service()
             concrete_service = GcsArtifactService(bucket_name=bucket_name, **gcs_args)
         except ImportError:
             log.error(
@@ -416,6 +440,7 @@ def initialize_memory_service(component) -> BaseMemoryService:
             rag_args = {
                 k: v for k, v in config.items() if k not in ["type", "default_behavior"]
             }
+            VertexAiRagMemoryService = _import_vertex_memory_service()
             return VertexAiRagMemoryService(**rag_args)
         except ImportError:
             log.error(

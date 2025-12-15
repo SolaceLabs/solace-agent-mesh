@@ -2,17 +2,30 @@
 Defines the abstract base class and factory for creating Employee Service providers.
 """
 
-import logging
-import importlib
-from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
-import importlib.metadata as metadata
+from __future__ import annotations
 
+import functools
+import importlib
+import importlib.metadata as metadata
+import logging
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from ..utils.in_memory_cache import InMemoryCache
-import pandas as pd
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 log = logging.getLogger(__name__)
+
+
+@functools.cache
+def _import_pandas():
+    """Lazy import pandas - only loaded when employee DataFrame methods are called."""
+    import pandas as pd
+
+    return pd
+
 
 class BaseEmployeeService(ABC):
     """

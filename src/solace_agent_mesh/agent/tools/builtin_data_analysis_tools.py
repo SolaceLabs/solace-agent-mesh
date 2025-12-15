@@ -2,10 +2,11 @@
 Built-in ADK Tools for Data Analysis (SQL, JQ, Plotly).
 """
 
-import logging
+import functools
 import json
-from typing import Any, Dict, Tuple, Optional, Literal
+import logging
 from datetime import datetime, timezone
+from typing import Any, Dict, Literal, Optional, Tuple
 
 try:
     import yaml
@@ -14,20 +15,36 @@ try:
 except ImportError:
     PYYAML_AVAILABLE = False
 
-try:
-    import plotly.io as pio
-    import plotly.graph_objects as go
 
-    PLOTLY_AVAILABLE = True
+@functools.cache
+def _import_plotly():
+    """Lazy import plotly - only loaded when chart functions are called.
+
+    Returns:
+        tuple: (pio, go, available) where available is False if import fails
+    """
     try:
-        import kaleido
+        import plotly.graph_objects as go
+        import plotly.io as pio
 
-        KALEIDO_AVAILABLE = True
+        return pio, go, True
     except ImportError:
-        KALEIDO_AVAILABLE = False
-except ImportError:
-    PLOTLY_AVAILABLE = False
-    KALEIDO_AVAILABLE = False
+        return None, None, False
+
+
+@functools.cache
+def _import_kaleido():
+    """Lazy import kaleido - only loaded when static image export is needed.
+
+    Returns:
+        bool: True if kaleido is available, False otherwise
+    """
+    try:
+        import kaleido  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
 
 
 from google.adk.tools import ToolContext
@@ -71,12 +88,16 @@ async def create_chart_from_plotly_config(
     """
     if not tool_context:
         return {"status": "error", "message": "ToolContext is missing."}
-    if not PLOTLY_AVAILABLE:
+
+    pio, go, plotly_available = _import_plotly()
+    if not plotly_available:
         return {
             "status": "error",
             "message": "The plotly library is required for chart generation but it is not installed.",
         }
-    if not KALEIDO_AVAILABLE:
+
+    kaleido_available = _import_kaleido()
+    if not kaleido_available:
         return {
             "status": "error",
             "message": "The kaleido library is required for chart generation but it is not installed.",
