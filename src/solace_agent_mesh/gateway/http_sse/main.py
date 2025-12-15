@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 from pathlib import Path
@@ -42,7 +44,7 @@ from .routers.users import router as user_router
 
 
 if TYPE_CHECKING:
-    from gateway.http_sse.component import WebUIBackendComponent
+    from .component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
 

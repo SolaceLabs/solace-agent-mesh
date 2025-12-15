@@ -2,6 +2,7 @@
 API Router for submitting and managing tasks to agents.
 Includes background task status endpoints.
 """
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING

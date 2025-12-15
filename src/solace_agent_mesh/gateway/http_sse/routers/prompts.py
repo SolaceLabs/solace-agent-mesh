@@ -1,6 +1,7 @@
 """
 Prompts API router for prompt library feature.
 """
+from __future__ import annotations
 
 import uuid
 from typing import List, Optional, Dict, Any, Literal

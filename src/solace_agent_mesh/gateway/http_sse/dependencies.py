@@ -2,6 +2,7 @@
 Defines FastAPI dependency injectors to access shared resources
 managed by the WebUIBackendComponent.
 """
+from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Generator
@@ -45,7 +46,7 @@ except ImportError:
 
 
 if TYPE_CHECKING:
-    from gateway.http_sse.component import WebUIBackendComponent
+    from .component import WebUIBackendComponent
 
 sac_component_instance: "WebUIBackendComponent" = None
 SessionLocal: sessionmaker = None

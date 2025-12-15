@@ -1,6 +1,7 @@
 """
 FastAPI router for managing session-specific artifacts via REST endpoints.
 """
+from __future__ import annotations
 
 import logging
 from collections.abc import Callable

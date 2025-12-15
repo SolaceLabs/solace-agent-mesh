@@ -42,7 +42,7 @@ def clean_env(monkeypatch):
 @pytest.fixture(autouse=True)
 def mock_oauth_middleware():
     """Auto-patch OAuth middleware for all tests."""
-    with patch('solace_agent_mesh.services.platform.api.main.create_oauth_middleware'):
+    with patch('solace_agent_mesh.shared.auth.middleware.create_oauth_middleware'):
         yield
 
 
@@ -51,6 +51,12 @@ def mock_fastapi_app():
     """Auto-patch FastAPI app for all tests."""
     with patch('solace_agent_mesh.services.platform.api.main.app') as mock_app:
         yield mock_app
+
+
+def _get_cors_allowed_origins(mock_fastapi_app):
+    """Helper to get CORS allowed origins from the first add_middleware call."""
+    cors_call = mock_fastapi_app.add_middleware.call_args_list[0]
+    return cors_call[1]["allow_origins"]
 
 
 class TestPlatformServiceCorsAutoConstruction:
@@ -65,9 +71,7 @@ class TestPlatformServiceCorsAutoConstruction:
 
         _setup_middleware(mock_component)
 
-        # Should auto-construct http://localhost:8000
-        call_args = mock_fastapi_app.add_middleware.call_args
-        allowed_origins = call_args[1]["allow_origins"]
+        allowed_origins = _get_cors_allowed_origins(mock_fastapi_app)
 
         assert "http://localhost:8000" in allowed_origins
         assert "http://localhost:3000" in allowed_origins  # Configured origin
@@ -82,8 +86,7 @@ class TestPlatformServiceCorsAutoConstruction:
 
         _setup_middleware(mock_component)
 
-        call_args = mock_fastapi_app.add_middleware.call_args
-        allowed_origins = call_args[1]["allow_origins"]
+        allowed_origins = _get_cors_allowed_origins(mock_fastapi_app)
 
         assert "https://custom.example.com" in allowed_origins
         assert "http://localhost:8000" not in allowed_origins  # Not auto-constructed
@@ -100,8 +103,7 @@ class TestPlatformServiceCorsAutoConstruction:
 
         _setup_middleware(mock_component)
 
-        call_args = mock_fastapi_app.add_middleware.call_args
-        allowed_origins = call_args[1]["allow_origins"]
+        allowed_origins = _get_cors_allowed_origins(mock_fastapi_app)
 
         assert "https://localhost:8443" in allowed_origins
 
@@ -114,8 +116,7 @@ class TestPlatformServiceCorsAutoConstruction:
 
         _setup_middleware(mock_component)
 
-        call_args = mock_fastapi_app.add_middleware.call_args
-        allowed_origins = call_args[1]["allow_origins"]
+        allowed_origins = _get_cors_allowed_origins(mock_fastapi_app)
 
         assert "http://192.168.1.100:8000" in allowed_origins
 
@@ -129,8 +130,7 @@ class TestPlatformServiceCorsAutoConstruction:
 
         _setup_middleware(mock_component)
 
-        call_args = mock_fastapi_app.add_middleware.call_args
-        allowed_origins = call_args[1]["allow_origins"]
+        allowed_origins = _get_cors_allowed_origins(mock_fastapi_app)
 
         assert "http://localhost:8001" in allowed_origins
         assert "http://localhost:8000" in allowed_origins
@@ -144,8 +144,7 @@ class TestPlatformServiceCorsAutoConstruction:
 
         _setup_middleware(mock_component)
 
-        call_args = mock_fastapi_app.add_middleware.call_args
-        allowed_origins = call_args[1]["allow_origins"]
+        allowed_origins = _get_cors_allowed_origins(mock_fastapi_app)
 
         # Should only appear once
         assert allowed_origins.count("http://localhost:3000") == 1
@@ -161,8 +160,7 @@ class TestPlatformServiceCorsAutoConstruction:
 
         _setup_middleware(mock_component)
 
-        call_args = mock_fastapi_app.add_middleware.call_args
-        allowed_origins = call_args[1]["allow_origins"]
+        allowed_origins = _get_cors_allowed_origins(mock_fastapi_app)
 
         # Should auto-construct from FASTAPI_HOST/PORT since FRONTEND_SERVER_URL is empty
         assert "http://localhost:8000" in allowed_origins
@@ -179,8 +177,7 @@ class TestPlatformServiceCorsAutoConstruction:
 
         _setup_middleware(mock_component)
 
-        call_args = mock_fastapi_app.add_middleware.call_args
-        allowed_origins = call_args[1]["allow_origins"]
+        allowed_origins = _get_cors_allowed_origins(mock_fastapi_app)
 
         # Should use HTTP, not HTTPS
         assert "http://localhost:8000" in allowed_origins
@@ -199,8 +196,7 @@ class TestPlatformServiceCorsAutoConstruction:
 
         _setup_middleware(mock_component)
 
-        call_args = mock_fastapi_app.add_middleware.call_args
-        allowed_origins = call_args[1]["allow_origins"]
+        allowed_origins = _get_cors_allowed_origins(mock_fastapi_app)
 
         # All origins should be present
         assert "http://localhost:3000" in allowed_origins
@@ -219,7 +215,6 @@ class TestPlatformServiceCorsAutoConstruction:
 
         _setup_middleware(mock_component)
 
-        call_args = mock_fastapi_app.add_middleware.call_args
-        allowed_origins = call_args[1]["allow_origins"]
+        allowed_origins = _get_cors_allowed_origins(mock_fastapi_app)
 
         assert "https://localhost:9443" in allowed_origins
