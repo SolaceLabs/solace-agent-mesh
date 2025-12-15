@@ -353,11 +353,16 @@ def _schema_to_dict(schema: types.Schema) -> dict:
         properties = {}
         for key, value in schema_dict["properties"].items():
             if isinstance(value, types.Schema):
+                # If it's a Schema object, recursively convert it
                 properties[key] = _schema_to_dict(value)
+            elif isinstance(value, dict):
+                # If it's already a dict, validate and recurse to handle nested Type enums
+                properties[key] = _schema_to_dict(
+                    types.Schema.model_validate(value)
+                )
             else:
+                # For other types, just copy as-is
                 properties[key] = value
-                if "type" in properties[key]:
-                    properties[key]["type"] = properties[key]["type"].lower()
         schema_dict["properties"] = properties
     return schema_dict
 
