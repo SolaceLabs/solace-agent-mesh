@@ -81,6 +81,10 @@ export const createRouter = () => {
                             element: <CreateAppPage />,
                         },
                         {
+                            path: ":appId/edit",
+                            element: <ChatPage />,
+                        },
+                        {
                             path: ":appId/view",
                             element: <AppViewPage />,
                         },

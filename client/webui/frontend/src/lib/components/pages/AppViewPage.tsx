@@ -57,7 +57,7 @@ export function AppViewPage() {
 
     const handleEdit = () => {
         if (app) {
-            navigate(`/apps/${app.appId}/editor`);
+            navigate(`/apps/${app.appId}/edit`);
         }
     };
 

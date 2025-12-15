@@ -63,7 +63,7 @@ export function AppsPage() {
             navigate(`/apps/${app.appId}/view`);
         } else {
             // No prod version - open editor
-            navigate(`/chat?appId=${app.appId}`);
+            navigate(`/apps/${app.appId}/edit`);
         }
     };
 
@@ -72,8 +72,7 @@ export function AppsPage() {
     };
 
     const handleEditApp = (appId: string) => {
-        // Always open editor regardless of status
-        navigate(`/chat?appId=${appId}`);
+        navigate(`/apps/${appId}/edit`);
     };
 
     const handleSettingsSave = async (appId: string, updates: AppSettingsUpdate): Promise<boolean> => {

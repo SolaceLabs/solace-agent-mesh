@@ -63,10 +63,9 @@ export function CreateAppPage() {
 - What should the user interface look like?`;
             }
 
-            // Navigate to chat with app editor mode enabled and initial message in state
-            // Pass appId in state to enable immediate appEditorMode setup (before app fetch completes)
-            navigate(`/chat?appId=${appId}`, {
-                state: { initialMessage, appId }
+            // Navigate to app editor with initial message in state
+            navigate(`/apps/${appId}/edit`, {
+                state: { initialMessage }
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : "Unknown error");

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { ArrowLeft, PanelLeftIcon, Rocket } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
@@ -44,6 +44,7 @@ const PANEL_SIZES_OPEN = {
 export function ChatPage() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { appId: appIdFromRoute } = useParams<{ appId?: string }>();
     const [searchParams] = useSearchParams();
     const { activeProject } = useProjectContext();
     const { currentTheme } = useThemeContext();
@@ -69,9 +70,9 @@ export function ChatPage() {
         startNewChatWithPrompt,
     } = useChatContext();
 
-    // Detect app editor mode from URL parameters
-    const appId = searchParams.get('appId');
-    const { app } = useApp(appId || undefined);
+    // Detect app editor mode from URL - prefer route params, fall back to query params for backwards compatibility
+    const appId = appIdFromRoute || searchParams.get('appId') || undefined;
+    const { app } = useApp(appId);
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
@@ -356,7 +357,7 @@ export function ChatPage() {
                             className={isSidePanelTransitioning ? "transition-all duration-300 ease-in-out" : ""}
                         >
                             <div className="h-full">
-                                <ChatSidePanel onCollapsedToggle={handleSidepanelToggle} isSidePanelCollapsed={isSidePanelCollapsed} setIsSidePanelCollapsed={setIsSidePanelCollapsed} isSidePanelTransitioning={isSidePanelTransitioning} appId={appId || undefined} />
+                                <ChatSidePanel onCollapsedToggle={handleSidepanelToggle} isSidePanelCollapsed={isSidePanelCollapsed} setIsSidePanelCollapsed={setIsSidePanelCollapsed} isSidePanelTransitioning={isSidePanelTransitioning} appId={appId} />
                             </div>
                         </ResizablePanel>
                     </ResizablePanelGroup>
