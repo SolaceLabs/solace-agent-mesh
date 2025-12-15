@@ -286,8 +286,9 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
 
         agentNode.children.push(toolNode);
 
-        // Also check for functionCallId in the data
-        const functionCallId = step.functionCallId || step.data.toolInvocationStart?.functionCallId;
+        // Use the tool's actual functionCallId from the data (preferred) for matching with tool_result
+        // The step.functionCallId is the parent tracking ID for sub-task relationships
+        const functionCallId = step.data.toolInvocationStart?.functionCallId || step.functionCallId;
         if (functionCallId) {
             context.functionCallToNodeMap.set(functionCallId, toolNode);
         }
