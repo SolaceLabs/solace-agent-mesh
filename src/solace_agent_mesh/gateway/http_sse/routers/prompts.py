@@ -34,11 +34,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
-else:
-    try:
-        from ..component import WebUIBackendComponent
-    except ImportError:
-        WebUIBackendComponent = None
 
 router = APIRouter()
 

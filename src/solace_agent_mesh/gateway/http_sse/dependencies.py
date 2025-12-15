@@ -45,12 +45,7 @@ except ImportError:
 
 
 if TYPE_CHECKING:
-    from .component import WebUIBackendComponent
-else:
-    try:
-        from .component import WebUIBackendComponent
-    except ImportError:
-        WebUIBackendComponent = None
+    from gateway.http_sse.component import WebUIBackendComponent
 
 sac_component_instance: "WebUIBackendComponent" = None
 SessionLocal: sessionmaker = None

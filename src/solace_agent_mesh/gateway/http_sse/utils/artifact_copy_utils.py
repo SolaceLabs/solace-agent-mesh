@@ -15,13 +15,8 @@ from ....agent.utils.artifact_helpers import (
 )
 
 if TYPE_CHECKING:
-    from ..component import WebUIBackendComponent
-    from ..services.project_service import ProjectService
-else:
-    try:
-        from ..component import WebUIBackendComponent
-    except ImportError:
-        WebUIBackendComponent = None
+    from ....gateway.http_sse.component import WebUIBackendComponent
+    from ....gateway.http_sse.services.project_service import ProjectService
 
 try:
     from google.adk.artifacts import BaseArtifactService

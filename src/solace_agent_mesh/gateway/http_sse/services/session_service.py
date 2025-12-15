@@ -20,11 +20,6 @@ log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
-else:
-    try:
-        from ..component import WebUIBackendComponent
-    except ImportError:
-        WebUIBackendComponent = None
 
 
 class SessionService:

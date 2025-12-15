@@ -15,17 +15,8 @@ from fastapi import (
     Response,
 )
 from fastapi.responses import HTMLResponse, RedirectResponse
-from typing import TYPE_CHECKING
 
 from ...http_sse.dependencies import get_api_config, get_sac_component
-
-if TYPE_CHECKING:
-    from ..component import WebUIBackendComponent
-else:
-    try:
-        from ..component import WebUIBackendComponent
-    except ImportError:
-        WebUIBackendComponent = None
 
 log = logging.getLogger(__name__)
 

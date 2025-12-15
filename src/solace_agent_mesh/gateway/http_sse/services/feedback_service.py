@@ -20,11 +20,6 @@ if TYPE_CHECKING:
     from ..routers.feedback import FeedbackPayload
     from ..component import WebUIBackendComponent
     from ..repository.interfaces import ITaskRepository
-else:
-    try:
-        from ..component import WebUIBackendComponent
-    except ImportError:
-        WebUIBackendComponent = None
 
 log = logging.getLogger(__name__)
 
