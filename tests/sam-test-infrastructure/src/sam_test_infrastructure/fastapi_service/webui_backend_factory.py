@@ -101,7 +101,7 @@ class WebUIBackendFactory:
             configs = {
                 "frontend_feature_enablement": {},
                 "task_logging": {"enabled": False},
-                "prompt_library": {"enabled": False},
+                "prompt_library": {"enabled": True},
                 "session_service": {"type": "sql"},
                 "frontend_collect_feedback": False,
                 "projects": {"enabled": True},
