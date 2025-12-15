@@ -221,10 +221,10 @@ class PlatformServiceFactory:
         """Set up FastAPI dependency overrides for testing."""
         from solace_agent_mesh.services.platform.api.dependencies import (
             get_platform_db,
-            get_current_user,
             get_heartbeat_tracker,
             get_agent_registry,
         )
+        from solace_agent_mesh.shared.auth.dependencies import get_current_user
 
         def override_get_current_user():
             if hasattr(component, "_factory_user"):
@@ -296,9 +296,7 @@ class PlatformServiceFactory:
             test_user_header: Header name used to identify test user
         """
         from fastapi import Request
-        from solace_agent_mesh.services.platform.api.dependencies import (
-            get_current_user,
-        )
+        from solace_agent_mesh.shared.auth.dependencies import get_current_user
 
         async def override_get_current_user(request: Request) -> dict:
             user_id = request.headers.get(test_user_header, "sam_dev_user")
