@@ -117,26 +117,10 @@ class TaskLoggerService:
                         
                         if message.metadata:
                             parent_task_id = message.metadata.get("parentTaskId")
-                            background_execution_enabled = message.metadata.get("background_execution", False)
-                            max_execution_time_ms = message.metadata.get("max_execution_time_ms")
-                            
-                            # Fallback: Enable background execution for specific agents
-                            agent_name = message.metadata.get("agent_name")
-                            background_enabled_agents = ["OrchestratorAgent", "DeepResearchAgent"]
-                            if not background_execution_enabled and agent_name in background_enabled_agents:
-                                background_execution_enabled = True
-                                max_execution_time_ms = 3600000  # 1 hour default
-                                log.info(
-                                    f"{self.log_identifier} Auto-enabled background execution for agent {agent_name}"
-                                )
-                            
-                            # Debug logging
-                            log.info(
-                                f"{self.log_identifier} Extracted metadata for task {task_id}: "
-                                f"background_execution={background_execution_enabled}, "
-                                f"max_execution_time_ms={max_execution_time_ms}, "
-                                f"all_metadata_keys={list(message.metadata.keys())}"
-                            )
+                            # Background tasks are disabled - always set to False
+                            # TODO: Re-enable when background task feature is fully tested
+                            background_execution_enabled = False
+                            max_execution_time_ms = None
                         else:
                             log.warning(
                                 f"{self.log_identifier} Message has no metadata for task {task_id}"

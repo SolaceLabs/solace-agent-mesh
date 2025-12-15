@@ -34,6 +34,7 @@ class SSEManager:
         self._max_queue_size = max_queue_size
         self._session_factory = session_factory
         self._background_task_cache: Dict[str, bool] = {}  # Cache to avoid repeated DB queries
+        self._tasks_with_prior_connection: set = set()  # Track tasks that have had at least one SSE connection
 
     def _sanitize_json(self, obj):
         if isinstance(obj, dict):
@@ -75,6 +76,11 @@ class SSEManager:
             # Add queue to connections BEFORE releasing lock to ensure
             # no events are buffered after we've retrieved the buffer
             self._connections[task_id].append(connection_queue)
+
+            # Mark this task as having had at least one connection
+            # This is used to distinguish "no connection yet" from "had connection but disconnected"
+            self._tasks_with_prior_connection.add(task_id)
+
             log.debug(
                 "%s Created SSE connection queue for Task ID: %s. Total queues for task: %d",
                 self.log_identifier,
@@ -213,11 +219,15 @@ class SSEManager:
                 # but we need the decision to be atomic with the buffering)
                 is_background_task = self._is_background_task(task_id)
 
-                if is_background_task:
-                    # For background tasks with no active connections, drop events instead of buffering
-                    # This prevents buffer overflow when clients disconnect
+                # Check if this task has ever had a connection
+                has_had_connection = task_id in self._tasks_with_prior_connection
+
+                # Only drop events for background tasks that have HAD a connection before
+                # If no connection has ever been made, we must buffer so the first client gets the events
+                if is_background_task and has_had_connection:
+                    # For background tasks where client disconnected, drop events to prevent buffer overflow
                     log.debug(
-                        "%s No active SSE connections for background task %s. Dropping event to prevent buffer overflow.",
+                        "%s No active SSE connections for background task %s (had prior connection). Dropping event to prevent buffer overflow.",
                         self.log_identifier,
                         task_id,
                     )
@@ -431,6 +441,11 @@ class SSEManager:
             # This is safe to do without lock since we already removed the task from _connections
             if should_remove_buffer:
                 self._event_buffer.remove_buffer(task_id)
+
+                # Clean up the connection tracking
+                with self._lock:
+                    self._tasks_with_prior_connection.discard(task_id)
+
                 log.debug(
                     "%s Removed Task ID entry: %s and signaled queues to close.",
                     self.log_identifier,
@@ -458,6 +473,7 @@ class SSEManager:
                     queues = self._connections.pop(task_id)
                     all_queues_to_close.extend(queues)
             self._connections.clear()
+            self._tasks_with_prior_connection.clear()
 
         # Close queues outside the lock (async operations)
         closed_count = len(all_queues_to_close)
