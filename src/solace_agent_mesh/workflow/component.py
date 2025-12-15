@@ -238,16 +238,19 @@ class WorkflowExecutorComponent(SamComponentBase):
         # Add Start node (stadium/pill shape)
         lines.append('    Start([Start])')
 
-        # Collect map target nodes first so we can exclude them from regular rendering
+        # Collect map/loop target nodes first so we can exclude them from regular rendering
         map_target_node_ids = set()
+        loop_target_node_ids = set()
         for node in nodes:
             if node.type == "map":
                 map_target_node_ids.add(node.node)
+            elif node.type == "loop":
+                loop_target_node_ids.add(node.node)
 
-        # 1. Define Nodes (excluding map targets - they'll be rendered as instances)
+        # 1. Define Nodes (excluding map/loop targets - they'll be rendered as instances)
         for node in nodes:
-            # Skip nodes that are targets of map operations
-            if node.id in map_target_node_ids:
+            # Skip nodes that are targets of map or loop operations
+            if node.id in map_target_node_ids or node.id in loop_target_node_ids:
                 continue
 
             safe_id = sanitize(node.id)
@@ -274,13 +277,30 @@ class WorkflowExecutorComponent(SamComponentBase):
                 pretty_id = prettify_id(node.id)
                 label = f"<b>Map</b><br/>{pretty_id}"
                 lines.append(f'    {safe_id}(("{label}"))')
+            elif node.type == "switch":
+                # Diamond for switch nodes (similar to conditional)
+                pretty_id = prettify_id(node.id)
+                label = f"<b>Switch</b><br/>{pretty_id}"
+                lines.append(f'    {safe_id}{{"{label}"}}')
+            elif node.type == "join":
+                # Circle for join nodes
+                pretty_id = prettify_id(node.id)
+                strategy = node.strategy
+                label = f"<b>Join</b><br/>{pretty_id}<br/>{strategy}"
+                lines.append(f'    {safe_id}(("{label}"))')
+            elif node.type == "loop":
+                # Stadium shape for loop nodes
+                pretty_id = prettify_id(node.id)
+                label = f"<b>Loop</b><br/>{pretty_id}"
+                lines.append(f'    {safe_id}(["{label}"])')
 
         # Add Finish node (stadium/pill shape)
         lines.append('    Finish([Finish])')
 
         # 2. Define Edges
-        # First, collect all conditional node IDs to avoid duplicate edges
+        # First, collect all conditional/switch node IDs to avoid duplicate edges
         conditional_node_ids = {n.id for n in nodes if n.type == "conditional"}
+        switch_node_ids = {n.id for n in nodes if n.type == "switch"}
 
         # Find map target nodes (they should not be entry/exit nodes in the normal sense)
         # Also create a mapping from map node ID to its join node ID
@@ -313,8 +333,17 @@ class WorkflowExecutorComponent(SamComponentBase):
                 if node.false_branch:
                     nodes_with_dependents.add(node.id)
 
+            # Track switch branches
+            if node.type == "switch":
+                if node.cases or node.default:
+                    nodes_with_dependents.add(node.id)
+
             # Track map nodes as having dependents (they produce children)
             if node.type == "map":
+                nodes_with_dependents.add(node.id)
+
+            # Track loop nodes as having dependents (they execute inner nodes)
+            if node.type == "loop":
                 nodes_with_dependents.add(node.id)
 
         # Exit nodes are those that no other node depends on (excluding map targets)
@@ -329,11 +358,11 @@ class WorkflowExecutorComponent(SamComponentBase):
             safe_id = sanitize(node.id)
 
             # Standard dependencies - draw edges TO this node from its dependencies
-            # Skip dependencies that point FROM conditional nodes (they're handled by conditional branches below)
+            # Skip dependencies that point FROM conditional/switch nodes (they're handled by branch edges below)
             if node.depends_on:
                 for dep in node.depends_on:
-                    # Only draw edge if dependency is NOT a conditional node
-                    if dep not in conditional_node_ids:
+                    # Only draw edge if dependency is NOT a conditional or switch node
+                    if dep not in conditional_node_ids and dep not in switch_node_ids:
                         # If the dependency is a map node, connect from its join instead
                         if dep in map_to_join:
                             join_node = map_to_join[dep]
@@ -360,6 +389,17 @@ class WorkflowExecutorComponent(SamComponentBase):
                             if node.true_branch != other_node.id:
                                 safe_other = sanitize(other_node.id)
                                 lines.append(f"    {safe_id} -- False --> {safe_other}")
+
+            # Switch branches (Outgoing edges) - handle multi-way branching
+            if node.type == "switch":
+                for i, case in enumerate(node.cases):
+                    safe_target = sanitize(case.node)
+                    # Use short label for case
+                    case_label = f"Case {i + 1}"
+                    lines.append(f"    {safe_id} -- {case_label} --> {safe_target}")
+                if node.default:
+                    safe_default = sanitize(node.default)
+                    lines.append(f"    {safe_id} -- Default --> {safe_default}")
 
             # Fork branches
             if node.type == "fork":
@@ -405,6 +445,29 @@ class WorkflowExecutorComponent(SamComponentBase):
                 for i in range(1, 4):
                     instance_id = f"{safe_id}_instance_{i}"
                     lines.append(f"    {instance_id} -.-> {join_id}")
+
+            # Loop node - show loop pattern with inner node and feedback edge
+            if node.type == "loop":
+                target_node = next((n for n in nodes if n.id == node.node), None)
+                if not target_node:
+                    continue
+
+                # Get the label for the target node
+                if target_node.type == "agent":
+                    target_label = f"<b>Agent</b><br/>{target_node.agent_name}"
+                else:
+                    pretty_target_id = prettify_id(node.node)
+                    target_label = f"<b>{target_node.type.capitalize()}</b><br/>{pretty_target_id}"
+
+                # Create inner node representation
+                inner_id = f"{safe_id}_inner"
+                lines.append(f'    {inner_id}("{target_label}")')
+
+                # Loop -> Inner (forward)
+                lines.append(f"    {safe_id} --> {inner_id}")
+
+                # Inner -> Loop (feedback loop, dotted)
+                lines.append(f"    {inner_id} -.->|repeat| {safe_id}")
 
         # Connect exit nodes to Finish
         for exit_node_id in exit_nodes:
@@ -560,12 +623,80 @@ class WorkflowExecutorComponent(SamComponentBase):
         except Exception as e:
             log.error(f"{self.log_identifier} Failed to publish workflow event: {e}")
 
+    async def _execute_exit_handlers(
+        self,
+        workflow_context: WorkflowExecutionContext,
+        outcome: str,
+        error: Exception = None,
+    ):
+        """
+        Execute exit handlers (onExit) based on workflow outcome.
+
+        Args:
+            workflow_context: The workflow context
+            outcome: "success" or "failure"
+            error: The error if outcome is "failure"
+        """
+        log_id = f"{self.log_identifier}[ExitHandler:{workflow_context.workflow_task_id}]"
+
+        on_exit = self.workflow_definition.on_exit
+        if not on_exit:
+            return
+
+        workflow_state = workflow_context.workflow_state
+
+        # Inject workflow status and error into node_outputs for template resolution
+        workflow_state.node_outputs["workflow"] = {
+            "status": outcome,
+            "error": {
+                "message": str(error) if error else None,
+                "node_id": (
+                    workflow_state.error_state.get("failed_node_id")
+                    if workflow_state.error_state
+                    else None
+                ),
+            }
+            if error
+            else None,
+        }
+
+        # Determine which handlers to run
+        nodes_to_run = []
+        if isinstance(on_exit, str):
+            # Simple string reference to a single node
+            nodes_to_run.append(on_exit)
+        else:
+            # ExitHandler object with conditional handlers
+            if on_exit.always:
+                nodes_to_run.append(on_exit.always)
+            if outcome == "success" and on_exit.on_success:
+                nodes_to_run.append(on_exit.on_success)
+            if outcome == "failure" and on_exit.on_failure:
+                nodes_to_run.append(on_exit.on_failure)
+
+        # Execute each exit handler node
+        for node_id in nodes_to_run:
+            try:
+                log.info(f"{log_id} Executing exit handler node '{node_id}'")
+                await self.dag_executor.execute_node(
+                    node_id, workflow_state, workflow_context
+                )
+            except Exception as e:
+                # Log but don't fail the workflow - exit handlers shouldn't break finalization
+                log.error(
+                    f"{log_id} Exit handler node '{node_id}' failed: {e}. "
+                    "Continuing with finalization."
+                )
+
     async def finalize_workflow_success(
         self, workflow_context: WorkflowExecutionContext
     ):
         """Finalize successful workflow execution and publish result."""
         log_id = f"{self.log_identifier}[Workflow:{workflow_context.workflow_task_id}]"
         log.info(f"{log_id} Finalizing workflow success")
+
+        # Execute exit handlers first
+        await self._execute_exit_handlers(workflow_context, "success")
 
         # Construct final output based on output mapping
         final_output = await self._construct_final_output(workflow_context)
@@ -642,6 +773,9 @@ class WorkflowExecutorComponent(SamComponentBase):
         """Finalize failed workflow execution and publish error."""
         log_id = f"{self.log_identifier}[Workflow:{workflow_context.workflow_task_id}]"
         log.warning(f"{log_id} Finalizing workflow failure: {error}")
+
+        # Execute exit handlers first (passing error info)
+        await self._execute_exit_handlers(workflow_context, "failure", error)
 
         # Publish failure event
         await self.publish_workflow_event(

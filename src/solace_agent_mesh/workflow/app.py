@@ -1,5 +1,7 @@
 """
 WorkflowApp class and configuration models for Prescriptive Workflows.
+
+Supports Argo Workflows-compatible syntax with SAM extensions.
 """
 
 import logging
@@ -12,7 +14,84 @@ from ..agent.sac.app import SamAgentAppConfig, AgentCardConfig, AgentCardPublish
 
 log = logging.getLogger(__name__)
 
-# --- Workflow Configuration Models ---
+# --- Retry Strategy Models (Argo-compatible) ---
+
+
+class BackoffStrategy(BaseModel):
+    """Exponential backoff configuration for retries."""
+
+    duration: str = Field(
+        default="1s",
+        description="Initial backoff duration. Supports: '5s', '1m', '1h'.",
+    )
+    factor: float = Field(
+        default=2.0,
+        description="Multiplier for exponential backoff.",
+    )
+    max_duration: Optional[str] = Field(
+        default=None,
+        description="Maximum backoff duration cap.",
+        alias="maxDuration",
+    )
+
+    class Config:
+        populate_by_name = True
+
+
+class RetryStrategy(BaseModel):
+    """
+    Retry configuration for workflow nodes.
+    Argo-compatible with extensions.
+    """
+
+    limit: int = Field(
+        default=3,
+        description="Maximum number of retry attempts.",
+    )
+    retry_policy: Literal["Always", "OnFailure", "OnError"] = Field(
+        default="OnFailure",
+        description="When to retry: Always, OnFailure, OnError.",
+        alias="retryPolicy",
+    )
+    backoff: Optional[BackoffStrategy] = Field(
+        default=None,
+        description="Exponential backoff configuration.",
+    )
+
+    class Config:
+        populate_by_name = True
+
+
+# --- Exit Handler Model ---
+
+
+class ExitHandler(BaseModel):
+    """
+    Exit handler configuration for cleanup/notification on workflow completion.
+
+    Supports conditional handlers for different outcomes.
+    """
+
+    always: Optional[str] = Field(
+        default=None,
+        description="Node ID to execute regardless of workflow outcome.",
+    )
+    on_success: Optional[str] = Field(
+        default=None,
+        description="Node ID to execute only on successful completion.",
+        alias="onSuccess",
+    )
+    on_failure: Optional[str] = Field(
+        default=None,
+        description="Node ID to execute only on failure.",
+        alias="onFailure",
+    )
+
+    class Config:
+        populate_by_name = True
+
+
+# --- Workflow Node Models ---
 
 
 class ForkBranch(BaseModel):
@@ -25,87 +104,366 @@ class ForkBranch(BaseModel):
 
 
 class WorkflowNode(BaseModel):
-    """Base workflow node."""
+    """
+    Base workflow node.
+
+    Supports both SAM and Argo field names:
+    - depends_on / dependencies (Argo alias)
+    """
 
     id: str = Field(..., description="Unique node identifier")
     type: str = Field(..., description="Node type")
     depends_on: Optional[List[str]] = Field(
-        None, description="List of node IDs this node depends on"
+        default=None,
+        description="List of node IDs this node depends on.",
+        alias="dependencies",
     )
+
+    class Config:
+        populate_by_name = True
 
 
 class AgentNode(WorkflowNode):
-    """Agent invocation node."""
+    """
+    Agent invocation node.
+
+    Argo-aligned features:
+    - `when`: Conditional execution clause (Argo-style)
+    - `retryStrategy`: Retry configuration
+    - `timeout`: Node-specific timeout override
+    """
 
     type: Literal["agent"] = "agent"
     agent_name: str = Field(..., description="Name of agent to invoke")
     input: Optional[Dict[str, Any]] = Field(
-        None, description="Input mapping. If omitted, inferred from dependencies."
+        default=None,
+        description="Input mapping. If omitted, inferred from dependencies.",
     )
 
     # Optional schema overrides
     input_schema_override: Optional[Dict[str, Any]] = None
     output_schema_override: Optional[Dict[str, Any]] = None
 
+    # Argo-aligned fields
+    when: Optional[str] = Field(
+        default=None,
+        description=(
+            "Conditional execution expression (Argo-style). "
+            "Node only executes if expression evaluates to true."
+        ),
+    )
+    retry_strategy: Optional[RetryStrategy] = Field(
+        default=None,
+        description="Retry configuration for this node.",
+        alias="retryStrategy",
+    )
+    timeout: Optional[str] = Field(
+        default=None,
+        description="Node-specific timeout. Format: '30s', '5m', '1h'.",
+    )
+
+    class Config:
+        populate_by_name = True
+
 
 class ConditionalNode(WorkflowNode):
-    """Conditional branching node."""
+    """
+    Conditional branching node (binary true/false).
+
+    For multi-way branching, use SwitchNode instead.
+    """
 
     type: Literal["conditional"] = "conditional"
     condition: str = Field(..., description="Expression to evaluate")
-    true_branch: str = Field(..., description="Node ID if true")
-    false_branch: Optional[str] = Field(None, description="Node ID if false")
+    true_branch: str = Field(
+        ...,
+        description="Node ID to execute if condition is true.",
+        alias="trueBranch",
+    )
+    false_branch: Optional[str] = Field(
+        default=None,
+        description="Node ID to execute if condition is false.",
+        alias="falseBranch",
+    )
+
+    class Config:
+        populate_by_name = True
+
+
+class SwitchCase(BaseModel):
+    """A single case in a switch node."""
+
+    condition: str = Field(
+        ...,
+        description="Expression to evaluate for this case.",
+        alias="when",
+    )
+    node: str = Field(
+        ...,
+        description="Node ID to execute if condition matches.",
+        alias="then",
+    )
+
+    class Config:
+        populate_by_name = True
+
+
+class SwitchNode(WorkflowNode):
+    """
+    Multi-way conditional branching node.
+
+    More flexible than ConditionalNode for routing to multiple paths.
+    Cases are evaluated in order; first match wins.
+    """
+
+    type: Literal["switch"] = "switch"
+    cases: List[SwitchCase] = Field(
+        ...,
+        description="Ordered list of condition/node pairs. First match wins.",
+    )
+    default: Optional[str] = Field(
+        default=None,
+        description="Node ID to execute if no cases match.",
+    )
+
+
+class JoinNode(WorkflowNode):
+    """
+    Explicit synchronization point.
+
+    Waits for multiple upstream nodes based on strategy.
+    For 'any' strategy, remaining branches are cancelled once first completes.
+    """
+
+    type: Literal["join"] = "join"
+    wait_for: List[str] = Field(
+        ...,
+        description="List of node IDs to wait for.",
+        alias="waitFor",
+    )
+    strategy: Literal["all", "any", "n_of_m"] = Field(
+        default="all",
+        description="Wait strategy: all, any, or n_of_m.",
+    )
+    n: Optional[int] = Field(
+        default=None,
+        description="Required for n_of_m strategy: number of nodes that must complete.",
+    )
+
+    class Config:
+        populate_by_name = True
+
+    @model_validator(mode="after")
+    def validate_n_for_strategy(self) -> "JoinNode":
+        """Validate that n is provided for n_of_m strategy."""
+        if self.strategy == "n_of_m":
+            if self.n is None:
+                raise ValueError("JoinNode with strategy 'n_of_m' requires 'n' field")
+            if self.n < 1:
+                raise ValueError("JoinNode 'n' must be at least 1")
+            if self.n > len(self.wait_for):
+                raise ValueError(
+                    f"JoinNode 'n' ({self.n}) cannot exceed wait_for count "
+                    f"({len(self.wait_for)})"
+                )
+        return self
+
+
+class LoopNode(WorkflowNode):
+    """
+    While-loop node for iterative execution until condition is met.
+
+    Different from MapNode which is for-each iteration.
+    LoopNode repeats a node until a condition becomes false.
+    """
+
+    type: Literal["loop"] = "loop"
+    node: str = Field(..., description="Node ID to execute repeatedly")
+    condition: str = Field(
+        ...,
+        description="Continue looping while this expression is true.",
+    )
+    max_iterations: int = Field(
+        default=100,
+        description="Safety limit on number of iterations.",
+        alias="maxIterations",
+    )
+    delay: Optional[str] = Field(
+        default=None,
+        description="Delay between iterations. Format: '5s', '1m'.",
+    )
+
+    class Config:
+        populate_by_name = True
 
 
 class ForkNode(WorkflowNode):
-    """Parallel execution node."""
+    """
+    Parallel execution node with explicit branch definitions.
+
+    Provides explicit output_key for result merging.
+    """
 
     type: Literal["fork"] = "fork"
-    branches: List[ForkBranch] = Field(..., description="Parallel branches")
+    branches: List[ForkBranch] = Field(..., description="Parallel branches to execute")
+    fail_fast: bool = Field(
+        default=True,
+        description="If true, cancel remaining branches when one fails.",
+        alias="failFast",
+    )
+
+    class Config:
+        populate_by_name = True
 
 
 class MapNode(WorkflowNode):
-    """Map (parallel iteration) node."""
+    """
+    Map (parallel iteration) node.
+
+    Supports both SAM syntax and Argo-style withItems/withParam.
+    """
 
     type: Literal["map"] = "map"
-    items: Union[str, Dict[str, Any]] = Field(
-        ..., description="Array template reference or expression to iterate over"
+
+    # Primary SAM field
+    items: Optional[Union[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="Array template reference or expression to iterate over.",
     )
+
+    # Argo aliases
+    with_param: Optional[str] = Field(
+        default=None,
+        description="Argo-style: JSON array from previous step output.",
+        alias="withParam",
+    )
+    with_items: Optional[List[Any]] = Field(
+        default=None,
+        description="Argo-style: Static list of items to iterate over.",
+        alias="withItems",
+    )
+
     node: str = Field(..., description="Node ID to execute for each item")
-    max_items: Optional[int] = Field(100, description="Max items to process")
-    concurrency_limit: Optional[int] = Field(
-        None, description="Max concurrent executions. None means unlimited."
+    max_items: Optional[int] = Field(
+        default=100,
+        description="Maximum items to process (safety limit).",
+        alias="maxItems",
     )
+    concurrency_limit: Optional[int] = Field(
+        default=None,
+        description="Max concurrent executions. None means unlimited.",
+        alias="concurrencyLimit",
+    )
+
+    class Config:
+        populate_by_name = True
+
+    @model_validator(mode="after")
+    def validate_items_source(self) -> "MapNode":
+        """Ensure exactly one items source is provided."""
+        sources = [
+            self.items is not None,
+            self.with_param is not None,
+            self.with_items is not None,
+        ]
+        if sum(sources) == 0:
+            raise ValueError(
+                "MapNode requires one of: 'items', 'withParam', or 'withItems'"
+            )
+        if sum(sources) > 1:
+            raise ValueError(
+                "MapNode accepts only one of: 'items', 'withParam', or 'withItems'"
+            )
+        return self
+
+    def get_items_expression(self) -> Union[str, List[Any], Dict[str, Any]]:
+        """Return the items source regardless of which field was used."""
+        if self.items is not None:
+            return self.items
+        if self.with_param is not None:
+            return self.with_param
+        return self.with_items
 
 
 # Union type for polymorphic node list
-WorkflowNodeUnion = Union[AgentNode, ConditionalNode, ForkNode, MapNode]
+WorkflowNodeUnion = Union[
+    AgentNode,
+    ConditionalNode,
+    SwitchNode,
+    JoinNode,
+    LoopNode,
+    ForkNode,
+    MapNode,
+]
 
 
 class WorkflowDefinition(BaseModel):
-    """Complete workflow definition."""
+    """
+    Complete workflow definition.
+
+    Argo-aligned features:
+    - onExit: Exit handler for cleanup/notification
+    - failFast: Control behavior on node failure
+    - retryStrategy: Default retry strategy for all nodes
+    """
 
     description: str = Field(..., description="Human-readable workflow description")
 
     input_schema: Optional[Dict[str, Any]] = Field(
-        None, description="JSON Schema for workflow input"
+        default=None,
+        description="JSON Schema for workflow input.",
+        alias="inputSchema",
     )
 
     output_schema: Optional[Dict[str, Any]] = Field(
-        None, description="JSON Schema for workflow output"
+        default=None,
+        description="JSON Schema for workflow output.",
+        alias="outputSchema",
     )
 
     nodes: List[WorkflowNodeUnion] = Field(
-        ..., description="Workflow nodes (DAG vertices)"
+        ...,
+        description="Workflow nodes (DAG vertices).",
     )
 
     output_mapping: Dict[str, Any] = Field(
-        ..., description="Mapping from node outputs to final workflow output"
+        ...,
+        description="Mapping from node outputs to final workflow output.",
+        alias="outputMapping",
     )
 
     skills: Optional[List[Dict[str, Any]]] = Field(
-        None, description="Workflow skills for agent card"
+        default=None,
+        description="Workflow skills for agent card.",
     )
+
+    # Argo-aligned fields
+    on_exit: Optional[Union[str, ExitHandler]] = Field(
+        default=None,
+        description=(
+            "Exit handler configuration. Can be a node ID (string) or "
+            "ExitHandler object with on_success/on_failure/always."
+        ),
+        alias="onExit",
+    )
+
+    fail_fast: bool = Field(
+        default=True,
+        description=(
+            "If true, stop scheduling new nodes when one fails. "
+            "Running nodes continue to completion."
+        ),
+        alias="failFast",
+    )
+
+    retry_strategy: Optional[RetryStrategy] = Field(
+        default=None,
+        description="Default retry strategy for all nodes (can be overridden per-node).",
+        alias="retryStrategy",
+    )
+
+    class Config:
+        populate_by_name = True
 
     @model_validator(mode="after")
     def validate_dag_structure(self) -> "WorkflowDefinition":
@@ -122,7 +480,6 @@ class WorkflowDefinition(BaseModel):
                         )
 
             # Validate Conditional Node Consistency
-            # If A routes to B, B must depend on A. Otherwise B runs immediately/concurrently.
             if node.type == "conditional":
                 self._validate_branch_dependency(
                     node, node.true_branch, "true_branch", node_map
@@ -131,6 +488,50 @@ class WorkflowDefinition(BaseModel):
                     self._validate_branch_dependency(
                         node, node.false_branch, "false_branch", node_map
                     )
+
+            # Validate Switch Node Consistency
+            if node.type == "switch":
+                for i, case in enumerate(node.cases):
+                    self._validate_branch_dependency(
+                        node, case.node, f"cases[{i}].node", node_map
+                    )
+                if node.default:
+                    self._validate_branch_dependency(
+                        node, node.default, "default", node_map
+                    )
+
+            # Validate JoinNode wait_for references
+            if node.type == "join":
+                for wait_id in node.wait_for:
+                    if wait_id not in node_map:
+                        raise ValueError(
+                            f"JoinNode '{node.id}' waits for non-existent node '{wait_id}'"
+                        )
+
+            # Validate LoopNode target reference
+            if node.type == "loop":
+                if node.node not in node_map:
+                    raise ValueError(
+                        f"LoopNode '{node.id}' references non-existent node '{node.node}'"
+                    )
+
+        # Validate exit handler references
+        if self.on_exit:
+            if isinstance(self.on_exit, str):
+                if self.on_exit not in node_map:
+                    raise ValueError(
+                        f"onExit references non-existent node '{self.on_exit}'"
+                    )
+            else:
+                for field, node_id in [
+                    ("always", self.on_exit.always),
+                    ("on_success", self.on_exit.on_success),
+                    ("on_failure", self.on_exit.on_failure),
+                ]:
+                    if node_id and node_id not in node_map:
+                        raise ValueError(
+                            f"onExit.{field} references non-existent node '{node_id}'"
+                        )
 
         return self
 
@@ -145,12 +546,12 @@ class WorkflowDefinition(BaseModel):
         target = node_map.get(target_id)
         if not target:
             raise ValueError(
-                f"Conditional node '{parent.id}' references non-existent {branch_name} '{target_id}'"
+                f"Node '{parent.id}' references non-existent {branch_name} '{target_id}'"
             )
 
         if not target.depends_on or parent.id not in target.depends_on:
             raise ValueError(
-                f"Logic Error: Conditional node '{parent.id}' routes to '{target.id}' ({branch_name}), "
+                f"Logic Error: Node '{parent.id}' routes to '{target.id}' ({branch_name}), "
                 f"but '{target.id}' does not list '{parent.id}' in its 'depends_on' field. "
                 f"This would cause '{target.id}' to run immediately. "
                 f"Fix: Add 'depends_on: [{parent.id}]' to node '{target.id}'."

@@ -52,7 +52,8 @@
       "Bash(git mv:*)",
       "Bash(while read file)",
       "Bash(done)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm run lint:*)"
     ],
     "deny": [],
     "ask": []

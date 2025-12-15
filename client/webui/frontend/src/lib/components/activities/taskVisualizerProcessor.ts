@@ -462,11 +462,23 @@ export const processTaskForVisualization = (
                                             agentName: signalData.agent_name,
                                             inputArtifactRef: signalData.input_artifact_ref,
                                             iterationIndex: signalData.iteration_index,
+                                            // Conditional node fields
                                             condition: signalData.condition,
                                             trueBranch: signalData.true_branch,
                                             falseBranch: signalData.false_branch,
                                             trueBranchLabel: signalData.true_branch_label,
                                             falseBranchLabel: signalData.false_branch_label,
+                                            // Switch node fields
+                                            cases: signalData.cases,
+                                            defaultBranch: signalData.default_branch,
+                                            // Join node fields
+                                            waitFor: signalData.wait_for,
+                                            joinStrategy: signalData.join_strategy,
+                                            joinN: signalData.join_n,
+                                            // Loop node fields
+                                            maxIterations: signalData.max_iterations,
+                                            loopDelay: signalData.loop_delay,
+                                            // Common fields
                                             subTaskId: signalData.sub_task_id,
                                             parentNodeId: signalData.parent_node_id,
                                         },

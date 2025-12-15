@@ -50,6 +50,12 @@ export function findNodeDetails(
             return findToolNodeDetails(node, primaryStep, allSteps);
         case 'conditional':
             return findConditionalNodeDetails(node, primaryStep, allSteps);
+        case 'switch':
+            return findSwitchNodeDetails(node, primaryStep, allSteps);
+        case 'join':
+            return findJoinNodeDetails(node, primaryStep, allSteps);
+        case 'loop':
+            return findLoopNodeDetails(node, primaryStep, allSteps);
         case 'group':
             return findWorkflowGroupDetails(node, primaryStep, allSteps);
         default:
@@ -159,9 +165,11 @@ function findAgentNodeDetails(
     let outputArtifactStep: VisualizerStep | undefined;
     if (isWorkflowAgent && workflowNodeData?.nodeId) {
         // The result step is at the workflow level, not the agent's task level
-        // Find by matching nodeId in the result data
+        // Find by matching BOTH nodeId AND owningTaskId to handle parallel workflow executions
+        const workflowExecutionId = primaryStep.owningTaskId;
         outputArtifactStep = allSteps.find(
             s => s.type === 'WORKFLOW_NODE_EXECUTION_RESULT' &&
+                 s.owningTaskId === workflowExecutionId &&
                  s.data.workflowNodeExecutionResult?.nodeId === workflowNodeData.nodeId
         );
     }
@@ -276,6 +284,113 @@ function findConditionalNodeDetails(
         label: node.data.label,
         requestStep,
         resultStep,
+    };
+}
+
+/**
+ * Find details for Switch nodes
+ */
+function findSwitchNodeDetails(
+    node: LayoutNode,
+    primaryStep: VisualizerStep,
+    allSteps: VisualizerStep[]
+): NodeDetails {
+    // Primary step should be WORKFLOW_NODE_EXECUTION_START with nodeType: switch
+    const requestStep = primaryStep.type === 'WORKFLOW_NODE_EXECUTION_START' ? primaryStep : undefined;
+
+    // Find the result by matching nodeId
+    let resultStep: VisualizerStep | undefined;
+
+    if (requestStep?.data.workflowNodeExecutionStart) {
+        const nodeId = requestStep.data.workflowNodeExecutionStart.nodeId;
+        const owningTaskId = requestStep.owningTaskId;
+
+        resultStep = allSteps.find(
+            s => s.type === 'WORKFLOW_NODE_EXECUTION_RESULT' &&
+            s.owningTaskId === owningTaskId &&
+            s.data.workflowNodeExecutionResult?.nodeId === nodeId
+        );
+    }
+
+    return {
+        nodeType: 'switch',
+        label: node.data.label,
+        requestStep,
+        resultStep,
+    };
+}
+
+/**
+ * Find details for Join nodes
+ */
+function findJoinNodeDetails(
+    node: LayoutNode,
+    primaryStep: VisualizerStep,
+    allSteps: VisualizerStep[]
+): NodeDetails {
+    // Primary step should be WORKFLOW_NODE_EXECUTION_START with nodeType: join
+    const requestStep = primaryStep.type === 'WORKFLOW_NODE_EXECUTION_START' ? primaryStep : undefined;
+
+    // Find the result by matching nodeId
+    let resultStep: VisualizerStep | undefined;
+
+    if (requestStep?.data.workflowNodeExecutionStart) {
+        const nodeId = requestStep.data.workflowNodeExecutionStart.nodeId;
+        const owningTaskId = requestStep.owningTaskId;
+
+        resultStep = allSteps.find(
+            s => s.type === 'WORKFLOW_NODE_EXECUTION_RESULT' &&
+            s.owningTaskId === owningTaskId &&
+            s.data.workflowNodeExecutionResult?.nodeId === nodeId
+        );
+    }
+
+    return {
+        nodeType: 'join',
+        label: node.data.label,
+        requestStep,
+        resultStep,
+    };
+}
+
+/**
+ * Find details for Loop nodes
+ */
+function findLoopNodeDetails(
+    node: LayoutNode,
+    primaryStep: VisualizerStep,
+    allSteps: VisualizerStep[]
+): NodeDetails {
+    // Primary step should be WORKFLOW_NODE_EXECUTION_START with nodeType: loop
+    const requestStep = primaryStep.type === 'WORKFLOW_NODE_EXECUTION_START' ? primaryStep : undefined;
+
+    // Find the result by matching nodeId
+    let resultStep: VisualizerStep | undefined;
+
+    if (requestStep?.data.workflowNodeExecutionStart) {
+        const nodeId = requestStep.data.workflowNodeExecutionStart.nodeId;
+        const owningTaskId = requestStep.owningTaskId;
+
+        resultStep = allSteps.find(
+            s => s.type === 'WORKFLOW_NODE_EXECUTION_RESULT' &&
+            s.owningTaskId === owningTaskId &&
+            s.data.workflowNodeExecutionResult?.nodeId === nodeId
+        );
+    }
+
+    // Find related steps for loop iterations
+    const relatedSteps = requestStep ? allSteps.filter(
+        s => s.owningTaskId === requestStep.owningTaskId &&
+        s.type === 'WORKFLOW_NODE_EXECUTION_START' &&
+        s.data.workflowNodeExecutionStart?.parentNodeId === requestStep.data.workflowNodeExecutionStart?.nodeId
+    ) : undefined;
+
+    return {
+        nodeType: 'loop',
+        label: node.data.label,
+        requestStep,
+        resultStep,
+        relatedSteps,
     };
 }
 

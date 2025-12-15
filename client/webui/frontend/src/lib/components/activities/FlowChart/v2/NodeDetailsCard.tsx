@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ArrowRight, Bot, CheckCircle, GitMerge, List, Loader2, Split, Terminal, User, Workflow, Wrench, Zap } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle, GitBranch, GitMerge, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, Zap } from "lucide-react";
 import type { NodeDetails } from "./utils/nodeDetailsHelper";
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
 import type { VisualizerStep } from "@/lib/types";
@@ -164,6 +164,12 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails }) => {
                 return <Wrench className="text-cyan-500 dark:text-cyan-400" size={20} />;
             case 'conditional':
                 return <GitMerge className="text-amber-500 dark:text-amber-400" size={20} />;
+            case 'switch':
+                return <GitBranch className="text-purple-500 dark:text-purple-400" size={20} />;
+            case 'join':
+                return <GitMerge className="text-green-500 dark:text-green-400" size={20} />;
+            case 'loop':
+                return <RefreshCw className="text-teal-500 dark:text-teal-400" size={20} />;
             case 'group':
                 return <Workflow className="text-purple-500 dark:text-purple-400" size={20} />;
             default:
@@ -587,6 +593,144 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails }) => {
         const data = step.data.workflowNodeExecutionStart;
         if (!data) return null;
 
+        // Switch node specific rendering
+        if (data.nodeType === 'switch') {
+            return (
+                <div>
+                    <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                        Switch Node
+                    </h4>
+                    <div className="space-y-3">
+                        <div className="text-xs">
+                            <span className="font-semibold">Node ID:</span> {data.nodeId}
+                        </div>
+
+                        {/* Cases */}
+                        {data.cases && data.cases.length > 0 && (
+                            <div>
+                                <div className="text-xs font-semibold mb-2">Cases:</div>
+                                <div className="space-y-2">
+                                    {data.cases.map((caseItem, index) => (
+                                        <div
+                                            key={index}
+                                            className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700"
+                                        >
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
+                                                    Case {index + 1}
+                                                </span>
+                                                <ArrowRight className="h-3 w-3 text-gray-400" />
+                                                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                                                    {caseItem.node}
+                                                </span>
+                                            </div>
+                                            <code className="block text-xs text-gray-600 dark:text-gray-300 break-all">
+                                                {caseItem.condition}
+                                            </code>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Default branch */}
+                        {data.defaultBranch && (
+                            <div className="bg-amber-50 dark:bg-amber-900/30 p-2 rounded-md border border-amber-200 dark:border-amber-700">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                        Default
+                                    </span>
+                                    <ArrowRight className="h-3 w-3 text-gray-400" />
+                                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                                        {data.defaultBranch}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Join node specific rendering
+        if (data.nodeType === 'join') {
+            return (
+                <div>
+                    <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                        Join Node
+                    </h4>
+                    <div className="space-y-2">
+                        <div className="text-xs">
+                            <span className="font-semibold">Node ID:</span> {data.nodeId}
+                        </div>
+                        {data.joinStrategy && (
+                            <div className="text-xs">
+                                <span className="font-semibold">Strategy:</span>{' '}
+                                <span className="px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                                    {data.joinStrategy}
+                                </span>
+                            </div>
+                        )}
+                        {data.joinStrategy === 'n_of_m' && data.joinN !== undefined && (
+                            <div className="text-xs">
+                                <span className="font-semibold">Required:</span> {data.joinN} of {data.waitFor?.length || 0}
+                            </div>
+                        )}
+                        {data.waitFor && data.waitFor.length > 0 && (
+                            <div>
+                                <div className="text-xs font-semibold mb-1">Waiting for:</div>
+                                <div className="flex flex-wrap gap-1">
+                                    {data.waitFor.map((nodeId, index) => (
+                                        <span
+                                            key={index}
+                                            className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded"
+                                        >
+                                            {nodeId}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Loop node specific rendering
+        if (data.nodeType === 'loop') {
+            return (
+                <div>
+                    <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                        Loop Node
+                    </h4>
+                    <div className="space-y-2">
+                        <div className="text-xs">
+                            <span className="font-semibold">Node ID:</span> {data.nodeId}
+                        </div>
+                        {data.condition && (
+                            <div>
+                                <div className="text-xs font-semibold mb-1">Condition:</div>
+                                <code className="block text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded-md break-all">
+                                    {data.condition}
+                                </code>
+                            </div>
+                        )}
+                        {data.maxIterations !== undefined && (
+                            <div className="text-xs">
+                                <span className="font-semibold">Max Iterations:</span> {data.maxIterations}
+                            </div>
+                        )}
+                        {data.loopDelay && (
+                            <div className="text-xs">
+                                <span className="font-semibold">Delay:</span> {data.loopDelay}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Default rendering for other node types
         return (
             <div>
                 <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
@@ -626,10 +770,15 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails }) => {
         const data = step.data.workflowNodeExecutionResult;
         if (!data) return null;
 
+        // Extract switch-specific data from metadata
+        const selectedBranch = data.metadata?.selected_branch;
+        const selectedCaseIndex = data.metadata?.selected_case_index;
+        const isSwitch = selectedBranch !== undefined || selectedCaseIndex !== undefined;
+
         return (
             <div>
                 <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
-                    Workflow Node Result
+                    {isSwitch ? "Switch Result" : "Workflow Node Result"}
                 </h4>
                 <div className="space-y-2">
                     <div className="text-xs">
@@ -642,6 +791,32 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails }) => {
                             {data.status}
                         </span>
                     </div>
+
+                    {/* Switch node result - selected branch */}
+                    {selectedBranch !== undefined && (
+                        <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/30 rounded-md border border-green-200 dark:border-green-700">
+                            <div className="flex items-center gap-2">
+                                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                                    Selected Branch:
+                                </span>
+                                <span className="text-xs font-bold text-green-800 dark:text-green-200">
+                                    {selectedBranch}
+                                </span>
+                            </div>
+                            {selectedCaseIndex !== undefined && selectedCaseIndex !== null && (
+                                <div className="mt-1 text-xs text-green-600 dark:text-green-400">
+                                    Matched Case #{selectedCaseIndex + 1}
+                                </div>
+                            )}
+                            {selectedCaseIndex === null && (
+                                <div className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                                    (Default branch - no case matched)
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {data.conditionResult !== undefined && (
                         <div className="text-xs">
                             <span className="font-semibold">Condition Result:</span>{" "}

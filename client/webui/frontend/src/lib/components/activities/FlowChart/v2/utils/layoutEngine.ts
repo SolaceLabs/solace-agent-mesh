@@ -8,6 +8,9 @@ const NODE_WIDTHS = {
     LLM: 180,
     USER: 140,
     CONDITIONAL: 120,
+    SWITCH: 120,
+    JOIN: 100,
+    LOOP: 120,
     MIN_AGENT_CONTENT: 200,
 };
 
@@ -17,6 +20,9 @@ const NODE_HEIGHTS = {
     LLM: 50,
     USER: 50,
     CONDITIONAL: 80,
+    SWITCH: 80,
+    JOIN: 60,
+    LOOP: 80,
 };
 
 const SPACING = {
@@ -412,6 +418,15 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
     if (nodeType === 'conditional') {
         type = 'conditional';
         label = 'Conditional';
+    } else if (nodeType === 'switch') {
+        type = 'switch';
+        label = 'Switch';
+    } else if (nodeType === 'join') {
+        type = 'join';
+        label = 'Join';
+    } else if (nodeType === 'loop') {
+        type = 'loop';
+        label = 'Loop';
     } else if (nodeType === 'map') {
         variant = 'pill';
         label = 'Map';
@@ -423,6 +438,7 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
         label = agentName || nodeId;
     }
 
+    const workflowNodeData = step.data.workflowNodeExecutionStart;
     const workflowNode = createNode(
         context,
         type,
@@ -430,9 +446,20 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
             label,
             variant,
             visualizerStepId: step.id,
-            condition: step.data.workflowNodeExecutionStart?.condition,
-            trueBranch: step.data.workflowNodeExecutionStart?.trueBranch,
-            falseBranch: step.data.workflowNodeExecutionStart?.falseBranch,
+            // Conditional node fields
+            condition: workflowNodeData?.condition,
+            trueBranch: workflowNodeData?.trueBranch,
+            falseBranch: workflowNodeData?.falseBranch,
+            // Switch node fields
+            cases: workflowNodeData?.cases,
+            defaultBranch: workflowNodeData?.defaultBranch,
+            // Join node fields
+            waitFor: workflowNodeData?.waitFor,
+            joinStrategy: workflowNodeData?.joinStrategy,
+            joinN: workflowNodeData?.joinN,
+            // Loop node fields
+            maxIterations: workflowNodeData?.maxIterations,
+            loopDelay: workflowNodeData?.loopDelay,
             // Store the original nodeId for reference when clicked
             nodeId,
         },
@@ -515,16 +542,45 @@ function handleWorkflowExecutionResult(step: VisualizerStep, context: BuildConte
 }
 
 /**
- * Handle WORKFLOW_NODE_EXECUTION_RESULT - cleanup and add Join node
+ * Handle WORKFLOW_NODE_EXECUTION_RESULT - cleanup, update node status, and add Join node
  */
 function handleWorkflowNodeResult(step: VisualizerStep, context: BuildContext): void {
-    const nodeId = step.data.workflowNodeExecutionResult?.nodeId;
+    const resultData = step.data.workflowNodeExecutionResult;
+    const nodeId = resultData?.nodeId;
     const taskId = step.owningTaskId;
 
     if (!nodeId) return;
 
     const containerKey = `${taskId}:${nodeId}`;
     const parallelContainer = context.parallelContainerMap.get(containerKey);
+
+    // Find the workflow node that matches this result and update its data
+    const groupNode = findAgentForStep(step, context);
+    if (groupNode) {
+        const targetNode = findNodeById(groupNode, nodeId);
+        if (targetNode) {
+            // Update status
+            targetNode.data.status = resultData?.status === 'success' ? 'completed' :
+                                     resultData?.status === 'failure' ? 'error' : 'completed';
+
+            // Update conditional node with result
+            if (targetNode.type === 'conditional' && resultData?.conditionResult !== undefined) {
+                targetNode.data.conditionResult = resultData.conditionResult;
+            }
+
+            // Update switch node with selected branch
+            if (targetNode.type === 'switch') {
+                const selectedBranch = resultData?.metadata?.selected_branch;
+                const selectedCaseIndex = resultData?.metadata?.selected_case_index;
+                if (selectedBranch !== undefined) {
+                    targetNode.data.selectedBranch = selectedBranch;
+                }
+                if (selectedCaseIndex !== undefined) {
+                    targetNode.data.selectedCaseIndex = selectedCaseIndex;
+                }
+            }
+        }
+    }
 
     // If this result is for a Map/Fork node
     if (parallelContainer) {
@@ -537,7 +593,6 @@ function handleWorkflowNodeResult(step: VisualizerStep, context: BuildContext): 
             .forEach(key => context.currentBranchMap.delete(key));
 
         // Add a Join node after the Map/Fork
-        const groupNode = findAgentForStep(step, context);
         if (groupNode) {
             const joinNode = createNode(
                 context,
@@ -555,7 +610,7 @@ function handleWorkflowNodeResult(step: VisualizerStep, context: BuildContext): 
 
     // For agent node results, mark any remaining in-progress LLM nodes as completed
     // This handles the case where the final LLM response doesn't emit a separate event
-    const nodeType = step.data.workflowNodeExecutionResult?.metadata?.node_type;
+    const nodeType = resultData?.metadata?.node_type;
     if (nodeType === 'agent' || !parallelContainer) {
         // Find the agent node for this workflow node by looking for it in the task map
         // The agent node was registered with its subTaskId
@@ -572,6 +627,34 @@ function handleWorkflowNodeResult(step: VisualizerStep, context: BuildContext): 
             }
         }
     }
+}
+
+/**
+ * Find a node by its nodeId within a tree
+ */
+function findNodeById(root: LayoutNode, nodeId: string): LayoutNode | null {
+    // Check if this node matches
+    if (root.data.nodeId === nodeId) {
+        return root;
+    }
+
+    // Search children
+    for (const child of root.children) {
+        const found = findNodeById(child, nodeId);
+        if (found) return found;
+    }
+
+    // Search parallel branches
+    if (root.parallelBranches) {
+        for (const branch of root.parallelBranches) {
+            for (const branchNode of branch) {
+                const found = findNodeById(branchNode, nodeId);
+                if (found) return found;
+            }
+        }
+    }
+
+    return null;
 }
 
 /**
@@ -689,6 +772,18 @@ function measureNode(node: LayoutNode): void {
         case 'conditional':
             node.width = NODE_WIDTHS.CONDITIONAL;
             node.height = NODE_HEIGHTS.CONDITIONAL;
+            break;
+        case 'switch':
+            node.width = NODE_WIDTHS.SWITCH;
+            node.height = NODE_HEIGHTS.SWITCH;
+            break;
+        case 'join':
+            node.width = NODE_WIDTHS.JOIN;
+            node.height = NODE_HEIGHTS.JOIN;
+            break;
+        case 'loop':
+            node.width = NODE_WIDTHS.LOOP;
+            node.height = NODE_HEIGHTS.LOOP;
             break;
         case 'group':
             measureGroupNode(node);

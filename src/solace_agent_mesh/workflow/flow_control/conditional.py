@@ -1,5 +1,9 @@
 """
 Conditional expression evaluation for workflow flow control.
+
+Supports Argo Workflows-compatible template syntax with aliases:
+- {{item}} -> {{_map_item}} (Argo loop variable)
+- {{workflow.parameters.x}} -> {{workflow.input.x}} (Argo input syntax)
 """
 
 import logging
@@ -18,13 +22,45 @@ class ConditionalEvaluationError(Exception):
     pass
 
 
+# Argo-compatible template aliases
+TEMPLATE_ALIASES = {
+    # Argo uses 'item' for loop variable, SAM uses '_map_item'
+    "{{item}}": "{{_map_item}}",
+    "{{item.": "{{_map_item.",
+    # Argo uses 'workflow.parameters', SAM uses 'workflow.input'
+    "workflow.parameters.": "workflow.input.",
+}
+
+
+def _apply_template_aliases(expression: str) -> str:
+    """
+    Apply Argo-compatible aliases to template expression.
+
+    Transforms:
+    - {{item}} -> {{_map_item}}
+    - {{item.field}} -> {{_map_item.field}}
+    - {{workflow.parameters.x}} -> {{workflow.input.x}}
+    """
+    result = expression
+    for alias, target in TEMPLATE_ALIASES.items():
+        result = result.replace(alias, target)
+    return result
+
+
 def evaluate_condition(
     condition_expr: str, workflow_state: WorkflowExecutionState
 ) -> bool:
     """
     Safely evaluate conditional expression.
     Returns boolean result.
+
+    Supports Argo-style aliases:
+    - {{item}} for map loop variable
+    - {{workflow.parameters.x}} for workflow input
     """
+    # Apply template aliases for Argo compatibility
+    condition_expr = _apply_template_aliases(condition_expr)
+
     # Build context from completed nodes
     context = {}
     for node_id, output_data in workflow_state.node_outputs.items():
@@ -45,6 +81,12 @@ def evaluate_condition(
                     raise ValueError("Workflow input has not been initialized")
                 data = workflow_state.node_outputs["workflow_input"]["output"]
                 parts = parts[2:]
+            # Handle workflow.status and workflow.error for exit handlers
+            elif parts[0] == "workflow" and len(parts) >= 2:
+                if "workflow" not in workflow_state.node_outputs:
+                    raise ValueError("Workflow status has not been initialized")
+                data = workflow_state.node_outputs["workflow"]
+                parts = parts[1:]
             else:
                 node_id = parts[0]
                 if node_id not in workflow_state.node_outputs:
@@ -56,6 +98,9 @@ def evaluate_condition(
             for part in parts:
                 if isinstance(data, dict) and part in data:
                     data = data[part]
+                elif data is None:
+                    # Allow graceful handling of None values in path
+                    return "None"
                 else:
                     raise ValueError(f"Field '{part}' not found in path: {path}")
 

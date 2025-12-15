@@ -28,6 +28,22 @@ class WorkflowExecutionState(BaseModel):
         default_factory=dict
     )  # fork_id -> branch info
 
+    # JoinNode completion tracking
+    # join_node_id -> {"completed": [node_ids], "results": {node_id: output}}
+    join_completion: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+
+    # LoopNode iteration tracking
+    # loop_node_id -> current iteration count
+    loop_iterations: Dict[str, int] = Field(default_factory=dict)
+
+    # Retry tracking
+    # node_id -> current retry attempt count
+    retry_counts: Dict[str, int] = Field(default_factory=dict)
+
+    # Skipped nodes (by conditional/when clause)
+    # node_id -> reason for skip
+    skipped_nodes: Dict[str, str] = Field(default_factory=dict)
+
     # Error tracking
     error_state: Optional[Dict[str, Any]] = None
 

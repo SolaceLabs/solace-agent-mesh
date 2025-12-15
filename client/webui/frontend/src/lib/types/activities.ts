@@ -182,6 +182,11 @@ export interface WorkflowAgentRequestData {
     };
 }
 
+export interface SwitchCaseInfo {
+    condition: string;
+    node: string;
+}
+
 export interface WorkflowNodeExecutionStartData {
     nodeId: string;
     nodeType: string;
@@ -195,6 +200,16 @@ export interface WorkflowNodeExecutionStartData {
     falseBranchLabel?: string;
     subTaskId?: string;
     parentNodeId?: string;
+    // Switch node fields
+    cases?: SwitchCaseInfo[];
+    defaultBranch?: string;
+    // Join node fields
+    waitFor?: string[];
+    joinStrategy?: string;
+    joinN?: number;
+    // Loop node fields
+    maxIterations?: number;
+    loopDelay?: string;
 }
 
 export interface WorkflowNodeExecutionResultData {
@@ -204,6 +219,9 @@ export interface WorkflowNodeExecutionResultData {
     errorMessage?: string;
     metadata?: Record<string, any>;
     conditionResult?: boolean;
+    // Switch node result fields (from metadata)
+    selectedBranch?: string;
+    selectedCaseIndex?: number;
 }
 
 export interface WorkflowMapProgressData {

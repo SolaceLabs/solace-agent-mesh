@@ -229,6 +229,13 @@ class WorkflowExecutionStartData(BaseModel):
     )
 
 
+class SwitchCaseInfo(BaseModel):
+    """Information about a single case in a switch node."""
+
+    condition: str = Field(..., description="Condition expression for this case")
+    node: str = Field(..., description="Target node ID if this case matches")
+
+
 class WorkflowNodeExecutionStartData(BaseModel):
     """
     Data part signaling the start of a workflow node execution.
@@ -240,7 +247,7 @@ class WorkflowNodeExecutionStartData(BaseModel):
         description="The constant type for this data part.",
     )
     node_id: str = Field(..., description="ID of the node")
-    node_type: str = Field(..., description="Type of the node (agent, conditional, etc.)")
+    node_type: str = Field(..., description="Type of the node (agent, conditional, switch, join, loop, etc.)")
     agent_name: Optional[str] = Field(
         None, description="Name of the agent persona if applicable"
     )
@@ -251,7 +258,7 @@ class WorkflowNodeExecutionStartData(BaseModel):
         None, description="Index if inside a map/loop"
     )
     condition: Optional[str] = Field(
-        None, description="Condition expression for conditional nodes"
+        None, description="Condition expression for conditional/loop nodes"
     )
     true_branch: Optional[str] = Field(
         None, description="Node ID for true branch"
@@ -270,6 +277,30 @@ class WorkflowNodeExecutionStartData(BaseModel):
     )
     parent_node_id: Optional[str] = Field(
         None, description="ID of the parent node (e.g. for map iterations)"
+    )
+    # Switch node fields
+    cases: Optional[List[SwitchCaseInfo]] = Field(
+        None, description="Cases for switch nodes"
+    )
+    default_branch: Optional[str] = Field(
+        None, description="Default branch for switch nodes"
+    )
+    # Join node fields
+    wait_for: Optional[List[str]] = Field(
+        None, description="Node IDs to wait for in join nodes"
+    )
+    join_strategy: Optional[str] = Field(
+        None, description="Join strategy: all, any, or n_of_m"
+    )
+    join_n: Optional[int] = Field(
+        None, description="N value for n_of_m join strategy"
+    )
+    # Loop node fields
+    max_iterations: Optional[int] = Field(
+        None, description="Maximum iterations for loop nodes"
+    )
+    loop_delay: Optional[str] = Field(
+        None, description="Delay between loop iterations"
     )
 
 

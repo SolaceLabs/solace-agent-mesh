@@ -17,6 +17,9 @@ from .app import (
     WorkflowNode,
     AgentNode,
     ConditionalNode,
+    SwitchNode,
+    JoinNode,
+    LoopNode,
     ForkNode,
     MapNode,
 )
@@ -67,10 +70,12 @@ class DAGExecutor:
             node.id: node for node in workflow_definition.nodes
         }
 
-        # Identify inner nodes (targets of MapNodes) that should not be executed directly
+        # Identify inner nodes (targets of MapNodes/LoopNodes) that should not be executed directly
         self.inner_nodes = set()
         for node in workflow_definition.nodes:
             if node.type == "map":
+                self.inner_nodes.add(node.node)
+            elif node.type == "loop":
                 self.inner_nodes.add(node.node)
 
         self.dependencies = self._build_dependency_graph()
@@ -305,6 +310,28 @@ class DAGExecutor:
                     if hasattr(false_node, "agent_name"):
                         start_data_args["false_branch_label"] = false_node.agent_name
 
+            elif node.type == "switch":
+                # Include switch case info for visualization
+                from ..common.data_parts import SwitchCaseInfo
+                start_data_args["cases"] = [
+                    SwitchCaseInfo(condition=case.condition, node=case.node)
+                    for case in node.cases
+                ]
+                start_data_args["default_branch"] = node.default
+
+            elif node.type == "join":
+                # Include join configuration for visualization
+                start_data_args["wait_for"] = node.wait_for
+                start_data_args["join_strategy"] = node.strategy
+                if node.strategy == "n_of_m":
+                    start_data_args["join_n"] = node.n
+
+            elif node.type == "loop":
+                # Include loop configuration for visualization
+                start_data_args["condition"] = node.condition
+                start_data_args["max_iterations"] = node.max_iterations
+                start_data_args["loop_delay"] = node.delay
+
             start_data = WorkflowNodeExecutionStartData(**start_data_args)
             await self.host.publish_workflow_event(workflow_context, start_data)
 
@@ -315,6 +342,12 @@ class DAGExecutor:
                 await self._execute_conditional_node(
                     node, workflow_state, workflow_context
                 )
+            elif node.type == "switch":
+                await self._execute_switch_node(node, workflow_state, workflow_context)
+            elif node.type == "join":
+                await self._execute_join_node(node, workflow_state, workflow_context)
+            elif node.type == "loop":
+                await self._execute_loop_node(node, workflow_state, workflow_context)
             elif node.type == "fork":
                 await self._execute_fork_node(node, workflow_state, workflow_context)
             elif node.type == "map":
@@ -344,6 +377,44 @@ class DAGExecutor:
         sub_task_id: Optional[str] = None,
     ):
         """Execute an agent node by calling the agent."""
+        log_id = f"{self.host.log_identifier}[Agent:{node.id}]"
+
+        # Check 'when' clause if present (Argo-style conditional)
+        if node.when:
+            from .flow_control.conditional import evaluate_condition
+
+            try:
+                should_execute = evaluate_condition(node.when, workflow_state)
+            except Exception as e:
+                log.warning(f"{log_id} 'when' clause evaluation failed: {e}")
+                should_execute = False
+
+            if not should_execute:
+                log.info(
+                    f"{log_id} Skipping node due to 'when' clause: {node.when}"
+                )
+                # Mark as skipped
+                workflow_state.skipped_nodes[node.id] = f"when_clause_false: {node.when}"
+                workflow_state.completed_nodes[node.id] = "SKIPPED_BY_WHEN"
+                workflow_state.node_outputs[node.id] = {
+                    "output": None,
+                    "skipped": True,
+                    "skip_reason": "when_clause_false",
+                }
+
+                # Publish skipped event
+                result_data = WorkflowNodeExecutionResultData(
+                    type="workflow_node_execution_result",
+                    node_id=node.id,
+                    status="skipped",
+                    metadata={"skip_reason": "when_clause_false", "when": node.when},
+                )
+                await self.host.publish_workflow_event(workflow_context, result_data)
+
+                # Continue workflow
+                await self.execute_workflow(workflow_state, workflow_context)
+                return
+
         await self.host.agent_caller.call_agent(
             node, workflow_state, workflow_context, sub_task_id
         )
@@ -464,6 +535,269 @@ class DAGExecutor:
 
         # Continue execution
         await self.execute_workflow(workflow_state, workflow_context)
+
+    async def _execute_switch_node(
+        self,
+        node: SwitchNode,
+        workflow_state: WorkflowExecutionState,
+        workflow_context: WorkflowExecutionContext,
+    ):
+        """Execute switch node for multi-way branching."""
+        log_id = f"{self.host.log_identifier}[Switch:{node.id}]"
+
+        from .flow_control.conditional import evaluate_condition
+
+        selected_branch = None
+        selected_case_index = None
+
+        # Evaluate cases in order, first match wins
+        for i, case in enumerate(node.cases):
+            try:
+                result = evaluate_condition(case.condition, workflow_state)
+                if result:
+                    selected_branch = case.node
+                    selected_case_index = i
+                    log.info(
+                        f"{log_id} Case {i} condition '{case.condition}' matched, "
+                        f"selecting branch '{case.node}'"
+                    )
+                    break
+            except Exception as e:
+                log.warning(f"{log_id} Case {i} evaluation failed: {e}")
+                continue
+
+        # Use default if no case matched
+        if selected_branch is None and node.default:
+            selected_branch = node.default
+            log.info(f"{log_id} No case matched, using default branch '{node.default}'")
+
+        # Mark switch as complete
+        workflow_state.completed_nodes[node.id] = "switch_evaluated"
+        workflow_state.node_outputs[node.id] = {
+            "output": {
+                "selected_branch": selected_branch,
+                "selected_case_index": selected_case_index,
+            }
+        }
+
+        # Publish result event
+        result_data = WorkflowNodeExecutionResultData(
+            type="workflow_node_execution_result",
+            node_id=node.id,
+            status="success",
+            metadata={
+                "selected_branch": selected_branch,
+                "selected_case_index": selected_case_index,
+            },
+        )
+        await self.host.publish_workflow_event(workflow_context, result_data)
+
+        # Skip all non-selected branches
+        all_branches = [case.node for case in node.cases]
+        if node.default:
+            all_branches.append(node.default)
+
+        for branch_id in all_branches:
+            if branch_id != selected_branch:
+                await self._skip_branch(branch_id, workflow_state)
+
+        # Continue execution
+        await self.execute_workflow(workflow_state, workflow_context)
+
+    async def _execute_join_node(
+        self,
+        node: JoinNode,
+        workflow_state: WorkflowExecutionState,
+        workflow_context: WorkflowExecutionContext,
+    ):
+        """Execute join node for synchronization."""
+        log_id = f"{self.host.log_identifier}[Join:{node.id}]"
+
+        # Initialize join tracking if not exists
+        if node.id not in workflow_state.join_completion:
+            workflow_state.join_completion[node.id] = {
+                "completed": [],
+                "results": {},
+            }
+
+        join_state = workflow_state.join_completion[node.id]
+
+        # Check which wait_for nodes have completed
+        for wait_id in node.wait_for:
+            if wait_id in workflow_state.completed_nodes:
+                if wait_id not in join_state["completed"]:
+                    join_state["completed"].append(wait_id)
+                    # Store result if available
+                    if wait_id in workflow_state.node_outputs:
+                        join_state["results"][wait_id] = workflow_state.node_outputs[
+                            wait_id
+                        ].get("output")
+
+        completed_count = len(join_state["completed"])
+        total_count = len(node.wait_for)
+
+        # Check if join condition is satisfied based on strategy
+        is_ready = False
+        if node.strategy == "all":
+            is_ready = completed_count == total_count
+        elif node.strategy == "any":
+            is_ready = completed_count >= 1
+        elif node.strategy == "n_of_m":
+            is_ready = completed_count >= node.n
+
+        log.debug(
+            f"{log_id} Strategy '{node.strategy}': {completed_count}/{total_count} complete, "
+            f"ready={is_ready}"
+        )
+
+        if not is_ready:
+            # Not ready yet, will be re-evaluated when more nodes complete
+            # Mark as pending but don't complete
+            return
+
+        # Join is satisfied
+        log.info(f"{log_id} Join condition satisfied")
+
+        # For 'any' strategy, cancel remaining pending branches
+        if node.strategy == "any" and completed_count < total_count:
+            for wait_id in node.wait_for:
+                if wait_id not in join_state["completed"]:
+                    log.info(f"{log_id} Cancelling remaining branch '{wait_id}'")
+                    # Mark as skipped rather than trying to actually cancel running tasks
+                    workflow_state.skipped_nodes[wait_id] = "cancelled_by_join_any"
+                    workflow_state.completed_nodes[wait_id] = "CANCELLED"
+
+        # Mark join as complete
+        workflow_state.completed_nodes[node.id] = "join_complete"
+        workflow_state.node_outputs[node.id] = {
+            "output": {
+                "completed_nodes": join_state["completed"],
+                "results": join_state["results"],
+                "strategy": node.strategy,
+            }
+        }
+
+        # Cleanup join state
+        del workflow_state.join_completion[node.id]
+
+        # Publish result event
+        result_data = WorkflowNodeExecutionResultData(
+            type="workflow_node_execution_result",
+            node_id=node.id,
+            status="success",
+            metadata={
+                "completed_nodes": join_state["completed"],
+                "strategy": node.strategy,
+            },
+        )
+        await self.host.publish_workflow_event(workflow_context, result_data)
+
+        # Continue execution
+        await self.execute_workflow(workflow_state, workflow_context)
+
+    async def _execute_loop_node(
+        self,
+        node: LoopNode,
+        workflow_state: WorkflowExecutionState,
+        workflow_context: WorkflowExecutionContext,
+    ):
+        """Execute loop node for while-loop iteration."""
+        log_id = f"{self.host.log_identifier}[Loop:{node.id}]"
+
+        from .flow_control.conditional import evaluate_condition
+        from .utils import parse_duration
+
+        # Initialize or get iteration count
+        if node.id not in workflow_state.loop_iterations:
+            workflow_state.loop_iterations[node.id] = 0
+
+        iteration = workflow_state.loop_iterations[node.id]
+
+        # Check max iterations
+        if iteration >= node.max_iterations:
+            log.warning(
+                f"{log_id} Max iterations ({node.max_iterations}) reached, stopping loop"
+            )
+            workflow_state.completed_nodes[node.id] = "loop_max_iterations"
+            workflow_state.node_outputs[node.id] = {
+                "output": {
+                    "iterations_completed": iteration,
+                    "stopped_reason": "max_iterations",
+                }
+            }
+            # Continue workflow
+            await self.execute_workflow(workflow_state, workflow_context)
+            return
+
+        # Evaluate loop condition
+        try:
+            should_continue = evaluate_condition(node.condition, workflow_state)
+        except Exception as e:
+            log.error(f"{log_id} Loop condition evaluation failed: {e}")
+            should_continue = False
+
+        if not should_continue:
+            log.info(f"{log_id} Loop condition false after {iteration} iterations")
+            workflow_state.completed_nodes[node.id] = "loop_condition_false"
+            workflow_state.node_outputs[node.id] = {
+                "output": {
+                    "iterations_completed": iteration,
+                    "stopped_reason": "condition_false",
+                }
+            }
+            # Continue workflow
+            await self.execute_workflow(workflow_state, workflow_context)
+            return
+
+        # Apply delay if configured
+        if node.delay and iteration > 0:  # No delay on first iteration
+            delay_seconds = parse_duration(node.delay)
+            log.debug(f"{log_id} Applying delay of {delay_seconds}s before iteration {iteration}")
+            await asyncio.sleep(delay_seconds)
+
+        # Increment iteration count
+        workflow_state.loop_iterations[node.id] = iteration + 1
+
+        log.info(f"{log_id} Starting iteration {iteration + 1}")
+
+        # Execute inner node
+        target_node = self.nodes[node.node]
+        iter_node = target_node.model_copy()
+        # Assign unique ID for this iteration
+        iter_node.id = f"{node.id}_iter_{iteration}"
+
+        # Store iteration context
+        workflow_state.node_outputs["_loop_iteration"] = {"output": iteration}
+
+        # Generate sub-task ID
+        import uuid
+        sub_task_id = f"wf_{workflow_state.execution_id}_{iter_node.id}_{uuid.uuid4().hex[:8]}"
+
+        # Emit start event
+        start_data = WorkflowNodeExecutionStartData(
+            type="workflow_node_execution_start",
+            node_id=iter_node.id,
+            node_type="agent",
+            agent_name=getattr(iter_node, "agent_name", None),
+            iteration_index=iteration,
+            sub_task_id=sub_task_id,
+            parent_node_id=node.id,
+        )
+        await self.host.publish_workflow_event(workflow_context, start_data)
+
+        # Track in active branches for completion handling
+        workflow_state.active_branches[node.id] = [
+            {
+                "iteration": iteration,
+                "sub_task_id": sub_task_id,
+                "type": "loop",
+            }
+        ]
+
+        # Execute the inner node
+        await self.host.agent_caller.call_agent(
+            iter_node, workflow_state, workflow_context, sub_task_id=sub_task_id
+        )
 
     async def _skip_branch(
         self, node_id: str, workflow_state: WorkflowExecutionState
@@ -736,7 +1070,16 @@ class DAGExecutor:
         """
         Resolve template variable.
         Format: {{node_id.output.field_path}} or {{workflow.input.field_path}}
+
+        Supports Argo-style aliases:
+        - {{item}} -> {{_map_item}}
+        - {{workflow.parameters.x}} -> {{workflow.input.x}}
         """
+        # Apply Argo-compatible aliases
+        from .flow_control.conditional import _apply_template_aliases
+
+        template = _apply_template_aliases(template)
+
         # Extract variable path
         # Use fullmatch to ensure the template takes up the entire string
         # and handle optional whitespace inside braces: {{  value  }}
@@ -927,7 +1270,33 @@ class DAGExecutor:
 
         control_node = self.nodes[control_node_id]
 
-        if control_node.type == "map":
+        if control_node.type == "loop":
+            # Handle Loop iteration completion
+            iteration = completed_branch.get("iteration")
+            log.info(f"{log_id} Loop iteration {iteration} completed")
+
+            # Load result and store in node_outputs for condition evaluation
+            if result.artifact_name:
+                artifact_data = await self.host._load_node_output(
+                    node_id=control_node_id,
+                    artifact_name=result.artifact_name,
+                    artifact_version=result.artifact_version,
+                    workflow_context=workflow_context,
+                    sub_task_id=sub_task_id,
+                )
+                # Store last iteration result
+                workflow_state.node_outputs[f"{control_node_id}_last_result"] = {
+                    "output": artifact_data
+                }
+
+            # Clear active branches for this loop
+            del workflow_state.active_branches[control_node_id]
+
+            # Re-execute loop node to check condition for next iteration
+            await self._execute_loop_node(
+                control_node, workflow_state, workflow_context
+            )
+        elif control_node.type == "map":
             # Handle Map logic (concurrency, state update)
             map_state = workflow_state.metadata.get(f"map_state_{control_node_id}")
             if map_state:
