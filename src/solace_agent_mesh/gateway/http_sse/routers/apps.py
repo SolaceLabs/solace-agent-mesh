@@ -22,7 +22,10 @@ import mimetypes
 import re
 import secrets
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..component import WebUIBackendComponent
 
 from fastapi import (
     APIRouter,
@@ -35,8 +38,9 @@ from fastapi import (
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from ..dependencies import get_db_optional, get_workspace_base, get_app_storage_service
+from ..dependencies import get_db_optional, get_workspace_base, get_app_storage_service, get_sac_component
 from ..shared.auth_utils import get_current_user
+from ..services.app_icon_generator import AppIconGenerator, get_default_icon
 from ..shared.pagination import PaginatedResponse, PaginationParams
 from .dto.requests.app_requests import (
     CreateAppRequest,
@@ -52,6 +56,7 @@ from .dto.responses.app_responses import (
     EnvironmentVersions,
     PreviewVersionInfo,
     PromoteVersionResponse,
+    RegenerateIconResponse,
 )
 from ..repository.app_repository import AppRepository
 from ..repository.app_user_repository import AppUserRepository
@@ -71,6 +76,7 @@ async def create_app(
     user: dict = Depends(get_current_user),
     db: Optional[Session] = Depends(get_db_optional),
     workspace_base: str = Depends(get_workspace_base),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
 ):
     """
     Create new app with empty workspace directory.
@@ -79,7 +85,8 @@ async def create_app(
     1. Generates unique app_id (name-based slug + random suffix)
     2. Creates database record (status='draft')
     3. Creates empty workspace directory
-    4. Returns app_id and workspace_path
+    4. Generates AI-powered icon (emoji + gradient) or uses default
+    5. Returns app_id and workspace_path
 
     Note: Workspace initialization (template copying, git init) is handled by
     the claude-code-sam-app container when the agent first connects. The container
@@ -89,6 +96,20 @@ async def create_app(
     """
     user_id = user.get("id")
     log.info(f"User {user_id} creating app: {request.name}")
+
+    # Generate AI-powered icon (emoji + background gradient)
+    # Falls back to default if LLM is not configured or fails
+    try:
+        model_config = component.get_config("model", {})
+        icon_generator = AppIconGenerator(model_config)
+        icon = await icon_generator.generate(
+            app_name=request.name,
+            description=request.description,
+        )
+        log.info(f"Generated icon for app {request.name}: {icon.emoji}")
+    except Exception as e:
+        log.warning(f"Icon generation failed, using default: {e}")
+        icon = get_default_icon()
 
     # Generate unique app_id: slugified name + 4-char random suffix
     # This allows duplicate names while maintaining unique IDs
@@ -133,6 +154,8 @@ async def create_app(
             description=request.description,
             workspace_id=app_id,
             status="draft",
+            icon_emoji=icon.emoji,
+            icon_background=icon.background,
         )
         log.info(f"App {app_id} saved to database")
 
@@ -153,6 +176,8 @@ async def create_app(
         workspace_path=str(workspace_path),
         workspace_id=app_id,
         status="draft",
+        icon_emoji=icon.emoji,
+        icon_background=icon.background,
     )
 
 
@@ -208,6 +233,8 @@ async def list_apps(
             dev_version=app.dev_version,
             staging_version=app.staging_version,
             prod_version=app.prod_version,
+            icon_emoji=app.icon_emoji,
+            icon_background=app.icon_background,
             created_time=app.created_time,
             updated_time=app.updated_time,
             archived_time=app.archived_time,
@@ -265,6 +292,8 @@ async def get_app(
                 dev_version=app.dev_version,
                 staging_version=app.staging_version,
                 prod_version=app.prod_version,
+                icon_emoji=app.icon_emoji,
+                icon_background=app.icon_background,
                 created_time=app.created_time,
                 updated_time=app.updated_time,
                 archived_time=app.archived_time,
@@ -316,6 +345,62 @@ async def get_app(
         created_time=created_time,
         updated_time=updated_time,
         archived_time=None,
+    )
+
+
+@router.post("/apps/{app_id}/generate-icon", response_model=RegenerateIconResponse)
+async def generate_app_icon(
+    app_id: str,
+    user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+):
+    """
+    Generate a new icon (emoji + background) for an app using AI.
+
+    This endpoint returns a preview of the generated icon WITHOUT saving it.
+    The icon should be saved via the PATCH /apps/{app_id} endpoint.
+
+    This allows users to preview the generated icon before committing to it.
+
+    Falls back to default icon if AI generation fails or is not configured.
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} generating icon preview for app {app_id}")
+
+    if not db:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not available",
+        )
+
+    # Get app from database to get name/description for generation
+    app = app_repository.get_by_id(db, app_id, user_id)
+    if not app:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"App '{app_id}' not found",
+        )
+
+    # Generate new icon using AI (does NOT save to database)
+    try:
+        model_config = component.get_config("model", {})
+        icon_generator = AppIconGenerator(model_config)
+        icon = await icon_generator.generate(
+            app_name=app.name,
+            description=app.description,
+            current_emoji=app.icon_emoji,
+            current_background=app.icon_background,
+        )
+        log.info(f"Generated icon preview for app {app_id}: {icon.emoji}")
+    except Exception as e:
+        log.warning(f"Icon generation failed for {app_id}, using default: {e}")
+        icon = get_default_icon()
+
+    return RegenerateIconResponse(
+        success=True,
+        icon_emoji=icon.emoji,
+        icon_background=icon.background,
     )
 
 
@@ -498,6 +583,10 @@ async def update_app(
         update_fields["description"] = request.description
     if request.is_public is not None:
         update_fields["is_public"] = request.is_public
+    if request.icon_emoji is not None:
+        update_fields["icon_emoji"] = request.icon_emoji
+    if request.icon_background is not None:
+        update_fields["icon_background"] = request.icon_background
 
     if not update_fields:
         raise HTTPException(

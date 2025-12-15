@@ -25,6 +25,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
             id: "apps",
             label: "Apps",
             icon: Layout,
+            badge: "EXPERIMENTAL",
         },
     ];
 
@@ -65,6 +66,12 @@ export const topNavigationItems: NavigationItem[] = [
         id: "agentMesh",
         label: "Agents",
         icon: Bot,
+    },
+    {
+        id: "apps",
+        label: "Apps",
+        icon: Layout,
+        badge: "EXPERIMENTAL",
     },
     {
         id: "projects",

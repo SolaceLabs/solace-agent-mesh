@@ -24,6 +24,8 @@ class AppRepository:
         workspace_id: str,
         description: str | None = None,
         status: str = "draft",
+        icon_emoji: str | None = None,
+        icon_background: str | None = None,
     ) -> AppModel:
         """Create a new app."""
         now = now_epoch_ms()
@@ -37,6 +39,8 @@ class AppRepository:
             workspace_id=workspace_id,
             status=status,
             current_version=0,
+            icon_emoji=icon_emoji,
+            icon_background=icon_background,
             created_time=now,
             updated_time=now,
         )

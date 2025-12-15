@@ -5,6 +5,15 @@ interface AppUpdate {
     name?: string;
     description?: string;
     isPublic?: boolean;
+    iconEmoji?: string;
+    iconBackground?: string;
+}
+
+interface RegenerateIconResponse {
+    success: boolean;
+    iconEmoji: string | null;
+    iconBackground: string | null;
+    error: string | null;
 }
 
 interface UseAppsResult {
@@ -14,12 +23,15 @@ interface UseAppsResult {
     refetch: () => void;
     updateApp: (appId: string, updates: AppUpdate) => Promise<boolean>;
     setAppTags: (appId: string, tags: string[]) => Promise<boolean>;
+    generateIcon: (appId: string) => Promise<RegenerateIconResponse | null>;
+    generatingIconFor: string | null;
 }
 
 export function useApps(): UseAppsResult {
     const [apps, setApps] = useState<App[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [generatingIconFor, setGeneratingIconFor] = useState<string | null>(null);
 
     const fetchApps = useCallback(async () => {
         try {
@@ -48,6 +60,8 @@ export function useApps(): UseAppsResult {
             if (updates.name !== undefined) backendUpdates.name = updates.name;
             if (updates.description !== undefined) backendUpdates.description = updates.description;
             if (updates.isPublic !== undefined) backendUpdates.is_public = updates.isPublic;
+            if (updates.iconEmoji !== undefined) backendUpdates.icon_emoji = updates.iconEmoji;
+            if (updates.iconBackground !== undefined) backendUpdates.icon_background = updates.iconBackground;
 
             const response = await fetch(`/api/v1/apps/${appId}`, {
                 method: "PATCH",
@@ -93,6 +107,31 @@ export function useApps(): UseAppsResult {
         }
     }, [fetchApps]);
 
+    const generateIcon = useCallback(async (appId: string): Promise<RegenerateIconResponse | null> => {
+        try {
+            setGeneratingIconFor(appId);
+
+            const response = await fetch(`/api/v1/apps/${appId}/generate-icon`, {
+                method: "POST",
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to generate icon");
+            }
+
+            const data: RegenerateIconResponse = await response.json();
+
+            // Don't update local state - just return the generated icon
+            // The caller (AppSettingsDialog) will track it locally and save via updateApp
+            return data;
+        } catch (err) {
+            console.error("Failed to generate icon:", err);
+            return null;
+        } finally {
+            setGeneratingIconFor(null);
+        }
+    }, []);
+
     useEffect(() => {
         fetchApps();
     }, [fetchApps]);
@@ -104,5 +143,7 @@ export function useApps(): UseAppsResult {
         refetch: fetchApps,
         updateApp,
         setAppTags,
+        generateIcon,
+        generatingIconFor,
     };
 }

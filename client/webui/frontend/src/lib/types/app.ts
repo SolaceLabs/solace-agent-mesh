@@ -17,6 +17,8 @@ export interface App {
     devVersion: string | null;
     stagingVersion: string | null;
     prodVersion: string | null;
+    iconEmoji: string | null;
+    iconBackground: string | null;
     createdTime: number;
     updatedTime: number;
     archivedTime: number | null;
@@ -33,6 +35,8 @@ export interface CreateAppResponse {
     workspaceId: string;
     workspacePath: string;
     status: string;
+    iconEmoji: string | null;
+    iconBackground: string | null;
 }
 
 export interface DeployAppResponse {

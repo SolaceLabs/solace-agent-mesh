@@ -10,7 +10,7 @@ import type { AppSettingsUpdate } from "../apps/AppSettingsDialog";
 
 export function AppsPage() {
     const navigate = useNavigate();
-    const { apps, loading, error, refetch, updateApp, setAppTags } = useApps();
+    const { apps, loading, error, refetch, updateApp, setAppTags, generateIcon, generatingIconFor } = useApps();
     const [searchQuery, setSearchQuery] = useState("");
 
     // Filter apps based on search query (name, description, or tags)
@@ -84,6 +84,10 @@ export function AppsPage() {
         return await setAppTags(appId, tags);
     };
 
+    const handleGenerateIcon = async (appId: string) => {
+        return await generateIcon(appId);
+    };
+
     const renderAppGrid = (appList: App[], hideOwnerFeatures = false) => (
         <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
             {appList.map((app) => (
@@ -95,6 +99,8 @@ export function AppsPage() {
                     onViewEnvironment={(env) => handleViewEnvironment(app.appId, env)}
                     onSettingsSave={(updates) => handleSettingsSave(app.appId, updates)}
                     onSaveTags={(tags) => handleSaveTags(app.appId, tags)}
+                    onGenerateIcon={() => handleGenerateIcon(app.appId)}
+                    generatingIcon={generatingIconFor === app.appId}
                     hideOwnerFeatures={hideOwnerFeatures}
                 />
             ))}

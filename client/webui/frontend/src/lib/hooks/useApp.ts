@@ -7,6 +7,13 @@ interface AppUpdate {
     isPublic?: boolean;
 }
 
+interface RegenerateIconResponse {
+    success: boolean;
+    iconEmoji: string | null;
+    iconBackground: string | null;
+    error: string | null;
+}
+
 interface UseAppResult {
     app: App | null;
     loading: boolean;
@@ -26,6 +33,9 @@ interface UseAppResult {
     updating: boolean;
     // Tags
     setAppTags: (tags: string[]) => Promise<boolean>;
+    // Icon
+    regenerateIcon: () => Promise<RegenerateIconResponse | null>;
+    regeneratingIcon: boolean;
 }
 
 export function useApp(appId: string | undefined): UseAppResult {
@@ -39,6 +49,7 @@ export function useApp(appId: string | undefined): UseAppResult {
     const [loadingVersions, setLoadingVersions] = useState(false);
     const [promoting, setPromoting] = useState(false);
     const [updating, setUpdating] = useState(false);
+    const [regeneratingIcon, setRegeneratingIcon] = useState(false);
 
     const fetchApp = useCallback(async () => {
         if (!appId) {
@@ -232,6 +243,34 @@ export function useApp(appId: string | undefined): UseAppResult {
         }
     }, [appId, fetchApp]);
 
+    const regenerateIcon = useCallback(async (): Promise<RegenerateIconResponse | null> => {
+        if (!appId) return null;
+
+        try {
+            setRegeneratingIcon(true);
+
+            const response = await fetch(`/api/v1/apps/${appId}/regenerate-icon`, {
+                method: "POST",
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to regenerate icon");
+            }
+
+            const data: RegenerateIconResponse = await response.json();
+
+            // Refetch app to get updated icon
+            await fetchApp();
+
+            return data;
+        } catch (err) {
+            console.error("Failed to regenerate icon:", err);
+            return null;
+        } finally {
+            setRegeneratingIcon(false);
+        }
+    }, [appId, fetchApp]);
+
     useEffect(() => {
         fetchApp();
     }, [fetchApp]);
@@ -252,5 +291,7 @@ export function useApp(appId: string | undefined): UseAppResult {
         updateApp,
         updating,
         setAppTags,
+        regenerateIcon,
+        regeneratingIcon,
     };
 }

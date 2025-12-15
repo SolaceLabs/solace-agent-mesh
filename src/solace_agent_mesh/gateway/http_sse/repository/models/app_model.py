@@ -31,6 +31,10 @@ class AppModel(Base):
     staging_version = Column(String(50), nullable=True)  # Version deployed to staging
     prod_version = Column(String(50), nullable=True)  # Version deployed to prod
 
+    # App icon (AI-generated or default)
+    icon_emoji = Column(String(10), nullable=True)  # Emoji for the app icon
+    icon_background = Column(String(50), nullable=True)  # Background color/gradient
+
     created_time = Column(BigInteger, nullable=False, default=now_epoch_ms)
     updated_time = Column(
         BigInteger, nullable=False, default=now_epoch_ms, onupdate=now_epoch_ms
@@ -69,6 +73,8 @@ class CreateAppModel(BaseModel):
     dev_version: str | None = None
     staging_version: str | None = None
     prod_version: str | None = None
+    icon_emoji: str | None = None
+    icon_background: str | None = None
     created_time: int
     updated_time: int
 
@@ -83,3 +89,5 @@ class UpdateAppModel(BaseModel):
     dev_version: str | None = None
     staging_version: str | None = None
     prod_version: str | None = None
+    icon_emoji: str | None = None
+    icon_background: str | None = None

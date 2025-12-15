@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileCode, MoreHorizontal, Edit, Rocket, Play, FlaskConical, Server, Settings } from "lucide-react";
+import { MoreHorizontal, Edit, Rocket, Play, FlaskConical, Server, Settings, AppWindow } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger, Menu } from "@/lib/components/ui";
@@ -18,11 +18,13 @@ interface AppCardProps {
     onViewEnvironment: (env: Environment) => void;
     onSettingsSave: (updates: AppSettingsUpdate) => Promise<boolean>;
     onSaveTags: (tags: string[]) => Promise<boolean>;
+    onGenerateIcon?: () => Promise<{ success: boolean; iconEmoji: string | null; iconBackground: string | null } | null>;
+    generatingIcon?: boolean;
     /** Hide status badge and owner-only actions (for public apps section) */
     hideOwnerFeatures?: boolean;
 }
 
-export function AppCard({ app, onClick, onEdit, onViewEnvironment, onSettingsSave, onSaveTags, hideOwnerFeatures = false }: AppCardProps) {
+export function AppCard({ app, onClick, onEdit, onViewEnvironment, onSettingsSave, onSaveTags, onGenerateIcon, generatingIcon = false, hideOwnerFeatures = false }: AppCardProps) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [isDeployDialogOpen, setIsDeployDialogOpen] = useState(false);
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
@@ -125,15 +127,33 @@ export function AppCard({ app, onClick, onEdit, onViewEnvironment, onSettingsSav
             : []),
     ];
 
+    // Default icon values if not set
+    const iconEmoji = app.iconEmoji || "🚀";
+    const iconBackground = app.iconBackground || "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+
     return (
         <>
             <GridCard onClick={onClick}>
                 <CardHeader>
                     <div className="flex items-start justify-between gap-2">
-                        <CardTitle className="flex min-w-0 flex-1 items-center gap-2" title={app.name}>
-                            <FileCode className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
-                            <div className="text-foreground max-w-[250px] min-w-0 truncate text-lg font-semibold">{app.name}</div>
-                        </CardTitle>
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                            {/* App Icon with emoji and gradient background */}
+                            <div
+                                className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl text-2xl shadow-sm"
+                                style={{ background: iconBackground }}
+                                title={app.name}
+                            >
+                                {iconEmoji}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <CardTitle className="flex items-center gap-2" title={app.name}>
+                                    <div className="text-foreground max-w-[200px] min-w-0 truncate text-lg font-semibold">{app.name}</div>
+                                </CardTitle>
+                                <div className="text-muted-foreground text-xs truncate" title={app.createdByUserId}>
+                                    By {app.createdByUserId}
+                                </div>
+                            </div>
+                        </div>
                         <div className="flex shrink-0 items-center gap-1">
                             <AppInfoPopover app={app} />
                             <Popover open={menuOpen} onOpenChange={setMenuOpen}>
@@ -147,9 +167,6 @@ export function AppCard({ app, onClick, onEdit, onViewEnvironment, onSettingsSav
                                 </PopoverContent>
                             </Popover>
                         </div>
-                    </div>
-                    <div className="text-muted-foreground text-xs truncate" title={app.createdByUserId}>
-                        By {app.createdByUserId}
                     </div>
                 </CardHeader>
 
@@ -211,6 +228,8 @@ export function AppCard({ app, onClick, onEdit, onViewEnvironment, onSettingsSav
                 app={app}
                 onSave={onSettingsSave}
                 onSaveTags={onSaveTags}
+                onGenerateIcon={onGenerateIcon}
+                generatingIcon={generatingIcon}
             />
         </>
     );

@@ -19,6 +19,8 @@ class UpdateAppRequest(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255, description="App name")
     description: Optional[str] = Field(None, description="App description")
     is_public: Optional[bool] = Field(None, description="Whether the app is publicly visible")
+    icon_emoji: Optional[str] = Field(None, description="Emoji for the app icon")
+    icon_background: Optional[str] = Field(None, description="Background color/gradient for the icon")
 
     model_config = {"populate_by_name": True}
 

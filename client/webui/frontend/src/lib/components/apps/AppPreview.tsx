@@ -170,7 +170,7 @@ export function AppPreview({ appId }: AppPreviewProps) {
                         click the Refresh button above to see your app.
                     </p>
                     <div className="text-sm text-muted-foreground">
-                        Watch the chat on the left for build progress →
+                        ← Watch the chat on the left for build progress
                     </div>
                 </div>
             </div>

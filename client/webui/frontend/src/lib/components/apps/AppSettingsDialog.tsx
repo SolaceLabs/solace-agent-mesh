@@ -1,5 +1,5 @@
 import { useState, useEffect, KeyboardEvent } from "react";
-import { Loader2, Globe, Lock, X, Tag } from "lucide-react";
+import { Loader2, Globe, Lock, X, RefreshCw } from "lucide-react";
 
 import { Button } from "../ui/button";
 import {
@@ -17,26 +17,38 @@ import { Switch } from "../ui/switch";
 import { Badge } from "../ui/badge";
 import type { App } from "@/lib/types";
 
+interface GenerateIconResult {
+    success: boolean;
+    iconEmoji: string | null;
+    iconBackground: string | null;
+}
+
 interface AppSettingsDialogProps {
     isOpen: boolean;
     onClose: () => void;
     app: App;
     onSave: (updates: AppSettingsUpdate) => Promise<boolean>;
     onSaveTags?: (tags: string[]) => Promise<boolean>;
+    onGenerateIcon?: () => Promise<GenerateIconResult | null>;
+    generatingIcon?: boolean;
 }
 
 export interface AppSettingsUpdate {
     name?: string;
     description?: string;
     isPublic?: boolean;
+    iconEmoji?: string;
+    iconBackground?: string;
 }
 
-export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags }: AppSettingsDialogProps) {
+export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags, onGenerateIcon, generatingIcon = false }: AppSettingsDialogProps) {
     const [name, setName] = useState(app.name);
     const [description, setDescription] = useState(app.description || "");
     const [isPublic, setIsPublic] = useState(app.isPublic);
     const [tags, setTags] = useState<string[]>(app.tags || []);
     const [tagInput, setTagInput] = useState("");
+    const [iconEmoji, setIconEmoji] = useState(app.iconEmoji || "🚀");
+    const [iconBackground, setIconBackground] = useState(app.iconBackground || "linear-gradient(135deg, #667eea 0%, #764ba2 100%)");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +60,8 @@ export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags }: 
             setIsPublic(app.isPublic);
             setTags(app.tags || []);
             setTagInput("");
+            setIconEmoji(app.iconEmoji || "🚀");
+            setIconBackground(app.iconBackground || "linear-gradient(135deg, #667eea 0%, #764ba2 100%)");
             setError(null);
         }
     }, [isOpen, app]);
@@ -79,6 +93,22 @@ export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags }: 
         return tags.some((t) => !originalTags.includes(t));
     };
 
+    const iconChanged = () => {
+        const originalEmoji = app.iconEmoji || "🚀";
+        const originalBackground = app.iconBackground || "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+        return iconEmoji !== originalEmoji || iconBackground !== originalBackground;
+    };
+
+    const handleGenerateIcon = async () => {
+        if (!onGenerateIcon) return;
+
+        const result = await onGenerateIcon();
+        if (result?.success && result.iconEmoji && result.iconBackground) {
+            setIconEmoji(result.iconEmoji);
+            setIconBackground(result.iconBackground);
+        }
+    };
+
     const handleSave = async () => {
         if (!name.trim()) {
             setError("App name is required");
@@ -100,6 +130,10 @@ export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags }: 
             }
             if (isPublic !== app.isPublic) {
                 updates.isPublic = isPublic;
+            }
+            if (iconChanged()) {
+                updates.iconEmoji = iconEmoji;
+                updates.iconBackground = iconBackground;
             }
 
             let settingsSuccess = true;
@@ -131,6 +165,7 @@ export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags }: 
         name !== app.name ||
         description !== (app.description || "") ||
         isPublic !== app.isPublic ||
+        iconChanged() ||
         tagsChanged();
 
     return (
@@ -199,6 +234,57 @@ export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags }: 
                             <p className="text-xs text-muted-foreground">
                                 Press Enter or comma to add a tag
                             </p>
+                        </div>
+                    </div>
+
+                    {/* Icon Section */}
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 bg-border" />
+                            <span className="text-sm text-muted-foreground">Icon</span>
+                            <div className="h-px flex-1 bg-border" />
+                        </div>
+
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                            <div className="flex items-center gap-3">
+                                <div
+                                    className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl text-2xl shadow-sm"
+                                    style={{ background: iconBackground }}
+                                >
+                                    {iconEmoji}
+                                </div>
+                                <div>
+                                    <div className="font-medium">App Icon</div>
+                                    <div className="text-sm text-muted-foreground">
+                                        {iconChanged() ? "New icon (save to apply)" : "AI-generated icon for your app"}
+                                    </div>
+                                </div>
+                            </div>
+                            {onGenerateIcon && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleGenerateIcon();
+                                    }}
+                                    disabled={generatingIcon}
+                                >
+                                    {generatingIcon ? (
+                                        <>
+                                            <Loader2 className="size-4 mr-2 animate-spin" />
+                                            Generating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <RefreshCw className="size-4 mr-2" />
+                                            Regenerate
+                                        </>
+                                    )}
+                                </Button>
+                            )}
                         </div>
                     </div>
 
