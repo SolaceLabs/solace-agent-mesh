@@ -42,7 +42,12 @@ from .routers.users import router as user_router
 
 
 if TYPE_CHECKING:
-    from gateway.http_sse.component import WebUIBackendComponent
+    from .component import WebUIBackendComponent
+else:
+    try:
+        from .component import WebUIBackendComponent
+    except ImportError:
+        WebUIBackendComponent = None
 
 log = logging.getLogger(__name__)
 
@@ -224,7 +229,7 @@ def _setup_middleware(component: "WebUIBackendComponent") -> None:
     auth_middleware_class = create_oauth_middleware(component)
     app.add_middleware(auth_middleware_class, component=component)
 
-    use_auth = api_config.get("frontend_use_authorization", False) if api_config else False
+    use_auth = component.get_config("frontend_use_authorization", False)
     if use_auth:
         log.info("OAuth middleware added (real token validation enabled)")
     else:

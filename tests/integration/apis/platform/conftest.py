@@ -127,6 +127,48 @@ def secondary_platform_api_client(platform_api_client_factory):
 
 
 @pytest.fixture(autouse=True)
+def clean_database_between_tests():
+    """Override parent apis/conftest's clean_database_between_tests."""
+    yield
+
+
+@pytest.fixture(autouse=True)
+def clean_db_fixture():
+    """Override grandparent integration/conftest's clean_db_fixture."""
+    yield
+
+
+@pytest.fixture(autouse=True)
+def clear_llm_server_configs():
+    """Override grandparent integration/conftest's clear_llm_server_configs."""
+    yield
+
+
+@pytest.fixture(autouse=True)
+def clear_static_file_server_state():
+    """Override grandparent integration/conftest's clear_static_file_server_state."""
+    yield
+
+
+@pytest.fixture(autouse=True, scope="function")
+async def clear_test_artifact_service_between_tests():
+    """Override grandparent integration/conftest's clear_test_artifact_service_between_tests."""
+    yield
+
+
+@pytest.fixture(autouse=True, scope="function")
+def clear_test_gateway_state_between_tests():
+    """Override grandparent integration/conftest's clear_test_gateway_state_between_tests."""
+    yield
+
+
+@pytest.fixture(autouse=True, scope="function")
+def clear_all_agent_states_between_tests():
+    """Override grandparent integration/conftest's clear_all_agent_states_between_tests."""
+    yield
+
+
+@pytest.fixture(autouse=True)
 def clean_platform_database_between_tests(platform_db_provider):
     """Cleans Platform Service database state between tests."""
     _clean_platform_database(platform_db_provider.get_sync_gateway_engine())
@@ -170,6 +212,7 @@ __all__ = [
     "platform_api_client",
     "platform_api_client_factory",
     "secondary_platform_api_client",
+    "clean_database_between_tests",
     "clean_platform_database_between_tests",
     "platform_db_provider_type",
     "platform_db_provider",

@@ -29,7 +29,12 @@ from ....common.middleware.registry import MiddlewareRegistry
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ....gateway.http_sse.component import WebUIBackendComponent
+    from ..component import WebUIBackendComponent
+else:
+    try:
+        from ..component import WebUIBackendComponent
+    except ImportError:
+        WebUIBackendComponent = None
 
 log = logging.getLogger(__name__)
 trace_logger = logging.getLogger("sam_trace")

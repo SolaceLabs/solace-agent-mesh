@@ -31,6 +31,11 @@ from ..repository.entities.project import Project
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
+else:
+    try:
+        from ..component import WebUIBackendComponent
+    except ImportError:
+        WebUIBackendComponent = None
 
 
 class ProjectService:

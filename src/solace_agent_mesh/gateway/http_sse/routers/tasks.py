@@ -48,7 +48,12 @@ from solace_agent_mesh.shared.utils.types import UserId
 from ..utils.stim_utils import create_stim_from_task_data
 
 if TYPE_CHECKING:
-    from ....gateway.http_sse.component import WebUIBackendComponent
+    from ..component import WebUIBackendComponent
+else:
+    try:
+        from ..component import WebUIBackendComponent
+    except ImportError:
+        WebUIBackendComponent = None
 
 router = APIRouter()
 

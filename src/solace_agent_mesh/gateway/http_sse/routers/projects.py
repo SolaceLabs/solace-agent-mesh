@@ -26,6 +26,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
+else:
+    try:
+        from ..component import WebUIBackendComponent
+    except ImportError:
+        WebUIBackendComponent = None
 
 from .dto.requests.project_requests import (
     CreateProjectRequest,
