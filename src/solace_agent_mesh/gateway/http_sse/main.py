@@ -224,6 +224,7 @@ def _setup_middleware(component: "WebUIBackendComponent") -> None:
     auth_middleware_class = create_oauth_middleware(component)
     app.add_middleware(auth_middleware_class, component=component)
 
+    api_config = dependencies.get_api_config()
     use_auth = api_config.get("frontend_use_authorization", False) if api_config else False
     if use_auth:
         log.info("OAuth middleware added (real token validation enabled)")
