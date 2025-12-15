@@ -13,7 +13,12 @@ export function useWebStorage<T>(key: string, initialValue: T, storage: Storage)
         }
         try {
             const item = storage.getItem(key);
-            return item ? JSON.parse(item) : initialValue;
+            if (item) {
+                return JSON.parse(item);
+            } else {
+                storage.setItem(key, JSON.stringify(initialValue));
+                return initialValue;
+            }
         } catch (error) {
             console.warn(`Error reading storage key "${key}":`, error);
             return initialValue;
