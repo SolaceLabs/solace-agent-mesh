@@ -254,7 +254,60 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 self.adapter.handle_agent_deregistered(agent_name), self.get_async_loop()
             )
 
-    # --- GatewayContext Implementation ---
+    async def get_user_identity(
+            self, external_input: Any, endpoint_context: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Extracts the user identity from the external input via the adapter.
+
+        Returns:
+            A dictionary representing the user identity, or None if not available.
+        """
+        log_id_prefix = f"{self.log_identifier}[GetUserIdentity]"
+        user_identity = None
+        # 1. Authentication & Enrichment
+        # Try enterprise authentication first, fallback to adapter-based auth
+        try:
+            from solace_agent_mesh_enterprise.gateway.auth import authenticate_request
+
+            auth_claims = await authenticate_request(
+                adapter=self.adapter,
+                external_input=external_input,
+                endpoint_context=endpoint_context,
+            )
+            log.debug("%s Using enterprise authentication", log_id_prefix)
+        except ImportError:
+            # Enterprise package not available, use adapter-based auth
+            log.debug("%s Enterprise package not available, using adapter auth", log_id_prefix)
+            auth_claims = await self.adapter.extract_auth_claims(
+                external_input, endpoint_context
+            )
+
+        # The final user_identity is a dictionary, not the Pydantic model.
+        # It's built from claims and potentially enriched by an identity service.
+        if auth_claims:
+            if self.identity_service:
+                # Pass the rich claims object to the identity service
+                enriched_profile = await self.identity_service.get_user_profile(
+                    auth_claims
+                )
+                if enriched_profile:
+                    # Merge claims and profile, with profile taking precedence
+                    user_identity = {
+                        **auth_claims.model_dump(),
+                        **enriched_profile,
+                    }
+                else:
+                    user_identity = auth_claims.model_dump()
+            else:
+                # No identity service, just use the claims from the adapter
+                user_identity = auth_claims.model_dump()
+        else:
+            # Fallback to default identity if no claims are extracted
+            default_identity = self.get_config("default_user_identity")
+            if default_identity:
+                user_identity = {"id": default_identity, "name": default_identity}
+        return user_identity
 
     async def handle_external_input(
         self, external_input: Any, endpoint_context: Optional[Dict[str, Any]] = None
@@ -266,49 +319,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         log_id_prefix = f"{self.log_identifier}[HandleInput]"
         user_identity = None
         try:
-            # 1. Authentication & Enrichment
-            # Try enterprise authentication first, fallback to adapter-based auth
-            try:
-                from solace_agent_mesh_enterprise.gateway.auth import authenticate_request
-
-                auth_claims = await authenticate_request(
-                    adapter=self.adapter,
-                    external_input=external_input,
-                    endpoint_context=endpoint_context,
-                )
-                log.debug("%s Using enterprise authentication", log_id_prefix)
-            except ImportError:
-                # Enterprise package not available, use adapter-based auth
-                log.debug("%s Enterprise package not available, using adapter auth", log_id_prefix)
-                auth_claims = await self.adapter.extract_auth_claims(
-                    external_input, endpoint_context
-                )
-
-            # The final user_identity is a dictionary, not the Pydantic model.
-            # It's built from claims and potentially enriched by an identity service.
-            if auth_claims:
-                if self.identity_service:
-                    # Pass the rich claims object to the identity service
-                    enriched_profile = await self.identity_service.get_user_profile(
-                        auth_claims
-                    )
-                    if enriched_profile:
-                        # Merge claims and profile, with profile taking precedence
-                        user_identity = {
-                            **auth_claims.model_dump(),
-                            **enriched_profile,
-                        }
-                    else:
-                        user_identity = auth_claims.model_dump()
-                else:
-                    # No identity service, just use the claims from the adapter
-                    user_identity = auth_claims.model_dump()
-            else:
-                # Fallback to default identity if no claims are extracted
-                default_identity = self.get_config("default_user_identity")
-                if default_identity:
-                    user_identity = {"id": default_identity, "name": default_identity}
-
+            user_identity = await self.get_user_identity(external_input, endpoint_context)
             if not user_identity or not user_identity.get("id"):
                 raise PermissionError(
                     "Authentication failed: No identity could be determined."
