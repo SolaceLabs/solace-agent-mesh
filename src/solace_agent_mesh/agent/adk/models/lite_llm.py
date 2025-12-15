@@ -381,20 +381,18 @@ def _function_declaration_to_tool_param(
 
     assert function_declaration.name
 
-    properties = {}
-    if function_declaration.parameters and function_declaration.parameters.properties:
-        for key, value in function_declaration.parameters.properties.items():
-            properties[key] = _schema_to_dict(value)
+    # Convert the entire parameters schema to ensure all fields (type, properties, required, etc.)
+    # are properly converted, including nested Type enums
+    parameters = {}
+    if function_declaration.parameters:
+        parameters = _schema_to_dict(function_declaration.parameters)
 
     return {
         "type": "function",
         "function": {
             "name": function_declaration.name,
             "description": function_declaration.description or "",
-            "parameters": {
-                "type": "object",
-                "properties": properties,
-            },
+            "parameters": parameters,
         },
     }
 
