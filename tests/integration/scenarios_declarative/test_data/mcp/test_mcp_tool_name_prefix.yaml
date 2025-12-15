@@ -1,0 +1,82 @@
+test_case_id: "mcp_tool_name_prefix_001"
+description: |
+  Tests that MCP tools can be configured with a tool_name_prefix.
+  This feature allows prefixing all tools from an MCP server to avoid naming conflicts
+  when multiple MCP toolsets are used.
+
+  This test verifies:
+  - Tools are registered with the prefix (e.g., "memory_get_data_http" instead of "get_data_http")
+  - The prefixed tool can be called by the LLM
+  - Tool responses are processed correctly with the prefixed name
+  - The prefix prevents naming conflicts when the same server is connected multiple times
+tags: ["all", "agent", "mcp", "tool_prefix"]
+skip_intermediate_events: true
+
+test_runner_config_overrides:
+  agent_config:
+    mcp_tool_response_save_threshold_bytes: 10 # Force saving for small responses
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "mcp_prefix_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Use the memory prefixed tool to get test data."
+  external_context:
+    a2a_session_id: "session_mcp_prefix_001"
+
+llm_interactions:
+  # Step 1: LLM sees the prefixed tool and decides to call it
+  - step_id: "llm_calls_prefixed_tool"
+    expected_request:
+      # Verify the tool is registered with the prefix
+      tools_present: ["memory_get_data_http"]
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_prefixed_mcp_tool_123"
+                type: "function"
+                function:
+                  name: "memory_get_data_http"
+                  arguments: '{"response_to_return": {"content": [{"type": "text", "text": "Data from prefixed MCP tool."}]}}'
+
+  # Step 2: LLM receives the tool response and formulates final answer
+  - step_id: "llm_processes_prefixed_tool_response"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "memory_get_data_http"
+          tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "processed_and_saved"
+            message_to_llm_matches_regex: "The full response has been saved as artifact 'memory_get_data_http_text_0_.*\\.txt' \\(version 0\\)\\."
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I retrieved the data using the memory-prefixed tool and saved it as an artifact."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_mcp_prefix_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I retrieved the data using the memory-prefixed tool and saved it as an artifact."
+    # Verify the artifact was created with the prefixed tool name
+    assert_artifact_state:
+      - filename_matches_regex: "memory_get_data_http_text_0_.*\\.txt$"
+        version: 0
+        expected_metadata_contains:
+          source_tool_name: "memory_get_data_http"
+          content_type: "text"
+          detected_format: "plain"
+        expected_content_text: "Data from prefixed MCP tool."
