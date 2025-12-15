@@ -328,17 +328,27 @@ def _schema_to_dict(schema: types.Schema) -> dict:
     """
 
     schema_dict = schema.model_dump(exclude_none=True)
+
+    # Convert top-level type from enum to lowercase string
     if "type" in schema_dict:
-        schema_dict["type"] = schema_dict["type"].lower()
+        if isinstance(schema_dict["type"], types.Type):
+            schema_dict["type"] = schema_dict["type"].value.lower()
+        else:
+            schema_dict["type"] = str(schema_dict["type"]).lower()
+
+    # Recursively handle items (for array types)
     if "items" in schema_dict:
-        if isinstance(schema_dict["items"], dict):
+        # Check if we have the original Schema object for items
+        if isinstance(schema.items, types.Schema):
+            # Recursively convert the Schema object - this ensures nested Type enums are converted
+            schema_dict["items"] = _schema_to_dict(schema.items)
+        elif isinstance(schema_dict["items"], dict):
+            # If items is already a dict, validate and recurse
             schema_dict["items"] = _schema_to_dict(
                 types.Schema.model_validate(schema_dict["items"])
             )
-        elif isinstance(schema_dict["items"]["type"], types.Type):
-            schema_dict["items"]["type"] = TYPE_LABELS[
-                schema_dict["items"]["type"].value
-            ]
+
+    # Recursively handle properties (for object types)
     if "properties" in schema_dict:
         properties = {}
         for key, value in schema_dict["properties"].items():
