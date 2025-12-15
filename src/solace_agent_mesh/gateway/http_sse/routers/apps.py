@@ -4,15 +4,22 @@ FastAPI router for managing SAM apps - React applications built via App Agent.
 This router handles:
 - App CRUD operations (create, list, get, update, archive)
 - Build validation and deployment
-- Static file serving from built dist/ folder
+- Static file serving via AppStorageService
 
 Note: Workspace initialization is now handled by the claude-code-sam-app container
 itself when the agent first connects to the workspace. The gateway only creates
 the empty workspace directory.
+
+All file serving (preview and deployed) goes through AppStorageService, which
+abstracts the storage backend (FilesystemAppStorageService for local dev,
+S3AppStorageService for K8S production). This ensures identical code paths
+in all environments.
 """
 
 import json
 import logging
+import mimetypes
+import re
 import secrets
 from pathlib import Path
 from typing import Optional
@@ -28,7 +35,7 @@ from fastapi import (
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from ..dependencies import get_db_optional, get_workspace_base
+from ..dependencies import get_db_optional, get_workspace_base, get_app_storage_service
 from ..shared.auth_utils import get_current_user
 from ..shared.pagination import PaginatedResponse, PaginationParams
 from .dto.requests.app_requests import (
@@ -39,10 +46,17 @@ from .dto.requests.app_requests import (
 from .dto.responses.app_responses import (
     AppResponse,
     AppVersionResponse,
+    AppVersionsResponse,
     CreateAppResponse,
     DeployAppResponse,
+    EnvironmentVersions,
+    PreviewVersionInfo,
+    PromoteVersionResponse,
 )
 from ..repository.app_repository import AppRepository
+from ..repository.app_user_repository import AppUserRepository
+from ..repository.app_tag_repository import AppTagRepository
+from ....services.app_storage import AppStorageService
 
 log = logging.getLogger(__name__)
 
@@ -111,7 +125,7 @@ async def create_app(
 
     # Insert into database
     if db:
-        app_repository.create(
+        app = app_repository.create(
             db,
             app_id=app_id,
             user_id=user_id,
@@ -121,6 +135,16 @@ async def create_app(
             status="draft",
         )
         log.info(f"App {app_id} saved to database")
+
+        # Add creator as owner in app_users table
+        app_user_repository = AppUserRepository(db)
+        app_user_repository.add_user_to_app(
+            app_id=app.id,  # Use the internal ID for FK relationship
+            user_id=user_id,
+            role="owner",
+            added_by_user_id=user_id,
+        )
+        log.info(f"Added user {user_id} as owner of app {app_id}")
 
     log.info(f"App {app_id} created successfully at {workspace_path}")
 
@@ -164,6 +188,9 @@ async def list_apps(
     apps = app_repository.list_by_user(db, user_id, pagination_params)
     total_count = app_repository.count_by_user(db, user_id)
 
+    # Get tags for all apps
+    tag_repository = AppTagRepository(db)
+
     # Convert to response models
     app_responses = [
         AppResponse(
@@ -173,11 +200,18 @@ async def list_apps(
             name=app.name,
             description=app.description,
             workspace_id=app.workspace_id,
+            is_public=app.is_public,
+            is_owner=app.user_id == user_id,  # Compare app owner with current user
+            created_by_user_id=app.user_id,  # Creator is stored in user_id
             status=app.status,
             current_version=app.current_version,
+            dev_version=app.dev_version,
+            staging_version=app.staging_version,
+            prod_version=app.prod_version,
             created_time=app.created_time,
             updated_time=app.updated_time,
             archived_time=app.archived_time,
+            tags=tag_repository.get_tags_for_app(app.id),
         )
         for app in apps
     ]
@@ -215,6 +249,7 @@ async def get_app(
     if db:
         app = app_repository.get_by_id(db, app_id, user_id)
         if app:
+            tag_repository = AppTagRepository(db)
             return AppResponse(
                 id=app.id,
                 app_id=app.app_id,
@@ -222,11 +257,18 @@ async def get_app(
                 name=app.name,
                 description=app.description,
                 workspace_id=app.workspace_id,
+                is_public=app.is_public,
+                is_owner=app.user_id == user_id,  # Compare app owner with current user
+                created_by_user_id=app.user_id,  # Creator is stored in user_id
                 status=app.status,
                 current_version=app.current_version,
+                dev_version=app.dev_version,
+                staging_version=app.staging_version,
+                prod_version=app.prod_version,
                 created_time=app.created_time,
                 updated_time=app.updated_time,
                 archived_time=app.archived_time,
+                tags=tag_repository.get_tags_for_app(app.id),
             )
 
     # Fallback to filesystem (for backwards compatibility)
@@ -263,12 +305,172 @@ async def get_app(
         name=package_json.get("description", app_id).replace("SAM App: ", ""),
         description=package_json.get("description"),
         workspace_id=app_id,
+        is_public=False,  # Default to private for filesystem-based apps
+        is_owner=True,  # Filesystem apps are always owned by current user
+        created_by_user_id=user_id,  # Current user is creator for filesystem apps
         status="draft",  # Always draft until database tracks deployment
         current_version=0,
+        dev_version=None,
+        staging_version=None,
+        prod_version=None,
         created_time=created_time,
         updated_time=updated_time,
         archived_time=None,
     )
+
+
+@router.get("/apps/{app_id}/versions", response_model=AppVersionsResponse)
+async def list_app_versions(
+    app_id: str,
+    user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
+    workspace_base: str = Depends(get_workspace_base),
+    app_storage: AppStorageService = Depends(get_app_storage_service),
+):
+    """
+    List all available versions for an app.
+
+    Returns:
+    - versions: List of deployed version strings from storage (newest first)
+    - preview: Preview version info (from app storage VERSION file, workspace fallback)
+    - environments: Current deployment state per environment from database
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} listing versions for app {app_id}")
+
+    # Get deployed versions from storage
+    versions = await app_storage.list_versions(user_id, app_id)
+
+    # Get preview version - try app storage first (works without workspace),
+    # then fall back to workspace VERSION file
+    preview_version = None
+    preview_available = False
+
+    # Try to get VERSION from app storage first
+    version_data = await app_storage.get_preview_version(user_id, app_id)
+    if version_data:
+        preview_version = version_data.get("version")
+        # Check if preview dist/ exists in app storage
+        preview_available = await app_storage.app_exists(user_id, app_id)
+    else:
+        # Fall back to workspace VERSION file
+        workspace_base_path = Path(workspace_base)
+        workspace_path = workspace_base_path / user_id / "apps" / app_id
+        version_file = workspace_path / "VERSION"
+
+        if version_file.exists():
+            try:
+                with open(version_file) as f:
+                    version_data = json.load(f)
+                    preview_version = version_data.get("version")
+                    # Check if dist/ exists in workspace for preview
+                    dist_path = workspace_path / "dist"
+                    preview_available = dist_path.exists() and dist_path.is_dir()
+            except Exception as e:
+                log.warning(f"Failed to read VERSION file for {app_id}: {e}")
+
+    # Get environment assignments from database
+    dev_version = None
+    staging_version = None
+    prod_version = None
+
+    if db:
+        app = app_repository.get_by_id(db, app_id, user_id)
+        if app:
+            dev_version = app.dev_version
+            staging_version = app.staging_version
+            prod_version = app.prod_version
+
+    return AppVersionsResponse(
+        versions=versions,
+        preview=PreviewVersionInfo(
+            version=preview_version,
+            available=preview_available,
+        ),
+        environments=EnvironmentVersions(
+            dev=dev_version,
+            staging=staging_version,
+            prod=prod_version,
+        ),
+    )
+
+
+@router.post("/apps/{app_id}/promote", response_model=PromoteVersionResponse)
+async def promote_version(
+    app_id: str,
+    version: str = Query(..., description="Version to promote"),
+    environment: str = Query(..., regex="^(dev|staging|prod)$", description="Target environment"),
+    user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
+    app_storage: AppStorageService = Depends(get_app_storage_service),
+):
+    """
+    Promote an already-deployed version to an environment.
+
+    Unlike deploy (which builds from workspace), this just updates
+    the environment pointer to an existing version in storage.
+
+    Use this to:
+    - Promote staging version to prod
+    - Rollback prod to a previous version
+    - Test a specific version in dev environment
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} promoting version {version} to {environment} for app {app_id}")
+
+    # Verify the version exists in storage
+    if not await app_storage.version_exists(user_id, app_id, version):
+        log.error(f"Version {version} not found in storage for app {app_id}")
+        return PromoteVersionResponse(
+            success=False,
+            version=version,
+            environment=environment,
+            error=f"Version {version} not found in storage",
+        )
+
+    # Update database with the new environment assignment
+    if not db:
+        return PromoteVersionResponse(
+            success=False,
+            version=version,
+            environment=environment,
+            error="Database not available for version tracking",
+        )
+
+    try:
+        # Build update kwargs based on environment
+        update_kwargs = {
+            f"{environment}_version": version,
+        }
+
+        # Only set status to "deployed" when promoting to prod
+        # This ensures the app card click goes to a valid production version
+        app = app_repository.get_by_id(db, app_id, user_id)
+        if app and app.status == "draft" and environment == "prod":
+            update_kwargs["status"] = "deployed"
+
+        app_repository.update(
+            db,
+            app_id,
+            user_id,
+            **update_kwargs,
+        )
+        log.info(f"Promoted version {version} to {environment} for app {app_id}")
+
+        return PromoteVersionResponse(
+            success=True,
+            version=version,
+            environment=environment,
+            error=None,
+        )
+    except Exception as e:
+        log.error(f"Failed to promote version for app {app_id}: {e}")
+        return PromoteVersionResponse(
+            success=False,
+            version=version,
+            environment=environment,
+            error=str(e),
+        )
 
 
 @router.patch("/apps/{app_id}", response_model=AppResponse)
@@ -278,43 +480,167 @@ async def update_app(
     user: dict = Depends(get_current_user),
     db: Optional[Session] = Depends(get_db_optional),
 ):
-    """Update app metadata (name, description)."""
+    """Update app metadata (name, description, visibility)."""
     user_id = user.get("id")
     log.info(f"User {user_id} updating app {app_id}")
 
-    # TODO: Implement database update when models are ready
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="App update not yet implemented - database models needed",
+    if not db:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not available",
+        )
+
+    # Build update dict from provided fields
+    update_fields = {}
+    if request.name is not None:
+        update_fields["name"] = request.name
+    if request.description is not None:
+        update_fields["description"] = request.description
+    if request.is_public is not None:
+        update_fields["is_public"] = request.is_public
+
+    if not update_fields:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No fields to update",
+        )
+
+    app = app_repository.update(db, app_id, user_id, **update_fields)
+
+    if not app:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"App '{app_id}' not found",
+        )
+
+    tag_repository = AppTagRepository(db)
+    return AppResponse(
+        id=app.id,
+        app_id=app.app_id,
+        user_id=app.user_id,
+        name=app.name,
+        description=app.description,
+        workspace_id=app.workspace_id,
+        is_public=app.is_public,
+        is_owner=app.user_id == user_id,  # Compare app owner with current user
+        created_by_user_id=app.user_id,
+        status=app.status,
+        current_version=app.current_version,
+        dev_version=app.dev_version,
+        staging_version=app.staging_version,
+        prod_version=app.prod_version,
+        created_time=app.created_time,
+        updated_time=app.updated_time,
+        archived_time=app.archived_time,
+        tags=tag_repository.get_tags_for_app(app.id),
     )
+
+
+@router.get("/apps/{app_id}/tags", response_model=list[str])
+async def get_app_tags(
+    app_id: str,
+    user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
+):
+    """Get all tags for an app."""
+    user_id = user.get("id")
+    log.info(f"User {user_id} getting tags for app {app_id}")
+
+    if not db:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not available",
+        )
+
+    # Verify app exists and user has access
+    app = app_repository.get_by_id(db, app_id, user_id)
+    if not app:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"App '{app_id}' not found",
+        )
+
+    tag_repository = AppTagRepository(db)
+    return tag_repository.get_tags_for_app(app.id)
+
+
+@router.put("/apps/{app_id}/tags", response_model=list[str])
+async def set_app_tags(
+    app_id: str,
+    tags: list[str],
+    user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
+):
+    """Set all tags for an app (replaces existing tags)."""
+    user_id = user.get("id")
+    log.info(f"User {user_id} setting tags for app {app_id}: {tags}")
+
+    if not db:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not available",
+        )
+
+    # Verify app exists and user has access
+    app = app_repository.get_by_id(db, app_id, user_id)
+    if not app:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"App '{app_id}' not found",
+        )
+
+    tag_repository = AppTagRepository(db)
+    return tag_repository.set_tags(app.id, tags)
+
+
+@router.get("/apps/tags/all", response_model=list[str])
+async def get_all_tags(
+    user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
+):
+    """Get all unique tags across all apps (for autocomplete)."""
+    user_id = user.get("id")
+    log.info(f"User {user_id} getting all tags")
+
+    if not db:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not available",
+        )
+
+    tag_repository = AppTagRepository(db)
+    return tag_repository.get_all_tags()
 
 
 @router.post("/apps/{app_id}/deploy", response_model=DeployAppResponse)
 async def deploy_app(
     app_id: str,
+    environment: str = Query(default="prod", regex="^(dev|staging|prod)$"),
     user: dict = Depends(get_current_user),
     db: Optional[Session] = Depends(get_db_optional),
     workspace_base: str = Depends(get_workspace_base),
+    app_storage: AppStorageService = Depends(get_app_storage_service),
 ):
     """
-    Deploy new version of app.
+    Deploy new version of app to an environment.
 
     This endpoint:
     1. Reads VERSION file from workspace (created by build_and_version.sh)
     2. Validates that dist/ folder exists
-    3. Creates deployments/{version}/ directory
-    4. Copies dist/ contents to deployments/{version}/
-    5. Updates/creates 'prod' symlink to point to new version
-    6. Updates database status to 'deployed'
-    7. Returns success with version number
+    3. Deploys to AppStorageService (versioned storage)
+    4. Updates database with deployed version for the environment
+    5. Returns success with version number
+
+    Args:
+        environment: Target environment - "dev", "staging", or "prod" (default: "prod")
 
     Note: The actual build and versioning is done by Claude Code via build_and_version.sh
     during development. This endpoint just copies the already-built files to deployment.
     """
     user_id = user.get("id")
-    log.info(f"User {user_id} deploying app {app_id}")
+    log.info(f"User {user_id} deploying app {app_id} to {environment}")
 
-    # Get workspace path
+    # Get workspace path (still needed to read VERSION and dist/)
     workspace_base_path = Path(workspace_base)
     workspace_path = workspace_base_path / user_id / "apps" / app_id
 
@@ -349,7 +675,7 @@ async def deploy_app(
             errors=[f"Failed to read VERSION file: {str(e)}"],
         )
 
-    log.info(f"Deploying app {app_id} version {version_str}")
+    log.info(f"Deploying app {app_id} version {version_str} to {environment}")
 
     # Check if dist/ folder exists
     dist_path = workspace_path / "dist"
@@ -361,72 +687,50 @@ async def deploy_app(
             errors=["dist/ folder not found. App must be built first."],
         )
 
-    # Create deployments directory structure
-    deployments_path = workspace_path / "deployments"
-    deployments_path.mkdir(exist_ok=True)
-
-    # Create version-specific deployment directory
-    version_deployment_path = deployments_path / version_str
-    if version_deployment_path.exists():
-        log.warning(f"Deployment directory for version {version_str} already exists, will overwrite")
-        import shutil
-        shutil.rmtree(version_deployment_path)
-
-    # Copy dist/ to deployments/{version}/
+    # Deploy to AppStorageService (same code path for local and K8S)
     try:
-        import shutil
-        shutil.copytree(dist_path, version_deployment_path)
-        log.info(f"Copied dist/ to {version_deployment_path}")
+        await app_storage.deploy_version(user_id, app_id, version_str, dist_path)
+        log.info(f"Deployed version {version_str} to AppStorageService")
     except Exception as e:
-        log.error(f"Failed to copy dist/ for app {app_id}: {e}")
+        log.error(f"Failed to deploy to AppStorageService for app {app_id}: {e}")
         return DeployAppResponse(
             success=False,
             version=0,
-            errors=[f"Failed to copy build files: {str(e)}"],
+            errors=[f"Failed to deploy to storage: {str(e)}"],
         )
 
-    # Update/create 'prod' symlink
-    prod_link = deployments_path / "prod"
-    if prod_link.exists() or prod_link.is_symlink():
-        prod_link.unlink()
-
-    try:
-        prod_link.symlink_to(version_str, target_is_directory=True)
-        log.info(f"Updated prod symlink to point to {version_str}")
-    except Exception as e:
-        log.error(f"Failed to create prod symlink for app {app_id}: {e}")
-        return DeployAppResponse(
-            success=False,
-            version=0,
-            errors=[f"Failed to create prod symlink: {str(e)}"],
-        )
-
-    # Update database status to 'deployed' and set current_version
+    # Update database with deployed version for the environment
     if db:
         try:
             # Parse version string to integer for current_version field
-            # For semver "1.2.3", we'll convert to integer 123 for storage
             version_int = int(version_str.replace(".", ""))
 
-            # Update app status and version
+            # Build update kwargs based on environment
+            # Only set status to "deployed" when deploying to prod
+            # This ensures the app card click goes to a valid production version
+            update_kwargs = {
+                "current_version": version_int,
+                f"{environment}_version": version_str,  # Store semver string
+            }
+            if environment == "prod":
+                update_kwargs["status"] = "deployed"
+
             app_repository.update(
                 db,
                 app_id,
                 user_id,
-                status="deployed",
-                current_version=version_int,
+                **update_kwargs,
             )
-            log.info(f"Updated app {app_id} status to 'deployed', version {version_int}")
+            log.info(f"Updated app {app_id} {environment}_version to '{version_str}'")
         except Exception as e:
             log.error(f"Failed to update database for app {app_id}: {e}")
             # Don't fail deployment if DB update fails - files are already deployed
-            # Just log the error
 
-    log.info(f"Successfully deployed app {app_id} version {version_str}")
+    log.info(f"Successfully deployed app {app_id} version {version_str} to {environment}")
 
     return DeployAppResponse(
         success=True,
-        version=int(version_str.replace(".", "")),  # Convert "1.2.3" to 123 for response
+        version=int(version_str.replace(".", "")),
         errors=None,
     )
 
@@ -476,33 +780,54 @@ async def serve_app(
     app_id: str,
     path: str = "",
     user: dict = Depends(get_current_user),
-    workspace_base: str = Depends(get_workspace_base),
+    app_storage: AppStorageService = Depends(get_app_storage_service),
 ):
     """
-    Serve built app from dist/ folder.
+    Serve built app from dist/ storage.
     User must refresh after agent makes changes (build runs automatically).
 
     Supports HEAD requests to check if app is built without downloading content.
+
+    Uses AppStorageService to serve files - same code path for local and K8S.
     """
     user_id = user.get("id")
 
-    # Verify user owns app
-    workspace_base = Path(workspace_base)
-    workspace_path = workspace_base / user_id / "apps" / app_id
+    # Serve from AppStorageService (same code path for local and K8S)
+    return await _serve_from_app_storage(
+        request, app_id, path, user_id, app_storage, is_preview=True
+    )
 
-    if not workspace_path.exists():
-        raise HTTPException(status_code=404, detail="App not found")
 
-    # Serve from dist/ folder
-    dist_path = workspace_path / "dist"
+async def _serve_from_app_storage(
+    request: Request,
+    app_id: str,
+    path: str,
+    user_id: str,
+    app_storage: AppStorageService,
+    is_preview: bool = True,
+) -> Response:
+    """
+    Serve app files from AppStorageService (S3/GCS).
 
-    if not dist_path.exists():
+    Args:
+        request: FastAPI request object
+        app_id: App identifier
+        path: File path within dist/
+        user_id: User identifier
+        app_storage: AppStorageService instance
+        is_preview: True for preview (no-cache), False for deployed (cached)
+
+    Returns:
+        Response with file content
+    """
+    # Check if app exists in storage
+    if not await app_storage.app_exists(user_id, app_id):
         raise HTTPException(
             status_code=404,
             detail="App not built yet - ask agent to make a change to trigger build"
         )
 
-    # For HEAD requests, just return 200 if dist exists
+    # For HEAD requests, just return 200 if app exists
     if request.method == "HEAD":
         return Response(
             status_code=200,
@@ -514,44 +839,134 @@ async def serve_app(
 
     # Default to index.html for directory requests
     if not path or path.endswith("/"):
-        file_path = dist_path / "index.html"
+        file_path = "index.html"
     else:
-        file_path = dist_path / path
+        file_path = path
 
-    # Security: Prevent directory traversal
-    try:
-        file_path = file_path.resolve()
-        if not file_path.is_relative_to(dist_path):
-            raise HTTPException(status_code=403, detail="Access denied")
-    except (ValueError, OSError):
-        raise HTTPException(status_code=403, detail="Invalid path")
+    # Get file from storage
+    content = await app_storage.get_file(user_id, app_id, file_path)
 
-    if not file_path.exists():
+    if content is None:
         # SPA fallback: serve index.html for missing routes
-        file_path = dist_path / "index.html"
-        if not file_path.exists():
+        content = await app_storage.get_file(user_id, app_id, "index.html")
+        if content is None:
             raise HTTPException(status_code=404, detail="File not found")
-
-    # Read file
-    try:
-        content = file_path.read_bytes()
-    except OSError as e:
-        log.error(f"Failed to read file {file_path}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to read file")
+        file_path = "index.html"
 
     # Determine content type
-    import mimetypes
-    content_type, _ = mimetypes.guess_type(str(file_path))
+    content_type, _ = mimetypes.guess_type(file_path)
     if not content_type:
         content_type = "application/octet-stream"
 
     # URL rewriting for HTML files (to fix base path)
     if content_type == "text/html":
         html_content = content.decode("utf-8")
-        proxy_prefix = f"/api/v1/apps/preview/{app_id}"
+        endpoint = "preview" if is_preview else "deployed"
+        proxy_prefix = f"/api/v1/apps/{endpoint}/{app_id}"
 
         # Rewrite absolute URLs to include proxy prefix
-        import re
+        html_content = re.sub(
+            r'((?:src|href)=")/(?!/)',
+            rf'\1{proxy_prefix}/',
+            html_content
+        )
+
+        content = html_content.encode("utf-8")
+
+    # Set cache control based on preview vs deployed
+    cache_control = "no-cache" if is_preview else "public, max-age=3600"
+
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={
+            "Cache-Control": cache_control,
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Cross-Origin-Resource-Policy": "cross-origin",
+        }
+    )
+
+
+async def _serve_from_versioned_storage(
+    request: Request,
+    app_id: str,
+    path: str,
+    user_id: str,
+    app_storage: AppStorageService,
+    environment: str,
+    deployed_version: Optional[str],
+) -> Response:
+    """
+    Serve app files from versioned AppStorageService storage.
+
+    Args:
+        request: FastAPI request object
+        app_id: App identifier
+        path: File path within the version
+        user_id: User identifier
+        app_storage: AppStorageService instance
+        environment: Target environment (dev, staging, prod)
+        deployed_version: Version string from database (e.g., "1.2.3")
+
+    Returns:
+        Response with file content
+    """
+    # Check if we have a deployed version
+    if not deployed_version:
+        raise HTTPException(
+            status_code=404,
+            detail=f"App not deployed to {environment} yet - click Deploy button to deploy the app"
+        )
+
+    # Check if version exists in storage
+    if not await app_storage.version_exists(user_id, app_id, deployed_version):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Version {deployed_version} not found in storage"
+        )
+
+    # For HEAD requests, just return 200 if version exists
+    if request.method == "HEAD":
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Cross-Origin-Resource-Policy": "cross-origin",
+            }
+        )
+
+    # Default to index.html for directory requests
+    if not path or path.endswith("/"):
+        file_path = "index.html"
+    else:
+        file_path = path
+
+    # Get file from versioned storage
+    content = await app_storage.get_version_file(user_id, app_id, deployed_version, file_path)
+
+    if content is None:
+        # SPA fallback: serve index.html for missing routes
+        content = await app_storage.get_version_file(user_id, app_id, deployed_version, "index.html")
+        if content is None:
+            raise HTTPException(status_code=404, detail="File not found")
+        file_path = "index.html"
+
+    # Determine content type
+    content_type, _ = mimetypes.guess_type(file_path)
+    if not content_type:
+        content_type = "application/octet-stream"
+
+    # URL rewriting for HTML files (to fix base path)
+    if content_type == "text/html":
+        html_content = content.decode("utf-8")
+        # Use environment-in-path URL format to avoid query param stripping with module scripts
+        # This ensures all sub-resources (JS, CSS, etc.) are served from the correct version
+        proxy_prefix = f"/api/v1/apps/deployed/{app_id}/env/{environment}"
+
+        # Rewrite absolute URLs to include proxy prefix with environment
+        # For src/href attributes pointing to root-relative paths
         html_content = re.sub(
             r'((?:src|href)=")/(?!/)',
             rf'\1{proxy_prefix}/',
@@ -564,106 +979,100 @@ async def serve_app(
         content=content,
         media_type=content_type,
         headers={
-            "Cache-Control": "no-cache",  # Force refresh to see updates
-            "Access-Control-Allow-Origin": "*",  # Allow sandboxed iframe access
+            "Cache-Control": "public, max-age=3600",
+            "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "*",
-            "Cross-Origin-Resource-Policy": "cross-origin",  # Allow cross-origin resource loading
+            "Cross-Origin-Resource-Policy": "cross-origin",
         }
     )
 
 
+# Environment-in-path routes (preferred - avoids query param stripping issues with module scripts)
+@router.head("/apps/deployed/{app_id}/env/{environment}/", include_in_schema=False)
+@router.head("/apps/deployed/{app_id}/env/{environment}/{path:path}", include_in_schema=True)
+@router.get("/apps/deployed/{app_id}/env/{environment}/", include_in_schema=False)
+@router.get("/apps/deployed/{app_id}/env/{environment}/{path:path}", include_in_schema=True)
+async def serve_deployed_app_with_env_path(
+    request: Request,
+    app_id: str,
+    environment: str,
+    path: str = "",
+    version: Optional[str] = Query(default=None, description="Override version to serve (for testing)"),
+    user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
+    app_storage: AppStorageService = Depends(get_app_storage_service),
+):
+    """Serve deployed app with environment in path."""
+    if environment not in ("dev", "staging", "prod"):
+        raise HTTPException(status_code=400, detail="Invalid environment")
+    return await _serve_deployed_app_impl(
+        request, app_id, path, environment, version, user, db, app_storage
+    )
+
+
+# Legacy query-param routes (kept for backwards compatibility)
+@router.head("/apps/deployed/{app_id}/", include_in_schema=False)
+@router.head("/apps/deployed/{app_id}/{path:path}", include_in_schema=True)
+@router.head("/apps/deployed/{app_id}", include_in_schema=False)
+@router.get("/apps/deployed/{app_id}/", include_in_schema=False)
 @router.get("/apps/deployed/{app_id}/{path:path}", include_in_schema=True)
 @router.get("/apps/deployed/{app_id}", include_in_schema=False)
 async def serve_deployed_app(
     request: Request,
     app_id: str,
     path: str = "",
+    environment: str = Query(default="prod", regex="^(dev|staging|prod)$"),
+    version: Optional[str] = Query(default=None, description="Override version to serve (for testing)"),
     user: dict = Depends(get_current_user),
-    workspace_base: str = Depends(get_workspace_base),
+    db: Optional[Session] = Depends(get_db_optional),
+    app_storage: AppStorageService = Depends(get_app_storage_service),
+):
+    """Serve deployed app with environment as query param (legacy)."""
+    return await _serve_deployed_app_impl(
+        request, app_id, path, environment, version, user, db, app_storage
+    )
+
+
+async def _serve_deployed_app_impl(
+    request: Request,
+    app_id: str,
+    path: str,
+    environment: str,
+    version: Optional[str],
+    user: dict,
+    db: Optional[Session],
+    app_storage: AppStorageService,
 ):
     """
-    Serve deployed app from deployments/prod/ folder.
+    Serve deployed app from versioned storage.
 
-    This endpoint serves the production-deployed version of the app,
-    which is created when the user clicks the Deploy button.
-    The 'prod' symlink points to the latest deployed version.
+    This endpoint serves a deployed version of the app based on the environment.
+    The version is looked up from the database ({environment}_version column),
+    unless a specific version is provided via query param for testing.
+
+    Args:
+        environment: Target environment - "dev", "staging", or "prod" (default: "prod")
+        version: Optional version override to test a specific version
+
+    Uses AppStorageService.get_version_file() to serve from versioned storage.
+    Same code path for local development and K8S production.
     """
     user_id = user.get("id")
 
-    # Verify user owns app
-    workspace_base_path = Path(workspace_base)
-    workspace_path = workspace_base_path / user_id / "apps" / app_id
-
-    if not workspace_path.exists():
-        raise HTTPException(status_code=404, detail="App not found")
-
-    # Serve from deployments/prod/ folder
-    prod_path = workspace_path / "deployments" / "prod"
-
-    if not prod_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail="App not deployed yet - click Deploy button to deploy the app"
-        )
-
-    # Default to index.html for directory requests
-    if not path or path.endswith("/"):
-        file_path = prod_path / "index.html"
+    # If version is explicitly provided, use it (for testing specific versions)
+    if version:
+        deployed_version = version
     else:
-        file_path = prod_path / path
+        # Look up the deployed version for this environment from database
+        deployed_version = None
+        if db:
+            app = app_repository.get_by_id(db, app_id, user_id)
+            if app:
+                # Get the version deployed to this environment
+                deployed_version = getattr(app, f"{environment}_version", None)
 
-    # Security: Prevent directory traversal
-    try:
-        file_path = file_path.resolve()
-        # Resolve prod symlink and check it's under workspace
-        if not file_path.is_relative_to(workspace_path):
-            raise HTTPException(status_code=403, detail="Access denied")
-    except (ValueError, OSError):
-        raise HTTPException(status_code=403, detail="Invalid path")
-
-    if not file_path.exists():
-        # SPA fallback: serve index.html for missing routes
-        file_path = prod_path / "index.html"
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found")
-
-    # Read file
-    try:
-        content = file_path.read_bytes()
-    except OSError as e:
-        log.error(f"Failed to read file {file_path}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to read file")
-
-    # Determine content type
-    import mimetypes
-    content_type, _ = mimetypes.guess_type(str(file_path))
-    if not content_type:
-        content_type = "application/octet-stream"
-
-    # URL rewriting for HTML files (to fix base path)
-    if content_type == "text/html":
-        html_content = content.decode("utf-8")
-        proxy_prefix = f"/api/v1/apps/deployed/{app_id}"
-
-        # Rewrite absolute URLs to include proxy prefix
-        import re
-        html_content = re.sub(
-            r'((?:src|href)=")/(?!/)',
-            rf'\1{proxy_prefix}/',
-            html_content
-        )
-
-        content = html_content.encode("utf-8")
-
-    return Response(
-        content=content,
-        media_type=content_type,
-        headers={
-            "Cache-Control": "public, max-age=3600",  # Cache deployed version
-            "Access-Control-Allow-Origin": "*",  # Allow sandboxed iframe access
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-            "Cross-Origin-Resource-Policy": "cross-origin",  # Allow cross-origin resource loading
-        }
+    # Serve from AppStorageService (same code path for local and K8S)
+    return await _serve_from_versioned_storage(
+        request, app_id, path, user_id, app_storage, environment, deployed_version
     )

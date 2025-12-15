@@ -41,6 +41,15 @@ apps:
       # Base directory for user workspaces (apps, claude-code sessions, etc.)
       workspace_base: "${WORKSPACE_BASE, ~/.claude-workspaces}"
 
+      # --- App Storage Configuration (Required for app serving) ---
+      # Configures where built app files (dist/) are stored and served from.
+      # Same code path for local dev and K8S - only the backend differs:
+      # - Local: filesystem (below)
+      # - K8S: s3 (bucket: sam-apps, region: us-east-1)
+      app_storage:
+        type: filesystem
+        base_path: "${HOME}/.sam-app-storage"
+
       # --- Optional with Defaults ---
       model: *general_model # Optional: defaults to None - Points to shared_config.yaml
       gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.

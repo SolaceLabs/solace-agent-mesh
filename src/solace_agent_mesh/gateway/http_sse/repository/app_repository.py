@@ -4,10 +4,12 @@ App repository implementation using SQLAlchemy.
 
 import uuid
 from sqlalchemy.orm import Session as DBSession
+from sqlalchemy import or_
 
 from ..shared import now_epoch_ms
 from ..shared.pagination import PaginationParams
 from .models.app_model import AppModel, CreateAppModel
+from .models.app_user_model import AppUserModel
 
 
 class AppRepository:
@@ -62,12 +64,30 @@ class AppRepository:
         user_id: str,
         pagination: PaginationParams | None = None,
     ) -> list[AppModel]:
-        """List all apps for a user."""
+        """
+        List all apps visible to a user.
+
+        Visibility rules:
+        - User is the creator (user_id matches) - for backwards compatibility
+        - OR user has access via app_users table (any role)
+        - OR app is public (is_public = True)
+        """
+        # Subquery for app IDs the user has access to via app_users
+        accessible_app_ids = (
+            db.query(AppUserModel.app_id)
+            .filter(AppUserModel.user_id == user_id)
+            .subquery()
+        )
+
         query = (
             db.query(AppModel)
             .filter(
-                AppModel.user_id == user_id,
                 AppModel.archived_time.is_(None),
+                or_(
+                    AppModel.user_id == user_id,  # Creator (backwards compat)
+                    AppModel.id.in_(accessible_app_ids),
+                    AppModel.is_public == True,  # noqa: E712
+                ),
             )
             .order_by(AppModel.updated_time.desc())
         )
@@ -78,12 +98,27 @@ class AppRepository:
         return query.all()
 
     def count_by_user(self, db: DBSession, user_id: str) -> int:
-        """Count total apps for a user."""
+        """
+        Count total apps visible to a user.
+
+        Same visibility rules as list_by_user.
+        """
+        # Subquery for app IDs the user has access to via app_users
+        accessible_app_ids = (
+            db.query(AppUserModel.app_id)
+            .filter(AppUserModel.user_id == user_id)
+            .subquery()
+        )
+
         return (
             db.query(AppModel)
             .filter(
-                AppModel.user_id == user_id,
                 AppModel.archived_time.is_(None),
+                or_(
+                    AppModel.user_id == user_id,  # Creator (backwards compat)
+                    AppModel.id.in_(accessible_app_ids),
+                    AppModel.is_public == True,  # noqa: E712
+                ),
             )
             .count()
         )

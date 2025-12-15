@@ -1,8 +1,9 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button, Header } from "@/lib/components";
 import { ArrowLeft, Edit } from "lucide-react";
 import { useApp } from "@/lib/hooks/useApp";
 import { useSamSdkHost } from "@/lib/hooks";
+import { Badge } from "@/lib/components/ui/badge";
 
 /**
  * Converts integer version (e.g., 123) to semantic version string (e.g., "1.2.3")
@@ -24,11 +25,31 @@ function formatVersion(version: number): string {
 
 export function AppViewPage() {
     const { appId } = useParams<{ appId: string }>();
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { app, loading, error } = useApp(appId!);
 
     // Enable SAM SDK host communication
     useSamSdkHost(appId!);
+
+    // Determine which environment to show - prefer prod, fall back to staging, then dev
+    const requestedEnv = searchParams.get("env");
+    const getBestEnvironment = () => {
+        if (requestedEnv && ["dev", "staging", "prod"].includes(requestedEnv)) {
+            return requestedEnv;
+        }
+        // Fall back to best available: prod > staging > dev
+        if (app?.prodVersion) return "prod";
+        if (app?.stagingVersion) return "staging";
+        if (app?.devVersion) return "dev";
+        return null;
+    };
+
+    const activeEnv = getBestEnvironment();
+    const activeVersion = activeEnv === "prod" ? app?.prodVersion
+        : activeEnv === "staging" ? app?.stagingVersion
+        : activeEnv === "dev" ? app?.devVersion
+        : null;
 
     const handleBack = () => {
         navigate("/apps");
@@ -72,7 +93,8 @@ export function AppViewPage() {
         );
     }
 
-    if (app.status !== "deployed") {
+    // Check if any version is deployed
+    if (!activeEnv || !activeVersion) {
         return (
             <div className="flex h-full w-full flex-col">
                 <Header
@@ -92,7 +114,7 @@ export function AppViewPage() {
                     <div className="text-center">
                         <div className="font-semibold text-lg">App Not Deployed</div>
                         <div className="text-muted-foreground mt-2">
-                            This app hasn't been deployed yet. Deploy it from the editor.
+                            This app hasn't been deployed to any environment yet. Deploy it from the editor.
                         </div>
                         <Button className="mt-4" onClick={handleEdit}>
                             Go to Editor
@@ -103,14 +125,29 @@ export function AppViewPage() {
         );
     }
 
-    // Construct URL to deployed app
-    const deployedUrl = `/api/v1/apps/deployed/${app.appId}/`;
+    // Environment badge colors
+    const envColors: Record<string, string> = {
+        dev: "bg-green-500",
+        staging: "bg-yellow-500",
+        prod: "bg-blue-500",
+    };
+
+    // Construct URL to deployed app with environment in path
+    // Using path-based format to avoid query param stripping issues with module scripts
+    const deployedUrl = `/api/v1/apps/deployed/${app.appId}/env/${activeEnv}/`;
 
     return (
         <div className="flex h-full w-full flex-col">
             <Header
                 title={app.name}
-                subtitle={`Version ${formatVersion(app.currentVersion)}`}
+                subtitle={
+                    <div className="flex items-center gap-2">
+                        <Badge className={`${envColors[activeEnv]} text-white`}>
+                            {activeEnv}
+                        </Badge>
+                        <span>v{activeVersion}</span>
+                    </div>
+                }
                 leadingAction={
                     <Button variant="ghost" onClick={handleBack}>
                         <ArrowLeft className="size-4" />
@@ -130,7 +167,7 @@ export function AppViewPage() {
                     src={deployedUrl}
                     className="w-full h-full border-0"
                     title={app.name}
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    sandbox="allow-scripts allow-forms allow-popups allow-downloads allow-modals allow-presentation"
                 />
             </div>
         </div>

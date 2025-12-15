@@ -9,6 +9,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from ....common.workspace import BaseWorkspaceService, LocalFilesystemWorkspaceService
+from ....services.workspace import WorkspaceManager
 from ..dynamic_tool import DynamicTool, DynamicToolProvider
 
 log = logging.getLogger(__name__)
@@ -42,12 +43,16 @@ class ClaudeCodeToolProvider(DynamicToolProvider):
             - fixed_workspace_type: Force workspace_type to this value
             - hide_workspace_params: Remove workspace params from schemas
             - hidden_tools: List of tool names to exclude
+        - workspace_manager: Optional workspace manager configuration (for K8S production)
+            - enabled: Enable workspace manager for tarball persistence
+            - app_storage: AppStorageService configuration (same format as gateway)
     """
 
     def __init__(self):
         super().__init__()
         self.cc_sessions: Dict[str, str] = {}  # {user_id}/{workspace_id} -> session_id
         self.workspace_service: Optional[BaseWorkspaceService] = None
+        self.workspace_manager: Optional[WorkspaceManager] = None
         self.settings_base: str = "/claude-settings"
         self.tool_config: Optional[Dict[str, Any]] = None
         self._initialized: bool = False
@@ -74,8 +79,104 @@ class ClaudeCodeToolProvider(DynamicToolProvider):
         self.settings_base = tool_config.get("settings_base", "/claude-settings")
         log.info(f"Using settings base path: {self.settings_base}")
 
+        # Initialize WorkspaceManager if configured (for K8S production)
+        self.workspace_manager = self._init_workspace_manager(tool_config)
+
         self._initialized = True
         log.info("ClaudeCodeToolProvider initialized successfully")
+
+    def _init_workspace_manager(self, tool_config: Dict[str, Any]) -> Optional[WorkspaceManager]:
+        """
+        Initialize WorkspaceManager based on tool configuration.
+
+        Configuration example:
+        ```yaml
+        workspace_manager:
+          enabled: true
+          app_storage:
+            type: s3
+            bucket: sam-apps
+            prefix: apps
+        ```
+
+        The artifact_service is obtained from the host component if available.
+
+        Returns:
+            WorkspaceManager instance, or None if not configured
+        """
+        wm_config = tool_config.get("workspace_manager", {})
+        if not wm_config.get("enabled", False):
+            log.debug("WorkspaceManager not enabled in tool config")
+            return None
+
+        try:
+            # Get artifact service from host component (if available)
+            # This is passed through from the agent component
+            artifact_service = tool_config.get("_artifact_service")
+            if not artifact_service:
+                log.warning(
+                    "WorkspaceManager enabled but no artifact_service available. "
+                    "Workspace persistence will not work."
+                )
+                return None
+
+            # Initialize AppStorageService (optional, for syncing dist/)
+            app_storage_service = None
+            app_storage_config = wm_config.get("app_storage")
+            if app_storage_config:
+                app_storage_service = self._init_app_storage_service(app_storage_config)
+
+            workspace_manager = WorkspaceManager(
+                artifact_service=artifact_service,
+                app_storage_service=app_storage_service,
+            )
+            log.info("Initialized WorkspaceManager for K8S production deployment")
+            return workspace_manager
+
+        except Exception as e:
+            log.error(f"Failed to initialize WorkspaceManager: {e}", exc_info=True)
+            return None
+
+    def _init_app_storage_service(self, storage_config: Dict[str, Any]):
+        """
+        Initialize AppStorageService based on configuration.
+
+        Args:
+            storage_config: Storage configuration dict with 'type' and type-specific options
+
+        Returns:
+            AppStorageService instance, or None on failure
+        """
+        storage_type = storage_config.get("type", "filesystem")
+
+        try:
+            if storage_type == "s3":
+                from ....services.app_storage import S3AppStorageService
+
+                bucket = storage_config.get("bucket")
+                if not bucket:
+                    raise ValueError("app_storage.bucket is required for S3 storage type")
+
+                return S3AppStorageService(
+                    bucket=bucket,
+                    prefix=storage_config.get("prefix", "apps"),
+                    region_name=storage_config.get("region"),
+                    endpoint_url=storage_config.get("endpoint_url"),
+                )
+
+            elif storage_type == "filesystem":
+                from ....services.app_storage import FilesystemAppStorageService
+
+                base_path = storage_config.get("base_path", "~/.sam-app-storage")
+                return FilesystemAppStorageService(base_path=base_path)
+
+            else:
+                log.error(f"Unknown app_storage type: {storage_type}")
+                return None
+
+        except Exception as e:
+            log.error(f"Failed to initialize AppStorageService: {e}", exc_info=True)
+            return None
 
     def create_tools(
         self,
@@ -110,6 +211,7 @@ class ClaudeCodeToolProvider(DynamicToolProvider):
                 self.cc_sessions,
                 self.settings_base,
                 self.tool_config or tool_config,
+                workspace_manager=self.workspace_manager,
             ),
             "claude_code_list_workspaces": ClaudeCodeListWorkspacesTool(
                 self.workspace_service,

@@ -194,7 +194,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                         {nameError && <MessageBanner variant="error" message={nameError} />}
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
+                        <Button variant="ghost" onClick={handleCancelEdit} disabled={isSaving}>
                             Discard Changes
                         </Button>
                         <Button onClick={handleSave} disabled={isSaving}>

@@ -148,22 +148,21 @@ export function CreateAppPage() {
                             </div>
                         )}
 
-                        <div className="flex gap-3">
-                            <Button
-                                type="submit"
-                                disabled={creating || !name.trim()}
-                                className="flex-1"
-                            >
-                                {creating && <Loader2 className="size-4 animate-spin mr-2" />}
-                                {creating ? "Creating..." : "Create App and Start Coding"}
-                            </Button>
+                        <div className="flex gap-3 justify-end">
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="ghost"
                                 onClick={handleCancel}
                                 disabled={creating}
                             >
                                 Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={creating || !name.trim()}
+                            >
+                                {creating && <Loader2 className="size-4 animate-spin mr-2" />}
+                                {creating ? "Creating..." : "Create App and Start Coding"}
                             </Button>
                         </div>
                     </form>

@@ -1,32 +1,105 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, EmptyState, Header } from "@/lib/components";
-import { Plus, RefreshCcw } from "lucide-react";
+import { Input } from "@/lib/components/ui";
+import { Plus, RefreshCcw, Search } from "lucide-react";
 import { useApps } from "@/lib/hooks/useApps";
+import type { App } from "@/lib/types";
 import { AppCard } from "../apps/AppCard";
+import type { AppSettingsUpdate } from "../apps/AppSettingsDialog";
 
 export function AppsPage() {
     const navigate = useNavigate();
-    const { apps, loading, error, refetch } = useApps();
+    const { apps, loading, error, refetch, updateApp, setAppTags } = useApps();
+    const [searchQuery, setSearchQuery] = useState("");
+
+    // Filter apps based on search query (name, description, or tags)
+    const filteredApps = useMemo(() => {
+        if (!searchQuery.trim()) return apps;
+        const query = searchQuery.toLowerCase();
+        return apps.filter((app) => {
+            const nameMatch = app.name.toLowerCase().includes(query);
+            const descMatch = app.description?.toLowerCase().includes(query);
+            const tagMatch = app.tags?.some((tag) => tag.toLowerCase().includes(query));
+            return nameMatch || descMatch || tagMatch;
+        });
+    }, [apps, searchQuery]);
+
+    // Split apps into My Apps and Public Apps
+    // My Apps: apps owned by the current user (isOwner from backend, or fallback to true for backwards compat)
+    // Public Apps: all public apps that are deployed (have at least one environment version)
+    const { myApps, publicApps } = useMemo(() => {
+        const my: App[] = [];
+        const pub: App[] = [];
+
+        filteredApps.forEach((app) => {
+            // My Apps: apps where the user is the owner
+            // Fallback: if isOwner is undefined (old backend), assume all returned apps are owned
+            // (since old backend only returned user's own apps)
+            const isOwner = app.isOwner ?? true;
+            if (isOwner) {
+                my.push(app);
+            }
+
+            // Public Apps: public apps that have at least one deployment
+            if (app.isPublic) {
+                const hasAnyDeployment = app.devVersion || app.stagingVersion || app.prodVersion;
+                if (hasAnyDeployment) {
+                    pub.push(app);
+                }
+            }
+        });
+
+        return { myApps: my, publicApps: pub };
+    }, [filteredApps]);
 
     const handleCreateApp = () => {
         navigate("/apps/new");
     };
 
-    const handleOpenApp = (appId: string, status: string) => {
-        if (status === "deployed") {
-            // Open deployed app view page
-            navigate(`/apps/${appId}/view`);
+    const handleOpenApp = (app: App) => {
+        // Card click only opens prod version - for dev/staging use the menu
+        if (app.prodVersion) {
+            navigate(`/apps/${app.appId}/view`);
         } else {
-            // Open editor for draft apps
-            navigate(`/chat?appId=${appId}`);
+            // No prod version - open editor
+            navigate(`/chat?appId=${app.appId}`);
         }
+    };
+
+    const handleViewEnvironment = (appId: string, env: "dev" | "staging" | "prod") => {
+        navigate(`/apps/${appId}/view?env=${env}`);
     };
 
     const handleEditApp = (appId: string) => {
         // Always open editor regardless of status
         navigate(`/chat?appId=${appId}`);
     };
+
+    const handleSettingsSave = async (appId: string, updates: AppSettingsUpdate): Promise<boolean> => {
+        return await updateApp(appId, updates);
+    };
+
+    const handleSaveTags = async (appId: string, tags: string[]): Promise<boolean> => {
+        return await setAppTags(appId, tags);
+    };
+
+    const renderAppGrid = (appList: App[], hideOwnerFeatures = false) => (
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
+            {appList.map((app) => (
+                <AppCard
+                    key={app.appId}
+                    app={app}
+                    onClick={() => handleOpenApp(app)}
+                    onEdit={() => handleEditApp(app.appId)}
+                    onViewEnvironment={(env) => handleViewEnvironment(app.appId, env)}
+                    onSettingsSave={(updates) => handleSettingsSave(app.appId, updates)}
+                    onSaveTags={(tags) => handleSaveTags(app.appId, tags)}
+                    hideOwnerFeatures={hideOwnerFeatures}
+                />
+            ))}
+        </div>
+    );
 
     return (
         <div className="flex h-full w-full flex-col">
@@ -58,6 +131,21 @@ export function AppsPage() {
             />
 
             <div className="flex-1 overflow-auto p-6">
+                {/* Search Bar */}
+                {!loading && !error && apps.length > 0 && (
+                    <div className="mb-6 max-w-md">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                                placeholder="Search apps by name, description, or tags..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9"
+                            />
+                        </div>
+                    </div>
+                )}
+
                 {loading ? (
                     <EmptyState title="Loading apps..." variant="loading" />
                 ) : error ? (
@@ -75,16 +163,28 @@ export function AppsPage() {
                             onClick: handleCreateApp,
                         }}
                     />
+                ) : filteredApps.length === 0 ? (
+                    <EmptyState
+                        title="No matching apps"
+                        subtitle={`No apps found matching "${searchQuery}"`}
+                    />
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {apps.map((app) => (
-                            <AppCard
-                                key={app.appId}
-                                app={app}
-                                onClick={() => handleOpenApp(app.appId, app.status)}
-                                onEdit={() => handleEditApp(app.appId)}
-                            />
-                        ))}
+                    <div className="space-y-8">
+                        {/* My Apps Section */}
+                        {myApps.length > 0 && (
+                            <section>
+                                <h2 className="text-lg font-semibold mb-4">My Apps</h2>
+                                {renderAppGrid(myApps)}
+                            </section>
+                        )}
+
+                        {/* Public Apps Section */}
+                        {publicApps.length > 0 && (
+                            <section>
+                                <h2 className="text-lg font-semibold mb-4">Public Apps</h2>
+                                {renderAppGrid(publicApps, true)}
+                            </section>
+                        )}
                     </div>
                 )}
             </div>

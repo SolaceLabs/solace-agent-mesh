@@ -18,6 +18,7 @@ class UpdateAppRequest(BaseModel):
 
     name: Optional[str] = Field(None, min_length=1, max_length=255, description="App name")
     description: Optional[str] = Field(None, description="App description")
+    is_public: Optional[bool] = Field(None, description="Whether the app is publicly visible")
 
     model_config = {"populate_by_name": True}
 

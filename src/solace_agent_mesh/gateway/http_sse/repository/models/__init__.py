@@ -12,6 +12,8 @@ from .task_event_model import TaskEventModel
 from .task_model import TaskModel
 from .prompt_model import PromptGroupModel, PromptModel, PromptGroupUserModel
 from .app_model import AppModel, AppVersionModel, CreateAppModel, UpdateAppModel
+from .app_user_model import AppUserModel, AppRole, CreateAppUserModel, UpdateAppUserModel
+from .app_tag_model import AppTagModel, CreateAppTagModel
 
 __all__ = [
     "Base",
@@ -36,4 +38,10 @@ __all__ = [
     "AppVersionModel",
     "CreateAppModel",
     "UpdateAppModel",
+    "AppUserModel",
+    "AppRole",
+    "CreateAppUserModel",
+    "UpdateAppUserModel",
+    "AppTagModel",
+    "CreateAppTagModel",
 ]

@@ -31,7 +31,7 @@ export const ErrorDialog: React.FC<ErrorDialogProps> = ({ title, subtitle, error
                 </div>
                 <DialogFooter>
                     <DialogClose asChild>
-                        <Button variant="outline" testid="closeButton" title="Close">
+                        <Button variant="ghost" testid="closeButton" title="Close">
                             Close
                         </Button>
                     </DialogClose>

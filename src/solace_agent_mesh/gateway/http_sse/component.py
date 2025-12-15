@@ -215,6 +215,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
 
+        # Initialize AppStorageService (optional, for production K8S deployment)
+        self.app_storage_service = self._init_app_storage_service(app_config)
+
         self.session_manager = SessionManager(
             secret_key=self.session_secret_key,
             app_config=app_config,
@@ -664,6 +667,86 @@ class WebUIBackendComponent(BaseGatewayComponent):
             "Using default memory session configuration for Web UI (backward compatibility)"
         )
         return default_config
+
+    def _init_app_storage_service(self, app_config: dict):
+        """
+        Initialize AppStorageService based on configuration.
+
+        Configuration example (in app_config):
+        ```yaml
+        app_storage:
+          type: s3  # or "filesystem"
+          # For S3:
+          bucket: sam-apps
+          prefix: apps  # optional, default "apps"
+          region: us-east-1  # optional
+          # For filesystem:
+          base_path: ~/.sam-app-storage
+        ```
+
+        Returns:
+            AppStorageService instance, or None if not configured
+        """
+        storage_config = app_config.get("app_storage")
+        if not storage_config:
+            log.debug(
+                "%s No app_storage configuration found, app preview will use local filesystem",
+                self.log_identifier,
+            )
+            return None
+
+        storage_type = storage_config.get("type", "filesystem")
+
+        try:
+            if storage_type == "s3":
+                from ...services.app_storage import S3AppStorageService
+
+                bucket = storage_config.get("bucket")
+                if not bucket:
+                    raise ValueError("app_storage.bucket is required for S3 storage type")
+
+                service = S3AppStorageService(
+                    bucket=bucket,
+                    prefix=storage_config.get("prefix", "apps"),
+                    region_name=storage_config.get("region"),
+                    endpoint_url=storage_config.get("endpoint_url"),
+                )
+                log.info(
+                    "%s Initialized S3AppStorageService (bucket: %s, prefix: %s)",
+                    self.log_identifier,
+                    bucket,
+                    storage_config.get("prefix", "apps"),
+                )
+                return service
+
+            elif storage_type == "filesystem":
+                from ...services.app_storage import FilesystemAppStorageService
+
+                base_path = storage_config.get("base_path", "~/.sam-app-storage")
+                service = FilesystemAppStorageService(base_path=base_path)
+                log.info(
+                    "%s Initialized FilesystemAppStorageService (base_path: %s)",
+                    self.log_identifier,
+                    base_path,
+                )
+                return service
+
+            else:
+                log.error(
+                    "%s Unknown app_storage type: %s. Supported: s3, filesystem",
+                    self.log_identifier,
+                    storage_type,
+                )
+                return None
+
+        except Exception as e:
+            log.error(
+                "%s Failed to initialize AppStorageService: %s",
+                self.log_identifier,
+                e,
+                exc_info=True,
+            )
+            return None
 
     async def _visualization_message_processor_loop(self) -> None:
         """

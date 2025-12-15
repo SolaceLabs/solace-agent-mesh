@@ -13,6 +13,12 @@ from google.genai import types as adk_types
 
 from ....common.workspace import BaseWorkspaceService
 from ....common.data_parts import AgentProgressUpdateData
+from ....services.workspace import (
+    WorkspaceManager,
+    WorkspaceConfig,
+    WorkspaceType,
+    AppWorkspaceConfig,
+)
 from ...utils.context_helpers import get_host_component_from_tool_context
 from ..dynamic_tool import DynamicTool
 from .context_helpers import (
@@ -62,11 +68,13 @@ class ClaudeCodeExecuteTool(DynamicTool):
         session_store: Dict[str, str],
         settings_base: str,
         tool_config: Optional[Dict[str, Any]] = None,
+        workspace_manager: Optional[WorkspaceManager] = None,
     ):
         super().__init__(tool_config)
         self.workspace_service = workspace_service
         self.session_store = session_store
         self.settings_base = settings_base
+        self.workspace_manager = workspace_manager
 
     @property
     def tool_name(self) -> str:
@@ -207,8 +215,32 @@ Sessions persist automatically - just keep using the same workspace_id."""
         else:
             log.info(f"Using existing workspace at: {workspace_path}")
 
+        # Create workspace config for WorkspaceManager (if available)
+        workspace_config = None
+        if self.workspace_manager:
+            # Map workspace_type string to WorkspaceType enum
+            ws_type = WorkspaceType.APP if workspace_type == "app" else WorkspaceType.GENERIC
+            workspace_config = WorkspaceConfig(
+                type=ws_type,
+                user_id=user_id,
+                workspace_id=workspace_id,
+                workspace_name=args.get("workspace_name", workspace_id),
+                app_config=AppWorkspaceConfig(sync_dist=True) if ws_type == WorkspaceType.APP else None,
+            )
+
+            # Initialize workspace from persistent storage (downloads tarball, copies template)
+            try:
+                log.info(f"Initializing workspace from persistent storage")
+                await self.workspace_manager.initialize(workspace_config, workspace_path)
+                log.info(f"Workspace initialization from storage complete")
+            except Exception as e:
+                log.error(f"Failed to initialize workspace from storage: {e}")
+                # Continue anyway - workspace might be usable without tarball
+
         # Initialize workspace using container init script if needed
         # This is especially important for SAM apps which need the template copied
+        # Note: This runs even with WorkspaceManager because the template is inside
+        # the container image, not accessible from the host where WorkspaceManager runs
         try:
             was_initialized = await initialize_workspace_if_needed(
                 workspace_path=workspace_path,
@@ -318,6 +350,16 @@ Sessions persist automatically - just keep using the same workspace_id."""
         if result.get("session_id"):
             self.session_store[session_key] = result["session_id"]
             log.debug(f"Saved session ID for {session_key}")
+
+        # Finalize workspace: upload tarball and sync dist/ to app storage
+        if self.workspace_manager and workspace_config:
+            try:
+                log.info(f"Finalizing workspace to persistent storage")
+                await self.workspace_manager.finalize(workspace_config, workspace_path)
+                log.info(f"Workspace finalization complete")
+            except Exception as e:
+                log.error(f"Failed to finalize workspace to storage: {e}")
+                # Don't fail the whole operation - Claude Code already completed
 
         # Add workspace information to result
         result["workspace_id"] = workspace_id

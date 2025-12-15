@@ -240,9 +240,22 @@ def _load_python_class_based_tool(
     """
     from pydantic import BaseModel, ValidationError
 
-    specific_tool_config = tool_config.get("tool_config")
+    specific_tool_config = tool_config.get("tool_config") or {}
     dynamic_tools: List[DynamicTool] = []
     module_name = module.__name__
+
+    # Inject artifact_service into tool_config if available on component
+    # This allows tools like WorkspaceManager to access artifact storage
+    if hasattr(component, "artifact_service") and component.artifact_service:
+        if isinstance(specific_tool_config, dict):
+            specific_tool_config = {**specific_tool_config, "_artifact_service": component.artifact_service}
+        else:
+            # If it's already a Pydantic model, we can't inject - will rely on YAML config
+            log.debug(
+                "%s Cannot inject artifact_service into non-dict tool_config for %s",
+                component.log_identifier,
+                module_name,
+            )
 
     # Determine the class to load
     tool_class = None

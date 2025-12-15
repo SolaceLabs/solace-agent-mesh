@@ -11,7 +11,7 @@ export const GridCard = ({ children, className, isSelected, onClick, ...props }:
     return (
         <Card
             className={cn(
-                "flex h-[200px] w-[380px] flex-shrink-0 py-4 transition-all",
+                "flex h-[200px] min-w-[320px] max-w-[420px] w-full py-4 transition-all",
                 onClick && "cursor-pointer hover:bg-[var(--color-primary-w10)] dark:hover:bg-[var(--color-primary-wMain)]",
                 onClick && "focus-visible:border-[var(--color-brand-w100)] focus-visible:outline-none",
                 isSelected && "border-[var(--color-brand-w100)]",

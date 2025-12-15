@@ -269,6 +269,14 @@ apps:
             environments: ["node", "python", "go"]
             stream: true
 
+            # Workspace Manager Configuration (for K8S production or local testing)
+            # Enables tarball-based workspace persistence via artifact service
+            workspace_manager:
+              enabled: true
+              app_storage:
+                type: filesystem
+                base_path: "${HOME}/.sam-app-storage"
+
             # Arbitrary Environment Variables
             # These are injected into the Claude Code container
             environment_variables:

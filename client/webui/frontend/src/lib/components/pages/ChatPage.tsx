@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-import { ArrowLeft, PanelLeftIcon, Save } from "lucide-react";
+import { ArrowLeft, PanelLeftIcon, Rocket } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
@@ -19,6 +19,7 @@ import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
 import { SessionSidePanel } from "../chat/SessionSidePanel";
 import { ChatSessionDeleteDialog } from "../chat/ChatSessionDeleteDialog";
+import { DeploymentDialog } from "../apps/DeploymentDialog";
 import type { ChatMessageListRef } from "../ui/chat/chat-message-list";
 
 // Constants for sidepanel behavior
@@ -70,10 +71,11 @@ export function ChatPage() {
 
     // Detect app editor mode from URL parameters
     const appId = searchParams.get('appId');
-    const { app, deploy, deploying } = useApp(appId || undefined);
+    const { app } = useApp(appId || undefined);
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
+    const [isDeployDialogOpen, setIsDeployDialogOpen] = useState(false);
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -285,17 +287,23 @@ export function ChatPage() {
                     buttons={
                         appEditorMode && app ? [
                             <Button
-                                key="deploy"
+                                key="deployment"
                                 variant="default"
-                                onClick={() => deploy()}
-                                disabled={deploying}
+                                onClick={() => setIsDeployDialogOpen(true)}
                             >
-                                <Save className="size-4" />
-                                {deploying ? "Deploying..." : "Deploy"}
+                                <Rocket className="size-4" />
+                                Deployment
                             </Button>,
                         ] : undefined
                     }
                 />
+                {appId && (
+                    <DeploymentDialog
+                        isOpen={isDeployDialogOpen}
+                        onClose={() => setIsDeployDialogOpen(false)}
+                        appId={appId}
+                    />
+                )}
             </div>
             <div className="flex min-h-0 flex-1">
                 <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>

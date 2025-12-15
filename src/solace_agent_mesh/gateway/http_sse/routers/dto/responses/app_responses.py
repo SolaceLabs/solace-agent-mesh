@@ -13,11 +13,18 @@ class AppResponse(BaseModel):
     name: str = Field(..., description="App display name")
     description: Optional[str] = Field(None, description="App description")
     workspace_id: str = Field(..., alias="workspaceId", description="Associated workspace ID")
+    is_public: bool = Field(False, alias="isPublic", description="Whether the app is publicly visible")
+    is_owner: bool = Field(False, alias="isOwner", description="Whether the current user is the owner")
+    created_by_user_id: str = Field(..., alias="createdByUserId", description="User ID who created the app")
     status: str = Field(..., description="App status: draft, deployed, archived")
     current_version: int = Field(..., alias="currentVersion", description="Current deployed version number")
+    dev_version: Optional[str] = Field(None, alias="devVersion", description="Version deployed to dev environment")
+    staging_version: Optional[str] = Field(None, alias="stagingVersion", description="Version deployed to staging environment")
+    prod_version: Optional[str] = Field(None, alias="prodVersion", description="Version deployed to prod environment")
     created_time: int = Field(..., alias="createdTime", description="Creation timestamp (milliseconds since epoch)")
     updated_time: int = Field(..., alias="updatedTime", description="Last update timestamp (milliseconds since epoch)")
     archived_time: Optional[int] = Field(None, alias="archivedTime", description="Archive timestamp if archived")
+    tags: list[str] = Field(default_factory=list, description="Tags associated with the app")
 
     model_config = {"populate_by_name": True}
 
@@ -61,5 +68,45 @@ class DevServerResponse(BaseModel):
 
     dev_server_url: str = Field(..., alias="devServerUrl", description="URL to access dev server via proxy")
     status: str = Field(..., description="Dev server status: starting, running, stopped")
+
+    model_config = {"populate_by_name": True}
+
+
+class PreviewVersionInfo(BaseModel):
+    """Preview version info for versions response."""
+
+    version: Optional[str] = Field(None, description="Preview version from VERSION file")
+    available: bool = Field(..., description="Whether preview build exists")
+
+    model_config = {"populate_by_name": True}
+
+
+class EnvironmentVersions(BaseModel):
+    """Environment version assignments."""
+
+    dev: Optional[str] = Field(None, description="Version deployed to dev")
+    staging: Optional[str] = Field(None, description="Version deployed to staging")
+    prod: Optional[str] = Field(None, description="Version deployed to prod")
+
+    model_config = {"populate_by_name": True}
+
+
+class AppVersionsResponse(BaseModel):
+    """Response for list_app_versions endpoint."""
+
+    versions: list[str] = Field(..., description="List of deployed version strings, newest first")
+    preview: PreviewVersionInfo = Field(..., description="Preview version info")
+    environments: EnvironmentVersions = Field(..., description="Current environment version assignments")
+
+    model_config = {"populate_by_name": True}
+
+
+class PromoteVersionResponse(BaseModel):
+    """Response after promoting a version."""
+
+    success: bool = Field(..., description="Whether promotion succeeded")
+    version: str = Field(..., description="Version that was promoted")
+    environment: str = Field(..., description="Environment it was promoted to")
+    error: Optional[str] = Field(None, description="Error message if failed")
 
     model_config = {"populate_by_name": True}

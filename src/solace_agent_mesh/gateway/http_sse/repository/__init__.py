@@ -13,6 +13,7 @@ from .interfaces import (
 
 # Implementations
 from .app_repository import AppRepository
+from .app_tag_repository import AppTagRepository
 from .chat_task_repository import ChatTaskRepository
 from .feedback_repository import FeedbackRepository
 from .project_repository import ProjectRepository
@@ -35,6 +36,7 @@ __all__ = [
     "ITaskRepository",
     # Implementations
     "AppRepository",
+    "AppTagRepository",
     "ChatTaskRepository",
     "FeedbackRepository",
     "ProjectRepository",

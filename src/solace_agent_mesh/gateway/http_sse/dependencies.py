@@ -664,3 +664,24 @@ def get_workspace_base(
     workspace_base = app_config.get("workspace_base", "~/.claude-workspaces")
     # Expand ~ to home directory
     return os.path.expanduser(workspace_base)
+
+
+def get_app_storage_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+):
+    """
+    FastAPI dependency to get the AppStorageService (required for app serving).
+
+    Both local development and production K8S use the same AppStorageService
+    abstraction - only the backend differs (FilesystemAppStorageService vs
+    S3AppStorageService).
+
+    Raises HTTPException if AppStorageService is not configured.
+    """
+    log.debug("get_app_storage_service called")
+    if hasattr(component, "app_storage_service") and component.app_storage_service is not None:
+        return component.app_storage_service
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="App storage service not configured. Please configure app_storage in gateway settings.",
+    )
