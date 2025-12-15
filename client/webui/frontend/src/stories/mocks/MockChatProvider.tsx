@@ -44,6 +44,8 @@ const defaultMockChatContext: DefaultMockContextType = {
     // Nullable state
     currentTaskId: null,
     agentsError: null,
+    ragData: [],
+    ragEnabled: true,
     taskIdInSidePanel: null,
     artifactToDelete: null,
     previewArtifact: null,

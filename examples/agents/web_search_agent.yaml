@@ -1,0 +1,150 @@
+# Web Search Agent Configuration
+# This agent performs quick web searches using Google/Tavily APIs
+# Optimized for fast, focused information retrieval
+
+log:
+  stdout_log_level: INFO
+  log_file_level: INFO
+  log_file: web_search_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: "WebSearchAgent_app"
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}"
+      supports_streaming: true
+      agent_name: "WebSearchAgent"
+      display_name: "Web Search Agent"
+      model: *general_model
+
+      instruction: |
+        You are a web search assistant specialized in finding and summarizing information from the internet.
+        
+         **When to Use Web Search:**
+        - Current events and news
+        - Factual information that may have changed recently
+        - Product information and reviews
+        - Technical documentation and guides
+        - General knowledge questions
+        
+        **Your Role:**
+        - Perform quick, focused web searches to answer user questions
+        - Provide concise summaries based on ACTUAL search results
+        
+        **How to Use Web Search:**
+        1. When asked a question, determine if web search is needed
+        2. Use the web search tool to search for relevant information
+        3. Analyze the search results
+        4. Provide a clear, concise answer with citations
+        
+        **CITATION RULES:**
+        
+        1. You MUST call web_search FIRST
+        2. You MUST wait for results
+        3. You MUST base your answer on those results
+        4. IF you use the web search tool, then You MUST use [[cite:searchN]] where N is the result index (0, 1, 2, etc.)
+        5. You MUST NOT include citations without actual search results
+        6. You MUST NOT hallucinate information
+        
+        **Best Practices:**
+        - Use specific, targeted search queries
+        - Prioritize recent and authoritative sources
+        - If results are insufficient, try alternative search queries
+        - Be transparent about information limitations
+        
+        **Citation Format:**
+        - Use [[cite:searchN]] format where N is the result index (0-indexed)
+        - Place citations AFTER the period at the end of sentences
+        - DO NOT manually list sources at the end of your response
+        - The system will automatically display source links to the user
+        
+        **IMPORTANT - Image Results:**
+        - Image results will be displayed AUTOMATICALLY by the UI
+        - DO NOT cite images using [[cite:imageN]] format
+        - DO NOT mention image URLs or image sources in your text
+        - DO NOT list images in your response
+        - Simply describe what you found and the UI will show the images
+        
+        **CORRECT EXAMPLE:**
+        
+        User: "What is quantum computing?"
+        
+        ✅ CORRECT BEHAVIOR:
+        1. You call: web_search(query="quantum computing explanation")
+        2. You receive results with sources
+        3. You write response based on those results:
+        
+        "Quantum computing is a type of computation that uses quantum mechanical phenomena.[[cite:search0]] It uses qubits instead of classical bits, allowing for superposition and entanglement.[[cite:search1]] Applications include cryptography and drug discovery.[[cite:search2]]"
+        
+        ❌ WRONG BEHAVIOR:
+        - Writing a response with [[cite:search0]] WITHOUT first calling web_search
+        - Making up information without searching
+        - Including citation markers without actual results
+      
+      tools:
+        - tool_type: builtin-group
+          group_name: web_search
+          tool_config:    
+            # API keys for web search
+            tavily_api_key: "${TAVILY_API_KEY}"
+            exa_api_key: "${EXA_API_KEY}"
+            brave_api_key: "${BRAVE_API_KEY}"
+            google_search_api_key: "${GOOGLE_SEARCH_API_KEY}"
+            google_cse_id: "${GOOGLE_CSE_ID}"
+
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+      
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      data_tools_config: *default_data_tools_config
+
+      # Agent Card Definition
+      agent_card:
+        version: "1.0.0"
+        description: |
+          Fast web search agent for quick information retrieval from the internet.
+          
+          Capabilities:
+          • Web Search: Google and Tavily search integration
+          • Quick Answers: Fast, focused responses to queries
+          • Source Citation: Automatic citation of web sources
+          • Current Information: Access to up-to-date web content
+          
+          Perfect for:
+          - Quick fact-checking
+          - Current events and news
+          - Product information
+          - General web queries
+          - Finding specific information online
+          
+          Note: Optimized for speed and focused searches. For comprehensive research, use Deep Research Agent.
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills:
+          - id: "web_search"
+            name: "Web Search"
+            description: "Performs web searches using Google API to find current information."
+          - id: "quick_answers"
+            name: "Quick Answers"
+            description: "Provides fast, focused answers to user questions using web search."
+          - id: "source_citation"
+            name: "Source Citation"
+            description: "Automatically cites web sources with links and metadata."
+      
+      # Discovery & Communication
+      agent_card_publishing:
+        interval_seconds: 10
+      agent_discovery:
+        enabled: true
+      inter_agent_communication:
+        allow_list: []
+        deny_list: []
+        request_timeout_seconds: 120

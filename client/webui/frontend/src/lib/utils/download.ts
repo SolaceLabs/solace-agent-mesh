@@ -2,16 +2,28 @@ import type { FileAttachment } from "@/lib/types";
 import { authenticatedFetch } from "./api";
 
 // Helper function to parse the custom artifact URI
-export const parseArtifactUri = (uri: string): { filename: string; version: string | null } | null => {
+// URI format: artifact://{sessionId}/{filename}?version={version}
+export const parseArtifactUri = (uri: string): { sessionId: string | null; filename: string; version: string | null } | null => {
     try {
         const url = new URL(uri);
         if (url.protocol !== "artifact:") {
             return null;
         }
+
+        const sessionId = url.hostname || null;
         const pathParts = url.pathname.split("/").filter(p => p);
+
+        // The filename is in the pathname
+        if (pathParts.length === 0) {
+            // No filename in path - this shouldn't happen for valid URIs
+            return null;
+        }
+
+        // Get the filename (last part of the path)
         const filename = pathParts[pathParts.length - 1];
+
         const version = url.searchParams.get("version");
-        return { filename, version };
+        return { sessionId, filename, version };
     } catch (e) {
         console.error("Invalid artifact URI:", e);
         return null;
@@ -57,16 +69,20 @@ export const downloadFile = async (file: FileAttachment, sessionId?: string, pro
                 throw new Error(`Invalid or unhandled URI format: ${file.uri}`);
             }
 
-            filename = parsedUri.filename;
-            const version = parsedUri.version || "latest";
+            const { sessionId: uriSessionId, filename: parsedFilename, version: parsedVersion } = parsedUri;
+            filename = parsedFilename;
+            const version = parsedVersion || "latest";
 
             // Construct the API URL to fetch the artifact content
-            // Priority 1: Session context (active chat)
+            // Priority 1: Session ID from URI (artifact was created in this session)
+            // Priority 2: Session context (active chat)
+            // Priority 3: Project context (pre-session, project artifacts)
             let apiUrl: string;
-            if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                apiUrl = `/api/v1/artifacts/${encodeURIComponent(sessionId)}/${encodeURIComponent(filename)}/versions/${version}`;
+            const effectiveSessionId = uriSessionId || sessionId;
+            if (effectiveSessionId && effectiveSessionId.trim() && effectiveSessionId !== "null" && effectiveSessionId !== "undefined") {
+                apiUrl = `/api/v1/artifacts/${encodeURIComponent(effectiveSessionId)}/${encodeURIComponent(filename)}/versions/${version}`;
             }
-            // Priority 2: Project context (pre-session, project artifacts)
+            // Priority 3: Project context (pre-session, project artifacts)
             else if (projectId) {
                 apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version}?project_id=${projectId}`;
             }

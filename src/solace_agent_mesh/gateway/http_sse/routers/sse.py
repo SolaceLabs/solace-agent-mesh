@@ -84,6 +84,38 @@ async def subscribe_to_task_events(
                         missed_events = [e for e in events if e.created_time > replay_from_timestamp]
                         log.info("%sReplaying %d missed events", log_prefix, len(missed_events))
                         
+                        # For background tasks, filter out intermediate artifact update events
+                        # to prevent duplicate artifacts in chat. Only keep the final task response
+                        # which contains the complete artifact list.
+                        if is_background_task:
+                            # Find if there's a final task response
+                            has_final_response = any(
+                                e.direction == "response" and
+                                "result" in e.payload and
+                                e.payload.get("result", {}).get("kind") == "task"
+                                for e in missed_events
+                            )
+                            
+                            if has_final_response:
+                                # Filter out artifact-update events since the final response contains all artifacts
+                                filtered_events = []
+                                for e in missed_events:
+                                    if e.direction == "response" and "result" in e.payload:
+                                        result = e.payload.get("result", {})
+                                        if result.get("kind") == "artifact-update":
+                                            log.debug(
+                                                "%sFiltering out intermediate artifact-update event during replay",
+                                                log_prefix
+                                            )
+                                            continue
+                                    filtered_events.append(e)
+                                missed_events = filtered_events
+                                log.info(
+                                    "%sFiltered to %d events (removed intermediate artifact updates)",
+                                    log_prefix,
+                                    len(missed_events)
+                                )
+                        
                         for event in missed_events:
                             # The payload is already a JSON-RPC response, just need to determine event type
                             # and yield it in the same format as live events
