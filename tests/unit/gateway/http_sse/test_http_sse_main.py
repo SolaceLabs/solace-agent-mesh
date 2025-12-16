@@ -33,6 +33,12 @@ from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 from solace_agent_mesh.gateway.http_sse.session_manager import SessionManager
 from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
 
+# Check if enterprise package is available
+try:
+    from solace_agent_mesh_enterprise.gateway.auth.internal import oauth_utils
+    ENTERPRISE_AVAILABLE = True
+except ImportError:
+    ENTERPRISE_AVAILABLE = False
 
 # ============================================================================
 # Test Fixtures
@@ -184,9 +190,10 @@ class TestTokenExtraction:
         assert token is None
 
 
+@pytest.mark.skipif(not ENTERPRISE_AVAILABLE, reason="Enterprise package required for OAuth tests")
 class TestTokenValidation:
     """Test _validate_token function."""
-    
+
     @pytest.mark.asyncio
     async def test_validate_token_success(self, mock_httpx_client):
         """Test successful token validation."""
@@ -241,9 +248,10 @@ class TestTokenValidation:
         assert mock_httpx_client.post.call_count == len(providers)
 
 
+@pytest.mark.skipif(not ENTERPRISE_AVAILABLE, reason="Enterprise package required for OAuth tests")
 class TestUserInfoRetrieval:
     """Test _get_user_info function."""
-    
+
     @pytest.mark.asyncio
     async def test_get_user_info_success(self, mock_httpx_client):
         """Test successful user info retrieval."""
@@ -288,9 +296,10 @@ class TestUserInfoRetrieval:
         assert user_info is None
 
 
+@pytest.mark.skipif(not ENTERPRISE_AVAILABLE, reason="Enterprise package required for OAuth tests")
 class TestUserIdentifierExtraction:
     """Test _extract_user_identifier function."""
-    
+
     def test_extract_identifier_from_sub(self):
         """Test extracting identifier from 'sub' claim."""
         user_info = {"sub": "user123", "email": "user@example.com"}
