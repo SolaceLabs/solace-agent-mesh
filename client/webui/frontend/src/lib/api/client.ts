@@ -1,18 +1,37 @@
 import { getAccessToken } from "@/lib/utils/api";
 
-interface RequestOptions extends RequestInit {
-    raw?: boolean;
+interface RequestOptions {
+    headers?: HeadersInit;
+    signal?: AbortSignal;
     keepalive?: boolean;
+    credentials?: RequestCredentials;
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- API responses vary; callers can specify types for safety */
 interface HttpMethods {
-    get: (endpoint: string, options?: RequestOptions) => Promise<any>;
-    post: (endpoint: string, body?: unknown, options?: RequestOptions) => Promise<any>;
-    put: (endpoint: string, body?: unknown, options?: RequestOptions) => Promise<any>;
-    delete: (endpoint: string, options?: RequestOptions) => Promise<any>;
-    patch: (endpoint: string, body?: unknown, options?: RequestOptions) => Promise<any>;
+    get: {
+        <T = any>(endpoint: string, options?: RequestOptions): Promise<T>;
+        (endpoint: string, options: RequestOptions & { raw: true }): Promise<Response>;
+    };
+    post: {
+        <T = any>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T>;
+        (endpoint: string, body: unknown, options: RequestOptions & { raw: true }): Promise<Response>;
+    };
+    put: {
+        <T = any>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T>;
+        (endpoint: string, body: unknown, options: RequestOptions & { raw: true }): Promise<Response>;
+    };
+    delete: {
+        <T = any>(endpoint: string, options?: RequestOptions): Promise<T>;
+        (endpoint: string, options: RequestOptions & { raw: true }): Promise<Response>;
+    };
+    patch: {
+        <T = any>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T>;
+        (endpoint: string, body: unknown, options: RequestOptions & { raw: true }): Promise<Response>;
+    };
     getFullUrl: (endpoint: string) => string;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 const getRefreshToken = () => localStorage.getItem("refresh_token");
 
@@ -105,6 +124,8 @@ const fetchJsonWithError = async (url: string, options: RequestInit = {}) => {
     return response.json();
 };
 
+type InternalRequestOptions = RequestOptions & RequestInit & { raw?: boolean };
+
 class ApiClient {
     private webuiBaseUrl = "";
     private platformBaseUrl = "";
@@ -122,103 +143,52 @@ class ApiClient {
         this.platformBaseUrl = platformUrl;
     }
 
-    private async request(baseUrl: string, endpoint: string, options?: RequestOptions) {
+    private async request(baseUrl: string, endpoint: string, options?: InternalRequestOptions) {
         const url = `${baseUrl}${endpoint}`;
-        const { raw, keepalive, ...fetchOptions } = options || {};
-        const finalOptions = keepalive ? { ...fetchOptions, keepalive } : fetchOptions;
+        const { raw, ...fetchOptions } = options || {};
 
         if (raw) {
-            return authenticatedFetch(url, finalOptions);
+            return authenticatedFetch(url, fetchOptions);
         }
 
-        return fetchJsonWithError(url, finalOptions);
+        return fetchJsonWithError(url, fetchOptions);
+    }
+
+    private buildRequestWithBody(
+        method: string,
+        body: unknown,
+        options?: InternalRequestOptions
+    ): InternalRequestOptions {
+        if (body instanceof FormData) {
+            return { ...options, method, body };
+        }
+        if (body === undefined || body === null) {
+            return { ...options, method };
+        }
+        return {
+            ...options,
+            method,
+            headers: { "Content-Type": "application/json", ...options?.headers },
+            body: JSON.stringify(body),
+        };
     }
 
     private createHttpMethods(getBaseUrl: () => string): HttpMethods {
         return {
-            get: (endpoint: string, options?: RequestOptions) =>
-                this.request(getBaseUrl(), endpoint, options),
+            get: ((endpoint: string, options?: InternalRequestOptions) =>
+                this.request(getBaseUrl(), endpoint, options)) as HttpMethods["get"],
 
-            post: (endpoint: string, body?: unknown, options?: RequestOptions) => {
-                if (body instanceof FormData) {
-                    return this.request(getBaseUrl(), endpoint, {
-                        ...options,
-                        method: "POST",
-                        body: body,
-                    });
-                }
-                if (body === undefined || body === null) {
-                    return this.request(getBaseUrl(), endpoint, {
-                        ...options,
-                        method: "POST",
-                    });
-                }
-                return this.request(getBaseUrl(), endpoint, {
-                    ...options,
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...options?.headers,
-                    },
-                    body: JSON.stringify(body),
-                });
-            },
+            post: ((endpoint: string, body?: unknown, options?: InternalRequestOptions) =>
+                this.request(getBaseUrl(), endpoint, this.buildRequestWithBody("POST", body, options))) as HttpMethods["post"],
 
-            put: (endpoint: string, body?: unknown, options?: RequestOptions) => {
-                if (body instanceof FormData) {
-                    return this.request(getBaseUrl(), endpoint, {
-                        ...options,
-                        method: "PUT",
-                        body: body,
-                    });
-                }
-                if (body === undefined || body === null) {
-                    return this.request(getBaseUrl(), endpoint, {
-                        ...options,
-                        method: "PUT",
-                    });
-                }
-                return this.request(getBaseUrl(), endpoint, {
-                    ...options,
-                    method: "PUT",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...options?.headers,
-                    },
-                    body: JSON.stringify(body),
-                });
-            },
+            put: ((endpoint: string, body?: unknown, options?: InternalRequestOptions) =>
+                this.request(getBaseUrl(), endpoint, this.buildRequestWithBody("PUT", body, options))) as HttpMethods["put"],
 
-            delete: (endpoint: string, options?: RequestOptions) =>
-                this.request(getBaseUrl(), endpoint, {
-                    ...options,
-                    method: "DELETE",
-                }),
+            delete: ((endpoint: string, options?: InternalRequestOptions) =>
+                this.request(getBaseUrl(), endpoint, { ...options, method: "DELETE" })) as HttpMethods["delete"],
 
-            patch: (endpoint: string, body?: unknown, options?: RequestOptions) => {
-                if (body instanceof FormData) {
-                    return this.request(getBaseUrl(), endpoint, {
-                        ...options,
-                        method: "PATCH",
-                        body: body,
-                    });
-                }
-                if (body === undefined || body === null) {
-                    return this.request(getBaseUrl(), endpoint, {
-                        ...options,
-                        method: "PATCH",
-                    });
-                }
-                return this.request(getBaseUrl(), endpoint, {
-                    ...options,
-                    method: "PATCH",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...options?.headers,
-                    },
-                    body: JSON.stringify(body),
-                });
-            },
+            patch: ((endpoint: string, body?: unknown, options?: InternalRequestOptions) =>
+                this.request(getBaseUrl(), endpoint, this.buildRequestWithBody("PATCH", body, options))) as HttpMethods["patch"],
 
             getFullUrl: (endpoint: string) => `${getBaseUrl()}${endpoint}`,
         };

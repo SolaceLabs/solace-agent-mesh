@@ -64,7 +64,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Projects feature is disabled");
             }
 
-            const newProject: Project = await api.webui.post("/api/v1/projects", undefined, { body: projectData });
+            const newProject: Project = await api.webui.post("/api/v1/projects", projectData);
 
             setProjects(prev => {
                 const updated = [newProject, ...prev];
