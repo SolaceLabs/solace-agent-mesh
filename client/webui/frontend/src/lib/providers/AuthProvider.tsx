@@ -9,7 +9,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-    const { frontend_use_authorization: useAuthorization, configAuthLoginUrl: authLoginUrl } = useConfigContext();
+    const { configUseAuthorization, configAuthLoginUrl } = useConfigContext();
     const { fetchCsrfToken, clearCsrfToken } = useCsrfContext();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -19,7 +19,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         let isMounted = true;
 
         const checkAuthStatus = async () => {
-            if (!useAuthorization) {
+            if (!configUseAuthorization) {
                 if (isMounted) {
                     setIsAuthenticated(true);
                     setIsLoading(false);
@@ -29,7 +29,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             try {
                 const userResponse = await authenticatedFetch("/api/v1/users/me", {
-                    credentials: "include",
                     headers: { Accept: "application/json" },
                 });
 
@@ -82,16 +81,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             isMounted = false;
             window.removeEventListener("storage", handleStorageChange);
         };
-    }, [useAuthorization, authLoginUrl, fetchCsrfToken]);
+    }, [configUseAuthorization, configAuthLoginUrl, fetchCsrfToken]);
 
     const login = () => {
-        window.location.href = authLoginUrl;
+        window.location.href = configAuthLoginUrl;
     };
 
-    const logout = () => {
-        setIsAuthenticated(false);
-        setUserInfo(null);
-        clearCsrfToken();
+    const logout = async () => {
+        try {
+            const response = await authenticatedFetch("/api/v1/auth/logout", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                },
+            });
+
+            if (response.ok) {
+                return;
+            } else {
+                throw new Error("Backend logout failed with status: " + response.status);
+            }
+        } catch (error) {
+            console.error("Error calling logout endpoint:", error);
+        } finally {
+            // Clear local auth state regardless of logout success
+            setIsAuthenticated(false);
+            setUserInfo(null);
+            clearCsrfToken();
+        }
     };
 
     if (isLoading) {
@@ -109,7 +127,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         <AuthContext.Provider
             value={{
                 isAuthenticated,
-                useAuthorization,
+                useAuthorization: configUseAuthorization,
                 login,
                 logout,
                 userInfo,
