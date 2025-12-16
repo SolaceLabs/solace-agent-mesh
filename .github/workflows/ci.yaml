@@ -28,6 +28,7 @@ jobs:
       npm_package_path: client/webui/frontend
       node_version: 20
       npm_lock_file: package-lock.json
+      sca_scanners: "fossa"
 
     secrets:
       SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
@@ -61,7 +62,6 @@ jobs:
         run: |
           # Sync lock file with pyproject.toml
           uv lock
-
       - name: Get Commit Hash
         id: get_commit_hash
         run: |

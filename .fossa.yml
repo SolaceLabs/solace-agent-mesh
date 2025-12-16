@@ -1,0 +1,26 @@
+#Configuration used for fossa scan
+version: 3
+
+project:
+  locator: SolaceLabs_solace-ai-connector
+  id: SolaceLabs_solace-ai-connector
+  name: solace-ai-connector
+  labels:
+    - solaceai
+    - solacelabs
+    - community
+    - repository
+
+vendoredDependencies:
+  forceRescans: false
+  scanMethod: CLILicenseScan
+  licenseScanPathFilters:
+    exclude:
+      - "./.github"
+
+paths:
+  exclude:
+    - ./.github
+
+telemetry:
+  scope: full
