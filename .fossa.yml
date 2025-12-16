@@ -2,9 +2,9 @@
 version: 3
 
 project:
-  locator: SolaceLabs_solace-ai-connector
-  id: SolaceLabs_solace-ai-connector
-  name: solace-ai-connector
+  locator: SolaceLabs_solace-agent-mesh
+  id: SolaceLabs_solace-agent-mesh
+  name: solace-agent-mesh
   labels:
     - solaceai
     - solacelabs
