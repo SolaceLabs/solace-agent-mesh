@@ -1,5 +1,5 @@
 export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
-  return `
+    return `
 	  break-words
     leading-[24px]
 
@@ -12,7 +12,9 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
     [&_h6]:text-xs [&_h6]:font-semibold [&_h6]:mb-1 [&_h6]:mt-2 [&_h6]:text-foreground
 
     /* Paragraphs */
-    [&_p]:leading-[24px] [&_p]:text-foreground [&_p]:whitespace-pre-wrap
+    [&_p]:leading-[24px] [&_p]:text-foreground [&_p]:whitespace-pre-wrap [&_p]:mb-6
+    [&_p:last-child]:mb-0
+    [&_li>p]:mb-0
 
     /* Text formatting */
     [&_strong]:font-semibold [&_strong]:text-foreground
@@ -29,18 +31,18 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
     [&_li]:text-foreground [&_li]:leading-[24px]
     [&_ul_ul]:mt-1 [&_ul_ul]:mb-1
     [&_ol_ol]:mt-1 [&_ol_ol]:mb-1
+    [&_ul:last-child]:mb-0
+    [&_ol:last-child]:mb-0
 
-    /* Code */
+    /* Code - inline code only (code blocks handled by CodeBlock component) */
     [&_code]:bg-transparent [&_code]:py-0.5 [&_code]:rounded
     [&_code]:text-sm [&_code]:font-mono [&_code]:font-semibold [&_code]:text-foreground [&_code]:break-words
-    [&_pre]:bg-transparent [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:max-w-full
-    [&_pre]:mb-4 [&_pre]:border [&_pre]:border-border [&_pre]:whitespace-pre-wrap
-    [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-sm [&_pre_code]:break-words
 
     /* Blockquotes */
     [&_blockquote]:border-l-4 [&_blockquote]:border-border [&_blockquote]:pl-4
     [&_blockquote]:py-2 [&_blockquote]:mb-4 [&_blockquote]:italic
     [&_blockquote]:text-foreground [&_blockquote]:bg-transparent
+    [&_blockquote:last-child]:mb-0
     
     /* Tables */
     [&_table]:w-full [&_table]:mb-4 [&_table]:border-collapse [&_table]:table-fixed [&_table]:max-w-full
@@ -48,21 +50,24 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
     [&_th]:bg-transparent [&_th]:font-semibold [&_th]:text-left
     [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:break-words
     [&_tr:nth-child(even)]:bg-transparent
+    [&_table:last-child]:mb-0
     
     /* Horizontal rules */
     [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-border [&_hr]:my-6
+    [&_hr:last-child]:mb-0
 
     /* Images */
     [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded [&_img]:my-2 [&_img]:object-contain
+    [&_img:last-child]:mb-0
 
     ${additionalClasses}
   `
-    .trim()
-    .replace(/\s+/g, " ");
+        .trim()
+        .replace(/\s+/g, " ");
 };
 
 export const getThemeButtonHtmlStyles = (additionalClasses: string = ""): string => {
-  return `
+    return `
     /* Buttons - "important" overrides for flow controls */
     [&>button]:bg-[var(--color-background-w10)]
     [&>button]:dark:!bg-[var(--color-background-w100)]
@@ -76,6 +81,6 @@ export const getThemeButtonHtmlStyles = (additionalClasses: string = ""): string
 
     ${additionalClasses}
   `
-    .trim()
-    .replace(/\s+/g, " ");
+        .trim()
+        .replace(/\s+/g, " ");
 };

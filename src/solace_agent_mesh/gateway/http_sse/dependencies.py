@@ -395,11 +395,15 @@ async def get_user_config(
     FastAPI dependency to get the user-specific configuration.
     """
     log.debug(f"get_user_config called for user_id: {user_id}")
-    gateway_context = {
-        "gateway_id": component.gateway_id,
-        "gateway_app_config": app_config,
-        "request": request,
-    }
+
+    # TODO: DATAGO-114659-split-cleanup
+    gateway_context = {}
+    if getattr(component, "gateway_id", None):
+        gateway_context = {
+            "gateway_id": component.gateway_id,
+            "gateway_app_config": app_config,
+            "request": request,
+        }
     return await config_resolver.resolve_user_config(
         user_id, gateway_context, app_config
     )
@@ -630,3 +634,20 @@ def get_audio_service(
     log.debug(f"[get_audio_service] app_config keys: {app_config.keys()}")
     return AudioService(config=app_config)
 
+
+
+def get_user_display_name(
+    request: Request,
+    user_id: str = Depends(get_user_id),
+) -> str:
+    """
+    FastAPI dependency to get a user's display name.
+    Returns email if available, otherwise returns user_id.
+    """
+    # Try to get user info from request state (set by AuthMiddleware)
+    if hasattr(request.state, "user") and request.state.user:
+        user_info = request.state.user
+        # Try email first, then name, then fall back to user_id
+        return user_info.get("email") or user_info.get("name") or user_id
+    
+    return user_id

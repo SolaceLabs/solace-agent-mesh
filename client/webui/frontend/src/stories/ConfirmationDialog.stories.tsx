@@ -1,5 +1,8 @@
-import { Button, ConfirmationDialog } from "@/lib";
-import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
+import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
+import { Button } from "@/lib/components/ui/button";
+import { expect, userEvent, within, screen } from "storybook/test";
+import type { Meta, StoryContext, StoryFn } from "@storybook/react-vite";
 
 const meta = {
     title: "Common/ConfirmationDialog",
@@ -8,7 +11,7 @@ const meta = {
         layout: "fullscreen",
         docs: {
             description: {
-                component: "The button component",
+                component: "A confirmation dialog component with customizable title, message, and actions",
             },
         },
     },
@@ -22,24 +25,71 @@ const meta = {
 } satisfies Meta<typeof ConfirmationDialog>;
 
 export default meta;
-type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-    args: {
-        title: "Confirm",
-        triggerText: "Open Dialog",
-        message: "Are you sure you want to do this action",
-        onClose: () => alert("Action cancelled"),
-        onConfirm: () => alert("Action confirmed"),
+export const Default = {
+    render: () => {
+        const [open, setOpen] = useState(true);
+
+        return <ConfirmationDialog title="Confirm Dialog" content="Are you sure you want to do this action?" onConfirm={() => alert("Action confirmed")} open={open} onOpenChange={setOpen} />;
+    },
+    play: async () => {
+        const dialog = await screen.findByRole("dialog");
+        await expect(dialog).toBeInTheDocument();
+
+        const dialogContent = within(dialog);
+        // check title
+        await dialogContent.findByText("Confirm Dialog");
+        // check message
+        await dialogContent.findByText("Are you sure you want to do this action?");
+        await dialogContent.findByRole("button", { name: "Cancel" });
+        await dialogContent.findByRole("button", { name: "Confirm" });
     },
 };
 
-export const CustomTrigger: Story = {
-    args: {
-        title: "Confirm",
-        trigger: <Button variant="outline"> Custom trigger</Button>,
-        message: "Are you sure you want to do this action",
-        onClose: () => alert("Action cancelled"),
-        onConfirm: () => alert("Action confirmed"),
+export const WithTrigger = {
+    render: () => {
+        const [open, setOpen] = useState(false);
+
+        return <ConfirmationDialog title="Confirm Dialog" trigger={<Button variant="outline">Trigger</Button>} content="Are you sure you want to do this action?" onConfirm={() => alert("Action confirmed")} open={open} onOpenChange={setOpen} />;
+    },
+    play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+        const canvas = within(canvasElement);
+
+        // click trigger button
+        await userEvent.click(await canvas.findByText("Trigger"));
+
+        const dialog = await screen.findByRole("dialog");
+        await expect(dialog).toBeInTheDocument();
+
+        const dialogContent = within(dialog);
+        // check title
+        await dialogContent.findByText("Confirm Dialog");
+        await dialogContent.findByRole("button", { name: "Cancel" });
+        await dialogContent.findByRole("button", { name: "Confirm" });
+    },
+};
+
+export const WithExternalButton = {
+    render: () => {
+        const [open, setOpen] = useState(false);
+
+        return (
+            <>
+                <Button onClick={() => setOpen(true)}>External Button</Button>
+                <ConfirmationDialog title="Confirm Dialog With External Button" content="Are you sure you want to do this action?" onConfirm={() => alert("Action confirmed")} open={open} onOpenChange={setOpen} />
+            </>
+        );
+    },
+    play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+        const canvas = within(canvasElement);
+
+        // click external button
+        await userEvent.click(await canvas.findByText("External Button"));
+
+        const dialog = await screen.findByRole("dialog");
+        await expect(dialog).toBeInTheDocument();
+        const dialogContent = within(dialog);
+        await dialogContent.findByRole("button", { name: "Cancel" });
+        await dialogContent.findByRole("button", { name: "Confirm" });
     },
 };

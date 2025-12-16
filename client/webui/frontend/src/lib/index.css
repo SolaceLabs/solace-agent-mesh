@@ -12,6 +12,7 @@
     --color-foreground: var(--foreground);
     --color-card: var(--card);
     --color-card-foreground: var(--card-foreground);
+    --color-card-background: var(--card-background);
     --color-popover: var(--popover);
     --color-popover-foreground: var(--popover-foreground);
     --color-primary: var(--primary);
@@ -50,6 +51,7 @@
     --foreground: var(--color-primary-text-wMain);
     --card: var(--color-background-w10);
     --card-foreground: var(--color-primary-text-wMain);
+    --card-background: var(--color-background-w20);
     --popover: var(--color-background-w10);
     --popover-foreground: var(--color-primary-text-wMain);
     --primary: var(--color-primary-wMain);
@@ -89,6 +91,7 @@
     --foreground: var(--color-primary-text-w10);
     --card: var(--color-background-wMain);
     --card-foreground: var(--color-primary-text-w10);
+    --card-background: var(--color-background-w100);
     --popover: var(--color-background-wMain);
     --popover-foreground: var(--color-primary-text-w10);
     --primary: var(--color-primary-w60);
@@ -207,7 +210,7 @@
     /* Firefox */
     * {
         scrollbar-width: thin;
-        scrollbar-color: var(--color-primary-w20) var(--color-background-w10);
+        scrollbar-color: var(--color-primary-w20) var(--color-background-w20);
     }
 
     .fade-both-mask {
@@ -221,7 +224,7 @@
         left: 0;
         right: 0;
         height: 40px;
-        background: linear-gradient(to top, rgba(255, 255, 255, 0), var(--color-background-w10, white));
+        background: linear-gradient(to top, rgba(247, 248, 249, 0), var(--color-background-w20, #F7F8F9));
         pointer-events: none;
         z-index: 10;
     }
@@ -233,17 +236,17 @@
         left: 0;
         right: 0;
         height: 40px;
-        background: linear-gradient(to bottom, rgba(255, 255, 255, 0), var(--color-background-w10, white));
+        background: linear-gradient(to bottom, rgba(247, 248, 249, 0), var(--color-background-w20, #F7F8F9));
         pointer-events: none;
         z-index: 10;
     }
 
     .dark .fade-both-mask::before {
-        background: linear-gradient(to top, rgba(0, 0, 0, 0), var(--color-background-w100, black));
+        background: linear-gradient(to top, rgba(2, 27, 47, 0), var(--color-background-w100, #021B2F));
     }
 
     .dark .fade-both-mask::after {
-        background: linear-gradient(to bottom, rgba(0, 0, 0, 0), var(--color-background-w100, black));
+        background: linear-gradient(to bottom, rgba(2, 27, 47, 0), var(--color-background-w100, #021B2F));
     }
 
     .dark * {
@@ -257,7 +260,7 @@
     }
 
     *::-webkit-scrollbar-track {
-        background-color: var(--color-background-w10);
+        background-color: var(--color-background-w20);
     }
 
     .dark *::-webkit-scrollbar-track {

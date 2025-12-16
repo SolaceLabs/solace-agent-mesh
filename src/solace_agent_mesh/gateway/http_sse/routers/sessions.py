@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from ..dependencies import get_session_business_service, get_db
@@ -53,6 +54,7 @@ async def get_all_sessions(
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
                 project_name=session_domain.project_name,
+                has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
             )
@@ -105,6 +107,7 @@ async def search_sessions(
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
                 project_name=session_domain.project_name,
+                has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
             )
@@ -474,6 +477,11 @@ async def update_session_name(
 
     except HTTPException:
         raise
+    except ValidationError as e:
+        log.warning("Pydantic validation error updating session %s: %s", session_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
     except ValueError as e:
         log.warning("Validation error updating session %s: %s", session_id, e)
         raise HTTPException(
@@ -556,6 +564,7 @@ async def move_session_to_project(
 ):
     """
     Move a session to a different project or remove from project.
+    When moving to a project, artifacts from that project are immediately copied to the session.
     """
     user_id = user.get("id")
     log.info(
@@ -575,7 +584,7 @@ async def move_session_to_project(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
-        updated_session = session_service.move_session_to_project(
+        updated_session = await session_service.move_session_to_project(
             db=db,
             session_id=session_id,
             user_id=user_id,

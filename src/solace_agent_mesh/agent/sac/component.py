@@ -786,14 +786,7 @@ class SamAgentComponent(SamComponentBase):
                 log_retrigger,
                 len(new_response_parts),
             )
-            new_adk_event = ADKEvent(
-                invocation_id=paused_invocation_id,
-                author=self.agent_name,
-                content=adk_types.Content(role="tool", parts=new_response_parts),
-            )
-            await self.session_service.append_event(
-                session=session, event=new_adk_event
-            )
+            new_tool_response_content = adk_types.Content(role="tool", parts=new_response_parts)
 
             # Always use SSE streaming mode for the ADK runner, even on re-trigger.
             # This ensures that real-time callbacks for status updates and artifact
@@ -811,7 +804,7 @@ class SamAgentComponent(SamComponentBase):
             )
             try:
                 await run_adk_async_task_thread_wrapper(
-                    self, session, None, run_config, original_task_context
+                    self, session, new_tool_response_content, run_config, original_task_context, append_context_event=False
                 )
             finally:
                 log.info(
@@ -1034,11 +1027,12 @@ class SamAgentComponent(SamComponentBase):
                     tool_instance = PeerAgentTool(
                         target_agent_name=peer_name, host_component=self
                     )
-                    desc = (
-                        getattr(agent_card, "description", "No description")
-                        or "No description"
+                    # Get enhanced description from the tool instance
+                    # which includes capabilities, skills, and tools
+                    enhanced_desc = tool_instance._build_enhanced_description(
+                        agent_card
                     )
-                    tool_description_line = f"- `peer_{peer_name}`: {desc}"
+                    tool_description_line = f"\n### `peer_{peer_name}`\n{enhanced_desc}"
 
                 if tool_instance.name not in llm_request.tools_dict:
                     peer_tools_to_add.append(tool_instance)
@@ -1055,12 +1049,19 @@ class SamAgentComponent(SamComponentBase):
         if allowed_peer_descriptions:
             peer_list_str = "\n".join(allowed_peer_descriptions)
             instruction_text = (
-                "You can delegate tasks to other specialized agents or workflows if they are better suited.\n"
-                "Use the appropriate tool for delegation based on the list below.\n"
-                "For `peer_<agent_name>` tools, provide a clear `task_description` and include the original `user_query`.\n"
-                "For `workflow_<agent_name>` tools, follow the specific parameter requirements or use `input_artifact`.\n"
-                "Be aware that the peer agent/workflow may not have access to your session history, so you must provide all required context.\n\n"
-                "Available peers/workflows:\n"
+                "## Peer Agent and Workflow Delegation\n\n"
+                "You can delegate tasks to other specialized agents or workflows if they are better suited.\n\n"
+                "**How to delegate to peer agents:**\n"
+                "- Use the `peer_<agent_name>(task_description: str)` tool for delegation\n"
+                "- Replace `<agent_name>` with the actual name of the target agent\n"
+                "- Provide a clear and detailed `task_description` for the peer agent\n"
+                "- **Important:** The peer agent does not have access to your session history, "
+                "so you must provide all required context necessary to fulfill the request\n\n"
+                "**How to delegate to workflows:**\n"
+                "- Use the `workflow_<agent_name>` tool for workflow delegation\n"
+                "- Follow the specific parameter requirements defined in the tool schema\n"
+                "- Workflows also do not have access to your session history\n\n"
+                "## Available Peer Agents and Workflows\n"
                 f"{peer_list_str}"
             )
             callback_context.state["peer_tool_instructions"] = instruction_text

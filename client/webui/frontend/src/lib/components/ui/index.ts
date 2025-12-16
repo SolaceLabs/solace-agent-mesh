@@ -2,6 +2,7 @@
 export { Button } from "./button";
 export { ViewWorkflowButton } from "./ViewWorkflowButton";
 export { Textarea } from "./textarea";
+export { HighlightedTextarea } from "./highlighted-textarea";
 export { Input } from "./input";
 export { SearchInput } from "./search-input";
 export { Label } from "./label";
@@ -10,7 +11,6 @@ export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, C
 export { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "./form";
 export { Spinner } from "./spinner";
 export * from "./dialog";
-export { ConfirmationDialog } from "./ConfirmationDialog";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
 export { Switch } from "./switch";
 export { Pagination, PaginationContent, PaginationLink, PaginationItem, PaginationPrevious, PaginationNext, PaginationEllipsis } from "./pagination";

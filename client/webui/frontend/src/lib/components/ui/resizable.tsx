@@ -8,8 +8,8 @@ function ResizablePanelGroup({ className, ...props }: React.ComponentProps<typeo
     return <ResizablePrimitive.PanelGroup data-slot="resizable-panel-group" className={cn("flex h-full w-full data-[panel-group-direction=vertical]:flex-col", className)} {...props} />;
 }
 
-function ResizablePanel({ ...props }: React.ComponentProps<typeof ResizablePrimitive.Panel>) {
-    return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />;
+function ResizablePanel({ className, ...props }: React.ComponentProps<typeof ResizablePrimitive.Panel>) {
+    return <ResizablePrimitive.Panel data-slot="resizable-panel" className={cn("bg-transparent", className)} {...props} />;
 }
 
 function ResizableHandle({

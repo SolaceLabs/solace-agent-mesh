@@ -114,6 +114,56 @@ export const processTaskForVisualization = (
         return null;
     }
 
+    // Check if there's a request event for the parent task
+    const hasRequestEvent = parentTaskObject.events?.some(event => event.direction === "request" && event.task_id === parentTaskObject.taskId);
+
+    // If no request event exists but we have initialRequestText, synthesize one
+    // This handles the case where a background task is reconnected after browser refresh
+    // and the original request event was not captured by the task logger
+    if (!hasRequestEvent && parentTaskObject.initialRequestText && parentTaskObject.events && parentTaskObject.events.length > 0) {
+        const firstEventTimestamp = parentTaskObject.events[0]?.timestamp || parentTaskObject.firstSeen.toISOString();
+        // Create a synthetic timestamp slightly before the first event
+        const syntheticTimestamp = new Date(new Date(firstEventTimestamp).getTime() - 1).toISOString();
+
+        // Determine the target agent from the first event
+        let targetAgent = "Orchestrator";
+        const firstEvent = parentTaskObject.events[0];
+        if (firstEvent?.source_entity) {
+            targetAgent = firstEvent.source_entity;
+        } else if (firstEvent?.full_payload?.result?.metadata?.agent_name) {
+            targetAgent = firstEvent.full_payload.result.metadata.agent_name;
+        }
+
+        const syntheticRequestEvent: A2AEventSSEPayload = {
+            task_id: parentTaskObject.taskId,
+            direction: "request",
+            timestamp: syntheticTimestamp,
+            source_entity: "User",
+            target_entity: targetAgent,
+            event_type: "a2a_message",
+            solace_topic: `synthetic/request/${parentTaskObject.taskId}`,
+            payload_summary: {
+                method: "message/send",
+            },
+            full_payload: {
+                method: "message/send",
+                params: {
+                    message: {
+                        parts: [
+                            {
+                                kind: "text",
+                                text: parentTaskObject.initialRequestText,
+                            },
+                        ],
+                    },
+                },
+            },
+        };
+
+        // Add the synthetic event to the beginning of the events array
+        parentTaskObject.events = [syntheticRequestEvent, ...parentTaskObject.events];
+    }
+
     // --- Performance Report Initialization ---
     const report: PerformanceReport = {
         overall: { totalTaskDurationMs: 0 },

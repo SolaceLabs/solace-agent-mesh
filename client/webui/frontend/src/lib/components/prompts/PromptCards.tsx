@@ -20,10 +20,11 @@ interface PromptCardsProps {
     onViewVersions?: (prompt: PromptGroup) => void;
     onUseInChat?: (prompt: PromptGroup) => void;
     onTogglePin?: (id: string, currentStatus: boolean) => void;
+    onExport?: (prompt: PromptGroup) => void;
     newlyCreatedPromptId?: string | null;
 }
 
-export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreate, onAIAssisted, onEdit, onDelete, onViewVersions, onUseInChat, onTogglePin, newlyCreatedPromptId }) => {
+export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreate, onAIAssisted, onEdit, onDelete, onViewVersions, onUseInChat, onTogglePin, onExport, newlyCreatedPromptId }) => {
     const [selectedPrompt, setSelectedPrompt] = useState<PromptGroup | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -62,8 +63,8 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
         });
 
         return filtered.sort((a, b) => {
-            if (a.is_pinned !== b.is_pinned) {
-                return a.is_pinned ? -1 : 1;
+            if (a.isPinned !== b.isPinned) {
+                return a.isPinned ? -1 : 1;
             }
             // Within each group, sort alphabetically by name
             const nameA = (a.name || "").toLowerCase();
@@ -131,7 +132,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
 
     return (
         <div className="absolute inset-0 h-full w-full">
-            <ResizablePanelGroup direction="horizontal" className="h-full">
+            <ResizablePanelGroup id="promptCardsPanelGroup" direction="horizontal" className="h-full">
                 <ResizablePanel defaultSize={selectedPrompt ? 70 : 100} minSize={50} maxSize={selectedPrompt ? 100 : 100} id="promptCardsMainPanel">
                     <div className="flex h-full flex-col pt-6 pb-6 pl-6">
                         {!isLibraryEmpty && (
@@ -157,6 +158,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                                                     {selectedCategories.length > 0 && (
                                                         <div className="border-b">
                                                             <button
+                                                                data-testid="clearFiltersButton"
                                                                 onClick={clearCategories}
                                                                 className="text-muted-foreground hover:text-foreground hover:bg-muted flex min-h-[24px] w-full cursor-pointer items-center gap-1 px-3 py-2 text-left text-xs transition-colors"
                                                             >
@@ -168,7 +170,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                                                     <div className="p-1">
                                                         {categories.map(category => (
                                                             <label key={category} className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded px-2 py-1.5">
-                                                                <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} className="rounded" />
+                                                                <input data-testid={`category-checkbox-${category}`} type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} className="rounded" />
                                                                 <span className="text-sm">{category}</span>
                                                             </label>
                                                         ))}
@@ -229,6 +231,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                                                 onViewVersions={onViewVersions}
                                                 onUseInChat={onUseInChat}
                                                 onTogglePin={onTogglePin}
+                                                onExport={onExport}
                                             />
                                         </div>
                                     ))}
@@ -243,7 +246,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                     <>
                         <ResizableHandle />
                         <ResizablePanel defaultSize={30} minSize={20} maxSize={50} id="promptDetailSidePanel">
-                            <PromptDetailSidePanel prompt={selectedPrompt} onClose={handleCloseSidePanel} onEdit={onEdit} onDelete={onDelete} onViewVersions={onViewVersions} onUseInChat={onUseInChat} onTogglePin={onTogglePin} />
+                            <PromptDetailSidePanel prompt={selectedPrompt} onClose={handleCloseSidePanel} onEdit={onEdit} onDelete={onDelete} onViewVersions={onViewVersions} onUseInChat={onUseInChat} onTogglePin={onTogglePin} onExport={onExport} />
                         </ResizablePanel>
                     </>
                 )}

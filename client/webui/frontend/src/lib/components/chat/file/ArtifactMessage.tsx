@@ -16,20 +16,20 @@ import { Spinner } from "../../ui";
 
 type ArtifactMessageProps = (
     | {
-        status: "in-progress";
-        name: string;
-        bytesTransferred: number;
-    }
+          status: "in-progress";
+          name: string;
+          bytesTransferred: number;
+      }
     | {
-        status: "completed";
-        name: string;
-        fileAttachment: FileAttachment;
-    }
+          status: "completed";
+          name: string;
+          fileAttachment: FileAttachment;
+      }
     | {
-        status: "failed";
-        name: string;
-        error?: string;
-    }
+          status: "failed";
+          name: string;
+          error?: string;
+      }
 ) & {
     context?: "chat" | "list";
     uniqueKey?: string; // Optional unique key for expansion state (e.g., taskId-filename)
@@ -73,11 +73,21 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     // Determine if this should auto-expand based on context
     const shouldAutoExpand = useMemo(() => {
+        // Don't auto-expand deleted artifacts
+        if (isDeleted) {
+            return false;
+        }
+
         const renderType = getRenderType(fileName, fileMimeType);
-        const isAutoRenderType = renderType === "image" || renderType === "audio";
-        // Only auto-expand images/audio in chat context, never in list context
-        return isAutoRenderType && context === "chat";
-    }, [fileName, fileMimeType, context]);
+        const isAutoRenderType = renderType === "image" || renderType === "audio" || renderType === "markdown";
+
+        // Check if it's specifically a .txt file (not other text-based files like code, XML, etc.)
+        const isTxtFile = fileName.toLowerCase().endsWith(".txt") || fileName.toLowerCase().endsWith(".text");
+        const shouldAutoExpandText = renderType === "text" && isTxtFile;
+
+        // Only auto-expand images/audio/markdown/.txt files in chat context, never in list context
+        return (isAutoRenderType || shouldAutoExpandText) && context === "chat";
+    }, [fileName, fileMimeType, context, isDeleted]);
 
     // Use the artifact rendering hook to determine rendering behavior
     // This uses local state, so each component instance has its own expansion state
@@ -155,16 +165,16 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         };
     }, [shouldRender, artifact?.filename, markArtifactAsDisplayed]);
 
-    // Check if we should render content inline (for images and audio)
-    const shouldRenderInline = useMemo(() => {
-        const renderType = getRenderType(fileName, fileMimeType);
-        return renderType === "image" || renderType === "audio";
-    }, [fileName, fileMimeType]);
-
     // Check if this is specifically an image for special styling
     const isImage = useMemo(() => {
         const renderType = getRenderType(fileName, fileMimeType);
         return renderType === "image";
+    }, [fileName, fileMimeType]);
+
+    // Check if this is text or markdown for no-scroll expansion
+    const isTextOrMarkdown = useMemo(() => {
+        const renderType = getRenderType(fileName, fileMimeType);
+        return renderType === "text" || renderType === "markdown";
     }, [fileName, fileMimeType]);
 
     // Update fetched content when accumulated content changes (for progressive rendering during streaming)
@@ -345,18 +355,46 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 content: contentToRender,
                 // @ts-expect-error - Add flag to indicate if content is plain text from streaming
                 // Content is plain text if: (1) it's from accumulated content during streaming, OR (2) we're in progress state
-                isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) ||
-                             (props.status === "in-progress" && !!fetchedContent)
+                isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) || (props.status === "in-progress" && !!fetchedContent),
             });
 
             if (finalContent) {
+                // Determine max height and overflow behavior based on content type
+                let maxHeight: string;
+                let height: string | undefined;
+                let overflowY: "visible" | "auto";
+
+                if (isImage) {
+                    // Images: no height limit, no scroll
+                    maxHeight = "none";
+                    overflowY = "visible";
+                } else if (isTextOrMarkdown) {
+                    // Text/Markdown: safety max height of 6000px, scroll if overflow (auto-expanded)
+                    maxHeight = "6000px";
+                    overflowY = "auto";
+                } else if (renderType === "audio") {
+                    // Audio: 300px with scroll (auto-expanded)
+                    maxHeight = "300px";
+                    overflowY = "auto";
+                } else if (renderType === "html") {
+                    // HTML: fixed height of 900px (iframes need explicit height, not maxHeight)
+                    height = "600px";
+                    maxHeight = "600px";
+                    overflowY = "auto";
+                } else {
+                    // All other types (CSV, JSON, YAML, Mermaid, etc.): 900px with scroll
+                    maxHeight = "600px";
+                    overflowY = "auto";
+                }
+
                 expandedContent = (
                     <div className="group relative max-w-full overflow-hidden">
                         {renderError && <MessageBanner variant="error" message={renderError} />}
                         <div
                             style={{
-                                maxHeight: shouldRenderInline && !isImage ? "300px" : isImage ? "none" : "400px",
-                                overflowY: isImage ? "visible" : "auto",
+                                height,
+                                maxHeight,
+                                overflowY,
                             }}
                             className={isImage ? "drop-shadow-md" : ""}
                         >

@@ -6,7 +6,7 @@ import { authenticatedFetch } from "@/lib/utils/api";
 
 const LAST_VIEWED_PROJECT_KEY = "lastViewedProjectId";
 
-const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
+export const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
 
 type OnProjectDeletedCallback = (projectId: string) => void;
 let onProjectDeletedCallback: OnProjectDeletedCallback | null = null;
@@ -30,12 +30,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Computed filtered projects based on search query
     const filteredProjects = useMemo(() => {
         if (!searchQuery.trim()) return projects;
-        
+
         const query = searchQuery.toLowerCase();
-        return projects.filter(project =>
-            project.name.toLowerCase().includes(query) ||
-            (project.description?.toLowerCase().includes(query) ?? false)
-        );
+        return projects.filter(project => project.name.toLowerCase().includes(query) || (project.description?.toLowerCase().includes(query) ?? false));
     }, [projects, searchQuery]);
 
     const fetchProjects = useCallback(async () => {
@@ -91,7 +88,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                 if (!response.ok) {
                     const responseText = await response.text();
-                    
+
                     let errorMessage = `Failed to create project: ${response.statusText}`;
                     try {
                         const errorData = JSON.parse(responseText);
@@ -137,14 +134,33 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({
-                        detail: `Failed to add files: ${response.statusText}`,
-                    }));
-                    throw new Error(errorData.detail || `Failed to add files: ${response.statusText}`);
+                    const responseText = await response.text();
+                    let errorMessage = `Failed to add files: ${response.statusText}`;
+
+                    try {
+                        const errorData = JSON.parse(responseText);
+                        errorMessage = errorData.detail || errorData.message || errorMessage;
+                    } catch {
+                        // If JSON parsing fails, check if we have a meaningful response text
+                        if (responseText && responseText.length < 500) {
+                            errorMessage = responseText;
+                        }
+                    }
+
+                    // Provide user-friendly message for file size errors
+                    if (response.status === 413) {
+                        // If we have a detailed message from the backend, use it
+                        // Otherwise provide a generic but helpful message
+                        if (!errorMessage.includes("exceeds maximum") && !errorMessage.includes("too large")) {
+                            errorMessage = "One or more files exceed the maximum allowed size. Please try uploading smaller files.";
+                        }
+                    }
+
+                    throw new Error(errorMessage);
                 }
                 // Clear any previous errors on success
                 setError(null);
-                
+
                 // Refetch projects to update artifact counts
                 await fetchProjects();
             } catch (err: unknown) {
@@ -177,7 +193,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }
                 // Clear any previous errors on success
                 setError(null);
-                
+
                 // Refetch projects to update artifact counts
                 await fetchProjects();
             } catch (err: unknown) {
@@ -188,6 +204,40 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
         },
         [apiPrefix, projectsEnabled, fetchProjects]
+    );
+
+    const updateFileMetadata = useCallback(
+        async (projectId: string, filename: string, description: string): Promise<void> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append("description", description);
+
+                const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
+                    method: "PATCH",
+                    body: formData,
+                    credentials: "include",
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({
+                        detail: `Failed to update file metadata: ${response.statusText}`,
+                    }));
+                    throw new Error(errorData.detail || `Failed to update file metadata: ${response.statusText}`);
+                }
+                // Clear any previous errors on success
+                setError(null);
+            } catch (err: unknown) {
+                console.error("Error updating file metadata:", err);
+                const errorMessage = err instanceof Error ? err.message : "Could not update file metadata.";
+                // Don't set global error for file operations - let component handle it
+                throw new Error(errorMessage);
+            }
+        },
+        [apiPrefix, projectsEnabled]
     );
 
     const updateProject = useCallback(
@@ -206,10 +256,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                 if (!response.ok) {
                     let errorMessage = `Failed to update project: ${response.statusText}`;
-                    
+
                     try {
                         const errorData = await response.json();
-                        
+
                         // Handle validation errors (422)
                         if (response.status === 422) {
                             if (errorData.detail) {
@@ -217,12 +267,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                                 if (Array.isArray(errorData.detail)) {
                                     const validationErrors = errorData.detail
                                         .map((err: { loc?: string[]; msg: string }) => {
-                                            const field = err.loc?.join('.') || 'field';
+                                            const field = err.loc?.join(".") || "field";
                                             return `${field}: ${err.msg}`;
                                         })
-                                        .join(', ');
+                                        .join(", ");
                                     errorMessage = `Validation error: ${validationErrors}`;
-                                } else if (typeof errorData.detail === 'string') {
+                                } else if (typeof errorData.detail === "string") {
                                     errorMessage = errorData.detail;
                                 }
                             }
@@ -232,7 +282,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     } catch {
                         // If JSON parsing fails, use the default error message
                     }
-                    
+
                     throw new Error(errorMessage);
                 }
 
@@ -254,7 +304,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                 // Clear any previous errors on success
                 setError(null);
-                
+
                 return updatedProject;
             } catch (err: unknown) {
                 console.error("Error updating project:", err);
@@ -286,14 +336,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }
 
                 setProjects(prev => prev.filter(p => p.id !== projectId));
-                
+
                 setCurrentProject(current => (current?.id === projectId ? null : current));
                 setSelectedProject(selected => (selected?.id === projectId ? null : selected));
                 setActiveProject(active => (active?.id === projectId ? null : active));
-                
+
                 // Clear any previous errors on success
                 setError(null);
-                
+
                 if (onProjectDeletedCallback) {
                     onProjectDeletedCallback(projectId);
                 }
@@ -348,6 +398,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setActiveProject,
         addFilesToProject,
         removeFileFromProject,
+        updateFileMetadata,
         updateProject,
         deleteProject,
         searchQuery,

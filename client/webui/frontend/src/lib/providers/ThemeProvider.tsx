@@ -184,7 +184,9 @@ function applyThemeToDOM(themePalette: ThemePalette, theme: "light" | "dark"): v
 
     // Atomic class update to prevent race conditions
     requestAnimationFrame(() => {
-        console.log(`Applying ${theme} theme with palette`);
+        if (process.env.NODE_ENV === "development") {
+            console.log(`Applying ${theme} theme with palette`);
+        }
         root.classList.remove("light", "dark");
         root.classList.add(theme);
 

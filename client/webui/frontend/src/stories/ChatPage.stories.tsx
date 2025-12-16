@@ -1,7 +1,15 @@
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { mockMessages, mockLoadingMessage } from "./mocks/data";
 import { ChatPage } from "@/lib/components/pages/ChatPage";
-import { screen, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
+import { http, HttpResponse } from "msw";
+import { defaultPromptGroups } from "./Prompts/data";
+
+const handlers = [
+    http.get("*/api/v1/prompts/groups/all", () => {
+        return HttpResponse.json(defaultPromptGroups);
+    }),
+];
 
 const meta = {
     title: "Pages/ChatPage",
@@ -13,6 +21,7 @@ const meta = {
                 component: "The main chat page component that displays the chat interface, side panels, and handles user interactions.",
             },
         },
+        msw: { handlers },
     },
     decorators: [
         (Story: StoryFn, context: StoryContext) => {
@@ -53,6 +62,7 @@ export const WithLoadingMessage: Story = {
     parameters: {
         chatContext: {
             sessionId: "mock-session-id",
+            currentTaskId: "mock-task-id",
             messages: [...mockMessages, mockLoadingMessage],
             isResponding: true,
             isCancelling: false,
@@ -121,7 +131,6 @@ export const NewSessionDialog: Story = {
             persistenceEnabled: false,
         },
     },
-
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
@@ -138,5 +147,32 @@ export const NewSessionDialog: Story = {
         // Verify dialog
         await screen.findByRole("dialog");
         await screen.findByRole("button", { name: "Start New Chat" });
+    },
+};
+
+export const WithPromptDialogOpen: Story = {
+    parameters: {
+        chatContext: {
+            sessionId: "mock-session-id",
+            messages: mockMessages,
+            isResponding: false,
+            isCancelling: false,
+            selectedAgentName: "OrchestratorAgent",
+            isSidePanelCollapsed: true,
+            isSidePanelTransitioning: false,
+            activeSidePanelTab: "files",
+            artifacts: [],
+            artifactsLoading: false,
+        },
+        configContext: {
+            persistenceEnabled: false,
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const chatInput = await canvas.findByTestId("chat-input");
+        await userEvent.type(chatInput, "/");
+        const promptCommand = await canvas.findByTestId("promptCommand");
+        expect(promptCommand).toBeVisible();
     },
 };

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
-const commonTextStyles = "text-[var(--color-primary-wMain)] enabled:hover:text-[var(--color-primary-text-w60)] dark:text-[var(--color-primary-w10)] dark:enabled:hover:text-[var(--color-white)]";
+const commonTextStyles = "text-[var(--color-primary-wMain)] enabled:hover:text-[var(--color-primary-w60)] dark:text-[var(--color-primary-w10)] dark:enabled:hover:text-[var(--color-white)]";
 const commonButtonStyles = commonTextStyles + " enabled:hover:bg-[var(--color-primary-w10)] dark:enabled:hover:bg-[var(--color-primary-w60)]";
 
 const buttonVariants = cva(
@@ -15,7 +15,7 @@ const buttonVariants = cva(
         variants: {
             variant: {
                 default: "text-[var(--color-primary-w10)] bg-[var(--color-primary-wMain)] enabled:hover:text-[var(--color-white)] enabled:hover:bg-[var(--color-primary-w100)] dark:enabled:hover:bg-[var(--color-primary-w60)]",
-                destructive: "text-[var(--color-primary-text-w10)] enabled:hover:text-[var(--color-white)] bg-[var(--color-error-wMain)] enabled:hover:bg-[var(--color-error-w70)]",
+                destructive: "text-[var(--color-white)] bg-[var(--color-error-wMain)] enabled:hover:bg-[var(--color-error-w70)]",
                 outline: commonButtonStyles + " border border-1 border-[var(--color-primary-wMain)]",
                 secondary: commonButtonStyles,
                 ghost: commonButtonStyles,
@@ -39,10 +39,11 @@ export type ButtonProps = React.ComponentProps<"button"> &
     VariantProps<typeof buttonVariants> & {
         asChild?: boolean;
         tooltip?: string;
+        tooltipSide?: "top" | "right" | "bottom" | "left";
         testid?: string;
     };
 
-function Button({ className, variant, size, asChild = false, tooltip = "", testid = "", ...props }: ButtonProps) {
+function Button({ className, variant, size, asChild = false, tooltip = "", tooltipSide, testid = "", ...props }: ButtonProps) {
     const Comp = asChild ? Slot : "button";
     const buttonProps = tooltip ? { ...props, "aria-label": tooltip } : props;
     const ButtonComponent = <Comp data-slot="button" data-testid={testid || tooltip || props.title} className={cn(buttonVariants({ variant, size, className }))} {...buttonProps} />;
@@ -51,7 +52,7 @@ function Button({ className, variant, size, asChild = false, tooltip = "", testi
         return (
             <Tooltip>
                 <TooltipTrigger asChild>{ButtonComponent}</TooltipTrigger>
-                <TooltipContent>{tooltip}</TooltipContent>
+                <TooltipContent side={tooltipSide}>{tooltip}</TooltipContent>
             </Tooltip>
         );
     }

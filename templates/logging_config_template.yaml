@@ -5,6 +5,10 @@ formatters:
   simpleFormatter:
     format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
 
+  coloredFormatter:
+    class: solace_ai_connector.logging.ColoredFormatter
+    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
+
   jsonFormatter:
     "()": pythonjsonlogger.json.JsonFormatter
     format: "%(timestamp)s %(levelname)s %(threadName)s %(name)s %(message)s"
@@ -13,13 +17,13 @@ formatters:
 handlers:
   streamHandler:
     class: logging.StreamHandler
-    formatter: simpleFormatter
+    formatter: coloredFormatter
     stream: ext://sys.stdout
 
   rotatingFileHandler:
     class: logging.handlers.RotatingFileHandler
     formatter: simpleFormatter
-    filename: sam.log
+    filename: ${LOGGING_FILE_NAME, sam.log}
     mode: a
     maxBytes: 52428800
     backupCount: 10

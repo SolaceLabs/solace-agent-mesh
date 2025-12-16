@@ -25,8 +25,11 @@ function extractTextContent(message: MessageFE): string {
         return "";
     }
 
-    const textParts = message.parts.filter((p) => p.kind === "text") as TextPart[];
-    return textParts.map((p) => p.text).join(" ").trim();
+    const textParts = message.parts.filter(p => p.kind === "text") as TextPart[];
+    return textParts
+        .map(p => p.text)
+        .join(" ")
+        .trim();
 }
 
 export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
@@ -35,12 +38,17 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
     const messageId = message.metadata?.messageId || "";
     const content = useMemo(() => extractTextContent(message), [message]);
     const isStreaming = !message.isComplete;
-    
+
     // Feature flag
     const ttsEnabled = configFeatureEnablement?.textToSpeech ?? true;
 
     // Regular TTS for complete messages
-    const { isSpeaking: isRegularSpeaking, isLoading: isRegularLoading, speak, stop: stopRegular } = useTextToSpeech({
+    const {
+        isSpeaking: isRegularSpeaking,
+        isLoading: isRegularLoading,
+        speak,
+        stop: stopRegular,
+    } = useTextToSpeech({
         messageId,
         onStart: () => {
             onTTSStart();
@@ -52,7 +60,7 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
             }
             onTTSEnd();
         },
-        onError: (error) => {
+        onError: error => {
             console.error("TTS error:", error);
             // Clear global tracking on error
             if (currentlyPlayingMessageId === messageId) {
@@ -67,7 +75,7 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
         isPlaying: isStreamingPlaying,
         isLoading: isStreamingLoading,
         processStreamingText,
-        stop: stopStreaming
+        stop: stopStreaming,
     } = useStreamingTTS({
         messageId,
         onStart: () => {
@@ -80,7 +88,7 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
             }
             // Don't call onTTSEnd here - the hook already calls it internally
         },
-        onError: (error) => {
+        onError: error => {
             console.error("Streaming TTS error:", error);
             // Clear global tracking on error
             if (currentlyPlayingMessageId === messageId) {
@@ -106,14 +114,14 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
             setWasCompleteOnMount(true);
             preExistingCompleteMessages.add(messageId);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Only run on mount
 
     // Auto-play streaming TTS as content arrives
     useEffect(() => {
         // Disable automatic playback - only conversation mode (which is not implemented)
         const shouldAutoPlay = settings.conversationMode; // Removed: || settings.automaticPlayback
-        
+
         if (
             shouldAutoPlay &&
             !message.isUser &&
@@ -127,37 +135,18 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
                 return;
             }
             currentlyPlayingMessageId = messageId;
-            
+
             hasStartedStreaming.current = true;
             processStreamingText(content, false);
-        } else if (
-            shouldAutoPlay &&
-            !message.isUser &&
-            isStreaming &&
-            hasStartedStreaming.current
-        ) {
+        } else if (shouldAutoPlay && !message.isUser && isStreaming && hasStartedStreaming.current) {
             // Continue processing as more content arrives
             processStreamingText(content, false);
-        } else if (
-            shouldAutoPlay &&
-            !message.isUser &&
-            message.isComplete &&
-            hasStartedStreaming.current &&
-            !hasAutoPlayed.current
-        ) {
+        } else if (shouldAutoPlay && !message.isUser && message.isComplete && hasStartedStreaming.current && !hasAutoPlayed.current) {
             // Finalize streaming when message completes - process ALL remaining content
             hasAutoPlayed.current = true;
             // Mark as complete so all remaining text is processed
             processStreamingText(content, true);
-        } else if (
-            shouldAutoPlay &&
-            !message.isUser &&
-            message.isComplete &&
-            !hasStartedStreaming.current &&
-            !hasAutoPlayed.current &&
-            content &&
-            !wasCompleteOnMount
-        ) {
+        } else if (shouldAutoPlay && !message.isUser && message.isComplete && !hasStartedStreaming.current && !hasAutoPlayed.current && content && !wasCompleteOnMount) {
             // Message completed before we started streaming (very short message or fast completion)
             // Start and immediately finalize
             // Check if another message is already playing
@@ -176,7 +165,7 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
     useEffect(() => {
         // Disable automatic playback - only conversation mode (which is not implemented)
         const shouldAutoPlay = settings.conversationMode; // Removed: || settings.automaticPlayback
-        
+
         if (
             shouldAutoPlay &&
             !message.isUser &&
@@ -193,9 +182,9 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
                 return;
             }
             currentlyPlayingMessageId = messageId;
-            
+
             hasAutoPlayed.current = true;
-            
+
             // Small delay to ensure audio context is ready, but keep it minimal
             const timer = setTimeout(() => {
                 speak(content);
@@ -270,11 +259,7 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
             size="icon"
             onClick={handleClick}
             disabled={isLoading || !content}
-            className={cn(
-                "size-8 transition-colors",
-                isSpeaking && "bg-blue-50 hover:bg-blue-100 dark:bg-blue-950 dark:hover:bg-blue-900",
-                className
-            )}
+            className={cn("size-8 transition-colors", isSpeaking && "bg-blue-50 hover:bg-blue-100 dark:bg-blue-950 dark:hover:bg-blue-900", className)}
             tooltip={getTooltip()}
             aria-label={isSpeaking ? "Stop reading aloud" : "Read aloud"}
             aria-pressed={isSpeaking}

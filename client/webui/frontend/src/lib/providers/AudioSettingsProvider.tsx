@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { authenticatedFetch } from "@/lib/utils/api";
 
 export interface SpeechSettings {
     // STT Settings
@@ -25,7 +26,7 @@ export interface SpeechSettings {
     advancedMode: boolean;
 }
 
-interface AudioSettingsContextValue {
+export interface AudioSettingsContextValue {
     settings: SpeechSettings;
     isInitialized: boolean;
     updateSetting: <K extends keyof SpeechSettings>(key: K, value: SpeechSettings[K]) => void;
@@ -39,7 +40,7 @@ interface AudioSettingsContextValue {
     onTTSEnd: () => void;
 }
 
-const AudioSettingsContext = createContext<AudioSettingsContextValue | undefined>(undefined);
+export const AudioSettingsContext = createContext<AudioSettingsContextValue | undefined>(undefined);
 
 const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
     speechToText: "speechToText",
@@ -49,7 +50,7 @@ const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
     autoSendText: "autoSendText",
     autoTranscribeAudio: "autoTranscribeAudio",
     decibelThreshold: "decibelThreshold",
-    
+
     textToSpeech: "textToSpeech",
     engineTTS: "engineTTS",
     ttsProvider: "ttsProvider",
@@ -58,7 +59,7 @@ const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
     automaticPlayback: "automaticPlayback",
     cacheTTS: "cacheTTS",
     cloudBrowserVoices: "cloudBrowserVoices",
-    
+
     conversationMode: "conversationMode",
     advancedMode: "advancedMode",
 };
@@ -72,12 +73,12 @@ const DEFAULT_SETTINGS: SpeechSettings = {
     autoTranscribeAudio: true,
     decibelThreshold: -45,
 
-    textToSpeech: true,  // Enable by default for browser TTS
-    engineTTS: "browser",  // Use browser TTS by default (no backend needed)
+    textToSpeech: true, // Enable by default for browser TTS
+    engineTTS: "browser", // Use browser TTS by default (no backend needed)
     ttsProvider: "browser",
     voice: "Kore",
     playbackRate: 1.0,
-    automaticPlayback: false,  // Disabled by default - doesn't work reliably due to browser autoplay policies
+    automaticPlayback: false, // Disabled by default - doesn't work reliably due to browser autoplay policies
     cacheTTS: true,
     cloudBrowserVoices: false,
 
@@ -93,7 +94,7 @@ function loadSettingsFromStorage(): SpeechSettings {
             const value = localStorage.getItem(storageKey);
             if (value !== null) {
                 const key = settingKey as keyof SpeechSettings;
-                
+
                 if (typeof DEFAULT_SETTINGS[key] === "boolean") {
                     (settings as Record<string, unknown>)[key] = value === "true";
                 } else if (typeof DEFAULT_SETTINGS[key] === "number") {
@@ -120,7 +121,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         const fetchServerConfig = async () => {
             try {
                 // Fetch main config
-                const response = await fetch("/api/v1/config");
+                const response = await authenticatedFetch("/api/v1/config");
                 if (response.ok) {
                     const config = await response.json();
                     const ttsSettings = config.tts_settings || {};
@@ -129,7 +130,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
                     let sttExternal = false;
                     let ttsExternal = false;
                     try {
-                        const speechResponse = await fetch("/api/v1/speech/config");
+                        const speechResponse = await authenticatedFetch("/api/v1/speech/config");
                         if (speechResponse.ok) {
                             const speechConfig = await speechResponse.json();
                             sttExternal = speechConfig.sttExternal || false;
@@ -139,7 +140,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
                         console.error("Error fetching speech config:", error);
                     }
 
-                    setSettings((prev) => {
+                    setSettings(prev => {
                         const updated = { ...prev };
 
                         // Apply TTS settings from server config
@@ -181,7 +182,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     }, []);
 
     const updateSetting = useCallback(<K extends keyof SpeechSettings>(key: K, value: SpeechSettings[K]) => {
-        setSettings((prev) => {
+        setSettings(prev => {
             const updated = { ...prev, [key]: value };
             const storageKey = STORAGE_KEY_MAP[key];
             if (storageKey) {
@@ -193,7 +194,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     }, []);
 
     const updateSettings = useCallback((updates: Partial<SpeechSettings>) => {
-        setSettings((prev) => {
+        setSettings(prev => {
             const updated = { ...prev, ...updates };
             Object.entries(updates).forEach(([key, value]) => {
                 const storageKey = STORAGE_KEY_MAP[key as keyof SpeechSettings];
@@ -207,7 +208,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const resetSettings = useCallback(() => {
         setSettings(DEFAULT_SETTINGS);
-        Object.values(STORAGE_KEY_MAP).forEach((storageKey) => {
+        Object.values(STORAGE_KEY_MAP).forEach(storageKey => {
             localStorage.removeItem(storageKey);
         });
     }, []);
@@ -234,11 +235,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         onTTSEnd,
     };
 
-    return (
-        <AudioSettingsContext.Provider value={value}>
-            {children}
-        </AudioSettingsContext.Provider>
-    );
+    return <AudioSettingsContext.Provider value={value}>{children}</AudioSettingsContext.Provider>;
 };
 
 // eslint-disable-next-line react-refresh/only-export-components

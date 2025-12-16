@@ -37,6 +37,7 @@ from .routers import (
     people,
     sse,
     speech,
+    version,
     visualization,
     projects,
     prompts,
@@ -605,6 +606,7 @@ def _setup_routers() -> None:
     app.include_router(session_router, prefix=api_prefix, tags=["Sessions"])
     app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
+    app.include_router(version.router, prefix=api_prefix, tags=["Version"])
     app.include_router(agent_cards.router, prefix=api_prefix, tags=["Agent Cards"])
     app.include_router(task_router, prefix=api_prefix, tags=["Tasks"])
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
@@ -665,18 +667,18 @@ def _setup_static_files() -> None:
             "Static files directory '%s' not found. Frontend may not be served.",
             static_files_dir,
         )
-    else:
-        try:
-            app.mount(
-                "/", StaticFiles(directory=static_files_dir, html=True), name="static"
-            )
-            log.info("Mounted static files directory '%s' at '/'", static_files_dir)
-        except Exception as static_mount_err:
-            log.error(
-                "Failed to mount static files directory '%s': %s",
-                static_files_dir,
-                static_mount_err,
-            )
+    # try to mount static files directory anyways, might work for enterprise
+    try:
+        app.mount(
+            "/", StaticFiles(directory=static_files_dir, html=True), name="static"
+        )
+        log.info("Mounted static files directory '%s' at '/'", static_files_dir)
+    except Exception as static_mount_err:
+        log.error(
+            "Failed to mount static files directory '%s': %s",
+            static_files_dir,
+            static_mount_err,
+        )
 
 
 @app.exception_handler(HTTPException)

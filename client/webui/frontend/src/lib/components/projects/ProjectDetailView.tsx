@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pencil, MoreVertical, Trash2 } from "lucide-react";
+import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
 
 import { Button, Input, Textarea, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import { MessageBanner, Footer } from "@/lib/components/common";
@@ -131,7 +131,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                     <DropdownMenu key="more">
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreVertical className="h-4 w-4" />
+                                <MoreHorizontal className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -144,21 +144,21 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 ]}
             />
 
-            {/* Description section */}
-            {project.description && (
-                <div className="border-b px-8 py-4">
-                    <h3 className="text-foreground mb-2 text-sm font-semibold">Description</h3>
-                    <p className="text-muted-foreground text-sm">{project.description}</p>
-                </div>
-            )}
-
             {/* Content area with left and right panels */}
             <div className="flex min-h-0 flex-1">
-                {/* Left Panel - Project Chats */}
-                <div className="w-[60%] overflow-y-auto border-r">{onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} />}</div>
+                {/* Left Panel - Description and Project Chats */}
+                <div className="w-[60%] overflow-y-auto border-r">
+                    {/* Description section */}
+                    {project.description && (
+                        <div className="px-8 py-4">
+                            <p className="text-muted-foreground text-sm">{project.description}</p>
+                        </div>
+                    )}
+                    {onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} />}
+                </div>
 
                 {/* Right Panel - Metadata Sidebar */}
-                <div className="bg-muted/30 w-[40%] overflow-y-auto">
+                <div className="w-[40%] overflow-y-auto">
                     <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
 
                     <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />

@@ -39,10 +39,8 @@ apps:
           # tool_name: "specific_tool_name" # Optional: Uncomment and set if you only want one specific tool from the server
           connection_params:
             type: stdio # Correct key is 'type' inside connection_params
-            command: "npx"
+            command: "./node_modules/.bin/mcp-server-filesystem"
             args:
-              - "-y"
-              - "@modelcontextprotocol/server-filesystem"
               - "/tmp/samv2"
             timeout: 300 # Timeout for the MCP server
         - tool_type: builtin-group
@@ -105,9 +103,8 @@ apps:
           # tool_name: "specific_tool_name" # Optional: Uncomment and set if you only want one specific tool from the server
           connection_params:
             type: stdio # Correct key is 'type' inside connection_params
-            command: "npx"
+            command: "./node_modules/.bin/mcp-server-playwright"
             args:
-              - "@playwright/mcp@latest"
               - "--headless"
         - tool_type: builtin-group
           group_name: "artifact_management"

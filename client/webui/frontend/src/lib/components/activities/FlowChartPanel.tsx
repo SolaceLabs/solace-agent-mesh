@@ -5,9 +5,7 @@ import type { Edge, Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 import { PopoverManual } from "@/lib/components/ui";
-import { useTaskContext } from "@/lib/hooks";
-import { useChatContext } from "@/lib/hooks";
-import { useAgentCards } from "@/lib/hooks";
+import { useChatContext, useTaskContext } from "@/lib/hooks";
 import type { VisualizerStep } from "@/lib/types";
 import { getThemeButtonHtmlStyles } from "@/lib/utils";
 
@@ -60,8 +58,7 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
     const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
     const { fitView } = useReactFlow();
     const { highlightedStepId, setHighlightedStepId } = useTaskContext();
-    const { taskIdInSidePanel } = useChatContext();
-    const { agentNameMap } = useAgentCards();
+    const { taskIdInSidePanel, agentNameDisplayNameMap } = useChatContext();
 
     const prevProcessedStepsRef = useRef<VisualizerStep[]>([]);
     const [hasUserInteracted, setHasUserInteracted] = useState(false);
@@ -82,12 +79,12 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         }
 
         try {
-            const builder = new BlockBuilder(agentNameMap);
+            const builder = new BlockBuilder(agentNameDisplayNameMap);
             const { root, edges } = builder.build(processedSteps);
             root.measure();
             root.layout();
             root.resolveAbsolutePositions(300, 0); // Start with offset to accommodate User lane on left
-            
+
             builder.printTree();
 
             const nodes = root.collectNodes();
@@ -97,7 +94,7 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
             console.error("BlockBuilder Error:", e);
             return { nodes: [], edges: [] };
         }
-    }, [processedSteps, agentNameMap]);
+    }, [processedSteps, agentNameDisplayNameMap]);
 
     // Consolidated edge computation
     const computedEdges = useMemo(() => {

@@ -18,13 +18,7 @@ export interface AudioRecorderRef {
     cancelRecording: () => Promise<void>;
 }
 
-export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
-    disabled = false,
-    onTranscriptionComplete,
-    onError: onErrorProp,
-    onRecordingStateChange,
-    className,
-}, ref) => {
+export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({ disabled = false, onTranscriptionComplete, onError: onErrorProp, onRecordingStateChange, className }, ref) => {
     const { settings } = useAudioSettings();
     const existingTextRef = useRef<string>("");
     const shouldSendTranscriptionRef = useRef<boolean>(true);
@@ -39,9 +33,7 @@ export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
             // Only send transcription if not canceled
             if (shouldSendTranscriptionRef.current && text && text.trim()) {
                 // Append to existing text if any
-                const finalText = existingTextRef.current
-                    ? `${existingTextRef.current} ${text}`.trim()
-                    : text.trim();
+                const finalText = existingTextRef.current ? `${existingTextRef.current} ${text}`.trim() : text.trim();
 
                 onTranscriptionComplete(finalText);
                 existingTextRef.current = "";
@@ -55,13 +47,16 @@ export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
         [onTranscriptionComplete]
     );
 
-    const handleError = useCallback((error: string) => {
-        console.error("Speech-to-text error:", error);
-        // Pass error to parent for notification banner
-        if (onErrorProp) {
-            onErrorProp(error);
-        }
-    }, [onErrorProp]);
+    const handleError = useCallback(
+        (error: string) => {
+            console.error("Speech-to-text error:", error);
+            // Pass error to parent for notification banner
+            if (onErrorProp) {
+                onErrorProp(error);
+            }
+        },
+        [onErrorProp]
+    );
 
     const { isListening, isLoading, startRecording, stopRecording } = useSpeechToText({
         onTranscriptionComplete: handleTranscriptionComplete,
@@ -75,28 +70,32 @@ export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
     }, [isListening, onRecordingStateChange]);
 
     // Expose start/stop/cancel methods via ref
-    useImperativeHandle(ref, () => ({
-        startRecording: async () => {
-            if (!isListening) {
-                existingTextRef.current = "";
-                shouldSendTranscriptionRef.current = true;
-                await startRecording();
-            }
-        },
-        stopRecording: async () => {
-            if (isListening) {
-                shouldSendTranscriptionRef.current = true;
-                await stopRecording();
-            }
-        },
-        cancelRecording: async () => {
-            if (isListening) {
-                console.log("AudioRecorder: Canceling recording");
-                shouldSendTranscriptionRef.current = false;
-                await stopRecording();
-            }
-        },
-    }), [isListening, startRecording, stopRecording]);
+    useImperativeHandle(
+        ref,
+        () => ({
+            startRecording: async () => {
+                if (!isListening) {
+                    existingTextRef.current = "";
+                    shouldSendTranscriptionRef.current = true;
+                    await startRecording();
+                }
+            },
+            stopRecording: async () => {
+                if (isListening) {
+                    shouldSendTranscriptionRef.current = true;
+                    await stopRecording();
+                }
+            },
+            cancelRecording: async () => {
+                if (isListening) {
+                    console.log("AudioRecorder: Canceling recording");
+                    shouldSendTranscriptionRef.current = false;
+                    await stopRecording();
+                }
+            },
+        }),
+        [isListening, startRecording, stopRecording]
+    );
 
     const handleClick = useCallback(async () => {
         if (isListening) {
@@ -153,11 +152,7 @@ export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
             size="icon"
             onClick={handleClick}
             disabled={disabled || isLoading}
-            className={cn(
-                "transition-colors",
-                isListening && "bg-[var(--accent-background)] hover:bg-[var(--accent-background)]/80 text-[var(--primary-wMain)]",
-                className
-            )}
+            className={cn("transition-colors", isListening && "bg-[var(--accent-background)] text-[var(--primary-wMain)] hover:bg-[var(--accent-background)]/80", className)}
             tooltip={getTooltip()}
             aria-label={getAriaLabel()}
             aria-pressed={isListening}

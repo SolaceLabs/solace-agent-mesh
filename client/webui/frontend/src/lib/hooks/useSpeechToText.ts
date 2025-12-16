@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
+import { authenticatedFetch } from "@/lib/utils/api";
 
 interface UseSpeechToTextOptions {
     onTranscriptionComplete?: (text: string) => void;
@@ -68,14 +69,7 @@ declare global {
 
 // Get best supported audio MIME type for recording
 function getBestSupportedMimeType(): string {
-    const types = [
-        "audio/webm",
-        "audio/webm;codecs=opus",
-        "audio/mp4",
-        "audio/ogg;codecs=opus",
-        "audio/ogg",
-        "audio/wav",
-    ];
+    const types = ["audio/webm", "audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus", "audio/ogg", "audio/wav"];
 
     for (const type of types) {
         if (MediaRecorder.isTypeSupported(type)) {
@@ -150,7 +144,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
         }
 
         if (audioStreamRef.current) {
-            audioStreamRef.current.getTracks().forEach((track) => track.stop());
+            audioStreamRef.current.getTracks().forEach(track => track.stop());
             audioStreamRef.current = null;
         }
 
@@ -168,7 +162,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
             console.error("Browser STT not supported. Available:", {
                 SpeechRecognition: !!window.SpeechRecognition,
                 webkitSpeechRecognition: !!window.webkitSpeechRecognition,
-                userAgent: navigator.userAgent
+                userAgent: navigator.userAgent,
             });
             return;
         }
@@ -240,18 +234,18 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
     const startExternalRecording = useCallback(async () => {
         // Check if external STT is configured
         try {
-            const configResponse = await fetch("/api/v1/speech/config");
+            const configResponse = await authenticatedFetch("/api/v1/speech/config");
             if (configResponse.ok) {
                 const config = await configResponse.json();
-                
+
                 if (!config.sttExternal) {
                     // Auto-switch to browser mode
                     updateSetting("engineSTT", "browser");
-                    
+
                     const errorMsg = "External STT is not configured. Switched to Browser mode. Please click the microphone button again.";
                     setError(errorMsg);
                     onError?.(errorMsg);
-                    
+
                     // Don't try to start recording - user needs to click again
                     return;
                 }
@@ -262,7 +256,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
             onError?.(errorMsg);
             return;
         }
-        
+
         try {
             // Request microphone permission
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -293,21 +287,25 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                     const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
                     const fileExtension = getFileExtension(mimeType);
 
-                    // Send to backend with provider preference
+                    // Send to backend with provider preference and language
                     const formData = new FormData();
                     formData.append("audio", audioBlob, `audio.${fileExtension}`);
                     if (settings.sttProvider && settings.sttProvider !== "browser") {
                         formData.append("provider", settings.sttProvider);
                     }
+                    // Send language setting for external STT
+                    if (settings.languageSTT) {
+                        formData.append("language", settings.languageSTT);
+                    }
 
-                    const response = await fetch("/api/v1/speech/stt", {
+                    const response = await authenticatedFetch("/api/v1/speech/stt", {
                         method: "POST",
                         body: formData,
                     });
 
                     if (!response.ok) {
                         const errorText = await response.text();
-                        
+
                         // Try to parse error message from backend for all error codes
                         let backendMessage = "";
                         try {
@@ -317,20 +315,18 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                             // Parsing failed, will use generic message
                             console.error("[useSpeechToText] Failed to parse error response:", parseError);
                         }
-                        
+
                         // Show backend error message if available
                         if (backendMessage) {
                             throw new Error(backendMessage);
                         }
-                        
+
                         // Fallback to generic message
                         if (response.status === 500) {
                             const providerName = settings.sttProvider === "azure" ? "Azure Speech" : "OpenAI Whisper";
-                            throw new Error(
-                                `External STT failed (${providerName}). Please check your webui.yaml configuration or switch to Browser mode in settings.`
-                            );
+                            throw new Error(`External STT failed (${providerName}). Please check your webui.yaml configuration or switch to Browser mode in settings.`);
                         }
-                        
+
                         throw new Error(`Transcription failed: ${response.statusText}`);
                     }
 

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
+import { fetchJsonWithError, fetchWithError } from "@/lib/utils/api";
 
 interface UseTextToSpeechOptions {
     messageId?: string;
@@ -39,7 +40,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
     // External TTS refs
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const audioUrlRef = useRef<string | null>(null);
-    
+
     // Chunk-by-chunk playback refs
     const audioQueueRef = useRef<HTMLAudioElement[]>([]);
     const isPlayingQueueRef = useRef(false);
@@ -57,14 +58,14 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
 
             const availableVoices = synth.getVoices();
             const voiceOptions: VoiceOption[] = availableVoices
-                .filter((voice) => {
+                .filter(voice => {
                     // Filter based on cloudBrowserVoices setting
                     if (settings.cloudBrowserVoices) {
                         return true; // Include all voices
                     }
                     return voice.localService; // Only local voices
                 })
-                .map((voice) => ({
+                .map(voice => ({
                     value: voice.name,
                     label: `${voice.name} (${voice.lang})`,
                 }));
@@ -93,23 +94,20 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
         const loadExternalVoices = async () => {
             try {
                 // Include provider in query to get provider-specific voices
-                const provider = settings.ttsProvider || 'gemini';
-                const response = await fetch(`/api/v1/speech/voices?provider=${provider}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    const voiceOptions: VoiceOption[] = (data.voices || []).map((voice: string) => ({
-                        value: voice,
-                        label: voice,
-                    }));
-                    setVoices(voiceOptions);
-                }
+                const provider = settings.ttsProvider || "gemini";
+                const data = await fetchJsonWithError(`/api/v1/speech/voices?provider=${provider}`);
+                const voiceOptions: VoiceOption[] = (data.voices || []).map((voice: string) => ({
+                    value: voice,
+                    label: voice,
+                }));
+                setVoices(voiceOptions);
             } catch (err) {
                 console.error("Failed to load external voices:", err);
             }
         };
 
         loadExternalVoices();
-    }, [isBrowserMode, settings.ttsProvider]);  // Re-load when provider changes
+    }, [isBrowserMode, settings.ttsProvider]); // Re-load when provider changes
 
     // Cleanup function
     const cleanup = useCallback(() => {
@@ -128,7 +126,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
             URL.revokeObjectURL(audioUrlRef.current);
             audioUrlRef.current = null;
         }
-        
+
         // Cleanup audio queue
         audioQueueRef.current.forEach(audio => {
             audio.pause();
@@ -164,7 +162,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 // Set voice if specified
                 if (settings.voice) {
                     const availableVoices = synth.getVoices();
-                    const selectedVoice = availableVoices.find((v) => v.name === settings.voice);
+                    const selectedVoice = availableVoices.find(v => v.name === settings.voice);
                     if (selectedVoice) {
                         utterance.voice = selectedVoice;
                     }
@@ -182,7 +180,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                     onEnd?.();
                 };
 
-                utterance.onerror = (event) => {
+                utterance.onerror = event => {
                     const errorMsg = `Speech synthesis error: ${event.error}`;
                     setError(errorMsg);
                     onError?.(errorMsg);
@@ -208,7 +206,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
             setIsSpeaking(false);
             isPlayingQueueRef.current = false;
             currentAudioIndexRef.current = 0;
-            
+
             // Cleanup all audio elements
             audioQueueRef.current.forEach(audio => {
                 if (audio.src) {
@@ -222,7 +220,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
 
         const chunkIndex = currentAudioIndexRef.current;
         const audio = audioQueueRef.current[chunkIndex];
-        
+
         // Increment index BEFORE playing to prevent race conditions
         currentAudioIndexRef.current++;
 
@@ -245,14 +243,14 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
         async (text: string) => {
             // Stop any existing audio first
             cleanup();
-            
+
             setIsLoading(true);
 
             try {
                 // Check cache first if enabled
                 if (settings.cacheTTS) {
                     const cache = await caches.open("tts-responses");
-                    const cacheKey = `${text}-${settings.voice}-${settings.ttsProvider || 'default'}`;
+                    const cacheKey = `${text}-${settings.voice}-${settings.ttsProvider || "default"}`;
                     const cachedResponse = await cache.match(cacheKey);
 
                     if (cachedResponse) {
@@ -293,7 +291,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 }
 
                 // Use streaming endpoint - play chunks as they arrive
-                const response = await fetch("/api/v1/speech/tts/stream", {
+                const response = await fetchWithError("/api/v1/speech/tts/stream", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -305,10 +303,6 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                         provider: settings.ttsProvider,
                     }),
                 });
-
-                if (!response.ok) {
-                    throw new Error(`TTS streaming failed: ${response.statusText}`);
-                }
 
                 const reader = response.body?.getReader();
                 if (!reader) {
@@ -325,7 +319,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
 
                 while (true) {
                     const { done, value } = await reader.read();
-                    
+
                     if (done) {
                         // Cache the complete audio if enabled
                         if (settings.cacheTTS && allChunks.length > 0) {
@@ -336,62 +330,62 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                                 combinedArray.set(chunk, offset);
                                 offset += chunk.length;
                             }
-                            
-                            const audioBlob = new Blob([combinedArray], { type: 'audio/mpeg' });
+
+                            const audioBlob = new Blob([combinedArray], { type: "audio/mpeg" });
                             const cache = await caches.open("tts-responses");
-                            const cacheKey = `${text}-${settings.voice}-${settings.ttsProvider || 'default'}`;
-                            
+                            const cacheKey = `${text}-${settings.voice}-${settings.ttsProvider || "default"}`;
+
                             const responseToCache = new Response(audioBlob, {
                                 headers: {
-                                    'Content-Type': 'audio/mpeg',
-                                    'Content-Length': audioBlob.size.toString()
-                                }
+                                    "Content-Type": "audio/mpeg",
+                                    "Content-Length": audioBlob.size.toString(),
+                                },
                             });
-                            
+
                             await cache.put(cacheKey, responseToCache);
                         }
                         break;
                     }
-                    
+
                     if (value && value.length > 0) {
                         // Store for caching (preserves order in array)
                         allChunks.push(value);
-                        
+
                         // Create audio element for this chunk
-                        const chunkBlob = new Blob([value], { type: 'audio/mpeg' });
+                        const chunkBlob = new Blob([value], { type: "audio/mpeg" });
                         const blobUrl = URL.createObjectURL(chunkBlob);
                         const audio = new Audio(blobUrl);
                         audio.playbackRate = settings.playbackRate || 1.0;
-                        
+
                         // Add to queue in order received (CRITICAL for sequential playback)
                         audioQueueRef.current.push(audio);
-                        
+
                         // Play first chunk immediately
                         if (!firstChunkPlayed) {
                             firstChunkPlayed = true;
-                            
+
                             setIsSpeaking(true);
                             setIsLoading(false);
                             setError(null);
                             onStart?.();
-                            
+
                             audio.onended = () => {
                                 playNextInQueue();
                             };
-                            
+
                             audio.onerror = () => {
                                 playNextInQueue();
                             };
-                            
+
                             try {
                                 await audio.play();
                                 // Mark first chunk as played by setting index to 1
                                 currentAudioIndexRef.current = 1;
                             } catch (playError: unknown) {
-                                if (playError instanceof Error && playError.name === 'NotAllowedError') {
+                                if (playError instanceof Error && playError.name === "NotAllowedError") {
                                     isPlayingQueueRef.current = false;
                                     setIsLoading(false);
-                                    throw new Error('Click the speaker button again to play audio (browser autoplay policy)');
+                                    throw new Error("Click the speaker button again to play audio (browser autoplay policy)");
                                 }
                                 throw playError;
                             }
@@ -434,18 +428,18 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
         } else {
             // Stop queue playback
             isPlayingQueueRef.current = false;
-            
+
             // Stop current audio
             if (audioRef.current) {
                 audioRef.current.pause();
                 audioRef.current.currentTime = 0;
             }
-            
+
             // Stop all queued audio
             audioQueueRef.current.forEach(audio => {
                 audio.pause();
             });
-            
+
             setIsSpeaking(false);
         }
     }, [isBrowserMode]);

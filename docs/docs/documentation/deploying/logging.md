@@ -53,7 +53,12 @@ formatters:
   # Simple human-readable format
   simpleFormatter:
     format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
-  
+
+  # Colored simple human-readable format 
+  coloredFormatter:
+    class: solace_ai_connector.logging.ColoredFormatter
+    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
+    
   # JSON format for structured logging
   jsonFormatter:
     "()": pythonjsonlogger.json.JsonFormatter # The python-json-logger package is used for JSON formatting
@@ -65,14 +70,14 @@ handlers:
   # Stream handler - outputs logs to console (stdout)
   streamHandler:
     class: logging.StreamHandler
-    formatter: simpleFormatter
+    formatter: coloredFormatter
     stream: "ext://sys.stdout"
   
   # Rotating file handler - writes to log files with automatic rotation
   rotatingFileHandler:
     class: logging.handlers.RotatingFileHandler
     formatter: simpleFormatter
-    filename: sam.log
+    filename: ${LOGGING_FILE_NAME, sam.log}
     mode: a             # Append mode - don't overwrite existing logs
     maxBytes: 52428800  # 50 MB - rotate when file reaches this size
     backupCount: 10     # Keep up to 10 historical log files
@@ -124,6 +129,7 @@ For complete details on handlers, see [Python's supported handlers documentation
 Formatters control the structure and appearance of log messages. The default configuration includes:
 
 - **`simpleFormatter`**: Human-readable format including timestamp, level, thread, logger name, and message.
+- **`coloredFormatter`**: Similar to `simpleFormatter` but with color coding for log levels and backend component logs to enhance readability in the console.
 - **`jsonFormatter`**: JSON format for log aggregation and analysis tools. See [Structured Logging](#structured-logging) for possible customizations.
 
 Consult Python's documentation for complete details on [formatters](https://docs.python.org/3/library/logging.html#formatter-objects) and [available fields](https://docs.python.org/3/library/logging.html#logrecord-attributes).
@@ -159,7 +165,7 @@ handlers:
   rotatingFileHandler:
     class: logging.handlers.RotatingFileHandler
     formatter: jsonFormatter  # Changed from simpleFormatter
-    filename: sam.log
+    filename: ${LOGGING_FILE_NAME, sam.log}
     mode: a
     maxBytes: 52428800
     backupCount: 10
@@ -247,3 +253,19 @@ Once you've identified the logger names you need, you can:
 
 This approach keeps your logs clean while giving you detailed visibility into the specific components you're troubleshooting.
 :::
+
+### Agent-Specific Log File
+
+For debugging a specific agent in isolation, you can run your SAM solution across multiple processes, with the agent you want to isolate running by itself with its own dedicated log file. This is particularly useful during development and troubleshooting.
+
+To isolate an agent's logs, run your SAM solution in two separate processes:
+
+```bash
+# Process 1: Run your other components with default logging
+sam run configs/gateways/webui.yaml configs/agents/main_orchestrator.yaml configs/agents/some_other_agents.yaml # logs go to sam.log
+
+# Process 2: Run the isolated agent with its own log file
+export LOGGING_FILE_NAME=my_isolated_agent.log && sam run configs/agents/my_agent_with_isolated_logs.yaml # logs go to my_isolated_agent.log
+```
+
+This approach allows you to isolate and analyze a specific agent's behavior without interference from other components in your mesh. Each process writes to its own log file, making debugging much easier.

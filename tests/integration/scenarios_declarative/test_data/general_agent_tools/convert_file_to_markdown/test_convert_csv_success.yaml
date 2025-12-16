@@ -60,4 +60,4 @@ expected_gateway_output:
 expected_artifacts:
   - filename: "test_converted.md"
     mime_type: "text/markdown"
-    content_contains: "col1,col2\nval1,val2"
+    content_contains: "| col1 | col2 |\n| --- | --- |\n| val1 | val2 |"
