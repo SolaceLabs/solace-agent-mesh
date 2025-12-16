@@ -38,7 +38,7 @@ export const useArtifactRendering = ({
 
     // Effect to handle late auto-expand when shouldAutoExpand changes from false to true
     // This handles the case where artifact data arrives after the component mounts
-    // (e.g., artifact initially shows as "deleted" then becomes available)
+    // (e.g., artifact initially not available then becomes available)
     useEffect(() => {
         // Only auto-expand if:
         // 1. shouldAutoExpand just became true
@@ -102,7 +102,7 @@ export const useArtifactRendering = ({
 export const useArtifactRenderingPreferences = () => {
     // Future: This could read from user preferences/settings
     // For now, we use the default behavior defined in the design
-    
+
     const getAutoRenderPreference = useCallback((filename?: string, mimeType?: string) => {
         return shouldAutoRender(filename, mimeType);
     }, []);
