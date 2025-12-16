@@ -1,5 +1,7 @@
-import click
 from pathlib import Path
+
+import click
+
 from ...utils import ask_if_not_provided
 
 ENV_DEFAULTS = {
@@ -25,8 +27,8 @@ ENV_DEFAULTS = {
     "S3_BUCKET_NAME": "",
     "S3_ENDPOINT_URL": "",
     "S3_REGION": "us-east-1",
-    "FRONTEND_SERVER_URL": "",
-    "PLATFORM_SERVICE_URL": "",
+    "FRONTEND_SERVER_URL": None,
+    "PLATFORM_SERVICE_URL": None,
     "LLM_SERVICE_OAUTH_TOKEN_URL": "YOUR_LLM_SERVICE_OAUTH_TOKEN_URL_HERE",
     "LLM_SERVICE_OAUTH_CLIENT_ID": "YOUR_LLM_SERVICE_OAUTH_CLIENT_ID_HERE",
     "LLM_SERVICE_OAUTH_CLIENT_SECRET": "YOUR_LLM_SERVICE_OAUTH_CLIENT_SECRET_HERE",
@@ -254,6 +256,20 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
         and not str(env_vars_to_write["NAMESPACE"]).endswith("/")
     ):
         env_vars_to_write["NAMESPACE"] = str(env_vars_to_write["NAMESPACE"]) + "/"
+
+    # Handle Frontend URL generation to ensure they're not unset or empty strings
+    frontend_is_ssl = env_vars_to_write["SSL_CERTFILE"] and env_vars_to_write["SSL_KEYFILE"]
+    if not env_vars_to_write["FRONTEND_SERVER_URL"]:
+        frontend_url = "https://" if frontend_is_ssl else "http://"
+        frontend_url += env_vars_to_write.get("FASTAPI_HOST", "127.0.0.1")
+        frontend_url += ":" + str(env_vars_to_write.get("FASTAPI_PORT", 8000))
+        env_vars_to_write["FRONTEND_SERVER_URL"] = frontend_url
+
+    if not env_vars_to_write["PLATFORM_SERVICE_URL"]:
+        platform_url = "https://" if frontend_is_ssl else "http://"
+        platform_url += env_vars_to_write.get("PLATFORM_API_HOST", "127.0.0.1")
+        platform_url += ":" + str(env_vars_to_write.get("PLATFORM_API_PORT", 8001))
+        env_vars_to_write["PLATFORM_SERVICE_URL"] = platform_url
 
     final_env_vars = {k: v for k, v in env_vars_to_write.items() if v is not None}
     env_content_lines = [f'{key}="{value}"' for key, value in final_env_vars.items()]
