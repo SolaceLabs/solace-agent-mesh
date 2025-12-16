@@ -410,20 +410,31 @@ const AgentToolsStep: React.FC<StepProps> = ({
           ? currentTool.tool_config_ui
           : undefined;
 
-        processedTool = {
-          ...baseTool,
-          tool_name: currentTool.tool_name || undefined,
-          connection_params,
-          environment_variables,
-          tool_config,
-          required_scopes: currentTool.required_scopes || [],
+        // Build processedTool with explicit field ordering - tool_type MUST be first
+        const toolAsRecord: Record<string, unknown> = {
+          id: baseTool.id,
+          tool_type: baseTool.tool_type,
         };
 
-        // Add auth if configured
+        // Add optional fields in preferred order after tool_type
+        if (currentTool.tool_name) {
+          toolAsRecord.tool_name = currentTool.tool_name;
+        }
+        toolAsRecord.connection_params = connection_params;
         if (auth) {
-          (processedTool as unknown as Record<string, unknown>).auth = auth;
+          toolAsRecord.auth = auth;
+        }
+        if (environment_variables) {
+          toolAsRecord.environment_variables = environment_variables;
+        }
+        if (tool_config) {
+          toolAsRecord.tool_config = tool_config;
+        }
+        if (currentTool.required_scopes && currentTool.required_scopes.length > 0) {
+          toolAsRecord.required_scopes = currentTool.required_scopes;
         }
 
+        processedTool = toolAsRecord as unknown as Tool;
         break;
       }
       default:
@@ -948,18 +959,6 @@ const AgentToolsStep: React.FC<StepProps> = ({
                         />
                       </>
                     )}
-
-                    <KeyValueInput
-                      id="environment_variables_ui"
-                      label="Environment Variables (Optional)"
-                      values={currentTool.environment_variables_ui || {}}
-                      onChange={(values) => handleKeyValueInputChange("environment_variables_ui", values)}
-                      error={formErrors.environment_variables_ui}
-                      helpText="Global environment variables for the MCP connection"
-                      placeholder="No environment variables added"
-                      keyPlaceholder="Variable name"
-                      valuePlaceholder="Variable value"
-                    />
 
                     <FormField
                       label="Authentication Type (Optional)"
