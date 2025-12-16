@@ -823,14 +823,13 @@ def shared_solace_connector(
         },
         {
             "tool_type": "mcp",
-            "tool_name": "get_data_streamable_http",
-            "connection_params": mcp_server_harness["streamable_http"],
+            "tool_name": "get_data_http",
+            "connection_params": mcp_server_harness["http"],
         },
         {
             "tool_type": "mcp",
-            "tool_name": "get_data_http",  # Filter to only load get_data_http, then apply prefix
-            "tool_name_prefix": "memory",
-            "connection_params": mcp_server_harness["http"],
+            "tool_name": "get_data_streamable_http",
+            "connection_params": mcp_server_harness["streamable_http"],
         },
     ]
     sam_agent_app_config = create_agent_config(
