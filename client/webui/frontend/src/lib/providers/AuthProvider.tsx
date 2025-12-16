@@ -98,16 +98,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     },
                 });
 
-                if (response.ok) {
-                    return;
-                } else {
+                if (!response.ok) {
                     throw new Error("Backend logout failed with status: " + response.status);
                 }
             }
         } catch (error) {
+            // Log the error but proceed to clear local auth state
             console.error("Error calling logout endpoint:", error);
         } finally {
-            // Clear local auth state regardless of logout success
             setIsAuthenticated(false);
             setUserInfo(null);
             clearCsrfToken();
