@@ -825,20 +825,85 @@ async def deploy_app(
 
 
 @router.delete("/apps/{app_id}")
-async def archive_app(
+async def delete_app(
     app_id: str,
     user: dict = Depends(get_current_user),
     db: Optional[Session] = Depends(get_db_optional),
+    workspace_base: str = Depends(get_workspace_base),
+    app_storage: AppStorageService = Depends(get_app_storage_service),
 ):
-    """Soft delete app (mark as archived)."""
-    user_id = user.get("id")
-    log.info(f"User {user_id} archiving app {app_id}")
+    """
+    Permanently delete an app and all associated data.
 
-    # TODO: Update database when models are ready
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="App archival not yet implemented - database models needed",
-    )
+    This endpoint:
+    1. Deletes the app record from database (including tags and user associations)
+    2. Deletes the workspace directory from filesystem
+    3. Deletes all deployed versions from app storage
+
+    This action cannot be undone.
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} deleting app {app_id}")
+
+    if not db:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not available",
+        )
+
+    # Verify app exists and user owns it
+    app = app_repository.get_by_id(db, app_id, user_id)
+    if not app:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"App '{app_id}' not found",
+        )
+
+    # Verify the user is the owner
+    if app.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the app owner can delete an app",
+        )
+
+    errors = []
+
+    # 1. Delete workspace directory
+    workspace_path = Path(workspace_base) / user_id / "apps" / app_id
+    if workspace_path.exists():
+        try:
+            import shutil
+            shutil.rmtree(workspace_path)
+            log.info(f"Deleted workspace directory: {workspace_path}")
+        except Exception as e:
+            log.error(f"Failed to delete workspace directory for {app_id}: {e}")
+            errors.append(f"Failed to delete workspace: {str(e)}")
+
+    # 2. Delete deployed versions from app storage
+    try:
+        await app_storage.delete_app(user_id, app_id)
+        log.info(f"Deleted app storage for {app_id}")
+    except Exception as e:
+        log.error(f"Failed to delete app storage for {app_id}: {e}")
+        errors.append(f"Failed to delete storage: {str(e)}")
+
+    # 3. Delete database records
+    try:
+        deleted = app_repository.delete(db, app_id, user_id)
+        if not deleted:
+            errors.append("Failed to delete database records")
+        else:
+            log.info(f"Deleted database records for app {app_id}")
+    except Exception as e:
+        log.error(f"Failed to delete database records for {app_id}: {e}")
+        errors.append(f"Failed to delete database records: {str(e)}")
+
+    # If any critical errors occurred, report them but don't fail
+    # (partial cleanup is still valuable)
+    if errors:
+        log.warning(f"App {app_id} deleted with some errors: {errors}")
+
+    return {"success": True, "app_id": app_id}
 
 
 @router.options("/apps/preview/{app_id}/{path:path}")
@@ -936,7 +1001,16 @@ async def _serve_from_app_storage(
     content = await app_storage.get_file(user_id, app_id, file_path)
 
     if content is None:
-        # SPA fallback: serve index.html for missing routes
+        # Check if this is an asset file (has a file extension that indicates a static asset)
+        # For these, we should NOT fall back to index.html - return 404 instead
+        asset_extensions = {'.js', '.css', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.map', '.json', '.webp'}
+        file_ext = Path(file_path).suffix.lower()
+
+        if file_ext in asset_extensions:
+            # Asset file not found - return 404, don't fall back to index.html
+            raise HTTPException(status_code=404, detail=f"Asset not found: {file_path}")
+
+        # SPA fallback: serve index.html for missing routes (client-side routing)
         content = await app_storage.get_file(user_id, app_id, "index.html")
         if content is None:
             raise HTTPException(status_code=404, detail="File not found")
@@ -1036,7 +1110,16 @@ async def _serve_from_versioned_storage(
     content = await app_storage.get_version_file(user_id, app_id, deployed_version, file_path)
 
     if content is None:
-        # SPA fallback: serve index.html for missing routes
+        # Check if this is an asset file (has a file extension that indicates a static asset)
+        # For these, we should NOT fall back to index.html - return 404 instead
+        asset_extensions = {'.js', '.css', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.map', '.json', '.webp'}
+        file_ext = Path(file_path).suffix.lower()
+
+        if file_ext in asset_extensions:
+            # Asset file not found - return 404, don't fall back to index.html
+            raise HTTPException(status_code=404, detail=f"Asset not found: {file_path}")
+
+        # SPA fallback: serve index.html for missing routes (client-side routing)
         content = await app_storage.get_version_file(user_id, app_id, deployed_version, "index.html")
         if content is None:
             raise HTTPException(status_code=404, detail="File not found")
@@ -1147,21 +1230,33 @@ async def _serve_deployed_app_impl(
     Uses AppStorageService.get_version_file() to serve from versioned storage.
     Same code path for local development and K8S production.
     """
-    user_id = user.get("id")
+    current_user_id = user.get("id")
 
-    # If version is explicitly provided, use it (for testing specific versions)
-    if version:
-        deployed_version = version
-    else:
-        # Look up the deployed version for this environment from database
-        deployed_version = None
-        if db:
-            app = app_repository.get_by_id(db, app_id, user_id)
-            if app:
-                # Get the version deployed to this environment
+    # Look up the app to get owner_user_id and deployed version
+    # We need to use the app owner's user_id for storage lookup, not the current user
+    deployed_version = version  # Use explicit version if provided
+    owner_user_id = current_user_id  # Default to current user
+
+    if db:
+        # First try to find the app owned by current user
+        app = app_repository.get_by_id(db, app_id, current_user_id)
+        if app:
+            owner_user_id = app.user_id
+            if not deployed_version:
                 deployed_version = getattr(app, f"{environment}_version", None)
+        else:
+            # App not owned by current user - could be a public app
+            # Try to find it without user restriction
+            from sqlalchemy import select
+            from ..repository.models.app_model import AppModel
+            stmt = select(AppModel).where(AppModel.app_id == app_id)
+            app = db.execute(stmt).scalar_one_or_none()
+            if app:
+                owner_user_id = app.user_id
+                if not deployed_version:
+                    deployed_version = getattr(app, f"{environment}_version", None)
 
-    # Serve from AppStorageService (same code path for local and K8S)
+    # Serve from AppStorageService using the app owner's user_id
     return await _serve_from_versioned_storage(
-        request, app_id, path, user_id, app_storage, environment, deployed_version
+        request, app_id, path, owner_user_id, app_storage, environment, deployed_version
     )

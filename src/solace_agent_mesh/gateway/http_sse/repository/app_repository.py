@@ -4,7 +4,7 @@ App repository implementation using SQLAlchemy.
 
 import uuid
 from sqlalchemy.orm import Session as DBSession
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 
 from ..shared import now_epoch_ms
 from ..shared.pagination import PaginationParams
@@ -155,5 +155,35 @@ class AppRepository:
             return False
 
         app.archived_time = now_epoch_ms()
+        db.commit()
+        return True
+
+    def delete(self, db: DBSession, app_id: str, user_id: str) -> bool:
+        """
+        Hard delete an app and all related data.
+
+        This permanently removes:
+        - The app record
+        - All app_users relationships
+        - All app_tags
+
+        Note: Workspace files and storage data must be cleaned up separately.
+        """
+        app = self.get_by_id(db, app_id, user_id)
+        if not app:
+            return False
+
+        # Delete related records (cascade should handle this, but be explicit)
+        db.execute(
+            text("DELETE FROM app_tags WHERE app_id = :app_id"),
+            {"app_id": app.id}
+        )
+        db.execute(
+            text("DELETE FROM app_users WHERE app_id = :app_id"),
+            {"app_id": app.id}
+        )
+
+        # Delete the app itself
+        db.delete(app)
         db.commit()
         return True

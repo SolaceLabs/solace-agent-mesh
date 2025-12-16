@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MoreHorizontal, Edit, Rocket, Play, FlaskConical, Server, Settings, AppWindow } from "lucide-react";
+import { MoreHorizontal, Edit, Rocket, Play, FlaskConical, Server, Settings, Trash2 } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger, Menu } from "@/lib/components/ui";
@@ -22,9 +22,11 @@ interface AppCardProps {
     generatingIcon?: boolean;
     /** Hide status badge and owner-only actions (for public apps section) */
     hideOwnerFeatures?: boolean;
+    /** Callback when user wants to delete the app */
+    onDelete?: () => void;
 }
 
-export function AppCard({ app, onClick, onEdit, onViewEnvironment, onSettingsSave, onSaveTags, onGenerateIcon, generatingIcon = false, hideOwnerFeatures = false }: AppCardProps) {
+export function AppCard({ app, onClick, onEdit, onViewEnvironment, onSettingsSave, onSaveTags, onGenerateIcon, generatingIcon = false, hideOwnerFeatures = false, onDelete }: AppCardProps) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [isDeployDialogOpen, setIsDeployDialogOpen] = useState(false);
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
@@ -121,6 +123,22 @@ export function AppCard({ app, onClick, onEdit, onViewEnvironment, onSettingsSav
                       onClick: () => {
                           setMenuOpen(false);
                           onViewEnvironment("dev");
+                      },
+                  },
+              ]
+            : []),
+        // Delete option - only shown for owner's apps (when onDelete is provided)
+        ...(onDelete
+            ? [
+                  {
+                      id: "delete",
+                      label: "Delete App",
+                      icon: <Trash2 size={14} />,
+                      divider: true,
+                      variant: "destructive" as const,
+                      onClick: () => {
+                          setMenuOpen(false);
+                          onDelete();
                       },
                   },
               ]

@@ -6,12 +6,15 @@ import { Plus, RefreshCcw, Search } from "lucide-react";
 import { useApps } from "@/lib/hooks/useApps";
 import type { App } from "@/lib/types";
 import { AppCard } from "../apps/AppCard";
+import { DeleteAppDialog } from "../apps/DeleteAppDialog";
 import type { AppSettingsUpdate } from "../apps/AppSettingsDialog";
 
 export function AppsPage() {
     const navigate = useNavigate();
-    const { apps, loading, error, refetch, updateApp, setAppTags, generateIcon, generatingIconFor } = useApps();
+    const { apps, loading, error, refetch, updateApp, deleteApp, setAppTags, generateIcon, generatingIconFor } = useApps();
     const [searchQuery, setSearchQuery] = useState("");
+    const [appToDelete, setAppToDelete] = useState<App | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Filter apps based on search query (name, description, or tags)
     const filteredApps = useMemo(() => {
@@ -87,6 +90,17 @@ export function AppsPage() {
         return await generateIcon(appId);
     };
 
+    const handleDeleteApp = async () => {
+        if (!appToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deleteApp(appToDelete.appId);
+            setAppToDelete(null);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const renderAppGrid = (appList: App[], hideOwnerFeatures = false) => (
         <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
             {appList.map((app) => (
@@ -101,6 +115,7 @@ export function AppsPage() {
                     onGenerateIcon={() => handleGenerateIcon(app.appId)}
                     generatingIcon={generatingIconFor === app.appId}
                     hideOwnerFeatures={hideOwnerFeatures}
+                    onDelete={hideOwnerFeatures ? undefined : () => setAppToDelete(app)}
                 />
             ))}
         </div>
@@ -193,6 +208,14 @@ export function AppsPage() {
                     </div>
                 )}
             </div>
+
+            <DeleteAppDialog
+                isOpen={!!appToDelete}
+                onClose={() => setAppToDelete(null)}
+                onConfirm={handleDeleteApp}
+                app={appToDelete}
+                isDeleting={isDeleting}
+            />
         </div>
     );
 }

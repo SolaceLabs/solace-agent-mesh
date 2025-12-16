@@ -22,6 +22,7 @@ interface UseAppsResult {
     error: string | null;
     refetch: () => void;
     updateApp: (appId: string, updates: AppUpdate) => Promise<boolean>;
+    deleteApp: (appId: string) => Promise<boolean>;
     setAppTags: (appId: string, tags: string[]) => Promise<boolean>;
     generateIcon: (appId: string) => Promise<RegenerateIconResponse | null>;
     generatingIconFor: string | null;
@@ -84,6 +85,25 @@ export function useApps(): UseAppsResult {
         }
     }, [fetchApps]);
 
+    const deleteApp = useCallback(async (appId: string): Promise<boolean> => {
+        try {
+            const response = await fetch(`/api/v1/apps/${appId}`, {
+                method: "DELETE",
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to delete app");
+            }
+
+            // Refetch apps to get updated list
+            await fetchApps();
+            return true;
+        } catch (err) {
+            console.error("Failed to delete app:", err);
+            return false;
+        }
+    }, [fetchApps]);
+
     const setAppTags = useCallback(async (appId: string, tags: string[]): Promise<boolean> => {
         try {
             const response = await fetch(`/api/v1/apps/${appId}/tags`, {
@@ -142,6 +162,7 @@ export function useApps(): UseAppsResult {
         error,
         refetch: fetchApps,
         updateApp,
+        deleteApp,
         setAppTags,
         generateIcon,
         generatingIconFor,
