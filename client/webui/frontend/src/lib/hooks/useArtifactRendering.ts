@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { shouldAutoRender, isUserControllableRendering } from "@/lib/components/chat/file/fileUtils";
 
 interface UseArtifactRenderingOptions {
@@ -32,6 +32,23 @@ export const useArtifactRendering = ({
     // This allows the caller to control whether artifacts start expanded
     const [isExpanded, setIsExpanded] = useState(() => shouldAutoExpand ?? shouldAutoRenderArtifact);
 
+    // Track whether the user has manually toggled expansion
+    // This prevents auto-expand from overriding user's manual toggle
+    const userHasToggled = useRef(false);
+
+    // Effect to handle late auto-expand when shouldAutoExpand changes from false to true
+    // This handles the case where artifact data arrives after the component mounts
+    // (e.g., artifact initially shows as "deleted" then becomes available)
+    useEffect(() => {
+        // Only auto-expand if:
+        // 1. shouldAutoExpand just became true
+        // 2. Currently not expanded
+        // 3. User hasn't manually toggled the expansion
+        if (shouldAutoExpand && !isExpanded && !userHasToggled.current) {
+            setIsExpanded(true);
+        }
+    }, [shouldAutoExpand, isExpanded]);
+
     // Determine if this artifact supports user-controlled rendering
     const isUserControllable = useMemo(() => {
         return isUserControllableRendering(filename, mimeType);
@@ -59,6 +76,9 @@ export const useArtifactRendering = ({
             console.log(`[useArtifactRendering] Toggle blocked - filename: ${filename}, isExpandable: ${isExpandable}`);
             return;
         }
+
+        // Mark that user has manually toggled, preventing future auto-expand
+        userHasToggled.current = true;
 
         setIsExpanded(prev => {
             const newValue = !prev;
