@@ -3,6 +3,8 @@ Project API controller using 3-tiered architecture.
 """
 
 import json
+import os
+from pathlib import Path
 from typing import List, Optional, Dict, Any
 from fastapi import (
     APIRouter,
@@ -372,6 +374,8 @@ async def add_project_artifacts(
             except json.JSONDecodeError:
                 log.warning(f"Could not parse file_metadata for project {project_id}, ignoring.")
                 pass
+        
+        log.info(f"parsed_file_metadata: {parsed_file_metadata}") # parsed_file_metadata: {'kendra-dg.pdf': 'It is a aws document for kendra index'}
 
         results = await project_service.add_artifacts_to_project(
             db=db,
@@ -380,6 +384,76 @@ async def add_project_artifacts(
             files=files,
             file_metadata=parsed_file_metadata
         )
+
+        # ===== NEW CODE: Print absolute paths for all uploaded artifacts =====
+        if project_service.artifact_service:
+            storage_session_id = f"project-{project_id}"
+            
+            log.info(f"\\n{'='*60}")
+            log.info(f"Absolute paths for uploaded artifacts in project {project_id}:")
+            log.info(f"{'='*60}")
+            
+            for result in results:
+                filename = result.get("data_filename")
+                version = result.get("data_version")
+                description = parsed_file_metadata.get(filename, "")
+                
+                if filename and version is not None:
+                    # Get absolute path transparently (works for both Filesystem and S3)
+                    artifact_version = await project_service.artifact_service.get_artifact_version(
+                        app_name=project_service.app_name,
+                        user_id=user_id,
+                        session_id=storage_session_id,
+                        filename=filename,
+                        version=version,
+                    )
+                    
+                    if artifact_version:
+                        log.info(f"  📄 {filename} (version {version})")
+                        log.info(f"     Absolute path: {artifact_version.canonical_uri}")
+                        log.info(f"     MIME type: {artifact_version.mime_type}")
+                        log.info(f"     Created: {artifact_version.create_time}")
+                        
+                        # Extract project root from canonical_uri
+                        from urllib.parse import urlparse
+                        from ..services.bm25_indexer import BM25DocumentIndexer
+                        
+                        # Parse the canonical URI to get the file path
+                        parsed_uri = urlparse(artifact_version.canonical_uri)
+                        doc_path = parsed_uri.path
+                        
+                        # Extract project root directory from the document path
+                        # The path structure is: .../app_name/user_id/project-{project_id}/filename
+                        doc_path_obj = Path(doc_path)
+                        project_root_obj = doc_path_obj.parent.parent  # This gives us the project directory
+                        
+                        log.info(f"\\nProject root information:")
+                        log.info(f"-----------------------")
+                        log.info(f"Document path: {doc_path_obj}")
+                        log.info(f"Project root directory: {project_root_obj}")
+                        log.info(f"Project root URI: file://{project_root_obj}")
+                        log.info(f"-----------------------")
+                        
+                        # Create BM25 index
+                        bm25_indexer = BM25DocumentIndexer()
+                        index_dir_obj = project_root_obj / "bm25_index" / f"{filename}" # we can match the index with the file description
+                        
+                        log.info(f"Creating BM25 index at: {index_dir_obj}")
+                        # Pass MIME type to help identify file type when extension is missing
+                        meta_data = bm25_indexer.create_document_index(
+                            doc_path_obj, 
+                            index_dir_obj, 
+                            description=description,
+                            mime_type=artifact_version.mime_type
+                        )
+                        #log.info(f"BM25 index created: {meta_data}")
+                    else:
+                        log.warning(f"  ❌ Could not retrieve path for {filename}")
+            
+            log.info(f"{'='*60}\\n")
+        # ===== END NEW CODE =====
+        
+
         return results
     except ValueError as e:
         error_msg = str(e)

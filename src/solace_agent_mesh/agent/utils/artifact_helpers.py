@@ -903,7 +903,13 @@ async def get_artifact_info_list(
         )
 
         for filename in keys:
+            # Skip metadata files
             if filename.endswith(METADATA_SUFFIX):
+                continue
+            
+            # Skip bm25_index directory and all its contents
+            if filename.startswith("bm25_index/") or filename == "bm25_index":
+                log.debug("%s Skipping BM25 index artifact: %s", log_prefix, filename)
                 continue
 
             log_identifier_item = f"{log_prefix} [{filename}]"

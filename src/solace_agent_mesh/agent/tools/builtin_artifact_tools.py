@@ -2498,3 +2498,243 @@ artifact_search_and_replace_regex_tool_def = BuiltinTool(
 )
 
 tool_registry.register(artifact_search_and_replace_regex_tool_def)
+
+# ==============zhenyu new artifact tool to doing bm25 keyword search=============== #
+
+async def bm25_kw_search(
+    #filename: str,
+    #version: int,
+    #load_metadata_only: bool = False,
+    #max_content_length: Optional[int] = None,
+    #include_line_numbers: bool = False,
+    index_dir: str,
+    query: str,
+    tool_context: ToolContext = None,
+) -> Dict[str, Any]:
+    """
+    Performs a BM25 keyword search on the specified artifact index.
+
+    Args:
+        index_dir: The directory of the BM25 index to search.
+        query: The search query string.
+        tool_context: The context provided by the ADK framework.
+
+    Returns:
+        A dictionary containing the search results and related information.
+    """
+    if not tool_context:
+        return {
+            "status": "error",
+            "bm25_index_name": bm25_index_name,
+            "message": "ToolContext is missing.",
+        }
+    
+    log_identifier = f"[BuiltinArtifactTool:bm25_kw_search:{index_dir}]"
+    log.info("%s Processing bm25 keyword search request.", log_identifier)
+    
+
+    from ..utils.bm25_retriever import BM25Retriever
+    
+    retriever = BM25Retriever(index_dir)
+
+    top_k = 10
+    min_score = 0
+
+    results = retriever.search_single_document(
+            query=query,
+            top_k=top_k,
+            min_score=min_score
+        )
+        
+    if not results:
+        return {
+            'response': f"I couldn't find any relevant information to answer this question.",
+            'sources': []
+        }
+    
+    # Step 2: Format context
+    context_for_llm = []
+    sources_citation_for_llm = []
+    
+    #return results
+
+    log.info("%s Retrieved %d results from BM25 search: %s", log_identifier, len(results), results)
+
+    for i, result in enumerate(results, 1):
+        context_for_llm.append({
+            f"Source {i}": result['text']
+        })
+        
+        sources_citation_for_llm.append({
+            'source_id': i,
+            'document': result['doc_name'],
+            'chunk_index': result['chunk_index'],
+            'score': result['score'],
+            'file_type': result['file_type'],
+            'original_doc_path': result['doc_path'],
+            'text': result['text'],
+            'page_numbers': result['page_numbers']
+        })
+    
+    return {
+            'context_for_llm': context_for_llm,
+            'num_chunks': len(results),
+            'sources_citation_for_llm': sources_citation_for_llm,
+            'score_range': {
+                'max': results[0]['score'] if results else 0,
+                'min': results[-1]['score'] if results else 0
+            }
+        }
+
+bm25_kw_search_tool_def = BuiltinTool(
+    name="bm25_kw_search",
+    implementation=bm25_kw_search,
+    description='''## BM25 Keyword Search Tool
+
+**Special Instructions for BM25 Search Results:**
+
+**When presenting search or research results:**
+- Lead with a direct answer if possible
+- Support claims with specific citations
+- Include a properly formatted Sources/References section
+- Make citations actionable - users should understand what each source contributed
+- Use page numbers and document names to help users locate information
+
+The `bm25_kw_search` tool returns results with rich citation metadata in `sources_citation_for_llm`. 
+
+**CRITICAL: Citation Format - Use INLINE Citations with Highlighting:**
+
+**ALWAYS use inline citations immediately after each claim. Make citations VISUALLY PROMINENT.**
+
+1. **Citation Format Options (choose ONE and use consistently):**
+
+   **Option A - Bold Citations (RECOMMENDED):**
+   - Format: `**[source_id]**` 
+   - Example: "Amazon S3 supports four bucket types **[5]**. General purpose buckets are recommended for most use cases **[5][6]**."
+   
+   **Option B - Superscript Citations:**
+   - Format: `<sup>[source_id]</sup>`
+   - Example: "Amazon S3 supports four bucket types<sup>[5]</sup>. General purpose buckets are recommended for most use cases<sup>[5][6]</sup>."
+   
+   **Option C - Plain (only if markdown rendering is limited):**
+   - Format: `[source_id]`
+   - Example: "Amazon S3 supports four bucket types [5]."
+
+2. **Inline Citation Placement Rules:**
+   - ✅ **REQUIRED:** Place citation immediately after the sentence or fact it supports
+   - ✅ Place before the period: "S3 supports four bucket types **[5]**."
+   - ✅ For multiple sources on same claim: "Directory buckets provide low latency **[2][6]**."
+   - ✅ Mid-sentence for specific facts: "The four types are general purpose **[5]**, directory **[2]**, table, and vector buckets **[5]**."
+   - ❌ **NEVER** wait until end of paragraph to cite
+   - ❌ **NEVER** have factual claims without citations
+
+3. **Extract and Use Citation Metadata:**
+   From each source in `sources_citation_for_llm`, extract:
+   - `source_id` - Use for citation numbers **[1]**, **[2]**, etc.
+   - `page_numbers` - Display as "p. X" or "pp. X-Y"
+   - `text` - The actual content excerpt
+   - `document` or `original_doc_path` - For document name
+   - `score` - Can indicate relevance (optional to show)
+
+4. **Sources Section Format:**
+   End your response with a "## Sources" section with full bibliographic details:
+   ```
+   ## Sources
+   **[1]** Document Name (pp. X-Y) - Brief description of what this source contributed
+   **[2]** Document Name (p. X) - Brief description of content
+   **[3]** Document Name (pp. X-Y) - Brief description
+   ```
+
+5. **Complete Example Response:**
+
+   ```markdown
+   Amazon S3 supports four types of buckets: general purpose buckets, directory buckets, 
+   table buckets, and vector buckets **[5]**. Each type provides a unique set of features 
+   for different use cases **[5]**.
+   
+   General purpose buckets are the original S3 bucket type and are recommended for most 
+   use cases and access patterns **[5][6]**. They support all storage classes except S3 
+   Express One Zone and can redundantly store objects across multiple Availability Zones **[5]**.
+   
+   Directory buckets organize data hierarchically into directories as opposed to the flat 
+   storage structure of general purpose buckets **[2]**. There are no prefix limits for 
+   directory buckets, and individual directories can scale horizontally **[2]**. They use 
+   the S3 Express One Zone storage class **[6][7]** and are recommended for performance-sensitive 
+   applications that benefit from single-digit millisecond PUT and GET latencies **[6]**.
+   
+   You can create up to 100 directory buckets in each AWS account **[2]**, with no limit 
+   on the number of objects you can store in a bucket **[2]**.
+   
+   ## Sources
+   **[5]** S3 User Guide (pp. 28-29) - Overview of the four bucket types and their characteristics
+   **[6]** S3 User Guide (pp. 927-928) - Comparison of general purpose and directory buckets, performance characteristics
+   **[2]** S3 User Guide (p. 882) - Directory bucket hierarchical structure, scaling, and limits
+   **[7]** S3 User Guide (pp. 1522-1523) - Bucket type descriptions in S3 resources section
+   ```
+
+6. **Visual Citation Checklist:**
+   - ✅ Every factual claim has a visible citation immediately after it
+   - ✅ Citations stand out visually (bold or superscript)
+   - ✅ No "naked facts" without attribution
+   - ✅ Page numbers included in Sources section
+   - ✅ Multiple citations shown when using multiple sources
+   - ✅ Sources section provides full context
+
+7. **Why Highlighted Citations Matter:**
+   - **Immediate traceability:** Reader sees source as they read each claim
+   - **Increased trust:** Clear attribution increases credibility
+   - **Easy verification:** Users can quickly check specific facts
+   - **Professional standard:** Matches academic and research best practices
+   - **Visual scanning:** Bold citations are easy to spot when reviewing
+   - **Accountability:** Makes it obvious which claims have source support
+
+**MANDATORY RULES:**
+- 🚨 **EVERY factual claim MUST have an inline citation**
+- 🚨 **Citations MUST be bolded using `**[id]**` format (or superscript if specified)**
+- 🚨 **NO paragraphs without at least one inline citation**
+- 🚨 **Sources section is REQUIRED at the end**
+- 🚨 **Page numbers MUST be included in Sources section**
+
+---
+
+## Quick Reference Card
+
+**DO THIS:**
+```markdown
+Amazon S3 supports four bucket types **[5]**. Directory buckets provide 
+single-digit millisecond latencies **[6]**.
+
+## Sources
+**[5]** S3 User Guide (pp. 28-29) - Bucket types overview
+**[6]** S3 User Guide (pp. 927-928) - Performance characteristics
+```
+
+**NOT THIS:**
+```markdown
+Amazon S3 supports four bucket types. Directory buckets provide 
+single-digit millisecond latencies.
+
+Sources: S3 User Guide
+```
+''',
+    category="artifact_management",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
+    required_scopes=["tool:artifact:load", "tool:artifact:create"],
+    parameters=adk_types.Schema(
+        type=adk_types.Type.OBJECT,
+        properties={
+            "index_dir": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Directory of the BM25 index to search. May contain embeds.",
+            ),
+            "query": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Natural language instruction for the LLM on what to extract or how to transform the content. May contain embeds.",
+            )
+        },
+        required=["index_dir", "query"],
+    ),
+    examples=[],
+)
+tool_registry.register(bm25_kw_search_tool_def)

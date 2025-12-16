@@ -231,6 +231,50 @@ async def _inject_project_context(
                     log_prefix=log_prefix,
                 )
 
+                #### ===========new code to BM25 Index Copy ============= ####
+                from ..utils.artifact_copy_utils import copy_bm25_index_to_session
+
+                # After copying artifacts to session, copy the BM25 index
+                is_copy_success = await copy_bm25_index_to_session(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    project_service=project_service,
+                    component=component,
+                    db=db,
+                    log_prefix=log_prefix,
+                )
+                
+                if is_copy_success:
+                    log.info(
+                        "%sSuccessfully copied BM25 index to session %s for project %s",
+                        log_prefix,
+                        session_id,
+                        project_id,
+                    )
+                else:
+                    log.error(
+                        "%sNo BM25 index found to copy for project %s",
+                        log_prefix,
+                        project_id,
+                    )
+                #### ================================================== ####
+
+                ### ====== get bm25 index info ======= ###
+                from ..utils.bm25_utils import get_bm25_indexed_documents_from_session
+                
+                project_bm25_index = await get_bm25_indexed_documents_from_session(
+                    artifact_service=artifact_service,
+                    app_name=project_service.app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    log_prefix=log_prefix,
+                )
+
+                log.info(f"{log_prefix} BM25 indexed documents in the testing session: {project_bm25_index}")
+
+                ### =========================== ###
+
                 if inject_full_context and artifacts_copied > 0:
                     # need to clear the pending flags even if injection fails
                     should_clear_pending_flags = True
@@ -269,6 +313,22 @@ async def _inject_project_context(
                             "\nNew Files Added to Session:\n"
                             "The following files have been added to your session (in addition to any files already present):\n"
                         )
+                        
+                        # ===== add new code here ===== #
+                        all_index_descriptions = []
+                        new_index_descriptions = []
+                        # ============================= #
+                        for bm25_index in project_bm25_index:
+                            index_desc_str = f"- {bm25_index.get('index_dir', 'Unnamed Index Directory')}"
+                            if 'description' in bm25_index:
+                                index_desc_str += f": {bm25_index['description']}"
+                            all_index_descriptions.append(index_desc_str)
+
+                        # Add BM25 index descriptions to context
+                        index_added_header = (
+                            "\nNew BM25 Indexes Added to Session:\n"
+                            "The following BM25 indexes have been added to your session (in addition to any indexes already present):\n"
+                        )
 
                         if inject_full_context and all_artifact_descriptions:
                             # New session: show all project files
@@ -279,6 +339,18 @@ async def _inject_project_context(
                             new_files_context = files_added_header + "\n".join(new_artifact_descriptions)
                             context_parts.append(new_files_context)
 
+                        log.info(f"{log_prefix} Injected artifacts context for llm: {context_parts}")
+
+                        # ===== add new code to handle adding bm25 context here ===== #
+                        if all_index_descriptions:
+                            # New session: show all project indexes
+                            indexes_context = index_added_header + "\n".join(all_index_descriptions)
+                            context_parts.append(indexes_context)
+
+                        log.info(f"{log_prefix} Injected artifacts context and BM25 indexes context for llm: {context_parts}")
+                        
+                        # ======================================================== #
+                
             except Exception as e:
                 log.warning(
                     "%sFailed to copy project artifacts to session: %s", log_prefix, e
