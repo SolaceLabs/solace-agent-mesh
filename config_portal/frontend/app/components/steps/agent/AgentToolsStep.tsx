@@ -47,16 +47,10 @@ export interface Tool {
   mcp_timeout?: number;
 
   // MCP auth fields
-  auth_type?: "none" | "api_key" | "bearer" | "oauth2" | "";
+  auth_type?: "none" | "api_key" | "bearer" | "";
   // api_key / bearer fields
   auth_token?: string;
   auth_header_name?: string; // For api_key (e.g., "X-API-Key")
-  // oauth2 fields
-  oauth2_client_id?: string;
-  oauth2_client_secret?: string;
-  oauth2_authorization_url?: string;
-  oauth2_token_url?: string;
-  oauth2_scopes?: string[];
 }
 
 const initialToolState: Tool = {
@@ -86,11 +80,6 @@ const initialToolState: Tool = {
   auth_type: "",
   auth_token: "",
   auth_header_name: "Authorization",
-  oauth2_client_id: "",
-  oauth2_client_secret: "",
-  oauth2_authorization_url: "",
-  oauth2_token_url: "",
-  oauth2_scopes: [],
 };
 
 
@@ -179,30 +168,32 @@ const AgentToolsStep: React.FC<StepProps> = ({
       }
     }
 
-    // Extract auth fields if present
-    if (tool.tool_type === "mcp" && (tool as unknown as Record<string, unknown>).auth) {
-      const auth = (tool as unknown as Record<string, unknown>).auth as Record<string, unknown>;
-      const authType = auth.type as string;
+    // Extract auth fields from headers if present
+    if (tool.tool_type === "mcp" && tool.connection_params) {
+      const cp = tool.connection_params;
+      let headers: Record<string, string> | undefined;
 
-      if (authType === "api_key") {
-        transportFields.auth_type = "api_key";
-        transportFields.auth_token = (auth.apiKey || auth.token || "") as string;
-        transportFields.auth_header_name = (auth.headerName || "X-API-Key") as string;
-      } else if (authType === "bearer") {
-        transportFields.auth_type = "bearer";
-        transportFields.auth_token = (auth.token || "") as string;
-      } else if (authType === "oauth2") {
-        transportFields.auth_type = "oauth2";
-        if (auth.credential && typeof auth.credential === "object") {
-          const credential = auth.credential as Record<string, unknown>;
-          transportFields.oauth2_client_id = (credential.client_id || "") as string;
-          transportFields.oauth2_client_secret = (credential.client_secret || "") as string;
-        }
-        if (auth.scheme && typeof auth.scheme === "object") {
-          const scheme = auth.scheme as Record<string, unknown>;
-          transportFields.oauth2_authorization_url = (scheme.authorization_url || "") as string;
-          transportFields.oauth2_token_url = (scheme.token_url || "") as string;
-          transportFields.oauth2_scopes = Array.isArray(scheme.scopes) ? scheme.scopes as string[] : [];
+      if (tool.transport_type === "sse" && cp.headers) {
+        headers = cp.headers as Record<string, string>;
+      } else if (tool.transport_type === "streamable-http" && cp.headers) {
+        headers = cp.headers as Record<string, string>;
+      }
+
+      if (headers) {
+        // Check for Bearer token in Authorization header
+        if (headers.Authorization?.startsWith("Bearer ")) {
+          transportFields.auth_type = "bearer";
+          transportFields.auth_token = headers.Authorization.replace("Bearer ", "");
+        } else {
+          // Check for other header-based authentication (API key)
+          for (const [headerName, headerValue] of Object.entries(headers)) {
+            if (headerName !== "Authorization" && headerValue) {
+              transportFields.auth_type = "api_key";
+              transportFields.auth_header_name = headerName;
+              transportFields.auth_token = headerValue;
+              break;
+            }
+          }
         }
       }
     }
@@ -290,11 +281,6 @@ const AgentToolsStep: React.FC<StepProps> = ({
       } else if (currentTool.auth_type === "bearer") {
         if (!currentTool.auth_token)
           errors.auth_token = "Bearer token is required for bearer authentication.";
-      } else if (currentTool.auth_type === "oauth2") {
-        if (!currentTool.oauth2_client_id)
-          errors.oauth2_client_id = "Client ID is required for OAuth2 authentication.";
-        if (!currentTool.oauth2_client_secret)
-          errors.oauth2_client_secret = "Client secret is required for OAuth2 authentication.";
       }
     }
 
@@ -353,8 +339,15 @@ const AgentToolsStep: React.FC<StepProps> = ({
             url: currentTool.sse_url,
             timeout: currentTool.mcp_timeout || 30,
           };
-          if (currentTool.sse_headers && Object.keys(currentTool.sse_headers).length > 0) {
-            connection_params.headers = currentTool.sse_headers;
+          // Build headers with authentication
+          const headers: Record<string, string> = { ...(currentTool.sse_headers || {}) };
+          if (currentTool.auth_type === "bearer" && currentTool.auth_token) {
+            headers.Authorization = `Bearer ${currentTool.auth_token}`;
+          } else if (currentTool.auth_type === "api_key" && currentTool.auth_token && currentTool.auth_header_name) {
+            headers[currentTool.auth_header_name] = currentTool.auth_token;
+          }
+          if (Object.keys(headers).length > 0) {
+            connection_params.headers = headers;
           }
         } else if (currentTool.transport_type === "streamable-http") {
           connection_params = {
@@ -362,42 +355,15 @@ const AgentToolsStep: React.FC<StepProps> = ({
             url: currentTool.streamable_http_url,
             timeout: currentTool.mcp_timeout || 30,
           };
-          if (currentTool.streamable_http_headers && Object.keys(currentTool.streamable_http_headers).length > 0) {
-            connection_params.headers = currentTool.streamable_http_headers;
+          // Build headers with authentication
+          const headers: Record<string, string> = { ...(currentTool.streamable_http_headers || {}) };
+          if (currentTool.auth_type === "bearer" && currentTool.auth_token) {
+            headers.Authorization = `Bearer ${currentTool.auth_token}`;
+          } else if (currentTool.auth_type === "api_key" && currentTool.auth_token && currentTool.auth_header_name) {
+            headers[currentTool.auth_header_name] = currentTool.auth_token;
           }
-        }
-
-        // Build auth object from UI fields
-        let auth: Record<string, unknown> | undefined = undefined;
-        if (currentTool.auth_type === "api_key") {
-          auth = {
-            type: "api_key",
-            apiKey: currentTool.auth_token,
-            headerName: currentTool.auth_header_name || "X-API-Key",
-          };
-        } else if (currentTool.auth_type === "bearer") {
-          auth = {
-            type: "bearer",
-            token: currentTool.auth_token,
-          };
-        } else if (currentTool.auth_type === "oauth2") {
-          auth = {
-            type: "oauth2",
-          };
-          if (currentTool.oauth2_client_id || currentTool.oauth2_client_secret) {
-            auth.credential = {
-              auth_type: "oauth2",
-              client_id: currentTool.oauth2_client_id,
-              client_secret: currentTool.oauth2_client_secret,
-            };
-          }
-          if (currentTool.oauth2_authorization_url || currentTool.oauth2_token_url || (currentTool.oauth2_scopes && currentTool.oauth2_scopes.length > 0)) {
-            auth.scheme = {
-              grant_type: "authorization_code",
-              authorization_url: currentTool.oauth2_authorization_url,
-              token_url: currentTool.oauth2_token_url,
-              scopes: currentTool.oauth2_scopes || [],
-            };
+          if (Object.keys(headers).length > 0) {
+            connection_params.headers = headers;
           }
         }
 
@@ -421,9 +387,6 @@ const AgentToolsStep: React.FC<StepProps> = ({
           toolAsRecord.tool_name = currentTool.tool_name;
         }
         toolAsRecord.connection_params = connection_params;
-        if (auth) {
-          toolAsRecord.auth = auth;
-        }
         if (environment_variables) {
           toolAsRecord.environment_variables = environment_variables;
         }
@@ -880,10 +843,21 @@ const AgentToolsStep: React.FC<StepProps> = ({
                           values={currentTool.stdio_env || {}}
                           onChange={(values) => handleKeyValueInputChange("stdio_env", values)}
                           error={formErrors.stdio_env}
-                          helpText="Optional environment variables for the process"
+                          helpText="Optional environment variables for the stdio process (e.g., PATH, NODE_ENV)"
                           placeholder="No environment variables added"
                           keyPlaceholder="Variable name (e.g., PATH)"
                           valuePlaceholder="Variable value (e.g., /usr/bin)"
+                        />
+                        <KeyValueInput
+                          id="environment_variables_ui"
+                          label="MCP Server Environment Variables (Optional)"
+                          values={currentTool.environment_variables_ui || {}}
+                          onChange={(values) => handleKeyValueInputChange("environment_variables_ui", values)}
+                          error={formErrors.environment_variables_ui}
+                          helpText="Environment variables passed to the MCP server (e.g., API keys, URLs). Can use ${VAR} syntax."
+                          placeholder="No environment variables added"
+                          keyPlaceholder="Variable name (e.g., CONFLUENCE_URL)"
+                          valuePlaceholder="Variable value (e.g., ${CONFLUENCE_URL})"
                         />
                       </>
                     )}
@@ -910,17 +884,6 @@ const AgentToolsStep: React.FC<StepProps> = ({
                             placeholder="https://mcp.example.com/v1/sse"
                           />
                         </FormField>
-                        <KeyValueInput
-                          id="sse_headers"
-                          label="Headers (Optional)"
-                          values={currentTool.sse_headers || {}}
-                          onChange={(values) => handleKeyValueInputChange("sse_headers", values)}
-                          error={formErrors.sse_headers}
-                          helpText="Optional HTTP headers for authentication or configuration"
-                          placeholder="No headers added"
-                          keyPlaceholder="Header name (e.g., Authorization)"
-                          valuePlaceholder="Header value (e.g., Bearer ${MCP_AUTH_TOKEN})"
-                        />
                       </>
                     )}
 
@@ -946,40 +909,30 @@ const AgentToolsStep: React.FC<StepProps> = ({
                             placeholder="https://mcp.example.com:port/mcp/message"
                           />
                         </FormField>
-                        <KeyValueInput
-                          id="streamable_http_headers"
-                          label="Headers (Optional)"
-                          values={currentTool.streamable_http_headers || {}}
-                          onChange={(values) => handleKeyValueInputChange("streamable_http_headers", values)}
-                          error={formErrors.streamable_http_headers}
-                          helpText="Optional HTTP headers for authentication or configuration"
-                          placeholder="No headers added"
-                          keyPlaceholder="Header name (e.g., Authorization)"
-                          valuePlaceholder="Header value (e.g., Bearer ${MCP_AUTH_TOKEN})"
-                        />
                       </>
                     )}
 
-                    <FormField
-                      label="Authentication Type (Optional)"
-                      htmlFor="auth_type"
-                      helpText="Configure authentication for the MCP server"
-                    >
-                      <Select
-                        id="auth_type"
-                        name="auth_type"
-                        value={currentTool.auth_type || ""}
-                        onChange={handleModalChange}
-                        options={[
-                          { value: "", label: "No authentication" },
-                          { value: "api_key", label: "API Key" },
-                          { value: "bearer", label: "Bearer Token" },
-                          { value: "oauth2", label: "OAuth2" },
-                        ]}
-                      />
-                    </FormField>
+                    {(currentTool.transport_type === "sse" || currentTool.transport_type === "streamable-http") && (
+                      <FormField
+                        label="Authentication Type (Optional)"
+                        htmlFor="auth_type"
+                        helpText="Configure authentication for the MCP server (added as headers)"
+                      >
+                        <Select
+                          id="auth_type"
+                          name="auth_type"
+                          value={currentTool.auth_type || ""}
+                          onChange={handleModalChange}
+                          options={[
+                            { value: "", label: "No authentication" },
+                            { value: "api_key", label: "API Key" },
+                            { value: "bearer", label: "Bearer Token" },
+                          ]}
+                        />
+                      </FormField>
+                    )}
 
-                    {currentTool.auth_type === "api_key" && (
+                    {(currentTool.transport_type === "sse" || currentTool.transport_type === "streamable-http") && currentTool.auth_type === "api_key" && (
                       <>
                         <FormField
                           label="Header Name"
@@ -1014,7 +967,7 @@ const AgentToolsStep: React.FC<StepProps> = ({
                       </>
                     )}
 
-                    {currentTool.auth_type === "bearer" && (
+                    {(currentTool.transport_type === "sse" || currentTool.transport_type === "streamable-http") && currentTool.auth_type === "bearer" && (
                       <FormField
                         label="Bearer Token"
                         htmlFor="auth_token"
@@ -1030,77 +983,6 @@ const AgentToolsStep: React.FC<StepProps> = ({
                           placeholder="e.g., ${MCP_BEARER_TOKEN}"
                         />
                       </FormField>
-                    )}
-
-                    {currentTool.auth_type === "oauth2" && (
-                      <>
-                        <FormField
-                          label="Client ID"
-                          htmlFor="oauth2_client_id"
-                          required
-                          error={formErrors.oauth2_client_id}
-                          helpText="OAuth2 client identifier"
-                        >
-                          <Input
-                            id="oauth2_client_id"
-                            name="oauth2_client_id"
-                            value={currentTool.oauth2_client_id || ""}
-                            onChange={handleModalChange}
-                            placeholder="e.g., ${OAUTH2_CLIENT_ID}"
-                          />
-                        </FormField>
-                        <FormField
-                          label="Client Secret"
-                          htmlFor="oauth2_client_secret"
-                          required
-                          error={formErrors.oauth2_client_secret}
-                          helpText="OAuth2 client secret"
-                        >
-                          <Input
-                            id="oauth2_client_secret"
-                            name="oauth2_client_secret"
-                            value={currentTool.oauth2_client_secret || ""}
-                            onChange={handleModalChange}
-                            placeholder="e.g., ${OAUTH2_CLIENT_SECRET}"
-                            type="password"
-                          />
-                        </FormField>
-                        <FormField
-                          label="Authorization URL"
-                          htmlFor="oauth2_authorization_url"
-                          helpText="OAuth2 authorization endpoint URL"
-                        >
-                          <Input
-                            id="oauth2_authorization_url"
-                            name="oauth2_authorization_url"
-                            value={currentTool.oauth2_authorization_url || ""}
-                            onChange={handleModalChange}
-                            placeholder="e.g., https://provider.com/oauth/authorize"
-                          />
-                        </FormField>
-                        <FormField
-                          label="Token URL"
-                          htmlFor="oauth2_token_url"
-                          helpText="OAuth2 token endpoint URL"
-                        >
-                          <Input
-                            id="oauth2_token_url"
-                            name="oauth2_token_url"
-                            value={currentTool.oauth2_token_url || ""}
-                            onChange={handleModalChange}
-                            placeholder="e.g., https://provider.com/oauth/token"
-                          />
-                        </FormField>
-                        <ChipInput
-                          id="oauth2_scopes"
-                          label="OAuth2 Scopes (Optional)"
-                          values={currentTool.oauth2_scopes || []}
-                          onChange={(newValues) => handleChipInputChange("oauth2_scopes", newValues)}
-                          helpText="OAuth2 permission scopes"
-                          placeholder="No scopes added yet"
-                          inputPlaceholder="e.g., email, profile, openid"
-                        />
-                      </>
                     )}
 
                     <FormField
