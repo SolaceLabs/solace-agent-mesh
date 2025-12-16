@@ -283,6 +283,32 @@ mysql+pymysql://[user[:password]@][host][:port]/[database]
 
 Agent Mesh uses `pymysql` as the Python driver.
 
+#### Vertex RAG (Google Cloud)
+
+Vertex RAG provides session storage using Google Vertex AI RAG capabilities, suitable for Google Cloud deployments with advanced RAG features.
+
+```yaml
+session_service:
+  type: "vertex_rag"
+  default_behavior: "PERSISTENT"
+```
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+```
+
+Advantages:
+- Integration with Google Vertex AI ecosystem
+- Advanced RAG capabilities for context retrieval
+- Managed by Google Cloud
+- Suitable for AI-powered session management
+
+Requirements:
+- Google Cloud project with Vertex AI enabled
+- Service account with appropriate Vertex AI permissions
+- Google Application Default Credentials configured
+
+
 ## Configuring Agent Session Storage
 
 Agents use the ADK (Agent Development Kit) session configuration system. Each agent can be configured independently with its own database.

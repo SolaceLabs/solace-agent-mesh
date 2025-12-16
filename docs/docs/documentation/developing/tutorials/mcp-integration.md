@@ -21,14 +21,39 @@ You must [install Agent Mesh and the CLI](../../installing-and-configuring/insta
 
 For this tutorial using the filesystem MCP server, you also need Node.js and NPM installed.
 
-## Adding MCP Tools to an Agent
+## MCP Tool Configuration Reference
 
-MCP integration is accomplished by adding MCP tools directly to your agent configuration. There are three main connection types supported:
+All MCP tools are configured in your agent's YAML file under the `tools` list with `tool_type: mcp`. The following configuration fields are available:
+
+### Common Configuration Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tool_type` | string | Yes | Must be `mcp` |
+| `tool_name` | string | No | Optional filter for specific MCP tool (if omitted, all tools from the server are available) |
+| `connection_params` | object | Yes | Connection parameters (see connection types below) |
+| `environment_variables` | object | No | Environment variables for the MCP process |
+| `tool_config` | object | No | MCP-specific configuration |
+| `required_scopes` | array[string] | No | Required security scopes for RBAC |
+
+## Connection Types
+
+MCP integration supports multiple connection types for different deployment scenarios:
 
 ### 1. Stdio Connection (Local MCP Servers)
 
-This is the most common method for connecting to MCP servers that run as local processes:
+This is the most common method for connecting to MCP servers that run as local processes.
 
+**Configuration Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `connection_params.type` | string | Yes | Must be `stdio` |
+| `connection_params.command` | string | Yes | Executable command to start the MCP server |
+| `connection_params.args` | array[string] | No | Command-line arguments |
+| `connection_params.timeout` | integer | No | Connection timeout in seconds (default: 30) |
+
+**Example:**
 ```yaml
 tools:
   - tool_type: mcp
@@ -39,12 +64,27 @@ tools:
         - "-y"
         - "@modelcontextprotocol/server-filesystem"
         - "/tmp/samv2"
+      timeout: 300
+    environment_variables:
+      DEBUG_MODE: "true"
+      CONFIG_PATH: "/etc/config"
 ```
 
 ### 2. SSE Connection (Remote MCP Servers)
 
-For connecting to remote MCP servers using Server-Sent Events:
+For connecting to remote MCP servers using Server-Sent Events over HTTP/HTTPS.
 
+**Configuration Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `connection_params.type` | string | Yes | Must be `sse` |
+| `connection_params.url` | string | Yes | MCP server URL |
+| `connection_params.headers` | object | No | HTTP headers for requests |
+| `auth.type` | string | No | Authentication type (e.g., `oauth2`) |
+| `manifest` | array[object] | No | Tool manifest for remote MCP |
+
+**Example:**
 ```yaml
 tools:
   - tool_type: mcp
@@ -53,12 +93,23 @@ tools:
       url: "https://mcp.example.com/v1/sse"
       headers:
         Authorization: "Bearer ${MCP_AUTH_TOKEN}"
+    tool_config:
+      custom_setting: "value"
 ```
 
 ### 3. StreamableHTTP Connection (Remote MCP Servers)
 
-For connecting to remote MCP servers using Server-Sent Events:
+For connecting to remote MCP servers using streamable HTTP connections.
 
+**Configuration Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `connection_params.type` | string | Yes | Must be `streamable-http` |
+| `connection_params.url` | string | Yes | MCP server URL with port |
+| `connection_params.headers` | object | No | HTTP headers for requests |
+
+**Example:**
 ```yaml
 tools:
   - tool_type: mcp
@@ -71,8 +122,9 @@ tools:
 
 ### 4. Docker Connection (Containerized MCP Servers)
 
-For running MCP servers in Docker containers:
+For running MCP servers in Docker containers. This uses the stdio connection type with Docker as the command.
 
+**Example:**
 ```yaml
 tools:
   - tool_type: mcp
@@ -150,11 +202,11 @@ apps:
         request_timeout_seconds: 30
 ```
 
-## Configuration Options
+## Advanced Configuration Options
 
-### Tool-Specific Configuration
+### Filtering Specific Tools
 
-You can limit which tools from an MCP server are available by specifying a specific tool name:
+You can limit which tools from an MCP server are available by specifying a specific tool name. This is useful when you only need a subset of the server's capabilities:
 
 ```yaml
 tools:
@@ -168,7 +220,11 @@ tools:
 
 ### Environment Variables
 
-Pass environment variables to MCP servers using the `environment_variables` block:
+Pass environment variables to MCP servers using the `environment_variables` block. This is particularly useful for:
+- API keys and authentication tokens
+- Configuration paths
+- Debug flags
+- Custom server settings
 
 ```yaml
 tools:
@@ -180,6 +236,34 @@ tools:
       API_KEY: ${MY_API_KEY}
       DEBUG_MODE: "true"
       CONFIG_PATH: "/etc/myconfig"
+      MAX_RETRIES: "3"
+```
+
+### Connection Timeouts
+
+For stdio connections, you can specify a timeout to prevent hanging connections:
+
+```yaml
+tools:
+  - tool_type: mcp
+    connection_params:
+      type: stdio
+      command: "slow-mcp-server"
+      timeout: 600  # 10 minutes
+```
+
+### Security Scopes (RBAC)
+
+Restrict MCP tool access using role-based access control:
+
+```yaml
+tools:
+  - tool_type: mcp
+    connection_params:
+      type: stdio
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/secure/data"]
+    required_scopes: ["filesystem_access", "admin"]
 ```
 
 ## Running Your MCP-Enabled Agent
