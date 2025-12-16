@@ -19,8 +19,8 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
     const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
 
     // When authorization is enabled, show menu with user info and settings/logout
-    const { frontend_use_authorization: useAuthorization, configFeatureEnablement } = useConfigContext();
-    const logoutEnabled = useAuthorization && configFeatureEnablement?.logout ? true : false;
+    const { configUseAuthorization, configFeatureEnablement } = useConfigContext();
+    const logoutEnabled = configUseAuthorization && configFeatureEnablement?.logout ? true : false;
     const { userInfo, logout } = useAuthContext();
 
     const handleSettingsClick = () => {

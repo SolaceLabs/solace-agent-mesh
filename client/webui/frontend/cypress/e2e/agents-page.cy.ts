@@ -11,7 +11,7 @@ describe("Agents Page - Agent Cards Display", { tags: ["@community"] }, () => {
     it("should support searching and not finding agents", () => {
         cy.findByTestId("agentSearchInput").should("be.visible").type("ImposterAgent");
         cy.findByText("Click for details").should("not.exist");
-        cy.findByRole("button", { name: "Clear Search" }).should("be.visible").click();
+        cy.findByRole("button", { name: "Clear Filter" }).should("be.visible").click();
         cy.findByTestId("agentSearchInput").should("be.visible").should("have.value", "");
     });
 });

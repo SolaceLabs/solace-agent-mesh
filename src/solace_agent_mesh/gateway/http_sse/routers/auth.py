@@ -158,6 +158,44 @@ async def auth_callback(
     return RedirectResponse(url=frontend_redirect_url)
 
 
+@router.post("/auth/logout")
+async def logout(request: FastAPIRequest):
+    """
+    Logout endpoint - clears server-side session and access token.
+    
+    This endpoint:
+    - Clears the access_token from the session storage
+    - Clears all session data
+    - Returns success even if already logged out (idempotent)
+    
+    The session cookie will be invalidated, requiring re-authentication
+    on the next request.
+    """
+    try:
+        # Clear access token from session storage
+        if hasattr(request, 'session') and 'access_token' in request.session:
+            del request.session['access_token']
+            log.debug("Cleared access_token from session")
+        
+        # Clear refresh token if present
+        if hasattr(request, 'session') and 'refresh_token' in request.session:
+            del request.session['refresh_token']
+            log.debug("Cleared refresh_token from session")
+        
+        # Clear all other session data
+        if hasattr(request, 'session'):
+            request.session.clear()
+            log.debug("Cleared all session data")
+        
+        log.info("User logged out successfully")
+        return {"success": True, "message": "Logged out successfully"}
+    
+    except Exception as e:
+        log.error(f"Error during logout: {e}")
+        # Still return success - logout should be idempotent
+        return {"success": True, "message": "Logged out successfully"}
+
+
 @router.post("/auth/refresh")
 async def refresh_token(
     request: FastAPIRequest,
