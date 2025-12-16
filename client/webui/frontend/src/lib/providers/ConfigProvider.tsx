@@ -106,6 +106,9 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 const backgroundTasksEnabled = data.frontend_feature_enablement?.background_tasks ?? false;
                 const backgroundTasksDefaultTimeoutMs = data.background_tasks_config?.default_timeout_ms ?? 3600000;
 
+                // Check if platform service is configured
+                const platformConfigured = Boolean(data.frontend_platform_server_url);
+
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
                     webuiServerUrl: data.frontend_server_url,
@@ -124,6 +127,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     validationLimits: data.validation_limits,
                     backgroundTasksEnabled,
                     backgroundTasksDefaultTimeoutMs,
+                    platformConfigured,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;

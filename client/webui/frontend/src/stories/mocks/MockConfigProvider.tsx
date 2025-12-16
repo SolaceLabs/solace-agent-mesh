@@ -14,6 +14,7 @@ const defaultMockConfigContext: ConfigContextValue = {
     configBotName: "Mock Bot",
     configLogoUrl: "",
     frontend_use_authorization: false,
+    platformConfigured: true,
 };
 
 interface MockConfigProviderProps {
