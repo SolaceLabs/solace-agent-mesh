@@ -61,7 +61,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             setIsLoading(true);
 
             try {
-                const result: PaginatedSessionsResponse = await api.chat.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`);
+                const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`);
 
                 if (append) {
                     setSessions(prev => [...prev, ...result.data]);
@@ -184,7 +184,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         if (!sessionToMove) return;
 
         try {
-            await api.chat.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
+            await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
 
             // Update local state
             setSessions(prevSessions =>

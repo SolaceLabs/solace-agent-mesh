@@ -3,10 +3,8 @@ import { Mic, Volume2, AlertCircle, Play, Loader2 } from "lucide-react";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
 import { Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input, Button } from "@/lib/components/ui";
 import { api } from "@/lib/api";
-import { fetchWithError } from "@/lib/utils/api";
 
 export const SpeechSettingsPanel: React.FC = () => {
-    const { chat: chatBaseUrl } = api.getBaseUrls();
     const { settings, updateSetting } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
     const [availableVoices, setAvailableVoices] = useState<string[]>([]);
@@ -28,7 +26,7 @@ export const SpeechSettingsPanel: React.FC = () => {
     useEffect(() => {
         const checkConfig = async () => {
             try {
-                const config = await api.chat.get(`/api/v1/speech/config`);
+                const config = await api.webui.get(`/api/v1/speech/config`);
                 const sttExt = config.sttExternal || false;
                 const ttsExt = config.ttsExternal || false;
 
@@ -73,7 +71,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             setLoadingVoices(true);
             try {
                 const provider = settings.ttsProvider || "gemini";
-                const data = await api.chat.get(`/api/v1/speech/voices?provider=${provider}`);
+                const data = await api.webui.get(`/api/v1/speech/voices?provider=${provider}`);
                 setAvailableVoices(data.voices || []);
             } catch (error) {
                 console.error("Error loading voices:", error);
@@ -118,9 +116,9 @@ export const SpeechSettingsPanel: React.FC = () => {
             }
 
             // Fetch voice sample
-            const response = await fetchWithError(`${chatBaseUrl}/api/v1/speech/voice-sample`, {
-                method: "POST",
+            const response = await api.webui.post(`/api/v1/speech/voice-sample`, undefined, {
                 body: formData,
+                raw: true,
             });
 
             // Create blob from response

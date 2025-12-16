@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
-import { fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { getErrorMessage } from "@/lib/utils/api";
 import { api } from "@/lib/api";
 
 interface UseSpeechToTextOptions {
@@ -235,7 +235,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
     const startExternalRecording = useCallback(async () => {
         // Check if external STT is configured
         try {
-            const config = await api.chat.get("/api/v1/speech/config");
+            const config = await api.webui.get("/api/v1/speech/config");
 
             if (!config.sttExternal) {
                 // Auto-switch to browser mode
@@ -296,10 +296,9 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                         formData.append("language", settings.languageSTT);
                     }
 
-                    const { chat } = api.getBaseUrls();
-                    const response = await fetchWithError(`${chat}/api/v1/speech/stt`, {
-                        method: "POST",
+                    const response = await api.webui.post(`/api/v1/speech/stt`, undefined, {
                         body: formData,
+                        raw: true,
                     });
 
                     const result = await response.json();

@@ -107,7 +107,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
 
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
-                    chatServerUrl: data.frontend_server_url,
+                    webuiServerUrl: data.frontend_server_url,
                     platformServerUrl: data.frontend_platform_server_url,
                     configAuthLoginUrl: data.frontend_auth_login_url,
                     configUseAuthorization: effectiveUseAuthorization,
@@ -128,9 +128,9 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     RETAINED_CONFIG = mappedConfig;
                     setConfig(mappedConfig);
 
-                    api.configure(mappedConfig.chatServerUrl, mappedConfig.platformServerUrl);
+                    api.configure(mappedConfig.webuiServerUrl, mappedConfig.platformServerUrl);
                     console.log("API client configured with:", {
-                        chat: mappedConfig.chatServerUrl,
+                        webui: mappedConfig.webuiServerUrl,
                         platform: mappedConfig.platformServerUrl,
                     });
                 }

@@ -121,14 +121,14 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         const fetchServerConfig = async () => {
             try {
                 // Fetch main config
-                const config = await api.chat.get("/api/v1/config");
+                const config = await api.webui.get("/api/v1/config");
                 const ttsSettings = config.tts_settings || {};
 
                 // Check speech config for external availability
                 let sttExternal = false;
                 let ttsExternal = false;
                 try {
-                    const speechConfig = await api.chat.get("/api/v1/speech/config");
+                    const speechConfig = await api.webui.get("/api/v1/speech/config");
                     sttExternal = speechConfig.sttExternal || false;
                     ttsExternal = speechConfig.ttsExternal || false;
                 } catch (error) {

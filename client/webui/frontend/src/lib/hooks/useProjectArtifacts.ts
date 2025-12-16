@@ -33,7 +33,7 @@ export const useProjectArtifacts = (projectId?: string): UseProjectArtifactsRetu
         setError(null);
 
         try {
-            const data: ArtifactInfo[] = await api.chat.get(`/api/v1/projects/${projectId}/artifacts`);
+            const data: ArtifactInfo[] = await api.webui.get(`/api/v1/projects/${projectId}/artifacts`);
             setArtifacts(data);
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : "Failed to fetch project artifacts.";

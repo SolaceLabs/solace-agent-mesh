@@ -23,7 +23,7 @@ export const useProjectSessions = (projectId?: string | null): UseProjectSession
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    const { chat: chatBaseUrl } = api.getBaseUrls();
+    const { webui: webuiBaseUrl } = api.getBaseUrls();
 
     const fetchSessions = useCallback(async () => {
         if (!projectId) {
@@ -36,7 +36,7 @@ export const useProjectSessions = (projectId?: string | null): UseProjectSession
         setError(null);
         
         try {
-            const url = `${chatBaseUrl}/api/v1/sessions?project_id=${projectId}&pageNumber=1&pageSize=100`;
+            const url = `${webuiBaseUrl}/api/v1/sessions?project_id=${projectId}&pageNumber=1&pageSize=100`;
             const response = await authenticatedFetch(url, { credentials: "include" });
             
             if (!response.ok) {
@@ -55,7 +55,7 @@ export const useProjectSessions = (projectId?: string | null): UseProjectSession
         } finally {
             setIsLoading(false);
         }
-    }, [chatBaseUrl, projectId]);
+    }, [webuiBaseUrl, projectId]);
 
     useEffect(() => {
         fetchSessions();

@@ -47,10 +47,10 @@ export const useDownload = (projectIdOverride?: string | null) => {
 
     const onDownload = async (artifact: ArtifactInfo) => {
         try {
-            const { chat: chatBaseUrl } = api.getBaseUrls();
+            const { webui: webuiBaseUrl } = api.getBaseUrls();
             const effectiveProjectId = projectIdOverride || activeProject?.id || null;
 
-            await downloadArtifactFile(chatBaseUrl, sessionId, effectiveProjectId, artifact);
+            await downloadArtifactFile(webuiBaseUrl, sessionId, effectiveProjectId, artifact);
             addNotification(`Downloaded artifact: ${artifact.filename}.`, "success");
         } catch (error) {
             displayError({ title: "Failed to Download Artifact", error: getErrorMessage(error, "An unknown error occurred while downloading the artifact.") });

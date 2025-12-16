@@ -3,7 +3,7 @@ import { Download } from "lucide-react";
 
 import { Badge, Button } from "@/lib/components/ui";
 import { useChatContext, useConfigContext } from "@/lib/hooks";
-import { fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { getErrorMessage } from "@/lib/utils/api";
 
 import type { MessageFE, TextPart, VisualizedTask } from "@/lib/types";
 
@@ -61,7 +61,6 @@ const getTaskStatus = (task: VisualizedTask, loadingMessage: MessageFE | undefin
 export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) => {
     const { messages, addNotification, displayError } = useChatContext();
     const { configFeatureEnablement } = useConfigContext();
-    const { chat: chatBaseUrl } = api.getBaseUrls();
     const taskLoggingEnabled = configFeatureEnablement?.taskLogging ?? false;
 
     const taskStatus = useMemo(() => {
@@ -72,7 +71,7 @@ export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) =
 
     const handleDownloadStim = async () => {
         try {
-            const response = await fetchWithError(`${chatBaseUrl}/api/v1/tasks/${task.taskId}`);
+            const response = await api.webui.get(`/api/v1/tasks/${task.taskId}`, { raw: true });
             const blob = await response.blob();
             downloadBlob(blob, `${task.taskId}.stim`);
             addNotification("Task log downloaded", "success");
