@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
-
 import type { Session } from "@/lib/types";
-import { authenticatedFetch } from "@/lib/utils/api";
-
 
 interface UseProjectSessionsReturn {
     sessions: Session[];
@@ -12,18 +9,10 @@ interface UseProjectSessionsReturn {
     refetch: () => Promise<void>;
 }
 
-/**
- * Custom hook to fetch sessions filtered by project_id.
- * @param projectId - The project ID to filter sessions by.
- * @returns Object containing sessions data, loading state, error state, and refetch function.
- */
 export const useProjectSessions = (projectId?: string | null): UseProjectSessionsReturn => {
-    // Migrated to api client
     const [sessions, setSessions] = useState<Session[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
-
-    const { webui: webuiBaseUrl } = api.getBaseUrls();
 
     const fetchSessions = useCallback(async () => {
         if (!projectId) {
@@ -34,19 +23,9 @@ export const useProjectSessions = (projectId?: string | null): UseProjectSession
 
         setIsLoading(true);
         setError(null);
-        
+
         try {
-            const url = `${webuiBaseUrl}/api/v1/sessions?project_id=${projectId}&pageNumber=1&pageSize=100`;
-            const response = await authenticatedFetch(url, { credentials: "include" });
-            
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ 
-                    detail: `Failed to fetch sessions. ${response.statusText}` 
-                }));
-                throw new Error(errorData.detail || `Failed to fetch sessions. ${response.statusText}`);
-            }
-            
-            const data = await response.json();
+            const data = await api.webui.get(`/api/v1/sessions?project_id=${projectId}&pageNumber=1&pageSize=100`);
             setSessions(data.data || []);
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : "Failed to fetch sessions.";
@@ -55,7 +34,7 @@ export const useProjectSessions = (projectId?: string | null): UseProjectSession
         } finally {
             setIsLoading(false);
         }
-    }, [webuiBaseUrl, projectId]);
+    }, [projectId]);
 
     useEffect(() => {
         fetchSessions();
