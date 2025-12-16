@@ -383,9 +383,14 @@ def _function_declaration_to_tool_param(
 
     # Convert the entire parameters schema to ensure all fields (type, properties, required, etc.)
     # are properly converted, including nested Type enums
-    parameters = {}
+    # If no parameters provided, default to empty object schema (required by OpenAI)
     if function_declaration.parameters:
         parameters = _schema_to_dict(function_declaration.parameters)
+    else:
+        parameters = {
+            "type": "object",
+            "properties": {},
+        }
 
     return {
         "type": "function",
