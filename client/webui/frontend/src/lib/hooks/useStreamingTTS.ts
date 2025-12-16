@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
+import { api } from "@/lib/api";
 
 interface UseStreamingTTSOptions {
     messageId: string;
@@ -82,17 +83,15 @@ export function useStreamingTTS(options: UseStreamingTTSOptions): UseStreamingTT
             try {
                 console.log(`[StreamingTTS] Requesting streaming TTS for text length: ${text.length}`);
 
-                const response = await fetch("/api/v1/speech/tts/stream", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
+                const response = await api.webui.post(
+                    "/api/v1/speech/tts/stream",
+                    {
                         input: text,
                         voice: settings.voice,
                         runId: messageId,
-                    }),
-                });
+                    },
+                    { raw: true }
+                );
 
                 if (!response.ok) {
                     throw new Error(`TTS streaming failed: ${response.statusText}`);

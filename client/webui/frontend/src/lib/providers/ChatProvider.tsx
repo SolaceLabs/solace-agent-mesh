@@ -5,7 +5,7 @@ import { v4 } from "uuid";
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 
-import { getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
+import { getAccessToken, getErrorMessage } from "@/lib/utils/api";
 import { createFileSizeErrorMessage } from "@/lib/utils/file-validation";
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
@@ -1753,11 +1753,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return;
             }
             try {
-                await submitFeedback({
-                    taskId: taskId,
-                    sessionId: sessionId,
-                    feedbackType: feedbackType,
-                    feedbackText: feedbackText,
+                await api.webui.post("/api/v1/feedback", {
+                    taskId,
+                    sessionId,
+                    feedbackType,
+                    feedbackText,
                 });
                 setSubmittedFeedback(prev => ({
                     ...prev,
