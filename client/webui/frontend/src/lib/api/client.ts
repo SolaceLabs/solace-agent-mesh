@@ -1,10 +1,26 @@
 import { fetchJsonWithError, fetchWithError } from "@/lib/utils/api";
 
+interface HttpMethods {
+    get: (endpoint: string) => Promise<any>;
+    post: (endpoint: string, body?: unknown, options?: RequestInit) => Promise<any>;
+    put: (endpoint: string, body?: unknown, options?: RequestInit) => Promise<any>;
+    delete: (endpoint: string, options?: RequestInit) => Promise<any>;
+    patch: (endpoint: string, body?: unknown, options?: RequestInit) => Promise<any>;
+}
+
 class ApiClient {
     private chatBaseUrl = "";
     private platformBaseUrl = "";
     private configured = false;
     private baseUrlsCache: { chat: string; platform: string } | null = null;
+
+    chat: HttpMethods;
+    platform: HttpMethods;
+
+    constructor() {
+        this.chat = this.createHttpMethods(() => this.chatBaseUrl);
+        this.platform = this.createHttpMethods(() => this.platformBaseUrl);
+    }
 
     configure(chatUrl: string, platformUrl: string) {
         if (this.configured && (this.chatBaseUrl !== chatUrl || this.platformBaseUrl !== platformUrl)) {
@@ -36,133 +52,71 @@ class ApiClient {
         return fetchJsonWithError(url, options);
     }
 
-    chat = {
-        get: (endpoint: string) => this.request(this.chatBaseUrl, endpoint),
+    private createHttpMethods(getBaseUrl: () => string): HttpMethods {
+        return {
+            get: (endpoint: string) => this.request(getBaseUrl(), endpoint),
 
-        post: (endpoint: string, body?: unknown, options?: RequestInit) => {
-            if (body === undefined || body === null) {
-                return this.request(this.chatBaseUrl, endpoint, {
+            post: (endpoint: string, body?: unknown, options?: RequestInit) => {
+                if (body === undefined || body === null) {
+                    return this.request(getBaseUrl(), endpoint, {
+                        ...options,
+                        method: "POST",
+                    });
+                }
+                return this.request(getBaseUrl(), endpoint, {
                     ...options,
                     method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...options?.headers,
+                    },
+                    body: JSON.stringify(body),
                 });
-            }
-            return this.request(this.chatBaseUrl, endpoint, {
-                ...options,
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...options?.headers,
-                },
-                body: JSON.stringify(body),
-            });
-        },
+            },
 
-        put: (endpoint: string, body?: unknown, options?: RequestInit) => {
-            if (body === undefined || body === null) {
-                return this.request(this.chatBaseUrl, endpoint, {
+            put: (endpoint: string, body?: unknown, options?: RequestInit) => {
+                if (body === undefined || body === null) {
+                    return this.request(getBaseUrl(), endpoint, {
+                        ...options,
+                        method: "PUT",
+                    });
+                }
+                return this.request(getBaseUrl(), endpoint, {
                     ...options,
                     method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...options?.headers,
+                    },
+                    body: JSON.stringify(body),
                 });
-            }
-            return this.request(this.chatBaseUrl, endpoint, {
-                ...options,
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...options?.headers,
-                },
-                body: JSON.stringify(body),
-            });
-        },
+            },
 
-        delete: (endpoint: string, options?: RequestInit) =>
-            this.request(this.chatBaseUrl, endpoint, {
-                ...options,
-                method: "DELETE",
-            }),
+            delete: (endpoint: string, options?: RequestInit) =>
+                this.request(getBaseUrl(), endpoint, {
+                    ...options,
+                    method: "DELETE",
+                }),
 
-        patch: (endpoint: string, body?: unknown, options?: RequestInit) => {
-            if (body === undefined || body === null) {
-                return this.request(this.chatBaseUrl, endpoint, {
+            patch: (endpoint: string, body?: unknown, options?: RequestInit) => {
+                if (body === undefined || body === null) {
+                    return this.request(getBaseUrl(), endpoint, {
+                        ...options,
+                        method: "PATCH",
+                    });
+                }
+                return this.request(getBaseUrl(), endpoint, {
                     ...options,
                     method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...options?.headers,
+                    },
+                    body: JSON.stringify(body),
                 });
-            }
-            return this.request(this.chatBaseUrl, endpoint, {
-                ...options,
-                method: "PATCH",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...options?.headers,
-                },
-                body: JSON.stringify(body),
-            });
-        },
-    };
-
-    platform = {
-        get: (endpoint: string) => this.request(this.platformBaseUrl, endpoint),
-
-        post: (endpoint: string, body?: unknown, options?: RequestInit) => {
-            if (body === undefined || body === null) {
-                return this.request(this.platformBaseUrl, endpoint, {
-                    ...options,
-                    method: "POST",
-                });
-            }
-            return this.request(this.platformBaseUrl, endpoint, {
-                ...options,
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...options?.headers,
-                },
-                body: JSON.stringify(body),
-            });
-        },
-
-        put: (endpoint: string, body?: unknown, options?: RequestInit) => {
-            if (body === undefined || body === null) {
-                return this.request(this.platformBaseUrl, endpoint, {
-                    ...options,
-                    method: "PUT",
-                });
-            }
-            return this.request(this.platformBaseUrl, endpoint, {
-                ...options,
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...options?.headers,
-                },
-                body: JSON.stringify(body),
-            });
-        },
-
-        delete: (endpoint: string, options?: RequestInit) =>
-            this.request(this.platformBaseUrl, endpoint, {
-                ...options,
-                method: "DELETE",
-            }),
-
-        patch: (endpoint: string, body?: unknown, options?: RequestInit) => {
-            if (body === undefined || body === null) {
-                return this.request(this.platformBaseUrl, endpoint, {
-                    ...options,
-                    method: "PATCH",
-                });
-            }
-            return this.request(this.platformBaseUrl, endpoint, {
-                ...options,
-                method: "PATCH",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...options?.headers,
-                },
-                body: JSON.stringify(body),
-            });
-        },
-    };
+            },
+        };
+    }
 
     getBaseUrls() {
         this.ensureConfigured();
