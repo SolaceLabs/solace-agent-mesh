@@ -27,7 +27,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    const { chat: chatBaseUrl } = api.getBaseUrls();
+    const { webui: webuiBaseUrl } = api.getBaseUrls();
 
     const fetchArtifacts = useCallback(async () => {
         setIsLoading(true);
@@ -38,11 +38,11 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
             
             // Priority 1: Session context (active chat)
             if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                url = `${chatBaseUrl}/api/v1/artifacts/${sessionId}`;
+                url = `${webuiBaseUrl}/api/v1/artifacts/${sessionId}`;
             }
             // Priority 2: Project context (pre-session, project artifacts)
             else if (activeProject?.id) {
-                url = `${chatBaseUrl}/api/v1/artifacts/null?project_id=${activeProject.id}`;
+                url = `${webuiBaseUrl}/api/v1/artifacts/null?project_id=${activeProject.id}`;
             }
             // No valid context
             else {
@@ -74,7 +74,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         } finally {
             setIsLoading(false);
         }
-    }, [chatBaseUrl, sessionId, activeProject?.id]);
+    }, [webuiBaseUrl, sessionId, activeProject?.id]);
 
     useEffect(() => {
         fetchArtifacts();

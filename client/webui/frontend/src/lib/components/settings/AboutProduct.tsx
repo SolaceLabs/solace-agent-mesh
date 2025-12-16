@@ -50,7 +50,7 @@ export const AboutProduct: React.FC = () => {
     useEffect(() => {
         const fetchVersions = async (): Promise<void> => {
             try {
-                const data: VersionResponse = await api.chat.get("/api/v1/version");
+                const data: VersionResponse = await api.webui.get("/api/v1/version");
                 setVersionData(data);
             } catch (err) {
                 setError(getErrorMessage(err));

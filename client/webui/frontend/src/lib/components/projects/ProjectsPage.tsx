@@ -17,7 +17,7 @@ import { downloadBlob } from "@/lib/utils/download";
 import { useChatContext } from "@/lib/hooks";
 
 export const ProjectsPage: React.FC = () => {
-    const { chat: chatBaseUrl } = api.getBaseUrls();
+    const { webui: webuiBaseUrl } = api.getBaseUrls();
     const navigate = useNavigate();
     const loaderData = useLoaderData<{ projectId?: string }>();
 
@@ -105,7 +105,7 @@ export const ProjectsPage: React.FC = () => {
 
     const handleExport = async (project: Project) => {
         try {
-            const response = await fetchWithError(`${chatBaseUrl}/api/v1/projects/${project.id}/export`);
+            const response = await fetchWithError(`${webuiBaseUrl}/api/v1/projects/${project.id}/export`);
             const blob = await response.blob();
             const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
             downloadBlob(blob, filename);
@@ -123,7 +123,7 @@ export const ProjectsPage: React.FC = () => {
             formData.append("file", file);
             formData.append("options", JSON.stringify(options));
 
-            const result = await api.chat.post(`/api/v1/projects/import`, undefined, {
+            const result = await api.webui.post(`/api/v1/projects/import`, undefined, {
                 body: formData,
             });
 

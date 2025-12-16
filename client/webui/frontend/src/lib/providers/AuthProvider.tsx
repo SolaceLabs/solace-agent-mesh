@@ -28,7 +28,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
 
             try {
-                const userData = await api.chat.get(`/api/v1/users/me`);
+                const userData = await api.webui.get(`/api/v1/users/me`);
 
                 console.log("User is authenticated:", userData);
 

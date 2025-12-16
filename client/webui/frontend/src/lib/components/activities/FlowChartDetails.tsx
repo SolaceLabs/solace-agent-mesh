@@ -61,7 +61,7 @@ const getTaskStatus = (task: VisualizedTask, loadingMessage: MessageFE | undefin
 export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) => {
     const { messages, addNotification, displayError } = useChatContext();
     const { configFeatureEnablement } = useConfigContext();
-    const { chat: chatBaseUrl } = api.getBaseUrls();
+    const { webui: webuiBaseUrl } = api.getBaseUrls();
     const taskLoggingEnabled = configFeatureEnablement?.taskLogging ?? false;
 
     const taskStatus = useMemo(() => {
@@ -72,7 +72,7 @@ export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) =
 
     const handleDownloadStim = async () => {
         try {
-            const response = await fetchWithError(`${chatBaseUrl}/api/v1/tasks/${task.taskId}`);
+            const response = await fetchWithError(`${webuiBaseUrl}/api/v1/tasks/${task.taskId}`);
             const blob = await response.blob();
             downloadBlob(blob, `${task.taskId}.stim`);
             addNotification("Task log downloaded", "success");

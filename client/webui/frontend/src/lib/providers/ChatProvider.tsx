@@ -80,7 +80,7 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs } = useConfigContext();
-    const { chat: chatBaseUrl } = api.getBaseUrls();
+    const { webui: webuiBaseUrl } = api.getBaseUrls();
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { ErrorDialog, setError } = useErrorDialog();
 
@@ -183,7 +183,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     // Background Task Monitoring (placed after addNotification is defined)
-    const apiPrefix = `${chatBaseUrl}/api/v1`;
+    const apiPrefix = `${webuiBaseUrl}/api/v1`;
     const {
         backgroundTasks,
         notifications: backgroundNotifications,
@@ -288,7 +288,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             savingTasksRef.current.add(taskData.task_id);
 
             try {
-                const response = await authenticatedFetch(`${chatBaseUrl}/api/v1/sessions/${effectiveSessionId}/chat-tasks`, {                    method: "POST",
+                const response = await authenticatedFetch(`${webuiBaseUrl}/api/v1/sessions/${effectiveSessionId}/chat-tasks`, {                    method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         taskId: taskData.task_id,
@@ -315,7 +315,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
-        [chatBaseUrl, sessionId, persistenceEnabled]
+        [webuiBaseUrl, sessionId, persistenceEnabled]
     );
 
     // Helper function to extract artifact markers and create artifact parts
@@ -447,7 +447,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Helper function to load session tasks and reconstruct messages
     const loadSessionTasks = useCallback(
         async (sessionId: string) => {
-            const data = await api.chat.get(`/api/v1/sessions/${sessionId}/chat-tasks`);
+            const data = await api.webui.get(`/api/v1/sessions/${sessionId}/chat-tasks`);
 
             // Check if this session is still active before processing
             if (currentSessionIdRef.current !== sessionId) {
@@ -528,7 +528,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
 
             try {
-                const response = await authenticatedFetch(`${chatBaseUrl}/api/v1/artifacts/upload`, {
+                const response = await authenticatedFetch(`${webuiBaseUrl}/api/v1/artifacts/upload`, {
                     method: "POST",
                     body: formData,
                 });
@@ -569,7 +569,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return { error: errorMessage };
             }
         },
-        [chatBaseUrl, sessionId, addNotification, artifactsRefetch, setError]
+        [webuiBaseUrl, sessionId, addNotification, artifactsRefetch, setError]
     );
 
     // Session State
@@ -580,7 +580,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const deleteArtifactInternal = useCallback(
         async (filename: string) => {
             try {
-                await fetchWithError(`${chatBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
+                await fetchWithError(`${webuiBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
                 });
                 addNotification(`File "${filename}" deleted.`, "success");
@@ -589,7 +589,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setError({ title: "File Deletion Failed", error: getErrorMessage(error, `Failed to delete ${filename}.`) });
             }
         },
-        [chatBaseUrl, sessionId, addNotification, artifactsRefetch, setError]
+        [webuiBaseUrl, sessionId, addNotification, artifactsRefetch, setError]
     );
 
     const openDeleteModal = useCallback((artifact: ArtifactInfo) => {
@@ -637,7 +637,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         let errorCount = 0;
         for (const filename of filenamesToDelete) {
             try {
-                await fetchWithError(`${chatBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
+                await fetchWithError(`${webuiBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
                 });
                 successCount++;
@@ -653,7 +653,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         artifactsRefetch();
         setSelectedArtifactFilenames(new Set());
         setIsArtifactEditMode(false);
-    }, [selectedArtifactFilenames, addNotification, artifactsRefetch, chatBaseUrl, sessionId, setError]);
+    }, [selectedArtifactFilenames, addNotification, artifactsRefetch, webuiBaseUrl, sessionId, setError]);
 
     const openArtifactForPreview = useCallback(
         async (artifactFilename: string): Promise<FileAttachment | null> => {
@@ -676,9 +676,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Determine the correct URL based on context
                 let versionsUrl: string;
                 if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    versionsUrl = `${chatBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`;
+                    versionsUrl = `${webuiBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`;
                 } else if (activeProject?.id) {
-                    versionsUrl = `${chatBaseUrl}/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions?project_id=${activeProject.id}`;
+                    versionsUrl = `${webuiBaseUrl}/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions?project_id=${activeProject.id}`;
                 } else {
                     throw new Error("No valid context for artifact preview");
                 }
@@ -691,9 +691,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setCurrentPreviewedVersionNumber(latestVersion);
                 let contentUrl: string;
                 if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    contentUrl = `${chatBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`;
+                    contentUrl = `${webuiBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`;
                 } else if (activeProject?.id) {
-                    contentUrl = `${chatBaseUrl}/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}?project_id=${activeProject.id}`;
+                    contentUrl = `${webuiBaseUrl}/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}?project_id=${activeProject.id}`;
                 } else {
                     throw new Error("No valid context for artifact content");
                 }
@@ -730,7 +730,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 artifactFetchInProgressRef.current.delete(artifactFilename);
             }
         },
-        [chatBaseUrl, sessionId, activeProject?.id, artifacts, previewArtifactFilename, setError]
+        [webuiBaseUrl, sessionId, activeProject?.id, artifacts, previewArtifactFilename, setError]
     );
 
     const navigateArtifactVersion = useCallback(
@@ -752,9 +752,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Determine the correct URL based on context
                 let contentUrl: string;
                 if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    contentUrl = `${chatBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`;
+                    contentUrl = `${webuiBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`;
                 } else if (activeProject?.id) {
-                    contentUrl = `${chatBaseUrl}/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}?project_id=${activeProject.id}`;
+                    contentUrl = `${webuiBaseUrl}/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}?project_id=${activeProject.id}`;
                 } else {
                     throw new Error("No valid context for artifact navigation");
                 }
@@ -789,7 +789,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [chatBaseUrl, artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id, setError]
+        [webuiBaseUrl, artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id, setError]
     );
 
     const openSidePanelTab = useCallback((tab: "files" | "workflow") => {
@@ -840,13 +840,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Fetch the latest version with embeds resolved
-                const availableVersions: number[] = await api.chat.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
+                const availableVersions: number[] = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
                 if (!availableVersions || availableVersions.length === 0) {
                     throw new Error("No versions available");
                 }
 
                 const latestVersion = Math.max(...availableVersions);
-                const contentResponse = await fetchWithError(`${chatBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`);
+                const contentResponse = await fetchWithError(`${webuiBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -884,7 +884,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 artifactDownloadInProgressRef.current.delete(filename);
             }
         },
-        [chatBaseUrl, sessionId, artifacts, setArtifacts, setError]
+        [webuiBaseUrl, sessionId, artifacts, setArtifacts, setError]
     );
 
     const handleSseMessage = useCallback(
@@ -1470,7 +1470,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             id: currentTaskId,
                         },
                     };
-                    authenticatedFetch(`${chatBaseUrl}/api/v1/tasks/${currentTaskId}:cancel`, {
+                    authenticatedFetch(`${webuiBaseUrl}/api/v1/tasks/${currentTaskId}:cancel`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(cancelRequest),
@@ -1518,7 +1518,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [chatBaseUrl, isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
+        [webuiBaseUrl, isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
     );
 
     // Start a new chat session with a prompt template pre-filled
@@ -1570,7 +1570,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             id: currentTaskId,
                         },
                     };
-                    await authenticatedFetch(`${chatBaseUrl}/api/v1/tasks/${currentTaskId}:cancel`, {
+                    await authenticatedFetch(`${webuiBaseUrl}/api/v1/tasks/${currentTaskId}:cancel`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(cancelRequest),
@@ -1588,7 +1588,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             try {
                 // Load session metadata first to get project info
-                const sessionData = await api.chat.get(`/api/v1/sessions/${newSessionId}`);
+                const sessionData = await api.webui.get(`/api/v1/sessions/${newSessionId}`);
                 const session: Session | null = sessionData?.data;
                 setSessionName(session?.name ?? "N/A");
 
@@ -1664,13 +1664,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setIsLoadingSession(false);
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, chatBaseUrl, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError, backgroundTasks, checkTaskStatus, sessionId, unregisterBackgroundTask]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, webuiBaseUrl, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError, backgroundTasks, checkTaskStatus, sessionId, unregisterBackgroundTask]
     );
 
     const updateSessionName = useCallback(
         async (sessionId: string, newName: string) => {
             try {
-                const response = await authenticatedFetch(`${chatBaseUrl}/api/v1/sessions/${sessionId}`, {
+                const response = await authenticatedFetch(`${webuiBaseUrl}/api/v1/sessions/${sessionId}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ name: newName }),
@@ -1699,13 +1699,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setError({ title: "Session Name Update Failed", error: getErrorMessage(error, "Failed to update session name.") });
             }
         },
-        [chatBaseUrl, setError]
+        [webuiBaseUrl, setError]
     );
 
     const deleteSession = useCallback(
         async (sessionIdToDelete: string) => {
             try {
-                await fetchWithError(`${chatBaseUrl}/api/v1/sessions/${sessionIdToDelete}`, {
+                await fetchWithError(`${webuiBaseUrl}/api/v1/sessions/${sessionIdToDelete}`, {
                     method: "DELETE",
                 });
                 addNotification("Session deleted.", "success");
@@ -1720,7 +1720,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setError({ title: "Chat Deletion Failed", error: getErrorMessage(error, "Failed to delete session.") });
             }
         },
-        [chatBaseUrl, addNotification, handleNewSession, sessionId, setError]
+        [webuiBaseUrl, addNotification, handleNewSession, sessionId, setError]
     );
 
     // Artifact Rendering Actions
@@ -1791,7 +1791,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             };
 
-            const response = await authenticatedFetch(`${chatBaseUrl}/api/v1/tasks/${currentTaskId}:cancel`, {
+            const response = await authenticatedFetch(`${webuiBaseUrl}/api/v1/tasks/${currentTaskId}:cancel`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(cancelRequest),
@@ -1817,7 +1817,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setError({ title: "Task Cancellation Failed", error: getErrorMessage(error, "An unknown error occurred.") });
             setIsCancelling(false);
         }
-    }, [isResponding, isCancelling, currentTaskId, chatBaseUrl, addNotification, setError, closeCurrentEventSource]);
+    }, [isResponding, isCancelling, currentTaskId, webuiBaseUrl, addNotification, setError, closeCurrentEventSource]);
 
     const handleFeedbackSubmit = useCallback(
         async (taskId: string, feedbackType: "up" | "down", feedbackText: string) => {
@@ -1871,7 +1871,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             for (const { filename, sessionId: fileSessionId } of uploadedFiles) {
                 try {
-                    const deleteUrl = `${chatBaseUrl}/api/v1/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`;
+                    const deleteUrl = `${webuiBaseUrl}/api/v1/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`;
 
                     // Use the session ID that was used during upload
                     await fetchWithError(deleteUrl, {
@@ -1883,7 +1883,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
             }
         },
-        [chatBaseUrl]
+        [webuiBaseUrl]
     );
 
     const handleSubmit = useCallback(
@@ -2062,7 +2062,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // 5. Send the request
                 console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
-                const result: SendStreamingMessageSuccessResponse = await api.chat.post(
+                const result: SendStreamingMessageSuccessResponse = await api.webui.post(
                     `/api/v1/message:stream`,
                     sendMessageRequest
                 );
@@ -2336,9 +2336,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [handleSseMessage, handleSseOpen, handleSseError]);
 
     useEffect(() => {
-        if (currentTaskId && chatBaseUrl) {
+        if (currentTaskId && webuiBaseUrl) {
             const accessToken = getAccessToken();
-            const eventSourceUrl = `${chatBaseUrl}/api/v1/sse/subscribe/${currentTaskId}${accessToken ? `?token=${accessToken}` : ""}`;
+            const eventSourceUrl = `${webuiBaseUrl}/api/v1/sse/subscribe/${currentTaskId}${accessToken ? `?token=${accessToken}` : ""}`;
             const eventSource = new EventSource(eventSourceUrl, { withCredentials: true });
             currentEventSource.current = eventSource;
 
@@ -2372,7 +2372,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         } else {
             closeCurrentEventSource();
         }
-    }, [currentTaskId, chatBaseUrl, closeCurrentEventSource]);
+    }, [currentTaskId, webuiBaseUrl, closeCurrentEventSource]);
 
     const contextValue: ChatContextValue = {
         configCollectFeedback,

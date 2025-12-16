@@ -9,27 +9,27 @@ interface HttpMethods {
 }
 
 class ApiClient {
-    private chatBaseUrl = "";
+    private webuiBaseUrl = "";
     private platformBaseUrl = "";
     private configured = false;
-    private baseUrlsCache: { chat: string; platform: string } | null = null;
+    private baseUrlsCache: { webui: string; platform: string } | null = null;
 
-    chat: HttpMethods;
+    webui: HttpMethods;
     platform: HttpMethods;
 
     constructor() {
-        this.chat = this.createHttpMethods(() => this.chatBaseUrl);
+        this.webui = this.createHttpMethods(() => this.webuiBaseUrl);
         this.platform = this.createHttpMethods(() => this.platformBaseUrl);
     }
 
-    configure(chatUrl: string, platformUrl: string) {
-        if (this.configured && (this.chatBaseUrl !== chatUrl || this.platformBaseUrl !== platformUrl)) {
+    configure(webuiUrl: string, platformUrl: string) {
+        if (this.configured && (this.webuiBaseUrl !== webuiUrl || this.platformBaseUrl !== platformUrl)) {
             console.warn('[API Client] Reconfiguring with different URLs:', {
-                old: { chat: this.chatBaseUrl, platform: this.platformBaseUrl },
-                new: { chat: chatUrl, platform: platformUrl },
+                old: { webui: this.webuiBaseUrl, platform: this.platformBaseUrl },
+                new: { webui: webuiUrl, platform: platformUrl },
             });
         }
-        this.chatBaseUrl = chatUrl;
+        this.webuiBaseUrl = webuiUrl;
         this.platformBaseUrl = platformUrl;
         this.configured = true;
         this.baseUrlsCache = null;
@@ -122,7 +122,7 @@ class ApiClient {
         this.ensureConfigured();
         if (!this.baseUrlsCache) {
             this.baseUrlsCache = {
-                chat: this.chatBaseUrl,
+                webui: this.webuiBaseUrl,
                 platform: this.platformBaseUrl,
             };
         }

@@ -122,7 +122,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             };
 
             // Call API to create prompt group
-            const createdGroup = await api.chat.post(`/api/v1/prompts/groups`, templateData);
+            const createdGroup = await api.webui.post(`/api/v1/prompts/groups`, templateData);
 
             setSaveStatus("success");
             addNotification("Template saved", "success");
@@ -173,7 +173,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                     if (config.command !== editingGroup?.command) updateData.command = config.command;
                     updateData.initial_prompt = config.promptText;
 
-                    await api.chat.patch(`/api/v1/prompts/groups/${groupId}`, updateData);
+                    await api.webui.patch(`/api/v1/prompts/groups/${groupId}`, updateData);
 
                     setSaveStatus("success");
                     const message = promptTextChanged ? "New version created and activated" : "Changes saved";
@@ -192,12 +192,12 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                         if (config.category !== editingGroup?.category) updateData.category = config.category;
                         if (config.command !== editingGroup?.command) updateData.command = config.command;
 
-                        await api.chat.patch(`/api/v1/prompts/groups/${groupId}`, updateData);
+                        await api.webui.patch(`/api/v1/prompts/groups/${groupId}`, updateData);
                     }
 
                     // Then update prompt text if it changed
                     if (promptTextChanged && editingPromptId) {
-                        await api.chat.patch(`/api/v1/prompts/${editingPromptId}`, {
+                        await api.webui.patch(`/api/v1/prompts/${editingPromptId}`, {
                             promptText: config.promptText,
                         });
                     }

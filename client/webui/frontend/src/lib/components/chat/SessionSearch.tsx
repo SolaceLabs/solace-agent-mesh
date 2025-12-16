@@ -51,9 +51,9 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
                 params.append("projectId", currentProjectId);
             }
 
-            const { chat: chatBaseUrl } = api.getBaseUrls();
+            const { webui: webuiBaseUrl } = api.getBaseUrls();
             const response = await authenticatedFetch(
-                `${chatBaseUrl}/api/v1/sessions/search?${params.toString()}`,
+                `${webuiBaseUrl}/api/v1/sessions/search?${params.toString()}`,
                 { credentials: "include" }
             );
 

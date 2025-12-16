@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 
 // Default mock values for ConfigContext
 const defaultMockConfigContext: ConfigContextValue = {
-    chatServerUrl: "http://localhost:8000",
+    webuiServerUrl: "http://localhost:8000",
     platformServerUrl: "http://localhost:8001",
     configAuthLoginUrl: "http://localhost:8000/auth/login",
     configUseAuthorization: false,
@@ -36,7 +36,7 @@ export const MockConfigProvider: React.FC<MockConfigProviderProps> = ({ children
         [mockValues]
     );
 
-    api.configure(contextValue.chatServerUrl, contextValue.platformServerUrl);
+    api.configure(contextValue.webuiServerUrl, contextValue.platformServerUrl);
 
     return <ConfigContext.Provider value={contextValue}>{children}</ConfigContext.Provider>;
 };

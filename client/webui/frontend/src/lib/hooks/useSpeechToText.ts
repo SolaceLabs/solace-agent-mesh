@@ -235,7 +235,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
     const startExternalRecording = useCallback(async () => {
         // Check if external STT is configured
         try {
-            const config = await api.chat.get("/api/v1/speech/config");
+            const config = await api.webui.get("/api/v1/speech/config");
 
             if (!config.sttExternal) {
                 // Auto-switch to browser mode
@@ -296,8 +296,8 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                         formData.append("language", settings.languageSTT);
                     }
 
-                    const { chat } = api.getBaseUrls();
-                    const response = await fetchWithError(`${chat}/api/v1/speech/stt`, {
+                    const { webui } = api.getBaseUrls();
+                    const response = await fetchWithError(`${webui}/api/v1/speech/stt`, {
                         method: "POST",
                         body: formData,
                     });
