@@ -1124,6 +1124,11 @@ Example - CSV Table:
 {{% for row in data_rows %}}| {{% for cell in row %}}{{{{ cell }}}} | {{% endfor %}}{{% endfor %}}
 {close_delim}
 
+**IMPORTANT - Pipe Characters in Markdown Tables:**
+Text data may contain "|" characters which will break markdown table rendering by pushing data into wrong columns. For text fields that might contain pipes, use the `replace` filter to escape them:
+`{{{{ item.summary | replace: "|", "&#124;" }}}}`
+Only apply this to text fields that might contain pipes - numerical columns don't need it.
+
 Negative Examples
 Use {{ issues.size }} instead of {{ issues|length }}
 Use {{ forloop.index }} instead of {{ loop.index }} (Liquid uses forloop not loop)
@@ -1209,6 +1214,21 @@ def _generate_examples_instruction() -> str:
         + f"""{close_delim}
 
     Example 4:
+    - User: "Show me the Jira issues as a table"
+    <note>There is a JSON artifact jira_issues.json with items containing key, summary, status, type, assignee, updated fields</note>
+    - OrchestratorAgent:
+    {embed_open_delim}status_update:Rendering Jira issues table...{embed_close_delim}
+    {open_delim}template_liquid: data="jira_issues.json" limit="10"
+    """
+        + """| Key | Summary | Status | Type | Assignee | Updated |
+    |-----|---------|--------|------|----------|---------|
+    {% for item in items %}| [{{ item.key }}](https://jira.example.com/browse/{{ item.key }}) | {{ item.summary | replace: "|", "&#124;" }} | {{ item.status }} | {{ item.type }} | {{ item.assignee }} | {{ item.updated }} |
+    {% endfor %}"""
+        + f"""
+    {close_delim}
+    <note>The replace filter on item.summary escapes any pipe characters that would break the markdown table. Only apply to text fields that might contain pipes.</note>
+
+    Example 5:
     - User: "Search the database for all orders from last month"
     - OrchestratorAgent:
     {embed_open_delim}status_update:Querying order database...{embed_close_delim}
@@ -1216,7 +1236,7 @@ def _generate_examples_instruction() -> str:
     [After getting results:]
     Found 247 orders from last month totaling $45,231.
 
-    Example 5:
+    Example 6:
     - User: "Create an HTML with the chart image you just generated with the customer data."
     - OrchestratorAgent:
     {embed_open_delim}status_update:Generating HTML report with chart...{embed_close_delim}
