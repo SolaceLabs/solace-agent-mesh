@@ -89,18 +89,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const logout = async () => {
         try {
-            const response = await authenticatedFetch("/api/v1/auth/logout", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Accept: "application/json",
-                },
-            });
+            if (configUseAuthorization) {
+                const response = await authenticatedFetch("/api/v1/auth/logout", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Accept: "application/json",
+                    },
+                });
 
-            if (response.ok) {
-                return;
-            } else {
-                throw new Error("Backend logout failed with status: " + response.status);
+                if (response.ok) {
+                    return;
+                } else {
+                    throw new Error("Backend logout failed with status: " + response.status);
+                }
             }
         } catch (error) {
             console.error("Error calling logout endpoint:", error);
