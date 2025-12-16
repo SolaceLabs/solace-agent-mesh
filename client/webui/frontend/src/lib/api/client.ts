@@ -128,7 +128,7 @@ class ApiClient {
         const finalOptions = keepalive ? { ...fetchOptions, keepalive } : fetchOptions;
 
         if (raw) {
-            return fetchWithError(url, finalOptions);
+            return authenticatedFetch(url, finalOptions);
         }
 
         return fetchJsonWithError(url, finalOptions);
