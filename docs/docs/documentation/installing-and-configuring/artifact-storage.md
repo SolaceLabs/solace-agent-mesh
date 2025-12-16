@@ -48,10 +48,32 @@ Agent Mesh supports multiple storage backends for artifacts. Choose based on you
 
 | Backend | Best For | Production Ready | Setup Complexity |
 |---------|----------|------------------|------------------|
+| Memory | Testing, ephemeral workloads | ❌ | Simple |
 | Filesystem | Local development | ❌ | Simple |
 | S3 (AWS) | AWS deployments | ✅ | Medium |
 | S3-Compatible API | On-premises, private cloud | ✅ | Medium |
 | GCS | Google Cloud deployments | ✅ | Medium |
+
+### Memory Storage
+
+Memory storage keeps artifacts in RAM only. This is useful for testing and ephemeral workloads where persistence is not required.
+
+Characteristics:
+- Artifacts stored in memory only
+- No disk I/O overhead
+- Data lost on restart
+- Fastest performance
+- No configuration required
+
+Use only for testing, development, or ephemeral workloads where artifact persistence is not needed.
+
+Configuration:
+```yaml
+artifact_service:
+  type: "memory"
+```
+
+**Important:** All artifacts are lost when the application restarts. This backend is not suitable for production use.
 
 ### Filesystem Storage (Default)
 
@@ -258,7 +280,15 @@ Choose your artifact storage backend based on your deployment environment.
 
 ### Development Setup
 
-For local development and testing, use filesystem storage:
+For local development and testing, you can use either memory or filesystem storage:
+
+**Memory storage (fastest, no persistence):**
+```yaml
+artifact_service:
+  type: "memory"
+```
+
+**Filesystem storage (persists across restarts):**
 
 ```yaml
 artifact_service:

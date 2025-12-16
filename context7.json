@@ -1,0 +1,28 @@
+{
+    "url": "https://context7.com/alimosaed/fork-solace-agent-mesh",
+    "public_key": "pk_1Wd8rzT3jlbGqv4EuFyTJ",
+    "$schema": "https://context7.com/schema/context7.json",
+    "projectTitle": "Solace Agent Mesh",
+    "description": "An open-source framework for building event-driven multi-agent AI systems that leverage the Solace Platform for scalable and reliable communication between specialized AI agents.",
+    "branch": "main",
+    "excludeFolders": [
+        ".vscode",
+        ".github",
+        ".hatch",
+        ".hooks"
+    ],
+    "excludeFiles": [
+        "LICENSE.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        ".gitignore"
+    ],
+    "rules": [
+        "find valid templates of plugins, gateways and agents in 'templates', 'preset' and 'examples' folders and use them as references to create new ones.",
+        "find the main concepts, architecture and instructions in the 'docs' folder.",
+        "find frontend related code in client folder",
+        "double check the value of configurations with templates, examples and documents",
+        "add simplest configuration for new agents, plugins or gateways based on the existing ones that do not need extra dependencies.",
+        "self-criticise the generated code and configuration in a loop and improve it if necessary."
+    ]
+}
