@@ -1,0 +1,499 @@
+# DEVELOPER GUIDE for frontend
+
+## Quick Summary
+The frontend directory contains a comprehensive React-based web UI for the Solace Agent Mesh (SAM) platform. It provides a modern chat interface for interacting with AI agents, real-time agent communication flow visualization, and agent discovery capabilities. The architecture is built around reusable components, custom hooks, context providers, and a modular library structure under `src/lib/`. The application supports OAuth authentication, real-time updates via Server-Sent Events, file handling, and includes an enterprise-only Activities page for task management.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `README.md` - Project documentation and setup instructions
+  - `components.json` - shadcn/ui configuration for component styling and aliases
+  - `eslint.config.js` - ESLint configuration for code quality and React best practices
+  - `package-lock.json` - Locked dependency versions for reproducible builds
+  - `package.json` - Project metadata, dependencies, and build scripts
+  - `tailwind.config.js` - Tailwind CSS configuration
+  - `tsconfig.app.json` - TypeScript configuration for application code
+  - `tsconfig.json` - Root TypeScript configuration with path aliases
+  - `tsconfig.lib.json` - TypeScript configuration for library builds
+  - `tsconfig.node.json` - TypeScript configuration for Node.js tools
+
+- **Subdirectories:**
+  - `src/` - Main source code with React components, providers, hooks, and application logic
+  - `static/` - Compiled JavaScript bundles and static assets for production
+
+## Developer API Reference
+
+### Direct Files
+
+#### README.md
+**Purpose:** Comprehensive project documentation covering features, setup, architecture, and contribution guidelines
+**Import:** Documentation file - not imported in code
+
+**Key Information:**
+- Features: Chat interface, agent discovery, activities page (enterprise), file handling, real-time updates
+- Tech stack: React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui, ESLint
+- Architecture: Modular library structure under `src/lib/`
+- Development commands: `npm run dev`, `npm run lint`
+
+#### components.json
+**Purpose:** Configuration file for shadcn/ui component library setup
+**Import:** Configuration file - used by shadcn CLI tools
+
+**Configuration:**
+- Style: "new-york" theme
+- TypeScript: enabled
+- Tailwind: configured with CSS variables and neutral base color
+- Path aliases: `@/components`, `@/utils`, `@/ui`, `@/lib`, `@/hooks`
+- Icon library: lucide
+
+#### eslint.config.js
+**Purpose:** ESLint configuration for maintaining code quality and React best practices
+**Import:** Configuration file - used by ESLint
+
+**Rules:**
+- Extends recommended JavaScript and TypeScript configurations
+- React hooks rules for proper hook usage
+- React refresh rules for development hot reloading
+- Ignores: `dist`, `lib-package` directories
+
+#### package.json
+**Purpose:** Project metadata, dependencies, and build scripts configuration
+**Import:** Configuration file - used by npm/yarn
+
+**Key Scripts:**
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run build-lib` - Build as library
+- `npm run lint` - Run ESLint
+
+**Key Dependencies:**
+- React 19, TypeScript, Vite for core framework
+- Radix UI components for accessible primitives
+- Tailwind CSS for styling
+- @xyflow/react for flowcharts
+- Various utility libraries (clsx, marked, js-yaml, etc.)
+
+#### tailwind.config.js
+**Purpose:** Tailwind CSS configuration for styling system
+**Import:** Configuration file - used by Tailwind CSS
+
+**Configuration:**
+- Content: Scans `./src/**/*.{js,ts,jsx,tsx}` for classes
+- Theme: Extended with custom properties
+- Plugins: Empty array (can be extended)
+- Safelist: Empty array (can be extended)
+
+#### TypeScript Configuration Files
+**Purpose:** TypeScript compiler configurations for different build targets
+
+**tsconfig.json:**
+- Root configuration with path aliases
+- References to app and node configurations
+
+**tsconfig.app.json:**
+- Application code configuration
+- ES2020 target, React JSX, strict mode
+- Path aliases: `@/*` → `./src/*`
+
+**tsconfig.lib.json:**
+- Library build configuration
+- Declaration file generation
+- Includes only `src/lib/**/*`
+
+**tsconfig.node.json:**
+- Node.js tools configuration
+- ES2022 target for build tools
+
+### Subdirectory APIs
+
+#### src/
+**Purpose:** Main source code containing React application components, providers, hooks, and core library
+**Key Exports:** App component, authentication handling, complete component library, state management
+**Import Examples:**
+```tsx
+import App from "./src/App"
+import AuthCallback from "./src/auth/authCallback"
+import { ChatPage, AgentMeshPage, NavigationSidebar } from "./src/lib/components"
+import { AuthProvider, ChatProvider, ThemeProvider } from "./src/lib/providers"
+import { useAuthContext, useBeforeUnload } from "./src/lib/hooks"
+```
+
+#### static/
+**Purpose:** Compiled JavaScript bundles and static assets for production deployment
+**Key Exports:** Production-ready React bundles, authentication callback scripts
+**Import Examples:**
+```html
+<script src="/static/assets/client-bp6u3qVZ.js"></script>
+<script src="/static/assets/authCallback-DvlO62me.js"></script>
+```
+
+## Complete Usage Guide
+
+### 1. Setting Up the Development Environment
+
+```bash
+# Install dependencies
+cd frontend
+npm ci
+
+# Start development server
+npm run dev
+
+# Run linting
+npm run lint
+
+# Build for production
+npm run build
+
+# Build as library package
+npm run build-package
+```
+
+### 2. Basic Application Setup
+
+```tsx
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './src/App';
+import './src/lib/index.css';
+
+// Basic setup - renders complete application with all providers
+createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+```
+
+### 3. Using Individual Components
+
+```tsx
+import React from 'react';
+import { 
+  ChatPage, 
+  AgentMeshPage, 
+  NavigationSidebar,
+  Button,
+  Card,
+  Dialog,
+  ToastContainer 
+} from './src/lib/components';
+import { 
+  AuthProvider, 
+  ChatProvider, 
+  ConfigProvider,
+  ThemeProvider 
+} from './src/lib/providers';
+import { useAuthContext, useBeforeUnload } from './src/lib/hooks';
+
+// Custom application with selective components
+function CustomApp() {
+  const [activeView, setActiveView] = React.useState('chat');
+  
+  return (
+    <ThemeProvider>
+      <ConfigProvider>
+        <AuthProvider>
+          <ChatProvider>
+            <div className="flex h-screen">
+              <NavigationSidebar
+                items={[
+                  { id: 'chat', label: 'Chat', icon: 'chat' },
+                  { id: 'agents', label: 'Agents', icon: 'agents' }
+                ]}
+                activeItem={activeView}
+                onItemChange={setActiveView}
+              />
+              <main className="flex-1">
+                {activeView === 'chat' ? <ChatPage /> : <AgentMeshPage />}
+              </main>
+            </div>
+            <ToastContainer />
+          </ChatProvider>
+        </AuthProvider>
+      </ConfigProvider>
+    </ThemeProvider>
+  );
+}
+```
+
+### 4. OAuth Authentication Integration
+
+```tsx
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import App from './src/App';
+import AuthCallback from './src/auth/authCallback';
+
+// Setup with OAuth callback handling
+function AppWithAuth() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/*" element={<App />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+// Using authentication context
+import { useAuthContext } from './src/lib/hooks';
+
+function AuthenticatedComponent() {
+  const { isAuthenticated, login, logout, user } = useAuthContext();
+  
+  if (!isAuthenticated) {
+    return <Button onClick={login}>Login</Button>;
+  }
+  
+  return (
+    <div>
+      <p>Welcome, {user?.name}!</p>
+      <Button onClick={logout}>Logout</Button>
+    </div>
+  );
+}
+```
+
+### 5. Building Custom Chat Interface
+
+```tsx
+import React from 'react';
+import { 
+  ChatMessageList, 
+  ChatInputArea, 
+  FlowChartPanel,
+  Card,
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle 
+} from './src/lib/components';
+import { ChatProvider, useChatContext } from './src/lib/providers';
+
+function CustomChatInterface() {
+  return (
+    <ChatProvider>
+      <div className="h-screen flex flex-col">
+        <ResizablePanelGroup direction="horizontal">
+          <ResizablePanel defaultSize={60}>
+            <div className="flex flex-col h-full">
+              <div className="flex-1 overflow-auto">
+                <ChatMessageList />
+              </div>
+              <div className="border-t">
+                <ChatInputArea />
+              </div>
+            </div>
+          </ResizablePanel>
+          
+          <ResizableHandle />
+          
+          <ResizablePanel defaultSize={40}>
+            <Card className="h-full">
+              <FlowChartPanel />
+            </Card>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
+    </ChatProvider>
+  );
+}
+```
+
+### 6. Using UI Components
+
+```tsx
+import React from 'react';
+import { 
+  Button, 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from './src/lib/components/ui';
+
+function UIShowcase() {
+  return (
+    <div className="p-6 space-y-6">
+      {/* Cards */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Agent Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p>All agents are running normally.</p>
+        </CardContent>
+      </Card>
+
+      {/* Buttons */}
+      <div className="space-x-2">
+        <Button>Primary</Button>
+        <Button variant="secondary">Secondary</Button>
+        <Button variant="outline">Outline</Button>
+        <Button variant="ghost">Ghost</Button>
+      </div>
+
+      {/* Dialog */}
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button>Open Dialog</Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="name">Name</Label>
+              <Input id="name" placeholder="Enter name" />
+            </div>
+            <div>
+              <Label htmlFor="role">Role</Label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="user">User</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tabs */}
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview">
+          <p>Overview content</p>
+        </TabsContent>
+        <TabsContent value="details">
+          <p>Details content</p>
+        </TabsContent>
+        <TabsContent value="settings">
+          <p>Settings content</p>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+```
+
+### 7. Customizing Themes and Styling
+
+```tsx
+// tailwind.config.js customization
+export default {
+  content: ["./src/**/*.{js,ts,jsx,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          50: '#eff6ff',
+          500: '#3b82f6',
+          900: '#1e3a8a',
+        },
+        secondary: {
+          50: '#f8fafc',
+          500: '#64748b',
+          900: '#0f172a',
+        }
+      },
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+      }
+    }
+  },
+  plugins: []
+}
+
+// Using custom theme in components
+import { ThemeProvider } from './src/lib/providers';
+
+function ThemedApp() {
+  return (
+    <ThemeProvider defaultTheme="dark" storageKey="app-theme">
+      <div className="min-h-screen bg-background text-foreground">
+        <YourAppContent />
+      </div>
+    </ThemeProvider>
+  );
+}
+```
+
+### 8. Production Deployment
+
+```bash
+# Build for production
+npm run build
+
+# The dist/ directory contains:
+# - index.html (main entry point)
+# - assets/ (CSS and JS bundles)
+# - static/ (additional static assets)
+
+# Deploy to web server
+cp -r dist/* /var/www/html/
+
+# Or use with Docker
+FROM nginx:alpine
+COPY dist/ /usr/share/nginx/html/
+EXPOSE 80
+```
+
+### 9. Library Usage (Building Packages)
+
+```bash
+# Build as reusable library
+npm run build-package
+
+# This creates:
+# - dist/index.js (ES module)
+# - dist/index.cjs (CommonJS)
+# - dist/index.d.ts (TypeScript definitions)
+# - dist/solace-agent-mesh-ui.css (Styles)
+```
+
+```tsx
+// Using as external library
+import { 
+  ChatPage, 
+  AgentMeshPage, 
+  AuthProvider 
+} from 'solace-agent-mesh-ui';
+import 'solace-agent-mesh-ui/dist/solace-agent-mesh-ui.css';
+
+function MyApp() {
+  return (
+    <AuthProvider>
+      <ChatPage />
+    </AuthProvider>
+  );
+}
+```
+
+This comprehensive guide demonstrates how to use the frontend directory to build modern React applications with chat interfaces, agent management, authentication, and real-time communication features. The modular architecture allows for both complete application deployment and selective component usage in custom applications.
+
+# content_hash: 31a7a395e0338e80c1d1b2bfaab3489511ca93fdd68e688bf9047ae8c69a3051
