@@ -1,6 +1,7 @@
 """
 Project API controller using 3-tiered architecture.
 """
+from __future__ import annotations
 
 import json
 from typing import List, Optional, Dict, Any

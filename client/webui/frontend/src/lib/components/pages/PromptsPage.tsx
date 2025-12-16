@@ -113,9 +113,7 @@ export const PromptsPage: React.FC = () => {
         if (!deletingPrompt) return;
 
         try {
-            await api.chat.delete(`/api/v1/prompts/groups/${deletingPrompt.id}`, {
-                method: "DELETE",
-            });
+            await api.chat.delete(`/api/v1/prompts/groups/${deletingPrompt.id}`);
             if (versionHistoryGroup?.id === deletingPrompt.id) {
                 setVersionHistoryGroup(null);
             }
@@ -134,9 +132,7 @@ export const PromptsPage: React.FC = () => {
 
     const handleRestoreVersion = async (promptId: string) => {
         try {
-            await api.chat.delete(`/api/v1/prompts/${promptId}/make-production`, {
-                method: "PATCH",
-            });
+            await api.chat.patch(`/api/v1/prompts/${promptId}/make-production`);
             fetchPromptGroups();
             addNotification("Version made active", "success");
         } catch (error) {
@@ -199,9 +195,7 @@ export const PromptsPage: React.FC = () => {
             // Optimistic update
             setPromptGroups(prev => prev.map(p => (p.id === id ? { ...p, isPinned: !currentStatus } : p)));
 
-            await api.chat.delete(`/api/v1/prompts/groups/${id}/pin`, {
-                method: "PATCH",
-            });
+            await api.chat.patch(`/api/v1/prompts/groups/${id}/pin`);
         } catch (error) {
             // Revert on error
             setPromptGroups(prev => prev.map(p => (p.id === id ? { ...p, isPinned: currentStatus } : p)));
@@ -252,9 +246,7 @@ export const PromptsPage: React.FC = () => {
                 },
             };
 
-            const result = await api.chat.post(`/api/v1/prompts/import`, {
-                body: JSON.stringify(apiPayload),
-            });
+            const result = await api.chat.post(`/api/v1/prompts/import`, apiPayload);
 
             // Navigate back to prompts page
             setShowBuilder(false);

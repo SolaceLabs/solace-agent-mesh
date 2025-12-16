@@ -25,10 +25,9 @@ class _StubSessionManager:
 
     Platform service doesn't have chat sessions, but webui_backend routers
     (originally designed for WebUI gateway) expect a SessionManager.
-    This stub provides minimal compatibility for user_id resolution.
+    This stub provides minimal compatibility.
     """
-    def __init__(self, use_authorization: bool):
-        self.use_authorization = use_authorization
+    pass
 
 
 info = {
@@ -110,7 +109,6 @@ class PlatformServiceComponent(SamComponentBase):
             # OAuth2 configuration (enterprise feature - defaults to community mode)
             self.external_auth_service_url = self.get_config("external_auth_service_url", "")
             self.external_auth_provider = self.get_config("external_auth_provider", "generic")
-            self.use_authorization = self.get_config("frontend_use_authorization", False)
 
             # Background task configuration
             self.deployment_timeout_minutes = self.get_config("deployment_timeout_minutes", 5)
@@ -122,7 +120,7 @@ class PlatformServiceComponent(SamComponentBase):
                 self.log_identifier,
                 self.fastapi_host,
                 self.fastapi_port,
-                "enabled" if self.use_authorization else "disabled",
+                "enabled" if self.get_config("frontend_use_authorization", False) else "disabled",
             )
         except Exception as e:
             log.error("%s Failed to retrieve configuration: %s", self.log_identifier, e)
@@ -139,7 +137,7 @@ class PlatformServiceComponent(SamComponentBase):
         # Legacy router compatibility
         # webui_backend routers were originally designed for WebUI gateway context
         # but now work with Platform Service via dependency abstraction
-        self.session_manager = _StubSessionManager(use_authorization=self.use_authorization)
+        self.session_manager = _StubSessionManager()
 
         # Agent discovery (like BaseGatewayComponent)
         # Initialize here so CoreA2AService can use it

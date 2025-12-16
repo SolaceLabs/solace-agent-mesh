@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 from pathlib import Path
@@ -42,7 +44,7 @@ from .routers.users import router as user_router
 
 
 if TYPE_CHECKING:
-    from gateway.http_sse.component import WebUIBackendComponent
+    from .component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
 
@@ -56,143 +58,111 @@ app = FastAPI(
 _dependencies_initialized = False
 
 
-def _extract_access_token(request: FastAPIRequest) -> str:
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        return auth_header[7:]
 
+def _setup_alembic_config(database_url: str) -> Config:
+    alembic_cfg = Config()
+    alembic_cfg.set_main_option(
+        "script_location",
+        os.path.join(os.path.dirname(__file__), "alembic"),
+    )
+    alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+    return alembic_cfg
+
+
+def _run_community_migrations(database_url: str) -> None:
+    """
+    Run Alembic migrations for the community database schema.
+    This includes sessions, chat_messages tables and their indexes.
+    """
     try:
-        if "access_token" in request.session:
-            log.debug("AuthMiddleware: Found token in session.")
-            return request.session["access_token"]
-    except AssertionError:
-        log.debug("AuthMiddleware: Could not access request.session.")
+        from sqlalchemy import create_engine
 
-    if "token" in request.query_params:
-        return request.query_params["token"]
+        log.info("Starting community migrations...")
+        engine = create_engine(database_url)
+        inspector = sa.inspect(engine)
+        existing_tables = inspector.get_table_names()
 
-    return None
-
-
-async def _validate_token(
-    auth_service_url: str, auth_provider: str, access_token: str
-) -> bool:
-    async with httpx.AsyncClient() as client:
-        validation_response = await client.post(
-            f"{auth_service_url}/is_token_valid",
-            json={"provider": auth_provider},
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-    return validation_response.status_code == 200
-
-
-async def _get_user_info(
-    auth_service_url: str, auth_provider: str, access_token: str
-) -> dict:
-    async with httpx.AsyncClient() as client:
-        userinfo_response = await client.get(
-            f"{auth_service_url}/user_info?provider={auth_provider}",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-
-    if userinfo_response.status_code != 200:
-        return None
-
-    return userinfo_response.json()
-
-
-def _extract_user_identifier(user_info: dict) -> str:
-    user_identifier = (
-        user_info.get("sub")
-        or user_info.get("client_id")
-        or user_info.get("username")
-        or user_info.get("oid")
-        or user_info.get("preferred_username")
-        or user_info.get("upn")
-        or user_info.get("unique_name")
-        or user_info.get("email")
-        or user_info.get("name")
-        or user_info.get("azp")
-        or user_info.get("user_id") # internal /user_info endpoint format maps identifier to user_id
-    )
-
-    if user_identifier and user_identifier.lower() == "unknown":
+        if not existing_tables or "sessions" not in existing_tables:
+            log.info("Running initial community database setup")
+            alembic_cfg = _setup_alembic_config(database_url)
+            command.upgrade(alembic_cfg, "head")
+            log.info("Community database migrations completed")
+        else:
+            log.info("Checking for community schema updates")
+            alembic_cfg = _setup_alembic_config(database_url)
+            command.upgrade(alembic_cfg, "head")
+            log.info("Community database schema is current")
+    except Exception as e:
         log.warning(
-            "AuthMiddleware: IDP returned 'Unknown' as user identifier. Using fallback."
+            "Community migration check failed: %s - attempting to run migrations",
+            e,
         )
-        return "sam_dev_user"
-
-    return user_identifier
-
-
-def _extract_user_details(user_info: dict, user_identifier: str) -> tuple:
-    email_from_auth = (
-        user_info.get("email")
-        or user_info.get("preferred_username")
-        or user_info.get("upn")
-        or user_identifier
-    )
-
-    display_name = (
-        user_info.get("name")
-        or user_info.get("given_name", "") + " " + user_info.get("family_name", "")
-        or user_info.get("preferred_username")
-        or user_identifier
-    ).strip()
-
-    return email_from_auth, display_name
+        try:
+            alembic_cfg = _setup_alembic_config(database_url)
+            command.upgrade(alembic_cfg, "head")
+            log.info("Community database migrations completed")
+        except Exception as migration_error:
+            log.error("Community migration failed: %s", migration_error)
+            log.error("Check database connectivity and permissions")
+            raise RuntimeError(
+                f"Community database migration failed: {migration_error}"
+            ) from migration_error
 
 
-async def _create_user_state_without_identity_service(
-    user_identifier: str, email_from_auth: str, display_name: str
-) -> dict:
-    final_user_id = user_identifier or email_from_auth or "sam_dev_user"
-    if not final_user_id or final_user_id.lower() in ["unknown", "null", "none", ""]:
-        final_user_id = "sam_dev_user"
-        log.warning(
-            "AuthMiddleware: Had to use fallback user ID due to invalid identifier: %s",
-            user_identifier,
-        )
 
-    log.debug(
-        "AuthMiddleware: Internal IdentityService not configured on component. Using user ID: %s",
-        final_user_id,
-    )
+
+def _setup_database(
+    component: "WebUIBackendComponent",
+    database_url: str,
+) -> None:
+    """
+    Initialize database and run migrations for WebUI Gateway (chat only).
+
+    Platform database is no longer used by WebUI Gateway.
+    Platform migrations are handled by Platform Service.
+
+    Args:
+        component: WebUIBackendComponent instance
+        database_url: Chat database URL (sessions, tasks, feedback) - REQUIRED
+    """
+    dependencies.init_database(database_url)
+    log.info("Persistence enabled - sessions will be stored in database")
+    log.info("Running database migrations...")
+
+    _run_community_migrations(database_url)
+
+
+def _get_app_config(component: "WebUIBackendComponent") -> dict:
+    webui_app = component.get_app()
+    app_config = {}
+    if webui_app:
+        app_config = getattr(webui_app, "app_config", {})
+        if app_config is None:
+            log.warning("webui_app.app_config is None, using empty dict.")
+            app_config = {}
+    else:
+        log.warning("Could not get webui_app from component. Using empty app_config.")
+    return app_config
+
+
+def _create_api_config(app_config: dict, database_url: str) -> dict:
     return {
-        "id": final_user_id,
-        "email": email_from_auth or final_user_id,
-        "name": display_name or final_user_id,
-        "authenticated": True,
-        "auth_method": "oidc",
+        "external_auth_service_url": app_config.get(
+            "external_auth_service_url", "http://localhost:8080"
+        ),
+        "external_auth_callback_uri": app_config.get(
+            "external_auth_callback_uri", "http://localhost:8000/api/v1/auth/callback"
+        ),
+        "external_auth_provider": app_config.get("external_auth_provider", "azure"),
+        "frontend_use_authorization": app_config.get(
+            "frontend_use_authorization", False
+        ),
+        "frontend_redirect_url": app_config.get(
+            "frontend_redirect_url", "http://localhost:3000"
+        ),
+        "persistence_enabled": database_url is not None,
     }
 
-
-async def _create_user_state_with_identity_service(
-    identity_service,
-    user_identifier: str,
-    email_from_auth: str,
-    display_name: str,
-    user_info: dict,
-) -> dict:
-    lookup_value = email_from_auth if "@" in email_from_auth else user_identifier
-    user_profile = await identity_service.get_user_profile(
-        {identity_service.lookup_key: lookup_value, "user_info": user_info}
-    )
-
-    if not user_profile:
-        return None
-
-    user_state = user_profile.copy()
-    if not user_state.get("id"):
-        user_state["id"] = user_identifier
-    if not user_state.get("email"):
-        user_state["email"] = email_from_auth
-    if not user_state.get("name"):
-        user_state["name"] = display_name
-    user_state["authenticated"] = True
-    user_state["auth_method"] = "oidc"
-
-    return user_state
 
 def setup_dependencies(
     component: "WebUIBackendComponent",
@@ -256,7 +226,9 @@ def _setup_middleware(component: "WebUIBackendComponent") -> None:
     auth_middleware_class = create_oauth_middleware(component)
     app.add_middleware(auth_middleware_class, component=component)
 
-    if component.use_authorization:
+    api_config = dependencies.get_api_config()
+    use_auth = api_config.get("frontend_use_authorization", False) if api_config else False
+    if use_auth:
         log.info("OAuth middleware added (real token validation enabled)")
     else:
         log.info("OAuth middleware added (development mode - community/dev user)")

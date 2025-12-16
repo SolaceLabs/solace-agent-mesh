@@ -296,10 +296,11 @@ def _setup_middleware(component: "PlatformServiceComponent"):
     oauth_middleware_class = create_oauth_middleware(component)
     app.add_middleware(oauth_middleware_class, component=component)
 
-    if component.use_authorization:
+    use_auth = component.get_config("frontend_use_authorization", False)
+    if use_auth:
         log.info("OAuth2 middleware added (real token validation enabled)")
     else:
-        log.info("OAuth2 middleware added (development mode - use_authorization=false)")
+        log.info("OAuth2 middleware added (development mode - frontend_use_authorization=false)")
 
 
 def _setup_routers():

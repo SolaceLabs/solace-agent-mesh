@@ -2,6 +2,7 @@
 Defines FastAPI dependency injectors to access shared resources
 managed by the WebUIBackendComponent.
 """
+from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Generator
@@ -45,7 +46,7 @@ except ImportError:
 
 
 if TYPE_CHECKING:
-    from gateway.http_sse.component import WebUIBackendComponent
+    from .component import WebUIBackendComponent
 
 sac_component_instance: "WebUIBackendComponent" = None
 SessionLocal: sessionmaker = None
@@ -209,7 +210,7 @@ def get_user_id(
             )
 
     # If we reach here, AuthMiddleware didn't set user state properly
-    use_authorization = session_manager.use_authorization
+    use_authorization = api_config.get("frontend_use_authorization", False) if api_config else False
 
     if use_authorization:
         # When OAuth is enabled, we should never reach here - AuthMiddleware should have handled authentication

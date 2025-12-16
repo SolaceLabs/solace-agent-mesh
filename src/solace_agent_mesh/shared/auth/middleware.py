@@ -196,7 +196,7 @@ def create_oauth_middleware(component):
                 await self.app(scope, receive, send)
                 return
 
-            use_auth = getattr(self.component, "use_authorization", False)
+            use_auth = self.component.get_config("frontend_use_authorization", False)
 
             if use_auth:
                 await self._handle_authenticated_request(request, scope, receive, send)
@@ -208,7 +208,7 @@ def create_oauth_middleware(component):
                     "authenticated": True,
                     "auth_method": "development",
                 }
-                log.debug("AuthMiddleware: Set development user (use_authorization=false)")
+                log.debug("AuthMiddleware: Set development user (frontend_use_authorization=false)")
 
             await self.app(scope, receive, send)
 

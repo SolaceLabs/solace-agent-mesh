@@ -123,7 +123,7 @@ export const ProjectsPage: React.FC = () => {
             formData.append("file", file);
             formData.append("options", JSON.stringify(options));
 
-            const result = await api.chat.post(`/api/v1/projects/import`, {
+            const result = await api.chat.post(`/api/v1/projects/import`, undefined, {
                 body: formData,
             });
 

@@ -184,7 +184,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 reconnectionTimeoutRef.current = null;
             }
         }
-    }, [ isTaskMonitorConnected, isTaskMonitorConnecting, handleTaskMonitorSseOpen, handleTaskMonitorSseMessage, handleTaskMonitorSseError]);
+    }, [chatBaseUrl, isTaskMonitorConnected, isTaskMonitorConnecting, handleTaskMonitorSseOpen, handleTaskMonitorSseMessage, handleTaskMonitorSseError]);
 
     const attemptReconnection = useCallback(() => {
         // Prevent multiple concurrent reconnection attempts
@@ -244,7 +244,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         setHighlightedStepIdState(null);
         setReconnectionAttempts(0);
         setIsReconnecting(false);
-    }, []);
+    }, [chatBaseUrl]);
 
     useEffect(() => {
         return () => {
@@ -269,7 +269,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 }
             }
         };
-    }, []);
+    }, [chatBaseUrl]);
 
     useEffect(() => {
         if (!isTaskMonitorConnected && !isTaskMonitorConnecting) {
@@ -350,7 +350,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             console.error(`TaskProvider: Error loading task ${taskId} from backend:`, error);
             return null;
         }
-    }, []);
+    }, [chatBaseUrl]);
 
     const contextValue: TaskContextValue = {
         isTaskMonitorConnecting,

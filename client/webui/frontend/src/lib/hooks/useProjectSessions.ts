@@ -55,7 +55,7 @@ export const useProjectSessions = (projectId?: string | null): UseProjectSession
         } finally {
             setIsLoading(false);
         }
-    }, [ projectId]);
+    }, [chatBaseUrl, projectId]);
 
     useEffect(() => {
         fetchSessions();

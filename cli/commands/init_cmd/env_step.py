@@ -35,7 +35,9 @@ ENV_DEFAULTS = {
     "LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS": "300",
     "LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME": "YOUR_LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME_HERE",
     "LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME": "YOUR_LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME_HERE",
-    "LLM_SERVICE_OAUTH_ENDPOINT": "YOUR_LLM_SERVICE_OAUTH_ENDPOINT_HERE"
+    "LLM_SERVICE_OAUTH_ENDPOINT": "YOUR_LLM_SERVICE_OAUTH_ENDPOINT_HERE",
+    "PLATFORM_API_HOST": "127.0.0.1",
+    "PLATFORM_API_PORT": "8001",
 }
 
 
@@ -216,6 +218,20 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             "Enter Platform Service URL (leave empty if not using platform service)",
             False,
             "PLATFORM_SERVICE_URL",
+        ),
+        (
+            "platform_api_host",
+            "PLATFORM_API_HOST",
+            "Enter Platform API Host",
+            False,
+            "PLATFORM_API_HOST",
+        ),
+        (
+            "platform_api_port",
+            "PLATFORM_API_PORT",
+            "Enter Platform API Port",
+            False,
+            "PLATFORM_API_PORT",
         ),
     ]
 

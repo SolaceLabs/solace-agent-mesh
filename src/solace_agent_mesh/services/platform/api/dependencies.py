@@ -7,7 +7,7 @@ Provides database sessions, component instance access, and user authentication.
 import logging
 from typing import TYPE_CHECKING, Generator
 
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, status
 from sqlalchemy import create_engine, event, pool
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
@@ -122,29 +122,6 @@ def get_platform_db() -> Generator[Session, None, None]:
         raise
     finally:
         db.close()
-
-
-def get_current_user(request: Request) -> dict:
-    """
-    FastAPI dependency to extract authenticated user from request state.
-
-    The user is set by the OAuth2 middleware during request processing.
-
-    Args:
-        request: FastAPI Request object.
-
-    Returns:
-        Dictionary containing user information (user_id, email, name, etc.).
-
-    Raises:
-        HTTPException: 401 if user is not authenticated.
-    """
-    if not hasattr(request.state, "user") or not request.state.user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-        )
-    return request.state.user
 
 
 def get_heartbeat_tracker():

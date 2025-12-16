@@ -1,6 +1,7 @@
 """
 API Router for providing frontend configuration.
 """
+from __future__ import annotations
 
 import logging
 from typing import Dict, Any
@@ -12,7 +13,7 @@ from ..routers.dto.requests.project_requests import CreateProjectRequest
 from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
 
 if TYPE_CHECKING:
-    from gateway.http_sse.component import WebUIBackendComponent
+    from ..component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
 
@@ -347,7 +348,7 @@ async def get_app_config(
             "frontend_auth_login_url": component.get_config(
                 "frontend_auth_login_url", ""
             ),
-            "frontend_use_authorization": component.use_authorization,
+            "frontend_use_authorization": component.get_config("frontend_use_authorization", False),
             "frontend_welcome_message": component.get_config(
                 "frontend_welcome_message", ""
             ),
