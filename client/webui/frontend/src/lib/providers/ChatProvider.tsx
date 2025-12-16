@@ -514,7 +514,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
 
             try {
-                const response = await api.webui.post("/api/v1/artifacts/upload", undefined, { body: formData, raw: true });
+                const response = await api.webui.post("/api/v1/artifacts/upload", formData, { raw: true });
 
                 if (response.status === 413) {
                     const errorData = await response.json().catch(() => ({ message: `Failed to upload ${file.name}.` }));

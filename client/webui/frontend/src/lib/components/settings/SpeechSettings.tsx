@@ -116,10 +116,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             }
 
             // Fetch voice sample
-            const response = await api.webui.post(`/api/v1/speech/voice-sample`, undefined, {
-                body: formData,
-                raw: true,
-            });
+            const response = await api.webui.post(`/api/v1/speech/voice-sample`, formData, { raw: true });
 
             // Create blob from response
             const blob = await response.blob();

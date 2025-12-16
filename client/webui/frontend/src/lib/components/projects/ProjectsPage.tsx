@@ -122,9 +122,7 @@ export const ProjectsPage: React.FC = () => {
             formData.append("file", file);
             formData.append("options", JSON.stringify(options));
 
-            const result = await api.webui.post(`/api/v1/projects/import`, undefined, {
-                body: formData,
-            });
+            const result = await api.webui.post(`/api/v1/projects/import`, formData);
 
             // Show warnings if any (combine into single notification for better UX)
             if (result.warnings && result.warnings.length > 0) {

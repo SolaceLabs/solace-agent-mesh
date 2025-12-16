@@ -84,7 +84,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Projects feature is disabled");
             }
 
-            await api.webui.post(`/api/v1/projects/${projectId}/artifacts`, undefined, { body: formData });
+            await api.webui.post(`/api/v1/projects/${projectId}/artifacts`, formData);
             setError(null);
             await fetchProjects();
         },
@@ -113,7 +113,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const formData = new FormData();
             formData.append("description", description);
 
-            await api.webui.patch(`/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, undefined, { body: formData });
+            await api.webui.patch(`/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, formData);
             setError(null);
         },
         [projectsEnabled]

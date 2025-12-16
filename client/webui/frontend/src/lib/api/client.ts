@@ -1,3 +1,5 @@
+import { getAccessToken } from "@/lib/utils/api";
+
 interface RequestOptions extends RequestInit {
     raw?: boolean;
     keepalive?: boolean;
@@ -11,8 +13,6 @@ interface HttpMethods {
     patch: (endpoint: string, body?: unknown, options?: RequestOptions) => Promise<any>;
     getFullUrl: (endpoint: string) => string;
 }
-
-const getAccessToken = () => localStorage.getItem("access_token");
 
 const getRefreshToken = () => localStorage.getItem("refresh_token");
 
@@ -108,7 +108,6 @@ const fetchJsonWithError = async (url: string, options: RequestInit = {}) => {
 class ApiClient {
     private webuiBaseUrl = "";
     private platformBaseUrl = "";
-    private configured = false;
 
     webui: HttpMethods;
     platform: HttpMethods;
@@ -119,15 +118,8 @@ class ApiClient {
     }
 
     configure(webuiUrl: string, platformUrl: string) {
-        if (this.configured && (this.webuiBaseUrl !== webuiUrl || this.platformBaseUrl !== platformUrl)) {
-            console.warn('[API Client] Reconfiguring with different URLs:', {
-                old: { webui: this.webuiBaseUrl, platform: this.platformBaseUrl },
-                new: { webui: webuiUrl, platform: platformUrl },
-            });
-        }
         this.webuiBaseUrl = webuiUrl;
         this.platformBaseUrl = platformUrl;
-        this.configured = true;
     }
 
     private async request(baseUrl: string, endpoint: string, options?: RequestOptions) {
@@ -148,6 +140,13 @@ class ApiClient {
                 this.request(getBaseUrl(), endpoint, options),
 
             post: (endpoint: string, body?: unknown, options?: RequestOptions) => {
+                if (body instanceof FormData) {
+                    return this.request(getBaseUrl(), endpoint, {
+                        ...options,
+                        method: "POST",
+                        body: body,
+                    });
+                }
                 if (body === undefined || body === null) {
                     return this.request(getBaseUrl(), endpoint, {
                         ...options,
@@ -166,6 +165,13 @@ class ApiClient {
             },
 
             put: (endpoint: string, body?: unknown, options?: RequestOptions) => {
+                if (body instanceof FormData) {
+                    return this.request(getBaseUrl(), endpoint, {
+                        ...options,
+                        method: "PUT",
+                        body: body,
+                    });
+                }
                 if (body === undefined || body === null) {
                     return this.request(getBaseUrl(), endpoint, {
                         ...options,
@@ -190,6 +196,13 @@ class ApiClient {
                 }),
 
             patch: (endpoint: string, body?: unknown, options?: RequestOptions) => {
+                if (body instanceof FormData) {
+                    return this.request(getBaseUrl(), endpoint, {
+                        ...options,
+                        method: "PATCH",
+                        body: body,
+                    });
+                }
                 if (body === undefined || body === null) {
                     return this.request(getBaseUrl(), endpoint, {
                         ...options,
