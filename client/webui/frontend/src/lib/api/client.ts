@@ -1,5 +1,3 @@
-import { fetchJsonWithError, fetchWithError } from "@/lib/utils/api";
-
 interface RequestOptions extends RequestInit {
     raw?: boolean;
     keepalive?: boolean;
@@ -14,11 +12,103 @@ interface HttpMethods {
     getFullUrl: (endpoint: string) => string;
 }
 
+const getAccessToken = () => localStorage.getItem("access_token");
+
+const getRefreshToken = () => localStorage.getItem("refresh_token");
+
+const setTokens = (accessToken: string, refreshToken: string) => {
+    localStorage.setItem("access_token", accessToken);
+    localStorage.setItem("refresh_token", refreshToken);
+};
+
+const clearTokens = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+};
+
+const refreshToken = async () => {
+    const token = getRefreshToken();
+    if (!token) {
+        return null;
+    }
+
+    const response = await fetch("/api/v1/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: token }),
+    });
+
+    if (response.ok) {
+        const data = await response.json();
+        setTokens(data.access_token, data.refresh_token);
+        return data.access_token;
+    }
+
+    clearTokens();
+    window.location.href = "/api/v1/auth/login";
+    return null;
+};
+
+const getErrorFromResponse = async (response: Response): Promise<string> => {
+    const fallbackMessage = `An unknown error occurred. HTTP status: ${response.status}.`;
+    try {
+        const errorData = await response.json();
+        return errorData.message || errorData.detail || fallbackMessage;
+    } catch {
+        return fallbackMessage;
+    }
+};
+
+const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
+    const accessToken = getAccessToken();
+
+    if (!accessToken) {
+        return fetch(url, options);
+    }
+
+    const response = await fetch(url, {
+        ...options,
+        headers: {
+            ...options.headers,
+            Authorization: `Bearer ${accessToken}`,
+        },
+    });
+
+    if (response.status === 401) {
+        const newAccessToken = await refreshToken();
+        if (newAccessToken) {
+            return fetch(url, {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    Authorization: `Bearer ${newAccessToken}`,
+                },
+            });
+        }
+    }
+
+    return response;
+};
+
+const fetchWithError = async (url: string, options: RequestInit = {}) => {
+    const response = await authenticatedFetch(url, options);
+
+    if (!response.ok) {
+        throw new Error(await getErrorFromResponse(response));
+    }
+
+    return response;
+};
+
+const fetchJsonWithError = async (url: string, options: RequestInit = {}) => {
+    const response = await fetchWithError(url, options);
+    return response.json();
+};
+
 class ApiClient {
     private webuiBaseUrl = "";
     private platformBaseUrl = "";
     private configured = false;
-    private baseUrlsCache: { webui: string; platform: string } | null = null;
 
     webui: HttpMethods;
     platform: HttpMethods;
@@ -38,20 +128,11 @@ class ApiClient {
         this.webuiBaseUrl = webuiUrl;
         this.platformBaseUrl = platformUrl;
         this.configured = true;
-        this.baseUrlsCache = null;
-    }
-
-    private ensureConfigured() {
-        if (!this.configured) {
-            throw new Error("API client not configured. Call api.configure() from ConfigProvider first.");
-        }
     }
 
     private async request(baseUrl: string, endpoint: string, options?: RequestOptions) {
         const url = `${baseUrl}${endpoint}`;
-
         const { raw, keepalive, ...fetchOptions } = options || {};
-
         const finalOptions = keepalive ? { ...fetchOptions, keepalive } : fetchOptions;
 
         if (raw) {
@@ -128,17 +209,6 @@ class ApiClient {
 
             getFullUrl: (endpoint: string) => `${getBaseUrl()}${endpoint}`,
         };
-    }
-
-    getBaseUrls() {
-        this.ensureConfigured();
-        if (!this.baseUrlsCache) {
-            this.baseUrlsCache = {
-                webui: this.webuiBaseUrl,
-                platform: this.platformBaseUrl,
-            };
-        }
-        return this.baseUrlsCache;
     }
 }
 
