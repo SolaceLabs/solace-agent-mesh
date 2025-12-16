@@ -28,6 +28,7 @@ from a2a.types import (
     Artifact,
     CancelTaskRequest,
     DataPart,
+    InternalError,
     Message,
     SendMessageRequest,
     SendStreamingMessageRequest,
@@ -322,6 +323,8 @@ class A2AProxyComponent(BaseProxyComponent):
 
         # Step 3: Normal request flow for all other auth types
         # (static_bearer, static_apikey, oauth2_client_credentials, or authorized oauth2_authorization_code)
+        received_final_task = False
+
         while auth_retry_count <= max_auth_retries:
             try:
                 # Get or create A2AClient
@@ -382,6 +385,10 @@ class A2AProxyComponent(BaseProxyComponent):
                             await self._process_downstream_response(
                                 raw_event, task_context, client, agent_name
                             )
+                            # Check if this is a final task
+                            if isinstance(raw_event, Task) and raw_event.status:
+                                if raw_event.status.state in [TaskState.completed, TaskState.failed, TaskState.canceled]:
+                                    received_final_task = True
                     else:
                         # Non-streaming: use normal client method (works fine)
                         log.debug(
@@ -394,6 +401,12 @@ class A2AProxyComponent(BaseProxyComponent):
                             await self._process_downstream_response(
                                 event, task_context, client, agent_name
                             )
+                            # Check if this is a final task (event is tuple of (Task, Optional[UpdateEvent]))
+                            if isinstance(event, tuple) and len(event) > 0:
+                                task = event[0]
+                                if isinstance(task, Task) and task.status:
+                                    if task.status.state in [TaskState.completed, TaskState.failed, TaskState.canceled]:
+                                        received_final_task = True
                 elif isinstance(request, CancelTaskRequest):
                     # Forward cancel request to downstream agent using the downstream task ID
                     # The request.params.id contains SAM's task ID, but we need to send
@@ -554,6 +567,20 @@ class A2AProxyComponent(BaseProxyComponent):
                 # Let base class exception handler in _handle_a2a_request catch this
                 # and publish an error response.
                 raise
+
+        # After retry loop completes - check if we received a final task
+        # This detects cases where the stream closes without error but also without final response
+        if not received_final_task and isinstance(request, (SendStreamingMessageRequest, SendMessageRequest)):
+            from ....common.a2a import create_error_response
+
+            error_msg = f"Remote agent '{agent_name}' disconnected without completing the task. Agent may have crashed."
+            log.error("%s %s", log_identifier, error_msg)
+
+            error = InternalError(message=error_msg, data={"agent_name": agent_name})
+            reply_topic = task_context.a2a_context.get("reply_to_topic")
+            if reply_topic:
+                response = create_error_response(error=error, request_id=task_context.a2a_context.get("jsonrpc_request_id"))
+                self._publish_a2a_message(response.model_dump(exclude_none=True), reply_topic)
 
     async def _handle_auth_error(
         self, agent_name: str, task_context: ProxyTaskContext
