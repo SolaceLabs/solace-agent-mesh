@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
-import { fetchWithError } from "@/lib/utils/api";
 import { api } from "@/lib/api";
 
 interface UseTextToSpeechOptions {
@@ -292,19 +291,12 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 }
 
                 // Use streaming endpoint - play chunks as they arrive
-                const { webui } = api.getBaseUrls();
-                const response = await fetchWithError(`${webui}/api/v1/speech/tts/stream`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        input: text,
-                        voice: settings.voice,
-                        runId: messageId || `tts-${Date.now()}`,
-                        provider: settings.ttsProvider,
-                    }),
-                });
+                const response = await api.webui.post(`/api/v1/speech/tts/stream`, {
+                    input: text,
+                    voice: settings.voice,
+                    runId: messageId || `tts-${Date.now()}`,
+                    provider: settings.ttsProvider,
+                }, { raw: true });
 
                 const reader = response.body?.getReader();
                 if (!reader) {

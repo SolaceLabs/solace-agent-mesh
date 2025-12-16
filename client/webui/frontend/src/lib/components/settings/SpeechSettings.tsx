@@ -3,10 +3,8 @@ import { Mic, Volume2, AlertCircle, Play, Loader2 } from "lucide-react";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
 import { Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input, Button } from "@/lib/components/ui";
 import { api } from "@/lib/api";
-import { fetchWithError } from "@/lib/utils/api";
 
 export const SpeechSettingsPanel: React.FC = () => {
-    const { webui: webuiBaseUrl } = api.getBaseUrls();
     const { settings, updateSetting } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
     const [availableVoices, setAvailableVoices] = useState<string[]>([]);
@@ -118,9 +116,9 @@ export const SpeechSettingsPanel: React.FC = () => {
             }
 
             // Fetch voice sample
-            const response = await fetchWithError(`${webuiBaseUrl}/api/v1/speech/voice-sample`, {
-                method: "POST",
+            const response = await api.webui.post(`/api/v1/speech/voice-sample`, undefined, {
                 body: formData,
+                raw: true,
             });
 
             // Create blob from response

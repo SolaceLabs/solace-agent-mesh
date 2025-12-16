@@ -1,11 +1,15 @@
 import { fetchJsonWithError, fetchWithError } from "@/lib/utils/api";
 
+interface RequestOptions extends RequestInit {
+    raw?: boolean;
+}
+
 interface HttpMethods {
-    get: (endpoint: string) => Promise<any>;
-    post: (endpoint: string, body?: unknown, options?: RequestInit) => Promise<any>;
-    put: (endpoint: string, body?: unknown, options?: RequestInit) => Promise<any>;
-    delete: (endpoint: string, options?: RequestInit) => Promise<any>;
-    patch: (endpoint: string, body?: unknown, options?: RequestInit) => Promise<any>;
+    get: (endpoint: string, options?: RequestOptions) => Promise<any>;
+    post: (endpoint: string, body?: unknown, options?: RequestOptions) => Promise<any>;
+    put: (endpoint: string, body?: unknown, options?: RequestOptions) => Promise<any>;
+    delete: (endpoint: string, options?: RequestOptions) => Promise<any>;
+    patch: (endpoint: string, body?: unknown, options?: RequestOptions) => Promise<any>;
 }
 
 class ApiClient {
@@ -41,22 +45,25 @@ class ApiClient {
         }
     }
 
-    private async request(baseUrl: string, endpoint: string, options?: RequestInit) {
+    private async request(baseUrl: string, endpoint: string, options?: RequestOptions) {
         this.ensureConfigured();
         const url = `${baseUrl}${endpoint}`;
 
-        if (options?.body && typeof options.body !== "string" && !(options.body instanceof FormData)) {
-            return fetchWithError(url, options);
+        const { raw, ...fetchOptions } = options || {};
+
+        if (raw) {
+            return fetchWithError(url, fetchOptions);
         }
 
-        return fetchJsonWithError(url, options);
+        return fetchJsonWithError(url, fetchOptions);
     }
 
     private createHttpMethods(getBaseUrl: () => string): HttpMethods {
         return {
-            get: (endpoint: string) => this.request(getBaseUrl(), endpoint),
+            get: (endpoint: string, options?: RequestOptions) =>
+                this.request(getBaseUrl(), endpoint, options),
 
-            post: (endpoint: string, body?: unknown, options?: RequestInit) => {
+            post: (endpoint: string, body?: unknown, options?: RequestOptions) => {
                 if (body === undefined || body === null) {
                     return this.request(getBaseUrl(), endpoint, {
                         ...options,
@@ -74,7 +81,7 @@ class ApiClient {
                 });
             },
 
-            put: (endpoint: string, body?: unknown, options?: RequestInit) => {
+            put: (endpoint: string, body?: unknown, options?: RequestOptions) => {
                 if (body === undefined || body === null) {
                     return this.request(getBaseUrl(), endpoint, {
                         ...options,
@@ -92,13 +99,13 @@ class ApiClient {
                 });
             },
 
-            delete: (endpoint: string, options?: RequestInit) =>
+            delete: (endpoint: string, options?: RequestOptions) =>
                 this.request(getBaseUrl(), endpoint, {
                     ...options,
                     method: "DELETE",
                 }),
 
-            patch: (endpoint: string, body?: unknown, options?: RequestInit) => {
+            patch: (endpoint: string, body?: unknown, options?: RequestOptions) => {
                 if (body === undefined || body === null) {
                     return this.request(getBaseUrl(), endpoint, {
                         ...options,

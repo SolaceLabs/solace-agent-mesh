@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
-import { fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { getErrorMessage } from "@/lib/utils/api";
 import { api } from "@/lib/api";
 
 interface UseSpeechToTextOptions {
@@ -296,10 +296,9 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                         formData.append("language", settings.languageSTT);
                     }
 
-                    const { webui } = api.getBaseUrls();
-                    const response = await fetchWithError(`${webui}/api/v1/speech/stt`, {
-                        method: "POST",
+                    const response = await api.webui.post(`/api/v1/speech/stt`, undefined, {
                         body: formData,
+                        raw: true,
                     });
 
                     const result = await response.json();

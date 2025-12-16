@@ -5,7 +5,7 @@ import { v4 } from "uuid";
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 
-import { authenticatedFetch, fetchWithError, getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
+import { authenticatedFetch, getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
 import { createFileSizeErrorMessage } from "@/lib/utils/file-validation";
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
@@ -580,16 +580,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const deleteArtifactInternal = useCallback(
         async (filename: string) => {
             try {
-                await fetchWithError(`${webuiBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
-                    method: "DELETE",
-                });
+                await api.webui.delete(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`);
                 addNotification(`File "${filename}" deleted.`, "success");
                 artifactsRefetch();
             } catch (error) {
                 setError({ title: "File Deletion Failed", error: getErrorMessage(error, `Failed to delete ${filename}.`) });
             }
         },
-        [webuiBaseUrl, sessionId, addNotification, artifactsRefetch, setError]
+        [sessionId, addNotification, artifactsRefetch, setError]
     );
 
     const openDeleteModal = useCallback((artifact: ArtifactInfo) => {
@@ -637,9 +635,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         let errorCount = 0;
         for (const filename of filenamesToDelete) {
             try {
-                await fetchWithError(`${webuiBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
-                    method: "DELETE",
-                });
+                await api.webui.delete(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`);
                 successCount++;
             } catch (error: unknown) {
                 console.error(error);
@@ -653,7 +649,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         artifactsRefetch();
         setSelectedArtifactFilenames(new Set());
         setIsArtifactEditMode(false);
-    }, [selectedArtifactFilenames, addNotification, artifactsRefetch, webuiBaseUrl, sessionId, setError]);
+    }, [selectedArtifactFilenames, addNotification, artifactsRefetch, sessionId, setError]);
 
     const openArtifactForPreview = useCallback(
         async (artifactFilename: string): Promise<FileAttachment | null> => {
@@ -676,14 +672,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Determine the correct URL based on context
                 let versionsUrl: string;
                 if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    versionsUrl = `${webuiBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`;
+                    versionsUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`;
                 } else if (activeProject?.id) {
-                    versionsUrl = `${webuiBaseUrl}/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions?project_id=${activeProject.id}`;
+                    versionsUrl = `/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions?project_id=${activeProject.id}`;
                 } else {
                     throw new Error("No valid context for artifact preview");
                 }
 
-                const versionsResponse = await fetchWithError(versionsUrl);
+                const versionsResponse = await api.webui.get(versionsUrl, { raw: true });
                 const availableVersions: number[] = await versionsResponse.json();
                 if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
                 setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
@@ -691,14 +687,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setCurrentPreviewedVersionNumber(latestVersion);
                 let contentUrl: string;
                 if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    contentUrl = `${webuiBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`;
+                    contentUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`;
                 } else if (activeProject?.id) {
-                    contentUrl = `${webuiBaseUrl}/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}?project_id=${activeProject.id}`;
+                    contentUrl = `/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}?project_id=${activeProject.id}`;
                 } else {
                     throw new Error("No valid context for artifact content");
                 }
 
-                const contentResponse = await fetchWithError(contentUrl);
+                const contentResponse = await api.webui.get(contentUrl, { raw: true });
 
                 // Get MIME type from response headers - this is the correct MIME type for this specific version
                 const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
@@ -752,14 +748,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Determine the correct URL based on context
                 let contentUrl: string;
                 if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    contentUrl = `${webuiBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`;
+                    contentUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`;
                 } else if (activeProject?.id) {
-                    contentUrl = `${webuiBaseUrl}/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}?project_id=${activeProject.id}`;
+                    contentUrl = `/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}?project_id=${activeProject.id}`;
                 } else {
                     throw new Error("No valid context for artifact navigation");
                 }
 
-                const contentResponse = await fetchWithError(contentUrl);
+                const contentResponse = await api.webui.get(contentUrl, { raw: true });
 
                 // Get MIME type from response headers - this is the correct MIME type for this specific version
                 const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
@@ -846,7 +842,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 const latestVersion = Math.max(...availableVersions);
-                const contentResponse = await fetchWithError(`${webuiBaseUrl}/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`);
+                const contentResponse = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`, { raw: true });
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -1705,9 +1701,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const deleteSession = useCallback(
         async (sessionIdToDelete: string) => {
             try {
-                await fetchWithError(`${webuiBaseUrl}/api/v1/sessions/${sessionIdToDelete}`, {
-                    method: "DELETE",
-                });
+                await api.webui.delete(`/api/v1/sessions/${sessionIdToDelete}`);
                 addNotification("Session deleted.", "success");
                 if (sessionIdToDelete === sessionId) {
                     handleNewSession();
@@ -1720,7 +1714,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setError({ title: "Chat Deletion Failed", error: getErrorMessage(error, "Failed to delete session.") });
             }
         },
-        [webuiBaseUrl, addNotification, handleNewSession, sessionId, setError]
+        [addNotification, handleNewSession, sessionId, setError]
     );
 
     // Artifact Rendering Actions
@@ -1871,19 +1865,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             for (const { filename, sessionId: fileSessionId } of uploadedFiles) {
                 try {
-                    const deleteUrl = `${webuiBaseUrl}/api/v1/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`;
-
                     // Use the session ID that was used during upload
-                    await fetchWithError(deleteUrl, {
-                        method: "DELETE",
-                    });
+                    await api.webui.delete(`/api/v1/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`);
                 } catch (error) {
                     console.error(`[cleanupUploadedFiles] Exception while cleaning up file ${filename}:`, error);
                     // Continue cleanup even if one fails (intentionally silent)
                 }
             }
         },
-        [webuiBaseUrl]
+        []
     );
 
     const handleSubmit = useCallback(

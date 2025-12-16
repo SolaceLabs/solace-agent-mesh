@@ -12,12 +12,11 @@ import type { Project } from "@/lib/types/projects";
 import { Header } from "@/lib/components/header";
 import { Button } from "@/lib/components/ui";
 import { api } from "@/lib/api";
-import { fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { getErrorMessage } from "@/lib/utils/api";
 import { downloadBlob } from "@/lib/utils/download";
 import { useChatContext } from "@/lib/hooks";
 
 export const ProjectsPage: React.FC = () => {
-    const { webui: webuiBaseUrl } = api.getBaseUrls();
     const navigate = useNavigate();
     const loaderData = useLoaderData<{ projectId?: string }>();
 
@@ -105,7 +104,7 @@ export const ProjectsPage: React.FC = () => {
 
     const handleExport = async (project: Project) => {
         try {
-            const response = await fetchWithError(`${webuiBaseUrl}/api/v1/projects/${project.id}/export`);
+            const response = await api.webui.get(`/api/v1/projects/${project.id}/export`, { raw: true });
             const blob = await response.blob();
             const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
             downloadBlob(blob, filename);
