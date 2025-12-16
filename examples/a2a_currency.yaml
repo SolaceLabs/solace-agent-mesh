@@ -1,0 +1,47 @@
+# Agent Configuration File: A2A ADK Agents Configurations
+#
+# This file has the configuration for the A2A ADK agents.
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG # Changed from INFO to DEBUG to capture ADK INFO logs
+  log_file: currency.log
+
+# Shared SAM config
+  !include shared_config.yaml
+
+apps:
+  # --- Currency Agent ---
+  - name: currency_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.proxies.a2a.app
+    broker:
+      <<: *broker_connection
+
+    # --- App Level Config ---
+    app_config:
+
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "CurrencyAgent"
+      display_name: "Currency"
+
+      model:
+        <<: *general_model
+        #parallel_tool_calls: false
+
+      proxied_agents:
+        - name: CurrencyAgent
+          url: http://127.0.0.1:10000
+          use_agent_card_url: false # uses URL from agent card for tasks
+          request_timeout_seconds: 120
+          convert_progress_updates: true
+
+      session_service:
+        type: "sql"
+        database_url: "${CURRENCY_DATABASE_URL, sqlite:///currency-agent.db}"
+        default_behavior: "PERSISTENT"
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      artifact_handling_mode: "reference"
