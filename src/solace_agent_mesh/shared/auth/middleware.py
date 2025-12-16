@@ -229,7 +229,9 @@ def create_oauth_middleware(component):
 
             # NEW: Try sam_access_token validation first
             trust_manager = getattr(self.component, "trust_manager", None)
-            if trust_manager and trust_manager.config.access_token_enabled:
+            access_token_enabled = self.component.get_config("access_token_enabled", False)
+
+            if trust_manager and access_token_enabled:
                 try:
                     # Validate as sam_access_token using trust_manager (local JWT verification)
                     claims = trust_manager.verify_user_claims(access_token)

@@ -22,10 +22,18 @@ def mock_component_with_trust_manager():
     component.external_auth_service_url = "http://oauth2-service:8080"
     component.external_auth_provider = "azure"
 
+    # Mock get_config to return access_token_enabled=True
+    def mock_get_config(key, default=None):
+        if key == "access_token_enabled":
+            return True
+        elif key == "frontend_use_authorization":
+            return True
+        return default
+
+    component.get_config = mock_get_config
+
     # Mock trust_manager
     trust_manager = Mock()
-    trust_manager.config = Mock()
-    trust_manager.config.access_token_enabled = True
     component.trust_manager = trust_manager
 
     return component
@@ -51,10 +59,18 @@ def mock_component_feature_disabled():
     component.external_auth_service_url = "http://oauth2-service:8080"
     component.external_auth_provider = "azure"
 
+    # Mock get_config to return access_token_enabled=False
+    def mock_get_config(key, default=None):
+        if key == "access_token_enabled":
+            return False
+        elif key == "frontend_use_authorization":
+            return True
+        return default
+
+    component.get_config = mock_get_config
+
     # Mock trust_manager with feature disabled
     trust_manager = Mock()
-    trust_manager.config = Mock()
-    trust_manager.config.access_token_enabled = False
     component.trust_manager = trust_manager
 
     return component

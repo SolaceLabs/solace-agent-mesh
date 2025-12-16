@@ -158,12 +158,9 @@ async def auth_callback(
 
     # Mint sam_access_token (NEW!)
     sam_access_token = None
-    if (
-        hasattr(component, "trust_manager")
-        and component.trust_manager
-        and hasattr(component.trust_manager, "config")
-        and component.trust_manager.config.access_token_enabled
-    ):
+    access_token_enabled = config.get("access_token_enabled", False)
+
+    if hasattr(component, "trust_manager") and component.trust_manager and access_token_enabled:
         try:
             # Resolve authorization using user_claims
             gateway_context = {
@@ -196,7 +193,7 @@ async def auth_callback(
                 scopes = []
 
             # Build JWT payload
-            ttl = component.trust_manager.config.access_token_ttl_seconds
+            ttl = config.get("access_token_ttl_seconds", 3600)
             provider = config.get("external_auth_provider", "azure")
 
             jwt_payload = {
@@ -305,12 +302,9 @@ async def refresh_token(
 
     # Mint fresh sam_access_token (NEW!)
     sam_access_token = None
-    if (
-        hasattr(component, "trust_manager")
-        and component.trust_manager
-        and hasattr(component.trust_manager, "config")
-        and component.trust_manager.config.access_token_enabled
-    ):
+    access_token_enabled = config.get("access_token_enabled", False)
+
+    if hasattr(component, "trust_manager") and component.trust_manager and access_token_enabled:
         try:
             # Re-resolve authorization (roles may have changed!)
             gateway_context = {
@@ -343,7 +337,7 @@ async def refresh_token(
                 scopes = []
 
             # Build JWT payload with fresh claims
-            ttl = component.trust_manager.config.access_token_ttl_seconds
+            ttl = config.get("access_token_ttl_seconds", 3600)
             provider = config.get("external_auth_provider", "azure")
 
             jwt_payload = {
