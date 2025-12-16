@@ -2,6 +2,7 @@ import { fetchJsonWithError, fetchWithError } from "@/lib/utils/api";
 
 interface RequestOptions extends RequestInit {
     raw?: boolean;
+    keepalive?: boolean;
 }
 
 interface HttpMethods {
@@ -10,6 +11,7 @@ interface HttpMethods {
     put: (endpoint: string, body?: unknown, options?: RequestOptions) => Promise<any>;
     delete: (endpoint: string, options?: RequestOptions) => Promise<any>;
     patch: (endpoint: string, body?: unknown, options?: RequestOptions) => Promise<any>;
+    getFullUrl: (endpoint: string) => string;
 }
 
 class ApiClient {
@@ -46,16 +48,17 @@ class ApiClient {
     }
 
     private async request(baseUrl: string, endpoint: string, options?: RequestOptions) {
-        this.ensureConfigured();
         const url = `${baseUrl}${endpoint}`;
 
-        const { raw, ...fetchOptions } = options || {};
+        const { raw, keepalive, ...fetchOptions } = options || {};
+
+        const finalOptions = keepalive ? { ...fetchOptions, keepalive } : fetchOptions;
 
         if (raw) {
-            return fetchWithError(url, fetchOptions);
+            return fetchWithError(url, finalOptions);
         }
 
-        return fetchJsonWithError(url, fetchOptions);
+        return fetchJsonWithError(url, finalOptions);
     }
 
     private createHttpMethods(getBaseUrl: () => string): HttpMethods {
@@ -122,6 +125,8 @@ class ApiClient {
                     body: JSON.stringify(body),
                 });
             },
+
+            getFullUrl: (endpoint: string) => `${getBaseUrl()}${endpoint}`,
         };
     }
 

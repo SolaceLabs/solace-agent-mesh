@@ -2,7 +2,7 @@ import React, { type ReactNode, useState, useRef, useEffect, useCallback } from 
 
 import type { A2AEventSSEPayload, TaskFE } from "@/lib/types";
 import { TaskContext, type TaskContextValue } from "@/lib/contexts/TaskContext";
-import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
+import { getAccessToken } from "@/lib/utils/api";
 import { api } from "@/lib/api";
 
 interface SubscriptionResponse {
@@ -15,8 +15,6 @@ interface TaskProviderProps {
 }
 
 export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
-    const { webui: webuiBaseUrl } = api.getBaseUrls();
-
     const [taskMonitorSseStreamId, setTaskMonitorSseStreamId] = useState<string | null>(null);
     const [isTaskMonitorConnecting, setIsTaskMonitorConnecting] = useState<boolean>(false);
     const [isTaskMonitorConnected, setIsTaskMonitorConnected] = useState<boolean>(false);
@@ -142,7 +140,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 subscription_targets: [{ type: "my_a2a_messages" }],
             });
             setTaskMonitorSseStreamId(subscriptionData.stream_id);
-            const sseUrl = subscriptionData.sse_endpoint_url.startsWith("/") ? `${webuiBaseUrl || ""}${subscriptionData.sse_endpoint_url}` : subscriptionData.sse_endpoint_url;
+            const sseUrl = subscriptionData.sse_endpoint_url.startsWith("/") ? api.webui.getFullUrl(subscriptionData.sse_endpoint_url) : subscriptionData.sse_endpoint_url;
 
             if (taskMonitorEventSourceRef.current) taskMonitorEventSourceRef.current.close();
             const accessToken = getAccessToken();
@@ -168,7 +166,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 reconnectionTimeoutRef.current = null;
             }
         }
-    }, [webuiBaseUrl, isTaskMonitorConnected, isTaskMonitorConnecting, handleTaskMonitorSseOpen, handleTaskMonitorSseMessage, handleTaskMonitorSseError]);
+    }, [isTaskMonitorConnected, isTaskMonitorConnecting, handleTaskMonitorSseOpen, handleTaskMonitorSseMessage, handleTaskMonitorSseError]);
 
     const attemptReconnection = useCallback(() => {
         // Prevent multiple concurrent reconnection attempts
@@ -235,21 +233,19 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             }
             const streamIdForUnsubscribe = taskMonitorSseStreamIdRef.current;
             if (streamIdForUnsubscribe) {
-                // Use sendBeacon for unmount cleanup if supported, otherwise fetch with keepalive
+                const unsubscribeUrl = api.webui.getFullUrl(`/api/v1/visualization/${streamIdForUnsubscribe}/unsubscribe`);
                 if (navigator.sendBeacon) {
                     const formData = new FormData();
-                    // For DELETE, this is a bit of a workaround. The key is that the request is made.
-                    navigator.sendBeacon(`${webuiBaseUrl}/api/v1/visualization/${streamIdForUnsubscribe}/unsubscribe`, formData);
+                    navigator.sendBeacon(unsubscribeUrl, formData);
                 } else {
-                    authenticatedFetch(`${webuiBaseUrl}/api/v1/visualization/${streamIdForUnsubscribe}/unsubscribe`, {
-                        method: "DELETE",
+                    api.webui.delete(`/api/v1/visualization/${streamIdForUnsubscribe}/unsubscribe`, {
                         credentials: "include",
                         keepalive: true,
                     }).catch((err: Error) => console.error("TaskMonitorProvider: Error in final unsubscribe on unmount (fetch):", err));
                 }
             }
         };
-    }, [webuiBaseUrl]);
+    }, []);
 
     useEffect(() => {
         if (!isTaskMonitorConnected && !isTaskMonitorConnecting) {

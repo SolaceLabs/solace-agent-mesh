@@ -62,7 +62,7 @@ export const getErrorMessage = (error: unknown, fallbackMessage: string = "An un
     return fallbackMessage;
 };
 
-export const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
+const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     const accessToken = getAccessToken();
 
     if (!accessToken) {

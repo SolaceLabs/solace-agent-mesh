@@ -80,7 +80,6 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs } = useConfigContext();
-    const { webui: webuiBaseUrl } = api.getBaseUrls();
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { ErrorDialog, setError } = useErrorDialog();
 
@@ -704,7 +703,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 artifactFetchInProgressRef.current.delete(artifactFilename);
             }
         },
-        [webuiBaseUrl, sessionId, activeProject?.id, artifacts, previewArtifactFilename, setError]
+        [sessionId, activeProject?.id, artifacts, previewArtifactFilename, setError]
     );
 
     const navigateArtifactVersion = useCallback(
@@ -763,7 +762,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [webuiBaseUrl, artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id, setError]
+        [artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id, setError]
     );
 
     const openSidePanelTab = useCallback((tab: "files" | "workflow") => {
@@ -858,7 +857,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 artifactDownloadInProgressRef.current.delete(filename);
             }
         },
-        [webuiBaseUrl, sessionId, artifacts, setArtifacts, setError]
+        [sessionId, artifacts, setArtifacts, setError]
     );
 
     const handleSseMessage = useCallback(
@@ -2259,9 +2258,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [handleSseMessage, handleSseOpen, handleSseError]);
 
     useEffect(() => {
-        if (currentTaskId && webuiBaseUrl) {
+        if (currentTaskId) {
             const accessToken = getAccessToken();
-            const eventSourceUrl = `${webuiBaseUrl}/api/v1/sse/subscribe/${currentTaskId}${accessToken ? `?token=${accessToken}` : ""}`;
+            const eventSourceUrl = `${api.webui.getFullUrl(`/api/v1/sse/subscribe/${currentTaskId}`)}${accessToken ? `?token=${accessToken}` : ""}`;
             const eventSource = new EventSource(eventSourceUrl, { withCredentials: true });
             currentEventSource.current = eventSource;
 
@@ -2295,7 +2294,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         } else {
             closeCurrentEventSource();
         }
-    }, [currentTaskId, webuiBaseUrl, closeCurrentEventSource]);
+    }, [currentTaskId, closeCurrentEventSource]);
 
     const contextValue: ChatContextValue = {
         configCollectFeedback,

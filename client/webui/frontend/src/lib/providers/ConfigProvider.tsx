@@ -1,5 +1,4 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { authenticatedFetch } from "../utils/api";
 import { ConfigContext, type ConfigContextValue } from "../contexts";
 import { useCsrfContext } from "../hooks/useCsrfContext";
 import { EmptyState } from "../components";
@@ -54,9 +53,10 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
             setError(null);
 
             try {
-                let configResponse = await authenticatedFetch("/api/v1/config", {
+                let configResponse = await api.webui.get("/api/v1/config", {
                     credentials: "include",
                     headers: { Accept: "application/json" },
+                    raw: true,
                 });
 
                 let data: BackendConfig;
@@ -71,12 +71,13 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                             throw new Error("Failed to obtain CSRF token after config fetch failed.");
                         }
                         console.log("Retrying config fetch with CSRF token...");
-                        configResponse = await authenticatedFetch("/api/v1/config", {
+                        configResponse = await api.webui.get("/api/v1/config", {
                             credentials: "include",
                             headers: {
                                 "X-CSRF-TOKEN": csrfToken,
                                 Accept: "application/json",
                             },
+                            raw: true,
                         });
                         if (!configResponse.ok) {
                             const errorTextRetry = await configResponse.text();
