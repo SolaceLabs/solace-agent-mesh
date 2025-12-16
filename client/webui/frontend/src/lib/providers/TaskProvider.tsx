@@ -5,6 +5,11 @@ import { TaskContext, type TaskContextValue } from "@/lib/contexts/TaskContext";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
 import { api } from "@/lib/api";
 
+interface SubscriptionResponse {
+    stream_id: string;
+    sse_endpoint_url: string;
+}
+
 interface TaskProviderProps {
     children: ReactNode;
 }
@@ -133,30 +138,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         console.log("TaskMonitorContext: Attempting to connect stream...");
         setIsTaskMonitorConnecting(true);
         try {
-            const subscribePayload = { subscription_targets: [{ type: "my_a2a_messages" }] };
-            const subscribeResponse = await authenticatedFetch(`${webuiBaseUrl}/api/v1/visualization/subscribe`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(subscribePayload),
-                credentials: "include",
+            const subscriptionData: SubscriptionResponse = await api.webui.post("/api/v1/visualization/subscribe", {
+                subscription_targets: [{ type: "my_a2a_messages" }],
             });
-            if (!subscribeResponse.ok) {
-                const errorData = await subscribeResponse.json().catch(() => ({ detail: "Failed to subscribe" }));
-
-                // Handle structured error responses from the new backend
-                if (errorData.error_type === "authorization_failure") {
-                    const message = errorData.message || "Access denied: insufficient permissions";
-                    const suggestion = errorData.suggested_action ? ` ${errorData.suggested_action}` : "";
-                    throw new Error(`${message}${suggestion}`);
-                } else if (errorData.error_type === "subscription_failure") {
-                    const message = errorData.message || "Subscription failed";
-                    const suggestion = errorData.suggested_action ? ` ${errorData.suggested_action}` : "";
-                    throw new Error(`${message}${suggestion}`);
-                } else {
-                    throw new Error(errorData.detail || errorData.message || `Subscription failed: ${subscribeResponse.statusText}`);
-                }
-            }
-            const subscriptionData = await subscribeResponse.json();
             setTaskMonitorSseStreamId(subscriptionData.stream_id);
             const sseUrl = subscriptionData.sse_endpoint_url.startsWith("/") ? `${webuiBaseUrl || ""}${subscriptionData.sse_endpoint_url}` : subscriptionData.sse_endpoint_url;
 
@@ -214,7 +198,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     const disconnectTaskMonitorStream = useCallback(async () => {
         console.log("TaskMonitorContext: Disconnecting stream...");
 
-        // Clear any pending reconnection attempts
         if (reconnectionTimeoutRef.current) {
             clearTimeout(reconnectionTimeoutRef.current);
             reconnectionTimeoutRef.current = null;
@@ -227,10 +210,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         const streamIdToUnsubscribe = taskMonitorSseStreamIdRef.current;
         if (streamIdToUnsubscribe) {
             try {
-                await authenticatedFetch(`${webuiBaseUrl}/api/v1/visualization/${streamIdToUnsubscribe}/unsubscribe`, {
-                    method: "DELETE",
-                    credentials: "include",
-                });
+                await api.webui.delete(`/api/v1/visualization/${streamIdToUnsubscribe}/unsubscribe`);
             } catch (error) {
                 console.error(`TaskMonitorContext: Error unsubscribing from stream ID: ${streamIdToUnsubscribe}`, error);
             }
@@ -244,7 +224,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         setHighlightedStepIdState(null);
         setReconnectionAttempts(0);
         setIsReconnecting(false);
-    }, [webuiBaseUrl]);
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -301,24 +281,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
     const loadTaskFromBackend = useCallback(async (taskId: string): Promise<TaskFE | null> => {
         try {
-            const response = await authenticatedFetch(`${webuiBaseUrl}/api/v1/tasks/${taskId}/events`, {
-                method: "GET",
-                credentials: "include",
-            });
+            const data = await api.webui.get(`/api/v1/tasks/${taskId}/events`);
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ detail: "Failed to load task" }));
-                console.error(`TaskProvider: Failed to load task ${taskId}:`, errorData);
-                return null;
-            }
-
-            const data = await response.json();
-
-            // Backend now returns all tasks (parent + children) in a tasks object
             const allTasks = data.tasks as Record<string, { events: A2AEventSSEPayload[]; initial_request_text: string }>;
             const loadedTasks: Record<string, TaskFE> = {};
 
-            // Transform each task to TaskFE format
             for (const [tid, taskData] of Object.entries(allTasks)) {
                 const events = taskData.events;
                 const taskFE: TaskFE = {
@@ -331,13 +298,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 loadedTasks[tid] = taskFE;
             }
 
-            // Add all tasks to monitored tasks for caching
             setMonitoredTasks(prevTasks => ({
                 ...prevTasks,
                 ...loadedTasks,
             }));
 
-            // Add main task to task order if not already present
             setMonitoredTaskOrder(prevOrder => {
                 if (prevOrder.includes(taskId)) {
                     return prevOrder;
@@ -350,7 +315,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             console.error(`TaskProvider: Error loading task ${taskId} from backend:`, error);
             return null;
         }
-    }, [webuiBaseUrl]);
+    }, []);
 
     const contextValue: TaskContextValue = {
         isTaskMonitorConnecting,

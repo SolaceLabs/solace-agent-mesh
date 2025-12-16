@@ -5,7 +5,7 @@ import { v4 } from "uuid";
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 
-import { authenticatedFetch, getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
+import { getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
 import { createFileSizeErrorMessage } from "@/lib/utils/file-validation";
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
@@ -182,8 +182,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         });
     }, []);
 
-    // Background Task Monitoring (placed after addNotification is defined)
-    const apiPrefix = `${webuiBaseUrl}/api/v1`;
     const {
         backgroundTasks,
         notifications: backgroundNotifications,
@@ -193,8 +191,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isTaskRunningInBackground,
         checkTaskStatus,
     } = useBackgroundTaskMonitor({
-        apiPrefix,
-        userId: "sam_dev_user", // TODO: Get from auth context when available
+        userId: "sam_dev_user",
         currentSessionId: sessionId,
         onTaskCompleted: useCallback(
             (taskId: string) => {
@@ -288,25 +285,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             savingTasksRef.current.add(taskData.task_id);
 
             try {
-                const response = await authenticatedFetch(`${webuiBaseUrl}/api/v1/sessions/${effectiveSessionId}/chat-tasks`, {                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        taskId: taskData.task_id,
-                        userMessage: taskData.user_message,
-                        // Serialize to JSON strings before sending
-                        messageBubbles: JSON.stringify(taskData.message_bubbles),
-                        taskMetadata: taskData.task_metadata ? JSON.stringify(taskData.task_metadata) : null,
-                    }),
+                await api.webui.post(`/api/v1/sessions/${effectiveSessionId}/chat-tasks`, {
+                    taskId: taskData.task_id,
+                    userMessage: taskData.user_message,
+                    messageBubbles: JSON.stringify(taskData.message_bubbles),
+                    taskMetadata: taskData.task_metadata ? JSON.stringify(taskData.task_metadata) : null,
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: "Failed saving task" }));
-                    throw new Error(errorData.message || `HTTP error ${response.status}`);
-                }
                 return true;
             } catch (error) {
                 console.error(`Failed saving task ${taskData.task_id}:`, error);
-                // Don't throw - saving is best-effort and silent per NFR-1
                 return false;
             } finally {
                 // Always remove from saving set after a delay to handle rapid re-renders
@@ -315,7 +302,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
-        [webuiBaseUrl, sessionId, persistenceEnabled]
+        [sessionId, persistenceEnabled]
     );
 
     // Helper function to extract artifact markers and create artifact parts
@@ -528,30 +515,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
 
             try {
-                const response = await authenticatedFetch(`${webuiBaseUrl}/api/v1/artifacts/upload`, {
-                    method: "POST",
-                    body: formData,
-                });
+                const response = await api.webui.post("/api/v1/artifacts/upload", undefined, { body: formData, raw: true });
 
-                // Special handling for 413 status before checking response.ok
                 if (response.status === 413) {
                     const errorData = await response.json().catch(() => ({ message: `Failed to upload ${file.name}.` }));
-                    // Extract file size information if available and use common utility
                     const actualSize = errorData.actual_size_bytes;
                     const maxSize = errorData.max_size_bytes;
-
                     const errorMessage = actualSize && maxSize ? createFileSizeErrorMessage(file.name, actualSize, maxSize) : errorData.message || `File "${file.name}" exceeds the maximum allowed size.`;
-
                     setError({ title: "File Upload Failed", error: errorMessage });
                     return { error: errorMessage };
                 }
 
-                // For all other errors, use be error
                 if (!response.ok) {
                     throw new Error(
                         await response
                             .json()
-                            .then(d => d.message)
+                            .then((d: { message?: string }) => d.message)
                             .catch(() => `Failed to upload ${file.name}.`)
                     );
                 }
@@ -561,7 +540,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     addNotification(`File "${file.name}" uploaded.`, "success");
                 }
                 await artifactsRefetch();
-                // Return both URI and sessionId (backend may have created a new session)
                 return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
             } catch (error) {
                 const errorMessage = getErrorMessage(error, `Failed to upload "${file.name}".`);
@@ -569,7 +547,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return { error: errorMessage };
             }
         },
-        [webuiBaseUrl, sessionId, addNotification, artifactsRefetch, setError]
+        [sessionId, addNotification, artifactsRefetch, setError]
     );
 
     // Session State
@@ -1455,25 +1433,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             closeCurrentEventSource();
 
-            // Only cancel task if it's not a background task
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
-                try {
-                    const cancelRequest = {
+                api.webui
+                    .post(`/api/v1/tasks/${currentTaskId}:cancel`, {
                         jsonrpc: "2.0",
                         id: `req-${v4()}`,
                         method: "tasks/cancel",
-                        params: {
-                            id: currentTaskId,
-                        },
-                    };
-                    authenticatedFetch(`${webuiBaseUrl}/api/v1/tasks/${currentTaskId}:cancel`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(cancelRequest),
-                    });
-                } catch (error) {
-                    console.warn(`${log_prefix} Failed to cancel current task:`, error);
-                }
+                        params: { id: currentTaskId },
+                    })
+                    .catch(error => console.warn(`${log_prefix} Failed to cancel current task:`, error));
             }
 
             if (cancelTimeoutRef.current) {
@@ -1514,7 +1482,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [webuiBaseUrl, isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
+        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
     );
 
     // Start a new chat session with a prompt template pre-filled
@@ -1554,22 +1522,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             closeCurrentEventSource();
 
-            // Only cancel task if it's not a background task
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
                 console.log(`${log_prefix} Cancelling current task ${currentTaskId}`);
                 try {
-                    const cancelRequest = {
+                    await api.webui.post(`/api/v1/tasks/${currentTaskId}:cancel`, {
                         jsonrpc: "2.0",
                         id: `req-${v4()}`,
                         method: "tasks/cancel",
-                        params: {
-                            id: currentTaskId,
-                        },
-                    };
-                    await authenticatedFetch(`${webuiBaseUrl}/api/v1/tasks/${currentTaskId}:cancel`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(cancelRequest),
+                        params: { id: currentTaskId },
                     });
                 } catch (error) {
                     console.warn(`${log_prefix} Failed to cancel current task:`, error);
@@ -1660,33 +1620,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setIsLoadingSession(false);
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, webuiBaseUrl, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError, backgroundTasks, checkTaskStatus, sessionId, unregisterBackgroundTask]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError, backgroundTasks, checkTaskStatus, sessionId, unregisterBackgroundTask]
     );
 
     const updateSessionName = useCallback(
         async (sessionId: string, newName: string) => {
             try {
-                const response = await authenticatedFetch(`${webuiBaseUrl}/api/v1/sessions/${sessionId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name: newName }),
-                });
-
-                // Special handling for 422 validation errors
-                if (response.status === 422) {
-                    throw new Error("Invalid name");
-                }
-
-                // For all other errors
-                if (!response.ok) {
-                    throw new Error(
-                        await response
-                            .json()
-                            .then(d => d.message)
-                            .catch(() => "Failed to update session name")
-                    );
-                }
-
+                await api.webui.patch(`/api/v1/sessions/${sessionId}`, { name: newName });
                 setSessionName(newName);
                 if (typeof window !== "undefined") {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
@@ -1695,7 +1635,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setError({ title: "Session Name Update Failed", error: getErrorMessage(error, "Failed to update session name.") });
             }
         },
-        [webuiBaseUrl, setError]
+        [setError]
     );
 
     const deleteSession = useCallback(
@@ -1780,16 +1720,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 jsonrpc: "2.0",
                 id: `req-${v4()}`,
                 method: "tasks/cancel",
-                params: {
-                    id: currentTaskId,
-                },
+                params: { id: currentTaskId },
             };
 
-            const response = await authenticatedFetch(`${webuiBaseUrl}/api/v1/tasks/${currentTaskId}:cancel`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(cancelRequest),
-            });
+            const response = await api.webui.post(`/api/v1/tasks/${currentTaskId}:cancel`, cancelRequest, { raw: true });
 
             if (response.status === 202) {
                 if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
@@ -1800,7 +1734,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     closeCurrentEventSource();
                     setCurrentTaskId(null);
                     cancelTimeoutRef.current = null;
-
                     setMessages(prev => prev.filter(msg => !msg.isStatusBubble));
                 }, 15000);
             } else {
@@ -1811,7 +1744,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setError({ title: "Task Cancellation Failed", error: getErrorMessage(error, "An unknown error occurred.") });
             setIsCancelling(false);
         }
-    }, [isResponding, isCancelling, currentTaskId, webuiBaseUrl, addNotification, setError, closeCurrentEventSource]);
+    }, [isResponding, isCancelling, currentTaskId, addNotification, setError, closeCurrentEventSource]);
 
     const handleFeedbackSubmit = useCallback(
         async (taskId: string, feedbackType: "up" | "down", feedbackText: string) => {

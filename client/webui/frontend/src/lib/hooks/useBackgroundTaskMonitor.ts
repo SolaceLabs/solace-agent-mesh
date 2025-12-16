@@ -4,20 +4,19 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 import type { BackgroundTaskState, BackgroundTaskStatusResponse, ActiveBackgroundTasksResponse, BackgroundTaskNotification } from "@/lib/types/background-tasks";
 
 const STORAGE_KEY = "sam_background_tasks";
 
 interface UseBackgroundTaskMonitorProps {
-    apiPrefix: string;
     userId: string | null;
     currentSessionId: string;
     onTaskCompleted?: (taskId: string) => void;
     onTaskFailed?: (taskId: string, error: string) => void;
 }
 
-export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, onTaskFailed }: UseBackgroundTaskMonitorProps) {
+export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed }: UseBackgroundTaskMonitorProps) {
     const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTaskState[]>([]);
     const [notifications, setNotifications] = useState<BackgroundTaskNotification[]>([]);
 
@@ -77,25 +76,20 @@ export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, o
         setBackgroundTasks(prev => prev.map(task => (task.taskId === taskId ? { ...task, lastEventTimestamp: timestamp } : task)));
     }, []);
 
-    // Check status of a specific task
     const checkTaskStatus = useCallback(
         async (taskId: string): Promise<BackgroundTaskStatusResponse | null> => {
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/tasks/${taskId}/status`);
-                if (!response.ok) {
-                    if (response.status === 404) {
-                        unregisterBackgroundTask(taskId);
-                        return null;
-                    }
-                    throw new Error(`HTTP ${response.status}`);
+                return await api.webui.get(`/api/v1/tasks/${taskId}/status`);
+            } catch (error: unknown) {
+                if (error instanceof Error && error.message.includes("404")) {
+                    unregisterBackgroundTask(taskId);
+                    return null;
                 }
-                return await response.json();
-            } catch (error) {
                 console.error(`[BackgroundTaskMonitor] Failed to check status for task ${taskId}:`, error);
                 return null;
             }
         },
-        [apiPrefix, unregisterBackgroundTask]
+        [unregisterBackgroundTask]
     );
 
     // Check all background tasks and update their status
@@ -149,25 +143,17 @@ export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, o
         }
     }, [backgroundTasks, checkTaskStatus, onTaskCompleted, onTaskFailed, unregisterBackgroundTask]);
 
-    // Get active background tasks from server for current user
     const fetchActiveBackgroundTasks = useCallback(async (): Promise<BackgroundTaskState[]> => {
         if (!userId) {
             return [];
         }
 
         try {
-            const response = await authenticatedFetch(`${apiPrefix}/tasks/background/active?user_id=${encodeURIComponent(userId)}`);
+            const data: ActiveBackgroundTasksResponse = await api.webui.get(`/api/v1/tasks/background/active?user_id=${encodeURIComponent(userId)}`);
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const data: ActiveBackgroundTasksResponse = await response.json();
-
-            // Convert server tasks to BackgroundTaskState
             return data.tasks.map(task => ({
                 taskId: task.id,
-                sessionId: "", // We don't have session ID from this endpoint
+                sessionId: "",
                 lastEventTimestamp: task.last_activity_time || task.start_time,
                 isBackground: true,
                 startTime: task.start_time,
@@ -176,7 +162,7 @@ export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, o
             console.error("[BackgroundTaskMonitor] Failed to fetch active background tasks:", error);
             return [];
         }
-    }, [apiPrefix, userId]);
+    }, [userId]);
 
     // Check for running background tasks on mount and when userId changes
     useEffect(() => {
