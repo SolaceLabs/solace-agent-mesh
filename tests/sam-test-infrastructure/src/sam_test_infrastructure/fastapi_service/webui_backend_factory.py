@@ -92,8 +92,8 @@ class WebUIBackendFactory:
         # Store the user info on the component for dependency overrides
         mock_component._factory_user = user
 
-        # Set frontend_server_url attribute required by config router
-        mock_component.frontend_server_url = "http://localhost:8000"
+        # Set frontend_server_url attribute - empty by default for relative URLs
+        mock_component.frontend_server_url = ""
 
         # Mock get_config to return proper defaults instead of Mock objects
         # Keep it as a Mock with side_effect so conftest.py can still access/modify side_effect

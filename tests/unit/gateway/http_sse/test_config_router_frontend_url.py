@@ -3,7 +3,8 @@
 Unit tests for frontend_server_url in the /api/v1/config endpoint.
 
 Tests that the config router correctly returns the frontend_server_url
-from the component (whether auto-constructed or explicitly configured).
+from the component. By default, frontend_server_url is empty, allowing
+the frontend to use relative URLs for same-origin requests.
 """
 
 import pytest
@@ -16,7 +17,7 @@ from solace_agent_mesh.gateway.http_sse.routers.config import get_app_config
 def mock_component():
     """Mock WebUIBackendComponent with frontend_server_url."""
     component = MagicMock()
-    component.frontend_server_url = "http://localhost:8000"
+    component.frontend_server_url = ""  # Default is empty for relative URLs
     component.get_config.side_effect = lambda key, default=None: {
         "platform_service": {"url": "http://localhost:8001"},
         "frontend_feature_enablement": {},
@@ -47,8 +48,16 @@ class TestConfigRouterFrontendServerUrl:
     """Tests for frontend_server_url in /api/v1/config response."""
 
     @pytest.mark.asyncio
-    async def test_returns_auto_constructed_url(self, mock_component, mock_api_config):
-        """Test that auto-constructed URL is returned in config."""
+    async def test_returns_empty_string_by_default(self, mock_component, mock_api_config):
+        """Test that empty string is returned by default for relative URLs."""
+        # Default mock already has empty frontend_server_url
+        response = await get_app_config(mock_component, mock_api_config)
+
+        assert response["frontend_server_url"] == ""
+
+    @pytest.mark.asyncio
+    async def test_returns_configured_url(self, mock_component, mock_api_config):
+        """Test that configured URL is returned in config."""
         mock_component.frontend_server_url = "http://localhost:8000"
 
         response = await get_app_config(mock_component, mock_api_config)
