@@ -64,6 +64,9 @@ export const downloadFile = async (file: FileAttachment, sessionId?: string, pro
             }
 
             const response = await api.webui.get(endpoint, { fullResponse: true });
+            if (!response.ok) {
+                throw new Error(`Failed to download file: ${response.statusText}`);
+            }
             blob = await response.blob();
         } else {
             throw new Error("File has no content or URI to download.");

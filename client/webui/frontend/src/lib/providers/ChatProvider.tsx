@@ -657,6 +657,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 const versionsResponse = await api.webui.get(versionsUrl, { fullResponse: true });
+                if (!versionsResponse.ok) {
+                    throw new Error(`Failed to fetch artifact versions: ${versionsResponse.statusText}`);
+                }
                 const availableVersions: number[] = await versionsResponse.json();
                 if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
                 setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
@@ -672,6 +675,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 const contentResponse = await api.webui.get(contentUrl, { fullResponse: true });
+                if (!contentResponse.ok) {
+                    throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
+                }
 
                 // Get MIME type from response headers - this is the correct MIME type for this specific version
                 const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
@@ -733,6 +739,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 const contentResponse = await api.webui.get(contentUrl, { fullResponse: true });
+                if (!contentResponse.ok) {
+                    throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
+                }
 
                 // Get MIME type from response headers - this is the correct MIME type for this specific version
                 const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
@@ -820,6 +829,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 const latestVersion = Math.max(...availableVersions);
                 const contentResponse = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`, { fullResponse: true });
+                if (!contentResponse.ok) {
+                    throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
+                }
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();

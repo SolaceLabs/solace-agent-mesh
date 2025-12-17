@@ -18,6 +18,9 @@ const downloadArtifactFile = async (sessionId: string | null, activeProjectId: s
     }
 
     const response = await api.webui.get(endpoint, { fullResponse: true });
+    if (!response.ok) {
+        throw new Error(`Failed to download artifact: ${response.statusText}`);
+    }
     const blob = await response.blob();
     downloadBlob(blob, artifact.filename);
 };

@@ -72,6 +72,9 @@ export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) =
     const handleDownloadStim = async () => {
         try {
             const response = await api.webui.get(`/api/v1/tasks/${task.taskId}`, { fullResponse: true });
+            if (!response.ok) {
+                throw new Error(`Failed to download task log: ${response.statusText}`);
+            }
             const blob = await response.blob();
             downloadBlob(blob, `${task.taskId}.stim`);
             addNotification("Task log downloaded", "success");

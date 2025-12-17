@@ -118,6 +118,10 @@ export const SpeechSettingsPanel: React.FC = () => {
             // Fetch voice sample
             const response = await api.webui.post("/api/v1/speech/voice-sample", formData, { fullResponse: true });
 
+            if (!response.ok) {
+                throw new Error(`Failed to load voice sample: ${response.statusText}`);
+            }
+
             // Create blob from response
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);

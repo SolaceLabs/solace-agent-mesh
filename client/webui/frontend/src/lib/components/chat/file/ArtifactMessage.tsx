@@ -270,6 +270,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 }
 
                 const response = await api.webui.get(apiUrl, { fullResponse: true });
+                if (!response.ok) throw new Error(`Failed to fetch artifact content: ${response.statusText}`);
 
                 const blob = await response.blob();
                 const base64data = await new Promise<string>((resolve, reject) => {

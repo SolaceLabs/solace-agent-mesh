@@ -298,6 +298,10 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                     provider: settings.ttsProvider,
                 }, { fullResponse: true });
 
+                if (!response.ok) {
+                    throw new Error(`TTS request failed: ${response.statusText}`);
+                }
+
                 const reader = response.body?.getReader();
                 if (!reader) {
                     throw new Error("No response body reader available");

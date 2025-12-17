@@ -104,6 +104,9 @@ export const ProjectsPage: React.FC = () => {
     const handleExport = async (project: Project) => {
         try {
             const response = await api.webui.get(`/api/v1/projects/${project.id}/export`, { fullResponse: true });
+            if (!response.ok) {
+                throw new Error(`Failed to export project: ${response.statusText}`);
+            }
             const blob = await response.blob();
             const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
             downloadBlob(blob, filename);
