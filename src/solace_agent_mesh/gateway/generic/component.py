@@ -142,10 +142,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         # `gateway_id`, `namespace`, `config` are available from base classes.
 
         # --- Setup Authentication ---
-        # Base class already called _setup_auth() during super().__init__(),
-        # but adapter_config wasn't available yet. Call again now that it's set.
-        if hasattr(self, 'adapter_config'):
-            self._setup_auth()
+        self._setup_auth()
 
         # --- Register Agent Registry Callbacks ---
         # Wire up callbacks so the adapter is notified of agent changes
@@ -228,13 +225,12 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
 
     def _on_agent_added(self, agent_card: Any) -> None:
         """Called when a new agent is added to the registry."""
-        log.info(
-            "%s New agent registered: %s, notifying adapter...",
-            self.log_identifier,
-            agent_card.name,
-        )
-
         if self.adapter:
+            log.info(
+                "%s Registering new agent: %s",
+                self.log_identifier,
+                agent_card.name,
+            )
             # Schedule the async call in the component's event loop
             asyncio.run_coroutine_threadsafe(
                 self.adapter.handle_agent_registered(agent_card), self.get_async_loop()
@@ -243,7 +239,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
     def _on_agent_removed(self, agent_name: str) -> None:
         """Called when an agent is removed from the registry."""
         log.info(
-            "%s Agent deregistered: %s, notifying adapter...",
+            "%s Deregistering agent: %s",
             self.log_identifier,
             agent_name,
         )
