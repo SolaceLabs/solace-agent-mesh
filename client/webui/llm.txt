@@ -1,0 +1,444 @@
+# DEVELOPER GUIDE for webui
+
+## Quick Summary
+The webui directory provides a complete web-based user interface for an A2A (Agent-to-Agent) Chat system. It contains a modern React + TypeScript + Vite frontend application with comprehensive chat capabilities, real-time task monitoring, file handling, authentication, and visualization components. The architecture uses React Context for global state management, Material-UI for components, and includes both development source code and production-ready static assets for deployment.
+
+## Files and Subdirectories Overview
+
+### Direct Files:
+*No direct files in this directory*
+
+### Subdirectories:
+- **frontend/** - Complete React + TypeScript + Vite application for A2A Chat interface with real-time features
+
+## Developer API Reference
+
+### Subdirectory APIs
+
+#### frontend/
+**Purpose:** Modern React + TypeScript + Vite application for A2A Chat interface with AI agents, real-time task monitoring, file handling, authentication, and visualization
+**Key Exports:** App, AuthProvider, ChatProvider, TaskMonitorProvider, ChatBox, AgentSelector, ArtifactPanel, React runtime components
+**Import Examples:**
+```typescript
+// Development imports
+import App from './webui/frontend/src/App'
+import { AuthProvider, useAuth } from './webui/frontend/src/contexts/AuthProvider'
+import { ChatProvider } from './webui/frontend/src/contexts/ChatProvider'
+import ChatBox from './webui/frontend/src/components/ChatBox/ChatBox'
+import AgentSelector from './webui/frontend/src/components/AgentSelector'
+
+// Production imports
+import { r as React, j as jsx, e as ReactDOM } from "./webui/frontend/static/assets/client-y9YGnS5j.js"
+```
+
+## Complete Usage Guide
+
+### 1. Development Environment Setup
+
+```bash
+# Navigate to frontend directory
+cd webui/frontend
+
+# Install dependencies
+npm ci
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Run linting
+npm run lint
+```
+
+### 2. Complete A2A Chat Application Integration
+
+```typescript
+// Main application entry point
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './webui/frontend/src/App';
+import './webui/frontend/src/index.css';
+
+// Initialize the complete A2A chat application
+createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+// Full application with all providers and features
+import React from 'react';
+import { AuthProvider, useAuth } from './webui/frontend/src/contexts/AuthProvider';
+import { ChatProvider } from './webui/frontend/src/contexts/ChatProvider';
+import { TaskMonitorProvider } from './webui/frontend/src/contexts/TaskMonitorContext';
+import ConfigProvider from './webui/frontend/src/components/ConfigProvider';
+import ChatBox from './webui/frontend/src/components/ChatBox/ChatBox';
+import AgentSelector from './webui/frontend/src/components/AgentSelector';
+import ArtifactPanel from './webui/frontend/src/components/ArtifactPanel';
+
+function A2AChatApplication() {
+  return (
+    <ConfigProvider>
+      <AuthProvider useAuthorization={true}>
+        <ChatProvider>
+          <TaskMonitorProvider>
+            <MainChatInterface />
+          </TaskMonitorProvider>
+        </ChatProvider>
+      </AuthProvider>
+    </ConfigProvider>
+  );
+}
+
+function MainChatInterface() {
+  const { isAuthenticated, login, useAuthorization } = useAuth();
+  
+  if (useAuthorization && !isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-900">
+        <button
+          onClick={login}
+          className="px-6 py-3 text-lg font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700"
+        >
+          Login to A2A Chat
+        </button>
+      </div>
+    );
+  }
+
+  return <ChatInterface />;
+}
+```
+
+### 3. Real-time Chat Interface with Agent Communication
+
+```typescript
+import React, { useContext, useEffect, useState } from 'react';
+import ChatContext from './webui/frontend/src/contexts/ChatContext';
+import { useTaskMonitor } from './webui/frontend/src/contexts/TaskMonitorContext';
+import ChatBox from './webui/frontend/src/components/ChatBox/ChatBox';
+import AgentSelector from './webui/frontend/src/components/AgentSelector';
+import ArtifactPanel from './webui/frontend/src/components/ArtifactPanel';
+
+function ChatInterface() {
+  const {
+    messages,
+    userInput,
+    setUserInput,
+    handleSubmit,
+    handleNewSession,
+    isResponding,
+    selectedAgentName,
+    setSelectedAgentName,
+    artifacts,
+    isArtifactPanelOpen,
+    toggleArtifactPanel,
+    fetchArtifacts
+  } = useContext(ChatContext)!;
+
+  const {
+    connectTaskMonitorStream,
+    disconnectTaskMonitorStream,
+    isTaskMonitorConnected,
+    monitoredTasks
+  } = useTaskMonitor();
+
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+
+  useEffect(() => {
+    // Initialize real-time connections
+    connectTaskMonitorStream();
+    fetchArtifacts();
+    
+    return () => {
+      disconnectTaskMonitorStream();
+    };
+  }, []);
+
+  const handleAgentCommunication = async (message: string, files: File[]) => {
+    try {
+      await handleSubmit(new Event('submit') as any);
+    } catch (error) {
+      console.error('Agent communication error:', error);
+    }
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-gray-900 text-white">
+      {/* Header with agent selection and controls */}
+      <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
+        <div className="flex items-center space-x-4">
+          <AgentSelector
+            selectedAgentName={selectedAgentName}
+            onSelectAgent={setSelectedAgentName}
+            disabled={isResponding}
+          />
+          <button
+            onClick={handleNewSession}
+            disabled={isResponding}
+            className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            New A2A Session
+          </button>
+        </div>
+        
+        <div className="flex items-center space-x-4">
+          <span className="text-sm">
+            Active Tasks: {Object.keys(monitoredTasks).length}
+          </span>
+          <div className={`w-3 h-3 rounded-full ${
+            isTaskMonitorConnected ? 'bg-green-500' : 'bg-red-500'
+          }`} title={isTaskMonitorConnected ? 'Connected' : 'Disconnected'} />
+          <button
+            onClick={toggleArtifactPanel}
+            className="px-4 py-2 bg-purple-600 rounded hover:bg-purple-700"
+          >
+            Artifacts ({artifacts.length})
+          </button>
+        </div>
+      </div>
+
+      {/* Main chat interface */}
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1">
+          <ChatBox
+            messages={messages}
+            userInput={userInput}
+            setUserInput={setUserInput}
+            handleSubmit={handleAgentCommunication}
+            isResponding={isResponding}
+            selectedFiles={selectedFiles}
+            setSelectedFiles={setSelectedFiles}
+            selectedAgentName={selectedAgentName}
+            handlePreviewFile={(file) => console.log('Preview:', file)}
+            handleRunFile={(file) => console.log('Execute:', file)}
+          />
+        </div>
+
+        {/* Artifact management panel */}
+        <ArtifactPanel
+          isOpen={isArtifactPanelOpen}
+          artifacts={artifacts}
+          isLoading={false}
+          onClose={() => toggleArtifactPanel()}
+          onPreviewFile={(file) => console.log('Preview artifact:', file)}
+          onDownloadFile={(filename) => console.log('Download:', filename)}
+          onCopyFile={(artifact) => navigator.clipboard.writeText(artifact.content)}
+          onUploadFile={(file) => console.log('Upload artifact:', file)}
+          onDeleteArtifact={(artifact) => console.log('Delete:', artifact)}
+          onDeleteSelected={() => console.log('Delete selected artifacts')}
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+### 4. Task Monitoring and Visualization Dashboard
+
+```typescript
+import React, { useState } from 'react';
+import { TaskMonitorProvider, useTaskMonitor } from './webui/frontend/src/contexts/TaskMonitorContext';
+import TaskMonitorPage from './webui/frontend/src/components/TaskMonitorPage';
+import FlowChartPanel from './webui/frontend/src/components/TaskMonitor/FlowChart/FlowChartPanel';
+
+function TaskMonitorDashboard() {
+  return (
+    <TaskMonitorProvider>
+      <TaskMonitorInterface />
+    </TaskMonitorProvider>
+  );
+}
+
+function TaskMonitorInterface() {
+  const {
+    isTaskMonitorConnected,
+    monitoredTasks,
+    monitoredTaskOrder,
+    highlightedStepId,
+    setHighlightedStepId,
+    connectTaskMonitorStream,
+    disconnectTaskMonitorStream
+  } = useTaskMonitor();
+
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    connectTaskMonitorStream();
+    return () => disconnectTaskMonitorStream();
+  }, []);
+
+  return (
+    <div className="h-screen flex bg-gray-900 text-white">
+      {/* Task list sidebar */}
+      <div className="w-1/3 border-r border-gray-700 overflow-y-auto">
+        <div className="p-4 border-b border-gray-700">
+          <h2 className="text-lg font-semibold">
+            A2A Tasks ({monitoredTaskOrder.length})
+          </h2>
+          <div className={`inline-block w-3 h-3 rounded-full ml-2 ${
+            isTaskMonitorConnected ? 'bg-green-500' : 'bg-red-500'
+          }`} />
+        </div>
+        
+        {monitoredTaskOrder.map(taskId => {
+          const task = monitoredTasks[taskId];
+          return (
+            <div
+              key={taskId}
+              className={`p-3 border-b border-gray-700 cursor-pointer hover:bg-gray-800 ${
+                selectedTaskId === taskId ? 'bg-blue-900' : ''
+              }`}
+              onClick={() => setSelectedTaskId(taskId)}
+            >
+              <div className="font-medium truncate">
+                {task.initialRequestText}
+              </div>
+              <div className="text-sm text-gray-400">
+                Events: {task.events.length} | Status: {task.status}
+              </div>
+              <div className="text-xs text-gray-500">
+                Agent: {task.agentName || 'Unknown'}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Task visualization */}
+      <div className="flex-1">
+        {selectedTaskId ? (
+          <div className="h-full flex flex-col">
+            <div className="p-4 border-b border-gray-700">
+              <h3 className="text-lg font-semibold">
+                Task Flow: {monitoredTasks[selectedTaskId]?.initialRequestText}
+              </h3>
+            </div>
+            <div className="flex-1">
+              <FlowChartPanel
+                taskId={selectedTaskId}
+                highlightedStepId={highlightedStepId}
+                onStepClick={setHighlightedStepId}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            <div className="text-center">
+              <h3 className="text-xl mb-2">A2A Task Monitor</h3>
+              <p>Select a task to view its execution flow</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+### 5. Production Deployment Setup
+
+```typescript
+// Production build using static assets
+import { r as React, j as jsx, e as ReactDOM } from "./webui/frontend/static/assets/client-y9YGnS5j.js";
+
+// Production-ready error boundary for A2A chat
+class A2AErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, errorInfo: null };
+  }
+  
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+  
+  componentDidCatch(error, errorInfo) {
+    console.error('A2A Chat Application Error:', error, errorInfo);
+    this.setState({ errorInfo });
+  }
+  
+  render() {
+    if (this.state.hasError) {
+      return jsx('div', {
+        className: 'error-boundary p-8 text-center bg-gray-900 text-white min-h-screen',
+        children: [
+          jsx('h2', { 
+            className: 'text-2xl mb-4',
+            children: 'A2A Chat System Error' 
+          }),
+          jsx('p', {
+            className: 'mb-4 text-gray-300',
+            children: 'The chat application encountered an unexpected error.'
+          }),
+          jsx('button', {
+            onClick: () => window.location.reload(),
+            className: 'px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700',
+            children: 'Restart Application'
+          })
+        ]
+      });
+    }
+    
+    return this.props.children;
+  }
+}
+
+// Initialize production A2A chat app
+const container = document.getElementById('root');
+const root = ReactDOM.createRoot(container);
+root.render(
+  jsx(A2AErrorBoundary, {
+    children: jsx(A2AChatApplication, {})
+  })
+);
+```
+
+### 6. Authentication and OAuth Integration
+
+```html
+<!-- OAuth callback page for A2A chat authentication -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>A2A Chat - Authentication</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #111827;
+            color: white;
+            margin: 0;
+        }
+        .auth-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+        .spinner {
+            border: 3px solid #374151;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+
+# content_hash: 0856c53d55b1f22e1af65b7d9a1e54b37f83fbcab63582ea849d4c2a177e14f0
