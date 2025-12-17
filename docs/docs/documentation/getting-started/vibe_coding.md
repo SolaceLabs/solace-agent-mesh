@@ -35,7 +35,7 @@ Before you begin, ensure you have:
 Test your setup by asking your coding assistant:
 
 ```
-Using /solace-agent-mesh/ library, tell me a description of the Solace Agent Mesh project.
+Using solacelabs/solace-agent-mesh library, tell me a description of the Solace Agent Mesh project.
 ```
 
 If the integration is not properly configured, you may see a prompt requesting your API key.
@@ -52,17 +52,17 @@ Currently, you need to specify the library at least once in your chat session to
 
 **Getting Information About SAM:**
 ```
-Using /alimosaed/fork-solace-agent-mesh library, give me the broker configurations with possible data fields.
+Using solacelabs/solace-agent-mesh library, give me the broker configurations with possible data fields.
 ```
 
 **Creating a New SAM Project:**
 ```
-Using /alimosaed/fork-solace-agent-mesh library, initialize a SAM project called example_app.
+Using /solace/solace-agent-mesh library, initialize a SAM project called example_app.
 ```
 
 **Creating a New Plugin:**
 ```
-Using /alimosaed/fork-solace-agent-mesh library, create a calculator plugin that sums two numbers.
+Using solacelabs/solace-agent-mesh library, create a calculator plugin that sums two numbers.
 ```
 
 ## Troubleshooting
