@@ -1,9 +1,10 @@
 """Tests for MCP tool filtering in McpToolConfig and setup.py."""
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from pydantic import ValidationError
 
 from solace_agent_mesh.agent.tools.tool_config_types import McpToolConfig
+from solace_agent_mesh.agent.adk.setup import _load_mcp_tool
 
 
 class TestMcpToolConfigFiltering:
@@ -234,3 +235,207 @@ class TestMcpToolFilterLogic:
         mock_context = Mock()
         assert tool_filter(read_tool, mock_context) is True
         assert tool_filter(delete_tool, mock_context) is False
+
+
+@pytest.fixture
+def mock_component():
+    """Mock SamAgentComponent for testing."""
+    component = Mock()
+    component.log_identifier = "[TestAgent]"
+    return component
+
+
+class TestLoadMcpToolFiltering:
+    """Test that _load_mcp_tool correctly handles filtering options."""
+
+    @pytest.mark.asyncio
+    @patch('solace_agent_mesh.agent.adk.setup.EmbedResolvingMCPToolset')
+    async def test_load_mcp_tool_no_filter(self, mock_toolset_class, mock_component):
+        """Test that _load_mcp_tool works with no filter specified."""
+        mock_toolset_instance = Mock()
+        mock_toolset_class.return_value = mock_toolset_instance
+
+        tool_config = {
+            "tool_type": "mcp",
+            "connection_params": {
+                "type": "sse",
+                "url": "http://localhost:8080"
+            }
+        }
+
+        result = await _load_mcp_tool(mock_component, tool_config)
+
+        # Verify result structure
+        assert len(result) == 3  # tools, builtins, cleanups
+        assert len(result[0]) == 1
+        assert result[0][0] is mock_toolset_instance
+        assert result[0][0].origin == "mcp"
+
+        # Verify toolset was created with tool_filter=None
+        mock_toolset_class.assert_called_once()
+        call_kwargs = mock_toolset_class.call_args[1]
+        assert call_kwargs["tool_filter"] is None
+
+    @pytest.mark.asyncio
+    @patch('solace_agent_mesh.agent.adk.setup.EmbedResolvingMCPToolset')
+    async def test_load_mcp_tool_with_tool_name(self, mock_toolset_class, mock_component):
+        """Test that _load_mcp_tool creates list filter for tool_name."""
+        mock_toolset_instance = Mock()
+        mock_toolset_class.return_value = mock_toolset_instance
+
+        tool_config = {
+            "tool_type": "mcp",
+            "tool_name": "read_file",
+            "connection_params": {
+                "type": "sse",
+                "url": "http://localhost:8080"
+            }
+        }
+
+        result = await _load_mcp_tool(mock_component, tool_config)
+
+        # Verify toolset was created with tool_filter as single-item list
+        mock_toolset_class.assert_called_once()
+        call_kwargs = mock_toolset_class.call_args[1]
+        assert call_kwargs["tool_filter"] == ["read_file"]
+
+    @pytest.mark.asyncio
+    @patch('solace_agent_mesh.agent.adk.setup.EmbedResolvingMCPToolset')
+    async def test_load_mcp_tool_with_allow_list(self, mock_toolset_class, mock_component):
+        """Test that _load_mcp_tool passes allow_list directly as tool_filter."""
+        mock_toolset_instance = Mock()
+        mock_toolset_class.return_value = mock_toolset_instance
+
+        tool_config = {
+            "tool_type": "mcp",
+            "allow_list": ["read_file", "write_file", "list_directory"],
+            "connection_params": {
+                "type": "sse",
+                "url": "http://localhost:8080"
+            }
+        }
+
+        result = await _load_mcp_tool(mock_component, tool_config)
+
+        # Verify toolset was created with tool_filter as the allow_list
+        mock_toolset_class.assert_called_once()
+        call_kwargs = mock_toolset_class.call_args[1]
+        assert call_kwargs["tool_filter"] == ["read_file", "write_file", "list_directory"]
+
+    @pytest.mark.asyncio
+    @patch('solace_agent_mesh.agent.adk.setup.EmbedResolvingMCPToolset')
+    async def test_load_mcp_tool_with_deny_list(self, mock_toolset_class, mock_component):
+        """Test that _load_mcp_tool creates predicate for deny_list."""
+        mock_toolset_instance = Mock()
+        mock_toolset_class.return_value = mock_toolset_instance
+
+        tool_config = {
+            "tool_type": "mcp",
+            "deny_list": ["delete_file", "move_file"],
+            "connection_params": {
+                "type": "sse",
+                "url": "http://localhost:8080"
+            }
+        }
+
+        result = await _load_mcp_tool(mock_component, tool_config)
+
+        # Verify toolset was created with a callable tool_filter (predicate)
+        mock_toolset_class.assert_called_once()
+        call_kwargs = mock_toolset_class.call_args[1]
+        tool_filter = call_kwargs["tool_filter"]
+
+        assert callable(tool_filter)
+
+        # Test the predicate behavior
+        allowed_tool = Mock()
+        allowed_tool.name = "read_file"
+        denied_tool = Mock()
+        denied_tool.name = "delete_file"
+
+        assert tool_filter(allowed_tool) is True
+        assert tool_filter(denied_tool) is False
+
+    @pytest.mark.asyncio
+    @patch('solace_agent_mesh.agent.adk.setup.EmbedResolvingMCPToolset')
+    async def test_load_mcp_tool_deny_list_predicate_with_context(self, mock_toolset_class, mock_component):
+        """Test that deny_list predicate works when ADK passes context parameter."""
+        mock_toolset_instance = Mock()
+        mock_toolset_class.return_value = mock_toolset_instance
+
+        tool_config = {
+            "tool_type": "mcp",
+            "deny_list": ["dangerous_tool"],
+            "connection_params": {
+                "type": "sse",
+                "url": "http://localhost:8080"
+            }
+        }
+
+        await _load_mcp_tool(mock_component, tool_config)
+
+        call_kwargs = mock_toolset_class.call_args[1]
+        tool_filter = call_kwargs["tool_filter"]
+
+        # ADK may pass a readonly_context as second parameter
+        safe_tool = Mock()
+        safe_tool.name = "safe_tool"
+        dangerous_tool = Mock()
+        dangerous_tool.name = "dangerous_tool"
+        mock_context = Mock()
+
+        assert tool_filter(safe_tool, mock_context) is True
+        assert tool_filter(dangerous_tool, mock_context) is False
+
+    @pytest.mark.asyncio
+    async def test_load_mcp_tool_mutual_exclusivity_validation(self, mock_component):
+        """Test that pydantic validation catches mutually exclusive filters."""
+        tool_config = {
+            "tool_type": "mcp",
+            "tool_name": "read_file",
+            "allow_list": ["write_file"],
+            "connection_params": {
+                "type": "sse",
+                "url": "http://localhost:8080"
+            }
+        }
+
+        with pytest.raises(ValueError) as exc_info:
+            await _load_mcp_tool(mock_component, tool_config)
+
+        assert "mutually exclusive" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_load_mcp_tool_missing_connection_params(self, mock_component):
+        """Test that missing connection_params raises appropriate error."""
+        tool_config = {
+            "tool_type": "mcp",
+            "allow_list": ["read_file"]
+            # Missing connection_params
+        }
+
+        with pytest.raises(Exception):  # Pydantic validation error
+            await _load_mcp_tool(mock_component, tool_config)
+
+    @pytest.mark.asyncio
+    @patch('solace_agent_mesh.agent.adk.setup.EmbedResolvingMCPToolset')
+    async def test_load_mcp_tool_empty_allow_list(self, mock_toolset_class, mock_component):
+        """Test that empty allow_list is passed correctly."""
+        mock_toolset_instance = Mock()
+        mock_toolset_class.return_value = mock_toolset_instance
+
+        tool_config = {
+            "tool_type": "mcp",
+            "allow_list": [],
+            "connection_params": {
+                "type": "sse",
+                "url": "http://localhost:8080"
+            }
+        }
+
+        await _load_mcp_tool(mock_component, tool_config)
+
+        call_kwargs = mock_toolset_class.call_args[1]
+        # Empty list is falsy, so tool_filter should be None
+        # This matches the behavior: `elif tool_config_model.allow_list:` is False for []
+        assert call_kwargs["tool_filter"] is None
