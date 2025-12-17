@@ -23,7 +23,7 @@ interface PromptTemplateBuilderProps {
 export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ onBack, onSuccess, initialMessage, editingGroup, isEditing = false, initialMode }) => {
     const { config, updateConfig, saveTemplate, updateTemplate, resetConfig, validationErrors, isLoading } = usePromptTemplateBuilder(editingGroup);
 
-    const [builderMode, setBuilderMode] = useState<"manual" | "ai-assisted">(initialMode || (isEditing ? "manual" : "ai-assisted"));
+    const [builderMode, setBuilderMode] = useState<"manual" | "ai-assisted">(initialMode || "ai-assisted");
     const [isReadyToSave, setIsReadyToSave] = useState(false);
     const [highlightedFields, setHighlightedFields] = useState<string[]>([]);
 
@@ -169,205 +169,203 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
     };
 
     return (
-        <>
-            <div className="flex h-full flex-col">
-                {/* Header with breadcrumbs */}
-                <Header
-                    title={isEditing ? "Edit Prompt" : "Create Prompt"}
-                    breadcrumbs={[{ label: "Prompts", onClick: () => handleClose() }, { label: isEditing ? "Edit Prompt" : "Create Prompt" }]}
-                    buttons={
-                        builderMode === "ai-assisted"
-                            ? [
-                                  <Button data-testid="editManuallyButton" key="edit-manually" onClick={handleSwitchToManual} variant="ghost" size="sm">
-                                      <Pencil className="mr-1 h-3 w-3" />
-                                      Edit Manually
-                                  </Button>,
-                              ]
-                            : [
-                                  <Button data-testid="buildWithAIButton" key="build-with-ai" onClick={handleSwitchToAI} variant="ghost" size="sm">
-                                      <Sparkles className="mr-1 h-3 w-3" />
-                                      {isEditing ? "Edit with AI" : "Build with AI"}
-                                  </Button>,
-                              ]
-                    }
-                />
+        <div className="flex h-full flex-col">
+            {/* Header with breadcrumbs */}
+            <Header
+                title={isEditing ? "Edit Prompt" : "Create Prompt"}
+                breadcrumbs={[{ label: "Prompts", onClick: () => handleClose() }, { label: isEditing ? "Edit Prompt" : "Create Prompt" }]}
+                buttons={
+                    builderMode === "ai-assisted"
+                        ? [
+                              <Button data-testid="editManuallyButton" key="edit-manually" onClick={handleSwitchToManual} variant="ghost" size="sm">
+                                  <Pencil className="mr-1 h-3 w-3" />
+                                  Edit Manually
+                              </Button>,
+                          ]
+                        : [
+                              <Button data-testid="buildWithAIButton" key="build-with-ai" onClick={handleSwitchToAI} variant="ghost" size="sm">
+                                  <Sparkles className="mr-1 h-3 w-3" />
+                                  {isEditing ? "Edit with AI" : "Build with AI"}
+                              </Button>,
+                          ]
+                }
+            />
 
-                {/* Error Banner */}
-                {hasValidationErrors && (
-                    <div className="px-8 py-3">
-                        <MessageBanner variant="error" message={`Please fix the following errors: ${validationErrorMessages.join(", ")}`} />
+            {/* Error Banner */}
+            {hasValidationErrors && (
+                <div className="px-8 py-3">
+                    <MessageBanner variant="error" message={`Please fix the following errors: ${validationErrorMessages.join(", ")}`} />
+                </div>
+            )}
+
+            {/* Content area with left and right panels */}
+            <div className="flex min-h-0 flex-1">
+                {/* Left Panel - AI Chat (keep mounted but hidden to preserve chat history) */}
+                <div className={`w-[40%] overflow-hidden border-r ${builderMode === "manual" ? "hidden" : ""}`}>
+                    <PromptBuilderChat onConfigUpdate={handleConfigUpdate} currentConfig={config} onReadyToSave={setIsReadyToSave} initialMessage={initialMessage} isEditing={isEditing} />
+                </div>
+
+                {/* Right Panel - Template Preview (only in AI mode) */}
+                {builderMode === "ai-assisted" && (
+                    <div className="w-[60%] overflow-hidden">
+                        <TemplatePreviewPanel config={config} highlightedFields={highlightedFields} isReadyToSave={isReadyToSave} />
                     </div>
                 )}
 
-                {/* Content area with left and right panels */}
-                <div className="flex min-h-0 flex-1">
-                    {/* Left Panel - AI Chat (keep mounted but hidden to preserve chat history) */}
-                    <div className={`w-[40%] overflow-hidden border-r ${builderMode === "manual" ? "hidden" : ""}`}>
-                        <PromptBuilderChat onConfigUpdate={handleConfigUpdate} currentConfig={config} onReadyToSave={setIsReadyToSave} initialMessage={initialMessage} isEditing={isEditing} />
-                    </div>
-
-                    {/* Right Panel - Template Preview (only in AI mode) */}
-                    {builderMode === "ai-assisted" && (
-                        <div className="w-[60%] overflow-hidden">
-                            <TemplatePreviewPanel config={config} highlightedFields={highlightedFields} isReadyToSave={isReadyToSave} />
-                        </div>
-                    )}
-
-                    {/* Manual Mode - Full Width Form */}
-                    {builderMode === "manual" && (
-                        <div className="flex-1 overflow-y-auto px-8 py-6">
-                            <div className="mx-auto max-w-4xl space-y-6">
-                                {/* Basic Information Section */}
-                                <div>
-                                    <CardTitle className="mb-4 text-base">Basic Information</CardTitle>
-                                    <div className="space-y-6">
-                                        {/* Template Name */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="template-name">
-                                                Name <span className="text-[var(--color-primary-wMain)]">*</span>
-                                            </Label>
-                                            <Input
-                                                id="template-name"
-                                                placeholder="e.g., Code Review Template"
-                                                value={config.name || ""}
-                                                onChange={e => updateConfig({ name: e.target.value })}
-                                                className={`placeholder:text-muted-foreground/50 ${validationErrors.name ? "border-red-500" : ""}`}
-                                            />
-                                            {validationErrors.name && (
-                                                <p className="flex items-center gap-1 text-sm text-red-600">
-                                                    <AlertCircle className="h-3 w-3" />
-                                                    {validationErrors.name}
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        {/* Description */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="template-description">Description</Label>
-                                            <Input
-                                                id="template-description"
-                                                placeholder="e.g., Reviews code for best practices and potential issues"
-                                                value={config.description || ""}
-                                                onChange={e => updateConfig({ description: e.target.value })}
-                                                className="placeholder:text-muted-foreground/50"
-                                            />
-                                        </div>
-
-                                        {/* Tag */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="template-category">Tag</Label>
-                                            <Select value={config.category || "none"} onValueChange={value => updateConfig({ category: value === "none" ? undefined : value })}>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select tag" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="none">No Tag</SelectItem>
-                                                    <SelectItem value="Development">Development</SelectItem>
-                                                    <SelectItem value="Analysis">Analysis</SelectItem>
-                                                    <SelectItem value="Documentation">Documentation</SelectItem>
-                                                    <SelectItem value="Communication">Communication</SelectItem>
-                                                    <SelectItem value="Testing">Testing</SelectItem>
-                                                    <SelectItem value="Other">Other</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        {/* Chat Shortcut */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="template-command">
-                                                Chat Shortcut <span className="text-[var(--color-primary-wMain)]">*</span>
-                                            </Label>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-muted-foreground text-sm">/</span>
-                                                <Input
-                                                    id="template-command"
-                                                    placeholder="e.g., code-review"
-                                                    value={config.command || ""}
-                                                    onChange={e => updateConfig({ command: e.target.value })}
-                                                    className={`placeholder:text-muted-foreground/50 ${validationErrors.command ? "border-red-500" : ""}`}
-                                                />
-                                            </div>
-                                            <p className="text-muted-foreground text-xs">Quick access shortcut for chat (letters, numbers, hyphens, underscores only)</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Content Section */}
-                                <div>
-                                    <CardTitle className="mb-4 text-base">
-                                        Content<span className="text-[var(--color-primary-wMain)]">*</span>
-                                    </CardTitle>
+                {/* Manual Mode - Full Width Form */}
+                {builderMode === "manual" && (
+                    <div className="flex-1 overflow-y-auto px-8 py-6">
+                        <div className="mx-auto max-w-4xl space-y-6">
+                            {/* Basic Information Section */}
+                            <div>
+                                <CardTitle className="mb-4 text-base">Basic Information</CardTitle>
+                                <div className="space-y-6">
+                                    {/* Template Name */}
                                     <div className="space-y-2">
-                                        <HighlightedTextarea
-                                            id="template-prompt"
-                                            data-testid="prompt-text-input"
-                                            placeholder="Enter your prompt template here. Use {{Variable Name}} for placeholders."
-                                            value={config.promptText || ""}
-                                            onChange={e => updateConfig({ promptText: e.target.value })}
-                                            rows={12}
-                                            className={`placeholder:text-muted-foreground/50 ${validationErrors.promptText ? "border-red-500" : ""}`}
+                                        <Label htmlFor="template-name">
+                                            Name <span className="text-[var(--color-primary-wMain)]">*</span>
+                                        </Label>
+                                        <Input
+                                            id="template-name"
+                                            placeholder="e.g., Code Review Template"
+                                            value={config.name || ""}
+                                            onChange={e => updateConfig({ name: e.target.value })}
+                                            className={`placeholder:text-muted-foreground/50 ${validationErrors.name ? "border-red-500" : ""}`}
                                         />
-                                        {validationErrors.promptText && (
+                                        {validationErrors.name && (
                                             <p className="flex items-center gap-1 text-sm text-red-600">
                                                 <AlertCircle className="h-3 w-3" />
-                                                {validationErrors.promptText}
+                                                {validationErrors.name}
                                             </p>
                                         )}
+                                    </div>
 
-                                        {/* Variables info - always shown */}
-                                        <div className="space-y-2">
-                                            <p className="text-muted-foreground text-sm">
-                                                Variables are placeholder values that make your prompt flexible and reusable. You will be asked to fill in these variable values whenever you use this prompt. Use {`{{Variable Name}}`} for placeholders.
-                                                {config.detected_variables && config.detected_variables.length > 0 && " Your prompt has the following variables:"}
-                                            </p>
-                                            {config.detected_variables && config.detected_variables.length > 0 && (
-                                                <div className="flex flex-wrap gap-2">
-                                                    {config.detected_variables.map((variable, index) => (
-                                                        <span key={index} className="bg-primary/10 text-primary rounded px-2 py-1 font-mono text-xs">
-                                                            {`{{${variable}}}`}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )}
+                                    {/* Description */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="template-description">Description</Label>
+                                        <Input
+                                            id="template-description"
+                                            placeholder="e.g., Reviews code for best practices and potential issues"
+                                            value={config.description || ""}
+                                            onChange={e => updateConfig({ description: e.target.value })}
+                                            className="placeholder:text-muted-foreground/50"
+                                        />
+                                    </div>
+
+                                    {/* Tag */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="template-category">Tag</Label>
+                                        <Select value={config.category || "none"} onValueChange={value => updateConfig({ category: value === "none" ? undefined : value })}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select tag" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">No Tag</SelectItem>
+                                                <SelectItem value="Development">Development</SelectItem>
+                                                <SelectItem value="Analysis">Analysis</SelectItem>
+                                                <SelectItem value="Documentation">Documentation</SelectItem>
+                                                <SelectItem value="Communication">Communication</SelectItem>
+                                                <SelectItem value="Testing">Testing</SelectItem>
+                                                <SelectItem value="Other">Other</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Chat Shortcut */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="template-command">
+                                            Chat Shortcut <span className="text-[var(--color-primary-wMain)]">*</span>
+                                        </Label>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-muted-foreground text-sm">/</span>
+                                            <Input
+                                                id="template-command"
+                                                placeholder="e.g., code-review"
+                                                value={config.command || ""}
+                                                onChange={e => updateConfig({ command: e.target.value })}
+                                                className={`placeholder:text-muted-foreground/50 ${validationErrors.command ? "border-red-500" : ""}`}
+                                            />
                                         </div>
+                                        <p className="text-muted-foreground text-xs">Quick access shortcut for chat (letters, numbers, hyphens, underscores only)</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Content Section */}
+                            <div>
+                                <CardTitle className="mb-4 text-base">
+                                    Content<span className="text-[var(--color-primary-wMain)]">*</span>
+                                </CardTitle>
+                                <div className="space-y-2">
+                                    <HighlightedTextarea
+                                        id="template-prompt"
+                                        data-testid="prompt-text-input"
+                                        placeholder="Enter your prompt template here. Use {{Variable Name}} for placeholders."
+                                        value={config.promptText || ""}
+                                        onChange={e => updateConfig({ promptText: e.target.value })}
+                                        rows={12}
+                                        className={`placeholder:text-muted-foreground/50 ${validationErrors.promptText ? "border-red-500" : ""}`}
+                                    />
+                                    {validationErrors.promptText && (
+                                        <p className="flex items-center gap-1 text-sm text-red-600">
+                                            <AlertCircle className="h-3 w-3" />
+                                            {validationErrors.promptText}
+                                        </p>
+                                    )}
+
+                                    {/* Variables info - always shown */}
+                                    <div className="space-y-2">
+                                        <p className="text-muted-foreground text-sm">
+                                            Variables are placeholder values that make your prompt flexible and reusable. You will be asked to fill in these variable values whenever you use this prompt. Use {`{{Variable Name}}`} for placeholders.
+                                            {config.detected_variables && config.detected_variables.length > 0 && " Your prompt has the following variables:"}
+                                        </p>
+                                        {config.detected_variables && config.detected_variables.length > 0 && (
+                                            <div className="flex flex-wrap gap-2">
+                                                {config.detected_variables.map((variable, index) => (
+                                                    <span key={index} className="bg-primary/10 text-primary rounded px-2 py-1 font-mono text-xs">
+                                                        {`{{${variable}}}`}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    )}
-                </div>
-                <NavigationBlocker />
-                {/* Footer Actions */}
-                <div className="flex justify-end gap-2 border-t p-4">
-                    <Button variant="ghost" onClick={() => handleClose()} disabled={isLoading}>
-                        {isEditing ? "Discard Changes" : "Cancel"}
-                    </Button>
-                    {isEditing && (
-                        <Button variant="outline" onClick={handleSaveNewVersion} disabled={isLoading}>
-                            {isLoading ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Saving...
-                                </>
-                            ) : (
-                                "Save New Version"
-                            )}
-                        </Button>
-                    )}
-                    <Button data-testid="createPromptButton" onClick={handleSave} disabled={isLoading}>
+                    </div>
+                )}
+            </div>
+            <NavigationBlocker />
+            {/* Footer Actions */}
+            <div className="flex justify-end gap-2 border-t p-4">
+                <Button variant="ghost" onClick={() => handleClose()} disabled={isLoading}>
+                    {isEditing ? "Discard Changes" : "Cancel"}
+                </Button>
+                {isEditing && (
+                    <Button variant="outline" onClick={handleSaveNewVersion} disabled={isLoading}>
                         {isLoading ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                {isEditing ? "Saving..." : "Creating..."}
+                                Saving...
                             </>
-                        ) : isEditing ? (
-                            "Save"
                         ) : (
-                            "Create"
+                            "Save New Version"
                         )}
                     </Button>
-                </div>
+                )}
+                <Button data-testid="createPromptButton" onClick={handleSave} disabled={isLoading}>
+                    {isLoading ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            {isEditing ? "Saving..." : "Creating..."}
+                        </>
+                    ) : isEditing ? (
+                        "Save"
+                    ) : (
+                        "Create"
+                    )}
+                </Button>
             </div>
-        </>
+        </div>
     );
 };
