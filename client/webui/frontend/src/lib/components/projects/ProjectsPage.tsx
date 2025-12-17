@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { RefreshCcw, Upload } from "lucide-react";
 import { useLoaderData, useNavigate } from "react-router-dom";
 
@@ -9,26 +9,38 @@ import { ProjectCards } from "./ProjectCards";
 import { ProjectDetailView } from "./ProjectDetailView";
 import { useProjectContext } from "@/lib/providers";
 import { useChatContext } from "@/lib/hooks";
-import type { Project } from "@/lib/types/projects";
-import { Header } from "@/lib/components/header";
-import { Button } from "@/lib/components/ui";
-import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
-import { downloadBlob } from "@/lib/utils/download";
+import type { Project } from "@/lib/types";
+import { Button, Header } from "@/lib/components";
+import { fetchJsonWithError, fetchWithError, getErrorMessage, downloadBlob } from "@/lib/utils";
 
 export const ProjectsPage: React.FC = () => {
     const navigate = useNavigate();
     const loaderData = useLoaderData<{ projectId?: string }>();
 
+    // hooks
+    const { projects, isLoading, createProject, activeProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
+    const { handleNewSession, handleSwitchSession, addNotification, displayError } = useChatContext();
+    // state
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [showImportDialog, setShowImportDialog] = useState(false);
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
-    const { projects, isLoading, createProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
-    const { handleNewSession, handleSwitchSession, addNotification, displayError } = useChatContext();
-    const selectedProject = useMemo(() => projects.find(p => p.id === loaderData?.projectId) || null, [projects, loaderData?.projectId]);
+    useEffect(() => {
+        if (loaderData?.projectId) {
+            const project = projects.find(p => p.id === loaderData.projectId) || null;
+            setSelectedProject(project);
+        } else if (activeProject) {
+            // redirect to active project if no projectId in URL
+            navigate(`/projects/${activeProject.id}`, { replace: true });
+        } else {
+            setSelectedProject(null);
+            setActiveProject(null);
+        }
+    }, [loaderData?.projectId, activeProject, projects, navigate, setActiveProject]);
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
         setIsCreating(true);

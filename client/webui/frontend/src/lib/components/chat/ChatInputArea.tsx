@@ -568,15 +568,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {/* Context Text Badge (from text selection) */}
             {showContextBadge && contextText && (
                 <div className="mb-2">
-                    <div className="bg-muted/50 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                        <div className="flex flex-1 items-center gap-2">
-                            <MessageSquarePlus className="text-muted-foreground h-4 w-4 flex-shrink-0" />
-                            <span className="text-muted-foreground max-w-[600px] truncate italic">"{contextText.length > 100 ? contextText.substring(0, 100) + "..." : contextText}"</span>
-                        </div>
+                    <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                        <MessageSquarePlus className="text-muted-foreground h-4 w-4 flex-shrink-0" />
+                        <span className="text-muted-foreground truncate italic">"{contextText}"</span>
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="hover:bg-background h-5 w-5 rounded-sm"
+                            className="hover:bg-background h-5 w-5 flex-shrink-0 rounded-sm"
                             onClick={() => {
                                 setContextText(null);
                                 setShowContextBadge(false);
