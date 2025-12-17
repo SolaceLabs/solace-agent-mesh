@@ -3,10 +3,16 @@ title: "Migration to Platform Service (Enterprise v1.25.0+)"
 sidebar_position: 20
 ---
 
-This guide is for **SAM Enterprise** users who generated their application using `sam init` and are upgrading to version SAM Enterprise 1.25.0+.
-:::info
-**SAM Community Edition users**: This migration does not apply to you.
-:::
+### ✅ This Guide Applies To:
+
+- **Users running SAM manually with YAML files** - Typically after generating your SAM application with `sam init`, you run SAM directly using configuration files (e.g., `sam run configs/gateways/webui.yaml`)
+- **Users using Enterprise features and have an existing `platform.db`** - You are using features like Agent Builder, Connectors, or other enterprise capabilities that have created a `platform.db` file
+
+### ❌ This Guide Does NOT Apply To:
+
+- **Users using Docker images** - If you're using Solace's pre-packaged Docker images via the Docker quickstart or Kubernetes deployments with Helm charts, this migration is handled automatically
+- **Users with no existing `platform.db`** - If you don't have an existing `platform.db` file or have not been using enterprise features
+- **SAM Community Edition users** - This migration only applies to SAM Enterprise
 
 ## Overview
 
@@ -19,11 +25,11 @@ Previously, backend enterprise functionality was served from the WebUI Gateway. 
 
 ### Split
 
-| Aspect | Until (v1.22.x)              | After (v1.25.0)                  |
-|--------|------------------------------|----------------------------------|
-| **Architecture** | WebUI Gateway | WebUI Gateway + Platform Service |
-| **Ports** | Single port (8000)           | WebUI (8000) + Platform (8001)   |
-| **Configuration** | One YAML file                | Two YAML files                   |
+|  | Until v1.24.x      | After v1.25.0                  |
+|--------|--------------------|--------------------------------|
+| **Architecture** | WebUI Gateway      | WebUI Gateway + Platform Service |
+| **Ports** | Single port (8000) | WebUI (8000) + Platform (8001) |
+| **Configuration** | One YAML file      | Two YAML files                 |
 
 ### Functionality Distribution
 
@@ -111,6 +117,7 @@ apps:
     app_config:
       namespace: ${NAMESPACE}
 
+      # Add the following section to point to the Platform Service
       platform_service:
         url: "${PLATFORM_SERVICE_URL, http://localhost:8001}"
 ```
@@ -135,13 +142,13 @@ sam run configs/services/platform.yaml
 
 After completing the migration, verify both services are running correctly:
 
-1. **Check WebUI Gateway** (http://localhost:8000):
+1. **Check WebUI Gateway**:
    ```bash
    curl http://localhost:8000/health
    # Should return: {"status":"A2A Web UI Backend is running"}
    ```
 
-2. **Check Platform Service** (http://localhost:8001):
+2. **Check Platform Service**:
    ```bash
    curl http://localhost:8001/health
    # Should return: {"status":"healthy","service":"Platform Service"}
@@ -150,8 +157,7 @@ After completing the migration, verify both services are running correctly:
 3. **Verify Frontend Configuration**:
    ```bash
    curl http://localhost:8000/api/v1/config
-   # Should include platform_service_url: "http://localhost:8001"
+   # Should include frontend_platform_server_url set to the Platform Service URL"
    ```
 
 4. **Test Agent Builder** - Access the web UI and navigate to Agent Builder. You should be able to create and manage agents through the UI.
-
