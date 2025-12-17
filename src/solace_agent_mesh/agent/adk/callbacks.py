@@ -1300,7 +1300,7 @@ The following embeds are resolved *late* (by the gateway before final display):
 - `{open_delim}artifact_return:filename[:version]{close_delim}`: Attaches an artifact to your message so the user receives the file. The embed itself is removed from the text.
 
   **CRITICAL - Returning Artifacts to Users:**
-  Only artifacts created with the `«««save_artifact:...»»»` fenced block syntax are automatically sent to the user.
+  Only artifacts created with the `{open_delim}save_artifact:...{close_delim}` fenced block syntax are automatically sent to the user.
 
   **You MUST use artifact_return for:**
   - Artifacts created by tools (e.g., image generation, chart creation, file conversion)
