@@ -69,10 +69,16 @@ const refreshToken = async () => {
 };
 
 const getErrorFromResponse = async (response: Response): Promise<string> => {
-    const fallbackMessage = `An unknown error occurred. HTTP status: ${response.status}.`;
+    const fallbackMessage = `Request failed: ${response.statusText || `HTTP ${response.status}`}`;
     try {
-        const errorData = await response.json();
-        return errorData.message || errorData.detail || fallbackMessage;
+        const text = await response.text();
+        if (!text) return fallbackMessage;
+        try {
+            const errorData = JSON.parse(text);
+            return errorData.message || errorData.detail || fallbackMessage;
+        } catch {
+            return text.length < 500 ? text : fallbackMessage;
+        }
     } catch {
         return fallbackMessage;
     }
@@ -121,7 +127,11 @@ const fetchWithError = async (url: string, options: RequestInit = {}) => {
 
 const fetchJsonWithError = async (url: string, options: RequestInit = {}) => {
     const response = await fetchWithError(url, options);
-    return response.json();
+    if (response.status === 204) {
+        return undefined;
+    }
+    const text = await response.text();
+    return text ? JSON.parse(text) : undefined;
 };
 
 type InternalRequestOptions = RequestOptions & RequestInit & { fullResponse?: boolean };
