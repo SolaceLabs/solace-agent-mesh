@@ -141,12 +141,17 @@ async def _resolve_early_embeds_in_chunk(
         # Build resolution context from callback_context (pattern from EmbedResolvingMCPToolset)
         invocation_context = callback_context._invocation_context
         if not invocation_context:
-            log.warning("%s No invocation context available for embed resolution", log_identifier)
+            log.warning(
+                "%s No invocation context available for embed resolution",
+                log_identifier,
+            )
             return chunk
 
         session_context = invocation_context.session
         if not session_context:
-            log.warning("%s No session context available for embed resolution", log_identifier)
+            log.warning(
+                "%s No session context available for embed resolution", log_identifier
+            )
             return chunk
 
         resolution_context = {
@@ -183,7 +188,9 @@ async def _resolve_early_embeds_in_chunk(
         return resolved_text
 
     except Exception as e:
-        log.error("%s Error resolving embeds in chunk: %s", log_identifier, e, exc_info=True)
+        log.error(
+            "%s Error resolving embeds in chunk: %s", log_identifier, e, exc_info=True
+        )
         return chunk  # Return original chunk on error
 
 
@@ -208,7 +215,9 @@ async def process_artifact_blocks_callback(
         session.state[parser_state_key] = parser
         session.state["completed_artifact_blocks_list"] = []
         session.state["completed_template_blocks_list"] = []
-        session.state["artifact_chars_sent"] = 0  # Reset character tracking for new turn
+        session.state["artifact_chars_sent"] = (
+            0  # Reset character tracking for new turn
+        )
 
     stream_chunks_were_processed = callback_context.state.get(
         A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY, False
@@ -317,7 +326,9 @@ async def process_artifact_blocks_callback(
 
                             # Track the cumulative character count of what we've sent
                             # We need character count (not bytes) to slice correctly later
-                            previous_char_count = session.state.get("artifact_chars_sent", 0)
+                            previous_char_count = session.state.get(
+                                "artifact_chars_sent", 0
+                            )
                             new_char_count = previous_char_count + len(event.chunk)
                             session.state["artifact_chars_sent"] = new_char_count
 
@@ -439,7 +450,9 @@ async def process_artifact_blocks_callback(
                             if a2a_context:
                                 # Check if there's unsent content (content after last progress event)
                                 total_bytes = len(event.content.encode("utf-8"))
-                                chars_already_sent = session.state.get("artifact_chars_sent", 0)
+                                chars_already_sent = session.state.get(
+                                    "artifact_chars_sent", 0
+                                )
 
                                 if chars_already_sent < len(event.content):
                                     # There's unsent content - send it as a final progress update
@@ -1284,7 +1297,30 @@ Examples:
 - `The result of 23.5 * 4.2 is {open_delim}math:23.5 * 4.2 | .2f{close_delim}` (Embeds calculated result with 2 decimal places)
 
 The following embeds are resolved *late* (by the gateway before final display):
-- `{open_delim}artifact_return:filename[:version]{close_delim}`: This is the primary way to return an artifact to the user. It attaches the specified artifact to the message. The embed itself is removed from the text. Use this instead of describing a file and expecting the user to download it. Note: artifact_return is not necessary if the artifact was just created by you in this same response, since newly created artifacts are automatically attached to your message.
+- `{open_delim}artifact_return:filename[:version]{close_delim}`: Attaches an artifact to your message so the user receives the file. The embed itself is removed from the text.
+
+  **CRITICAL - Returning Artifacts to Users:**
+  Only artifacts created with the `{open_delim}save_artifact:...{close_delim}` fenced block syntax are automatically sent to the user.
+
+  **You MUST use artifact_return for:**
+  - Artifacts created by tools (e.g., image generation, chart creation, file conversion)
+  - Artifacts created by other agents you called
+  - Artifacts from MCP servers
+
+  **When deciding whether to return an artifact:**
+  - Return artifacts the user explicitly requested or that answer their question
+  - Return final outputs (charts, reports, images, documents)
+  - Do NOT return intermediate/temporary artifacts (e.g., temp files, internal data)
+
+  **Example - Tool creates an image:**
+  User: "Create a chart of sales data"
+  [You call a charting tool that creates sales_chart.png]
+  Your response: "Here's the sales chart. {open_delim}artifact_return:sales_chart.png{close_delim}"
+
+  **Example - Agent creates a report:**
+  User: "Generate a quarterly report"
+  [You call ReportAgent which creates quarterly_report.pdf]
+  Your response: "The quarterly report is ready. {open_delim}artifact_return:quarterly_report.pdf{close_delim}"
 """
 
     artifact_content_instruction = f"""
