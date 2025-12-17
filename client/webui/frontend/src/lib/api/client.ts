@@ -148,7 +148,7 @@ class ApiClient {
         const { fullResponse, ...fetchOptions } = options || {};
 
         if (fullResponse) {
-            return fetchWithError(url, fetchOptions);
+            return authenticatedFetch(url, fetchOptions);
         }
 
         return fetchJsonWithError(url, fetchOptions);
