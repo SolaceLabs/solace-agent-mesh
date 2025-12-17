@@ -10,7 +10,7 @@ This guide is for **SAM Enterprise** users who generated their application using
 
 ## Overview
 
-Previously, SAM Enterprise served enterprise functionality from the WebUI Gateway. With version 1.23.0+, the architecture splits the WebUI Gateway into two separate services:
+Previously, backend enterprise functionality was served from the WebUI Gateway. With version 1.23.0+, the architecture splits the WebUI Gateway into two separate services:
 
 - **WebUI Gateway** (port 8000): Handles chat sessions, task submissions, and real-time streaming
 - **Platform Service** (port 8001): Handles Agent Builder, Connector management, and deployment orchestration
@@ -114,6 +114,8 @@ apps:
       platform_service:
         url: "${PLATFORM_SERVICE_URL, http://localhost:8001}"
 ```
+
+Delete `platform_service.database_url` from your WebUI yaml, as it is no longer needed.
 
 ### Step 3: Run Platform Service
 
