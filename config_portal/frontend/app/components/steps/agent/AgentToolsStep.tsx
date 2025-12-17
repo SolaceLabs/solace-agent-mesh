@@ -37,10 +37,8 @@ export interface Tool {
   stdio_args?: string[];
   // sse fields
   sse_url?: string;
-  sse_headers?: Record<string, string>;
   // streamable-http fields
   streamable_http_url?: string;
-  streamable_http_headers?: Record<string, string>;
 
   // MCP timeout field (applies to all transports)
   mcp_timeout?: number;
@@ -71,13 +69,11 @@ const initialToolState: Tool = {
   stdio_command: "",
   stdio_args: [],
   sse_url: "",
-  sse_headers: {},
   streamable_http_url: "",
-  streamable_http_headers: {},
   mcp_timeout: 30,
   auth_type: "",
   auth_token: "",
-  auth_header_name: "Authorization",
+  auth_header_name: "",
 };
 
 
@@ -152,48 +148,18 @@ const AgentToolsStep: React.FC<StepProps> = ({
         transportFields = {
           transport_type: "sse",
           sse_url: cp.url as string || "",
-          sse_headers: (cp.headers && typeof cp.headers === "object") ? cp.headers as Record<string, string> : {},
           mcp_timeout: (cp.timeout as number) || 30,
         };
       } else if (type === "streamable-http") {
         transportFields = {
           transport_type: "streamable-http",
           streamable_http_url: cp.url as string || "",
-          streamable_http_headers: (cp.headers && typeof cp.headers === "object") ? cp.headers as Record<string, string> : {},
           mcp_timeout: (cp.timeout as number) || 30,
         };
       }
     }
 
-    // Extract auth fields from headers if present
-    if (tool.tool_type === "mcp" && tool.connection_params) {
-      const cp = tool.connection_params;
-      let headers: Record<string, string> | undefined;
 
-      if (tool.transport_type === "sse" && cp.headers) {
-        headers = cp.headers as Record<string, string>;
-      } else if (tool.transport_type === "streamable-http" && cp.headers) {
-        headers = cp.headers as Record<string, string>;
-      }
-
-      if (headers) {
-        // Check for Bearer token in Authorization header
-        if (headers.Authorization?.startsWith("Bearer ")) {
-          transportFields.auth_type = "bearer";
-          transportFields.auth_token = headers.Authorization.replace("Bearer ", "");
-        } else {
-          // Check for other header-based authentication (API key)
-          for (const [headerName, headerValue] of Object.entries(headers)) {
-            if (headerName !== "Authorization" && headerValue) {
-              transportFields.auth_type = "api_key";
-              transportFields.auth_header_name = headerName;
-              transportFields.auth_token = headerValue;
-              break;
-            }
-          }
-        }
-      }
-    }
 
     const toolForEdit: Tool = {
       ...initialToolState,
@@ -334,7 +300,7 @@ const AgentToolsStep: React.FC<StepProps> = ({
             timeout: currentTool.mcp_timeout || 30,
           };
           // Build headers with authentication
-          const headers: Record<string, string> = { ...(currentTool.sse_headers || {}) };
+          const headers: Record<string, string> = {};
           if (currentTool.auth_type === "bearer" && currentTool.auth_token) {
             headers.Authorization = `Bearer ${currentTool.auth_token}`;
           } else if (currentTool.auth_type === "api_key" && currentTool.auth_token && currentTool.auth_header_name) {
@@ -350,7 +316,7 @@ const AgentToolsStep: React.FC<StepProps> = ({
             timeout: currentTool.mcp_timeout || 30,
           };
           // Build headers with authentication
-          const headers: Record<string, string> = { ...(currentTool.streamable_http_headers || {}) };
+          const headers: Record<string, string> = {};
           if (currentTool.auth_type === "bearer" && currentTool.auth_token) {
             headers.Authorization = `Bearer ${currentTool.auth_token}`;
           } else if (currentTool.auth_type === "api_key" && currentTool.auth_token && currentTool.auth_header_name) {
@@ -391,6 +357,17 @@ const AgentToolsStep: React.FC<StepProps> = ({
           toolAsRecord.required_scopes = currentTool.required_scopes;
         }
 
+        // Store auth fields separately for easy re-editing
+        if (currentTool.auth_type && currentTool.auth_type !== "none") {
+          toolAsRecord.auth_type = currentTool.auth_type;
+          if (currentTool.auth_token) {
+            toolAsRecord.auth_token = currentTool.auth_token;
+          }
+          if (currentTool.auth_type === "api_key" && currentTool.auth_header_name) {
+            toolAsRecord.auth_header_name = currentTool.auth_header_name;
+          }
+        }
+
         processedTool = toolAsRecord as unknown as Tool;
         break;
       }
@@ -409,9 +386,12 @@ const AgentToolsStep: React.FC<StepProps> = ({
     }
 
     // Auto-include web tool group for remote MCP transports
+    const transportType =
+      (processedTool.connection_params as { type?: string } | undefined)?.type ??
+      currentTool.transport_type;
     if (
       processedTool.tool_type === "mcp" &&
-      (currentTool.transport_type === "sse" || currentTool.transport_type === "streamable-http")
+      (transportType === "sse" || transportType === "streamable-http")
     ) {
       const hasWebTool = newToolsList.some(
         (t) =>
@@ -436,7 +416,41 @@ const AgentToolsStep: React.FC<StepProps> = ({
 
   const handleDeleteTool = (toolId?: string) => {
     if (!toolId) return;
-    updateData({ tools: toolsList.filter((t) => t.id !== toolId) });
+    
+    const newToolsList = toolsList.filter((t) => t.id !== toolId);
+    
+    // Check if we should remove the auto-added web tool
+    const deletedTool = toolsList.find((t) => t.id === toolId);
+    if (deletedTool?.id?.startsWith("web_auto_")) {
+      // Don't automatically remove auto-added web tools - user chose to delete it
+      updateData({ tools: newToolsList });
+      return;
+    }
+    
+    // Check if there are still remote MCP tools that need the web tool
+    const hasRemoteMcpTools = newToolsList.some((t) => {
+      if (t.tool_type !== "mcp") {
+        return false;
+      }
+
+      // Prefer the persisted connection_params.type, fall back to transient transport_type
+      const connectionType =
+        t.connection_params && typeof (t.connection_params as any).type === "string"
+          ? ((t.connection_params as any).type as string)
+          : undefined;
+      const transportType = connectionType || t.transport_type;
+
+      return transportType === "sse" || transportType === "streamable-http";
+    });
+    
+    // If no remote MCP tools remain, remove auto-added web tool
+    if (!hasRemoteMcpTools) {
+      updateData({ 
+        tools: newToolsList.filter((t) => !t.id?.startsWith("web_auto_"))
+      });
+    } else {
+      updateData({ tools: newToolsList });
+    }
   };
 
   const renderToolProperties = (tool: Tool) => {

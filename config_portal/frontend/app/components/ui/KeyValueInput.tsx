@@ -32,10 +32,20 @@ const KeyValueInput: React.FC<KeyValueInputProps> = ({
   const [valueInput, setValueInput] = useState("");
 
   const handleAddItem = () => {
-    if (keyInput.trim() === "" || valueInput.trim() === "") {
+    const trimmedKey = keyInput.trim();
+    const trimmedValue = valueInput.trim();
+
+    if (trimmedKey === "" || trimmedValue === "") {
       return;
     }
-    onChange({ ...values, [keyInput.trim()]: valueInput.trim() });
+
+    // Avoid silently overwriting an existing key; existing entries
+    // should be updated via the inline edit path instead.
+    if (Object.prototype.hasOwnProperty.call(values, trimmedKey)) {
+      return;
+    }
+
+    onChange({ ...values, [trimmedKey]: trimmedValue });
     setKeyInput("");
     setValueInput("");
   };
