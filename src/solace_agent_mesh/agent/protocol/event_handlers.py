@@ -32,6 +32,7 @@ from ...agent.adk.callbacks import _publish_data_part_status_update
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common import a2a
+from ...common.error_handlers import handle_bad_request_error
 from ...common.utils.embeds.constants import (
     EMBED_DELIMITER_OPEN,
     EMBED_DELIMITER_CLOSE,
@@ -981,28 +982,15 @@ async def handle_a2a_request(component, message: SolaceMessage):
             "%s Bad Request error handling A2A request: %s", component.log_identifier, e
         )
         
-        # Check if this is a context limit error
-        error_str = str(e).lower()
-        if (
-            "too many tokens" in error_str
-            or "expected maxLength:" in error_str
-            or "Input is too long" in error_str
-            or "prompt is too long" in error_str
-            or "prompt: length: 1.." in error_str
-            or "Too many input tokens" in error_str
-        ):
-            error_message = (
-            "The conversation history has become too long for the AI model to process. "
-            "This can happen after extended conversations. "
-            "To continue, please start a new conversation or try summarizing your previous messages into a shorter request."
+        # Use centralized error handler
+        error_message, is_context_limit = handle_bad_request_error(e)
+        
+        if is_context_limit:
+            log.error(
+                "%s Context limit exceeded for task %s",
+                component.log_identifier,
+                logical_task_id,
             )
-            log.warning(
-            "%s Context limit exceeded for task %s",
-            component.log_identifier,
-            logical_task_id,
-            )
-        else:
-            error_message = f"Bad request: {e}"
         
         error_response = a2a.create_invalid_request_error_response(
             message=error_message,
