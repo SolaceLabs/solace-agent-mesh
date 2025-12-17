@@ -136,9 +136,26 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         console.log("TaskMonitorContext: Attempting to connect stream...");
         setIsTaskMonitorConnecting(true);
         try {
-            const subscriptionData: SubscriptionResponse = await api.webui.post("/api/v1/visualization/subscribe", {
-                subscription_targets: [{ type: "my_a2a_messages" }],
-            });
+            const subscribeResponse = await api.webui.post(
+                "/api/v1/visualization/subscribe",
+                { subscription_targets: [{ type: "my_a2a_messages" }] },
+                { fullResponse: true }
+            );
+            if (!subscribeResponse.ok) {
+                const errorData = await subscribeResponse.json().catch(() => ({ detail: "Failed to subscribe" }));
+                if (errorData.error_type === "authorization_failure") {
+                    const message = errorData.message || "Access denied: insufficient permissions";
+                    const suggestion = errorData.suggested_action ? ` ${errorData.suggested_action}` : "";
+                    throw new Error(`${message}${suggestion}`);
+                } else if (errorData.error_type === "subscription_failure") {
+                    const message = errorData.message || "Subscription failed";
+                    const suggestion = errorData.suggested_action ? ` ${errorData.suggested_action}` : "";
+                    throw new Error(`${message}${suggestion}`);
+                } else {
+                    throw new Error(errorData.detail || errorData.message || `Subscription failed: ${subscribeResponse.statusText}`);
+                }
+            }
+            const subscriptionData: SubscriptionResponse = await subscribeResponse.json();
             setTaskMonitorSseStreamId(subscriptionData.stream_id);
             const sseUrl = subscriptionData.sse_endpoint_url.startsWith("/") ? api.webui.getFullUrl(subscriptionData.sse_endpoint_url) : subscriptionData.sse_endpoint_url;
 

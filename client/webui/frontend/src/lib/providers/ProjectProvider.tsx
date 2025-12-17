@@ -84,7 +84,30 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Projects feature is disabled");
             }
 
-            await api.webui.post(`/api/v1/projects/${projectId}/artifacts`, formData);
+            const response = await api.webui.post(`/api/v1/projects/${projectId}/artifacts`, formData, { fullResponse: true });
+
+            if (!response.ok) {
+                const responseText = await response.text();
+                let errorMessage = `Failed to add files: ${response.statusText}`;
+
+                try {
+                    const errorData = JSON.parse(responseText);
+                    errorMessage = errorData.detail || errorData.message || errorMessage;
+                } catch {
+                    if (responseText && responseText.length < 500) {
+                        errorMessage = responseText;
+                    }
+                }
+
+                if (response.status === 413) {
+                    if (!errorMessage.includes("exceeds maximum") && !errorMessage.includes("too large")) {
+                        errorMessage = "One or more files exceed the maximum allowed size. Please try uploading smaller files.";
+                    }
+                }
+
+                throw new Error(errorMessage);
+            }
+
             setError(null);
             await fetchProjects();
         },
@@ -125,7 +148,39 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Projects feature is disabled");
             }
 
-            const updatedProject: Project = await api.webui.put(`/api/v1/projects/${projectId}`, data);
+            const response = await api.webui.put(`/api/v1/projects/${projectId}`, data, { fullResponse: true });
+
+            if (!response.ok) {
+                let errorMessage = `Failed to update project: ${response.statusText}`;
+
+                try {
+                    const errorData = await response.json();
+
+                    if (response.status === 422) {
+                        if (errorData.detail) {
+                            if (Array.isArray(errorData.detail)) {
+                                const validationErrors = errorData.detail
+                                    .map((err: { loc?: string[]; msg: string }) => {
+                                        const field = err.loc?.join(".") || "field";
+                                        return `${field}: ${err.msg}`;
+                                    })
+                                    .join(", ");
+                                errorMessage = `Validation error: ${validationErrors}`;
+                            } else if (typeof errorData.detail === "string") {
+                                errorMessage = errorData.detail;
+                            }
+                        }
+                    } else {
+                        errorMessage = errorData.detail || errorData.message || errorMessage;
+                    }
+                } catch {
+                    // JSON parsing failed, use default error message
+                }
+
+                throw new Error(errorMessage);
+            }
+
+            const updatedProject: Project = await response.json();
 
             setProjects(prev => {
                 const updated = prev.map(p => (p.id === updatedProject.id ? updatedProject : p));

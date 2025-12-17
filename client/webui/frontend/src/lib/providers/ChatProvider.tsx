@@ -656,11 +656,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact preview");
                 }
 
-                const versionsResponse = await api.webui.get(versionsUrl, { fullResponse: true });
-                if (!versionsResponse.ok) {
-                    throw new Error(`Failed to fetch artifact versions: ${versionsResponse.statusText}`);
-                }
-                const availableVersions: number[] = await versionsResponse.json();
+                const availableVersions: number[] = await api.webui.get(versionsUrl);
                 if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
                 setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
                 const latestVersion = Math.max(...availableVersions);
@@ -1445,14 +1441,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             closeCurrentEventSource();
 
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
-                api.webui
-                    .post(`/api/v1/tasks/${currentTaskId}:cancel`, {
-                        jsonrpc: "2.0",
-                        id: `req-${v4()}`,
-                        method: "tasks/cancel",
-                        params: { id: currentTaskId },
-                    })
-                    .catch(error => console.warn(`${log_prefix} Failed to cancel current task:`, error));
+                const isBackground = isTaskRunningInBackground(currentTaskId);
+                if (!isBackground) {
+                    api.webui
+                        .post(`/api/v1/tasks/${currentTaskId}:cancel`, {
+                            jsonrpc: "2.0",
+                            id: `req-${v4()}`,
+                            method: "tasks/cancel",
+                            params: { id: currentTaskId },
+                        })
+                        .catch(error => console.warn(`${log_prefix} Failed to cancel current task:`, error));
+                }
             }
 
             if (cancelTimeoutRef.current) {
@@ -1493,7 +1492,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
+        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact, isTaskRunningInBackground]
     );
 
     // Start a new chat session with a prompt template pre-filled
@@ -1534,16 +1533,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             closeCurrentEventSource();
 
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
-                console.log(`${log_prefix} Cancelling current task ${currentTaskId}`);
-                try {
-                    await api.webui.post(`/api/v1/tasks/${currentTaskId}:cancel`, {
-                        jsonrpc: "2.0",
-                        id: `req-${v4()}`,
-                        method: "tasks/cancel",
-                        params: { id: currentTaskId },
-                    });
-                } catch (error) {
-                    console.warn(`${log_prefix} Failed to cancel current task:`, error);
+                const isBackground = isTaskRunningInBackground(currentTaskId);
+                if (!isBackground) {
+                    console.log(`${log_prefix} Cancelling current task ${currentTaskId}`);
+                    try {
+                        await api.webui.post(`/api/v1/tasks/${currentTaskId}:cancel`, {
+                            jsonrpc: "2.0",
+                            id: `req-${v4()}`,
+                            method: "tasks/cancel",
+                            params: { id: currentTaskId },
+                        });
+                    } catch (error) {
+                        console.warn(`${log_prefix} Failed to cancel current task:`, error);
+                    }
                 }
             }
 
@@ -1631,13 +1633,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setIsLoadingSession(false);
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError, backgroundTasks, checkTaskStatus, sessionId, unregisterBackgroundTask]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError, backgroundTasks, checkTaskStatus, sessionId, unregisterBackgroundTask, isTaskRunningInBackground]
     );
 
     const updateSessionName = useCallback(
         async (sessionId: string, newName: string) => {
             try {
-                await api.webui.patch(`/api/v1/sessions/${sessionId}`, { name: newName });
+                const response = await api.webui.patch(`/api/v1/sessions/${sessionId}`, { name: newName }, { fullResponse: true });
+
+                if (response.status === 422) {
+                    throw new Error("Invalid name");
+                }
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || "Failed to update session name");
+                }
+
                 setSessionName(newName);
                 if (typeof window !== "undefined") {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
@@ -2272,7 +2284,32 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     useEffect(() => {
         if (currentTaskId) {
             const accessToken = getAccessToken();
-            const eventSourceUrl = `${api.webui.getFullUrl(`/api/v1/sse/subscribe/${currentTaskId}`)}${accessToken ? `?token=${accessToken}` : ""}`;
+
+            const bgTask = backgroundTasksRef.current.find(t => t.taskId === currentTaskId);
+            const isReconnecting = bgTask !== undefined;
+
+            const params = new URLSearchParams();
+            if (accessToken) {
+                params.append("token", accessToken);
+            }
+
+            if (isReconnecting) {
+                params.append("reconnect", "true");
+                params.append("last_event_timestamp", "0");
+                console.log(`[ChatProvider] Reconnecting to background task ${currentTaskId} - requesting full event replay`);
+
+                setMessages(prev => {
+                    const filtered = prev.filter(msg => {
+                        if (msg.isUser) return true;
+                        if (msg.taskId !== currentTaskId) return true;
+                        return false;
+                    });
+                    return filtered;
+                });
+            }
+
+            const baseUrl = api.webui.getFullUrl(`/api/v1/sse/subscribe/${currentTaskId}`);
+            const eventSourceUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
             const eventSource = new EventSource(eventSourceUrl, { withCredentials: true });
             currentEventSource.current = eventSource;
 

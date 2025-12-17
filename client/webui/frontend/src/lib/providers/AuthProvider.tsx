@@ -73,11 +73,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const logout = async () => {
         try {
             if (configUseAuthorization) {
-                const response = await api.webui.post("/api/v1/auth/logout", undefined, { fullResponse: true });
-
-                if (!response.ok) {
-                    throw new Error("Backend logout failed with status: " + response.status);
-                }
+                await api.webui.post("/api/v1/auth/logout");
             }
         } catch (error) {
             console.error("Error calling logout endpoint:", error);

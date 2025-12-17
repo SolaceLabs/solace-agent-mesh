@@ -79,12 +79,15 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
     const checkTaskStatus = useCallback(
         async (taskId: string): Promise<BackgroundTaskStatusResponse | null> => {
             try {
-                return await api.webui.get(`/api/v1/tasks/${taskId}/status`);
-            } catch (error: unknown) {
-                if (error instanceof Error && error.message.includes("404")) {
-                    unregisterBackgroundTask(taskId);
+                const response = await api.webui.get(`/api/v1/tasks/${taskId}/status`, { fullResponse: true });
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        unregisterBackgroundTask(taskId);
+                    }
                     return null;
                 }
+                return await response.json();
+            } catch (error: unknown) {
                 console.error(`[BackgroundTaskMonitor] Failed to check status for task ${taskId}:`, error);
                 return null;
             }
