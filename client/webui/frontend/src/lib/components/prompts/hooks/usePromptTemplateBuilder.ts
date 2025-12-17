@@ -15,7 +15,6 @@ export interface ValidationErrors {
 
 export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
     const { addNotification } = useChatContext();
-    // Migrated to api client
     const [config, setConfig] = useState<TemplateConfig>(() => {
         if (editingGroup) {
             return {
@@ -122,7 +121,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             };
 
             // Call API to create prompt group
-            const createdGroup = await api.webui.post(`/api/v1/prompts/groups`, templateData);
+            const createdGroup = await api.webui.post("/api/v1/prompts/groups", templateData);
 
             setSaveStatus("success");
             addNotification("Template saved", "success");

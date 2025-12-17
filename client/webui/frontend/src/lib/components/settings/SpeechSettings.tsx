@@ -26,7 +26,7 @@ export const SpeechSettingsPanel: React.FC = () => {
     useEffect(() => {
         const checkConfig = async () => {
             try {
-                const config = await api.webui.get(`/api/v1/speech/config`);
+                const config = await api.webui.get("/api/v1/speech/config");
                 const sttExt = config.sttExternal || false;
                 const ttsExt = config.ttsExternal || false;
 
@@ -116,7 +116,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             }
 
             // Fetch voice sample
-            const response = await api.webui.post(`/api/v1/speech/voice-sample`, formData, { raw: true });
+            const response = await api.webui.post("/api/v1/speech/voice-sample", formData, { raw: true });
 
             // Create blob from response
             const blob = await response.blob();

@@ -29,7 +29,6 @@ export const ProjectsPage: React.FC = () => {
 
     const { projects, isLoading, createProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
     const { handleNewSession, handleSwitchSession, addNotification, displayError } = useChatContext();
-    // Migrated to api client
     const selectedProject = useMemo(() => projects.find(p => p.id === loaderData?.projectId) || null, [projects, loaderData?.projectId]);
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
@@ -122,7 +121,7 @@ export const ProjectsPage: React.FC = () => {
             formData.append("file", file);
             formData.append("options", JSON.stringify(options));
 
-            const result = await api.webui.post(`/api/v1/projects/import`, formData);
+            const result = await api.webui.post("/api/v1/projects/import", formData);
 
             // Show warnings if any (combine into single notification for better UX)
             if (result.warnings && result.warnings.length > 0) {

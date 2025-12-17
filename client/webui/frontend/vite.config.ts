@@ -66,7 +66,7 @@ export default defineConfig(({ mode }) => {
                 },
                 output: {
                     manualChunks: {
-                        vendor: ["react", "react-dom", "recharts", "@xyflow/react", "json-edit-react", "marked", "@tanstack/react-table", "lucide-react", "html-react-parser"],
+                        vendor: ["react", "react-dom", "@xyflow/react", "json-edit-react", "marked", "@tanstack/react-table", "lucide-react", "html-react-parser"],
                     },
                 },
             },

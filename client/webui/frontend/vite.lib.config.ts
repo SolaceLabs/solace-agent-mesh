@@ -42,7 +42,6 @@ export default defineConfig({
                 "radix-ui",
                 "react-json-view-lite",
                 "react-resizable-panels",
-                "recharts",
                 "tailwind-merge",
                 "tailwindcss",
             ],

@@ -17,7 +17,6 @@ interface UseProjectArtifactsReturn {
  * @returns Object containing artifacts data, loading state, error state, and refetch function.
  */
 export const useProjectArtifacts = (projectId?: string): UseProjectArtifactsReturn => {
-    // Migrated to api client
     const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);

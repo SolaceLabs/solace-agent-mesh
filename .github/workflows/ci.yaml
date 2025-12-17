@@ -295,3 +295,42 @@ jobs:
                           }
                       }
               }"""
+      - name: Trigger RC Workflow in rc-sam-community
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          github-token: ${{ secrets.RC_TOKEN }}
+          script: |
+            const owner = 'SolaceDev';
+            const repo = 'rc-sam-community';
+            const workflow_id = 'rc-workflow.yaml';
+            const ref = 'main';
+
+            const sha = '${{ needs.prepare-metadata.outputs.commit_hash }}';
+            const version = '${{ needs.prepare-metadata.outputs.version }}';
+            const image_tag = '${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}';
+
+            console.log('Triggering RC workflow with:');
+            console.log(`  SHA: ${sha}`);
+            console.log(`  Version: ${version}`);
+            console.log(`  Image Tag: ${image_tag}`);
+
+            try {
+              await github.rest.actions.createWorkflowDispatch({
+                owner,
+                repo,
+                workflow_id,
+                ref,
+                inputs: {
+                  sha: sha,
+                  version: version,
+                  image_tag: image_tag,
+                  environment: 'rc'
+                }
+              });
+
+              console.log('✓ Successfully triggered RC workflow');
+              console.log(`  View at: https://github.com/${owner}/${repo}/actions/workflows/${workflow_id}`);
+            } catch (error) {
+              console.error('Failed to trigger RC workflow:', error.message);
+              throw error;
+            }

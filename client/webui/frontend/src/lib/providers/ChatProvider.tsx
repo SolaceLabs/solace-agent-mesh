@@ -1985,7 +1985,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // 5. Send the request
                 console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
                 const result: SendStreamingMessageSuccessResponse = await api.webui.post(
-                    `/api/v1/message:stream`,
+                    "/api/v1/message:stream",
                     sendMessageRequest
                 );
 

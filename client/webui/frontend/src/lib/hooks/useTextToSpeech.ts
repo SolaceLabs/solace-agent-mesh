@@ -291,7 +291,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 }
 
                 // Use streaming endpoint - play chunks as they arrive
-                const response = await api.webui.post(`/api/v1/speech/tts/stream`, {
+                const response = await api.webui.post("/api/v1/speech/tts/stream", {
                     input: text,
                     voice: settings.voice,
                     runId: messageId || `tts-${Date.now()}`,
