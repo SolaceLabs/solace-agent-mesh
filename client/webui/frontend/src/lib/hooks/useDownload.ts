@@ -17,7 +17,7 @@ const downloadArtifactFile = async (sessionId: string | null, activeProjectId: s
         throw new Error("No valid session or project context for downloading artifact.");
     }
 
-    const response = await api.webui.get(endpoint, { raw: true });
+    const response = await api.webui.get(endpoint, { fullResponse: true });
     const blob = await response.blob();
     downloadBlob(blob, artifact.filename);
 };

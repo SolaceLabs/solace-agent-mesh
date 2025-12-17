@@ -269,7 +269,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                     apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
                 }
 
-                const response = await api.webui.get(apiUrl, { raw: true });
+                const response = await api.webui.get(apiUrl, { fullResponse: true });
 
                 const blob = await response.blob();
                 const base64data = await new Promise<string>((resolve, reject) => {

@@ -56,7 +56,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 let configResponse = await api.webui.get("/api/v1/config", {
                     credentials: "include",
                     headers: { Accept: "application/json" },
-                    raw: true,
+                    fullResponse: true,
                 });
 
                 let data: BackendConfig;
@@ -77,7 +77,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                                 "X-CSRF-TOKEN": csrfToken,
                                 Accept: "application/json",
                             },
-                            raw: true,
+                            fullResponse: true,
                         });
                         if (!configResponse.ok) {
                             const errorTextRetry = await configResponse.text();

@@ -514,7 +514,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
 
             try {
-                const response = await api.webui.post("/api/v1/artifacts/upload", formData, { raw: true });
+                const response = await api.webui.post("/api/v1/artifacts/upload", formData, { fullResponse: true });
 
                 if (response.status === 413) {
                     const errorData = await response.json().catch(() => ({ message: `Failed to upload ${file.name}.` }));
@@ -656,7 +656,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact preview");
                 }
 
-                const versionsResponse = await api.webui.get(versionsUrl, { raw: true });
+                const versionsResponse = await api.webui.get(versionsUrl, { fullResponse: true });
                 const availableVersions: number[] = await versionsResponse.json();
                 if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
                 setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
@@ -671,7 +671,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact content");
                 }
 
-                const contentResponse = await api.webui.get(contentUrl, { raw: true });
+                const contentResponse = await api.webui.get(contentUrl, { fullResponse: true });
 
                 // Get MIME type from response headers - this is the correct MIME type for this specific version
                 const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
@@ -732,7 +732,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact navigation");
                 }
 
-                const contentResponse = await api.webui.get(contentUrl, { raw: true });
+                const contentResponse = await api.webui.get(contentUrl, { fullResponse: true });
 
                 // Get MIME type from response headers - this is the correct MIME type for this specific version
                 const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
@@ -819,7 +819,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 const latestVersion = Math.max(...availableVersions);
-                const contentResponse = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`, { raw: true });
+                const contentResponse = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`, { fullResponse: true });
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -1722,7 +1722,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 params: { id: currentTaskId },
             };
 
-            const response = await api.webui.post(`/api/v1/tasks/${currentTaskId}:cancel`, cancelRequest, { raw: true });
+            const response = await api.webui.post(`/api/v1/tasks/${currentTaskId}:cancel`, cancelRequest, { fullResponse: true });
 
             if (response.status === 202) {
                 if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);

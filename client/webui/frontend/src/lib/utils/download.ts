@@ -63,7 +63,7 @@ export const downloadFile = async (file: FileAttachment, sessionId?: string, pro
                 endpoint = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version}`;
             }
 
-            const response = await api.webui.get(endpoint, { raw: true });
+            const response = await api.webui.get(endpoint, { fullResponse: true });
             blob = await response.blob();
         } else {
             throw new Error("File has no content or URI to download.");

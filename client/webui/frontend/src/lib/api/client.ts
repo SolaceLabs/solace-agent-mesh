@@ -11,23 +11,23 @@ interface RequestOptions {
 interface HttpMethods {
     get: {
         <T = any>(endpoint: string, options?: RequestOptions): Promise<T>;
-        (endpoint: string, options: RequestOptions & { raw: true }): Promise<Response>;
+        (endpoint: string, options: RequestOptions & { fullResponse: true }): Promise<Response>;
     };
     post: {
         <T = any>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T>;
-        (endpoint: string, body: unknown, options: RequestOptions & { raw: true }): Promise<Response>;
+        (endpoint: string, body: unknown, options: RequestOptions & { fullResponse: true }): Promise<Response>;
     };
     put: {
         <T = any>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T>;
-        (endpoint: string, body: unknown, options: RequestOptions & { raw: true }): Promise<Response>;
+        (endpoint: string, body: unknown, options: RequestOptions & { fullResponse: true }): Promise<Response>;
     };
     delete: {
         <T = any>(endpoint: string, options?: RequestOptions): Promise<T>;
-        (endpoint: string, options: RequestOptions & { raw: true }): Promise<Response>;
+        (endpoint: string, options: RequestOptions & { fullResponse: true }): Promise<Response>;
     };
     patch: {
         <T = any>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T>;
-        (endpoint: string, body: unknown, options: RequestOptions & { raw: true }): Promise<Response>;
+        (endpoint: string, body: unknown, options: RequestOptions & { fullResponse: true }): Promise<Response>;
     };
     getFullUrl: (endpoint: string) => string;
 }
@@ -124,7 +124,7 @@ const fetchJsonWithError = async (url: string, options: RequestInit = {}) => {
     return response.json();
 };
 
-type InternalRequestOptions = RequestOptions & RequestInit & { raw?: boolean };
+type InternalRequestOptions = RequestOptions & RequestInit & { fullResponse?: boolean };
 
 class ApiClient {
     private webuiBaseUrl = "";
@@ -145,10 +145,10 @@ class ApiClient {
 
     private async request(baseUrl: string, endpoint: string, options?: InternalRequestOptions) {
         const url = `${baseUrl}${endpoint}`;
-        const { raw, ...fetchOptions } = options || {};
+        const { fullResponse, ...fetchOptions } = options || {};
 
-        if (raw) {
-            return authenticatedFetch(url, fetchOptions);
+        if (fullResponse) {
+            return fetchWithError(url, fetchOptions);
         }
 
         return fetchJsonWithError(url, fetchOptions);

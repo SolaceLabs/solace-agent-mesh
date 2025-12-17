@@ -296,7 +296,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                     voice: settings.voice,
                     runId: messageId || `tts-${Date.now()}`,
                     provider: settings.ttsProvider,
-                }, { raw: true });
+                }, { fullResponse: true });
 
                 const reader = response.body?.getReader();
                 if (!reader) {
