@@ -1,16 +1,16 @@
 ---
-title: "Migration to Platform Service (Enterprise v1.23.0+)"
+title: "Migration to Platform Service (Enterprise v1.25.0+)"
 sidebar_position: 20
 ---
 
-This guide is for **SAM Enterprise** users who generated their application using `sam init` and are upgrading to version SAM Enterprise 1.23.0+.
+This guide is for **SAM Enterprise** users who generated their application using `sam init` and are upgrading to version SAM Enterprise 1.25.0+.
 :::info
 **SAM Community Edition users**: This migration does not apply to you.
 :::
 
 ## Overview
 
-Previously, backend enterprise functionality was served from the WebUI Gateway. With version 1.23.0+, the architecture splits the WebUI Gateway into two separate services:
+Previously, backend enterprise functionality was served from the WebUI Gateway. With version 1.25.0+, the architecture splits the WebUI Gateway into two separate services:
 
 - **WebUI Gateway** (port 8000): Handles chat sessions, task submissions, and real-time streaming
 - **Platform Service** (port 8001): Handles Agent Builder, Connector management, and deployment orchestration
@@ -19,7 +19,7 @@ Previously, backend enterprise functionality was served from the WebUI Gateway. 
 
 ### Split
 
-| Aspect | Until (v1.22.x)              | After (v1.23.0)                  |
+| Aspect | Until (v1.22.x)              | After (v1.25.0)                  |
 |--------|------------------------------|----------------------------------|
 | **Architecture** | WebUI Gateway | WebUI Gateway + Platform Service |
 | **Ports** | Single port (8000)           | WebUI (8000) + Platform (8001)   |
@@ -41,7 +41,7 @@ Previously, backend enterprise functionality was served from the WebUI Gateway. 
 - Background tasks (heartbeat monitoring, deployment tracking)
 
 :::warning
-If you upgrade to v1.23.0+ without completing this migration, users will lose access to the Agent Builder, Connector management, and dynamic agent deployment capabilities. Chat functionality will continue to work, but enterprise features will be unavailable.
+If you upgrade to v1.25.0+ without completing this migration, users will lose access to the Agent Builder, Connector management, and dynamic agent deployment capabilities. Chat functionality will continue to work, but enterprise features will be unavailable.
 :::
 
 ## Migration Steps
