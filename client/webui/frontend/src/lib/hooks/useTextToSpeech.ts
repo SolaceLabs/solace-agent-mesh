@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
-import { fetchJsonWithError, fetchWithError } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 interface UseTextToSpeechOptions {
     messageId?: string;
@@ -95,7 +95,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
             try {
                 // Include provider in query to get provider-specific voices
                 const provider = settings.ttsProvider || "gemini";
-                const data = await fetchJsonWithError(`/api/v1/speech/voices?provider=${provider}`);
+                const data = await api.webui.get(`/api/v1/speech/voices?provider=${provider}`);
                 const voiceOptions: VoiceOption[] = (data.voices || []).map((voice: string) => ({
                     value: voice,
                     label: voice,
@@ -291,18 +291,16 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 }
 
                 // Use streaming endpoint - play chunks as they arrive
-                const response = await fetchWithError("/api/v1/speech/tts/stream", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        input: text,
-                        voice: settings.voice,
-                        runId: messageId || `tts-${Date.now()}`,
-                        provider: settings.ttsProvider,
-                    }),
-                });
+                const response = await api.webui.post("/api/v1/speech/tts/stream", {
+                    input: text,
+                    voice: settings.voice,
+                    runId: messageId || `tts-${Date.now()}`,
+                    provider: settings.ttsProvider,
+                }, { fullResponse: true });
+
+                if (!response.ok) {
+                    throw new Error(`TTS request failed: ${response.statusText}`);
+                }
 
                 const reader = response.body?.getReader();
                 if (!reader) {

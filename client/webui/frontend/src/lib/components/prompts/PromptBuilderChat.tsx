@@ -3,8 +3,8 @@ import { Send, Loader2, Sparkles } from "lucide-react";
 
 import { AudioRecorder, Button, MessageBanner, Textarea } from "@/lib/components";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
-import { authenticatedFetch } from "@/lib/utils";
 import type { TemplateConfig } from "@/lib/types";
+import { api } from "@/lib/api";
 
 interface Message {
     role: "user" | "assistant";
@@ -61,8 +61,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
         const initChat = async () => {
             try {
-                const response = await authenticatedFetch("/api/v1/prompts/chat/init");
-                const data = await response.json();
+                const data = await api.webui.get("/api/v1/prompts/chat/init");
 
                 // Use different greeting message for editing mode
                 const greetingMessage = isEditing ? "Hi! I'll help you edit this prompt template. What changes would you like to make?" : data.message;
@@ -89,23 +88,16 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
                     // Send the message to the API
                     try {
-                        const chatResponse = await authenticatedFetch("/api/v1/prompts/chat", {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            credentials: "include",
-                            body: JSON.stringify({
-                                message: initialMessage,
-                                conversation_history: [
-                                    {
-                                        role: "assistant",
-                                        content: data.message,
-                                    },
-                                ],
-                                current_template: currentConfig,
-                            }),
-                        });
+                        const chatResponse = await api.webui.post("/api/v1/prompts/chat", {
+                            message: initialMessage,
+                            conversation_history: [
+                                {
+                                    role: "assistant",
+                                    content: data.message,
+                                },
+                            ],
+                            current_template: currentConfig,
+                        }, { fullResponse: true });
 
                         if (chatResponse.ok) {
                             const chatData: ChatResponse = await chatResponse.json();
@@ -226,29 +218,16 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
         setHasUserMessage(true);
 
         try {
-            const response = await authenticatedFetch("/api/v1/prompts/chat", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                credentials: "include",
-                body: JSON.stringify({
-                    message: userMessage.content,
-                    conversation_history: messages
-                        .filter(m => m.content && m.content.trim().length > 0)
-                        .map(m => ({
-                            role: m.role,
-                            content: m.content,
-                        })),
-                    current_template: currentConfig,
-                }),
+            const data: ChatResponse = await api.webui.post("/api/v1/prompts/chat", {
+                message: userMessage.content,
+                conversation_history: messages
+                    .filter(m => m.content && m.content.trim().length > 0)
+                    .map(m => ({
+                        role: m.role,
+                        content: m.content,
+                    })),
+                current_template: currentConfig,
             });
-
-            if (!response.ok) {
-                throw new Error("Failed to get response");
-            }
-
-            const data: ChatResponse = await response.json();
 
             // Add assistant response
             const assistantMessage: Message = {

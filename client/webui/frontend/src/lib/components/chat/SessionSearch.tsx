@@ -4,9 +4,8 @@ import { Input } from "@/lib/components/ui/input";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
 import { useDebounce } from "@/lib/hooks/useDebounce";
-import { useConfigContext } from "@/lib/hooks";
-import { authenticatedFetch } from "@/lib/utils/api";
 import type { Session } from "@/lib/types";
+import { api } from "@/lib/api";
 
 interface SessionSearchProps {
     onSessionSelect: (sessionId: string) => void;
@@ -24,14 +23,11 @@ interface SearchResult {
 }
 
 export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps) => {
-    const { configServerUrl } = useConfigContext();
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<Session[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [showResults, setShowResults] = useState(false);
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
-
-    const apiPrefix = `${configServerUrl}/api/v1`;
 
     const performSearch = useCallback(async (query: string, currentProjectId: string | null | undefined) => {
         if (!query.trim()) {
@@ -52,16 +48,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
                 params.append("projectId", currentProjectId);
             }
 
-            const response = await authenticatedFetch(
-                `${apiPrefix}/sessions/search?${params.toString()}`,
-                { credentials: "include" }
-            );
-
-            if (!response.ok) {
-                throw new Error("Search failed");
-            }
-
-            const data: SearchResult = await response.json();
+            const data: SearchResult = await api.webui.get(`/api/v1/sessions/search?${params.toString()}`);
             setSearchResults(data.data || []);
             setShowResults(true);
         } catch (error) {
@@ -70,7 +57,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
         } finally {
             setIsSearching(false);
         }
-    }, [apiPrefix]);
+    }, []);
 
     useEffect(() => {
         performSearch(debouncedSearchQuery, projectId);

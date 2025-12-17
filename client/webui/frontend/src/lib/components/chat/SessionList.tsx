@@ -5,7 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Loader2 } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
-import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { api } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils/api";
 import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
@@ -37,7 +38,7 @@ interface SessionListProps {
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError } = useChatContext();
-    const { configServerUrl, persistenceEnabled } = useConfigContext();
+    const { persistenceEnabled } = useConfigContext();
     const inputRef = useRef<HTMLInputElement>(null);
 
     const [sessions, setSessions] = useState<Session[]>([]);
@@ -58,10 +59,9 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const fetchSessions = useCallback(
         async (pageNumber: number = 1, append: boolean = false) => {
             setIsLoading(true);
-            const url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`;
 
             try {
-                const result: PaginatedSessionsResponse = await fetchJsonWithError(url);
+                const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`);
 
                 if (append) {
                     setSessions(prev => [...prev, ...result.data]);
@@ -78,7 +78,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 setIsLoading(false);
             }
         },
-        [configServerUrl]
+        []
     );
 
     useEffect(() => {
@@ -184,11 +184,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         if (!sessionToMove) return;
 
         try {
-            await fetchWithError(`${configServerUrl}/api/v1/sessions/${sessionToMove.id}/project`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ projectId: targetProjectId }),
-            });
+            await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
 
             // Update local state
             setSessions(prevSessions =>

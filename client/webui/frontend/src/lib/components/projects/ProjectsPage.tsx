@@ -8,12 +8,13 @@ import { ProjectImportDialog } from "./ProjectImportDialog";
 import { ProjectCards } from "./ProjectCards";
 import { ProjectDetailView } from "./ProjectDetailView";
 import { useProjectContext } from "@/lib/providers";
-import { useChatContext } from "@/lib/hooks";
 import type { Project } from "@/lib/types/projects";
 import { Header } from "@/lib/components/header";
 import { Button } from "@/lib/components/ui";
-import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { api } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils/api";
 import { downloadBlob } from "@/lib/utils/download";
+import { useChatContext } from "@/lib/hooks";
 
 export const ProjectsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -102,7 +103,10 @@ export const ProjectsPage: React.FC = () => {
 
     const handleExport = async (project: Project) => {
         try {
-            const response = await fetchWithError(`/api/v1/projects/${project.id}/export`);
+            const response = await api.webui.get(`/api/v1/projects/${project.id}/export`, { fullResponse: true });
+            if (!response.ok) {
+                throw new Error(`Failed to export project: ${response.statusText}`);
+            }
             const blob = await response.blob();
             const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
             downloadBlob(blob, filename);
@@ -120,10 +124,7 @@ export const ProjectsPage: React.FC = () => {
             formData.append("file", file);
             formData.append("options", JSON.stringify(options));
 
-            const result = await fetchJsonWithError("/api/v1/projects/import", {
-                method: "POST",
-                body: formData,
-            });
+            const result = await api.webui.post("/api/v1/projects/import", formData);
 
             // Show warnings if any (combine into single notification for better UX)
             if (result.warnings && result.warnings.length > 0) {
