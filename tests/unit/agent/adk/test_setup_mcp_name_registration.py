@@ -35,6 +35,34 @@ async def test_register_mcp_tools_with_prefix():
         await _check_and_register_tool_name_mcp(component, loaded_tool_names, toolset)
 
 
+@pytest.mark.asyncio
+async def test_register_mcp_tools_without_prefix():
+    """Register MCP tools without prefix and detect duplicates."""
+    component = Mock()
+    component.log_identifier = "[TestAgent]"
+
+    loaded_tool_names = set()
+
+    tool1 = Mock()
+    tool1.name = "read"
+    tool2 = Mock()
+    tool2.name = "write"
+
+    toolset = Mock()
+    toolset.tool_name_prefix = None
+    toolset.get_tools = AsyncMock(return_value=[tool1, tool2])
+
+    await _check_and_register_tool_name_mcp(component, loaded_tool_names, toolset)
+
+    assert "read" in loaded_tool_names
+    assert "write" in loaded_tool_names
+    assert len(loaded_tool_names) == 2
+
+    # Test duplicate detection
+    with pytest.raises(ValueError, match="Configuration Error: Duplicate tool name 'read'"):
+        await _check_and_register_tool_name_mcp(component, loaded_tool_names, toolset)
+
+
 def test_embed_resolving_mcp_toolset_with_prefix():
     """EmbedResolvingMCPToolset construction with mcp prefix."""
     connection_params = Mock()
@@ -57,7 +85,7 @@ async def test_load_mcp_tool_passes_prefix():
 
     tool_config = {
         "tool_type": "mcp",
-        "tool_name_prefix": "fs_",
+        "tool_name_prefix": "fs",
         "connection_params": {
             "type": "stdio",
             "command": "npx",
@@ -70,5 +98,5 @@ async def test_load_mcp_tool_passes_prefix():
     assert len(tools) == 1
     toolset = tools[0]
     assert isinstance(toolset, EmbedResolvingMCPToolset)
-    assert toolset.tool_name_prefix == "fs_"
+    assert toolset.tool_name_prefix == "fs"
     assert toolset._tool_config == tool_config
