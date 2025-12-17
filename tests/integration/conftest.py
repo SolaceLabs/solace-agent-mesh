@@ -831,6 +831,11 @@ def shared_solace_connector(
             "tool_name": "get_data_streamable_http",
             "connection_params": mcp_server_harness["streamable_http"],
         },
+        {
+            "tool_type": "mcp",
+            "tool_name_prefix": "prefixed",
+            "connection_params": mcp_server_harness["stdio"],
+        },
     ]
     sam_agent_app_config = create_agent_config(
         agent_name="TestAgent",
