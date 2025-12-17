@@ -436,27 +436,6 @@ const AgentToolsStep: React.FC<StepProps> = ({
 
   const handleDeleteTool = (toolId?: string) => {
     if (!toolId) return;
-
-    // Check if this is an auto-added web tool
-    const toolToDelete = toolsList.find((t) => t.id === toolId);
-    if (toolToDelete?.id?.startsWith("web_auto_")) {
-      // Check if there are still remote MCP tools that need it
-      const hasRemoteMcpTools = toolsList.some(
-        (t) =>
-          t.id !== toolId &&
-          t.tool_type === "mcp" &&
-          (t.transport_type === "sse" || t.transport_type === "streamable-http")
-      );
-
-      if (hasRemoteMcpTools) {
-        alert(
-          "Cannot delete the web tool group while remote MCP tools (SSE or streamable-http) are configured. " +
-          "The web tool provides network access required by remote MCP servers."
-        );
-        return;
-      }
-    }
-
     updateData({ tools: toolsList.filter((t) => t.id !== toolId) });
   };
 
@@ -464,6 +443,10 @@ const AgentToolsStep: React.FC<StepProps> = ({
     const props = [];
     if (tool.tool_type === "builtin-group") {
       props.push(`Group: ${tool.group_name}`);
+    } else if (tool.tool_type === "mcp") {
+      if (tool.transport_type) {
+        props.push(`Transport: ${tool.transport_type}`);
+      }
     } else if (tool.tool_name) {
       props.push(`Name: ${tool.tool_name}`);
     } else if (tool.tool_type === "python" && tool.function_name) {
@@ -533,15 +516,6 @@ const AgentToolsStep: React.FC<StepProps> = ({
                       onClick={() => handleDeleteTool(tool.id)}
                       variant="outline"
                       className="text-red-600 border-red-300 hover:bg-red-50"
-                      disabled={
-                        tool.id?.startsWith("web_auto_") &&
-                        toolsList.some(
-                          (t) =>
-                            t.id !== tool.id &&
-                            t.tool_type === "mcp" &&
-                            (t.transport_type === "sse" || t.transport_type === "streamable-http")
-                        )
-                      }
                     >
                       Delete
                     </Button>
