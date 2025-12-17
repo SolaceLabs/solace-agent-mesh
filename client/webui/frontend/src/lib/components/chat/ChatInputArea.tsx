@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from "react"
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import { Ban, Paperclip, Send, MessageSquarePlus } from "lucide-react";
+import { Ban, Paperclip, Send, MessageSquarePlus, X } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
@@ -573,17 +573,14 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         <span className="text-muted-foreground truncate italic">"{contextText}"</span>
                         <Button
                             variant="ghost"
-                            size="icon"
-                            className="hover:bg-background h-5 w-5 flex-shrink-0 rounded-sm"
+                            className="h-5 w-5 shrink-0"
                             onClick={() => {
                                 setContextText(null);
                                 setShowContextBadge(false);
                             }}
+                            tooltip="Remove context"
                         >
-                            <span className="sr-only">Remove context</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                            </svg>
+                            <X />
                         </Button>
                     </div>
                 </div>
