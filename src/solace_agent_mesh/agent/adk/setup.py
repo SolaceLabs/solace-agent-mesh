@@ -625,14 +625,30 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     else:
         raise ValueError(f"Unsupported MCP connection type: {connection_type}")
 
-    tool_filter_list = (
-        [tool_config_model.tool_name] if tool_config_model.tool_name else None
-    )
-    if tool_filter_list:
+    # Determine tool filter based on configuration
+    # tool_name, allow_list, and deny_list are mutually exclusive (validated by pydantic)
+    tool_filter = None
+    filter_description = "none (all tools)"
+
+    if tool_config_model.tool_name:
+        # Backward compatible: single tool name becomes a list
+        tool_filter = [tool_config_model.tool_name]
+        filter_description = f"tool_name='{tool_config_model.tool_name}'"
+    elif tool_config_model.allow_list:
+        # Allow list: pass directly as list of tool names
+        tool_filter = tool_config_model.allow_list
+        filter_description = f"allow_list={tool_config_model.allow_list}"
+    elif tool_config_model.deny_list:
+        # Deny list: create a ToolPredicate that excludes these tools
+        deny_set = set(tool_config_model.deny_list)
+        tool_filter = lambda tool, ctx=None, _deny=deny_set: tool.name not in _deny
+        filter_description = f"deny_list={tool_config_model.deny_list}"
+
+    if tool_filter:
         log.info(
-            "%s MCP tool config specifies tool_name: '%s'. Applying as tool_filter.",
+            "%s MCP tool config specifies filter: %s",
             component.log_identifier,
-            tool_config_model.tool_name,
+            filter_description,
         )
 
     additional_params = {}
@@ -647,7 +663,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
                 tool_type="mcp",
                 tool_config=tool_config,
                 connection_params=connection_params,
-                tool_filter=tool_filter_list,
+                tool_filter=tool_filter,
             )
         except Exception as e:
             log.error(
@@ -664,7 +680,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     # Create the EmbedResolvingMCPToolset with base parameters
     toolset_params = {
         "connection_params": connection_params,
-        "tool_filter": tool_filter_list,
+        "tool_filter": tool_filter,
         "tool_config": tool_config,
     }
 
@@ -677,7 +693,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     log.info(
         "%s Initialized MCPToolset (filter: %s) for server: %s",
         component.log_identifier,
-        (tool_filter_list if tool_filter_list else "none (all tools)"),
+        filter_description,
         connection_params,
     )
 
