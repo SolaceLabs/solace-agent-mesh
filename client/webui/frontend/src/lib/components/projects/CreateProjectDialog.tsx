@@ -78,6 +78,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({ isOpen
                                 }}
                                 disabled={isSubmitting}
                                 maxLength={256}
+                                className={nameError ? "border-destructive" : ""}
                             />
                             {nameError && <div className="text-destructive text-xs">{nameError}</div>}
                         </div>
