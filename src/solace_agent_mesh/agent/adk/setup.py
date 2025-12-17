@@ -945,7 +945,7 @@ async def _check_and_register_tool_name_mcp(component, loaded_tool_names: set[st
         for mcp_tool in mcp_tools:
             toolname = mcp_tool.name
             if tool.tool_name_prefix != None:
-                toolname = tool.tool_name_prefix + toolname
+                toolname = f"{tool.tool_name_prefix}_{toolname}"
             _check_and_register_tool_name(
                 toolname, "mcp", loaded_tool_names
             )
