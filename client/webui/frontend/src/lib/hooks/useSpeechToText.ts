@@ -296,7 +296,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                         formData.append("language", settings.languageSTT);
                     }
 
-                    const response = await api.webui.post(`/api/v1/speech/stt`, formData, { raw: true });
+                    const response = await api.webui.post("/api/v1/speech/stt", formData, { raw: true });
 
                     const result = await response.json();
                     const transcribedText = result.text || "";

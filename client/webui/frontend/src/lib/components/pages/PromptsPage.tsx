@@ -37,7 +37,7 @@ export const PromptsPage: React.FC = () => {
     const fetchPromptGroups = useCallback(async () => {
         setIsLoading(true);
         try {
-            const data = await api.webui.get(`/api/v1/prompts/groups/all`);
+            const data = await api.webui.get("/api/v1/prompts/groups/all");
             setPromptGroups(data);
         } catch (error) {
             displayError({ title: "Failed to Load Prompts", error: getErrorMessage(error, "An error occurred while fetching prompt groups.") });
@@ -245,7 +245,7 @@ export const PromptsPage: React.FC = () => {
                 },
             };
 
-            const result = await api.webui.post(`/api/v1/prompts/import`, apiPayload);
+            const result = await api.webui.post("/api/v1/prompts/import", apiPayload);
 
             // Navigate back to prompts page
             setShowBuilder(false);

@@ -61,7 +61,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
         const initChat = async () => {
             try {
-                const data = await api.webui.get(`/api/v1/prompts/chat/init`);
+                const data = await api.webui.get("/api/v1/prompts/chat/init");
 
                 // Use different greeting message for editing mode
                 const greetingMessage = isEditing ? "Hi! I'll help you edit this prompt template. What changes would you like to make?" : data.message;
@@ -88,7 +88,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
                     // Send the message to the API
                     try {
-                        const chatData: ChatResponse = await api.webui.post(`/api/v1/prompts/chat`, {
+                        const chatData: ChatResponse = await api.webui.post("/api/v1/prompts/chat", {
                             message: initialMessage,
                             conversation_history: [
                                 {
@@ -204,7 +204,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
         setHasUserMessage(true);
 
         try {
-            const data: ChatResponse = await api.webui.post(`/api/v1/prompts/chat`, {
+            const data: ChatResponse = await api.webui.post("/api/v1/prompts/chat", {
                 message: userMessage.content,
                 conversation_history: messages
                     .filter(m => m.content && m.content.trim().length > 0)
