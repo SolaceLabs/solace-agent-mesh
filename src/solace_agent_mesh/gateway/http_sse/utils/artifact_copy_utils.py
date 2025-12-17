@@ -504,14 +504,14 @@ async def copy_bm25_index_to_session(
         target_session_root = target_artifact_path.parent.parent
         target_bm25_dir = target_session_root / "bm25_index"
         
-        # Check if target already exists
-        #if target_bm25_dir.exists():
-        #    log.info(
-        #        "%sBM25 index directory already exists in session: %s",
-        #        log_prefix,
-        #        target_bm25_dir,
-        #    )
-        #    return True  # Already exists, consider it success
+        # If target already exists, remove it first to ensure we get the latest index
+        if target_bm25_dir.exists():
+            log.info(
+                "%sBM25 index directory already exists in session, removing old version: %s",
+                log_prefix,
+                target_bm25_dir,
+            )
+            shutil.rmtree(target_bm25_dir)
         
         log.info("here !!!!")
 

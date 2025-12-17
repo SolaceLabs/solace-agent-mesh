@@ -2509,6 +2509,7 @@ async def bm25_kw_search(
     #include_line_numbers: bool = False,
     index_dir: str,
     query: str,
+    top_k: int = 10,
     tool_context: ToolContext = None,
 ) -> Dict[str, Any]:
     """
@@ -2517,6 +2518,7 @@ async def bm25_kw_search(
     Args:
         index_dir: The directory of the BM25 index to search.
         query: The search query string.
+        top_k: The number of top results to return (must be between 1 and 50), default is 10.
         tool_context: The context provided by the ADK framework.
 
     Returns:
@@ -2525,19 +2527,25 @@ async def bm25_kw_search(
     if not tool_context:
         return {
             "status": "error",
-            "bm25_index_name": bm25_index_name,
+            "index_dir": index_dir,
             "message": "ToolContext is missing.",
         }
     
     log_identifier = f"[BuiltinArtifactTool:bm25_kw_search:{index_dir}]"
     log.info("%s Processing bm25 keyword search request.", log_identifier)
     
+    # Validate top_k parameter
+    if top_k < 1 or top_k > 50:
+        return {
+            "status": "error",
+            "index_dir": index_dir,
+            "message": f"Invalid top_k value: {top_k}. Must be between 1 and 50.",
+        }
 
     from ..utils.bm25_retriever import BM25Retriever
     
     retriever = BM25Retriever(index_dir)
 
-    top_k = 10
     min_score = 0
 
     results = retriever.search_single_document(
@@ -2591,7 +2599,7 @@ bm25_kw_search_tool_def = BuiltinTool(
     implementation=bm25_kw_search,
     description='''## BM25 Keyword Search Tool
 
-**Special Instructions for BM25 Search Results:**
+****Special Instructions for BM25 Search Results:****
 
 **When presenting search or research results:**
 - Lead with a direct answer if possible
@@ -2716,6 +2724,164 @@ single-digit millisecond latencies.
 
 Sources: S3 User Guide
 ```
+
+#### Top-K Selection Guidelines #####
+
+**CRITICAL: Use conservative top-k values to optimize cost and performance.**
+
+**Default Strategy:**
+- **Use `top_k=10`** as your default for most queries
+- Only deviate from this default when you have a specific reason
+
+**When to Use Different Values:**
+
+| top_k Value | Use Case | Example Queries |
+|-------------|----------|-----------------|
+| **3-5** | Simple factual lookup, definition queries, specific facts | "What is the capital of France?", "Define API", "When was AWS founded?" |
+| **10** | **DEFAULT - Standard queries, typical research questions** | "How do I configure S3 buckets?", "What are Kendra prerequisites?" |
+| **15-20** | Complex topics requiring multiple perspectives, comparison tasks | "Compare S3 bucket types", "What are all the IAM role requirements?" |
+| **25-30** | Comprehensive research, broad exploratory queries, multiple subtopics | "Explain everything about S3 security", "Complete guide to Kendra deployment" |
+| **40-50** | RARE - Exhaustive coverage, citation-heavy research reports | "Comprehensive analysis of all S3 features across all documentation" |
+
+**Hard Limits:**
+- **Minimum:** `top_k=1` (at least one result)
+- **Maximum:** `top_k=50` (never exceed this to prevent excessive token usage)
+- **If you need more than 50 results, you likely need to refine your query instead**
+
+#### Decision Tree for Top-K Selection #####
+
+```
+1. Is this a simple factual question with likely 1 clear answer?
+   YES → Use top_k=3 to 5
+   NO → Continue
+
+2. Is this a standard "how-to" or "what is" query?
+   YES → Use top_k=10 (DEFAULT)
+   NO → Continue
+
+3. Does the query ask for comparisons, multiple options, or "all" of something?
+   YES → Use top_k=15 to 20
+   NO → Continue
+
+4. Is this an exploratory research query or comprehensive guide request?
+   YES → Use top_k=25 to 30
+   NO → Use top_k=10 (DEFAULT)
+```
+
+#### Cost and Performance Considerations #####
+
+**Remember:**
+- Each result consumes tokens in the context window
+- More results = higher processing cost
+- More results ≠ better answers (diminishing returns after ~10-15 results)
+- Retrieval quality matters more than quantity
+
+**Best Practice:**
+1. **Start small:** Use top_k=10 by default
+2. **Evaluate results:** If insufficient, you can make a second call with higher top_k
+3. **Never guess high:** Don't use top_k=50 "just to be safe"
+4. **Query quality > Quantity:** A well-formulated query with top_k=10 beats a poor query with top_k=50
+
+#### Example Tool Calls ####
+
+**Good Examples:**
+
+```xml
+<!-- Simple factual query -->
+<invoke name="bm25_kw_search">
+<parameter name="index_dir">/path/to/index</parameter>
+<parameter name="query">AWS Kendra pricing model</parameter>
+<parameter name="top_k">5</parameter>
+</invoke>
+
+<!-- Standard how-to query (DEFAULT) -->
+<invoke name="bm25_kw_search">
+<parameter name="index_dir">/path/to/index</parameter>
+<parameter name="query">configure S3 bucket lifecycle policies</parameter>
+<parameter name="top_k">10</parameter>
+</invoke>
+
+<!-- Comprehensive comparison query -->
+<invoke name="bm25_kw_search">
+<parameter name="index_dir">/path/to/index</parameter>
+<parameter name="query">comparison all S3 storage classes features pricing performance</parameter>
+<parameter name="top_k">20</parameter>
+</invoke>
+```
+
+**Bad Examples:**
+
+```xml
+<!-- ❌ TOO HIGH for simple query -->
+<invoke name="bm25_kw_search">
+<parameter name="query">what is S3</parameter>
+<parameter name="top_k">30</parameter>
+</invoke>
+
+<!-- ❌ EXCEEDS MAXIMUM -->
+<invoke name="bm25_kw_search">
+<parameter name="query">S3 features</parameter>
+<parameter name="top_k">100</parameter>
+</invoke>
+
+<!-- ❌ TOO LOW for comprehensive query -->
+<invoke name="bm25_kw_search">
+<parameter name="query">complete guide to all IAM policies roles permissions</parameter>
+<parameter name="top_k">3</parameter>
+</invoke>
+```
+
+#### Adaptive Strategy #####
+
+If your initial search doesn't yield sufficient information:
+
+1. **First:** Try reformulating your query (better keywords)
+2. **Second:** Increase top_k incrementally (e.g., 10 → 15 → 20)
+3. **Last resort:** Use top_k=30+ for truly comprehensive needs
+
+**Example of adaptive retrieval:**
+
+```xml
+<!-- First attempt: standard search -->
+<invoke name="bm25_kw_search">
+<parameter name="query">S3 bucket encryption options</parameter>
+<parameter name="top_k">10</parameter>
+</invoke>
+
+<!-- If results insufficient, second attempt with better query and more results -->
+<invoke name="bm25_kw_search">
+<parameter name="query">S3 server-side encryption SSE-S3 SSE-KMS SSE-C client-side encryption</parameter>
+<parameter name="top_k">20</parameter>
+</invoke>
+```
+
+#### Monitoring Your Usage ####
+
+**Self-check questions before calling:**
+- [ ] Have I chosen the smallest reasonable top_k for this query type?
+- [ ] Is my top_k ≤ 50?
+- [ ] Could I answer this with fewer results if my query was better?
+- [ ] Am I using top_k=10 unless I have a specific reason not to?
+
+**Remember: Quality of query formulation > Quantity of results retrieved**
+
+---
+#### Integration with Citation System ####
+
+When using higher top_k values (20+), you'll receive more sources. Follow these guidelines:
+
+1. **Cite only what you use:** Don't feel obligated to cite all 30 sources if only 8 were relevant
+2. **Prioritize by relevance:** Sources with higher BM25 scores are typically more relevant
+3. **Diverse sources preferred:** Better to cite 5 diverse sources than 15 redundant ones
+4. **Page number specificity:** With more sources, page numbers become even more critical for user navigation
+
+**Example of selective citation from high top_k search:**
+
+```
+Query used top_k=25, returned 25 sources
+Your answer uses only 8 most relevant sources: [1], [3], [5], [7], [12], [15], [18], [22]
+This is GOOD - cite what's useful, not everything retrieved
+```
 ''',
     category="artifact_management",
     category_name=CATEGORY_NAME,
@@ -2731,7 +2897,12 @@ Sources: S3 User Guide
             "query": adk_types.Schema(
                 type=adk_types.Type.STRING,
                 description="Natural language instruction for the LLM on what to extract or how to transform the content. May contain embeds.",
-            )
+            ),
+            "top_k": adk_types.Schema(
+                type=adk_types.Type.INTEGER,
+                description="Number of top results to return. Default is 10.",
+                nullable=True,
+            ),
         },
         required=["index_dir", "query"],
     ),
