@@ -59,24 +59,36 @@ app = FastAPI(
 # Global flag to track if dependencies have been initialized
 _dependencies_initialized = False
 
-# Global component instance (set during setup_dependencies)
-_component = None
+# Global gateway OAuth proxy instance (set during OAuth setup)
+_gateway_oauth_proxy = None
 
 def get_gateway_oauth_proxy():
     """
-    Get the OAuth proxy instance from the component.
+    Get the OAuth proxy instance.
 
     The enterprise setup_oauth_proxy_routes() function stores the proxy
-    on component.gateway_oauth_proxy for access by auth callback routes.
+    globally for access by auth callback routes.
 
     Returns:
         GatewayOAuthProxy instance or None if not configured
     """
-    # Get the component instance (stored globally during app creation)
-    global _component
-    if _component and hasattr(_component, "gateway_oauth_proxy"):
-        return _component.gateway_oauth_proxy
-    return None
+    global _gateway_oauth_proxy
+    return _gateway_oauth_proxy
+
+
+def set_gateway_oauth_proxy(component):
+    """
+    Set the global OAuth proxy instance.
+
+    Called by enterprise setup_oauth_proxy_routes() to store the proxy
+    for access by auth callback routes.
+
+    Args:
+        proxy: GatewayOAuthProxy instance or None
+    """
+    global _gateway_oauth_proxy
+    if component and hasattr(component, "gateway_oauth_proxy"):
+        _gateway_oauth_proxy = component.gateway_oauth_proxy
 
 
 def _extract_access_token(request: FastAPIRequest) -> str:
@@ -569,14 +581,12 @@ def setup_dependencies(
 
     This function is idempotent and safe to call multiple times.
     """
-    global _dependencies_initialized, _component
+    global _dependencies_initialized
 
     if _dependencies_initialized:
         log.debug("[setup_dependencies] Dependencies already initialized, skipping")
         return
-
-    # Store component globally for access by get_gateway_oauth_proxy()
-    _component = component
+    set_gateway_oauth_proxy(component)
 
     dependencies.set_component_instance(component)
 

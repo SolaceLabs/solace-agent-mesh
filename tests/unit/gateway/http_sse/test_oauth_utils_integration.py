@@ -18,23 +18,11 @@ except ImportError:
 class TestGetGatewayOAuthProxy:
     """Test get_gateway_oauth_proxy function."""
 
-    def test_get_gateway_oauth_proxy_returns_none_without_component(self):
-        """Test that get_gateway_oauth_proxy returns None when component not set."""
-        # Reset global component
-        import solace_agent_mesh.gateway.http_sse.main as main_module
-        main_module._component = None
-
-        result = main_module.get_gateway_oauth_proxy()
-
-        assert result is None
-
-    def test_get_gateway_oauth_proxy_returns_none_without_proxy_attribute(self):
+    def test_get_gateway_oauth_proxy_returns_none_without_proxy(self):
         """Test that get_gateway_oauth_proxy returns None when proxy not set."""
+        # Reset global proxy
         import solace_agent_mesh.gateway.http_sse.main as main_module
-
-        # Create mock component without gateway_oauth_proxy attribute
-        mock_component = MagicMock(spec=[])  # Empty spec - no attributes
-        main_module._component = mock_component
+        main_module._gateway_oauth_proxy = None
 
         result = main_module.get_gateway_oauth_proxy()
 
@@ -44,14 +32,33 @@ class TestGetGatewayOAuthProxy:
         """Test that get_gateway_oauth_proxy returns proxy when configured."""
         import solace_agent_mesh.gateway.http_sse.main as main_module
 
-        # Create mock component with gateway_oauth_proxy
+        # Set mock proxy globally
         mock_proxy = MagicMock()
-        mock_component = MagicMock()
-        mock_component.gateway_oauth_proxy = mock_proxy
-        main_module._component = mock_component
+        main_module._gateway_oauth_proxy = mock_proxy
 
         result = main_module.get_gateway_oauth_proxy()
 
+        assert result is mock_proxy
+
+    def test_set_gateway_oauth_proxy_stores_proxy_globally(self):
+        """Test that set_gateway_oauth_proxy stores the proxy in global variable."""
+        import solace_agent_mesh.gateway.http_sse.main as main_module
+
+        # Reset global proxy
+        main_module._gateway_oauth_proxy = None
+
+        mock_proxy = MagicMock()
+        # Set proxy using the setter function
+        class MockComponent:
+            gateway_oauth_proxy = mock_proxy
+
+        main_module.set_gateway_oauth_proxy(MockComponent())
+
+        # Verify it's stored globally
+        assert main_module._gateway_oauth_proxy is mock_proxy
+
+        # Verify get function returns it
+        result = main_module.get_gateway_oauth_proxy()
         assert result is mock_proxy
 
 
@@ -220,30 +227,6 @@ class TestSetupDependencies:
         # This is tested through the _dependencies_initialized flag
         pass  # Covered by integration tests
 
-    def test_setup_dependencies_stores_component_globally(self):
-        """Test that setup_dependencies stores component in _component global."""
-        import solace_agent_mesh.gateway.http_sse.main as main_module
-
-        mock_component = MagicMock()
-
-        # Reset initialization flag to allow setup
-        main_module._dependencies_initialized = False
-
-        with patch.object(main_module.dependencies, 'set_component_instance'):
-            with patch.object(main_module, '_setup_middleware'):
-                with patch.object(main_module, '_setup_routers'):
-                    with patch.object(main_module, '_setup_oauth_proxy_routes'):
-                        main_module.setup_dependencies(
-                            mock_component,
-                            database_url="sqlite:///:memory:"
-                        )
-
-        # Verify component was stored
-        assert main_module._component is mock_component
-
-        # Reset for other tests
-        main_module._dependencies_initialized = False
-
     def test_setup_dependencies_calls_oauth_proxy_setup(self):
         """Test that setup_dependencies calls _setup_oauth_proxy_routes."""
         import solace_agent_mesh.gateway.http_sse.main as main_module
@@ -293,25 +276,23 @@ class TestOAuthUtilsImport:
         assert imported_utils is not None
 
 
-class TestComponentGlobalStorage:
-    """Test global component storage mechanism."""
+class TestGatewayOAuthProxyGlobalStorage:
+    """Test global gateway OAuth proxy storage mechanism."""
 
-    def test_component_global_initially_none(self):
-        """Test that _component global is initially None."""
+    def test_gateway_oauth_proxy_global_initially_none(self):
+        """Test that _gateway_oauth_proxy global is initially None."""
         import solace_agent_mesh.gateway.http_sse.main as main_module
         # Reset to initial state
-        main_module._component = None
-        assert main_module._component is None
+        main_module._gateway_oauth_proxy = None
+        assert main_module._gateway_oauth_proxy is None
 
-    def test_get_gateway_oauth_proxy_accesses_global_component(self):
-        """Test that get_gateway_oauth_proxy accesses the global _component."""
+    def test_get_gateway_oauth_proxy_accesses_global_proxy(self):
+        """Test that get_gateway_oauth_proxy accesses the global _gateway_oauth_proxy."""
         import solace_agent_mesh.gateway.http_sse.main as main_module
 
-        # Set a mock component with proxy
+        # Set a mock proxy globally
         mock_proxy = MagicMock()
-        mock_component = MagicMock()
-        mock_component.gateway_oauth_proxy = mock_proxy
-        main_module._component = mock_component
+        main_module._gateway_oauth_proxy = mock_proxy
 
         # get_gateway_oauth_proxy should access the global
         result = main_module.get_gateway_oauth_proxy()
