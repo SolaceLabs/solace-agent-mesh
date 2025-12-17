@@ -15,7 +15,6 @@ export interface ValidationErrors {
 
 export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
     const { addNotification } = useChatContext();
-    // Migrated to api client
     const [config, setConfig] = useState<TemplateConfig>(() => {
         if (editingGroup) {
             return {

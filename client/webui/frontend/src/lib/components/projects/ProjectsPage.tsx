@@ -29,7 +29,6 @@ export const ProjectsPage: React.FC = () => {
 
     const { projects, isLoading, createProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
     const { handleNewSession, handleSwitchSession, addNotification, displayError } = useChatContext();
-    // Migrated to api client
     const selectedProject = useMemo(() => projects.find(p => p.id === loaderData?.projectId) || null, [projects, loaderData?.projectId]);
 
     const handleCreateProject = async (data: { name: string; description: string }) => {

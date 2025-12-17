@@ -40,7 +40,6 @@ interface PromptsCommandProps {
 
 export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose, textAreaRef, onPromptSelect, messages = [], onReservedCommand }) => {
     const navigate = useNavigate();
-    // Migrated to api client
     const [searchValue, setSearchValue] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);

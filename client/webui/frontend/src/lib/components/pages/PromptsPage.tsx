@@ -19,7 +19,6 @@ export const PromptsPage: React.FC = () => {
     const loaderData = useLoaderData<{ promptId?: string; view?: string; mode?: string }>();
 
     const { addNotification, displayError } = useChatContext();
-    // Migrated to api client
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [showBuilder, setShowBuilder] = useState(false);

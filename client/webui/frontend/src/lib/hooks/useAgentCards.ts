@@ -54,7 +54,6 @@ interface useAgentCardsReturn {
 }
 
 export const useAgentCards = (): useAgentCardsReturn => {
-    // Migrated to api client
     const [agents, setAgents] = useState<AgentCardInfo[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
