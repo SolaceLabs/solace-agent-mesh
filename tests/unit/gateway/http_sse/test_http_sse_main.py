@@ -276,8 +276,9 @@ class TestUserInfoRetrieval:
             "name": "Test User"
         }
         mock_httpx_client.get.assert_called_once_with(
-            "http://auth-service/user_info?provider=azure",
-            headers={"Authorization": "Bearer valid_token"}
+            "http://auth-service/user_info",
+            headers={"Authorization": "Bearer valid_token"},
+            params={'provider': 'azure'},
         )
     
     @pytest.mark.asyncio
