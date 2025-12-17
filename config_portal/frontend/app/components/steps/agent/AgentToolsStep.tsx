@@ -35,7 +35,6 @@ export interface Tool {
   // stdio fields
   stdio_command?: string;
   stdio_args?: string[];
-  stdio_env?: Record<string, string>;
   // sse fields
   sse_url?: string;
   sse_headers?: Record<string, string>;
@@ -71,7 +70,6 @@ const initialToolState: Tool = {
   transport_type: "",
   stdio_command: "",
   stdio_args: [],
-  stdio_env: {},
   sse_url: "",
   sse_headers: {},
   streamable_http_url: "",
@@ -148,7 +146,6 @@ const AgentToolsStep: React.FC<StepProps> = ({
           transport_type: "stdio",
           stdio_command: cp.command as string || "",
           stdio_args: Array.isArray(cp.args) ? cp.args as string[] : [],
-          stdio_env: (cp.env && typeof cp.env === "object") ? cp.env as Record<string, string> : {},
           mcp_timeout: (cp.timeout as number) || 30,
         };
       } else if (type === "sse") {
@@ -330,9 +327,6 @@ const AgentToolsStep: React.FC<StepProps> = ({
             args: currentTool.stdio_args || [],
             timeout: currentTool.mcp_timeout || 30,
           };
-          if (currentTool.stdio_env && Object.keys(currentTool.stdio_env).length > 0) {
-            connection_params.env = currentTool.stdio_env;
-          }
         } else if (currentTool.transport_type === "sse") {
           connection_params = {
             type: "sse",
@@ -837,28 +831,6 @@ const AgentToolsStep: React.FC<StepProps> = ({
                           placeholder="No arguments added yet"
                           itemPlaceholder="e.g., -y or /path/to/directory"
                         />
-                        <KeyValueInput
-                          id="stdio_env"
-                          label="Environment Variables (Optional)"
-                          values={currentTool.stdio_env || {}}
-                          onChange={(values) => handleKeyValueInputChange("stdio_env", values)}
-                          error={formErrors.stdio_env}
-                          helpText="Optional environment variables for the stdio process (e.g., PATH, NODE_ENV)"
-                          placeholder="No environment variables added"
-                          keyPlaceholder="Variable name (e.g., PATH)"
-                          valuePlaceholder="Variable value (e.g., /usr/bin)"
-                        />
-                        <KeyValueInput
-                          id="environment_variables_ui"
-                          label="MCP Server Environment Variables (Optional)"
-                          values={currentTool.environment_variables_ui || {}}
-                          onChange={(values) => handleKeyValueInputChange("environment_variables_ui", values)}
-                          error={formErrors.environment_variables_ui}
-                          helpText="Environment variables passed to the MCP server (e.g., API keys, URLs). Can use ${VAR} syntax."
-                          placeholder="No environment variables added"
-                          keyPlaceholder="Variable name (e.g., CONFLUENCE_URL)"
-                          valuePlaceholder="Variable value (e.g., ${CONFLUENCE_URL})"
-                        />
                       </>
                     )}
 
@@ -910,6 +882,20 @@ const AgentToolsStep: React.FC<StepProps> = ({
                           />
                         </FormField>
                       </>
+                    )}
+
+                    {currentTool.transport_type && (
+                      <KeyValueInput
+                        id="environment_variables_ui"
+                        label="Environment Variables (Optional)"
+                        values={currentTool.environment_variables_ui || {}}
+                        onChange={(values) => handleKeyValueInputChange("environment_variables_ui", values)}
+                        error={formErrors.environment_variables_ui}
+                        helpText="Environment variables passed to the MCP server (e.g., API keys, URLs). Can use ${VAR} syntax."
+                        placeholder="No environment variables added"
+                        keyPlaceholder="Variable name (e.g., CONFLUENCE_URL)"
+                        valuePlaceholder="Variable value (e.g., ${CONFLUENCE_URL})"
+                      />
                     )}
 
                     {(currentTool.transport_type === "sse" || currentTool.transport_type === "streamable-http") && (
