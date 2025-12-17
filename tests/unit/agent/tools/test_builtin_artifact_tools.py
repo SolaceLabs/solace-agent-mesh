@@ -335,34 +335,89 @@ class TestDeleteArtifact:
         return mock_context
 
     @pytest.mark.asyncio
-    async def test_delete_artifact_success(self, mock_tool_context):
-        """Test successful artifact deletion."""
+    async def test_delete_artifact_requires_confirmation(self, mock_tool_context):
+        """Test that deletion without confirmation returns confirmation_required status."""
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session:
+            mock_session.return_value = "session123"
+            mock_tool_context._invocation_context.artifact_service.list_versions = AsyncMock(
+                return_value=[0, 1, 2]
+            )
+
+            result = await delete_artifact(
+                filename="test.txt",
+                confirm_delete=False,  # No confirmation
+                tool_context=mock_tool_context
+            )
+
+            assert result["status"] == "confirmation_required"
+            assert result["filename"] == "test.txt"
+            assert result["version_count"] == 3
+            assert result["versions"] == [0, 1, 2]
+            assert "irreversible" in result["message"].lower()
+            assert "confirm_delete=True" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_delete_artifact_success_with_confirmation(self, mock_tool_context):
+        """Test successful artifact deletion with confirmation."""
         with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session:
             mock_session.return_value = "session123"
             mock_tool_context._invocation_context.artifact_service.delete_artifact = AsyncMock()
-            
+            mock_tool_context._invocation_context.artifact_service.list_versions = AsyncMock(
+                return_value=[0, 1, 2]
+            )
+
             result = await delete_artifact(
                 filename="test.txt",
+                confirm_delete=True,  # With confirmation
                 tool_context=mock_tool_context
             )
-            
+
             assert result["status"] == "success"
+            assert result["filename"] == "test.txt"
+            assert result["versions_deleted"] == 3
+            assert "deleted successfully" in result["message"].lower()
             mock_tool_context._invocation_context.artifact_service.delete_artifact.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_delete_artifact_not_found(self, mock_tool_context):
-        """Test deleting non-existent artifact."""
+    async def test_delete_artifact_version_not_supported(self, mock_tool_context):
+        """Test that deleting a specific version returns an error."""
         with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session:
             mock_session.return_value = "session123"
+            mock_tool_context._invocation_context.artifact_service.list_versions = AsyncMock(
+                return_value=[0, 1, 2]
+            )
+
+            result = await delete_artifact(
+                filename="test.txt",
+                version=1,  # Specific version
+                tool_context=mock_tool_context
+            )
+
+            assert result["status"] == "error"
+            assert result["filename"] == "test.txt"
+            assert result["version_requested"] == 1
+            assert "not currently supported" in result["message"]
+            assert "ALL versions" in result["message"]
+            assert "confirm_delete=True" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_delete_artifact_not_found(self, mock_tool_context):
+        """Test deleting non-existent artifact with confirmation."""
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session:
+            mock_session.return_value = "session123"
+            mock_tool_context._invocation_context.artifact_service.list_versions = AsyncMock(
+                return_value=[0, 1]
+            )
             mock_tool_context._invocation_context.artifact_service.delete_artifact = AsyncMock(
                 side_effect=FileNotFoundError("Artifact not found")
             )
-            
+
             result = await delete_artifact(
                 filename="missing.txt",
+                confirm_delete=True,  # With confirmation to trigger actual deletion
                 tool_context=mock_tool_context
             )
-            
+
             assert result["status"] == "error"
             assert "not found" in result["message"].lower()
 
