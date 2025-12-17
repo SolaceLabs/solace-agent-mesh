@@ -337,7 +337,7 @@ export const PromptsPage: React.FC = () => {
             {isLoading ? (
                 <EmptyState title="Loading prompts..." variant="loading" />
             ) : (
-                <div className="relative flex-1 p-4">
+                <div className="bg-card-background relative flex-1 p-4">
                     <PromptCards
                         prompts={promptGroups}
                         onManualCreate={() => navigate("/prompts/new?mode=manual")}
@@ -368,7 +368,7 @@ export const PromptsPage: React.FC = () => {
                 />
             )}
 
-            <PromptImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
+            <PromptImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} existingPrompts={promptGroups} />
         </div>
     );
 };

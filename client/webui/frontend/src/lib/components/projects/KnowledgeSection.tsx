@@ -230,8 +230,9 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                 {!isLoading && !error && artifacts.length === 0 && (
                     <div className={`flex flex-col items-center justify-center rounded-md border-2 border-dashed p-6 text-center transition-all ${isDragging ? "border-primary bg-primary/10 scale-[1.02]" : "border-muted-foreground/30"}`}>
                         <Upload className={`mb-3 h-10 w-10 transition-colors ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
-                        <p className={`mb-1 text-sm font-medium transition-colors ${isDragging ? "text-primary" : "text-foreground"}`}>{isDragging ? "Drop files here to upload" : "Drag and drop files here"}</p>
-                        <p className="text-muted-foreground text-xs">or click the Upload button above</p>
+                        <p className={`text-sm transition-colors ${isDragging ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                            {isDragging ? "Drop files here to upload" : "No knowledge. Upload documents and files that you want the chat to reference."}
+                        </p>
                     </div>
                 )}
 

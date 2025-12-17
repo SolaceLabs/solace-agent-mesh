@@ -39,7 +39,7 @@ dependencies = [
     "kaleido==0.2.1",
     "PyYAML==6.0.2",
     "python-multipart==0.0.20",
-    "markitdown[all]==0.1.1",
+    "markitdown[all]==0.1.4",
     "jmespath==1.0.1",
     "mermaid_cli==0.1.2",
     "playwright==1.55.0",
@@ -57,7 +57,7 @@ dependencies = [
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
-    "solace_ai_connector==3.1.0",
+    "solace_ai_connector==3.2.0",
     "holidays==0.81.0",
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
@@ -65,7 +65,8 @@ dependencies = [
     "openai==1.99.9",
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
-    "azure-cognitiveservices-speech==1.41.1"
+    "azure-cognitiveservices-speech==1.41.1",
+    "authlib==1.6.5"  # For CVE-2025-59420: May be removed if next update to google-adk upgrades its transitive dependency on authlib
 ]
 
 [project.optional-dependencies]
