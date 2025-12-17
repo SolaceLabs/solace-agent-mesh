@@ -27,9 +27,6 @@ async def initiate_login(
 ):
     """
     Initiates the login flow by redirecting to the external authorization service.
-
-    NOTE: We send WebUI's callback URL as redirect_uri. This means Azure must have
-    http://localhost:8000/api/v1/auth/callback registered as a valid redirect URI.
     """
     try:
         from solace_agent_mesh_enterprise.gateway.auth import handle_login_initiation
@@ -72,10 +69,6 @@ async def auth_callback(
 ):
     """
     Handles the callback from the OIDC provider by calling an external exchange service.
-
-    If this is a gateway OAuth flow (detected by gateway_oauth_active in session),
-    exchanges the code for tokens, stores them, then redirects to the gateway OAuth
-    callback handler for gateway code generation.
     """
     try:
         from solace_agent_mesh_enterprise.gateway.auth import handle_auth_callback
