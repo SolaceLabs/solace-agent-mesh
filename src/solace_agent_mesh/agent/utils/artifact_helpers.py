@@ -353,7 +353,8 @@ async def save_artifact_with_metadata(
                         host_component = getattr(agent, "host_component", None)
                         a2a_context = tool_context.state.get("a2a_context")
                         # Get function_call_id if this was created by a tool
-                        function_call_id = tool_context.state.get("function_call_id")
+                        # Try state first (legacy), then the ADK attribute
+                        function_call_id = tool_context.state.get("function_call_id") or getattr(tool_context, "function_call_id", None)
                     except Exception as ctx_err:
                         log.info(
                             "%s Could not extract context from tool_context: %s",
