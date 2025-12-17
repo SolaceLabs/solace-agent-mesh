@@ -68,6 +68,8 @@ export const ProjectsPage: React.FC = () => {
     };
 
     const handleBackToList = () => {
+        setSelectedProject(null);
+        setActiveProject(null);
         navigate("/projects");
     };
 
