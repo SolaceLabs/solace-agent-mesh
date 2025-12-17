@@ -17,7 +17,7 @@ const getCsrfToken = async (retries = 5, delayMs = 50): Promise<string | null> =
     try {
         const response = await api.webui.get("/api/v1/csrf-token", {
             credentials: "include",
-            raw: true,
+            fullResponse: true,
         });
 
         // 2. Check if the request itself was successful

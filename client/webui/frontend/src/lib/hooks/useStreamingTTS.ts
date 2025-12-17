@@ -90,7 +90,7 @@ export function useStreamingTTS(options: UseStreamingTTSOptions): UseStreamingTT
                         voice: settings.voice,
                         runId: messageId,
                     },
-                    { raw: true }
+                    { fullResponse: true }
                 );
 
                 if (!response.ok) {

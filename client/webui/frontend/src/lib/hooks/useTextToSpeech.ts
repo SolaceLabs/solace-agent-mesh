@@ -296,7 +296,11 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                     voice: settings.voice,
                     runId: messageId || `tts-${Date.now()}`,
                     provider: settings.ttsProvider,
-                }, { raw: true });
+                }, { fullResponse: true });
+
+                if (!response.ok) {
+                    throw new Error(`TTS request failed: ${response.statusText}`);
+                }
 
                 const reader = response.body?.getReader();
                 if (!reader) {

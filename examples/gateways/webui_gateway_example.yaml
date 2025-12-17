@@ -78,7 +78,6 @@ apps:
             Format responses to the user in Markdown using appropriate formatting.
 
       # --- Frontend Config Passthrough ---
-      frontend_server_url: "${FRONTEND_SERVER_URL}"
       frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE}
       frontend_bot_name: ${FRONTEND_BOT_NAME}
       frontend_collect_feedback: true
