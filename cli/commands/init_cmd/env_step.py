@@ -258,17 +258,17 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
         env_vars_to_write["NAMESPACE"] = str(env_vars_to_write["NAMESPACE"]) + "/"
 
     # Handle Frontend URL generation to ensure they're not unset or empty strings
-    frontend_is_ssl = env_vars_to_write["SSL_CERTFILE"] and env_vars_to_write["SSL_KEYFILE"]
-    if not env_vars_to_write["FRONTEND_SERVER_URL"]:
+    frontend_is_ssl = env_vars_to_write.get("SSL_CERTFILE") and env_vars_to_write.get("SSL_KEYFILE")
+    if not env_vars_to_write.get("FRONTEND_SERVER_URL"):
         frontend_url = "https://" if frontend_is_ssl else "http://"
-        frontend_url += env_vars_to_write.get("FASTAPI_HOST", "127.0.0.1")
-        frontend_url += ":" + str(env_vars_to_write.get("FASTAPI_PORT", 8000))
+        frontend_url += env_vars_to_write.get("FASTAPI_HOST") or "127.0.0.1"
+        frontend_url += ":" + str(env_vars_to_write.get("FASTAPI_PORT") or 8000)
         env_vars_to_write["FRONTEND_SERVER_URL"] = frontend_url
 
-    if not env_vars_to_write["PLATFORM_SERVICE_URL"]:
+    if not env_vars_to_write.get("PLATFORM_SERVICE_URL"):
         platform_url = "https://" if frontend_is_ssl else "http://"
-        platform_url += env_vars_to_write.get("PLATFORM_API_HOST", "127.0.0.1")
-        platform_url += ":" + str(env_vars_to_write.get("PLATFORM_API_PORT", 8001))
+        platform_url += env_vars_to_write.get("PLATFORM_API_HOST") or "127.0.0.1"
+        platform_url += ":" + str(env_vars_to_write.get("PLATFORM_API_PORT") or 8001)
         env_vars_to_write["PLATFORM_SERVICE_URL"] = platform_url
 
     final_env_vars = {k: v for k, v in env_vars_to_write.items() if v is not None}
