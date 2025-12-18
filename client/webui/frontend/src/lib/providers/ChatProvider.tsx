@@ -582,18 +582,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Wrapper function to set preview artifact by filename
     // IMPORTANT: Must be defined before confirmDelete to avoid circular dependency
-    const setPreviewArtifact = useCallback(
-        (artifact: ArtifactInfo | null) => {
-            setPreviewArtifactFilename(artifact?.filename || null);
-            // Clear version-related state when changing/closing preview to prevent stale data
-            if (!artifact || artifact.filename !== previewArtifactFilename) {
+    const setPreviewArtifact = useCallback((artifact: ArtifactInfo | null) => {
+        setPreviewArtifactFilename(prevFilename => {
+            const newFilename = artifact?.filename || null;
+            // Clear version-related state only when filename actually changes
+            if (newFilename !== prevFilename) {
                 setPreviewedArtifactAvailableVersions(null);
                 setCurrentPreviewedVersionNumber(null);
                 setPreviewFileContent(null);
             }
-        },
-        [previewArtifactFilename]
-    );
+            return newFilename;
+        });
+    }, []);
 
     const confirmDelete = useCallback(async () => {
         if (artifactToDelete) {
@@ -2213,8 +2213,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     // Use navigateArtifactVersion to fetch and display the new version
                     const result = await navigateArtifactVersion(currentFilename, newVersion);
 
-                    // Only mark as processed if successful and still relevant
-                    if (!cancelled && previewArtifactFilename === currentFilename && result) {
+                    // Only mark as processed if successful and not cancelled
+                    if (!cancelled && result) {
                         lastCheckedVersionRef.current = versionToFetch;
                     }
                 } catch (error) {
