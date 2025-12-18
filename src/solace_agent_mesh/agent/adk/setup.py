@@ -1221,7 +1221,17 @@ def initialize_adk_agent(
         # The callbacks are executed in the order they are added to this list.
         callbacks_in_order_for_after_model = []
 
-        # 1. Fenced Artifact Block Processing (must run before auto-continue)
+        # 1. Pre-register long-running tools (must run BEFORE tool execution)
+        preregister_cb = functools.partial(
+            adk_callbacks.preregister_long_running_tools_callback, host_component=component
+        )
+        callbacks_in_order_for_after_model.append(preregister_cb)
+        log.debug(
+            "%s Added preregister_long_running_tools_callback to after_model chain.",
+            component.log_identifier,
+        )
+
+        # 2. Fenced Artifact Block Processing (must run before auto-continue)
         artifact_block_cb = functools.partial(
             adk_callbacks.process_artifact_blocks_callback, host_component=component
         )
@@ -1231,7 +1241,7 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
-        # 2. Auto-Continuation (may short-circuit the chain)
+        # 3. Auto-Continuation (may short-circuit the chain)
         auto_continue_cb = functools.partial(
             adk_callbacks.auto_continue_on_max_tokens_callback, host_component=component
         )
@@ -1241,13 +1251,13 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
-        # 3. Solace LLM Response Logging
+        # 4. Solace LLM Response Logging
         solace_llm_response_cb = functools.partial(
             adk_callbacks.solace_llm_response_callback, host_component=component
         )
         callbacks_in_order_for_after_model.append(solace_llm_response_cb)
 
-        # 4. Chunk Logging
+        # 5. Chunk Logging
         log_chunk_cb = functools.partial(
             adk_callbacks.log_streaming_chunk_callback, host_component=component
         )

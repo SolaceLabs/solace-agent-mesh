@@ -33,6 +33,7 @@ from ...agent.utils.context_helpers import (
     get_session_from_callback_context,
 )
 from ..tools.tool_definition import BuiltinTool
+from ..tools.peer_agent_tool import PEER_TOOL_PREFIX
 
 from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
@@ -2372,3 +2373,76 @@ def auto_continue_on_max_tokens_callback(
     )
 
     return hijacked_response
+
+
+def preregister_long_running_tools_callback(
+    callback_context: CallbackContext,
+    llm_response: LlmResponse,
+    host_component: "SamAgentComponent",
+) -> Optional[LlmResponse]:
+    """
+    ADK after_model_callback to pre-register all long-running tool calls
+    before any tool execution begins. This prevents race conditions where
+    one tool completes before another has registered.
+
+    The race condition occurs because tools are executed via asyncio.gather
+    (non-deterministic order) and each tool calls register_parallel_call_sent()
+    inside its run_async(). If Tool A completes before Tool B even registers,
+    the system thinks all calls are done (completed=1, total=1).
+
+    By pre-registering all long-running tools in this callback (which runs
+    BEFORE tool execution), we ensure the total count is set correctly upfront.
+    """
+    log_identifier = "[Callback:PreregisterLongRunning]"
+
+    # Only process non-partial responses with function calls
+    if llm_response.partial:
+        return None
+
+    if not llm_response.content or not llm_response.content.parts:
+        return None
+
+    # Find all long-running tool calls (identified by peer_ prefix)
+    long_running_calls = []
+    for part in llm_response.content.parts:
+        if part.function_call:
+            tool_name = part.function_call.name
+            if tool_name.startswith(PEER_TOOL_PREFIX):
+                long_running_calls.append(part.function_call)
+
+    if not long_running_calls:
+        return None
+
+    # Get task context
+    a2a_context = callback_context.state.get("a2a_context")
+    if not a2a_context:
+        log.warning("%s No a2a_context, cannot pre-register tools", log_identifier)
+        return None
+
+    logical_task_id = a2a_context.get("logical_task_id")
+    invocation_id = callback_context._invocation_context.invocation_id
+
+    with host_component.active_tasks_lock:
+        task_context = host_component.active_tasks.get(logical_task_id)
+
+    if not task_context:
+        log.warning(
+            "%s TaskContext not found for %s, cannot pre-register",
+            log_identifier,
+            logical_task_id,
+        )
+        return None
+
+    # Pre-register ALL long-running calls atomically
+    for fc in long_running_calls:
+        task_context.register_parallel_call_sent(invocation_id)
+
+    log.info(
+        "%s Pre-registered %d long-running tool call(s) for invocation %s (task %s)",
+        log_identifier,
+        len(long_running_calls),
+        invocation_id,
+        logical_task_id,
+    )
+
+    return None  # Don't alter the response
