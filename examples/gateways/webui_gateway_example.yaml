@@ -36,6 +36,20 @@ apps:
         type: "sql"
         database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
         default_behavior: "PERSISTENT"
+
+      # --- Platform Service Configuration ---
+      # URL for Platform Service (runs separately on port 8001)
+      # Frontend will route /api/v1/enterprise/* requests to this URL
+      platform_service:
+        url: "${PLATFORM_SERVICE_URL, http://localhost:8001}"
+
+      # --- OAuth2 Authentication (Optional - Enterprise Feature) ---
+      # Community mode: frontend_use_authorization=false (default) - uses dev user (sam_dev_user)
+      # Enterprise mode: frontend_use_authorization=true - validates tokens with external OAuth service
+      external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL}
+      external_auth_provider: ${EXTERNAL_AUTH_PROVIDER, generic}
+      frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION, false}  # Set to true for production with OAuth
+
       # --- Optional with Defaults ---
       model: *general_model # Optional: defaults to None - Points to shared_config.yaml
       gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.

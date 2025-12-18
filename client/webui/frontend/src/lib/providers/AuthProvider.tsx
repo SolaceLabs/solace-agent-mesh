@@ -1,6 +1,6 @@
 import React, { useState, useEffect, type ReactNode } from "react";
 
-import { authenticatedFetch } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 import { AuthContext } from "@/lib/contexts/AuthContext";
 import { useConfigContext, useCsrfContext } from "@/lib/hooks";
 
@@ -28,33 +28,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
 
             try {
-                const userResponse = await authenticatedFetch("/api/v1/users/me", {
-                    headers: { Accept: "application/json" },
-                });
+                const userData = await api.webui.get<Record<string, unknown>>("/api/v1/users/me");
+                console.log("User is authenticated:", userData);
 
-                if (userResponse.ok) {
-                    const userData = await userResponse.json();
-                    console.log("User is authenticated:", userData);
-
-                    if (isMounted) {
-                        setUserInfo(userData);
-                        setIsAuthenticated(true);
-                    }
-
-                    // Get CSRF token for authenticated requests if not already cached
-                    console.log("Fetching CSRF token for authenticated requests...");
-                    await fetchCsrfToken();
-                } else if (userResponse.status === 401) {
-                    console.log("User is not authenticated");
-                    if (isMounted) {
-                        setIsAuthenticated(false);
-                    }
-                } else {
-                    console.error("Unexpected response from /users/me:", userResponse.status);
-                    if (isMounted) {
-                        setIsAuthenticated(false);
-                    }
+                if (isMounted) {
+                    setUserInfo(userData);
+                    setIsAuthenticated(true);
                 }
+
+                console.log("Fetching CSRF token for authenticated requests...");
+                await fetchCsrfToken();
             } catch (authError) {
                 console.error("Error checking authentication:", authError);
                 if (isMounted) {
@@ -90,20 +73,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const logout = async () => {
         try {
             if (configUseAuthorization) {
-                const response = await authenticatedFetch("/api/v1/auth/logout", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Accept: "application/json",
-                    },
-                });
-
-                if (!response.ok) {
-                    throw new Error("Backend logout failed with status: " + response.status);
-                }
+                await api.webui.post("/api/v1/auth/logout");
             }
         } catch (error) {
-            // Log the error but proceed to clear local auth state
             console.error("Error calling logout endpoint:", error);
         } finally {
             setIsAuthenticated(false);

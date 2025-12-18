@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from ..repository.entities import Feedback
 from ..repository.feedback_repository import FeedbackRepository
-from ..shared import now_epoch_ms
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from ..utils.stim_utils import create_stim_from_task_data
 
 # The FeedbackPayload is defined in the router, this creates a forward reference

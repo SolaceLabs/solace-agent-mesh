@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
-from solace_agent_mesh.gateway.http_sse.shared import now_epoch_ms
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 from .infrastructure.database_inspector import DatabaseInspector
 from .infrastructure.gateway_adapter import GatewayAdapter

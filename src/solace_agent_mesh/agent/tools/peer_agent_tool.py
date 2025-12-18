@@ -20,6 +20,7 @@ from ...common.exceptions import MessageSizeExceededError
 
 log = logging.getLogger(__name__)
 
+
 class ArtifactIdentifier(BaseModel):
     """Identifies a specific version of an artifact."""
 
@@ -90,7 +91,10 @@ class PeerAgentTool(BaseTool):
             Enhanced description string with markdown formatting
         """
         # Start with base description - ensure it's clean (no extra whitespace)
-        base_desc = agent_card.description or f"Interact with the {self.target_agent_name} agent."
+        base_desc = (
+            agent_card.description
+            or f"Interact with the {self.target_agent_name} agent."
+        )
         base_desc = " ".join(base_desc.split())  # Normalize whitespace
 
         # Extract skills information
@@ -101,7 +105,7 @@ class PeerAgentTool(BaseTool):
             skill_names = []
             for skill in agent_card.skills[:max_skills_to_show]:
                 # Prefer name, fallback to id
-                skill_name = getattr(skill, 'name', None) or getattr(skill, 'id', None)
+                skill_name = getattr(skill, "name", None) or getattr(skill, "id", None)
                 if skill_name:
                     skill_names.append(skill_name)
 
@@ -113,7 +117,9 @@ class PeerAgentTool(BaseTool):
 
             # Include skill count in the header
             if skill_count > 1:
-                enhanced_desc = f"{base_desc}\n\n**Skills ({skill_count}):** {skills_str}"
+                enhanced_desc = (
+                    f"{base_desc}\n\n**Skills ({skill_count}):** {skills_str}"
+                )
             else:
                 enhanced_desc = f"{base_desc}\n\n**Skills:** {skills_str}"
 
@@ -122,7 +128,9 @@ class PeerAgentTool(BaseTool):
                 # Truncate to first 4 skills to keep it concise
                 skill_names = []
                 for skill in agent_card.skills[:4]:
-                    skill_name = getattr(skill, 'name', None) or getattr(skill, 'id', None)
+                    skill_name = getattr(skill, "name", None) or getattr(
+                        skill, "id", None
+                    )
                     if skill_name:
                         skill_names.append(skill_name)
                 skills_str = ", ".join(skill_names)
@@ -131,7 +139,9 @@ class PeerAgentTool(BaseTool):
                     skills_str += f" ({remaining} more...)"
 
                 if skill_count > 1:
-                    enhanced_desc = f"{base_desc}\n\n**Skills ({skill_count}):** {skills_str}"
+                    enhanced_desc = (
+                        f"{base_desc}\n\n**Skills ({skill_count}):** {skills_str}"
+                    )
                 else:
                     enhanced_desc = f"{base_desc}\n\n**Skills:** {skills_str}"
         else:
@@ -264,13 +274,10 @@ class PeerAgentTool(BaseTool):
                     f"TaskExecutionContext not found for task '{main_logical_task_id}'"
                 )
 
-            task_context_obj.register_parallel_call_sent(invocation_id)
-            log.info(
-                "%s Registered parallel call for invocation %s. Current state: %s",
-                log_identifier,
-                invocation_id,
-                task_context_obj.parallel_tool_calls.get(invocation_id),
-            )
+            # NOTE: register_parallel_call_sent is called in
+            # preregister_long_running_tools_callback (after_model_callback)
+            # BEFORE tool execution begins. This prevents race conditions where
+            # one tool completes before another registers.
 
             a2a_message_parts = self._prepare_a2a_parts(args, tool_context)
             a2a_metadata = {}
