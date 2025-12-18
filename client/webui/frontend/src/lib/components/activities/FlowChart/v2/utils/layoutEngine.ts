@@ -545,13 +545,6 @@ function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void 
     if (step.owningTaskId && step.owningTaskId !== executionId) {
         context.taskToNodeMap.set(step.owningTaskId, groupNode);
     }
-
-    // DEBUG: Log workflow registration
-    console.log('[LAYOUT_DEBUG] handleWorkflowStart registered:', {
-        executionId,
-        owningTaskId: step.owningTaskId,
-        registeredKeys: [executionId, step.owningTaskId !== executionId ? step.owningTaskId : null].filter(Boolean),
-    });
 }
 
 /**
@@ -564,17 +557,6 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
     const parentNodeId = step.data.workflowNodeExecutionStart?.parentNodeId;
     const parallelGroupId = step.data.workflowNodeExecutionStart?.parallelGroupId;
     const taskId = step.owningTaskId;
-
-    // DEBUG: Log workflow node processing
-    console.log('[LAYOUT_DEBUG] handleWorkflowNodeStart:', {
-        nodeId,
-        nodeType,
-        agentName,
-        parallelGroupId,
-        taskId,
-        owningTaskId: step.owningTaskId,
-        taskToNodeMapKeys: Array.from(context.taskToNodeMap.keys()),
-    });
 
     // Check if this node is a child of a Map/Loop (parallel execution with parentNodeId)
     // For Map/Loop children, use parallelGroupId if available, otherwise fall back to parentNodeId
@@ -685,14 +667,6 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
     else if (nodeType === 'agent' && parallelGroupId) {
         // Find parent group
         const groupNode = findAgentForStep(step, context);
-        console.log('[LAYOUT_DEBUG] Implicit parallel agent:', {
-            nodeId,
-            agentName,
-            parallelGroupId,
-            groupNodeFound: !!groupNode,
-            groupNodeType: groupNode?.type,
-            groupNodeLabel: groupNode?.data?.label,
-        });
         if (!groupNode) return;
 
         // Check if we already have a parallel block for this group
