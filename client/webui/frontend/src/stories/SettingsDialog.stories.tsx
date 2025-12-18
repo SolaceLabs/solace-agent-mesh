@@ -40,7 +40,7 @@ const meta = {
         msw: { handlers },
         configContext: {
             persistenceEnabled: false,
-            frontend_use_authorization: false,
+            configUseAuthorization: false,
             configFeatureEnablement: {
                 speechToText: false,
                 textToSpeech: false,
@@ -122,7 +122,7 @@ export const TextToSpeech = {
     parameters: {
         configContext: {
             persistenceEnabled: false,
-            frontend_use_authorization: true,
+            configUseAuthorization: true,
             configFeatureEnablement: {
                 speechToText: false,
                 textToSpeech: true,
@@ -164,7 +164,7 @@ export const Logout = {
     parameters: {
         configContext: {
             persistenceEnabled: false,
-            frontend_use_authorization: true,
+            configUseAuthorization: true,
             configFeatureEnablement: {
                 speechToText: false,
                 textToSpeech: false,
@@ -201,7 +201,7 @@ export const All = {
     parameters: {
         configContext: {
             persistenceEnabled: false,
-            frontend_use_authorization: true,
+            configUseAuthorization: true,
             configFeatureEnablement: {
                 speechToText: true,
                 textToSpeech: true,

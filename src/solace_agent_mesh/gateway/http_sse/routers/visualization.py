@@ -1,6 +1,7 @@
 """
 API Router for managing A2A message visualization streams.
 """
+from __future__ import annotations
 
 import logging
 import asyncio

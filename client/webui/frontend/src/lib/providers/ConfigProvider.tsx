@@ -1,11 +1,12 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { authenticatedFetch } from "../utils/api";
 import { ConfigContext, type ConfigContextValue } from "../contexts";
 import { useCsrfContext } from "../hooks/useCsrfContext";
 import { EmptyState } from "../components";
+import { api } from "../api";
 
 interface BackendConfig {
     frontend_server_url: string;
+    frontend_platform_server_url: string;
     frontend_auth_login_url: string;
     frontend_use_authorization: boolean;
     frontend_welcome_message: string;
@@ -52,9 +53,10 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
             setError(null);
 
             try {
-                let configResponse = await authenticatedFetch("/api/v1/config", {
+                let configResponse = await api.webui.get("/api/v1/config", {
                     credentials: "include",
                     headers: { Accept: "application/json" },
+                    fullResponse: true,
                 });
 
                 let data: BackendConfig;
@@ -69,12 +71,13 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                             throw new Error("Failed to obtain CSRF token after config fetch failed.");
                         }
                         console.log("Retrying config fetch with CSRF token...");
-                        configResponse = await authenticatedFetch("/api/v1/config", {
+                        configResponse = await api.webui.get("/api/v1/config", {
                             credentials: "include",
                             headers: {
                                 "X-CSRF-TOKEN": csrfToken,
                                 Accept: "application/json",
                             },
+                            fullResponse: true,
                         });
                         if (!configResponse.ok) {
                             const errorTextRetry = await configResponse.text();
@@ -103,9 +106,13 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 const backgroundTasksEnabled = data.frontend_feature_enablement?.background_tasks ?? false;
                 const backgroundTasksDefaultTimeoutMs = data.background_tasks_config?.default_timeout_ms ?? 3600000;
 
+                // Check if platform service is configured
+                const platformConfigured = Boolean(data.frontend_platform_server_url);
+
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
-                    configServerUrl: data.frontend_server_url,
+                    webuiServerUrl: data.frontend_server_url,
+                    platformServerUrl: data.frontend_platform_server_url,
                     configAuthLoginUrl: data.frontend_auth_login_url,
                     configUseAuthorization: effectiveUseAuthorization,
                     configWelcomeMessage: data.frontend_welcome_message,
@@ -120,10 +127,17 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     validationLimits: data.validation_limits,
                     backgroundTasksEnabled,
                     backgroundTasksDefaultTimeoutMs,
+                    platformConfigured,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;
                     setConfig(mappedConfig);
+
+                    api.configure(mappedConfig.webuiServerUrl, mappedConfig.platformServerUrl);
+                    console.log("API client configured with:", {
+                        webui: mappedConfig.webuiServerUrl,
+                        platform: mappedConfig.platformServerUrl,
+                    });
                 }
                 console.log("App config processed and set:", mappedConfig);
             } catch (err: unknown) {
