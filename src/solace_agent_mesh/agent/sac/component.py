@@ -13,6 +13,10 @@ import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+from litellm.exceptions import BadRequestError
+
+from ...common.error_handlers import get_error_message
+
 from a2a.types import (
     AgentCard,
     MessageSendParams,
@@ -2709,10 +2713,25 @@ class SamAgentComponent(SamComponentBase):
             peer_reply_topic = a2a_context.get("replyToTopic")
             namespace = self.get_config("namespace")
 
+            # Detect context limit errors and provide user-friendly message
+            error_message = "An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
+            
+            if isinstance(exception, BadRequestError):
+                # Use centralized error handler
+                error_message, is_context_limit = get_error_message(exception)
+                
+                if is_context_limit:
+                    log.error(
+                        "%s Context limit exceeded for task %s. Error: %s",
+                        self.log_identifier,
+                        logical_task_id,
+                        exception,
+                    )
+
             failed_status = a2a.create_task_status(
                 state=TaskState.failed,
                 message=a2a.create_agent_text_message(
-                    text="An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
+                    text=error_message
                 ),
             )
 
