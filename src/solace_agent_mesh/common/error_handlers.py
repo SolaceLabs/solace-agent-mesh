@@ -8,8 +8,7 @@ from litellm.exceptions import BadRequestError
 CONTEXT_LIMIT_ERROR_MESSAGE = (
     "The conversation history has become too long for the AI model to process. "
     "This can happen after extended conversations. "
-    "To continue, please start a new conversation or try summarizing your "
-    "previous messages into a shorter request."
+    "To continue, please start a new conversation."
 )
 
 DEFAULT_BAD_REQUEST_MESSAGE = (
