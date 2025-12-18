@@ -416,41 +416,7 @@ const AgentToolsStep: React.FC<StepProps> = ({
 
   const handleDeleteTool = (toolId?: string) => {
     if (!toolId) return;
-    
-    const newToolsList = toolsList.filter((t) => t.id !== toolId);
-    
-    // Check if we should remove the auto-added web tool
-    const deletedTool = toolsList.find((t) => t.id === toolId);
-    if (deletedTool?.id?.startsWith("web_auto_")) {
-      // Don't automatically remove auto-added web tools - user chose to delete it
-      updateData({ tools: newToolsList });
-      return;
-    }
-    
-    // Check if there are still remote MCP tools that need the web tool
-    const hasRemoteMcpTools = newToolsList.some((t) => {
-      if (t.tool_type !== "mcp") {
-        return false;
-      }
-
-      // Prefer the persisted connection_params.type, fall back to transient transport_type
-      const connectionType =
-        t.connection_params && typeof (t.connection_params as any).type === "string"
-          ? ((t.connection_params as any).type as string)
-          : undefined;
-      const transportType = connectionType || t.transport_type;
-
-      return transportType === "sse" || transportType === "streamable-http";
-    });
-    
-    // If no remote MCP tools remain, remove auto-added web tool
-    if (!hasRemoteMcpTools) {
-      updateData({ 
-        tools: newToolsList.filter((t) => !t.id?.startsWith("web_auto_"))
-      });
-    } else {
-      updateData({ tools: newToolsList });
-    }
+    updateData({ tools: toolsList.filter((t) => t.id !== toolId) });
   };
 
   const renderToolProperties = (tool: Tool) => {
