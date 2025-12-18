@@ -5,7 +5,7 @@ Session-related request DTOs.
 from typing import Optional
 from pydantic import BaseModel, Field
 
-from ....shared.types import SessionId, UserId
+from solace_agent_mesh.shared.utils.types import SessionId, UserId
 
 
 class GetSessionRequest(BaseModel):
