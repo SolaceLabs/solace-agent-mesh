@@ -18,7 +18,7 @@ DEFAULT_BAD_REQUEST_MESSAGE = (
 )
 
 
-def is_context_limit_error(exception: Exception) -> bool:
+def _is_context_limit_error(exception: Exception) -> bool:
     """
     Detects if an exception is a context/token limit error from LiteLLM.
     
@@ -46,7 +46,7 @@ def is_context_limit_error(exception: Exception) -> bool:
     return any(pattern in error_str for pattern in context_limit_patterns)
 
 
-def get_user_friendly_error_message(exception: Exception) -> str:
+def _get_user_friendly_error_message(exception: Exception) -> str:
     """
     Returns a user-friendly error message for the given exception.
     
@@ -56,7 +56,7 @@ def get_user_friendly_error_message(exception: Exception) -> str:
     Returns:
         User-friendly error message string
     """
-    if is_context_limit_error(exception):
+    if _is_context_limit_error(exception):
         return CONTEXT_LIMIT_ERROR_MESSAGE
     
     if isinstance(exception, BadRequestError):
@@ -77,7 +77,7 @@ def handle_bad_request_error(
     Returns:
         Tuple of (error_message, is_context_limit_error)
     """
-    is_context_limit = is_context_limit_error(exception)
-    error_message = get_user_friendly_error_message(exception)
+    is_context_limit = _is_context_limit_error(exception)
+    error_message = _get_user_friendly_error_message(exception)
     
     return error_message, is_context_limit
