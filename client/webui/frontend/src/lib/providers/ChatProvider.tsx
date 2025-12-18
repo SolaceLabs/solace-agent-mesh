@@ -721,16 +721,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const navigateArtifactVersion = useCallback(
-        async (artifactFilename: string, targetVersion: number): Promise<FileAttachment | null> => {
+        async (artifactFilename: string, targetVersion: number, availableVersions?: number[]): Promise<FileAttachment | null> => {
+            // Use provided versions or fall back to state
+            const versions = availableVersions || previewedArtifactAvailableVersions;
+
             // If versions aren't loaded yet, this is likely a timing issue where this was called
             // before openArtifactForPreview completed. Just silently return - the artifact will
             // show the latest version when loaded, which is acceptable behavior.
-            if (!previewedArtifactAvailableVersions || previewedArtifactAvailableVersions.length === 0) {
+            if (!versions || versions.length === 0) {
                 return null;
             }
 
             // Now check if the specific version exists
-            if (!previewedArtifactAvailableVersions.includes(targetVersion)) {
+            if (!versions.includes(targetVersion)) {
                 console.warn(`Requested version ${targetVersion} not available for ${artifactFilename}`);
                 return null;
             }
@@ -2165,8 +2168,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Auto-refresh preview when the previewed artifact gets updated
     const lastCheckedVersionRef = useRef<number | null>(null);
     useEffect(() => {
-        if (!previewArtifactFilename || !previewedArtifactAvailableVersions) {
-            // Reset ref when preview is closed or not yet initialized
+        if (!previewArtifactFilename) {
+            // Reset ref when preview is closed
             lastCheckedVersionRef.current = null;
             return;
         }
@@ -2174,12 +2177,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const previewedArtifact = artifacts.find(a => a.filename === previewArtifactFilename);
         if (!previewedArtifact) return;
 
-        // Check if artifact has a newer version than what we currently have in the dropdown
-        const currentMaxVersion = Math.max(...previewedArtifactAvailableVersions);
         const artifactLatestVersion = previewedArtifact.version;
+        if (!artifactLatestVersion) return;
+
+        // Determine if we need to refresh
+        let shouldRefresh = false;
+
+        if (!previewedArtifactAvailableVersions) {
+            // Versions list not loaded yet (user clicked while streaming) - refresh if we haven't checked this version
+            shouldRefresh = lastCheckedVersionRef.current !== artifactLatestVersion;
+        } else {
+            // Versions list loaded - refresh if artifact has a newer version than in dropdown
+            const currentMaxVersion = Math.max(...previewedArtifactAvailableVersions);
+            shouldRefresh = artifactLatestVersion > currentMaxVersion && lastCheckedVersionRef.current !== artifactLatestVersion;
+        }
 
         // If the artifact has a newer version, refresh the preview
-        if (artifactLatestVersion && artifactLatestVersion > currentMaxVersion && lastCheckedVersionRef.current !== artifactLatestVersion) {
+        if (shouldRefresh) {
             // Capture values at effect start to avoid stale closures
             let cancelled = false;
             const currentFilename = previewArtifactFilename;
@@ -2205,11 +2219,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         return;
                     }
 
-                    setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
+                    const sortedVersions = availableVersions.sort((a, b) => a - b);
+                    setPreviewedArtifactAvailableVersions(sortedVersions);
                     const newVersion = Math.max(...availableVersions);
 
-                    // Use navigateArtifactVersion to fetch and display the new version
-                    const result = await navigateArtifactVersion(currentFilename, newVersion);
+                    // Set version number immediately so dropdown shows correct value
+                    setCurrentPreviewedVersionNumber(newVersion);
+
+                    // Use navigateArtifactVersion with the versions we just fetched
+                    // Pass sortedVersions directly to avoid race condition with state updates
+                    const result = await navigateArtifactVersion(currentFilename, newVersion, sortedVersions);
 
                     // Only mark as processed if successful and not cancelled
                     if (!cancelled && result) {
