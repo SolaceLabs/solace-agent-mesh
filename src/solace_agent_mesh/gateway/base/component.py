@@ -169,7 +169,9 @@ class BaseGatewayComponent(SamComponentBase):
 
         self.agent_registry: AgentRegistry = AgentRegistry()
         self.core_a2a_service: CoreA2AService = CoreA2AService(
-            agent_registry=self.agent_registry, namespace=self.namespace
+            agent_registry=self.agent_registry,
+            namespace=self.namespace,
+            component_id="WebUI"
         )
         self.shared_artifact_service: Optional[BaseArtifactService] = (
             initialize_artifact_service(self)

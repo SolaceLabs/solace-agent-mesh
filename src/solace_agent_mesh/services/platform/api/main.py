@@ -100,7 +100,7 @@ def _run_enterprise_migrations(database_url: str) -> None:
         database_url: Database connection string.
     """
     try:
-        from solace_agent_mesh_enterprise.webui_backend.migration_runner import run_migrations
+        from solace_agent_mesh_enterprise.platform_service.migration_runner import run_migrations
 
         log.info("Starting enterprise platform migrations...")
         run_migrations(database_url)
@@ -166,15 +166,6 @@ def setup_dependencies(component: "PlatformServiceComponent", database_url: str)
 
     dependencies.set_component_instance(component)
 
-    # ALSO set gateway dependencies to allow webui_backend routers to work
-    # webui_backend routers use ValidatedUserConfig which expects sac_component_instance
-    try:
-        from solace_agent_mesh.gateway.http_sse import dependencies as gateway_deps
-        gateway_deps.sac_component_instance = component
-        log.info("Gateway dependencies configured to use platform component")
-    except ImportError:
-        log.debug("Gateway module not available - skipping gateway dependency setup")
-
     # Initialize database and run migrations
     if database_url:
         _setup_database(database_url)
@@ -192,18 +183,102 @@ def setup_dependencies(component: "PlatformServiceComponent", database_url: str)
     log.info("Platform Service dependencies initialized successfully")
 
 
+async def _start_enterprise_platform_tasks(component: "PlatformServiceComponent") -> None:
+    """
+    Start enterprise platform background tasks if enterprise package is available.
+
+    This follows the exact same pattern as WebUI Gateway:
+    - Community calls enterprise function
+    - Enterprise owns all background task logic
+    - Graceful degradation if enterprise not available
+
+    Background tasks (enterprise-only):
+    - Heartbeat listener (deployer monitoring)
+    - Deployment status checker (agent deployment monitoring)
+    - Agent registry (tracks deployed agents)
+
+    Args:
+        component: PlatformServiceComponent instance
+    """
+    try:
+        from solace_agent_mesh_enterprise.init_enterprise import (
+            start_platform_background_tasks,
+        )
+
+        log.info("Starting enterprise platform background tasks...")
+        await start_platform_background_tasks(component)
+        log.info("Enterprise platform background tasks started successfully")
+
+    except ImportError:
+        log.info(
+            "Enterprise package not available - platform background tasks will not start. "
+            "Platform Service will run without deployment monitoring and deployer heartbeat tracking."
+        )
+    except RuntimeError as enterprise_err:
+        log.warning(
+            "Enterprise platform tasks disabled: %s - Platform Service will continue without deployment monitoring",
+            enterprise_err,
+        )
+    except Exception as enterprise_err:
+        log.error(
+            "Failed to start enterprise platform tasks: %s - Platform Service will continue",
+            enterprise_err,
+            exc_info=True,
+        )
+
+
 def _setup_middleware(component: "PlatformServiceComponent"):
     """
     Add middleware to the FastAPI application.
 
     1. CORS middleware - allows cross-origin requests
-    2. OAuth2 middleware - authentication (uses enterprise implementation if available)
+    2. OAuth2 middleware - authentication (real token validation)
 
     Args:
         component: PlatformServiceComponent instance for configuration access.
     """
-    # CORS middleware
-    allowed_origins = component.get_cors_origins()
+    # CORS middleware - automatically trust configured UI origins
+    configured_origins = component.get_cors_origins().copy()
+
+    # Automatically add frontend and platform service URLs as trusted origins
+    # These are admin-controlled values that should always be trusted
+    frontend_url = os.getenv("FRONTEND_SERVER_URL", "").strip()
+    platform_url = os.getenv("PLATFORM_SERVICE_URL", "").strip()
+
+    # Auto-construct frontend URL if not provided
+    if not frontend_url:
+        # Read WebUI Gateway configuration from environment variables
+        fastapi_host = os.getenv("FASTAPI_HOST", "127.0.0.1").strip()
+        fastapi_port = os.getenv("FASTAPI_PORT", "8000").strip()
+        ssl_keyfile = os.getenv("SSL_KEYFILE", "").strip()
+        ssl_certfile = os.getenv("SSL_CERTFILE", "").strip()
+
+        # Determine protocol and port based on SSL configuration
+        if ssl_keyfile and ssl_certfile:
+            protocol = "https"
+            port = os.getenv("FASTAPI_HTTPS_PORT", "8443").strip()
+        else:
+            protocol = "http"
+            port = fastapi_port
+
+        # Use 'localhost' if host is 127.0.0.1 for better compatibility
+        host = "localhost" if fastapi_host == "127.0.0.1" else fastapi_host
+        frontend_url = f"{protocol}://{host}:{port}"
+
+        log.info(
+            "FRONTEND_SERVER_URL not configured, auto-constructed from WebUI Gateway settings: %s",
+            frontend_url
+        )
+
+    auto_trusted_origins = []
+    if frontend_url:
+        auto_trusted_origins.append(frontend_url)
+    if platform_url:
+        auto_trusted_origins.append(platform_url)
+
+    # Combine and deduplicate
+    allowed_origins = list(set(auto_trusted_origins + configured_origins))
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
@@ -212,20 +287,20 @@ def _setup_middleware(component: "PlatformServiceComponent"):
         allow_headers=["*"],
     )
     log.info(f"CORS middleware added with origins: {allowed_origins}")
+    if auto_trusted_origins:
+        log.info(f"  Auto-added trusted origins: {auto_trusted_origins}")
 
-    # OAuth2 middleware - try enterprise implementation first, fall back to stub
-    # try:
-    #     from solace_agent_mesh_enterprise.platform_service.middleware import create_oauth2_middleware
-    #
-    #     oauth2_middleware_class = create_oauth2_middleware(component)
-    #     app.add_middleware(oauth2_middleware_class)
-    #     log.info("Enterprise OAuth2 middleware added (real token validation)")
-    # except ImportError:
-    #     # Fall back to stub middleware if enterprise package not available
-    #     from .middleware import oauth2_stub_middleware
-    #
-    #     app.middleware("http")(oauth2_stub_middleware)
-    #     log.info("OAuth2 stub middleware added (development mode - no enterprise package)")
+    # OAuth2 authentication middleware
+    from solace_agent_mesh.shared.auth.middleware import create_oauth_middleware
+
+    oauth_middleware_class = create_oauth_middleware(component)
+    app.add_middleware(oauth_middleware_class, component=component)
+
+    use_auth = component.get_config("frontend_use_authorization", False)
+    if use_auth:
+        log.info("OAuth2 middleware added (real token validation enabled)")
+    else:
+        log.info("OAuth2 middleware added (development mode - frontend_use_authorization=false)")
 
 
 def _setup_routers():
@@ -249,7 +324,7 @@ def _setup_routers():
 
     # Try to load enterprise platform routers
     try:
-        from solace_agent_mesh_enterprise.webui_backend.routers import get_enterprise_routers
+        from solace_agent_mesh_enterprise.platform_service.routers import get_enterprise_routers
 
         enterprise_routers = get_enterprise_routers()
         for router_config in enterprise_routers:
@@ -266,6 +341,10 @@ def _setup_routers():
         )
     except Exception as e:
         log.warning(f"Failed to load enterprise platform routers: {e}")
+
+    from solace_agent_mesh.shared.exceptions.exception_handlers import register_exception_handlers
+    register_exception_handlers(app)
+    log.info("Registered shared exception handlers")
 
 
 @app.get("/health", tags=["Health"])

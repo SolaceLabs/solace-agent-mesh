@@ -1,6 +1,7 @@
 """
 Router for handling authentication-related endpoints.
 """
+from __future__ import annotations
 
 import logging
 import secrets
