@@ -73,12 +73,8 @@ async def auth_callback(
     try:
         from solace_agent_mesh_enterprise.gateway.auth import handle_auth_callback
 
-        # Get the OAuth proxy getter function from component
-        # This function is set during OAuth proxy setup and returns the correct instance
-        get_proxy_func = getattr(component, 'get_gateway_oauth_proxy', None)
-
         return await handle_auth_callback(
-            request, config, component, get_proxy_func
+            request, config, component
         )
     except ImportError:
         raise HTTPException(

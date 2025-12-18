@@ -59,37 +59,6 @@ app = FastAPI(
 # Global flag to track if dependencies have been initialized
 _dependencies_initialized = False
 
-# Global gateway OAuth proxy instance (set during OAuth setup)
-_gateway_oauth_proxy = None
-
-def get_gateway_oauth_proxy():
-    """
-    Get the OAuth proxy instance.
-
-    The enterprise setup_oauth_proxy_routes() function stores the proxy
-    globally for access by auth callback routes.
-
-    Returns:
-        GatewayOAuthProxy instance or None if not configured
-    """
-    global _gateway_oauth_proxy
-    return _gateway_oauth_proxy
-
-
-def set_gateway_oauth_proxy(component):
-    """
-    Set the global OAuth proxy instance.
-
-    Called by enterprise setup_oauth_proxy_routes() to store the proxy
-    for access by auth callback routes.
-
-    Args:
-        proxy: GatewayOAuthProxy instance or None
-    """
-    global _gateway_oauth_proxy
-    if component and hasattr(component, "gateway_oauth_proxy"):
-        _gateway_oauth_proxy = component.gateway_oauth_proxy
-
 
 def _extract_access_token(request: FastAPIRequest) -> str:
     auth_header = request.headers.get("Authorization")
@@ -586,7 +555,6 @@ def setup_dependencies(
     if _dependencies_initialized:
         log.debug("[setup_dependencies] Dependencies already initialized, skipping")
         return
-    set_gateway_oauth_proxy(component)
 
     dependencies.set_component_instance(component)
 

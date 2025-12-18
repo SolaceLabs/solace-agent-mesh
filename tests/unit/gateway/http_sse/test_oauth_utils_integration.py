@@ -1,6 +1,6 @@
 """
 Unit tests for OAuth utility integration in http_sse/main.py.
-Tests enterprise OAuth integration, get_gateway_oauth_proxy, and utility function usage.
+Tests enterprise OAuth integration, and utility function usage.
 """
 
 import pytest
@@ -13,53 +13,6 @@ try:
 except ImportError:
     oauth_utils = None
     ENTERPRISE_AVAILABLE = False
-
-
-class TestGetGatewayOAuthProxy:
-    """Test get_gateway_oauth_proxy function."""
-
-    def test_get_gateway_oauth_proxy_returns_none_without_proxy(self):
-        """Test that get_gateway_oauth_proxy returns None when proxy not set."""
-        # Reset global proxy
-        import solace_agent_mesh.gateway.http_sse.main as main_module
-        main_module._gateway_oauth_proxy = None
-
-        result = main_module.get_gateway_oauth_proxy()
-
-        assert result is None
-
-    def test_get_gateway_oauth_proxy_returns_proxy_when_set(self):
-        """Test that get_gateway_oauth_proxy returns proxy when configured."""
-        import solace_agent_mesh.gateway.http_sse.main as main_module
-
-        # Set mock proxy globally
-        mock_proxy = MagicMock()
-        main_module._gateway_oauth_proxy = mock_proxy
-
-        result = main_module.get_gateway_oauth_proxy()
-
-        assert result is mock_proxy
-
-    def test_set_gateway_oauth_proxy_stores_proxy_globally(self):
-        """Test that set_gateway_oauth_proxy stores the proxy in global variable."""
-        import solace_agent_mesh.gateway.http_sse.main as main_module
-
-        # Reset global proxy
-        main_module._gateway_oauth_proxy = None
-
-        mock_proxy = MagicMock()
-        # Set proxy using the setter function
-        class MockComponent:
-            gateway_oauth_proxy = mock_proxy
-
-        main_module.set_gateway_oauth_proxy(MockComponent())
-
-        # Verify it's stored globally
-        assert main_module._gateway_oauth_proxy is mock_proxy
-
-        # Verify get function returns it
-        result = main_module.get_gateway_oauth_proxy()
-        assert result is mock_proxy
 
 
 @pytest.mark.skipif(not ENTERPRISE_AVAILABLE, reason="Enterprise package not available")
@@ -285,20 +238,6 @@ class TestGatewayOAuthProxyGlobalStorage:
         # Reset to initial state
         main_module._gateway_oauth_proxy = None
         assert main_module._gateway_oauth_proxy is None
-
-    def test_get_gateway_oauth_proxy_accesses_global_proxy(self):
-        """Test that get_gateway_oauth_proxy accesses the global _gateway_oauth_proxy."""
-        import solace_agent_mesh.gateway.http_sse.main as main_module
-
-        # Set a mock proxy globally
-        mock_proxy = MagicMock()
-        main_module._gateway_oauth_proxy = mock_proxy
-
-        # get_gateway_oauth_proxy should access the global
-        result = main_module.get_gateway_oauth_proxy()
-
-        assert result is mock_proxy
-
 
 class TestEnterpriseIntegrationPatterns:
     """Test integration patterns with enterprise package."""
