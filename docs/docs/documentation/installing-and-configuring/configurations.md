@@ -6,6 +6,37 @@ toc_max_heading_level: 4
 
 The `shared_config.yaml` file is used to define configurations that can be shared across multiple agents or components in Agent Mesh. This centralized approach simplifies management of common configurations such as Solace event broker connections, language model settings, and service definitions.
 
+## Configuration File Structure
+
+Agent Mesh configuration files follow a consistent YAML structure with three main top-level sections:
+
+```yaml
+# Logging configuration (optional)
+log:
+  stdout_log_level: <LOG LEVEL>
+  log_file_level: <LOG LEVEL>
+  log_file: LOG_FILE.log
+
+# Include shared configuration
+!include ../shared_config.yaml
+
+# Application definitions
+apps:
+  - name: my_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      # Application-specific configuration
+```
+
+### Configuration Sections Overview
+
+1. **`log`**: Controls logging behavior (see [Logging](../deploying/logging.md) for details)
+2. **`shared_config`** (via `!include`): Reusable configuration anchors for broker connections, models, and services
+3. **`apps`**: List of application instances to run (agents, gateways, etc.)
+
 ## Understanding Shared Configuration
 
 All agents and gateways require access to a `shared_config` object. You can provide configuration in the following ways:
@@ -25,7 +56,71 @@ You can use multiple shared configuration files to manage different environments
 
 The configuration file uses YAML anchors (`&anchor_name`) to create reusable configuration blocks, which can then be referenced in agent configuration files.
 
-## Configuration Structure
+## Application Configuration Structure
+
+The `apps` section defines one or more application instances to run. Each app represents an agent, gateway, or other SAM component.
+
+### Top-Level App Fields
+
+| Field | Type | Required | Description | Default |
+|-------|------|----------|-------------|---------|
+| `name` | string | Yes | Unique identifier for this application instance | - |
+| `app_base_path` | string | Yes | Base path for module resolution | `.` |
+| `app_module` | string | Yes | Python module path for the application class | - |
+| `broker` | object | Yes | Broker connection configuration | - |
+| `broker_request_response` | object | No | Request-response messaging configuration | See below |
+| `app_config` | object | Yes | Application-specific configuration | - |
+
+### Application Module Types
+
+The `app_module` field specifies which SAM application type to instantiate:
+
+| Module Path | Application Type | Description |
+|-------------|------------------|-------------|
+| `solace_agent_mesh.agent.sac.app` | Agent | AI-powered agent with tool access |
+| `solace_agent_mesh.gateway.http_sse.app` | WebUI Gateway | Real-time web interface |
+| `solace_agent_mesh.gateway.generic.app` | Generic Gateway | Custom gateway with adapter |
+| `solace_agent_mesh.agent.proxies.a2a.app` | A2A Proxy | Remote A2A agent proxy |
+
+### Broker Request-Response Configuration
+
+The `broker_request_response` section configures request-response messaging patterns:
+
+| Field | Type | Description | Default |
+|-------|------|-------------|---------|
+| `enabled` | boolean | Enable request-response pattern | `true` |
+| `timeout_ms` | integer | Request timeout in milliseconds | `30000` |
+
+Example:
+```yaml
+broker_request_response:
+  enabled: true
+  timeout_ms: 30000
+```
+
+### Complete Apps Configuration Example
+
+```yaml
+apps:
+  - name: my_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    
+    broker:
+      <<: *broker_connection
+    
+    broker_request_response:
+      enabled: true
+      timeout_ms: 30000
+    
+    app_config:
+      namespace: "myorg/ai-agents"
+      agent_name: "MyAgent"
+      model: *planning_model
+      # ... additional agent configuration
+```
+
+## Shared Configuration Structure
 
 The following example shows the structure of the `shared_config.yaml` configuration file:
 
@@ -103,6 +198,12 @@ The `broker_connection` section configures the connection to the Solace event br
 | `broker_vpn` | `SOLACE_BROKER_VPN` | The Message VPN to connect to on the event broker. | `default` |
 | `temporary_queue` | `USE_TEMPORARY_QUEUES` | Whether to use temporary queues for communication. If `false`, a durable queue will be created. | `true` |
 | `max_connection_retries` | `MAX_CONNECTION_RETRIES` | The maximum number of times to retry connecting to the event broker if the connection fails. A value of `-1` means retry forever. | `-1` |
+| `cert_validated` | - | Validate SSL certificates for broker connections | `false` |
+| `connection_timeout` | - | Connection timeout in seconds | `30` |
+| `reconnect_attempts` | - | Maximum reconnection attempts | `5` |
+| `reconnect_delay` | - | Delay between reconnection attempts (seconds) | `1.0` |
+| `input_enabled` | - | Enable message receiving | `true` |
+| `output_enabled` | - | Enable message publishing | `true` |
 
 :::tip
 If you need to configure multiple brokers, you can do so by adding additional entries under `shared_config` with a unique name (For example,  `broker_connection_eu: &broker_connection_eu` or `broker_connection_us: &broker_connection_us`). Reference these configurations in your agent files using the appropriate anchor, such as `<<: *broker_connection_eu`.
@@ -203,3 +304,64 @@ Result preview settings control how much data agents display when showing query 
 | `sqlite_memory_threshold_mb` | `integer` | The memory threshold in megabytes for using an in-memory SQLite database. | `100` |
 | `max_result_preview_rows` | `integer` | The maximum number of rows to show in a result preview. | `50` |
 | `max_result_preview_bytes` | `integer` | The maximum number of bytes to show in a result preview. | `4096` |
+
+---
+
+## Configuration Validation and Troubleshooting
+
+All configuration files are validated using Pydantic models when the application starts. This section covers common validation errors and their solutions.
+
+### Common Configuration Errors
+
+#### Missing Required Fields
+
+**Error**: `ValidationError: field required`
+
+**Solution**: Ensure all required fields are provided in your configuration:
+- Agent configurations require: `namespace`, `agent_name`, and `model`
+- Gateway configurations require: `namespace` and appropriate gateway-specific fields
+- Broker configurations require: `broker_url`, `broker_username`, `broker_password`, and `broker_vpn`
+
+#### Invalid Tool Configurations
+
+**Error**: `ValidationError: tool_type must be one of: builtin, builtin-group, python, mcp, openapi`
+
+**Solution**: Verify that `tool_type` matches one of the supported values. Check the [Built-in Tools](../components/builtin-tools/builtin-tools.md) documentation for correct tool configuration syntax.
+
+#### Invalid Service Configuration
+
+**Error**: `ValidationError: type must be one of: memory, sql, filesystem, gcs`
+
+**Solution**:
+- For session services, use: `memory`, `sql`, or `vertex_rag`
+- For artifact services, use: `memory`, `filesystem`, `gcs`, or `s3`
+- Ensure required fields for each type are provided (e.g., `database_url` for SQL, `base_path` for filesystem)
+
+#### Environment Variable Issues
+
+**Error**: Configuration values appear as `${VAR_NAME}` in logs
+
+**Solution**:
+- Verify environment variables are set before starting the application
+- Check `.env` file is in the correct location
+- Ensure environment variable names match exactly (case-sensitive)
+- Use the syntax `${VAR_NAME, default_value}` to provide fallback values
+
+### Validation Tips
+
+1. **Start Simple**: Begin with minimal configuration and add complexity incrementally
+2. **Check Examples**: Reference example configurations in the `examples/` directory
+3. **Validate YAML Syntax**: Use a YAML validator to check for syntax errors before running
+4. **Review Logs**: Application startup logs show detailed validation errors with field names
+
+### Getting Help
+
+If you encounter configuration issues:
+
+1. Check the application logs for detailed error messages
+2. Consult topic-specific documentation:
+   - [Session Storage](./session-storage.md)
+   - [Artifact Storage](./artifact-storage.md)
+   - [LLM Configuration](./large_language_models.md)
+   - [Logging](../deploying/logging.md)
+3. Check example configurations in the repository
