@@ -342,6 +342,11 @@ def _setup_routers():
     except Exception as e:
         log.warning(f"Failed to load enterprise platform routers: {e}")
 
+    # Register shared exception handlers for consistent error responses
+    from solace_agent_mesh.shared.exceptions.exception_handlers import register_exception_handlers
+    register_exception_handlers(app)
+    log.info("Registered shared exception handlers")
+
 
 @app.get("/health", tags=["Health"])
 async def health_check():
