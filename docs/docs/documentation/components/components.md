@@ -17,7 +17,7 @@ Gateways serve as the entry and exit points for your agent mesh, translating bet
 
 ## Platform Service
 
-The Platform Service is a dedicated backend microservice that handles management operations for the Web UI Gateway. For more details, see [Platform Service](./platform-service.md).
+The Platform Service is a backend microservice responsible for management operations in Solace Agent Mesh. For more details, see [Platform Service](./platform-service.md).
 
 ## Orchestrator
 
