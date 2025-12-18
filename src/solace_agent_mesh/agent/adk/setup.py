@@ -704,10 +704,10 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     mcp_toolset_instance.origin = "mcp"
 
     log.info(
-        "%s Initialized MCPToolset (filter: %s) with connection type: %s",
-        component.log_identifier,
-        (tool_filter_list if tool_filter_list else "none (all tools)"),
-        connection_type,
+            "%s Initialized MCPToolset (filter: %s) for server: %s",
+            component.log_identifier,
+            filter_description,
+            connection_params,
     )
 
     return [mcp_toolset_instance], [], []
