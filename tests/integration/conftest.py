@@ -834,6 +834,8 @@ def shared_solace_connector(
         {
             "tool_type": "mcp",
             "tool_name_prefix": "prefixed",
+            # prefixes are ignored in allow list
+            "allow_list": ["get_data_stdio"],
             "connection_params": mcp_server_harness["stdio"],
         },
     ]
