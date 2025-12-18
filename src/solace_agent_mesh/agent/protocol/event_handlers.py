@@ -32,7 +32,7 @@ from ...agent.adk.callbacks import _publish_data_part_status_update
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common import a2a
-from ...common.error_handlers import handle_bad_request_error
+from ...common.error_handlers import get_error_message
 from ...common.utils.embeds.constants import (
     EMBED_DELIMITER_OPEN,
     EMBED_DELIMITER_CLOSE,
@@ -983,7 +983,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
         )
         
         # Use centralized error handler
-        error_message, is_context_limit = handle_bad_request_error(e)
+        error_message, is_context_limit = get_error_message(e)
         
         if is_context_limit:
             log.error(

@@ -65,7 +65,7 @@ def _get_user_friendly_error_message(exception: Exception) -> str:
     return DEFAULT_BAD_REQUEST_MESSAGE
 
 
-def handle_bad_request_error(
+def get_error_message(
     exception: BadRequestError,
 ) -> Tuple[str, bool]:
     """
