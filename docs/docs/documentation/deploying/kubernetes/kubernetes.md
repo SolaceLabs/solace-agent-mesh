@@ -47,7 +47,7 @@ For Kubernetes environments with container restarts, you should configure Agent 
 USE_TEMPORARY_QUEUES=false
 ```
 
-This configuration ensures that messages persist even when pods restart and allows multiple instances to connect to the same queue. For detailed queue configuration guidance, including Queue Template setup in Solace Cloud, see [Choosing Deployment Options](./deployment-options.md#setting-up-queue-templates).
+This configuration ensures that messages persist even when pods restart and allows multiple instances to connect to the same queue. For detailed queue configuration guidance, including Queue Template setup in Solace Cloud, see [Choosing Deployment Options](../deployment-options.md#setting-up-queue-templates).
 
 ### Secrets Management
 
