@@ -5,7 +5,7 @@ sidebar_position: 265
 
 # Platform Service
 
-The Platform Service is a dedicated backend microservice that handles management operations for the Web UI Gateway. It runs independently of the gateway, enabling separate scaling and deployment of the components.
+The Platform Service is a backend microservice responsible for management operations in Solace Agent Mesh. It operates independently from other components, allowing it to scale separately.
 
 ## What Does It Provide?
 
