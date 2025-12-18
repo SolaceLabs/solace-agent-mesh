@@ -15,6 +15,7 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.adk.tools import BaseTool, ToolContext
+from google.adk.tools.mcp_tool import MCPTool
 from google.adk.tools.mcp_tool.mcp_session_manager import (
     SseServerParams,
     StdioConnectionParams,
@@ -681,6 +682,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     toolset_params = {
         "connection_params": connection_params,
         "tool_filter": tool_filter,
+        "tool_name_prefix": tool_config_model.tool_name_prefix,
         "tool_config": tool_config,
     }
 
@@ -909,19 +911,7 @@ async def load_adk_tools(
                 for tool in new_tools:
                     if isinstance(tool, EmbedResolvingMCPToolset):
                         # Special handling for MCPToolset which can load multiple tools
-                        try:
-                            mcp_tools = await tool.get_tools()
-                            for mcp_tool in mcp_tools:
-                                _check_and_register_tool_name(
-                                    mcp_tool.name, "mcp", loaded_tool_names
-                                )
-                        except Exception as e:
-                            log.error(
-                                "%s Failed to discover tools from MCP server for name registration: %s",
-                                component.log_identifier,
-                                str(e),
-                            )
-                            raise
+                        await _check_and_register_tool_name_mcp(component, loaded_tool_names, tool)
                     else:
                         tool_name = getattr(
                             tool, "name", getattr(tool, "__name__", None)
@@ -963,6 +953,25 @@ async def load_adk_tools(
         len(cleanup_hooks),
     )
     return loaded_tools, enabled_builtin_tools, cleanup_hooks
+
+
+async def _check_and_register_tool_name_mcp(component, loaded_tool_names: set[str], tool: EmbedResolvingMCPToolset):
+    try:
+        mcp_tools: list[MCPTool] = await tool.get_tools()
+        for mcp_tool in mcp_tools:
+            toolname = mcp_tool.name
+            if tool.tool_name_prefix != None:
+                toolname = f"{tool.tool_name_prefix}_{toolname}"
+            _check_and_register_tool_name(
+                toolname, "mcp", loaded_tool_names
+            )
+    except Exception as e:
+        log.error(
+            "%s Failed to discover tools from MCP server for name registration: %s",
+            component.log_identifier,
+            str(e),
+        )
+        raise
 
 
 def initialize_adk_agent(
