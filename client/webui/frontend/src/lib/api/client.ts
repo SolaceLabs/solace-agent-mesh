@@ -164,11 +164,7 @@ class ApiClient {
         return fetchJsonWithError(url, fetchOptions);
     }
 
-    private buildRequestWithBody(
-        method: string,
-        body: unknown,
-        options?: InternalRequestOptions
-    ): InternalRequestOptions {
+    private buildRequestWithBody(method: string, body: unknown, options?: InternalRequestOptions): InternalRequestOptions {
         if (body instanceof FormData) {
             return { ...options, method, body };
         }
@@ -185,20 +181,15 @@ class ApiClient {
 
     private createHttpMethods(getBaseUrl: () => string): HttpMethods {
         return {
-            get: ((endpoint: string, options?: InternalRequestOptions) =>
-                this.request(getBaseUrl(), endpoint, options)) as HttpMethods["get"],
+            get: ((endpoint: string, options?: InternalRequestOptions) => this.request(getBaseUrl(), endpoint, options)) as HttpMethods["get"],
 
-            post: ((endpoint: string, body?: unknown, options?: InternalRequestOptions) =>
-                this.request(getBaseUrl(), endpoint, this.buildRequestWithBody("POST", body, options))) as HttpMethods["post"],
+            post: ((endpoint: string, body?: unknown, options?: InternalRequestOptions) => this.request(getBaseUrl(), endpoint, this.buildRequestWithBody("POST", body, options))) as HttpMethods["post"],
 
-            put: ((endpoint: string, body?: unknown, options?: InternalRequestOptions) =>
-                this.request(getBaseUrl(), endpoint, this.buildRequestWithBody("PUT", body, options))) as HttpMethods["put"],
+            put: ((endpoint: string, body?: unknown, options?: InternalRequestOptions) => this.request(getBaseUrl(), endpoint, this.buildRequestWithBody("PUT", body, options))) as HttpMethods["put"],
 
-            delete: ((endpoint: string, options?: InternalRequestOptions) =>
-                this.request(getBaseUrl(), endpoint, { ...options, method: "DELETE" })) as HttpMethods["delete"],
+            delete: ((endpoint: string, options?: InternalRequestOptions) => this.request(getBaseUrl(), endpoint, { ...options, method: "DELETE" })) as HttpMethods["delete"],
 
-            patch: ((endpoint: string, body?: unknown, options?: InternalRequestOptions) =>
-                this.request(getBaseUrl(), endpoint, this.buildRequestWithBody("PATCH", body, options))) as HttpMethods["patch"],
+            patch: ((endpoint: string, body?: unknown, options?: InternalRequestOptions) => this.request(getBaseUrl(), endpoint, this.buildRequestWithBody("PATCH", body, options))) as HttpMethods["patch"],
 
             getFullUrl: (endpoint: string) => `${getBaseUrl()}${endpoint}`,
         };

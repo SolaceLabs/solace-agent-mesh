@@ -340,71 +340,74 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     // Helper function to deserialize task data to MessageFE objects
-    const deserializeTaskToMessages = useCallback((task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, sessionId: string): MessageFE[] => {
-        return task.messageBubbles.map(bubble => {
-            // Process parts to handle markers and reconstruct artifact parts if needed
-            const processedParts: any[] = [];
-            const originalParts = bubble.parts || [{ kind: "text", text: bubble.text || "" }];
+    const deserializeTaskToMessages = useCallback(
+        (task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, sessionId: string): MessageFE[] => {
+            return task.messageBubbles.map(bubble => {
+                // Process parts to handle markers and reconstruct artifact parts if needed
+                const processedParts: any[] = [];
+                const originalParts = bubble.parts || [{ kind: "text", text: bubble.text || "" }];
 
-            // Track artifact names we've already added to avoid duplicates
-            const addedArtifacts = new Set<string>();
+                // Track artifact names we've already added to avoid duplicates
+                const addedArtifacts = new Set<string>();
 
-            // First, check the bubble.text field for artifact markers (TaskLoggerService saves markers there)
-            // This handles the case where backend saves text with markers but parts without artifacts
-            if (bubble.text) {
-                extractArtifactMarkers(bubble.text, sessionId, addedArtifacts, processedParts);
-            }
+                // First, check the bubble.text field for artifact markers (TaskLoggerService saves markers there)
+                // This handles the case where backend saves text with markers but parts without artifacts
+                if (bubble.text) {
+                    extractArtifactMarkers(bubble.text, sessionId, addedArtifacts, processedParts);
+                }
 
-            for (const part of originalParts) {
-                if (part.kind === "text" && part.text) {
-                    let textContent = part.text;
+                for (const part of originalParts) {
+                    if (part.kind === "text" && part.text) {
+                        let textContent = part.text;
 
-                    // Extract artifact markers and convert them to artifact parts
-                    extractArtifactMarkers(textContent, sessionId, addedArtifacts, processedParts);
+                        // Extract artifact markers and convert them to artifact parts
+                        extractArtifactMarkers(textContent, sessionId, addedArtifacts, processedParts);
 
-                    // Remove artifact markers from text content
-                    textContent = textContent.replace(/«artifact_return:[^»]+»/g, "");
-                    textContent = textContent.replace(/«artifact:[^»]+»/g, "");
+                        // Remove artifact markers from text content
+                        textContent = textContent.replace(/«artifact_return:[^»]+»/g, "");
+                        textContent = textContent.replace(/«artifact:[^»]+»/g, "");
 
-                    // Remove status update markers
-                    textContent = textContent.replace(/«status_update:[^»]+»\n?/g, "");
+                        // Remove status update markers
+                        textContent = textContent.replace(/«status_update:[^»]+»\n?/g, "");
 
-                    // Add text part if there's content
-                    if (textContent.trim()) {
-                        processedParts.push({ kind: "text", text: textContent });
-                    }
-                } else if (part.kind === "artifact") {
-                    // Only add artifact part if not already added (from markers)
-                    const artifactName = part.name;
-                    if (artifactName && !addedArtifacts.has(artifactName)) {
-                        addedArtifacts.add(artifactName);
+                        // Add text part if there's content
+                        if (textContent.trim()) {
+                            processedParts.push({ kind: "text", text: textContent });
+                        }
+                    } else if (part.kind === "artifact") {
+                        // Only add artifact part if not already added (from markers)
+                        const artifactName = part.name;
+                        if (artifactName && !addedArtifacts.has(artifactName)) {
+                            addedArtifacts.add(artifactName);
+                            processedParts.push(part);
+                        }
+                        // Skip duplicate artifacts
+                    } else {
+                        // Keep other non-text parts as-is
                         processedParts.push(part);
                     }
-                    // Skip duplicate artifacts
-                } else {
-                    // Keep other non-text parts as-is
-                    processedParts.push(part);
                 }
-            }
 
-            return {
-                taskId: task.taskId,
-                role: bubble.type === "user" ? "user" : "agent",
-                parts: processedParts,
-                isUser: bubble.type === "user",
-                isComplete: true,
-                files: bubble.files,
-                uploadedFiles: bubble.uploadedFiles,
-                artifactNotification: bubble.artifactNotification,
-                isError: bubble.isError,
-                metadata: {
-                    messageId: bubble.id,
-                    sessionId: sessionId,
-                    lastProcessedEventSequence: 0,
-                },
-            };
-        });
-    }, [extractArtifactMarkers]);
+                return {
+                    taskId: task.taskId,
+                    role: bubble.type === "user" ? "user" : "agent",
+                    parts: processedParts,
+                    isUser: bubble.type === "user",
+                    isComplete: true,
+                    files: bubble.files,
+                    uploadedFiles: bubble.uploadedFiles,
+                    artifactNotification: bubble.artifactNotification,
+                    isError: bubble.isError,
+                    metadata: {
+                        messageId: bubble.id,
+                        sessionId: sessionId,
+                        lastProcessedEventSequence: 0,
+                    },
+                };
+            });
+        },
+        [extractArtifactMarkers]
+    );
 
     // Helper function to apply migrations to a task
     const migrateTask = useCallback((task: any): any => {
@@ -1633,7 +1636,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setIsLoadingSession(false);
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError, backgroundTasks, checkTaskStatus, sessionId, unregisterBackgroundTask, isTaskRunningInBackground]
+        [
+            closeCurrentEventSource,
+            isResponding,
+            currentTaskId,
+            selectedAgentName,
+            isCancelling,
+            loadSessionTasks,
+            activeProject,
+            projects,
+            setActiveProject,
+            setPreviewArtifact,
+            setError,
+            backgroundTasks,
+            checkTaskStatus,
+            sessionId,
+            unregisterBackgroundTask,
+            isTaskRunningInBackground,
+        ]
     );
 
     const updateSessionName = useCallback(
@@ -1813,24 +1833,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
     }, [closeCurrentEventSource, isResponding, setError]);
 
-    const cleanupUploadedFiles = useCallback(
-        async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
-            if (uploadedFiles.length === 0) {
-                return;
-            }
+    const cleanupUploadedFiles = useCallback(async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
+        if (uploadedFiles.length === 0) {
+            return;
+        }
 
-            for (const { filename, sessionId: fileSessionId } of uploadedFiles) {
-                try {
-                    // Use the session ID that was used during upload
-                    await api.webui.delete(`/api/v1/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`);
-                } catch (error) {
-                    console.error(`[cleanupUploadedFiles] Exception while cleaning up file ${filename}:`, error);
-                    // Continue cleanup even if one fails (intentionally silent)
-                }
+        for (const { filename, sessionId: fileSessionId } of uploadedFiles) {
+            try {
+                // Use the session ID that was used during upload
+                await api.webui.delete(`/api/v1/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`);
+            } catch (error) {
+                console.error(`[cleanupUploadedFiles] Exception while cleaning up file ${filename}:`, error);
+                // Continue cleanup even if one fails (intentionally silent)
             }
-        },
-        []
-    );
+        }
+    }, []);
 
     const handleSubmit = useCallback(
         async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null) => {
@@ -2008,10 +2025,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // 5. Send the request
                 console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
-                const result: SendStreamingMessageSuccessResponse = await api.webui.post(
-                    "/api/v1/message:stream",
-                    sendMessageRequest
-                );
+                const result: SendStreamingMessageSuccessResponse = await api.webui.post("/api/v1/message:stream", sendMessageRequest);
 
                 const task = result?.result as Task | undefined;
                 const taskId = task?.id;
@@ -2115,7 +2129,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, activeProject, cleanupUploadedFiles, setError, backgroundTasksDefaultTimeoutMs, backgroundTasksEnabled, registerBackgroundTask]
+        [
+            sessionId,
+            isResponding,
+            isCancelling,
+            selectedAgentName,
+            closeCurrentEventSource,
+            uploadArtifactFile,
+            updateSessionName,
+            saveTaskToBackend,
+            serializeMessageBubble,
+            activeProject,
+            cleanupUploadedFiles,
+            setError,
+            backgroundTasksDefaultTimeoutMs,
+            backgroundTasksEnabled,
+            registerBackgroundTask,
+        ]
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");

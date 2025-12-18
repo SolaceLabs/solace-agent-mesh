@@ -56,30 +56,27 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         triggerOnce: false,
     });
 
-    const fetchSessions = useCallback(
-        async (pageNumber: number = 1, append: boolean = false) => {
-            setIsLoading(true);
+    const fetchSessions = useCallback(async (pageNumber: number = 1, append: boolean = false) => {
+        setIsLoading(true);
 
-            try {
-                const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`);
+        try {
+            const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`);
 
-                if (append) {
-                    setSessions(prev => [...prev, ...result.data]);
-                } else {
-                    setSessions(result.data);
-                }
-
-                // Use metadata to determine if there are more pages
-                setHasMore(result.meta.pagination.nextPage !== null);
-                setCurrentPage(pageNumber);
-            } catch (error) {
-                console.error("An error occurred while fetching sessions:", error);
-            } finally {
-                setIsLoading(false);
+            if (append) {
+                setSessions(prev => [...prev, ...result.data]);
+            } else {
+                setSessions(result.data);
             }
-        },
-        []
-    );
+
+            // Use metadata to determine if there are more pages
+            setHasMore(result.meta.pagination.nextPage !== null);
+            setCurrentPage(pageNumber);
+        } catch (error) {
+            console.error("An error occurred while fetching sessions:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         fetchSessions(1, false);

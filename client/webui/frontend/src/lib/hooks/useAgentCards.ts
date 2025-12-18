@@ -3,7 +3,6 @@ import { api } from "@/lib/api";
 
 import type { AgentCard, AgentExtension, AgentCardInfo, AgentSkill } from "@/lib/types";
 
-
 const DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-name";
 const PEER_AGENT_TOPOLOGY_EXTENSION_URI = "https://solace.com/a2a/extensions/peer-agent-topology";
 const TOOL_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools";

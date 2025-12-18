@@ -25,7 +25,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [activeProject, setActiveProject] = useState<Project | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
 
-
     // Computed filtered projects based on search query
     const filteredProjects = useMemo(() => {
         if (!searchQuery.trim()) return projects;

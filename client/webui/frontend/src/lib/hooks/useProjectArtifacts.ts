@@ -3,7 +3,6 @@ import { api } from "@/lib/api";
 
 import type { ArtifactInfo } from "@/lib/types";
 
-
 interface UseProjectArtifactsReturn {
     artifacts: ArtifactInfo[];
     isLoading: boolean;
@@ -41,7 +40,7 @@ export const useProjectArtifacts = (projectId?: string): UseProjectArtifactsRetu
         } finally {
             setIsLoading(false);
         }
-    }, [ projectId]);
+    }, [projectId]);
 
     useEffect(() => {
         fetchArtifacts();

@@ -88,16 +88,20 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
                     // Send the message to the API
                     try {
-                        const chatResponse = await api.webui.post("/api/v1/prompts/chat", {
-                            message: initialMessage,
-                            conversation_history: [
-                                {
-                                    role: "assistant",
-                                    content: data.message,
-                                },
-                            ],
-                            current_template: currentConfig,
-                        }, { fullResponse: true });
+                        const chatResponse = await api.webui.post(
+                            "/api/v1/prompts/chat",
+                            {
+                                message: initialMessage,
+                                conversation_history: [
+                                    {
+                                        role: "assistant",
+                                        content: data.message,
+                                    },
+                                ],
+                                current_template: currentConfig,
+                            },
+                            { fullResponse: true }
+                        );
 
                         if (chatResponse.ok) {
                             const chatData: ChatResponse = await chatResponse.json();

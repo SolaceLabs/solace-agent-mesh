@@ -136,11 +136,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         console.log("TaskMonitorContext: Attempting to connect stream...");
         setIsTaskMonitorConnecting(true);
         try {
-            const subscribeResponse = await api.webui.post(
-                "/api/v1/visualization/subscribe",
-                { subscription_targets: [{ type: "my_a2a_messages" }] },
-                { fullResponse: true }
-            );
+            const subscribeResponse = await api.webui.post("/api/v1/visualization/subscribe", { subscription_targets: [{ type: "my_a2a_messages" }] }, { fullResponse: true });
             if (!subscribeResponse.ok) {
                 const errorData = await subscribeResponse.json().catch(() => ({ detail: "Failed to subscribe" }));
                 if (errorData.error_type === "authorization_failure") {
@@ -255,10 +251,12 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                     const formData = new FormData();
                     navigator.sendBeacon(unsubscribeUrl, formData);
                 } else {
-                    api.webui.delete(`/api/v1/visualization/${streamIdForUnsubscribe}/unsubscribe`, {
-                        credentials: "include",
-                        keepalive: true,
-                    }).catch((err: Error) => console.error("TaskMonitorProvider: Error in final unsubscribe on unmount (fetch):", err));
+                    api.webui
+                        .delete(`/api/v1/visualization/${streamIdForUnsubscribe}/unsubscribe`, {
+                            credentials: "include",
+                            keepalive: true,
+                        })
+                        .catch((err: Error) => console.error("TaskMonitorProvider: Error in final unsubscribe on unmount (fetch):", err));
                 }
             }
         };
