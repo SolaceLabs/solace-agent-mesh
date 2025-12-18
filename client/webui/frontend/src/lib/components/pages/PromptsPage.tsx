@@ -60,7 +60,7 @@ export const PromptsPage: React.FC = () => {
                     try {
                         const data = await api.webui.get(`/api/v1/prompts/groups/${loaderData.promptId}`);
                         setEditingGroup(data);
-                        setBuilderInitialMode("manual");
+                        setBuilderInitialMode("ai-assisted"); // Always start in AI-assisted mode for editing
                         setShowBuilder(true);
                     } catch (error) {
                         displayError({ title: "Failed to Edit Prompt", error: getErrorMessage(error, "An error occurred while fetching prompt.") });
