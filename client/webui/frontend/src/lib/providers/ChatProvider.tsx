@@ -756,11 +756,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Strip charset and other parameters from Content-Type
                 const mimeType = contentType.split(";")[0].trim();
 
-                // Get version-specific timestamp from Last-Modified header if available
-                const lastModifiedHeader = contentResponse.headers.get("Last-Modified");
-                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
-                const versionTimestamp = lastModifiedHeader || artifactInfo?.last_modified || new Date().toISOString();
-
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -768,13 +763,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     reader.onerror = reject;
                     reader.readAsDataURL(blob);
                 });
+                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
 
                 const fileData: FileAttachment = {
                     name: artifactFilename,
                     // Use MIME type from response headers (version-specific), not from artifact list (latest version)
                     mime_type: mimeType,
                     content: base64Content,
-                    last_modified: versionTimestamp,
+                    last_modified: artifactInfo?.last_modified || new Date().toISOString(),
                 };
                 setCurrentPreviewedVersionNumber(targetVersion);
                 setPreviewFileContent(fileData);
