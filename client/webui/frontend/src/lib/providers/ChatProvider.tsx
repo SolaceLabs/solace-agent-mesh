@@ -699,6 +699,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     reader.onerror = reject;
                     reader.readAsDataURL(blob);
                 });
+                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
                 const fileData: FileAttachment = {
                     name: artifactFilename,
                     // Use MIME type from response headers (version-specific), not from artifact list (latest version)
@@ -760,19 +761,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
                 const versionTimestamp = lastModifiedHeader || artifactInfo?.last_modified || new Date().toISOString();
 
-                console.log(`[ChatProvider:navigateArtifactVersion] Timestamp for ${artifactFilename} v${targetVersion}:`, {
-                    lastModifiedHeader,
-                    artifactInfoTimestamp: artifactInfo?.last_modified,
-                    finalTimestamp: versionTimestamp,
-                    allHeaders: Object.fromEntries(contentResponse.headers.entries()),
+                const blob = await contentResponse.blob();
+                const base64Content = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
                 });
-                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
+
                 const fileData: FileAttachment = {
                     name: artifactFilename,
                     // Use MIME type from response headers (version-specific), not from artifact list (latest version)
                     mime_type: mimeType,
                     content: base64Content,
-                    last_modified: artifactInfo?.last_modified || new Date().toISOString(),
+                    last_modified: versionTimestamp,
                 };
                 setCurrentPreviewedVersionNumber(targetVersion);
                 setPreviewFileContent(fileData);
@@ -2192,14 +2194,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     let versionsUrl: string;
                     if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                        versionsUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(currentFilename)}/versions`;
+                        versionsUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(currentFilename)}/versions`;
                     } else if (activeProject?.id) {
-                        versionsUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(currentFilename)}/versions?project_id=${activeProject.id}`;
+                        versionsUrl = `/api/v1/artifacts/null/${encodeURIComponent(currentFilename)}/versions?project_id=${activeProject.id}`;
                     } else {
                         return;
                     }
 
-                    const availableVersions: number[] = await fetchJsonWithError(versionsUrl);
+                    const availableVersions: number[] = await api.webui.get(versionsUrl);
                     if (!availableVersions || availableVersions.length === 0) return;
 
                     // Check if we're still relevant before updating state
@@ -2230,7 +2232,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 cancelled = true;
             };
         }
-    }, [artifacts, previewArtifactFilename, previewedArtifactAvailableVersions, sessionId, apiPrefix, activeProject, navigateArtifactVersion]);
+    }, [artifacts, previewArtifactFilename, previewedArtifactAvailableVersions, sessionId, activeProject, navigateArtifactVersion]);
 
     useEffect(() => {
         const handleProjectDeleted = (deletedProjectId: string) => {
