@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Un
 
 from litellm.exceptions import BadRequestError
 
-from ...common.error_handlers import handle_bad_request_error
+from ...common.error_handlers import get_error_message
 
 from a2a.types import (
     AgentCard,
@@ -2662,7 +2662,7 @@ class SamAgentComponent(SamComponentBase):
             
             if isinstance(exception, BadRequestError):
                 # Use centralized error handler
-                error_message, is_context_limit = handle_bad_request_error(exception)
+                error_message, is_context_limit = get_error_message(exception)
                 
                 if is_context_limit:
                     log.error(
