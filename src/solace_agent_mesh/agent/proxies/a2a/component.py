@@ -230,7 +230,7 @@ class A2AProxyComponent(BaseProxyComponent):
 
             log.info("%s Fetching agent card from %s", log_identifier, agent_url)
             async with httpx.AsyncClient(headers=headers) as client:
-                resolver = A2ACardResolver(httpx_client=client, base_url=agent_url)
+                resolver = A2ACardResolver(httpx_client=client, base_url=agent_url, agent_card_path=agent_card_path)
                 agent_card = await resolver.get_agent_card()
                 return agent_card
         except A2AClientHTTPError as e:
