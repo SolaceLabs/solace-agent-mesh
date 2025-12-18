@@ -4,7 +4,6 @@ import type { LayoutNode } from "../utils/types";
 import AgentNodeV2 from "./AgentNodeV2";
 import ConditionalNodeV2 from "./ConditionalNodeV2";
 import SwitchNodeV2 from "./SwitchNodeV2";
-import JoinNodeV2 from "./JoinNodeV2";
 import LoopNodeV2 from "./LoopNodeV2";
 import MapNodeV2 from "./MapNodeV2";
 
@@ -24,7 +23,7 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
     const haloClass = isProcessing ? 'processing-halo' : '';
 
     // Render a child node
-    const renderChild = (child: LayoutNode) => {
+    const renderChild = (child: LayoutNode): React.ReactNode => {
         const childProps = {
             node: child,
             onClick: onChildClick,
@@ -39,13 +38,46 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
                 return <ConditionalNodeV2 key={child.id} {...childProps} />;
             case 'switch':
                 return <SwitchNodeV2 key={child.id} {...childProps} />;
-            case 'join':
-                return <JoinNodeV2 key={child.id} {...childProps} />;
             case 'loop':
                 return <LoopNodeV2 key={child.id} {...childProps} onChildClick={onChildClick} />;
             case 'map':
-            case 'fork':
                 return <MapNodeV2 key={child.id} {...childProps} onChildClick={onChildClick} />;
+            case 'parallelBlock': {
+                // Group children by iterationIndex (branch index) for proper chain visualization
+                const branches = new Map<number, LayoutNode[]>();
+                for (const parallelChild of child.children) {
+                    const branchIdx = parallelChild.data.iterationIndex ?? 0;
+                    if (!branches.has(branchIdx)) {
+                        branches.set(branchIdx, []);
+                    }
+                    branches.get(branchIdx)!.push(parallelChild);
+                }
+
+                // Sort branches by index
+                const sortedBranches = Array.from(branches.entries()).sort((a, b) => a[0] - b[0]);
+
+                // Render parallel block - branches side-by-side, nodes within each branch stacked vertically
+                return (
+                    <div
+                        key={child.id}
+                        className="flex flex-row items-start gap-4 p-4 border-2 border-dashed border-purple-300 dark:border-purple-600 rounded-lg bg-purple-50/50 dark:bg-purple-900/20"
+                    >
+                        {sortedBranches.map(([branchIdx, branchChildren]) => (
+                            <div key={`branch-${branchIdx}`} className="flex flex-col items-center gap-2">
+                                {branchChildren.map((branchChild, nodeIdx) => (
+                                    <React.Fragment key={branchChild.id}>
+                                        {renderChild(branchChild)}
+                                        {/* Connector line to next node in branch */}
+                                        {nodeIdx < branchChildren.length - 1 && (
+                                            <div className="w-0.5 h-3 bg-gray-400 dark:bg-gray-600" />
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
             default:
                 return null;
         }

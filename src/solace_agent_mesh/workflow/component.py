@@ -286,11 +286,6 @@ class WorkflowExecutorComponent(SamComponentBase):
                 pretty_id = prettify_id(node.id)
                 label = f"<b>Decision</b><br/>{pretty_id}<br/>{condition}?"
                 lines.append(f'    {safe_id}{{"{label}"}}')
-            elif node.type == "fork":
-                # Hexagon for fork nodes
-                pretty_id = prettify_id(node.id)
-                label = f"<b>Fork</b><br/>{pretty_id}"
-                lines.append(f'    {safe_id}{{{{"{label}"}}}}')
             elif node.type == "map":
                 # Circle for map nodes
                 pretty_id = prettify_id(node.id)
@@ -301,12 +296,6 @@ class WorkflowExecutorComponent(SamComponentBase):
                 pretty_id = prettify_id(node.id)
                 label = f"<b>Switch</b><br/>{pretty_id}"
                 lines.append(f'    {safe_id}{{"{label}"}}')
-            elif node.type == "join":
-                # Circle for join nodes
-                pretty_id = prettify_id(node.id)
-                strategy = node.strategy
-                label = f"<b>Join</b><br/>{pretty_id}<br/>{strategy}"
-                lines.append(f'    {safe_id}(("{label}"))')
             elif node.type == "loop":
                 # Stadium shape for loop nodes
                 pretty_id = prettify_id(node.id)
@@ -419,20 +408,6 @@ class WorkflowExecutorComponent(SamComponentBase):
                 if node.default:
                     safe_default = sanitize(node.default)
                     lines.append(f"    {safe_id} -- Default --> {safe_default}")
-
-            # Fork branches
-            if node.type == "fork":
-                for branch in node.branches:
-                    branch_safe_id = sanitize(branch.id)
-                    # Define branch node with type label
-                    branch_label = f"<b>Agent</b><br/>{branch.agent_name}"
-                    lines.append(
-                        f'    {branch_safe_id}["{branch_label}"]'
-                    )
-                    # Connect fork to branch
-                    lines.append(
-                        f"    {safe_id} -- {branch.output_key} --> {branch_safe_id}"
-                    )
 
             # Map node - create join node and show parallel pattern with multiple instances
             if node.type == "map":

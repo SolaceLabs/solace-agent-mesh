@@ -52,8 +52,6 @@ export function findNodeDetails(
             return findConditionalNodeDetails(node, primaryStep, allSteps);
         case 'switch':
             return findSwitchNodeDetails(node, primaryStep, allSteps);
-        case 'join':
-            return findJoinNodeDetails(node, primaryStep, allSteps);
         case 'loop':
             return findLoopNodeDetails(node, primaryStep, allSteps);
         case 'group':
@@ -332,39 +330,6 @@ function findSwitchNodeDetails(
 
     return {
         nodeType: 'switch',
-        label: node.data.label,
-        requestStep,
-        resultStep,
-    };
-}
-
-/**
- * Find details for Join nodes
- */
-function findJoinNodeDetails(
-    node: LayoutNode,
-    primaryStep: VisualizerStep,
-    allSteps: VisualizerStep[]
-): NodeDetails {
-    // Primary step should be WORKFLOW_NODE_EXECUTION_START with nodeType: join
-    const requestStep = primaryStep.type === 'WORKFLOW_NODE_EXECUTION_START' ? primaryStep : undefined;
-
-    // Find the result by matching nodeId
-    let resultStep: VisualizerStep | undefined;
-
-    if (requestStep?.data.workflowNodeExecutionStart) {
-        const nodeId = requestStep.data.workflowNodeExecutionStart.nodeId;
-        const owningTaskId = requestStep.owningTaskId;
-
-        resultStep = allSteps.find(
-            s => s.type === 'WORKFLOW_NODE_EXECUTION_RESULT' &&
-            s.owningTaskId === owningTaskId &&
-            s.data.workflowNodeExecutionResult?.nodeId === nodeId
-        );
-    }
-
-    return {
-        nodeType: 'join',
         label: node.data.label,
         requestStep,
         resultStep,

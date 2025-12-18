@@ -94,15 +94,6 @@ class ExitHandler(BaseModel):
 # --- Workflow Node Models ---
 
 
-class ForkBranch(BaseModel):
-    """A single branch in a fork node."""
-
-    id: str = Field(..., description="Branch identifier")
-    agent_name: str = Field(..., description="Agent for this branch")
-    input: Dict[str, Any] = Field(..., description="Input mapping")
-    output_key: str = Field(..., description="Key for merging result")
-
-
 class WorkflowNode(BaseModel):
     """
     Base workflow node.
@@ -227,48 +218,6 @@ class SwitchNode(WorkflowNode):
     )
 
 
-class JoinNode(WorkflowNode):
-    """
-    Explicit synchronization point.
-
-    Waits for multiple upstream nodes based on strategy.
-    For 'any' strategy, remaining branches are cancelled once first completes.
-    """
-
-    type: Literal["join"] = "join"
-    wait_for: List[str] = Field(
-        ...,
-        description="List of node IDs to wait for.",
-        alias="waitFor",
-    )
-    strategy: Literal["all", "any", "n_of_m"] = Field(
-        default="all",
-        description="Wait strategy: all, any, or n_of_m.",
-    )
-    n: Optional[int] = Field(
-        default=None,
-        description="Required for n_of_m strategy: number of nodes that must complete.",
-    )
-
-    class Config:
-        populate_by_name = True
-
-    @model_validator(mode="after")
-    def validate_n_for_strategy(self) -> "JoinNode":
-        """Validate that n is provided for n_of_m strategy."""
-        if self.strategy == "n_of_m":
-            if self.n is None:
-                raise ValueError("JoinNode with strategy 'n_of_m' requires 'n' field")
-            if self.n < 1:
-                raise ValueError("JoinNode 'n' must be at least 1")
-            if self.n > len(self.wait_for):
-                raise ValueError(
-                    f"JoinNode 'n' ({self.n}) cannot exceed wait_for count "
-                    f"({len(self.wait_for)})"
-                )
-        return self
-
-
 class LoopNode(WorkflowNode):
     """
     While-loop node for iterative execution until condition is met.
@@ -291,25 +240,6 @@ class LoopNode(WorkflowNode):
     delay: Optional[str] = Field(
         default=None,
         description="Delay between iterations. Format: '5s', '1m'.",
-    )
-
-    class Config:
-        populate_by_name = True
-
-
-class ForkNode(WorkflowNode):
-    """
-    Parallel execution node with explicit branch definitions.
-
-    Provides explicit output_key for result merging.
-    """
-
-    type: Literal["fork"] = "fork"
-    branches: List[ForkBranch] = Field(..., description="Parallel branches to execute")
-    fail_fast: bool = Field(
-        default=True,
-        description="If true, cancel remaining branches when one fails.",
-        alias="failFast",
     )
 
     class Config:
@@ -390,9 +320,7 @@ WorkflowNodeUnion = Union[
     AgentNode,
     ConditionalNode,
     SwitchNode,
-    JoinNode,
     LoopNode,
-    ForkNode,
     MapNode,
 ]
 
@@ -499,14 +427,6 @@ class WorkflowDefinition(BaseModel):
                     self._validate_branch_dependency(
                         node, node.default, "default", node_map
                     )
-
-            # Validate JoinNode wait_for references
-            if node.type == "join":
-                for wait_id in node.wait_for:
-                    if wait_id not in node_map:
-                        raise ValueError(
-                            f"JoinNode '{node.id}' waits for non-existent node '{wait_id}'"
-                        )
 
             # Validate LoopNode target reference
             if node.type == "loop":

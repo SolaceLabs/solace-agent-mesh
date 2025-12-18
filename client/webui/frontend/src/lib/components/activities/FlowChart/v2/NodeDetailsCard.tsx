@@ -166,8 +166,6 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails }) => {
                 return <GitMerge className="text-amber-500 dark:text-amber-400" size={20} />;
             case 'switch':
                 return <GitBranch className="text-purple-500 dark:text-purple-400" size={20} />;
-            case 'join':
-                return <GitMerge className="text-green-500 dark:text-green-400" size={20} />;
             case 'loop':
                 return <RefreshCw className="text-teal-500 dark:text-teal-400" size={20} />;
             case 'group':
@@ -688,50 +686,6 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails }) => {
                                     <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
                                         {data.defaultBranch}
                                     </span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        }
-
-        // Join node specific rendering
-        if (data.nodeType === 'join') {
-            return (
-                <div>
-                    <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
-                        Join Node
-                    </h4>
-                    <div className="space-y-2">
-                        <div className="text-xs">
-                            <span className="font-semibold">Node ID:</span> {data.nodeId}
-                        </div>
-                        {data.joinStrategy && (
-                            <div className="text-xs">
-                                <span className="font-semibold">Strategy:</span>{' '}
-                                <span className="px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
-                                    {data.joinStrategy}
-                                </span>
-                            </div>
-                        )}
-                        {data.joinStrategy === 'n_of_m' && data.joinN !== undefined && (
-                            <div className="text-xs">
-                                <span className="font-semibold">Required:</span> {data.joinN} of {data.waitFor?.length || 0}
-                            </div>
-                        )}
-                        {data.waitFor && data.waitFor.length > 0 && (
-                            <div>
-                                <div className="text-xs font-semibold mb-1">Waiting for:</div>
-                                <div className="flex flex-wrap gap-1">
-                                    {data.waitFor.map((nodeId, index) => (
-                                        <span
-                                            key={index}
-                                            className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded"
-                                        >
-                                            {nodeId}
-                                        </span>
-                                    ))}
                                 </div>
                             </div>
                         )}

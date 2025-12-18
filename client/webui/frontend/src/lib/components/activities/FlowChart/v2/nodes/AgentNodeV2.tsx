@@ -5,7 +5,6 @@ import LLMNodeV2 from "./LLMNodeV2";
 import ToolNodeV2 from "./ToolNodeV2";
 import ConditionalNodeV2 from "./ConditionalNodeV2";
 import SwitchNodeV2 from "./SwitchNodeV2";
-import JoinNodeV2 from "./JoinNodeV2";
 import LoopNodeV2 from "./LoopNodeV2";
 import WorkflowGroupV2 from "./WorkflowGroupV2";
 
@@ -41,8 +40,6 @@ const AgentNodeV2: React.FC<AgentNodeV2Props> = ({ node, isSelected, onClick, on
                 return <ConditionalNodeV2 key={child.id} {...childProps} />;
             case 'switch':
                 return <SwitchNodeV2 key={child.id} {...childProps} />;
-            case 'join':
-                return <JoinNodeV2 key={child.id} {...childProps} />;
             case 'loop':
                 return <LoopNodeV2 key={child.id} {...childProps} />;
             case 'group':

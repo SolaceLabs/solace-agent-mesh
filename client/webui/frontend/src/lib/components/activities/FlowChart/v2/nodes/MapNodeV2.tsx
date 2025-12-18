@@ -42,20 +42,11 @@ const MapNodeV2: React.FC<MapNodeV2Props> = ({ node, isSelected, onClick, onChil
     }, [node]);
 
     const hasChildren = branches.length > 0;
-    const isMapNode = node.type === 'map';
-    const label = isMapNode ? 'Map' : 'Fork';
-    const colorClass = isMapNode
-        ? "border-indigo-400 bg-indigo-50/30 dark:border-indigo-600 dark:bg-indigo-900/20"
-        : "border-orange-400 bg-orange-50/30 dark:border-orange-600 dark:bg-orange-900/20";
-    const labelColorClass = isMapNode
-        ? "text-indigo-600 dark:text-indigo-400 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50"
-        : "text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/50";
-    const connectorColor = isMapNode
-        ? "bg-indigo-400 dark:bg-indigo-600"
-        : "bg-orange-400 dark:bg-orange-600";
-    const iterationLabelColor = isMapNode
-        ? "text-indigo-600 dark:text-indigo-400"
-        : "text-orange-600 dark:text-orange-400";
+    const label = 'Map';
+    const colorClass = "border-indigo-400 bg-indigo-50/30 dark:border-indigo-600 dark:bg-indigo-900/20";
+    const labelColorClass = "text-indigo-600 dark:text-indigo-400 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50";
+    const connectorColor = "bg-indigo-400 dark:bg-indigo-600";
+    const iterationLabelColor = "text-indigo-600 dark:text-indigo-400";
 
     // Render a child node (iterations are agent nodes)
     const renderChild = (child: LayoutNode) => {
@@ -119,7 +110,7 @@ const MapNodeV2: React.FC<MapNodeV2Props> = ({ node, isSelected, onClick, onChil
                         <div key={`branch-${branchIndex}`} className="flex flex-col items-center">
                             {/* Branch label */}
                             <div className={`text-[10px] font-medium ${iterationLabelColor} mb-2`}>
-                                {isMapNode ? `Item ${branchIndex + 1}` : `Branch ${branchIndex + 1}`}
+                                Item {branchIndex + 1}
                             </div>
                             {/* Branch children */}
                             {branch.map((child, childIndex) => (
@@ -147,7 +138,7 @@ const MapNodeV2: React.FC<MapNodeV2Props> = ({ node, isSelected, onClick, onChil
                 e.stopPropagation();
                 onClick?.(node);
             }}
-            title={node.data.description || `${label}: Waiting for items...`}
+            title={node.data.description || `Map: Waiting for items...`}
         >
             {/* Stadium/Pill shape */}
             <div
@@ -157,7 +148,7 @@ const MapNodeV2: React.FC<MapNodeV2Props> = ({ node, isSelected, onClick, onChil
             >
                 {/* Parallel Icon */}
                 <svg
-                    className={`absolute -top-1 -right-1 w-4 h-4 ${isMapNode ? "text-indigo-600 dark:text-indigo-400" : "text-orange-600 dark:text-orange-400"}`}
+                    className="absolute -top-1 -right-1 w-4 h-4 text-indigo-600 dark:text-indigo-400"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"

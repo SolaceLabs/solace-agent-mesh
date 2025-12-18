@@ -23,14 +23,17 @@ class WorkflowExecutionState(BaseModel):
     )  # node_id -> artifact_name
     pending_nodes: List[str] = Field(default_factory=list)
 
-    # Fork/join tracking
+    # Implicit parallel branch tracking
+    # Maps parallel_group_id -> list of (node_id, branch_index) tuples
+    # Used to track which nodes are in which branch of an implicit parallel group
+    parallel_branch_assignments: Dict[str, Dict[str, int]] = Field(
+        default_factory=dict
+    )  # parallel_group_id -> {node_id: branch_index}
+
+    # Map node tracking (for dynamic fan-out)
     active_branches: Dict[str, List[Dict]] = Field(
         default_factory=dict
-    )  # fork_id -> branch info
-
-    # JoinNode completion tracking
-    # join_node_id -> {"completed": [node_ids], "results": {node_id: output}}
-    join_completion: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    )  # map_node_id -> branch info
 
     # LoopNode iteration tracking
     # loop_node_id -> current iteration count

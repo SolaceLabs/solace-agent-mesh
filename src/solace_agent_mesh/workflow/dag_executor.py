@@ -18,9 +18,7 @@ from .app import (
     AgentNode,
     ConditionalNode,
     SwitchNode,
-    JoinNode,
     LoopNode,
-    ForkNode,
     MapNode,
 )
 from .workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
@@ -255,9 +253,42 @@ class DAGExecutor:
                 )
                 return  # Execution will resume on node completion
 
-            # Execute next nodes
+            # Execute next nodes with implicit parallelism detection and branch inheritance
+            import uuid as uuid_module
+
+            # Determine parallel group and branch assignments for each node
+            node_parallel_info = {}  # node_id -> (parallel_group_id, branch_index)
+
+            if len(next_nodes) > 1:
+                # Multiple nodes ready = implicit parallel execution (like implicit fork)
+                # Check if all nodes share the same single dependency in the same branch
+                # If so, this is a new fork point
+                parallel_group_id = f"implicit_parallel_{workflow_state.execution_id}_{uuid_module.uuid4().hex[:8]}"
+                log.info(f"{log_id} Implicit parallel execution: {len(next_nodes)} nodes, group={parallel_group_id}")
+
+                # Assign each node to a separate branch
+                for branch_idx, nid in enumerate(next_nodes):
+                    node_parallel_info[nid] = (parallel_group_id, branch_idx)
+                    # Track in workflow state
+                    if parallel_group_id not in workflow_state.parallel_branch_assignments:
+                        workflow_state.parallel_branch_assignments[parallel_group_id] = {}
+                    workflow_state.parallel_branch_assignments[parallel_group_id][nid] = branch_idx
+            else:
+                # Single node - check if it should inherit a branch from its dependencies
+                for nid in next_nodes:
+                    inherited_info = self._get_inherited_branch(nid, workflow_state)
+                    if inherited_info:
+                        parallel_group_id, branch_idx = inherited_info
+                        node_parallel_info[nid] = inherited_info
+                        # Track in workflow state
+                        workflow_state.parallel_branch_assignments[parallel_group_id][nid] = branch_idx
+                        log.debug(f"{log_id} Node {nid} inherits branch {branch_idx} from group {parallel_group_id}")
+
             for node_id in next_nodes:
-                await self.execute_node(node_id, workflow_state, workflow_context)
+                parallel_info = node_parallel_info.get(node_id)
+                pg_id = parallel_info[0] if parallel_info else None
+                branch_idx = parallel_info[1] if parallel_info else None
+                await self.execute_node(node_id, workflow_state, workflow_context, pg_id, branch_idx)
 
                 # Update pending nodes
                 # Only add if NOT completed (i.e. it was an async node that started)
@@ -267,18 +298,74 @@ class DAGExecutor:
             # Persist state
             await self.host._update_workflow_state(workflow_context, workflow_state)
 
+    def _get_inherited_branch(
+        self,
+        node_id: str,
+        workflow_state: WorkflowExecutionState,
+    ) -> Optional[tuple]:
+        """
+        Check if a node should inherit a branch assignment from its dependencies.
+
+        A node inherits a branch if ALL its dependencies are in the same branch
+        of the same parallel group. If dependencies span multiple branches or
+        parallel groups, this is an implicit join point and no inheritance occurs.
+
+        Returns: (parallel_group_id, branch_index) or None
+        """
+        node = self.nodes[node_id]
+        if not node.depends_on:
+            return None
+
+        # Find which parallel group/branch each dependency is in
+        dep_branches = []  # List of (parallel_group_id, branch_index) for each dep
+        for dep_id in node.depends_on:
+            # Skip dependencies that were skipped (conditional branches)
+            if dep_id in workflow_state.skipped_nodes:
+                continue
+
+            # Find if this dependency is in any parallel group
+            found = False
+            for pg_id, assignments in workflow_state.parallel_branch_assignments.items():
+                if dep_id in assignments:
+                    dep_branches.append((pg_id, assignments[dep_id]))
+                    found = True
+                    break
+
+            if not found:
+                # Dependency is not in any parallel group
+                dep_branches.append(None)
+
+        # Filter out None entries (deps not in parallel groups)
+        parallel_deps = [b for b in dep_branches if b is not None]
+
+        if not parallel_deps:
+            # No dependencies are in parallel groups
+            return None
+
+        # Check if all parallel dependencies are in the same group and branch
+        first_group, first_branch = parallel_deps[0]
+        for pg_id, branch_idx in parallel_deps[1:]:
+            if pg_id != first_group or branch_idx != first_branch:
+                # Dependencies span multiple branches - this is an implicit join
+                return None
+
+        # All parallel dependencies are in the same branch - inherit it
+        return (first_group, first_branch)
+
     async def execute_node(
         self,
         node_id: str,
         workflow_state: WorkflowExecutionState,
         workflow_context: WorkflowExecutionContext,
+        implicit_parallel_group_id: Optional[str] = None,
+        implicit_branch_index: Optional[int] = None,
     ):
         """Execute a single workflow node."""
         log_id = f"{self.host.log_identifier}[Node:{node_id}]"
 
         try:
             node = self.nodes[node_id]
-            
+
             # Generate sub-task ID for agent nodes to link events
             sub_task_id = None
             if node.type == "agent":
@@ -293,6 +380,12 @@ class DAGExecutor:
                 "agent_name": getattr(node, "agent_name", None),
                 "sub_task_id": sub_task_id,
             }
+
+            # Include implicit parallel group ID and branch index for agent nodes (used for visualization)
+            if implicit_parallel_group_id and node.type == "agent":
+                start_data_args["parallel_group_id"] = implicit_parallel_group_id
+                if implicit_branch_index is not None:
+                    start_data_args["iteration_index"] = implicit_branch_index
 
             if node.type == "conditional":
                 start_data_args["condition"] = node.condition
@@ -319,25 +412,15 @@ class DAGExecutor:
                 ]
                 start_data_args["default_branch"] = node.default
 
-            elif node.type == "join":
-                # Include join configuration for visualization
-                start_data_args["wait_for"] = node.wait_for
-                start_data_args["join_strategy"] = node.strategy
-                if node.strategy == "n_of_m":
-                    start_data_args["join_n"] = node.n
-
             elif node.type == "loop":
                 # Include loop configuration for visualization
                 start_data_args["condition"] = node.condition
                 start_data_args["max_iterations"] = node.max_iterations
                 start_data_args["loop_delay"] = node.delay
 
-            # Generate parallel_group_id for fork/map nodes so the frontend can group children
+            # Generate parallel_group_id for map nodes so the frontend can group children
             parallel_group_id = None
-            if node.type == "fork":
-                parallel_group_id = f"fork_{node.id}_{workflow_state.execution_id}"
-                start_data_args["parallel_group_id"] = parallel_group_id
-            elif node.type == "map":
+            if node.type == "map":
                 parallel_group_id = f"map_{node.id}_{workflow_state.execution_id}"
                 start_data_args["parallel_group_id"] = parallel_group_id
 
@@ -353,14 +436,10 @@ class DAGExecutor:
                 )
             elif node.type == "switch":
                 await self._execute_switch_node(node, workflow_state, workflow_context)
-            elif node.type == "join":
-                await self._execute_join_node(node, workflow_state, workflow_context)
             elif node.type == "loop":
                 log.info(f"{log_id} [LOOP_DEBUG] About to call _execute_loop_node for node {node.id}")
                 await self._execute_loop_node(node, workflow_state, workflow_context)
                 log.info(f"{log_id} [LOOP_DEBUG] _execute_loop_node returned for node {node.id}")
-            elif node.type == "fork":
-                await self._execute_fork_node(node, workflow_state, workflow_context, parallel_group_id)
             elif node.type == "map":
                 await self._execute_map_node(node, workflow_state, workflow_context, parallel_group_id)
             else:
@@ -615,97 +694,6 @@ class DAGExecutor:
         # Continue execution
         await self.execute_workflow(workflow_state, workflow_context)
 
-    async def _execute_join_node(
-        self,
-        node: JoinNode,
-        workflow_state: WorkflowExecutionState,
-        workflow_context: WorkflowExecutionContext,
-    ):
-        """Execute join node for synchronization."""
-        log_id = f"{self.host.log_identifier}[Join:{node.id}]"
-
-        # Initialize join tracking if not exists
-        if node.id not in workflow_state.join_completion:
-            workflow_state.join_completion[node.id] = {
-                "completed": [],
-                "results": {},
-            }
-
-        join_state = workflow_state.join_completion[node.id]
-
-        # Check which wait_for nodes have completed
-        for wait_id in node.wait_for:
-            if wait_id in workflow_state.completed_nodes:
-                if wait_id not in join_state["completed"]:
-                    join_state["completed"].append(wait_id)
-                    # Store result if available
-                    if wait_id in workflow_state.node_outputs:
-                        join_state["results"][wait_id] = workflow_state.node_outputs[
-                            wait_id
-                        ].get("output")
-
-        completed_count = len(join_state["completed"])
-        total_count = len(node.wait_for)
-
-        # Check if join condition is satisfied based on strategy
-        is_ready = False
-        if node.strategy == "all":
-            is_ready = completed_count == total_count
-        elif node.strategy == "any":
-            is_ready = completed_count >= 1
-        elif node.strategy == "n_of_m":
-            is_ready = completed_count >= node.n
-
-        log.debug(
-            f"{log_id} Strategy '{node.strategy}': {completed_count}/{total_count} complete, "
-            f"ready={is_ready}"
-        )
-
-        if not is_ready:
-            # Not ready yet, will be re-evaluated when more nodes complete
-            # Mark as pending but don't complete
-            return
-
-        # Join is satisfied
-        log.info(f"{log_id} Join condition satisfied")
-
-        # For 'any' strategy, cancel remaining pending branches
-        if node.strategy == "any" and completed_count < total_count:
-            for wait_id in node.wait_for:
-                if wait_id not in join_state["completed"]:
-                    log.info(f"{log_id} Cancelling remaining branch '{wait_id}'")
-                    # Mark as skipped rather than trying to actually cancel running tasks
-                    workflow_state.skipped_nodes[wait_id] = "cancelled_by_join_any"
-                    workflow_state.completed_nodes[wait_id] = "CANCELLED"
-
-        # Mark join as complete
-        workflow_state.completed_nodes[node.id] = "join_complete"
-        workflow_state.node_outputs[node.id] = {
-            "output": {
-                "completed_nodes": join_state["completed"],
-                "results": join_state["results"],
-                "strategy": node.strategy,
-            }
-        }
-
-        # Cleanup join state
-        del workflow_state.join_completion[node.id]
-
-        # Publish result event
-        result_data = WorkflowNodeExecutionResultData(
-            type="workflow_node_execution_result",
-            node_id=node.id,
-            status="success",
-            metadata={
-                "completed_nodes": join_state["completed"],
-                "strategy": node.strategy,
-            },
-        )
-        await self.host.publish_workflow_event(workflow_context, result_data)
-
-        # Continue execution
-        await self.execute_workflow(workflow_state, workflow_context)
-
     async def _execute_loop_node(
         self,
         node: LoopNode,
@@ -874,70 +862,6 @@ class DAGExecutor:
 
             if all_deps_skipped:
                 await self._skip_branch(child_id, workflow_state)
-
-    async def _execute_fork_node(
-        self,
-        node: ForkNode,
-        workflow_state: WorkflowExecutionState,
-        workflow_context: WorkflowExecutionContext,
-        parallel_group_id: str,
-    ):
-        """Execute fork node with parallel branches."""
-        log_id = f"{self.host.log_identifier}[Fork:{node.id}]"
-
-        # Track active branches
-        branch_sub_tasks = []
-
-        # Launch all branches concurrently
-        for branch_index, branch in enumerate(node.branches):
-            log.debug(f"{log_id} Starting branch '{branch.id}'")
-
-            # Create temporary node for branch
-            branch_node = AgentNode(
-                id=branch.id,
-                type="agent",
-                agent_name=branch.agent_name,
-                input=branch.input,
-                depends_on=[node.id],  # Depends on fork node
-            )
-
-            # Generate sub-task ID
-            import uuid
-            sub_task_id = f"wf_{workflow_state.execution_id}_{branch.id}_{uuid.uuid4().hex[:8]}"
-
-            # Emit start event for branch BEFORE execution
-            # Include iteration_index so frontend can separate branches visually
-            start_data = WorkflowNodeExecutionStartData(
-                type="workflow_node_execution_start",
-                node_id=branch.id,
-                node_type="agent",
-                agent_name=branch.agent_name,
-                sub_task_id=sub_task_id,
-                parent_node_id=node.id,
-                parallel_group_id=parallel_group_id,
-                iteration_index=branch_index,
-            )
-            await self.host.publish_workflow_event(workflow_context, start_data)
-
-            # Execute branch
-            await self.host.agent_caller.call_agent(
-                branch_node, workflow_state, workflow_context, sub_task_id=sub_task_id
-            )
-
-            branch_sub_tasks.append(
-                {
-                    "branch_id": branch.id,
-                    "output_key": branch.output_key,
-                    "sub_task_id": sub_task_id,
-                }
-            )
-
-        # Store branch tracking in workflow state
-        workflow_state.active_branches[node.id] = branch_sub_tasks
-
-        # Mark fork as pending (not complete until all branches finish)
-        # Note: It was already added to pending_nodes by execute_workflow loop
-        # but we need to ensure it stays there until branches are done.
 
     async def _execute_map_node(
         self,
@@ -1385,85 +1309,6 @@ class DAGExecutor:
                     await self._finalize_map_node(
                         control_node_id, map_state, workflow_state, workflow_context
                     )
-        else:
-            # Fork logic (wait for all)
-            all_complete = all("result" in b for b in branches)
-            if all_complete:
-                log.info(f"{log_id} All fork branches completed")
-                await self._finalize_fork_node(
-                    control_node_id, branches, workflow_state, workflow_context
-                )
-
-    async def _finalize_fork_node(
-        self,
-        fork_node_id: str,
-        branches: List[Dict],
-        workflow_state: WorkflowExecutionState,
-        workflow_context: WorkflowExecutionContext,
-    ):
-        """Merge fork branch results."""
-        log_id = f"{self.host.log_identifier}[Fork:{fork_node_id}]"
-
-        # Load all branch artifacts
-        merged_output = {}
-
-        for branch in branches:
-            output_key = branch["output_key"]
-            artifact_name = branch["result"]["artifact_name"]
-            artifact_version = branch["result"]["artifact_version"]
-
-            # Load artifact
-            artifact_data = await self.host._load_node_output(
-                node_id=fork_node_id,
-                artifact_name=artifact_name,
-                artifact_version=artifact_version,
-                workflow_context=workflow_context,
-                sub_task_id=branch["sub_task_id"],
-            )
-
-            # Add to merged output
-            merged_output[output_key] = artifact_data
-
-        # Create merged artifact
-        merged_artifact_name = f"fork_{fork_node_id}_merged.json"
-        merged_bytes = json.dumps(merged_output).encode("utf-8")
-
-        await save_artifact_with_metadata(
-            artifact_service=self.host.artifact_service,
-            app_name=self.host.workflow_name,
-            user_id=workflow_context.a2a_context["user_id"],
-            session_id=workflow_context.a2a_context["session_id"],
-            filename=merged_artifact_name,
-            content_bytes=merged_bytes,
-            mime_type="application/json",
-            metadata_dict={
-                "description": f"Merged output from fork node '{fork_node_id}'",
-                "source": "workflow_fork_merge",
-                "node_id": fork_node_id,
-            },
-            timestamp=datetime.now(timezone.utc),
-        )
-
-        # Publish result event
-        result_data = WorkflowNodeExecutionResultData(
-            type="workflow_node_execution_result",
-            node_id=fork_node_id,
-            status="success",
-            output_artifact_ref=ArtifactRef(name=merged_artifact_name),
-        )
-        await self.host.publish_workflow_event(workflow_context, result_data)
-
-        # Mark fork complete
-        workflow_state.completed_nodes[fork_node_id] = merged_artifact_name
-        if fork_node_id in workflow_state.pending_nodes:
-            workflow_state.pending_nodes.remove(fork_node_id)
-        workflow_state.node_outputs[fork_node_id] = {"output": merged_output}
-
-        # Clear branch tracking
-        del workflow_state.active_branches[fork_node_id]
-
-        # Continue workflow
-        await self.execute_workflow(workflow_state, workflow_context)
 
     async def _finalize_map_node(
         self,
