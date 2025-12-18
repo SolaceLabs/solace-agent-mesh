@@ -6,7 +6,7 @@ import type { VisualizerStep } from "@/lib/types";
  */
 export interface LayoutNode {
     id: string;
-    type: 'agent' | 'tool' | 'llm' | 'user' | 'conditional' | 'switch' | 'join' | 'loop' | 'group' | 'workflow' | 'parallelBlock';
+    type: 'agent' | 'tool' | 'llm' | 'user' | 'conditional' | 'switch' | 'join' | 'loop' | 'map' | 'fork' | 'group' | 'workflow' | 'parallelBlock';
     data: {
         label: string;
         visualizerStepId?: string;
@@ -31,6 +31,8 @@ export interface LayoutNode {
         maxIterations?: number;
         loopDelay?: string;
         currentIteration?: number;
+        // Map/Fork node fields
+        iterationIndex?: number;
         // Common fields
         isTopNode?: boolean;
         isBottomNode?: boolean;

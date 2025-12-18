@@ -1035,3 +1035,74 @@ apps:
 
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
+
+  # ============================================================================
+  # WORKFLOW: Simple Loop Demo
+  # A simpler workflow that just demonstrates the loop node
+  # ============================================================================
+  - name: simple_loop_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "SimpleLoopWorkflow"
+      display_name: "Simple Loop Workflow"
+
+      workflow:
+        description: |
+          A simple workflow that demonstrates the loop node by polling
+          a status checker until it reports ready.
+
+        input_schema:
+          type: object
+          properties:
+            task_id:
+              type: string
+              description: "Task identifier to check status for"
+          required: [task_id]
+
+        output_schema:
+          type: object
+          properties:
+            task_id: {type: string}
+            iterations_completed: {type: integer}
+            final_status: {type: string}
+          required: [task_id, iterations_completed]
+
+        nodes:
+          # Loop node - polls until ready or max iterations
+          - id: poll_status
+            type: loop
+            node: check_task_status
+            condition: "{{check_task_status.output.ready}} == false"
+            max_iterations: 5
+
+          # Inner node for loop - checks status
+          - id: check_task_status
+            type: agent
+            agent_name: "StatusChecker"
+            input:
+              order_id: "{{workflow.input.task_id}}"
+              iteration: "{{_loop_iteration}}"
+
+        output_mapping:
+          task_id: "{{workflow.input.task_id}}"
+          iterations_completed: "{{poll_status.output.iterations_completed}}"
+          final_status: "{{check_task_status.output.status_message}}"
+
+        skills:
+          - id: "poll_status"
+            name: "Poll Status"
+            description: "Polls status until ready"
+            tags: ["loop", "polling"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }

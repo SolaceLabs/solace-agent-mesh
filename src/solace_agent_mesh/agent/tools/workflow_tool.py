@@ -399,11 +399,10 @@ class WorkflowAgentTool(BaseTool):
                 f"TaskExecutionContext not found for task '{main_logical_task_id}'"
             )
 
-        log.info(
-            "%s [WORKFLOW_DEBUG] TaskExecutionContext found | registering parallel call",
-            log_identifier,
-        )
-        task_context_obj.register_parallel_call_sent(invocation_id)
+        # NOTE: register_parallel_call_sent is now called in
+        # preregister_long_running_tools_callback (after_model_callback)
+        # BEFORE tool execution begins. This prevents race conditions where
+        # one tool completes before another registers.
 
         # Submit Task
         correlation_data = {

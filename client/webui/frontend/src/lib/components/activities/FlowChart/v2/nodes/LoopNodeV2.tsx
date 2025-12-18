@@ -1,13 +1,17 @@
 import React from "react";
 import type { LayoutNode } from "../utils/types";
+import AgentNodeV2 from "./AgentNodeV2";
 
 interface LoopNodeV2Props {
     node: LayoutNode;
     isSelected?: boolean;
     onClick?: (node: LayoutNode) => void;
+    onChildClick?: (child: LayoutNode) => void;
+    onExpand?: (nodeId: string) => void;
+    onCollapse?: (nodeId: string) => void;
 }
 
-const LoopNodeV2: React.FC<LoopNodeV2Props> = ({ node, isSelected, onClick }) => {
+const LoopNodeV2: React.FC<LoopNodeV2Props> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
     const getStatusColor = () => {
         switch (node.data.status) {
             case "completed":
@@ -23,7 +27,86 @@ const LoopNodeV2: React.FC<LoopNodeV2Props> = ({ node, isSelected, onClick }) =>
 
     const currentIteration = node.data.currentIteration ?? 0;
     const maxIterations = node.data.maxIterations ?? 100;
+    const hasChildren = node.children && node.children.length > 0;
 
+    // Render a child node (loop iterations are agent nodes)
+    const renderChild = (child: LayoutNode) => {
+        const childProps = {
+            node: child,
+            onClick: onChildClick,
+            onChildClick: onChildClick,
+            onExpand,
+            onCollapse,
+        };
+
+        switch (child.type) {
+            case 'agent':
+                return <AgentNodeV2 key={child.id} {...childProps} />;
+            default:
+                // Loop children are typically agents, but handle other types if needed
+                return null;
+        }
+    };
+
+    // If the loop has children (iterations), render as a container
+    if (hasChildren) {
+        return (
+            <div
+                className={`relative rounded-lg border-2 border-dashed border-teal-400 bg-teal-50/30 dark:border-teal-600 dark:bg-teal-900/20 ${
+                    isSelected ? "ring-2 ring-blue-500" : ""
+                }`}
+                style={{
+                    minWidth: "200px",
+                    position: "relative",
+                }}
+            >
+                {/* Loop Label with icon - clickable */}
+                <div
+                    className="absolute -top-3 left-4 px-2 text-xs font-bold text-teal-600 dark:text-teal-400 bg-gray-50 dark:bg-gray-900 rounded-md border border-teal-300 dark:border-teal-700 flex items-center gap-1.5 cursor-pointer hover:bg-teal-50 dark:hover:bg-teal-900/50 transition-colors"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onClick?.(node);
+                    }}
+                    title={`Loop: ${node.data.condition || 'while condition'} (max ${maxIterations})`}
+                >
+                    {/* Loop Arrow Icon */}
+                    <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                    </svg>
+                    {node.data.label}
+                </div>
+
+                {/* Children (loop iterations) with inline connectors */}
+                <div className="p-4 pt-3 flex flex-col items-center">
+                    {node.children.map((child, index) => (
+                        <React.Fragment key={child.id}>
+                            {/* Iteration label */}
+                            <div className="text-[10px] font-medium text-teal-600 dark:text-teal-400 mb-1">
+                                Iteration {index + 1}
+                            </div>
+                            {renderChild(child)}
+                            {/* Connector line to next child */}
+                            {index < node.children.length - 1 && (
+                                <div className="w-0.5 h-4 bg-teal-400 dark:bg-teal-600 my-1" />
+                            )}
+                        </React.Fragment>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    // No children yet - render as compact badge
     return (
         <div
             className="relative flex items-center justify-center cursor-pointer"

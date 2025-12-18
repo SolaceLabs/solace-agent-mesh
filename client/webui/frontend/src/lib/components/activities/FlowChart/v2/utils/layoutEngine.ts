@@ -11,6 +11,8 @@ const NODE_WIDTHS = {
     SWITCH: 120,
     JOIN: 100,
     LOOP: 120,
+    MAP: 120,
+    FORK: 120,
     MIN_AGENT_CONTENT: 200,
 };
 
@@ -23,6 +25,8 @@ const NODE_HEIGHTS = {
     SWITCH: 80,
     JOIN: 60,
     LOOP: 80,
+    MAP: 80,
+    FORK: 80,
 };
 
 const SPACING = {
@@ -539,6 +543,12 @@ function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void 
     if (executionId) {
         context.taskToNodeMap.set(executionId, groupNode);
     }
+
+    // Also map by owningTaskId so findAgentForStep can find the group
+    // when workflow node steps use the event's task_id as their owningTaskId
+    if (step.owningTaskId && step.owningTaskId !== executionId) {
+        context.taskToNodeMap.set(step.owningTaskId, groupNode);
+    }
 }
 
 /**
@@ -575,10 +585,10 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
         type = 'loop';
         label = 'Loop';
     } else if (nodeType === 'map') {
-        variant = 'pill';
+        type = 'map';
         label = 'Map';
     } else if (nodeType === 'fork') {
-        variant = 'pill';
+        type = 'fork';
         label = 'Fork';
     } else {
         // Agent nodes use their actual name
@@ -627,9 +637,6 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
         const groupNode = findAgentForStep(step, context);
         if (!groupNode) return;
 
-        // Initialize parallel branches
-        workflowNode.parallelBranches = [];
-
         // Store in parallel container map for child nodes to find
         // Use parallelGroupId from backend if available, otherwise use legacy key format
         const containerKey = parallelGroupId || `${taskId}:${nodeId}`;
@@ -638,23 +645,32 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
         // Add to parent group
         groupNode.children.push(workflowNode);
     }
-    // Handle nodes that are children of Map/Fork (parallel branches)
+    // Handle Loop nodes - these contain sequential iterations
+    else if (nodeType === 'loop') {
+        // Find parent group
+        const groupNode = findAgentForStep(step, context);
+        if (!groupNode) return;
+
+        // Store in parallel container map so child nodes can find their parent
+        // Loop children will be added sequentially to this node's children array
+        const containerKey = `${taskId}:${nodeId}`;
+        context.parallelContainerMap.set(containerKey, workflowNode);
+
+        // Add to parent group
+        groupNode.children.push(workflowNode);
+    }
+    // Handle nodes that are children of Map/Fork/Loop
     else if (parallelContainer) {
-        // Use iterationIndex to separate branches (each iteration gets its own branch)
-        const iterationIndex = step.data.workflowNodeExecutionStart?.iterationIndex ?? 0;
-        const branchKey = `${parallelContainerKey}:branch:${iterationIndex}`;
-        let currentBranch = context.currentBranchMap.get(branchKey);
-
-        if (!currentBranch) {
-            // Start a new branch for this iteration
-            currentBranch = [];
-            context.currentBranchMap.set(branchKey, currentBranch);
-            // Immediately add it to parallelBranches to preserve order
-            parallelContainer.parallelBranches!.push(currentBranch);
+        // Check if parent is a loop (sequential children) or map/fork (parallel branches)
+        if (parallelContainer.type === 'loop') {
+            // Loop iterations are sequential - add as direct children
+            parallelContainer.children.push(workflowNode);
+        } else {
+            // Map/Fork have parallel branches - store in children with iterationIndex metadata
+            const iterationIndex = step.data.workflowNodeExecutionStart?.iterationIndex ?? 0;
+            workflowNode.data.iterationIndex = iterationIndex;
+            parallelContainer.children.push(workflowNode);
         }
-
-        // Add this node to the current branch
-        currentBranch.push(workflowNode);
     }
     // Regular workflow node (not in parallel context)
     else {
@@ -730,30 +746,9 @@ function handleWorkflowNodeResult(step: VisualizerStep, context: BuildContext): 
         }
     }
 
-    // If this result is for a Map/Fork node
+    // If this result is for a parallel container (Map/Fork/Loop), clean up tracking
     if (parallelContainer) {
-        // Clean up the parallel container tracking
         context.parallelContainerMap.delete(containerKey);
-
-        // Clean up all branch tracking for this container
-        Array.from(context.currentBranchMap.keys())
-            .filter(key => key.startsWith(`${containerKey}:branch:`))
-            .forEach(key => context.currentBranchMap.delete(key));
-
-        // Add a Join node after the Map/Fork
-        if (groupNode) {
-            const joinNode = createNode(
-                context,
-                'agent',
-                {
-                    label: 'Join',
-                    variant: 'pill',
-                    visualizerStepId: step.id,
-                },
-                step.owningTaskId
-            );
-            groupNode.children.push(joinNode);
-        }
     }
 
     // For agent node results, mark any remaining in-progress LLM nodes as completed
@@ -930,8 +925,11 @@ function measureNode(node: LayoutNode): void {
             node.height = NODE_HEIGHTS.JOIN;
             break;
         case 'loop':
-            node.width = NODE_WIDTHS.LOOP;
-            node.height = NODE_HEIGHTS.LOOP;
+            measureLoopNode(node);
+            break;
+        case 'map':
+        case 'fork':
+            measureMapForkNode(node);
             break;
         case 'group':
             measureGroupNode(node);
@@ -1006,6 +1004,102 @@ function measureAgentNode(node: LayoutNode): void {
     // Add header height and padding
     node.width = contentWidth + (SPACING.PADDING * 2);
     node.height = NODE_HEIGHTS.AGENT_HEADER + contentHeight + SPACING.PADDING;
+}
+
+/**
+ * Measure loop node - can be a badge or a container with children
+ */
+function measureLoopNode(node: LayoutNode): void {
+    // If no children, use badge dimensions
+    if (node.children.length === 0) {
+        node.width = NODE_WIDTHS.LOOP;
+        node.height = NODE_HEIGHTS.LOOP;
+        return;
+    }
+
+    // Has children - measure as a container
+    let contentWidth = 200;
+    let contentHeight = 0;
+
+    // Account for iteration labels (about 16px per iteration for the label)
+    const iterationLabelHeight = 16;
+
+    for (const child of node.children) {
+        contentWidth = Math.max(contentWidth, child.width);
+        contentHeight += iterationLabelHeight + child.height + SPACING.VERTICAL;
+    }
+
+    if (node.children.length > 0) {
+        contentHeight -= SPACING.VERTICAL;
+    }
+
+    // Loop uses p-4 pt-3 (16px padding, 12px top)
+    const loopPadding = 16;
+    const topLabelOffset = -4; // pt-3 is less than p-4, so negative offset
+    node.width = contentWidth + (loopPadding * 2);
+    node.height = contentHeight + loopPadding + topLabelOffset + loopPadding;
+}
+
+/**
+ * Measure map/fork node - can be a badge or a container with parallel branches
+ * Children are stored in node.children with iterationIndex in their data
+ */
+function measureMapForkNode(node: LayoutNode): void {
+    // Group children by iterationIndex
+    const branches = new Map<number, LayoutNode[]>();
+    for (const child of node.children) {
+        const iterationIndex = child.data.iterationIndex ?? 0;
+        if (!branches.has(iterationIndex)) {
+            branches.set(iterationIndex, []);
+        }
+        branches.get(iterationIndex)!.push(child);
+    }
+
+    // If no children, use badge dimensions
+    if (branches.size === 0) {
+        node.width = node.type === 'map' ? NODE_WIDTHS.MAP : NODE_WIDTHS.FORK;
+        node.height = node.type === 'map' ? NODE_HEIGHTS.MAP : NODE_HEIGHTS.FORK;
+        return;
+    }
+
+    // Has children - measure as a container with side-by-side branches
+    let totalWidth = 0;
+    let maxBranchHeight = 0;
+
+    // Account for iteration labels (about 20px per branch for the label)
+    const iterationLabelHeight = 20;
+
+    // Sort branches by iteration index for consistent ordering
+    const sortedBranches = Array.from(branches.entries()).sort((a, b) => a[0] - b[0]);
+
+    for (const [, branchChildren] of sortedBranches) {
+        let branchWidth = 0;
+        let branchHeight = iterationLabelHeight; // Start with label height
+
+        for (const child of branchChildren) {
+            branchWidth = Math.max(branchWidth, child.width);
+            branchHeight += child.height + SPACING.VERTICAL;
+        }
+
+        // Remove last spacing from branch
+        if (branchChildren.length > 0) {
+            branchHeight -= SPACING.VERTICAL;
+        }
+
+        totalWidth += branchWidth + SPACING.HORIZONTAL;
+        maxBranchHeight = Math.max(maxBranchHeight, branchHeight);
+    }
+
+    // Remove last horizontal spacing
+    if (sortedBranches.length > 0) {
+        totalWidth -= SPACING.HORIZONTAL;
+    }
+
+    // Map/Fork uses p-4 pt-3 (16px padding, 12px top)
+    const containerPadding = 16;
+    const topLabelOffset = -4; // pt-3 is less than p-4, so negative offset
+    node.width = totalWidth + (containerPadding * 2);
+    node.height = maxBranchHeight + containerPadding + topLabelOffset + containerPadding;
 }
 
 /**
@@ -1109,6 +1203,57 @@ function positionNode(node: LayoutNode): void {
             child.y = node.y + blockPadding;
             positionNode(child);
             currentX += child.width + SPACING.HORIZONTAL;
+        }
+    } else if (node.type === 'loop' && node.children.length > 0) {
+        // Position children inside loop container
+        const loopPadding = 16;
+        const topLabelOffset = -4; // pt-3 is less than p-4
+        const iterationLabelHeight = 16;
+        let currentY = node.y + loopPadding + topLabelOffset;
+        const centerX = node.x + node.width / 2;
+
+        for (const child of node.children) {
+            // Account for iteration label
+            currentY += iterationLabelHeight;
+            child.x = centerX - child.width / 2;
+            child.y = currentY;
+            positionNode(child);
+            currentY += child.height + SPACING.VERTICAL;
+        }
+    } else if ((node.type === 'map' || node.type === 'fork') && node.children.length > 0) {
+        // Group children by iterationIndex for positioning
+        const branches = new Map<number, LayoutNode[]>();
+        for (const child of node.children) {
+            const iterationIndex = child.data.iterationIndex ?? 0;
+            if (!branches.has(iterationIndex)) {
+                branches.set(iterationIndex, []);
+            }
+            branches.get(iterationIndex)!.push(child);
+        }
+
+        // Position parallel branches side-by-side inside map/fork container
+        const containerPadding = 16;
+        const topLabelOffset = -4; // pt-3 is less than p-4
+        const iterationLabelHeight = 20;
+        let currentX = node.x + containerPadding;
+        const startY = node.y + containerPadding + topLabelOffset;
+
+        // Sort branches by iteration index for consistent ordering
+        const sortedBranches = Array.from(branches.entries()).sort((a, b) => a[0] - b[0]);
+
+        for (const [, branchChildren] of sortedBranches) {
+            let branchMaxWidth = 0;
+            let currentY = startY + iterationLabelHeight; // Start below iteration label
+
+            for (const child of branchChildren) {
+                child.x = currentX;
+                child.y = currentY;
+                positionNode(child);
+                currentY += child.height + SPACING.VERTICAL;
+                branchMaxWidth = Math.max(branchMaxWidth, child.width);
+            }
+
+            currentX += branchMaxWidth + SPACING.HORIZONTAL;
         }
     }
 }

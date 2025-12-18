@@ -1,1 +1,1 @@
-export { api } from "./client";
+export { api, authenticatedFetch } from "./client";

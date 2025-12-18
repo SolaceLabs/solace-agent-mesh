@@ -332,6 +332,15 @@ class DAGExecutor:
                 start_data_args["max_iterations"] = node.max_iterations
                 start_data_args["loop_delay"] = node.delay
 
+            # Generate parallel_group_id for fork/map nodes so the frontend can group children
+            parallel_group_id = None
+            if node.type == "fork":
+                parallel_group_id = f"fork_{node.id}_{workflow_state.execution_id}"
+                start_data_args["parallel_group_id"] = parallel_group_id
+            elif node.type == "map":
+                parallel_group_id = f"map_{node.id}_{workflow_state.execution_id}"
+                start_data_args["parallel_group_id"] = parallel_group_id
+
             start_data = WorkflowNodeExecutionStartData(**start_data_args)
             await self.host.publish_workflow_event(workflow_context, start_data)
 
@@ -347,11 +356,13 @@ class DAGExecutor:
             elif node.type == "join":
                 await self._execute_join_node(node, workflow_state, workflow_context)
             elif node.type == "loop":
+                log.info(f"{log_id} [LOOP_DEBUG] About to call _execute_loop_node for node {node.id}")
                 await self._execute_loop_node(node, workflow_state, workflow_context)
+                log.info(f"{log_id} [LOOP_DEBUG] _execute_loop_node returned for node {node.id}")
             elif node.type == "fork":
-                await self._execute_fork_node(node, workflow_state, workflow_context)
+                await self._execute_fork_node(node, workflow_state, workflow_context, parallel_group_id)
             elif node.type == "map":
-                await self._execute_map_node(node, workflow_state, workflow_context)
+                await self._execute_map_node(node, workflow_state, workflow_context, parallel_group_id)
             else:
                 raise ValueError(f"Unknown node type: {node.type}")
 
@@ -703,6 +714,7 @@ class DAGExecutor:
     ):
         """Execute loop node for while-loop iteration."""
         log_id = f"{self.host.log_identifier}[Loop:{node.id}]"
+        log.info(f"{log_id} [LOOP_DEBUG] _execute_loop_node ENTERED")
 
         from .flow_control.conditional import evaluate_condition
         from .utils import parse_duration
@@ -712,6 +724,7 @@ class DAGExecutor:
             workflow_state.loop_iterations[node.id] = 0
 
         iteration = workflow_state.loop_iterations[node.id]
+        log.info(f"{log_id} [LOOP_DEBUG] iteration={iteration}, condition={node.condition}")
 
         # Check max iterations
         if iteration >= node.max_iterations:
@@ -730,23 +743,47 @@ class DAGExecutor:
             return
 
         # Evaluate loop condition
-        try:
-            should_continue = evaluate_condition(node.condition, workflow_state)
-        except Exception as e:
-            log.error(f"{log_id} Loop condition evaluation failed: {e}")
-            should_continue = False
+        # On the first iteration (iteration=0), skip condition check and always run
+        # This makes the loop behave like a "do-while" - condition is checked after first run
+        if iteration == 0:
+            should_continue = True
+            log.info(f"{log_id} [LOOP_DEBUG] First iteration - skipping condition check, will run inner node")
+        else:
+            try:
+                should_continue = evaluate_condition(node.condition, workflow_state)
+                log.info(f"{log_id} [LOOP_DEBUG] Condition evaluated to: {should_continue}")
+            except Exception as e:
+                log.error(f"{log_id} [LOOP_DEBUG] Loop condition evaluation failed: {e}")
+                should_continue = False
 
         if not should_continue:
-            log.info(f"{log_id} Loop condition false after {iteration} iterations")
+            log.info(f"{log_id} [LOOP_DEBUG] Loop condition false after {iteration} iterations, exiting loop")
             workflow_state.completed_nodes[node.id] = "loop_condition_false"
+            if node.id in workflow_state.pending_nodes:
+                workflow_state.pending_nodes.remove(node.id)
             workflow_state.node_outputs[node.id] = {
                 "output": {
                     "iterations_completed": iteration,
                     "stopped_reason": "condition_false",
                 }
             }
+
+            # Publish result event for the loop node completion
+            result_data = WorkflowNodeExecutionResultData(
+                type="workflow_node_execution_result",
+                node_id=node.id,
+                status="success",
+                metadata={
+                    "iterations_completed": iteration,
+                    "stopped_reason": "condition_false",
+                },
+            )
+            await self.host.publish_workflow_event(workflow_context, result_data)
+
             # Continue workflow
+            log.info(f"{log_id} [LOOP_DEBUG] Calling execute_workflow to continue after loop")
             await self.execute_workflow(workflow_state, workflow_context)
+            log.info(f"{log_id} [LOOP_DEBUG] execute_workflow returned after loop completion")
             return
 
         # Apply delay if configured
@@ -773,7 +810,11 @@ class DAGExecutor:
         import uuid
         sub_task_id = f"wf_{workflow_state.execution_id}_{iter_node.id}_{uuid.uuid4().hex[:8]}"
 
-        # Emit start event
+        # Emit start event for loop iteration child
+        log.info(
+            f"{log_id} [LOOP_DEBUG] Publishing child start event: node_id={iter_node.id}, "
+            f"parent_node_id={node.id}, iteration={iteration}"
+        )
         start_data = WorkflowNodeExecutionStartData(
             type="workflow_node_execution_start",
             node_id=iter_node.id,
@@ -839,18 +880,16 @@ class DAGExecutor:
         node: ForkNode,
         workflow_state: WorkflowExecutionState,
         workflow_context: WorkflowExecutionContext,
+        parallel_group_id: str,
     ):
         """Execute fork node with parallel branches."""
         log_id = f"{self.host.log_identifier}[Fork:{node.id}]"
-
-        # Generate a parallel group ID for this fork's branches
-        parallel_group_id = f"fork_{node.id}_{workflow_state.execution_id}"
 
         # Track active branches
         branch_sub_tasks = []
 
         # Launch all branches concurrently
-        for branch in node.branches:
+        for branch_index, branch in enumerate(node.branches):
             log.debug(f"{log_id} Starting branch '{branch.id}'")
 
             # Create temporary node for branch
@@ -867,6 +906,7 @@ class DAGExecutor:
             sub_task_id = f"wf_{workflow_state.execution_id}_{branch.id}_{uuid.uuid4().hex[:8]}"
 
             # Emit start event for branch BEFORE execution
+            # Include iteration_index so frontend can separate branches visually
             start_data = WorkflowNodeExecutionStartData(
                 type="workflow_node_execution_start",
                 node_id=branch.id,
@@ -875,6 +915,7 @@ class DAGExecutor:
                 sub_task_id=sub_task_id,
                 parent_node_id=node.id,
                 parallel_group_id=parallel_group_id,
+                iteration_index=branch_index,
             )
             await self.host.publish_workflow_event(workflow_context, start_data)
 
@@ -903,6 +944,7 @@ class DAGExecutor:
         node: MapNode,
         workflow_state: WorkflowExecutionState,
         workflow_context: WorkflowExecutionContext,
+        parallel_group_id: str,
     ):
         """Execute map node with concurrency control."""
         log_id = f"{self.host.log_identifier}[Map:{node.id}]"
@@ -928,9 +970,6 @@ class DAGExecutor:
             )
 
         log.info(f"{log_id} Starting map with {len(items)} items")
-
-        # Generate a parallel group ID for this map's iterations
-        parallel_group_id = f"map_{node.id}_{workflow_state.execution_id}"
 
         # Initialize tracking state
         # We store the full list of items and their status
@@ -1121,16 +1160,16 @@ class DAGExecutor:
             # Reference to node output
             node_id = parts[0]
             if node_id not in workflow_state.node_outputs:
-                # Check if it's a map variable
-                if node_id in ["_map_item", "_map_index"]:
+                # Check if it's a map/loop variable
+                if node_id in ["_map_item", "_map_index", "_loop_iteration"]:
                     pass  # Allow it
                 else:
                     # Return None for skipped/incomplete nodes to allow for safe navigation/coalescing
                     return None
 
             # Navigate remaining path
-            # Special handling for map variables: unwrap 'output' immediately
-            if node_id in ["_map_item", "_map_index"]:
+            # Special handling for map/loop variables: unwrap 'output' immediately
+            if node_id in ["_map_item", "_map_index", "_loop_iteration"]:
                 data = workflow_state.node_outputs[node_id].get("output")
             else:
                 data = workflow_state.node_outputs[node_id]
@@ -1295,10 +1334,13 @@ class DAGExecutor:
                     workflow_context=workflow_context,
                     sub_task_id=sub_task_id,
                 )
-                # Store last iteration result
-                workflow_state.node_outputs[f"{control_node_id}_last_result"] = {
+                # Store result under the inner node's original ID so conditions can reference it
+                # e.g., {{check_task_status.output.ready}} will find the result
+                inner_node_id = control_node.node  # The original inner node ID from workflow definition
+                workflow_state.node_outputs[inner_node_id] = {
                     "output": artifact_data
                 }
+                log.debug(f"{log_id} Stored loop iteration result under '{inner_node_id}'")
 
             # Clear active branches for this loop
             del workflow_state.active_branches[control_node_id]

@@ -33,7 +33,7 @@ from ...agent.utils.context_helpers import (
     get_session_from_callback_context,
 )
 from ..tools.tool_definition import BuiltinTool
-from ..tools.workflow_tool import WorkflowAgentTool
+from ..tools.workflow_tool import WorkflowAgentTool, WORKFLOW_TOOL_PREFIX
 from ..tools.peer_agent_tool import PEER_TOOL_PREFIX
 
 from ...common.utils.embeds import (
@@ -2450,12 +2450,12 @@ def preregister_long_running_tools_callback(
     if not llm_response.content or not llm_response.content.parts:
         return None
 
-    # Find all long-running tool calls (identified by peer_ prefix)
+    # Find all long-running tool calls (identified by peer_ or workflow_ prefix)
     long_running_calls = []
     for part in llm_response.content.parts:
         if part.function_call:
             tool_name = part.function_call.name
-            if tool_name.startswith(PEER_TOOL_PREFIX):
+            if tool_name.startswith(PEER_TOOL_PREFIX) or tool_name.startswith(WORKFLOW_TOOL_PREFIX):
                 long_running_calls.append(part.function_call)
 
     if not long_running_calls:

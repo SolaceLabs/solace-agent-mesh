@@ -6,6 +6,7 @@ import ConditionalNodeV2 from "./ConditionalNodeV2";
 import SwitchNodeV2 from "./SwitchNodeV2";
 import JoinNodeV2 from "./JoinNodeV2";
 import LoopNodeV2 from "./LoopNodeV2";
+import MapNodeV2 from "./MapNodeV2";
 
 interface WorkflowGroupV2Props {
     node: LayoutNode;
@@ -41,7 +42,10 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
             case 'join':
                 return <JoinNodeV2 key={child.id} {...childProps} />;
             case 'loop':
-                return <LoopNodeV2 key={child.id} {...childProps} />;
+                return <LoopNodeV2 key={child.id} {...childProps} onChildClick={onChildClick} />;
+            case 'map':
+            case 'fork':
+                return <MapNodeV2 key={child.id} {...childProps} onChildClick={onChildClick} />;
             default:
                 return null;
         }
