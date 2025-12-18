@@ -1,6 +1,6 @@
 import { useState, useCallback, type ReactNode } from "react";
 
-import { authenticatedFetch } from "../utils/api";
+import { api } from "../api";
 import { CsrfContext, type CsrfContextValue } from "../contexts/CsrfContext";
 
 function getCookie(name: string): string | null {
@@ -15,9 +15,9 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const getCsrfToken = async (retries = 5, delayMs = 50): Promise<string | null> => {
     try {
-        // 1. Make a request to the endpoint that sets the cookie
-        const response = await authenticatedFetch("/api/v1/csrf-token", {
+        const response = await api.webui.get("/api/v1/csrf-token", {
             credentials: "include",
+            fullResponse: true,
         });
 
         // 2. Check if the request itself was successful

@@ -10,6 +10,7 @@ import shutil
 import unicodedata
 
 from google.adk.artifacts import BaseArtifactService
+from google.adk.artifacts.base_artifact_service import ArtifactVersion
 from google.genai import types as adk_types
 from typing_extensions import override
 
@@ -371,6 +372,169 @@ class FilesystemArtifactService(BaseArtifactService):
         sorted_versions = sorted(versions)
         logger.debug("%sFound versions: %s", log_prefix, sorted_versions)
         return sorted_versions
+
+    @override
+    async def list_artifact_versions(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        filename: str,
+        session_id: str,
+    ) -> list[ArtifactVersion]:
+        """Lists all versions and their metadata for a specific artifact."""
+        log_prefix = f"[FSArtifact:ListArtifactVersions:{filename}] "
+        filename = self._normalize_filename_unicode(filename)
+        artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
+        artifact_versions = []
+
+        if not await asyncio.to_thread(os.path.isdir, artifact_dir):
+            logger.debug("%sArtifact directory not found: %s", log_prefix, artifact_dir)
+            return []
+
+        try:
+            for item in await asyncio.to_thread(os.listdir, artifact_dir):
+                item_path = os.path.join(artifact_dir, item)
+                if await asyncio.to_thread(os.path.isfile, item_path) and item.isdigit():
+                    version_num = int(item)
+                    version_path = self._get_version_path(artifact_dir, version_num)
+                    metadata_path = self._get_metadata_path(artifact_dir, version_num)
+
+                    # Read metadata
+                    try:
+
+                        def _read_metadata():
+                            with open(metadata_path, encoding="utf-8") as f:
+                                return json.load(f)
+
+                        metadata = await asyncio.to_thread(_read_metadata)
+                        mime_type = metadata.get("mime_type", "application/octet-stream")
+
+                        # Get file creation time
+                        stat_info = await asyncio.to_thread(os.stat, version_path)
+                        create_time = stat_info.st_ctime
+
+                        # Create ArtifactVersion object
+                        artifact_version = ArtifactVersion(
+                            version=version_num,
+                            canonical_uri=f"file://{version_path}",
+                            mime_type=mime_type,
+                            create_time=create_time,
+                            custom_metadata={},
+                        )
+                        artifact_versions.append(artifact_version)
+
+                    except (OSError, json.JSONDecodeError) as e:
+                        logger.warning(
+                            "%sFailed to read metadata for version %d: %s",
+                            log_prefix,
+                            version_num,
+                            e,
+                        )
+                        continue
+
+        except OSError as e:
+            logger.error(
+                "%sError listing versions in directory '%s': %s",
+                log_prefix,
+                artifact_dir,
+                e,
+            )
+            return []
+
+        # Sort by version number
+        artifact_versions.sort(key=lambda av: av.version)
+        logger.debug("%sFound %d artifact versions", log_prefix, len(artifact_versions))
+        return artifact_versions
+
+    @override
+    async def get_artifact_version(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        filename: str,
+        session_id: str,
+        version: int | None = None,
+    ) -> ArtifactVersion | None:
+        """Gets the metadata for a specific version of an artifact."""
+        log_prefix = f"[FSArtifact:GetArtifactVersion:{filename}] "
+        filename = self._normalize_filename_unicode(filename)
+        artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
+
+        if not await asyncio.to_thread(os.path.isdir, artifact_dir):
+            logger.debug("%sArtifact directory not found: %s", log_prefix, artifact_dir)
+            return None
+
+        # Determine which version to load
+        load_version = version
+        if load_version is None:
+            versions = await self.list_versions(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+            )
+            if not versions:
+                logger.debug("%sNo versions found for artifact.", log_prefix)
+                return None
+            load_version = max(versions)
+            logger.debug("%sGetting latest version: %d", log_prefix, load_version)
+        else:
+            logger.debug("%sGetting specified version: %d", log_prefix, load_version)
+
+        version_path = self._get_version_path(artifact_dir, load_version)
+        metadata_path = self._get_metadata_path(artifact_dir, load_version)
+
+        if not await asyncio.to_thread(
+            os.path.exists, version_path
+        ) or not await asyncio.to_thread(os.path.exists, metadata_path):
+            logger.warning(
+                "%sData or metadata file missing for version %d.",
+                log_prefix,
+                load_version,
+            )
+            return None
+
+        try:
+            # Read metadata
+            def _read_metadata():
+                with open(metadata_path, encoding="utf-8") as f:
+                    return json.load(f)
+
+            metadata = await asyncio.to_thread(_read_metadata)
+            mime_type = metadata.get("mime_type", "application/octet-stream")
+
+            # Get file creation time
+            stat_info = await asyncio.to_thread(os.stat, version_path)
+            create_time = stat_info.st_ctime
+
+            # Create and return ArtifactVersion object
+            artifact_version = ArtifactVersion(
+                version=load_version,
+                canonical_uri=f"file://{version_path}",
+                mime_type=mime_type,
+                create_time=create_time,
+                custom_metadata={},
+            )
+
+            logger.info(
+                "%sRetrieved metadata for artifact '%s' version %d",
+                log_prefix,
+                filename,
+                load_version,
+            )
+            return artifact_version
+
+        except (OSError, json.JSONDecodeError) as e:
+            logger.error(
+                "%sFailed to get metadata for artifact '%s' version %d: %s",
+                log_prefix,
+                filename,
+                load_version,
+                e,
+            )
+            return None
 
     def _normalize_filename_unicode(self, filename: str) -> str:
         """

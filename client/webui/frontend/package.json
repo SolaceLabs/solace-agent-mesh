@@ -1,6 +1,6 @@
 {
     "name": "@SolaceLabs/solace-agent-mesh-ui",
-    "version": "1.16.1",
+    "version": "1.23.0",
     "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
     "author": "SolaceLabs <solacelabs@solace.com>",
     "license": "Apache-2.0",
@@ -97,7 +97,6 @@
         "react-json-view-lite": "^2.4.1",
         "react-resizable-panels": "^3.0.3",
         "react-router-dom": "7.9.3",
-        "recharts": "^2.15.3",
         "tailwind-merge": "^3.3.0",
         "tailwind-scrollbar-hide": "^4.0.0",
         "tailwindcss": "^4.1.10",
@@ -123,6 +122,8 @@
         "@types/react": "19.0.0",
         "@types/react-dom": "19.0.0",
         "@vitejs/plugin-react": "^4.4.1",
+        "@vitest/browser-playwright": "^4.0.8",
+        "@vitest/coverage-v8": "^4.0.8",
         "cypress": "^14.5.4",
         "eslint": "^9.25.0",
         "eslint-plugin-react-hooks": "^5.2.0",
@@ -131,6 +132,9 @@
         "globals": "^16.0.0",
         "lint-staged": "^16.2.3",
         "mocha-junit-reporter": "^2.2.1",
+        "msw": "^2.12.3",
+        "msw-storybook-addon": "^2.0.6",
+        "playwright": "^1.56.1",
         "prettier": "^3.6.2",
         "prettier-plugin-tailwindcss": "^0.6.13",
         "storybook": "^10.0.7",
@@ -138,23 +142,28 @@
         "typescript": "~5.8.3",
         "typescript-eslint": "^8.30.1",
         "vite": "^6.3.5",
-        "vitest": "^4.0.8",
-        "playwright": "^1.56.1",
-        "@vitest/browser-playwright": "^4.0.8",
-        "@vitest/coverage-v8": "^4.0.8"
+        "vitest": "^4.0.8"
     },
     "optionalDependencies": {
-        "@rollup/rollup-linux-arm64-gnu": "4.44.0",
-        "@rollup/rollup-linux-x64-gnu": "4.44.0",
-        "lightningcss-linux-arm64-gnu": "1.30.1",
-        "lightningcss-linux-x64-gnu": "1.30.1",
-        "@esbuild/linux-x64": "0.25.5",
-        "@esbuild/linux-arm64": "0.25.5",
         "@esbuild/darwin-arm64": "0.25.5",
         "@esbuild/darwin-x64": "0.25.5",
-        "@tailwindcss/oxide-linux-x64-gnu": "4.1.11",
-        "@tailwindcss/oxide-linux-arm64-gnu": "4.1.11",
+        "@esbuild/linux-arm64": "0.25.5",
+        "@esbuild/linux-x64": "0.25.5",
+        "@rollup/rollup-linux-arm64-gnu": "4.44.0",
+        "@rollup/rollup-linux-x64-gnu": "4.44.0",
         "@tailwindcss/oxide-darwin-arm64": "4.1.11",
-        "@tailwindcss/oxide-darwin-x64": "4.1.11"
+        "@tailwindcss/oxide-darwin-x64": "4.1.11",
+        "@tailwindcss/oxide-linux-arm64-gnu": "4.1.11",
+        "@tailwindcss/oxide-linux-x64-gnu": "4.1.11",
+        "lightningcss-linux-arm64-gnu": "1.30.1",
+        "lightningcss-linux-x64-gnu": "1.30.1"
+    },
+    "overrides": {
+        "cross-spawn": "^7.0.6"
+    },
+    "msw": {
+        "workerDirectory": [
+            "public"
+        ]
     }
 }

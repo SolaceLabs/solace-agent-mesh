@@ -9,7 +9,8 @@ export interface ValidationLimits {
 }
 
 export interface ConfigContextValue {
-    configServerUrl: string;
+    webuiServerUrl: string;
+    platformServerUrl: string;
     configAuthLoginUrl: string;
     configUseAuthorization: boolean;
     configWelcomeMessage: string;
@@ -51,6 +52,12 @@ export interface ConfigContextValue {
      * Tasks running longer than this will be automatically cancelled.
      */
     backgroundTasksDefaultTimeoutMs?: number;
+
+    /**
+     * Whether the platform service is configured.
+     * When false, platform-dependent features (agent builder, connectors, etc.) are unavailable.
+     */
+    platformConfigured: boolean;
 }
 
 export const ConfigContext = createContext<ConfigContextValue | null>(null);

@@ -11,7 +11,7 @@ from solace_ai_connector.common.log import log
 
 from ..services.audio_service import AudioService
 from ..dependencies import get_audio_service
-from ..shared.auth_utils import get_current_user
+from solace_agent_mesh.shared.api.auth_utils import get_current_user
 
 
 router = APIRouter()

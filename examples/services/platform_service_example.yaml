@@ -1,0 +1,49 @@
+# Platform Service Configuration for Solace Agent Mesh
+# Serves platform management endpoints: agents, connectors, deployments, toolsets
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: platform_service.log
+
+# Shared SAM config (broker connection, models, services)
+!include ../shared_config.yaml
+
+apps:
+  - name: platform_service_app
+    app_base_path: .
+    app_module: solace_agent_mesh.services.platform.app
+
+    # Broker connection (required for heartbeat monitoring and agent registry)
+    broker:
+      <<: *broker_connection # Points to shared_config.yaml
+
+    # --- App Level Config (Validated by PlatformServiceApp.app_schema) ---
+    app_config:
+      # --- Required ---
+      namespace: ${NAMESPACE} # Namespace for A2A communication
+      database_url: "${PLATFORM_DATABASE_URL, sqlite:///platform.db}" # Platform database (agents, connectors, deployments)
+
+      # --- FastAPI Server Configuration ---
+      fastapi_host: ${PLATFORM_API_HOST, localhost}
+      fastapi_port: ${PLATFORM_API_PORT, 8001}
+      cors_allowed_origins:
+        - "http://localhost:3000"
+        - "http://127.0.0.1:3000"
+        # Add other origins as needed
+
+      # --- Message Size Configuration ---
+      max_message_size_bytes: ${MAX_MESSAGE_SIZE_BYTES, 10000000} # 10MB default
+
+      # --- OAuth2 Authentication ---
+      external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL}
+      external_auth_provider: ${EXTERNAL_AUTH_PROVIDER, generic}
+      frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION, false} # Set to true for production
+
+      # --- Background Task Configuration ---
+      # Deployment monitoring
+      deployment_timeout_minutes: ${DEPLOYMENT_TIMEOUT_MINUTES, 5}
+      deployment_check_interval_seconds: ${DEPLOYMENT_CHECK_INTERVAL, 60}
+
+      # Deployer heartbeat monitoring
+      heartbeat_timeout_seconds: ${HEARTBEAT_TIMEOUT_SECONDS, 90}

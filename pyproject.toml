@@ -21,12 +21,12 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 dependencies = [
-    "google-adk==1.7.0",
+    "google-adk==1.18.0",
     "a2a-sdk[http-server]==0.3.7",
     "pydantic==2.11.9",
     "click==8.1.8",
     "python-dotenv==1.1.1",
-    "google-genai==1.39.0",
+    "google-genai==1.49.0",
     "httpx==0.28.1",
     "jwcrypto==1.5.6",
     "python-jwt==4.1.0",
@@ -39,7 +39,7 @@ dependencies = [
     "kaleido==0.2.1",
     "PyYAML==6.0.2",
     "python-multipart==0.0.20",
-    "markitdown[all]==0.1.1",
+    "markitdown[all]==0.1.4",
     "jmespath==1.0.1",
     "mermaid_cli==0.1.2",
     "playwright==1.55.0",
@@ -57,7 +57,7 @@ dependencies = [
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
-    "solace_ai_connector==3.1.0",
+    "solace_ai_connector==3.2.0",
     "holidays==0.81.0",
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
@@ -65,13 +65,30 @@ dependencies = [
     "openai==1.99.9",
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
-    "azure-cognitiveservices-speech==1.41.1"
+    "azure-cognitiveservices-speech==1.41.1",
+    "authlib==1.6.5"  # For CVE-2025-59420: May be removed if next update to google-adk upgrades its transitive dependency on authlib
 ]
 
 [project.optional-dependencies]
-gcs = ["google-cloud-storage==2.19.0"]
-vertex = ["google-cloud-aiplatform==1.120.0"]
+gcs = ["google-cloud-storage==3.5.0"]
+vertex = ["google-cloud-aiplatform==1.126.1"]
 employee_tools = ["holidays==0.81.0"]
+test = [
+    "pytest-asyncio",
+    "pytest>=8.0.0",
+    "pytest-mock>=3.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.5.0",
+    "pytest-httpx>=0.35.0",
+    "fastmcp==2.11.2",  # Pin for mcp compatibility - newer versions require Icon
+    "httpx>=0.25",
+    "respx",
+    "ruff",
+    "testcontainers",
+    "aiosqlite",
+    "psycopg2-binary",
+    "asyncpg",
+]
 
 [tool.hatch.envs.hatch-test]
 parallel = false
@@ -84,7 +101,7 @@ dependencies = [
     "pytest-cov>=4.0.0",
     "pytest-xdist>=3.5.0",
     "pytest-httpx>=0.35.0",
-    "fastmcp",
+    "fastmcp==2.11.2",  # Pin for mcp compatibility - newer versions require Icon
     "httpx>=0.25",
     "respx",
     "ruff",
@@ -185,6 +202,7 @@ markers = [
     "tools: marks tests related to the agent tools",
     "audio_tools: marks tests related to the audio_tools",
     "peer_tool: marks tests for calling peer agents",
+    "parallel_tool: marks tests related to the parallel_tool",
     "builtin_artifact_tools: marks tests related to the builtin_artifact_tools",
     "builtin_data_analysis_tools: marks tests related to the builtin_data_analysis_tools",
     "general_agent_tools: marks tests related to the general_agent_tools",

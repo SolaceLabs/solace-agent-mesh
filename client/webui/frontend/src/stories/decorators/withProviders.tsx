@@ -1,5 +1,6 @@
 import type { Decorator, StoryFn, StoryContext } from "@storybook/react";
 import { StoryProvider } from "../mocks/StoryProvider";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 
 /**
  * A Storybook decorator that wraps stories with all necessary context providers.
@@ -31,6 +32,11 @@ import { StoryProvider } from "../mocks/StoryProvider";
  */
 export const withProviders: Decorator = (Story: StoryFn, context: StoryContext) => {
     // Extract mock values from story parameters or args
+    const authContextValues = {
+        ...(context.parameters.authContext || {}),
+        ...(context.args.authContext || {}),
+    };
+
     const chatContextValues = {
         ...(context.parameters.chatContext || {}),
         ...(context.args.chatContext || {}),
@@ -46,11 +52,24 @@ export const withProviders: Decorator = (Story: StoryFn, context: StoryContext) 
         ...(context.args.configContext || {}),
     };
 
-    const storyResult = Story(context.args, context);
+    // Always provide router context with sensible defaults
+    const routerValues = {
+        initialPath: "/",
+        routePath: "/*",
+        ...(context.parameters.routerValues || {}),
+        ...(context.args.routerValues || {}),
+    };
 
-    return (
-        <StoryProvider chatContextValues={chatContextValues} taskContextValues={taskContextValues} configContextValues={configContextValues}>
-            {storyResult}
-        </StoryProvider>
-    );
+    const router = createMemoryRouter([
+        {
+            path: "*",
+            element: (
+                <StoryProvider authContextValues={authContextValues} chatContextValues={chatContextValues} taskContextValues={taskContextValues} configContextValues={configContextValues} routerValues={routerValues}>
+                    <div style={{ height: "100vh", width: "100vw" }}>{Story(context.args, context)}</div>
+                </StoryProvider>
+            ),
+        },
+    ]);
+
+    return <RouterProvider router={router} />;
 };
