@@ -146,8 +146,8 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
 
         # --- Register Agent Registry Callbacks ---
         # Wire up callbacks so the adapter is notified of agent changes
-        self.agent_registry._on_agent_added = self._on_agent_added
-        self.agent_registry._on_agent_removed = self._on_agent_removed
+        self.agent_registry.set_on_agent_added_callback(self._on_agent_added)
+        self.agent_registry.set_on_agent_removed_callback(self._on_agent_removed)
         log.info(
             "%s Agent registry callbacks registered for dynamic adapter updates.",
             self.log_identifier,

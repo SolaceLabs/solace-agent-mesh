@@ -21,6 +21,14 @@ class AgentRegistry:
         self._lock = threading.Lock()
         self._on_agent_added = on_agent_added
         self._on_agent_removed = on_agent_removed
+    
+    def set_on_agent_added_callback(self, callback):
+        """Sets the callback function to be called when a new agent is added."""
+        self._on_agent_added = callback
+    
+    def set_on_agent_removed_callback(self, callback):
+        """Sets the callback function to be called when an agent is removed."""
+        self._on_agent_removed = callback
 
     def add_or_update_agent(self, agent_card: AgentCard):
         """Adds a new agent or updates an existing one."""
