@@ -160,15 +160,17 @@ apps:
 
 ## Configuration Options
 
-### Tool-Specific Configuration
+### Tool Filtering
 
-You can limit which tools from an MCP server are available by specifying a specific tool name:
+You can control which tools from an MCP server are available to your agent using three mutually exclusive filtering options.
 
 :::info[Install node package]
-You must install node package @modelcontextprotocol/server-filesystem securely in your local system.
-
-You must set the `command` parameter to your local path that points to the `mcp-server-filesystem` binary executable.
+The examples below use the filesystem MCP server. You must install node package @modelcontextprotocol/server-filesystem securely in your local system and set the `command` parameter to your local path that points to the `mcp-server-filesystem` binary executable.
 :::
+
+#### Single Tool (tool_name)
+
+Use `tool_name` to expose only a single specific tool:
 
 ```yaml
 tools:
@@ -177,9 +179,48 @@ tools:
     connection_params:
       type: stdio
       command: "./node_modules/.bin/mcp-server-filesystem"
-      args: 
+      args:
         - "/tmp/samv2"
 ```
+
+#### Allow List
+
+Use `allow_list` to expose multiple specific tools:
+
+```yaml
+tools:
+  - tool_type: mcp
+    allow_list:  # Only expose these tools
+      - read_file
+      - write_file
+      - list_directory
+    connection_params:
+      type: stdio
+      command: "./node_modules/.bin/mcp-server-filesystem"
+      args:
+        - "/tmp/samv2"
+```
+
+#### Deny List
+
+Use `deny_list` to expose all tools except specific ones:
+
+```yaml
+tools:
+  - tool_type: mcp
+    deny_list:  # Expose all tools EXCEPT these
+      - delete_file
+      - move_file
+    connection_params:
+      type: stdio
+      command: "./node_modules/.bin/mcp-server-filesystem"
+      args:
+        - "/tmp/samv2"
+```
+
+:::warning[Mutual Exclusivity]
+The `tool_name`, `allow_list`, and `deny_list` options are mutually exclusive. You can only use one of these filtering options per MCP tool configuration.
+:::
 
 ### Environment Variables
 

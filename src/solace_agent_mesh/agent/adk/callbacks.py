@@ -34,6 +34,7 @@ from ...agent.utils.context_helpers import (
 )
 from ..tools.tool_definition import BuiltinTool
 from ..tools.workflow_tool import WorkflowAgentTool
+from ..tools.peer_agent_tool import PEER_TOOL_PREFIX
 
 from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
@@ -142,12 +143,17 @@ async def _resolve_early_embeds_in_chunk(
         # Build resolution context from callback_context (pattern from EmbedResolvingMCPToolset)
         invocation_context = callback_context._invocation_context
         if not invocation_context:
-            log.warning("%s No invocation context available for embed resolution", log_identifier)
+            log.warning(
+                "%s No invocation context available for embed resolution",
+                log_identifier,
+            )
             return chunk
 
         session_context = invocation_context.session
         if not session_context:
-            log.warning("%s No session context available for embed resolution", log_identifier)
+            log.warning(
+                "%s No session context available for embed resolution", log_identifier
+            )
             return chunk
 
         resolution_context = {
@@ -184,7 +190,9 @@ async def _resolve_early_embeds_in_chunk(
         return resolved_text
 
     except Exception as e:
-        log.error("%s Error resolving embeds in chunk: %s", log_identifier, e, exc_info=True)
+        log.error(
+            "%s Error resolving embeds in chunk: %s", log_identifier, e, exc_info=True
+        )
         return chunk  # Return original chunk on error
 
 
@@ -209,7 +217,9 @@ async def process_artifact_blocks_callback(
         session.state[parser_state_key] = parser
         session.state["completed_artifact_blocks_list"] = []
         session.state["completed_template_blocks_list"] = []
-        session.state["artifact_chars_sent"] = 0  # Reset character tracking for new turn
+        session.state["artifact_chars_sent"] = (
+            0  # Reset character tracking for new turn
+        )
 
     stream_chunks_were_processed = callback_context.state.get(
         A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY, False
@@ -318,7 +328,9 @@ async def process_artifact_blocks_callback(
 
                             # Track the cumulative character count of what we've sent
                             # We need character count (not bytes) to slice correctly later
-                            previous_char_count = session.state.get("artifact_chars_sent", 0)
+                            previous_char_count = session.state.get(
+                                "artifact_chars_sent", 0
+                            )
                             new_char_count = previous_char_count + len(event.chunk)
                             session.state["artifact_chars_sent"] = new_char_count
 
@@ -440,7 +452,9 @@ async def process_artifact_blocks_callback(
                             if a2a_context:
                                 # Check if there's unsent content (content after last progress event)
                                 total_bytes = len(event.content.encode("utf-8"))
-                                chars_already_sent = session.state.get("artifact_chars_sent", 0)
+                                chars_already_sent = session.state.get(
+                                    "artifact_chars_sent", 0
+                                )
 
                                 if chars_already_sent < len(event.content):
                                     # There's unsent content - send it as a final progress update
@@ -1125,6 +1139,11 @@ Example - CSV Table:
 {{% for row in data_rows %}}| {{% for cell in row %}}{{{{ cell }}}} | {{% endfor %}}{{% endfor %}}
 {close_delim}
 
+**IMPORTANT - Pipe Characters in Markdown Tables:**
+Text data may contain "|" characters which will break markdown table rendering by pushing data into wrong columns. For text fields that might contain pipes, use the `replace` filter to escape them:
+`{{{{ item.summary | replace: "|", "&#124;" }}}}`
+Only apply this to text fields that might contain pipes - numerical columns don't need it.
+
 Negative Examples
 Use {{ issues.size }} instead of {{ issues|length }}
 Use {{ forloop.index }} instead of {{ loop.index }} (Liquid uses forloop not loop)
@@ -1210,6 +1229,21 @@ def _generate_examples_instruction() -> str:
         + f"""{close_delim}
 
     Example 4:
+    - User: "Show me the Jira issues as a table"
+    <note>There is a JSON artifact jira_issues.json with items containing key, summary, status, type, assignee, updated fields</note>
+    - OrchestratorAgent:
+    {embed_open_delim}status_update:Rendering Jira issues table...{embed_close_delim}
+    {open_delim}template_liquid: data="jira_issues.json" limit="10"
+    """
+        + """| Key | Summary | Status | Type | Assignee | Updated |
+    |-----|---------|--------|------|----------|---------|
+    {% for item in items %}| [{{ item.key }}](https://jira.example.com/browse/{{ item.key }}) | {{ item.summary | replace: "|", "&#124;" }} | {{ item.status }} | {{ item.type }} | {{ item.assignee }} | {{ item.updated }} |
+    {% endfor %}"""
+        + f"""
+    {close_delim}
+    <note>The replace filter on item.summary escapes any pipe characters that would break the markdown table. Only apply to text fields that might contain pipes.</note>
+
+    Example 5:
     - User: "Search the database for all orders from last month"
     - OrchestratorAgent:
     {embed_open_delim}status_update:Querying order database...{embed_close_delim}
@@ -1217,7 +1251,7 @@ def _generate_examples_instruction() -> str:
     [After getting results:]
     Found 247 orders from last month totaling $45,231.
 
-    Example 5:
+    Example 6:
     - User: "Create an HTML with the chart image you just generated with the customer data."
     - OrchestratorAgent:
     {embed_open_delim}status_update:Generating HTML report with chart...{embed_close_delim}
@@ -1285,7 +1319,30 @@ Examples:
 - `The result of 23.5 * 4.2 is {open_delim}math:23.5 * 4.2 | .2f{close_delim}` (Embeds calculated result with 2 decimal places)
 
 The following embeds are resolved *late* (by the gateway before final display):
-- `{open_delim}artifact_return:filename[:version]{close_delim}`: This is the primary way to return an artifact to the user. It attaches the specified artifact to the message. The embed itself is removed from the text. Use this instead of describing a file and expecting the user to download it. Note: artifact_return is not necessary if the artifact was just created by you in this same response, since newly created artifacts are automatically attached to your message.
+- `{open_delim}artifact_return:filename[:version]{close_delim}`: Attaches an artifact to your message so the user receives the file. The embed itself is removed from the text.
+
+  **CRITICAL - Returning Artifacts to Users:**
+  Only artifacts created with the `{open_delim}save_artifact:...{close_delim}` fenced block syntax are automatically sent to the user.
+
+  **You MUST use artifact_return for:**
+  - Artifacts created by tools (e.g., image generation, chart creation, file conversion)
+  - Artifacts created by other agents you called
+  - Artifacts from MCP servers
+
+  **When deciding whether to return an artifact:**
+  - Return artifacts the user explicitly requested or that answer their question
+  - Return final outputs (charts, reports, images, documents)
+  - Do NOT return intermediate/temporary artifacts (e.g., temp files, internal data)
+
+  **Example - Tool creates an image:**
+  User: "Create a chart of sales data"
+  [You call a charting tool that creates sales_chart.png]
+  Your response: "Here's the sales chart. {open_delim}artifact_return:sales_chart.png{close_delim}"
+
+  **Example - Agent creates a report:**
+  User: "Generate a quarterly report"
+  [You call ReportAgent which creates quarterly_report.pdf]
+  Your response: "The quarterly report is ready. {open_delim}artifact_return:quarterly_report.pdf{close_delim}"
 """
 
     artifact_content_instruction = f"""
@@ -2364,3 +2421,76 @@ def auto_continue_on_max_tokens_callback(
     )
 
     return hijacked_response
+
+
+def preregister_long_running_tools_callback(
+    callback_context: CallbackContext,
+    llm_response: LlmResponse,
+    host_component: "SamAgentComponent",
+) -> Optional[LlmResponse]:
+    """
+    ADK after_model_callback to pre-register all long-running tool calls
+    before any tool execution begins. This prevents race conditions where
+    one tool completes before another has registered.
+
+    The race condition occurs because tools are executed via asyncio.gather
+    (non-deterministic order) and each tool calls register_parallel_call_sent()
+    inside its run_async(). If Tool A completes before Tool B even registers,
+    the system thinks all calls are done (completed=1, total=1).
+
+    By pre-registering all long-running tools in this callback (which runs
+    BEFORE tool execution), we ensure the total count is set correctly upfront.
+    """
+    log_identifier = "[Callback:PreregisterLongRunning]"
+
+    # Only process non-partial responses with function calls
+    if llm_response.partial:
+        return None
+
+    if not llm_response.content or not llm_response.content.parts:
+        return None
+
+    # Find all long-running tool calls (identified by peer_ prefix)
+    long_running_calls = []
+    for part in llm_response.content.parts:
+        if part.function_call:
+            tool_name = part.function_call.name
+            if tool_name.startswith(PEER_TOOL_PREFIX):
+                long_running_calls.append(part.function_call)
+
+    if not long_running_calls:
+        return None
+
+    # Get task context
+    a2a_context = callback_context.state.get("a2a_context")
+    if not a2a_context:
+        log.warning("%s No a2a_context, cannot pre-register tools", log_identifier)
+        return None
+
+    logical_task_id = a2a_context.get("logical_task_id")
+    invocation_id = callback_context._invocation_context.invocation_id
+
+    with host_component.active_tasks_lock:
+        task_context = host_component.active_tasks.get(logical_task_id)
+
+    if not task_context:
+        log.warning(
+            "%s TaskContext not found for %s, cannot pre-register",
+            log_identifier,
+            logical_task_id,
+        )
+        return None
+
+    # Pre-register ALL long-running calls atomically
+    for fc in long_running_calls:
+        task_context.register_parallel_call_sent(invocation_id)
+
+    log.info(
+        "%s Pre-registered %d long-running tool call(s) for invocation %s (task %s)",
+        log_identifier,
+        len(long_running_calls),
+        invocation_id,
+        logical_task_id,
+    )
+
+    return None  # Don't alter the response

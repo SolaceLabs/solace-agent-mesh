@@ -203,6 +203,7 @@ markers = [
     "tools: marks tests related to the agent tools",
     "audio_tools: marks tests related to the audio_tools",
     "peer_tool: marks tests for calling peer agents",
+    "parallel_tool: marks tests related to the parallel_tool",
     "builtin_artifact_tools: marks tests related to the builtin_artifact_tools",
     "builtin_data_analysis_tools: marks tests related to the builtin_data_analysis_tools",
     "general_agent_tools: marks tests related to the general_agent_tools",
