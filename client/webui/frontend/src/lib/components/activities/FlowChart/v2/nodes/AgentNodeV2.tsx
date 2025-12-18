@@ -164,7 +164,7 @@ const AgentNodeV2: React.FC<AgentNodeV2Props> = ({ node, isSelected, onClick, on
                 {/* Parallel branches below */}
                 <div className="p-4 border-2 border-indigo-200 dark:border-indigo-800 rounded-md bg-white dark:bg-gray-800">
                     <div className="grid gap-4" style={{ gridAutoFlow: 'column', gridAutoColumns: '1fr' }}>
-                        {node.parallelBranches.map((branch, branchIndex) => (
+                        {node.parallelBranches!.map((branch, branchIndex) => (
                             <div key={branchIndex} className="flex flex-col items-center">
                                 {branch.map((child, index) => (
                                     <React.Fragment key={child.id}>

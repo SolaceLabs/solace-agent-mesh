@@ -69,6 +69,12 @@ class WorkflowAgentTool(BaseTool):
         Adds 'input_artifact' as an optional parameter and marks all parameters as optional
         to support dual-mode invocation.
         """
+        log.info(
+            "%s [WORKFLOW_DEBUG] _get_declaration called | target_agent=%s | input_schema=%s",
+            self.log_identifier,
+            self.target_agent_name,
+            self.input_schema,
+        )
         properties = self.input_schema.get("properties", {})
         adk_properties = {}
 
@@ -121,20 +127,47 @@ class WorkflowAgentTool(BaseTool):
         sub_task_id = f"{CORRELATION_DATA_PREFIX}{uuid.uuid4().hex}"
         log_identifier = f"{self.log_identifier}[SubTask:{sub_task_id}]"
 
+        log.info(
+            "%s [WORKFLOW_DEBUG] run_async ENTERED | target_agent=%s | args=%s",
+            log_identifier,
+            self.target_agent_name,
+            args,
+        )
+
         try:
             # 1. Prepare Input Artifact
             try:
+                log.info("%s [WORKFLOW_DEBUG] About to call _prepare_input_artifact", log_identifier)
                 (
                     payload_artifact_name,
                     payload_artifact_version,
                 ) = await self._prepare_input_artifact(
                     args, tool_context, log_identifier
                 )
+                log.info("%s [WORKFLOW_DEBUG] _prepare_input_artifact returned successfully", log_identifier)
             except jsonschema.ValidationError as e:
-                return {
+                log.error(
+                    "%s [WORKFLOW_DEBUG] Caught ValidationError in run_async | message=%s",
+                    log_identifier,
+                    e.message,
+                )
+                error_response = {
                     "status": "error",
                     "message": f"Input validation failed: {e.message}. Please provide required parameters or use input_artifact.",
                 }
+                log.info(
+                    "%s [WORKFLOW_DEBUG] Returning validation error response to LLM | response=%s",
+                    log_identifier,
+                    error_response,
+                )
+                return error_response
+
+            log.info(
+                "%s [WORKFLOW_DEBUG] Input artifact prepared | artifact_name=%s | version=%s",
+                log_identifier,
+                payload_artifact_name,
+                payload_artifact_version,
+            )
 
             # 2. Prepare Context
             original_task_context = tool_context.state.get("a2a_context", {})
@@ -145,6 +178,14 @@ class WorkflowAgentTool(BaseTool):
             user_id = tool_context._invocation_context.user_id
             user_config = original_task_context.get("a2a_user_config", {})
 
+            log.info(
+                "%s [WORKFLOW_DEBUG] Context prepared | main_task_id=%s | invocation_id=%s | user_id=%s",
+                log_identifier,
+                main_logical_task_id,
+                invocation_id,
+                user_id,
+            )
+
             # 3. Prepare Message
             a2a_message = self._prepare_a2a_message(
                 payload_artifact_name,
@@ -152,6 +193,11 @@ class WorkflowAgentTool(BaseTool):
                 tool_context,
                 main_logical_task_id,
                 original_task_context,
+            )
+
+            log.info(
+                "%s [WORKFLOW_DEBUG] A2A message prepared | about to submit task",
+                log_identifier,
             )
 
             # 4. Submit Task
@@ -190,7 +236,19 @@ class WorkflowAgentTool(BaseTool):
         Determines input mode, validates parameters, and creates implicit artifact if needed.
         Returns (artifact_name, artifact_version).
         """
+        log.info(
+            "%s [WORKFLOW_DEBUG] _prepare_input_artifact ENTERED | args=%s",
+            log_identifier,
+            args,
+        )
+
+        log.info("%s [WORKFLOW_DEBUG] Checking for input_artifact in args", log_identifier)
         input_artifact_name = args.get("input_artifact")
+        log.info(
+            "%s [WORKFLOW_DEBUG] input_artifact_name=%s",
+            log_identifier,
+            input_artifact_name,
+        )
 
         if input_artifact_name:
             log.info(
@@ -201,20 +259,36 @@ class WorkflowAgentTool(BaseTool):
             return input_artifact_name, None
 
         # Parameter Mode
-        log.info("%s Invoking in Parameter Mode", log_identifier)
+        log.info("%s [WORKFLOW_DEBUG] Invoking in Parameter Mode", log_identifier)
 
         # Validate against strict schema
-        jsonschema.validate(instance=args, schema=self.input_schema)
+        log.info(
+            "%s [WORKFLOW_DEBUG] About to validate args against schema | schema=%s",
+            log_identifier,
+            self.input_schema,
+        )
+        try:
+            jsonschema.validate(instance=args, schema=self.input_schema)
+            log.info("%s [WORKFLOW_DEBUG] Schema validation PASSED", log_identifier)
+        except jsonschema.ValidationError as ve:
+            log.error(
+                "%s [WORKFLOW_DEBUG] Schema validation FAILED | error=%s | path=%s",
+                log_identifier,
+                ve.message,
+                list(ve.absolute_path),
+            )
+            raise
 
         # Create implicit artifact
         payload_data = args
         payload_bytes = json.dumps(payload_data).encode("utf-8")
 
-        # Generate filename
+        # Generate unique filename using UUID to avoid collisions in parallel invocations
         sanitized_wf_name = "".join(
             c for c in self.target_agent_name if c.isalnum() or c in "_-"
         )
-        payload_artifact_name = f"wi_{sanitized_wf_name}.json"
+        unique_suffix = uuid.uuid4().hex[:8]
+        payload_artifact_name = f"wi_{sanitized_wf_name}_{unique_suffix}.json"
 
         # Save artifact
         user_id = tool_context._invocation_context.user_id
@@ -300,6 +374,13 @@ class WorkflowAgentTool(BaseTool):
         log_identifier: str,
     ):
         """Handles task registration, correlation data, and submission."""
+        log.info(
+            "%s [WORKFLOW_DEBUG] _submit_workflow_task ENTERED | sub_task_id=%s | main_task_id=%s",
+            log_identifier,
+            sub_task_id,
+            main_logical_task_id,
+        )
+
         # Register parallel call
         task_context_obj = None
         with self.host_component.active_tasks_lock:
@@ -308,10 +389,20 @@ class WorkflowAgentTool(BaseTool):
             )
 
         if not task_context_obj:
+            log.error(
+                "%s [WORKFLOW_DEBUG] TaskExecutionContext NOT FOUND | main_task_id=%s | active_tasks_keys=%s",
+                log_identifier,
+                main_logical_task_id,
+                list(self.host_component.active_tasks.keys()),
+            )
             raise ValueError(
                 f"TaskExecutionContext not found for task '{main_logical_task_id}'"
             )
 
+        log.info(
+            "%s [WORKFLOW_DEBUG] TaskExecutionContext found | registering parallel call",
+            log_identifier,
+        )
         task_context_obj.register_parallel_call_sent(invocation_id)
 
         # Submit Task
@@ -337,6 +428,19 @@ class WorkflowAgentTool(BaseTool):
             component=self.host_component,
         )
 
+        # DEBUG: Log the target agent name and expected topic
+        from ...common import a2a as a2a_module
+
+        expected_topic = a2a_module.get_agent_request_topic(
+            self.host_component.namespace, self.target_agent_name
+        )
+        log.info(
+            "%s [MSG_DEBUG] About to submit workflow task | target_agent_name=%s | expected_topic=%s",
+            log_identifier,
+            self.target_agent_name,
+            expected_topic,
+        )
+
         self.host_component.submit_a2a_task(
             target_agent_name=self.target_agent_name,
             a2a_message=a2a_message,
@@ -345,4 +449,6 @@ class WorkflowAgentTool(BaseTool):
             sub_task_id=sub_task_id,
         )
 
-        log.info("%s Workflow task submitted.", log_identifier)
+        log.info(
+            "%s Workflow task submitted to topic: %s", log_identifier, expected_topic
+        )

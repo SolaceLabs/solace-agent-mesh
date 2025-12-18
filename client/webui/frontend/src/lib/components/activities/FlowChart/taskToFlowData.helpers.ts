@@ -753,7 +753,7 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
     };
 
     addNode(nodes, manager.allCreatedNodeIds, node);
-    manager.nodePositions.set(flowNodeId, { x: subflow.groupNode.xPosition + nodeX_relative, y: nodeY_absolute });
+    manager.nodePositions.set(flowNodeId, { x: (subflow.groupNode.xPosition ?? 0) + nodeX_relative, y: nodeY_absolute });
 
     let estimatedWidth = NODE_WIDTH;
     if (nodeType === "conditional") {
@@ -764,7 +764,7 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
 
     const nodeInstance: NodeInstance = {
         id: flowNodeId,
-        xPosition: subflow.groupNode.xPosition + nodeX_relative,
+        xPosition: (subflow.groupNode.xPosition ?? 0) + nodeX_relative,
         yPosition: nodeY_absolute,
         height: NODE_HEIGHT,
         width: estimatedWidth,

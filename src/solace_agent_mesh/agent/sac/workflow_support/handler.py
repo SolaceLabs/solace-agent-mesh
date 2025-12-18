@@ -115,7 +115,8 @@ class WorkflowNodeHandler:
         log_id = f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}]"
 
         log.error(
-            f"{log_id} [DEBUG] Received workflow node request. Workflow: {workflow_data.workflow_name}"
+            f"{log_id} [DEBUG] Received workflow node request. Workflow: {workflow_data.workflow_name}, "
+            f"node_id: {workflow_data.node_id}, suggested_output_filename: {workflow_data.suggested_output_filename}"
         )
 
         try:
@@ -350,6 +351,9 @@ class WorkflowNodeHandler:
         if not uri:
             raise ValueError("FilePart has no URI")
 
+        # DEBUG: Log the URI being loaded
+        log.info(f"{log_id} [URI_DEBUG] Loading artifact from URI: {uri}")
+
         try:
             uri_parts = parse_artifact_uri(uri)
         except ValueError as e:
@@ -375,6 +379,9 @@ class WorkflowNodeHandler:
         # Decode artifact data
         mime_type = artifact.inline_data.mime_type
         data = self._decode_file_bytes(artifact.inline_data.data, mime_type)
+
+        # DEBUG: Log the actual data loaded from the artifact
+        log.info(f"{log_id} [URI_DEBUG] Loaded artifact: {uri_parts['filename']}, data={data}")
 
         log.info(f"{log_id} Loaded and decoded artifact: {uri_parts['filename']}")
 

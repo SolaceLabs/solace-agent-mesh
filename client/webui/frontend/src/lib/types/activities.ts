@@ -117,6 +117,7 @@ export interface ToolInvocationStartData {
     toolName: string;
     toolArguments: Record<string, any>;
     isPeerInvocation?: boolean; // True if this tool invocation is targeting a peer agent
+    parallelGroupId?: string; // ID grouping tool calls that execute in parallel
 }
 
 /**
@@ -210,6 +211,8 @@ export interface WorkflowNodeExecutionStartData {
     // Loop node fields
     maxIterations?: number;
     loopDelay?: string;
+    // Parallel execution grouping
+    parallelGroupId?: string; // ID grouping nodes that execute in parallel
 }
 
 export interface WorkflowNodeExecutionResultData {

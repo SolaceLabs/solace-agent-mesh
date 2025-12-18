@@ -1,4 +1,4 @@
-import type { VisualizerStep, WorkflowNodeExecutionStartData } from "@/lib/types";
+import type { VisualizerStep } from "@/lib/types";
 import type { LayoutNode } from "./types";
 
 /**
@@ -195,23 +195,41 @@ function findLLMNodeDetails(
     primaryStep: VisualizerStep,
     allSteps: VisualizerStep[]
 ): NodeDetails {
-    // Primary step should be AGENT_LLM_CALL
-    const requestStep = primaryStep.type === 'AGENT_LLM_CALL' ? primaryStep : undefined;
-
-    // Find the response by looking for AGENT_LLM_RESPONSE_TO_AGENT with matching task/timing
+    // Primary step could be AGENT_LLM_CALL or AGENT_LLM_RESPONSE_TOOL_DECISION (for synthetic LLM nodes)
+    let requestStep: VisualizerStep | undefined;
     let resultStep: VisualizerStep | undefined;
 
-    if (requestStep) {
+    if (primaryStep.type === 'AGENT_LLM_CALL') {
+        // Normal case: we have the LLM call step
+        requestStep = primaryStep;
+
         const owningTaskId = requestStep.owningTaskId;
         const requestIndex = allSteps.indexOf(requestStep);
 
-        // Look for the next LLM response in the same task
+        // Look for the next LLM response in the same task (either type)
         resultStep = allSteps
             .slice(requestIndex + 1)
             .find(s =>
                 s.owningTaskId === owningTaskId &&
-                s.type === 'AGENT_LLM_RESPONSE_TO_AGENT'
+                (s.type === 'AGENT_LLM_RESPONSE_TO_AGENT' || s.type === 'AGENT_LLM_RESPONSE_TOOL_DECISION')
             );
+    } else if (primaryStep.type === 'AGENT_LLM_RESPONSE_TOOL_DECISION' || primaryStep.type === 'AGENT_LLM_RESPONSE_TO_AGENT') {
+        // Synthetic LLM node case: we only have the response step
+        // Try to find the preceding AGENT_LLM_CALL for this task
+        const owningTaskId = primaryStep.owningTaskId;
+        const responseIndex = allSteps.indexOf(primaryStep);
+
+        // Look backwards for the most recent AGENT_LLM_CALL in the same task
+        for (let i = responseIndex - 1; i >= 0; i--) {
+            const s = allSteps[i];
+            if (s.owningTaskId === owningTaskId && s.type === 'AGENT_LLM_CALL') {
+                requestStep = s;
+                break;
+            }
+        }
+
+        // The result step is the primary step itself
+        resultStep = primaryStep;
     }
 
     return {

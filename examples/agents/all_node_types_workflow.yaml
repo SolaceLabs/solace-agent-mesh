@@ -1,0 +1,1031 @@
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: all_node_types_workflow.log
+
+!include ../shared_config.yaml
+
+apps:
+  # ============================================================================
+  # SUPPORTING AGENTS
+  # These agents are used by the workflow to demonstrate all node types
+  # ============================================================================
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Order Validator
+  # Validates order structure and returns validation result
+  # ----------------------------------------------------------------------------
+  - name: order_validator_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "OrderValidator"
+      model: *planning_model
+
+      instruction: |
+        You validate orders.
+        1. Read 'order_id' and 'items' from input
+        2. Check if order_id is present and items array is not empty
+        3. Create a JSON artifact with: {"valid": true/false, "order_id": <order_id>, "item_count": <count>, "message": <validation message>}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          order_id: {type: string}
+          items: {type: array, items: {type: object}}
+        required: [order_id, items]
+
+      output_schema:
+        type: object
+        properties:
+          valid: {type: boolean}
+          order_id: {type: string}
+          item_count: {type: integer}
+          message: {type: string}
+        required: [valid, order_id]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Validates order structure and data"
+        skills: [{id: "validate_order", name: "Validate Order", description: "Validates orders", tags: ["validation"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Customer Enricher
+  # Enriches order with customer data (runs in parallel with inventory check)
+  # ----------------------------------------------------------------------------
+  - name: customer_enricher_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "CustomerEnricher"
+      model: *planning_model
+
+      instruction: |
+        You enrich orders with customer data.
+        1. Read 'customer_id' from input
+        2. Create a JSON artifact with mock customer data: {"customer_id": <id>, "customer_name": "Customer <id>", "tier": "gold", "discount_pct": 10}
+        3. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          customer_id: {type: string}
+        required: [customer_id]
+
+      output_schema:
+        type: object
+        properties:
+          customer_id: {type: string}
+          customer_name: {type: string}
+          tier: {type: string}
+          discount_pct: {type: integer}
+        required: [customer_id, customer_name]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Enriches order with customer information"
+        skills: [{id: "enrich_customer", name: "Enrich Customer", description: "Gets customer data", tags: ["enrichment"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Inventory Checker
+  # Checks inventory availability (runs in parallel with customer enrichment)
+  # ----------------------------------------------------------------------------
+  - name: inventory_checker_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "InventoryChecker"
+      model: *planning_model
+
+      instruction: |
+        You check inventory availability.
+        1. Read 'items' from input (array of item objects)
+        2. Create a JSON artifact with: {"all_available": true, "checked_items": <count>, "unavailable_items": []}
+        3. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          items: {type: array, items: {type: object}}
+        required: [items]
+
+      output_schema:
+        type: object
+        properties:
+          all_available: {type: boolean}
+          checked_items: {type: integer}
+          unavailable_items: {type: array, items: {type: string}}
+        required: [all_available, checked_items]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Checks inventory availability for items"
+        skills: [{id: "check_inventory", name: "Check Inventory", description: "Checks stock", tags: ["inventory"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Item Processor
+  # Processes individual items (used by map node)
+  # ----------------------------------------------------------------------------
+  - name: item_processor_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ItemProcessor"
+      model: *planning_model
+
+      instruction: |
+        You process individual order items.
+        1. Read 'item_id', 'quantity', and 'price' from input
+        2. Calculate line_total = quantity * price
+        3. Create a JSON artifact with: {"item_id": <id>, "quantity": <qty>, "price": <price>, "line_total": <total>, "processed": true}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          item_id: {type: string}
+          quantity: {type: integer}
+          price: {type: number}
+        required: [item_id, quantity, price]
+
+      output_schema:
+        type: object
+        properties:
+          item_id: {type: string}
+          quantity: {type: integer}
+          price: {type: number}
+          line_total: {type: number}
+          processed: {type: boolean}
+        required: [item_id, line_total, processed]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Processes individual order line items"
+        skills: [{id: "process_item", name: "Process Item", description: "Processes items", tags: ["processing"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Price Calculator
+  # Calculates total price with discounts
+  # ----------------------------------------------------------------------------
+  - name: price_calculator_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "PriceCalculator"
+      model: *planning_model
+
+      instruction: |
+        You calculate order totals.
+        1. Read 'subtotal' and 'discount_pct' from input
+        2. Calculate discount_amount = subtotal * (discount_pct / 100)
+        3. Calculate final_total = subtotal - discount_amount
+        4. Create a JSON artifact with: {"subtotal": <subtotal>, "discount_pct": <pct>, "discount_amount": <amt>, "final_total": <total>}
+        5. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          subtotal: {type: number}
+          discount_pct: {type: integer}
+        required: [subtotal, discount_pct]
+
+      output_schema:
+        type: object
+        properties:
+          subtotal: {type: number}
+          discount_pct: {type: integer}
+          discount_amount: {type: number}
+          final_total: {type: number}
+        required: [subtotal, final_total]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Calculates order totals with discounts"
+        skills: [{id: "calculate_price", name: "Calculate Price", description: "Calculates totals", tags: ["pricing"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Manual Approver
+  # Handles orders requiring manual approval
+  # ----------------------------------------------------------------------------
+  - name: manual_approver_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ManualApprover"
+      model: *planning_model
+
+      instruction: |
+        You handle manual order approval.
+        1. Read 'order_id' and 'total' from input
+        2. Create a JSON artifact with: {"approved": true, "approval_type": "manual", "approver": "system", "order_id": <order_id>}
+        3. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          order_id: {type: string}
+          total: {type: number}
+        required: [order_id, total]
+
+      output_schema:
+        type: object
+        properties:
+          approved: {type: boolean}
+          approval_type: {type: string}
+          approver: {type: string}
+          order_id: {type: string}
+        required: [approved, approval_type]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Handles manual order approval"
+        skills: [{id: "manual_approve", name: "Manual Approve", description: "Manual approval", tags: ["approval"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Auto Approver
+  # Handles orders that can be auto-approved
+  # ----------------------------------------------------------------------------
+  - name: auto_approver_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AutoApprover"
+      model: *planning_model
+
+      instruction: |
+        You handle automatic order approval.
+        1. Read 'order_id' from input
+        2. Create a JSON artifact with: {"approved": true, "approval_type": "automatic", "approver": "auto-system", "order_id": <order_id>}
+        3. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          order_id: {type: string}
+        required: [order_id]
+
+      output_schema:
+        type: object
+        properties:
+          approved: {type: boolean}
+          approval_type: {type: string}
+          approver: {type: string}
+          order_id: {type: string}
+        required: [approved, approval_type]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Handles automatic order approval"
+        skills: [{id: "auto_approve", name: "Auto Approve", description: "Auto approval", tags: ["approval"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Priority Handlers (Express, Standard, Economy)
+  # Different shipping handlers based on priority
+  # ----------------------------------------------------------------------------
+  - name: express_shipper_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ExpressShipper"
+      model: *planning_model
+
+      instruction: |
+        You handle express shipping.
+        1. Read 'order_id' from input
+        2. Create a JSON artifact with: {"shipping_method": "express", "estimated_days": 1, "tracking_id": "EXP-<order_id>", "order_id": <order_id>}
+        3. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          order_id: {type: string}
+        required: [order_id]
+
+      output_schema:
+        type: object
+        properties:
+          shipping_method: {type: string}
+          estimated_days: {type: integer}
+          tracking_id: {type: string}
+          order_id: {type: string}
+        required: [shipping_method, estimated_days]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Handles express shipping"
+        skills: [{id: "express_ship", name: "Express Ship", description: "Express shipping", tags: ["shipping"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: standard_shipper_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "StandardShipper"
+      model: *planning_model
+
+      instruction: |
+        You handle standard shipping.
+        1. Read 'order_id' from input
+        2. Create a JSON artifact with: {"shipping_method": "standard", "estimated_days": 5, "tracking_id": "STD-<order_id>", "order_id": <order_id>}
+        3. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          order_id: {type: string}
+        required: [order_id]
+
+      output_schema:
+        type: object
+        properties:
+          shipping_method: {type: string}
+          estimated_days: {type: integer}
+          tracking_id: {type: string}
+          order_id: {type: string}
+        required: [shipping_method, estimated_days]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Handles standard shipping"
+        skills: [{id: "standard_ship", name: "Standard Ship", description: "Standard shipping", tags: ["shipping"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: economy_shipper_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "EconomyShipper"
+      model: *planning_model
+
+      instruction: |
+        You handle economy shipping.
+        1. Read 'order_id' from input
+        2. Create a JSON artifact with: {"shipping_method": "economy", "estimated_days": 10, "tracking_id": "ECO-<order_id>", "order_id": <order_id>}
+        3. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          order_id: {type: string}
+        required: [order_id]
+
+      output_schema:
+        type: object
+        properties:
+          shipping_method: {type: string}
+          estimated_days: {type: integer}
+          tracking_id: {type: string}
+          order_id: {type: string}
+        required: [shipping_method, estimated_days]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Handles economy shipping"
+        skills: [{id: "economy_ship", name: "Economy Ship", description: "Economy shipping", tags: ["shipping"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Notification Sender
+  # Sends order notifications
+  # ----------------------------------------------------------------------------
+  - name: notification_sender_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "NotificationSender"
+      model: *planning_model
+
+      instruction: |
+        You send order notifications.
+        1. Read 'order_id', 'customer_name', and 'message' from input
+        2. Create a JSON artifact with: {"notification_sent": true, "channel": "email", "recipient": <customer_name>, "order_id": <order_id>, "message": <message>}
+        3. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          order_id: {type: string}
+          customer_name: {type: string}
+          message: {type: string}
+        required: [order_id, message]
+
+      output_schema:
+        type: object
+        properties:
+          notification_sent: {type: boolean}
+          channel: {type: string}
+          recipient: {type: string}
+          order_id: {type: string}
+        required: [notification_sent, channel]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Sends customer notifications"
+        skills: [{id: "send_notification", name: "Send Notification", description: "Sends notifications", tags: ["notification"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Order Finalizer
+  # Creates final order summary
+  # ----------------------------------------------------------------------------
+  - name: order_finalizer_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "OrderFinalizer"
+      model: *planning_model
+
+      instruction: |
+        You create final order summaries.
+        1. Read all input fields: order_id, customer_name, final_total, shipping_method, tracking_id, approval_type
+        2. Create a JSON artifact with a complete order summary combining all this information
+        3. Include: {"order_id": <id>, "status": "completed", "customer_name": <name>, "final_total": <total>, "shipping": {"method": <method>, "tracking_id": <tracking>}, "approval": {"type": <approval_type>}}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          order_id: {type: string}
+          customer_name: {type: string}
+          final_total: {type: number}
+          shipping_method: {type: string}
+          tracking_id: {type: string}
+          approval_type: {type: string}
+        required: [order_id]
+
+      output_schema:
+        type: object
+        properties:
+          order_id: {type: string}
+          status: {type: string}
+          customer_name: {type: string}
+          final_total: {type: number}
+          shipping:
+            type: object
+            properties:
+              method: {type: string}
+              tracking_id: {type: string}
+          approval:
+            type: object
+            properties:
+              type: {type: string}
+        required: [order_id, status]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Creates final order summaries"
+        skills: [{id: "finalize_order", name: "Finalize Order", description: "Finalizes orders", tags: ["finalization"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Status Checker (for loop demonstration)
+  # Checks if a condition is met (simulates polling)
+  # ----------------------------------------------------------------------------
+  - name: status_checker_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "StatusChecker"
+      model: *planning_model
+
+      instruction: |
+        You check status for polling scenarios.
+        1. Read 'order_id' and 'iteration' from input
+        2. If iteration >= 2, set ready = true, otherwise ready = false
+        3. Create a JSON artifact with: {"order_id": <order_id>, "iteration": <iteration>, "ready": <ready>, "status_message": "Check <iteration>"}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          order_id: {type: string}
+          iteration: {type: integer}
+        required: [order_id, iteration]
+
+      output_schema:
+        type: object
+        properties:
+          order_id: {type: string}
+          iteration: {type: integer}
+          ready: {type: boolean}
+          status_message: {type: string}
+        required: [order_id, ready]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Checks status for polling"
+        skills: [{id: "check_status", name: "Check Status", description: "Checks status", tags: ["status"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+
+  # ============================================================================
+  # WORKFLOW: Complete Order Processing Pipeline
+  # Demonstrates ALL node types: agent, conditional, switch, map, fork, join, loop
+  # ============================================================================
+  - name: complete_order_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "CompleteOrderWorkflow"
+      display_name: "Complete Order Processing Workflow"
+
+      workflow:
+        description: |
+          A comprehensive order processing workflow that demonstrates ALL workflow node types:
+
+          1. AGENT NODE: Validates the incoming order
+          2. FORK NODE: Runs customer enrichment and inventory check in parallel
+          3. JOIN NODE: Waits for both parallel tasks to complete
+          4. MAP NODE: Processes each item in the order individually
+          5. AGENT NODE: Calculates final price with discounts
+          6. CONDITIONAL NODE: Routes to manual or auto approval based on total
+          7. SWITCH NODE: Selects shipping method based on priority
+          8. LOOP NODE: Polls for readiness status
+          9. AGENT NODE: Sends notification
+          10. AGENT NODE: Finalizes the order
+
+          Input: Order with items, customer_id, and shipping_priority
+          Output: Complete order summary with all processing details
+
+        input_schema:
+          type: object
+          properties:
+            order_id:
+              type: string
+              description: "Unique order identifier"
+            customer_id:
+              type: string
+              description: "Customer identifier"
+            items:
+              type: array
+              description: "List of order items"
+              items:
+                type: object
+                properties:
+                  item_id: {type: string}
+                  quantity: {type: integer}
+                  price: {type: number}
+                required: [item_id, quantity, price]
+            shipping_priority:
+              type: string
+              enum: ["express", "standard", "economy"]
+              description: "Shipping priority level"
+          required: [order_id, customer_id, items, shipping_priority]
+
+        output_schema:
+          type: object
+          properties:
+            order_id: {type: string}
+            status: {type: string}
+            customer_name: {type: string}
+            final_total: {type: number}
+            shipping_method: {type: string}
+            tracking_id: {type: string}
+            approval_type: {type: string}
+          required: [order_id, status]
+
+        nodes:
+          # ====================================================================
+          # STEP 1: AGENT NODE - Validate the order
+          # ====================================================================
+          - id: validate_order
+            type: agent
+            agent_name: "OrderValidator"
+            input:
+              order_id: "{{workflow.input.order_id}}"
+              items: "{{workflow.input.items}}"
+
+          # ====================================================================
+          # STEP 2: FORK NODE - Parallel enrichment and inventory check
+          # Demonstrates parallel execution of multiple agents
+          # Fork handles its own synchronization - all branches complete before
+          # dependent nodes can proceed
+          # ====================================================================
+          - id: parallel_enrichment
+            type: fork
+            depends_on: [validate_order]
+            branches:
+              - id: customer_branch
+                agent_name: "CustomerEnricher"
+                input:
+                  customer_id: "{{workflow.input.customer_id}}"
+                output_key: customer_data
+              - id: inventory_branch
+                agent_name: "InventoryChecker"
+                input:
+                  items: "{{workflow.input.items}}"
+                output_key: inventory_data
+
+          # ====================================================================
+          # STEP 3: MAP NODE - Process each item individually
+          # Demonstrates iteration over array items
+          # Depends directly on fork (fork waits for all branches internally)
+          # ====================================================================
+          - id: process_items
+            type: map
+            depends_on: [parallel_enrichment]
+            items: "{{workflow.input.items}}"
+            node: process_single_item
+
+          # Inner node for map - processes a single item
+          - id: process_single_item
+            type: agent
+            agent_name: "ItemProcessor"
+            input:
+              item_id: "{{_map_item.item_id}}"
+              quantity: "{{_map_item.quantity}}"
+              price: "{{_map_item.price}}"
+
+          # ====================================================================
+          # STEP 4: AGENT NODE - Calculate total price
+          # ====================================================================
+          - id: calculate_price
+            type: agent
+            agent_name: "PriceCalculator"
+            depends_on: [process_items]
+            input:
+              subtotal: 100.00
+              discount_pct: "{{parallel_enrichment.output.customer_data.discount_pct}}"
+
+          # ====================================================================
+          # STEP 5: CONDITIONAL NODE - Approval routing
+          # Demonstrates binary branching based on order total
+          # Orders over $500 require manual approval
+          # ====================================================================
+          - id: approval_decision
+            type: conditional
+            depends_on: [calculate_price]
+            condition: "{{calculate_price.output.final_total}} > 500"
+            true_branch: manual_approval
+            false_branch: auto_approval
+
+          # Manual approval branch
+          - id: manual_approval
+            type: agent
+            agent_name: "ManualApprover"
+            depends_on: [approval_decision]
+            input:
+              order_id: "{{workflow.input.order_id}}"
+              total: "{{calculate_price.output.final_total}}"
+
+          # Auto approval branch
+          - id: auto_approval
+            type: agent
+            agent_name: "AutoApprover"
+            depends_on: [approval_decision]
+            input:
+              order_id: "{{workflow.input.order_id}}"
+
+          # ====================================================================
+          # STEP 6: JOIN NODE - Wait for whichever approval completes
+          # Demonstrates synchronization after conditional branching
+          # Uses "any" strategy since only one branch executes (the other is skipped)
+          # ====================================================================
+          - id: approval_complete
+            type: join
+            depends_on: [manual_approval, auto_approval]
+            wait_for: [manual_approval, auto_approval]
+            strategy: any
+
+          # ====================================================================
+          # STEP 7: SWITCH NODE - Select shipping method
+          # Demonstrates multi-way branching based on priority
+          # ====================================================================
+          - id: shipping_selection
+            type: switch
+            depends_on: [approval_complete]
+            cases:
+              - condition: "'{{workflow.input.shipping_priority}}' == 'express'"
+                node: ship_express
+              - condition: "'{{workflow.input.shipping_priority}}' == 'standard'"
+                node: ship_standard
+            default: ship_economy
+
+          # Express shipping handler
+          - id: ship_express
+            type: agent
+            agent_name: "ExpressShipper"
+            depends_on: [shipping_selection]
+            input:
+              order_id: "{{workflow.input.order_id}}"
+
+          # Standard shipping handler
+          - id: ship_standard
+            type: agent
+            agent_name: "StandardShipper"
+            depends_on: [shipping_selection]
+            input:
+              order_id: "{{workflow.input.order_id}}"
+
+          # Economy shipping handler (default)
+          - id: ship_economy
+            type: agent
+            agent_name: "EconomyShipper"
+            depends_on: [shipping_selection]
+            input:
+              order_id: "{{workflow.input.order_id}}"
+
+          # ====================================================================
+          # STEP 8: JOIN NODE - Wait for shipping to complete
+          # Demonstrates synchronization after switch branching
+          # Uses "any" strategy since only one shipping branch executes
+          # ====================================================================
+          - id: shipping_complete
+            type: join
+            depends_on: [ship_express, ship_standard, ship_economy]
+            wait_for: [ship_express, ship_standard, ship_economy]
+            strategy: any
+
+          # ====================================================================
+          # STEP 9: LOOP NODE - Poll for readiness
+          # Demonstrates iteration until condition is met
+          # ====================================================================
+          - id: poll_ready
+            type: loop
+            depends_on: [shipping_complete]
+            node: check_status
+            condition: "{{check_status.output.ready}} == false"
+            max_iterations: 5
+
+          # Inner node for loop - checks status
+          - id: check_status
+            type: agent
+            agent_name: "StatusChecker"
+            input:
+              order_id: "{{workflow.input.order_id}}"
+              iteration: "{{_loop_iteration}}"
+
+          # ====================================================================
+          # STEP 10: AGENT NODE - Send notification
+          # ====================================================================
+          - id: send_notification
+            type: agent
+            agent_name: "NotificationSender"
+            depends_on: [poll_ready]
+            input:
+              order_id: "{{workflow.input.order_id}}"
+              customer_name: "{{parallel_enrichment.output.customer_data.customer_name}}"
+              message: "Your order has been processed and shipped!"
+
+          # ====================================================================
+          # STEP 11: AGENT NODE - Finalize order
+          # ====================================================================
+          - id: finalize_order
+            type: agent
+            agent_name: "OrderFinalizer"
+            depends_on: [send_notification]
+            input:
+              order_id: "{{workflow.input.order_id}}"
+              customer_name: "{{parallel_enrichment.output.customer_data.customer_name}}"
+              final_total: "{{calculate_price.output.final_total}}"
+              shipping_method:
+                coalesce:
+                  - "{{ship_express.output.shipping_method}}"
+                  - "{{ship_standard.output.shipping_method}}"
+                  - "{{ship_economy.output.shipping_method}}"
+              tracking_id:
+                coalesce:
+                  - "{{ship_express.output.tracking_id}}"
+                  - "{{ship_standard.output.tracking_id}}"
+                  - "{{ship_economy.output.tracking_id}}"
+              approval_type:
+                coalesce:
+                  - "{{manual_approval.output.approval_type}}"
+                  - "{{auto_approval.output.approval_type}}"
+
+        # ====================================================================
+        # OUTPUT MAPPING
+        # Maps node outputs to workflow output schema
+        # ====================================================================
+        output_mapping:
+          order_id: "{{finalize_order.output.order_id}}"
+          status: "{{finalize_order.output.status}}"
+          customer_name: "{{finalize_order.output.customer_name}}"
+          final_total: "{{finalize_order.output.final_total}}"
+          shipping_method: "{{finalize_order.output.shipping.method}}"
+          tracking_id: "{{finalize_order.output.shipping.tracking_id}}"
+          approval_type: "{{finalize_order.output.approval.type}}"
+
+        # ====================================================================
+        # WORKFLOW METADATA
+        # ====================================================================
+        skills:
+          - id: "process_order"
+            name: "Process Order"
+            description: "Processes a complete order through validation, enrichment, pricing, approval, and shipping"
+            tags: ["order", "processing", "workflow"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }

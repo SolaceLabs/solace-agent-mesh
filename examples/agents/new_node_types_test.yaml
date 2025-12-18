@@ -24,8 +24,10 @@ apps:
       instruction: |
         You are an echo agent. Read the input message and create a JSON artifact with the echoed response.
         1. Read 'message' from input
-        2. Create a JSON artifact "echo_result.json" with: {"echoed": "Echo: " + message, "timestamp": current_time}
-        3. End with: «result:artifact=echo_result.json status=success»
+        2. Create a JSON artifact with: {"echoed": "Echo: " + message, "timestamp": current_time}
+        3. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
 
       input_schema:
         type: object
@@ -74,8 +76,10 @@ apps:
         You classify inputs into categories.
         1. Read 'value' from input (a number)
         2. Classify: value < 10 -> "A", value < 50 -> "B", value < 100 -> "C", else -> "unknown"
-        3. Create a JSON artifact "classification.json" with: {"category": <category>, "original_value": <value>}
-        4. End with: «result:artifact=classification.json status=success»
+        3. Create a JSON artifact with: {"category": <category>, "original_value": <value>}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
 
       input_schema:
         type: object
@@ -122,8 +126,10 @@ apps:
 
       instruction: |
         You handle Category A items.
-        1. Create a JSON artifact "handler_result.json" with: {"handler": "A", "action": "processed with high priority"}
-        2. End with: «result:artifact=handler_result.json status=success»
+        1. Create a JSON artifact with: {"handler": "A", "action": "processed with high priority"}
+        2. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
 
       output_schema:
         type: object
@@ -160,8 +166,10 @@ apps:
 
       instruction: |
         You handle Category B items.
-        1. Create a JSON artifact "handler_result.json" with: {"handler": "B", "action": "processed with normal priority"}
-        2. End with: «result:artifact=handler_result.json status=success»
+        1. Create a JSON artifact with: {"handler": "B", "action": "processed with normal priority"}
+        2. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
 
       output_schema:
         type: object
@@ -198,8 +206,10 @@ apps:
 
       instruction: |
         You handle Category C items.
-        1. Create a JSON artifact "handler_result.json" with: {"handler": "C", "action": "processed with low priority"}
-        2. End with: «result:artifact=handler_result.json status=success»
+        1. Create a JSON artifact with: {"handler": "C", "action": "processed with low priority"}
+        2. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
 
       output_schema:
         type: object
@@ -236,8 +246,10 @@ apps:
 
       instruction: |
         You handle unknown/default items.
-        1. Create a JSON artifact "handler_result.json" with: {"handler": "Default", "action": "processed as fallback"}
-        2. End with: «result:artifact=handler_result.json status=success»
+        1. Create a JSON artifact with: {"handler": "Default", "action": "processed as fallback"}
+        2. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
 
       output_schema:
         type: object

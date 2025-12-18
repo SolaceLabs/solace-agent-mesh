@@ -60,34 +60,6 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
         processStep(step, context);
     }
 
-    // Debug: Find any LLM nodes still in-progress
-    const inProgressLLMs: { nodeId: string; agentLabel: string; stepId: string }[] = [];
-    const findInProgressLLMs = (node: LayoutNode, parentLabel: string) => {
-        if (node.type === 'llm' && node.data.status === 'in-progress') {
-            inProgressLLMs.push({
-                nodeId: node.id,
-                agentLabel: parentLabel,
-                stepId: node.data.visualizerStepId || 'unknown',
-            });
-        }
-        for (const child of node.children) {
-            findInProgressLLMs(child, node.type === 'agent' ? node.data.label : parentLabel);
-        }
-        if (node.parallelBranches) {
-            for (const branch of node.parallelBranches) {
-                for (const branchNode of branch) {
-                    findInProgressLLMs(branchNode, node.type === 'agent' ? node.data.label : parentLabel);
-                }
-            }
-        }
-    };
-    for (const rootNode of context.rootNodes) {
-        findInProgressLLMs(rootNode, rootNode.data.label);
-    }
-    if (inProgressLLMs.length > 0) {
-        console.log('[LLM_DEBUG] In-progress LLM nodes after processing:', inProgressLLMs);
-    }
-
     // Calculate layout (positions and dimensions)
     const nodes = calculateLayout(context.rootNodes);
 
@@ -223,15 +195,46 @@ function handleLLMCall(step: VisualizerStep, context: BuildContext): void {
  */
 function handleLLMResponse(step: VisualizerStep, context: BuildContext): void {
     const agentNode = findAgentForStep(step, context);
-    if (!agentNode) return;
+    if (!agentNode) {
+        return;
+    }
 
     // Find the most recent LLM node in this agent and mark it as completed
+    let foundInProgressLLM = false;
     for (let i = agentNode.children.length - 1; i >= 0; i--) {
         const child = agentNode.children[i];
         if (child.type === 'llm' && child.data.status === 'in-progress') {
             child.data.status = 'completed';
+            foundInProgressLLM = true;
             break;
         }
+    }
+
+    // If no in-progress LLM was found, it means we received an LLM response without
+    // a corresponding AGENT_LLM_CALL. This can happen if the llm_invocation signal
+    // wasn't emitted. Create a synthetic LLM node to represent this call.
+    if (!foundInProgressLLM) {
+        const syntheticLlmNode = createNode(
+            context,
+            'llm',
+            {
+                label: 'LLM',
+                visualizerStepId: step.id, // Link to the response step since we don't have a call step
+                status: 'completed',
+            },
+            step.owningTaskId
+        );
+
+        // Insert the LLM node before any parallel blocks (which are created by TOOL_DECISION)
+        // Find the position before the first parallelBlock child
+        let insertIndex = agentNode.children.length;
+        for (let i = 0; i < agentNode.children.length; i++) {
+            if (agentNode.children[i].type === 'parallelBlock') {
+                insertIndex = i;
+                break;
+            }
+        }
+        agentNode.children.splice(insertIndex, 0, syntheticLlmNode);
     }
 
     // Check for parallel tool calls in TOOL_DECISION
@@ -298,6 +301,7 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
     const isPeer = step.data.toolInvocationStart?.isPeerInvocation || step.target?.startsWith('peer_');
     const target = step.target || '';
     const toolName = step.data.toolInvocationStart?.toolName || target;
+    const parallelGroupId = step.data.toolInvocationStart?.parallelGroupId;
 
     // Skip workflow tools (handled separately)
     if (target.includes('workflow_') || toolName.includes('workflow_')) {
@@ -323,11 +327,31 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
         );
 
         // Check if this peer invocation is part of a parallel group
+        // First check for backend-provided parallelGroupId, then fall back to legacy detection
         const functionCallId = step.data.toolInvocationStart?.functionCallId || step.functionCallId;
         let addedToParallelBlock = false;
 
-        if (functionCallId) {
-            // Search through all parallel peer groups to find if this functionCallId belongs to one
+        // Use parallelGroupId from backend if available
+        if (parallelGroupId) {
+            let parallelBlock = context.parallelBlockMap.get(parallelGroupId);
+            if (!parallelBlock) {
+                // Create a new parallel block for this group
+                parallelBlock = createNode(
+                    context,
+                    'parallelBlock',
+                    {
+                        label: 'Parallel',
+                        visualizerStepId: step.id,
+                    },
+                    step.owningTaskId
+                );
+                context.parallelBlockMap.set(parallelGroupId, parallelBlock);
+                agentNode.children.push(parallelBlock);
+            }
+            parallelBlock.children.push(subAgentNode);
+            addedToParallelBlock = true;
+        } else if (functionCallId) {
+            // Fall back to legacy parallel peer group detection
             for (const [groupKey, functionCallIds] of context.parallelPeerGroupMap.entries()) {
                 if (functionCallIds.has(functionCallId)) {
                     // This peer invocation is part of a parallel group
@@ -370,7 +394,27 @@ function handleToolInvocation(step: VisualizerStep, context: BuildContext): void
             step.owningTaskId
         );
 
-        agentNode.children.push(toolNode);
+        // Check if this tool is part of a parallel group
+        if (parallelGroupId) {
+            let parallelBlock = context.parallelBlockMap.get(parallelGroupId);
+            if (!parallelBlock) {
+                // Create a new parallel block for this group
+                parallelBlock = createNode(
+                    context,
+                    'parallelBlock',
+                    {
+                        label: 'Parallel Tools',
+                        visualizerStepId: step.id,
+                    },
+                    step.owningTaskId
+                );
+                context.parallelBlockMap.set(parallelGroupId, parallelBlock);
+                agentNode.children.push(parallelBlock);
+            }
+            parallelBlock.children.push(toolNode);
+        } else {
+            agentNode.children.push(toolNode);
+        }
 
         // Use the tool's actual functionCallId from the data (preferred) for matching with tool_result
         // The step.functionCallId is the parent tracking ID for sub-task relationships
@@ -431,6 +475,7 @@ function handleAgentResponse(step: VisualizerStep, context: BuildContext): void 
 function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void {
     const workflowName = step.data.workflowExecutionStart?.workflowName || 'Workflow';
     const displayName = context.agentNameMap[workflowName] || workflowName;
+    const executionId = step.data.workflowExecutionStart?.executionId;
 
     // Find the calling agent (should be from parentTaskId)
     const callingAgent = step.parentTaskId
@@ -445,7 +490,7 @@ function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void 
             label: displayName,
             visualizerStepId: step.id,
         },
-        step.data.workflowExecutionStart?.executionId || step.owningTaskId
+        executionId || step.owningTaskId
     );
 
     // Create Start node inside group
@@ -491,7 +536,6 @@ function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void 
     }
 
     // Map execution ID to group for workflow nodes
-    const executionId = step.data.workflowExecutionStart?.executionId;
     if (executionId) {
         context.taskToNodeMap.set(executionId, groupNode);
     }
@@ -505,10 +549,12 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
     const nodeId = step.data.workflowNodeExecutionStart?.nodeId || 'unknown';
     const agentName = step.data.workflowNodeExecutionStart?.agentName;
     const parentNodeId = step.data.workflowNodeExecutionStart?.parentNodeId;
+    const parallelGroupId = step.data.workflowNodeExecutionStart?.parallelGroupId;
     const taskId = step.owningTaskId;
 
     // Check if this node is a child of a Map/Fork (parallel execution)
-    const parallelContainerKey = parentNodeId ? `${taskId}:${parentNodeId}` : null;
+    // Use parallelGroupId from backend if available, otherwise fall back to parentNodeId
+    const parallelContainerKey = parallelGroupId || (parentNodeId ? `${taskId}:${parentNodeId}` : null);
     const parallelContainer = parallelContainerKey ? context.parallelContainerMap.get(parallelContainerKey) : null;
 
     // Determine node type and variant
@@ -585,7 +631,8 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
         workflowNode.parallelBranches = [];
 
         // Store in parallel container map for child nodes to find
-        const containerKey = `${taskId}:${nodeId}`;
+        // Use parallelGroupId from backend if available, otherwise use legacy key format
+        const containerKey = parallelGroupId || `${taskId}:${nodeId}`;
         context.parallelContainerMap.set(containerKey, workflowNode);
 
         // Add to parent group

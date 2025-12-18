@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ArrowRight, Bot, CheckCircle, GitBranch, GitMerge, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, Zap } from "lucide-react";
 import type { NodeDetails } from "./utils/nodeDetailsHelper";
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
-import type { VisualizerStep } from "@/lib/types";
+import type { VisualizerStep, ToolDecision } from "@/lib/types";
 import { useChatContext } from "@/lib/hooks";
 import { parseArtifactUri } from "@/lib/utils/download";
 import { authenticatedFetch } from "@/lib/utils/api";
@@ -222,6 +222,8 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails }) => {
                 return renderLLMCall(step);
             case 'AGENT_LLM_RESPONSE_TO_AGENT':
                 return renderLLMResponse(step);
+            case 'AGENT_LLM_RESPONSE_TOOL_DECISION':
+                return renderLLMToolDecision(step);
             case 'AGENT_TOOL_INVOCATION_START':
                 return renderToolInvocation(step);
             case 'AGENT_TOOL_EXECUTION_RESULT':
@@ -373,6 +375,48 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails }) => {
                     {data.isFinalResponse !== undefined && (
                         <div className="text-xs">
                             <span className="font-semibold">Final Response:</span> {data.isFinalResponse ? "Yes" : "No"}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const renderLLMToolDecision = (step: VisualizerStep) => {
+        const data = step.data.toolDecision;
+        if (!data) return null;
+
+        return (
+            <div>
+                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                    LLM Tool Decision{data.isParallel ? " (Parallel)" : ""}
+                </h4>
+                <div className="space-y-3">
+                    {data.decisions && data.decisions.length > 0 && (
+                        <div>
+                            <div className="text-xs font-semibold mb-2">Tools to invoke:</div>
+                            <div className="space-y-2">
+                                {data.decisions.map((decision: ToolDecision, index: number) => (
+                                    <div
+                                        key={index}
+                                        className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700"
+                                    >
+                                        <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1">
+                                            {decision.toolName}
+                                            {decision.isPeerDelegation && (
+                                                <span className="ml-2 px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs">
+                                                    {decision.toolName.startsWith('workflow_') ? 'Workflow' : 'Peer Agent'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {decision.toolArguments && Object.keys(decision.toolArguments).length > 0 && (
+                                            <div className="mt-1">
+                                                {renderFormattedArguments(decision.toolArguments)}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>

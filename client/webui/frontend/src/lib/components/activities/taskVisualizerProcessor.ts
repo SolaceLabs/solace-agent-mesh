@@ -340,7 +340,7 @@ export const processTaskForVisualization = (
                 // This is a workflow agent invocation - create a WORKFLOW_AGENT_REQUEST step
                 const params = payload.params as any;
                 let inputText: string | undefined;
-                let inputArtifactRef: { name: string; version?: number } | undefined;
+                let inputArtifactRef: { name: string; version?: number; uri?: string; mimeType?: string } | undefined;
 
                 if (params?.message?.parts) {
                     // Extract text parts (skip the workflow_node_request data part and reminder text)
@@ -466,11 +466,15 @@ export const processTaskForVisualization = (
                         switch (signalType) {
                             case "workflow_execution_start": {
                                 const dedupKey = `start:${signalData.execution_id}`;
-                                if (processedWorkflowEvents.has(dedupKey)) break;
+
+                                if (processedWorkflowEvents.has(dedupKey)) {
+                                    break;
+                                }
                                 processedWorkflowEvents.add(dedupKey);
 
+                                const stepId = `vstep-wfstart-${visualizerSteps.length}-${eventId}`;
                                 visualizerSteps.push({
-                                    id: `vstep-wfstart-${visualizerSteps.length}-${eventId}`,
+                                    id: stepId,
                                     type: "WORKFLOW_EXECUTION_START",
                                     timestamp: eventTimestamp,
                                     title: `Workflow Started: ${signalData.workflow_name}`,
@@ -531,6 +535,8 @@ export const processTaskForVisualization = (
                                             // Common fields
                                             subTaskId: signalData.sub_task_id,
                                             parentNodeId: signalData.parent_node_id,
+                                            // Parallel grouping
+                                            parallelGroupId: signalData.parallel_group_id,
                                         },
                                     },
                                     rawEventIds: [eventId],
@@ -644,13 +650,86 @@ export const processTaskForVisualization = (
                                 const llmData = signalData.request as any;
                                 let promptText = "System-initiated LLM call";
                                 if (llmData?.contents && Array.isArray(llmData.contents) && llmData.contents.length > 0) {
-                                    // Find the last user message in the history to use as the prompt preview.
-                                    const lastUserContent = [...llmData.contents].reverse().find((c: any) => c.role === "user");
-                                    if (lastUserContent && lastUserContent.parts) {
-                                        promptText = lastUserContent.parts
-                                            .map((p: any) => p.text || "") // Handle cases where text might be null/undefined
-                                            .join("\n")
-                                            .trim();
+                                    // Get the last message in the conversation to understand what triggered this LLM call
+                                    const lastContent = llmData.contents[llmData.contents.length - 1];
+                                    const lastRole = lastContent?.role;
+
+                                    // Check if this LLM call is following tool results
+                                    // Tool results can be: role="tool", role="function", or parts with function_response
+                                    const toolResultContents = llmData.contents.filter((c: any) =>
+                                        c.role === "tool" || c.role === "function" ||
+                                        (c.parts && c.parts.some((p: any) => p.function_response))
+                                    );
+                                    const hasToolResults = toolResultContents.length > 0;
+
+                                    if (hasToolResults && lastRole !== "user") {
+                                        // This is a follow-up LLM call after tool execution
+                                        // Count only the tool results from the CURRENT turn, not the entire conversation history
+                                        // Find the index of the last "model" role message (the LLM's response that called tools)
+                                        let lastModelIndex = -1;
+                                        for (let i = llmData.contents.length - 1; i >= 0; i--) {
+                                            if (llmData.contents[i].role === "model") {
+                                                lastModelIndex = i;
+                                                break;
+                                            }
+                                        }
+
+                                        // Count function_response parts that come AFTER the last model message
+                                        // Also collect summaries of the tool results
+                                        let actualToolResultCount = 0;
+                                        const toolResultSummaries: string[] = [];
+                                        const startIndex = lastModelIndex + 1;
+                                        for (let i = startIndex; i < llmData.contents.length; i++) {
+                                            const content = llmData.contents[i];
+                                            if (content.parts && Array.isArray(content.parts)) {
+                                                for (const part of content.parts) {
+                                                    if (part.function_response) {
+                                                        actualToolResultCount++;
+                                                        const toolName = part.function_response.name || "unknown";
+                                                        const response = part.function_response.response;
+                                                        // Create a brief summary of the response
+                                                        let summary: string;
+                                                        if (typeof response === "string") {
+                                                            summary = response.substring(0, 200);
+                                                        } else if (typeof response === "object" && response !== null) {
+                                                            const jsonStr = JSON.stringify(response);
+                                                            summary = jsonStr.substring(0, 200);
+                                                        } else {
+                                                            summary = String(response).substring(0, 200);
+                                                        }
+                                                        if (summary.length === 200) summary += "...";
+                                                        toolResultSummaries.push(`- ${toolName}: ${summary}`);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        // If no function_response parts found after last model, fall back to 0 (shouldn't happen)
+                                        const toolResultCount = actualToolResultCount > 0 ? actualToolResultCount : 0;
+
+                                        // Find the LAST user message (which is the current turn's request)
+                                        const lastUserContent = [...llmData.contents].reverse().find((c: any) => c.role === "user");
+                                        const userPromptFull = lastUserContent?.parts
+                                            ?.map((p: any) => p.text || "")
+                                            .join(" ")
+                                            .trim() || "";
+                                        const userPromptSnippet = userPromptFull.substring(0, 5000);
+
+                                        // Build prompt text with tool result summaries
+                                        let toolResultsSection = "";
+                                        if (toolResultSummaries.length > 0) {
+                                            toolResultsSection = "\n\nTool Results:\n" + toolResultSummaries.join("\n");
+                                        }
+
+                                        promptText = `[Following ${toolResultCount} tool result(s)]\nOriginal request: ${userPromptSnippet || "N/A"}${userPromptFull.length > 5000 ? "..." : ""}${toolResultsSection}`;
+                                    } else {
+                                        // Regular LLM call - find the last user message
+                                        const lastUserContent = [...llmData.contents].reverse().find((c: any) => c.role === "user");
+                                        if (lastUserContent && lastUserContent.parts) {
+                                            promptText = lastUserContent.parts
+                                                .map((p: any) => p.text || "") // Handle cases where text might be null/undefined
+                                                .join("\n")
+                                                .trim();
+                                        }
                                     }
                                 }
                                 const llmCallData: LLMCallData = {
@@ -739,7 +818,7 @@ export const processTaskForVisualization = (
                                         }
                                     });
 
-                                    const toolDecisionStep: VisualizerStep = {
+                                        const toolDecisionStep: VisualizerStep = {
                                         id: `vstep-tooldecision-${visualizerSteps.length}-${eventId}`,
                                         type: "AGENT_LLM_RESPONSE_TOOL_DECISION",
                                         timestamp: eventTimestamp,
@@ -812,6 +891,7 @@ export const processTaskForVisualization = (
                                     toolName: signalData.tool_name,
                                     toolArguments: signalData.tool_args,
                                     isPeerInvocation: signalData.tool_name?.startsWith("peer_") || signalData.tool_name?.startsWith("workflow_"),
+                                    parallelGroupId: signalData.parallel_group_id,
                                 };
 
                                 const delegationInfo = functionCallIdToDelegationInfoMap.get(signalData.function_call_id);

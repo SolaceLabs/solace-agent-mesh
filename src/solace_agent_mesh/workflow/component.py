@@ -7,6 +7,7 @@ import logging
 import threading
 import uuid
 import asyncio
+import json
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
@@ -34,6 +35,7 @@ from ..agent.adk.services import (
     initialize_session_service,
     initialize_artifact_service,
 )
+from ..agent.utils.artifact_helpers import save_artifact_with_metadata
 from .app import WorkflowDefinition
 from .workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
 from .dag_executor import DAGExecutor, WorkflowNodeFailureError
@@ -131,7 +133,15 @@ class WorkflowExecutorComponent(SamComponentBase):
             self.namespace, self.workflow_name
         )
 
+        # DEBUG: Log all incoming messages
+        log.info(
+            f"{self.log_identifier} [MSG_DEBUG] Received message on topic: {topic} | "
+            f"expected_request_topic: {request_topic} | "
+            f"is_request_match: {topic == request_topic}"
+        )
+
         if topic == request_topic:
+            log.info(f"{self.log_identifier} [MSG_DEBUG] Handling as TASK REQUEST")
             await handle_task_request(self, message)
         elif topic == discovery_topic:
             handle_agent_card_message(self, message)
@@ -150,6 +160,15 @@ class WorkflowExecutorComponent(SamComponentBase):
         """
         # Set up periodic agent card publishing
         self._setup_periodic_agent_card_publishing()
+
+        # DEBUG: Log subscription details
+        request_topic = a2a.get_agent_request_topic(self.namespace, self.workflow_name)
+        log.info(
+            f"{self.log_identifier} [MSG_DEBUG] Workflow setup complete | "
+            f"namespace={self.namespace} | "
+            f"workflow_name={self.workflow_name} | "
+            f"subscribed_request_topic={request_topic}"
+        )
 
         # Component is now ready to receive requests
         log.info(f"{self.log_identifier} Workflow ready: {self.workflow_name}")
@@ -591,6 +610,23 @@ class WorkflowExecutorComponent(SamComponentBase):
     ):
         """Publish a workflow status event."""
         try:
+            # DEBUG: Log workflow event details
+            event_type = getattr(event_data, 'type', 'unknown')
+            if event_type == 'workflow_execution_start':
+                log.info(
+                    f"{self.log_identifier} [WF_EVENT_DEBUG] Publishing workflow_execution_start: "
+                    f"execution_id={getattr(event_data, 'execution_id', 'N/A')}, "
+                    f"workflow_name={getattr(event_data, 'workflow_name', 'N/A')}, "
+                    f"workflow_input={getattr(event_data, 'workflow_input', 'N/A')}, "
+                    f"task_id={workflow_context.a2a_context.get('logical_task_id', 'N/A')}"
+                )
+            elif event_type in ['workflow_node_execution_start', 'workflow_node_execution_result']:
+                log.info(
+                    f"{self.log_identifier} [WF_EVENT_DEBUG] Publishing {event_type}: "
+                    f"node_id={getattr(event_data, 'node_id', 'N/A')}, "
+                    f"task_id={workflow_context.a2a_context.get('logical_task_id', 'N/A')}"
+                )
+
             status_update_event = a2a.create_data_signal_event(
                 task_id=workflow_context.a2a_context["logical_task_id"],
                 context_id=workflow_context.a2a_context["session_id"],
@@ -701,10 +737,55 @@ class WorkflowExecutorComponent(SamComponentBase):
         # Construct final output based on output mapping
         final_output = await self._construct_final_output(workflow_context)
 
+        # Create output artifact with the workflow result
+        # Use unique filename: <workflow_name>_<4-digit-uuid>_result.json
+        unique_suffix = uuid.uuid4().hex[:4]
+        output_artifact_name = f"{self.workflow_name}_{unique_suffix}_result.json"
+
+        user_id = workflow_context.a2a_context["user_id"]
+        session_id = workflow_context.a2a_context["session_id"]
+
+        # Prepare artifact content with status field
+        artifact_content = {
+            "status": "success",
+            "output": final_output,
+        }
+        content_bytes = json.dumps(artifact_content).encode("utf-8")
+
+        # Get output schema from workflow definition for artifact metadata
+        output_schema = self.workflow_definition.output_schema
+        metadata_dict = {
+            "description": f"Output from workflow '{self.workflow_name}'",
+            "source": "workflow_execution",
+            "workflow_name": self.workflow_name,
+        }
+        if output_schema:
+            metadata_dict["schema"] = output_schema
+
+        try:
+            save_result = await save_artifact_with_metadata(
+                artifact_service=self.artifact_service,
+                app_name=self.workflow_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=output_artifact_name,
+                content_bytes=content_bytes,
+                mime_type="application/json",
+                metadata_dict=metadata_dict,
+                timestamp=datetime.now(timezone.utc),
+            )
+
+            if save_result["status"] != "success":
+                log.error(f"{log_id} Failed to save workflow output artifact: {save_result.get('message')}")
+                artifact_version = None
+            else:
+                artifact_version = save_result.get("data_version")
+                log.info(f"{log_id} Created workflow output artifact: {output_artifact_name} v{artifact_version}")
+        except Exception as e:
+            log.exception(f"{log_id} Error saving workflow output artifact: {e}")
+            artifact_version = None
+
         # Publish completion event
-        # Note: We don't have a single artifact for the final output yet in this flow,
-        # as _construct_final_output returns a dict.
-        # For observability, we can just signal success.
         await self.publish_workflow_event(
             workflow_context,
             WorkflowExecutionResultData(
@@ -714,6 +795,20 @@ class WorkflowExecutorComponent(SamComponentBase):
             ),
         )
 
+        # Build produced_artifacts list for the response
+        produced_artifacts = []
+        if artifact_version is not None:
+            produced_artifacts.append({
+                "filename": output_artifact_name,
+                "version": artifact_version,
+            })
+
+        # Create response message text that includes artifact reference
+        if artifact_version is not None:
+            response_text = f"Workflow completed successfully. Output artifact: {output_artifact_name}:v{artifact_version}"
+        else:
+            response_text = "Workflow completed successfully"
+
         # Create final task response
         final_task = a2a.create_final_task(
             task_id=workflow_context.a2a_context["logical_task_id"],
@@ -721,12 +816,14 @@ class WorkflowExecutorComponent(SamComponentBase):
             final_status=a2a.create_task_status(
                 state=TaskState.completed,
                 message=a2a.create_agent_text_message(
-                    text="Workflow completed successfully"
+                    text=response_text
                 ),
             ),
             metadata={
                 "workflow_name": self.workflow_name,
-                "output": final_output,  # Pass output in metadata for now
+                "agent_name": self.workflow_name,  # For compatibility with peer agent response handling
+                "output": final_output,
+                "produced_artifacts": produced_artifacts,
             },
         )
 
@@ -777,6 +874,50 @@ class WorkflowExecutorComponent(SamComponentBase):
         # Execute exit handlers first (passing error info)
         await self._execute_exit_handlers(workflow_context, "failure", error)
 
+        # Create output artifact with the error information
+        # Use unique filename: <workflow_name>_<4-digit-uuid>_result.json
+        unique_suffix = uuid.uuid4().hex[:4]
+        output_artifact_name = f"{self.workflow_name}_{unique_suffix}_result.json"
+
+        user_id = workflow_context.a2a_context["user_id"]
+        session_id = workflow_context.a2a_context["session_id"]
+
+        # Prepare artifact content with status and error
+        artifact_content = {
+            "status": "failure",
+            "message": str(error),
+        }
+        content_bytes = json.dumps(artifact_content).encode("utf-8")
+
+        metadata_dict = {
+            "description": f"Error output from workflow '{self.workflow_name}'",
+            "source": "workflow_execution",
+            "workflow_name": self.workflow_name,
+        }
+
+        try:
+            save_result = await save_artifact_with_metadata(
+                artifact_service=self.artifact_service,
+                app_name=self.workflow_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=output_artifact_name,
+                content_bytes=content_bytes,
+                mime_type="application/json",
+                metadata_dict=metadata_dict,
+                timestamp=datetime.now(timezone.utc),
+            )
+
+            if save_result["status"] != "success":
+                log.error(f"{log_id} Failed to save workflow error artifact: {save_result.get('message')}")
+                artifact_version = None
+            else:
+                artifact_version = save_result.get("data_version")
+                log.info(f"{log_id} Created workflow error artifact: {output_artifact_name} v{artifact_version}")
+        except Exception as e:
+            log.exception(f"{log_id} Error saving workflow error artifact: {e}")
+            artifact_version = None
+
         # Publish failure event
         await self.publish_workflow_event(
             workflow_context,
@@ -787,6 +928,20 @@ class WorkflowExecutorComponent(SamComponentBase):
             ),
         )
 
+        # Build produced_artifacts list for the response
+        produced_artifacts = []
+        if artifact_version is not None:
+            produced_artifacts.append({
+                "filename": output_artifact_name,
+                "version": artifact_version,
+            })
+
+        # Create response message text that includes artifact reference
+        if artifact_version is not None:
+            response_text = f"Workflow failed: {str(error)}. Error artifact: {output_artifact_name}:v{artifact_version}"
+        else:
+            response_text = f"Workflow failed: {str(error)}"
+
         # Create final task response
         final_task = a2a.create_final_task(
             task_id=workflow_context.a2a_context["logical_task_id"],
@@ -794,10 +949,14 @@ class WorkflowExecutorComponent(SamComponentBase):
             final_status=a2a.create_task_status(
                 state=TaskState.failed,
                 message=a2a.create_agent_text_message(
-                    text=f"Workflow failed: {str(error)}"
+                    text=response_text
                 ),
             ),
-            metadata={"workflow_name": self.workflow_name},
+            metadata={
+                "workflow_name": self.workflow_name,
+                "agent_name": self.workflow_name,  # For compatibility with peer agent response handling
+                "produced_artifacts": produced_artifacts,
+            },
         )
 
         # Publish response

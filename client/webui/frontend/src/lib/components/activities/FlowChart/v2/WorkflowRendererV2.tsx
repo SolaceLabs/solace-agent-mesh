@@ -5,7 +5,7 @@ import type { LayoutNode, Edge } from "./utils/types";
 import AgentNodeV2 from "./nodes/AgentNodeV2";
 import UserNodeV2 from "./nodes/UserNodeV2";
 import WorkflowGroupV2 from "./nodes/WorkflowGroupV2";
-import EdgeLayerV2 from "./EdgeLayerV2";
+// import EdgeLayerV2 from "./EdgeLayerV2";
 
 /**
  * Check if a node or any of its descendants has status 'in-progress'
@@ -169,7 +169,7 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number, expandedNo
 
         // Recalculate height
         const headerHeight = node.type === 'agent' ? 50 : 0;
-        const padding = node.type === 'agent' ? 16 : (node.type === 'group' ? 24 : 0);
+        const padding = node.type === 'agent' ? 16 : ((node.type as string) === 'group' ? 24 : 0);
         const gap = 16;
 
         const childrenHeight = collapsedChildren.reduce((sum, child, idx) => {
@@ -197,7 +197,7 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number, expandedNo
 
         // Recalculate height based on flattened children
         const headerHeight = node.type === 'agent' ? 50 : 0;
-        const padding = node.type === 'agent' ? 16 : (node.type === 'group' ? 24 : 0);
+        const padding = node.type === 'agent' ? 16 : ((node.type as string) === 'group' ? 24 : 0);
         const gap = 16;
 
         const childrenHeight = flattenedChildren.reduce((sum, child, idx) => {
@@ -234,7 +234,7 @@ const WorkflowRendererV2: React.FC<WorkflowRendererV2Props> = ({
     onEdgeClick,
     showDetail = true,
 }) => {
-    const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+    const [_selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
     const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
 
     // Handle expand toggle for a node
@@ -278,23 +278,24 @@ const WorkflowRendererV2: React.FC<WorkflowRendererV2Props> = ({
         };
     }, [baseLayoutResult, showDetail, expandedNodeIds]);
 
-    const { nodes, edges, totalWidth, totalHeight } = layoutResult;
+    const { nodes, edges: _edges, totalWidth: _totalWidth, totalHeight: _totalHeight } = layoutResult;
 
     // Handle node click
     const handleNodeClick = (node: LayoutNode) => {
         onNodeClick?.(node);
     };
 
-    // Handle edge click
+    // Handle edge click - currently unused but kept for future use
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleEdgeClick = (edge: Edge) => {
         setSelectedEdgeId(edge.id);
         onEdgeClick?.(edge);
     };
+    void handleEdgeClick; // Suppress unused variable warning
 
     // Render a top-level node
     const renderNode = (node: LayoutNode, index: number) => {
         const isSelected = node.data.visualizerStepId === selectedStepId;
-        const nextNode = nodes[index + 1];
 
         const nodeProps = {
             node,

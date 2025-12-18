@@ -52,8 +52,21 @@ class AgentCaller:
                 f"wf_{workflow_state.execution_id}_{node.id}_{uuid.uuid4().hex[:8]}"
             )
 
+        # DEBUG: Log workflow state before resolving input
+        log.info(
+            f"{log_id} [INPUT_DEBUG] call_agent for node={node.id}, "
+            f"execution_id={workflow_state.execution_id}, "
+            f"sub_task_id={sub_task_id}, "
+            f"workflow_input={workflow_state.node_outputs.get('workflow_input', {}).get('output')}"
+        )
+
         # Resolve input data
         input_data = await self._resolve_node_input(node, workflow_state)
+
+        # DEBUG: Log resolved input data
+        log.info(
+            f"{log_id} [INPUT_DEBUG] Resolved input_data for node={node.id}: {input_data}"
+        )
 
         # Get schemas from agent card extensions if available
         agent_card = self.host.agent_registry.get_agent(node.agent_name)
@@ -214,6 +227,13 @@ This is MANDATORY for the workflow to continue.
             user_id = workflow_context.a2a_context["user_id"]
             session_id = workflow_context.a2a_context["session_id"]
 
+            # DEBUG: Log artifact creation details
+            log.info(
+                f"{self.host.log_identifier} [ARTIFACT_DEBUG] Creating input artifact: "
+                f"filename={filename}, session_id={session_id}, "
+                f"input_data={input_data}, sub_task_id={sub_task_id}"
+            )
+
             try:
                 save_result = await save_artifact_with_metadata(
                     artifact_service=self.host.artifact_service,
@@ -238,6 +258,11 @@ This is MANDATORY for the workflow to continue.
                         session_id=session_id,
                         filename=filename,
                         version=version,
+                    )
+                    # DEBUG: Log URI being sent
+                    log.info(
+                        f"{self.host.log_identifier} [ARTIFACT_DEBUG] Sending artifact URI to agent: "
+                        f"uri={uri}, version={version}"
                     )
                     parts.append(
                         a2a.create_file_part_from_uri(

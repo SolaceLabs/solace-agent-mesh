@@ -53,7 +53,13 @@
       "Bash(while read file)",
       "Bash(done)",
       "Bash(grep:*)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(git bisect:*)",
+      "Bash(pgrep:*)",
+      "Bash(sudo py-spy dump:*)",
+      "Bash(py-spy dump:*)"
     ],
     "deny": [],
     "ask": []

@@ -843,6 +843,9 @@ class DAGExecutor:
         """Execute fork node with parallel branches."""
         log_id = f"{self.host.log_identifier}[Fork:{node.id}]"
 
+        # Generate a parallel group ID for this fork's branches
+        parallel_group_id = f"fork_{node.id}_{workflow_state.execution_id}"
+
         # Track active branches
         branch_sub_tasks = []
 
@@ -870,6 +873,8 @@ class DAGExecutor:
                 node_type="agent",
                 agent_name=branch.agent_name,
                 sub_task_id=sub_task_id,
+                parent_node_id=node.id,
+                parallel_group_id=parallel_group_id,
             )
             await self.host.publish_workflow_event(workflow_context, start_data)
 
@@ -924,6 +929,9 @@ class DAGExecutor:
 
         log.info(f"{log_id} Starting map with {len(items)} items")
 
+        # Generate a parallel group ID for this map's iterations
+        parallel_group_id = f"map_{node.id}_{workflow_state.execution_id}"
+
         # Initialize tracking state
         # We store the full list of items and their status
         map_state = {
@@ -934,6 +942,7 @@ class DAGExecutor:
             "completed_count": 0,
             "concurrency_limit": node.concurrency_limit,
             "target_node_id": node.node,
+            "parallel_group_id": parallel_group_id,
         }
 
         # Store in active_branches (using a dict instead of list for map state)
@@ -969,6 +978,7 @@ class DAGExecutor:
         pending_indices = map_state["pending_indices"]
         items = map_state["items"]
         target_node_id = map_state["target_node_id"]
+        parallel_group_id = map_state.get("parallel_group_id")
 
         # Determine how many to launch
         while pending_indices:
@@ -1005,6 +1015,7 @@ class DAGExecutor:
                 iteration_index=index,
                 sub_task_id=sub_task_id,
                 parent_node_id=map_node_id,
+                parallel_group_id=parallel_group_id,
             )
             await self.host.publish_workflow_event(workflow_context, start_data)
 

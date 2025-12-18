@@ -116,7 +116,7 @@ async def handle_task_request(
         workflow_task_id = logical_task_id
 
         # DEBUG: Log task ID reception from gateway/client
-        log.error(
+        log.debug(
             f"{component.log_identifier} [TASK_ID_DEBUG] RECEIVED workflow request from gateway/client | "
             f"logical_task_id={logical_task_id} | "
             f"jsonrpc_request_id={request_id} | "

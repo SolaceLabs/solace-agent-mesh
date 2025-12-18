@@ -2030,6 +2030,28 @@ def solace_llm_response_callback(
         agent_name = host_component.get_config("agent_name", "unknown_agent")
         logical_task_id = a2a_context.get("logical_task_id")
 
+        # Check for parallel tool calls - if multiple function_calls in this response,
+        # generate a parallel_group_id for the frontend to group them visually
+        function_calls = []
+        if llm_response.content and llm_response.content.parts:
+            function_calls = [
+                p for p in llm_response.content.parts if p.function_call
+            ]
+
+        if len(function_calls) > 1:
+            import uuid
+            parallel_group_id = f"llm_batch_{uuid.uuid4().hex[:8]}"
+            callback_context.state["parallel_group_id"] = parallel_group_id
+            log.debug(
+                "%s Detected %d parallel tool calls, assigned parallel_group_id=%s",
+                log_identifier,
+                len(function_calls),
+                parallel_group_id,
+            )
+        else:
+            # Clear any previous parallel_group_id
+            callback_context.state["parallel_group_id"] = None
+
         llm_response_data = {
             "type": "llm_response",
             "data": llm_response.model_dump(exclude_none=True),
@@ -2160,10 +2182,14 @@ def notify_tool_invocation_start_callback(
             except TypeError:
                 serializable_args[k] = str(v)
 
+        # Get parallel_group_id from callback state if this is part of a parallel batch
+        parallel_group_id = tool_context.state.get("parallel_group_id")
+
         tool_data = ToolInvocationStartData(
             tool_name=tool.name,
             tool_args=serializable_args,
             function_call_id=tool_context.function_call_id,
+            parallel_group_id=parallel_group_id,
         )
         asyncio.run_coroutine_threadsafe(
             _publish_data_part_status_update(host_component, a2a_context, tool_data),

@@ -4,7 +4,7 @@ import type { VisualizerStep } from "@/lib/types";
 import { PopoverManual } from "@/lib/components/ui";
 import { useTaskContext } from "@/lib/hooks";
 import { useAgentCards } from "@/lib/hooks";
-import { getThemeButtonHtmlStyles } from "@/lib/utils";
+// import { getThemeButtonHtmlStyles } from "@/lib/utils";
 import WorkflowRendererV2 from "./WorkflowRendererV2";
 import type { LayoutNode, Edge } from "./utils/types";
 import { findNodeDetails, type NodeDetails } from "./utils/nodeDetailsHelper";
@@ -102,7 +102,7 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
                 panning={{ disabled: false }}
                 wheel={{ step: 0.1 }}
             >
-                {({ zoomIn, zoomOut, resetTransform }) => (
+                {({ zoomIn: _zoomIn, zoomOut: _zoomOut, resetTransform: _resetTransform }) => (
                     <>
                         {/* Show Detail Toggle Switch */}
                         <div className="absolute top-4 right-4 z-50 flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-2 rounded-md shadow-md border border-gray-200 dark:border-gray-700">

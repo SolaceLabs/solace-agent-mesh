@@ -24,6 +24,10 @@ class ToolInvocationStartData(BaseModel):
     function_call_id: str = Field(
         ..., description="The ID from the LLM's function call."
     )
+    parallel_group_id: Optional[str] = Field(
+        None,
+        description="ID grouping tool calls that execute in parallel. Tools with the same ID should be rendered side-by-side.",
+    )
 
 
 class LlmInvocationData(BaseModel):
@@ -301,6 +305,11 @@ class WorkflowNodeExecutionStartData(BaseModel):
     )
     loop_delay: Optional[str] = Field(
         None, description="Delay between loop iterations"
+    )
+    # Parallel execution grouping
+    parallel_group_id: Optional[str] = Field(
+        None,
+        description="ID grouping nodes that execute in parallel. Nodes with the same ID should be rendered side-by-side.",
     )
 
 

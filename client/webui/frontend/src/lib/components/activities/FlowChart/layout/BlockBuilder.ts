@@ -1,6 +1,6 @@
 import type { VisualizerStep } from "@/lib/types";
 import { LayoutBlock, VerticalStackBlock, LeafBlock, GroupBlock, HorizontalStackBlock } from "./LayoutBlock";
-import { LANE_OFFSETS, VERTICAL_SPACING, NODE_HEIGHT } from "./constants";
+import { VERTICAL_SPACING, NODE_HEIGHT } from "./constants";
 import type { Node, Edge } from "@xyflow/react";
 
 /**
@@ -688,7 +688,7 @@ export class BlockBuilder {
                 // Check if the agent block has a slot for the START node (which represents the subflow/workflow)
                 let targetHandle = `agent-in-${startNodeId}`;
                 const agentNodeData = agentBlock.nodePayload?.data;
-                const hasSlot = agentNodeData?.toolSlots?.some((slot: any) => slot.id === startNodeId);
+                const hasSlot = Array.isArray(agentNodeData?.toolSlots) && agentNodeData.toolSlots.some((slot: any) => slot.id === startNodeId);
                 
                 if (!hasSlot) {
                     // Fallback to standard input handle if no slot exists (e.g. for workflows where tool invocation was skipped)

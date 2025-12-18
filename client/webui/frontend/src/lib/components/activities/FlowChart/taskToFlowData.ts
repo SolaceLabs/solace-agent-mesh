@@ -775,9 +775,9 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
         };
         
         addNode(nodes, manager.allCreatedNodeIds, joinNode);
-        manager.nodePositions.set(joinNodeId, { 
-            x: currentSubflow.groupNode.xPosition + 50, 
-            y: currentSubflow.groupNode.yPosition + joinY 
+        manager.nodePositions.set(joinNodeId, {
+            x: (currentSubflow.groupNode.xPosition ?? 0) + 50,
+            y: (currentSubflow.groupNode.yPosition ?? 0) + joinY
         });
         
         // Connect all iteration nodes to the Join node

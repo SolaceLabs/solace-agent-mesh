@@ -11,6 +11,8 @@ import type {
     ToolInvocationStartData,
     ToolResultData,
     VisualizerStep,
+    WorkflowExecutionResultData,
+    WorkflowExecutionStartData,
     WorkflowNodeExecutionResultData,
     WorkflowNodeExecutionStartData,
 } from "@/lib/types";
