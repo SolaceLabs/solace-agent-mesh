@@ -172,13 +172,12 @@ class WebUIBackendApp(BaseGatewayApp):
             "type": "string",
             "default": "",
             "description": (
-                "The WebUI Gateway's public URL that the frontend uses for same-origin API requests. "
-                "If empty, automatically constructed from fastapi_host, fastapi_port, and SSL settings. "
+                "The WebUI Gateway's public URL for frontend API requests. "
+                "If empty (default), the frontend uses relative URLs for same-origin requests. "
+                "Only set this if the frontend is served from a different origin than the WebUI Gateway. "
                 "Examples: "
-                "  - Local HTTP: http://localhost:8000 "
-                "  - Local HTTPS: https://localhost:8443 "
-                "  - Docker: http://webui-gateway:8000 "
-                "  - K8s Ingress: https://agent-mesh.example.com"
+                "  - Same-origin (default): '' (empty, uses relative URLs like /api/v1/...) "
+                "  - Cross-origin: https://webui-gateway.example.com"
             ),
         },
         {

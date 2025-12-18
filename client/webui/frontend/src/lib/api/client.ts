@@ -1,22 +1,144 @@
-import { fetchJsonWithError, fetchWithError } from "@/lib/utils/api";
+import { getAccessToken } from "@/lib/utils/api";
 
-interface RequestOptions extends RequestInit {
-    raw?: boolean;
+interface RequestOptions {
+    headers?: HeadersInit;
+    signal?: AbortSignal;
+    keepalive?: boolean;
+    credentials?: RequestCredentials;
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- API responses vary; callers can specify types for safety */
 interface HttpMethods {
-    get: (endpoint: string, options?: RequestOptions) => Promise<any>;
-    post: (endpoint: string, body?: unknown, options?: RequestOptions) => Promise<any>;
-    put: (endpoint: string, body?: unknown, options?: RequestOptions) => Promise<any>;
-    delete: (endpoint: string, options?: RequestOptions) => Promise<any>;
-    patch: (endpoint: string, body?: unknown, options?: RequestOptions) => Promise<any>;
+    get: {
+        <T = any>(endpoint: string, options?: RequestOptions): Promise<T>;
+        (endpoint: string, options: RequestOptions & { fullResponse: true }): Promise<Response>;
+    };
+    post: {
+        <T = any>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T>;
+        (endpoint: string, body: unknown, options: RequestOptions & { fullResponse: true }): Promise<Response>;
+    };
+    put: {
+        <T = any>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T>;
+        (endpoint: string, body: unknown, options: RequestOptions & { fullResponse: true }): Promise<Response>;
+    };
+    delete: {
+        <T = any>(endpoint: string, options?: RequestOptions): Promise<T>;
+        (endpoint: string, options: RequestOptions & { fullResponse: true }): Promise<Response>;
+    };
+    patch: {
+        <T = any>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T>;
+        (endpoint: string, body: unknown, options: RequestOptions & { fullResponse: true }): Promise<Response>;
+    };
+    getFullUrl: (endpoint: string) => string;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+const getRefreshToken = () => localStorage.getItem("refresh_token");
+
+const setTokens = (accessToken: string, refreshToken: string) => {
+    localStorage.setItem("access_token", accessToken);
+    localStorage.setItem("refresh_token", refreshToken);
+};
+
+const clearTokens = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+};
+
+const refreshToken = async () => {
+    const token = getRefreshToken();
+    if (!token) {
+        return null;
+    }
+
+    const response = await fetch("/api/v1/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: token }),
+    });
+
+    if (response.ok) {
+        const data = await response.json();
+        setTokens(data.access_token, data.refresh_token);
+        return data.access_token;
+    }
+
+    clearTokens();
+    window.location.href = "/api/v1/auth/login";
+    return null;
+};
+
+const getErrorFromResponse = async (response: Response): Promise<string> => {
+    const fallbackMessage = `Request failed: ${response.statusText || `HTTP ${response.status}`}`;
+    try {
+        const text = await response.text();
+        if (!text) return fallbackMessage;
+        try {
+            const errorData = JSON.parse(text);
+            return errorData.message || errorData.detail || fallbackMessage;
+        } catch {
+            return text.length < 500 ? text : fallbackMessage;
+        }
+    } catch {
+        return fallbackMessage;
+    }
+};
+
+const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
+    const accessToken = getAccessToken();
+
+    if (!accessToken) {
+        return fetch(url, options);
+    }
+
+    const response = await fetch(url, {
+        ...options,
+        headers: {
+            ...options.headers,
+            Authorization: `Bearer ${accessToken}`,
+        },
+    });
+
+    if (response.status === 401) {
+        const newAccessToken = await refreshToken();
+        if (newAccessToken) {
+            return fetch(url, {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    Authorization: `Bearer ${newAccessToken}`,
+                },
+            });
+        }
+    }
+
+    return response;
+};
+
+const fetchWithError = async (url: string, options: RequestInit = {}) => {
+    const response = await authenticatedFetch(url, options);
+
+    if (!response.ok) {
+        throw new Error(await getErrorFromResponse(response));
+    }
+
+    return response;
+};
+
+const fetchJsonWithError = async (url: string, options: RequestInit = {}) => {
+    const response = await fetchWithError(url, options);
+    if (response.status === 204) {
+        return undefined;
+    }
+    const text = await response.text();
+    return text ? JSON.parse(text) : undefined;
+};
+
+type InternalRequestOptions = RequestOptions & RequestInit & { fullResponse?: boolean };
 
 class ApiClient {
     private webuiBaseUrl = "";
     private platformBaseUrl = "";
-    private configured = false;
-    private baseUrlsCache: { webui: string; platform: string } | null = null;
 
     webui: HttpMethods;
     platform: HttpMethods;
@@ -27,113 +149,50 @@ class ApiClient {
     }
 
     configure(webuiUrl: string, platformUrl: string) {
-        if (this.configured && (this.webuiBaseUrl !== webuiUrl || this.platformBaseUrl !== platformUrl)) {
-            console.warn('[API Client] Reconfiguring with different URLs:', {
-                old: { webui: this.webuiBaseUrl, platform: this.platformBaseUrl },
-                new: { webui: webuiUrl, platform: platformUrl },
-            });
-        }
         this.webuiBaseUrl = webuiUrl;
         this.platformBaseUrl = platformUrl;
-        this.configured = true;
-        this.baseUrlsCache = null;
     }
 
-    private ensureConfigured() {
-        if (!this.configured) {
-            throw new Error("API client not configured. Call api.configure() from ConfigProvider first.");
-        }
-    }
-
-    private async request(baseUrl: string, endpoint: string, options?: RequestOptions) {
-        this.ensureConfigured();
+    private async request(baseUrl: string, endpoint: string, options?: InternalRequestOptions) {
         const url = `${baseUrl}${endpoint}`;
+        const { fullResponse, ...fetchOptions } = options || {};
 
-        const { raw, ...fetchOptions } = options || {};
-
-        if (raw) {
-            return fetchWithError(url, fetchOptions);
+        if (fullResponse) {
+            return authenticatedFetch(url, fetchOptions);
         }
 
         return fetchJsonWithError(url, fetchOptions);
     }
 
-    private createHttpMethods(getBaseUrl: () => string): HttpMethods {
+    private buildRequestWithBody(method: string, body: unknown, options?: InternalRequestOptions): InternalRequestOptions {
+        if (body instanceof FormData) {
+            return { ...options, method, body };
+        }
+        if (body === undefined || body === null) {
+            return { ...options, method };
+        }
         return {
-            get: (endpoint: string, options?: RequestOptions) =>
-                this.request(getBaseUrl(), endpoint, options),
-
-            post: (endpoint: string, body?: unknown, options?: RequestOptions) => {
-                if (body === undefined || body === null) {
-                    return this.request(getBaseUrl(), endpoint, {
-                        ...options,
-                        method: "POST",
-                    });
-                }
-                return this.request(getBaseUrl(), endpoint, {
-                    ...options,
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...options?.headers,
-                    },
-                    body: JSON.stringify(body),
-                });
-            },
-
-            put: (endpoint: string, body?: unknown, options?: RequestOptions) => {
-                if (body === undefined || body === null) {
-                    return this.request(getBaseUrl(), endpoint, {
-                        ...options,
-                        method: "PUT",
-                    });
-                }
-                return this.request(getBaseUrl(), endpoint, {
-                    ...options,
-                    method: "PUT",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...options?.headers,
-                    },
-                    body: JSON.stringify(body),
-                });
-            },
-
-            delete: (endpoint: string, options?: RequestOptions) =>
-                this.request(getBaseUrl(), endpoint, {
-                    ...options,
-                    method: "DELETE",
-                }),
-
-            patch: (endpoint: string, body?: unknown, options?: RequestOptions) => {
-                if (body === undefined || body === null) {
-                    return this.request(getBaseUrl(), endpoint, {
-                        ...options,
-                        method: "PATCH",
-                    });
-                }
-                return this.request(getBaseUrl(), endpoint, {
-                    ...options,
-                    method: "PATCH",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...options?.headers,
-                    },
-                    body: JSON.stringify(body),
-                });
-            },
+            ...options,
+            method,
+            headers: { "Content-Type": "application/json", ...options?.headers },
+            body: JSON.stringify(body),
         };
     }
 
-    getBaseUrls() {
-        this.ensureConfigured();
-        if (!this.baseUrlsCache) {
-            this.baseUrlsCache = {
-                webui: this.webuiBaseUrl,
-                platform: this.platformBaseUrl,
-            };
-        }
-        return this.baseUrlsCache;
+    private createHttpMethods(getBaseUrl: () => string): HttpMethods {
+        return {
+            get: ((endpoint: string, options?: InternalRequestOptions) => this.request(getBaseUrl(), endpoint, options)) as HttpMethods["get"],
+
+            post: ((endpoint: string, body?: unknown, options?: InternalRequestOptions) => this.request(getBaseUrl(), endpoint, this.buildRequestWithBody("POST", body, options))) as HttpMethods["post"],
+
+            put: ((endpoint: string, body?: unknown, options?: InternalRequestOptions) => this.request(getBaseUrl(), endpoint, this.buildRequestWithBody("PUT", body, options))) as HttpMethods["put"],
+
+            delete: ((endpoint: string, options?: InternalRequestOptions) => this.request(getBaseUrl(), endpoint, { ...options, method: "DELETE" })) as HttpMethods["delete"],
+
+            patch: ((endpoint: string, body?: unknown, options?: InternalRequestOptions) => this.request(getBaseUrl(), endpoint, this.buildRequestWithBody("PATCH", body, options))) as HttpMethods["patch"],
+
+            getFullUrl: (endpoint: string) => `${getBaseUrl()}${endpoint}`,
+        };
     }
 }
 

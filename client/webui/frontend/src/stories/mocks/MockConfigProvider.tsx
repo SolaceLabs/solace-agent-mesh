@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 
 // Default mock values for ConfigContext
 const defaultMockConfigContext: ConfigContextValue = {
-    webuiServerUrl: "http://localhost:8000",
+    webuiServerUrl: "", // Empty for relative URLs (same-origin)
     platformServerUrl: "http://localhost:8001",
     configAuthLoginUrl: "http://localhost:8000/auth/login",
     configUseAuthorization: false,
@@ -14,6 +14,7 @@ const defaultMockConfigContext: ConfigContextValue = {
     configBotName: "Mock Bot",
     configLogoUrl: "",
     frontend_use_authorization: false,
+    platformConfigured: true,
 };
 
 interface MockConfigProviderProps {

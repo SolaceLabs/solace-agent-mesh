@@ -104,6 +104,10 @@ class PlatformServiceComponent(SamComponentBase):
             self.database_url = self.get_config("database_url")
             self.fastapi_host = self.get_config("fastapi_host", "127.0.0.1")
             self.fastapi_port = int(self.get_config("fastapi_port", 8001))
+            self.fastapi_https_port = int(self.get_config("fastapi_https_port", 8444))
+            self.ssl_keyfile = self.get_config("ssl_keyfile", "")
+            self.ssl_certfile = self.get_config("ssl_certfile", "")
+            self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
             self.cors_allowed_origins = self.get_config("cors_allowed_origins", ["*"])
 
             # OAuth2 configuration (enterprise feature - defaults to community mode)
@@ -218,13 +222,23 @@ class PlatformServiceComponent(SamComponentBase):
             # Setup dependencies (idempotent - safe to call multiple times)
             setup_dependencies(self, self.database_url)
 
-            # Create uvicorn configuration
+            # Determine port based on SSL configuration
+            port = (
+                self.fastapi_https_port
+                if self.ssl_keyfile and self.ssl_certfile
+                else self.fastapi_port
+            )
+
+            # Create uvicorn configuration with SSL support
             config = uvicorn.Config(
                 app=self.fastapi_app,
                 host=self.fastapi_host,
-                port=self.fastapi_port,
+                port=port,
                 log_level="warning",
                 lifespan="on",
+                ssl_keyfile=self.ssl_keyfile if self.ssl_keyfile else None,
+                ssl_certfile=self.ssl_certfile if self.ssl_certfile else None,
+                ssl_keyfile_password=self.ssl_keyfile_password if self.ssl_keyfile_password else None,
                 log_config=None,
             )
             self.uvicorn_server = uvicorn.Server(config)
@@ -236,11 +250,15 @@ class PlatformServiceComponent(SamComponentBase):
                 name="PlatformService_FastAPI_Thread",
             )
             self.fastapi_thread.start()
+
+            # Log with correct protocol
+            protocol = "https" if self.ssl_keyfile and self.ssl_certfile else "http"
             log.info(
-                "%s FastAPI/Uvicorn server starting in background thread on http://%s:%d",
+                "%s FastAPI/Uvicorn server starting in background thread on %s://%s:%d",
                 self.log_identifier,
+                protocol,
                 self.fastapi_host,
-                self.fastapi_port,
+                port,
             )
 
         except Exception as e:

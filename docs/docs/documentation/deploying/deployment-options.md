@@ -69,7 +69,7 @@ dist
 
 Kubernetes excels at managing containerized applications at scale, providing features like automatic scaling, rolling updates, and self-healing capabilities. When your Agent Mesh deployment needs to handle varying loads or requires high availability, Kubernetes becomes the preferred orchestration platform.
 
-Agent Mesh provides Helm charts for Kubernetes deployments that handle resource management, scaling, and configuration. For prerequisites, Helm setup, and production configurations, see [Kubernetes](./kubernetes-deployment.md).
+Agent Mesh provides Helm charts for Kubernetes deployments that handle resource management, scaling, and configuration. For prerequisites, Helm setup, and production configurations, see [Kubernetes](kubernetes/kubernetes.md).
 
 ### Separating and Scaling Components
 

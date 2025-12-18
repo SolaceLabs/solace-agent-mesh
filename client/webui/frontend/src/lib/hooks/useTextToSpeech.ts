@@ -291,12 +291,20 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 }
 
                 // Use streaming endpoint - play chunks as they arrive
-                const response = await api.webui.post(`/api/v1/speech/tts/stream`, {
-                    input: text,
-                    voice: settings.voice,
-                    runId: messageId || `tts-${Date.now()}`,
-                    provider: settings.ttsProvider,
-                }, { raw: true });
+                const response = await api.webui.post(
+                    "/api/v1/speech/tts/stream",
+                    {
+                        input: text,
+                        voice: settings.voice,
+                        runId: messageId || `tts-${Date.now()}`,
+                        provider: settings.ttsProvider,
+                    },
+                    { fullResponse: true }
+                );
+
+                if (!response.ok) {
+                    throw new Error(`TTS request failed: ${response.statusText}`);
+                }
 
                 const reader = response.body?.getReader();
                 if (!reader) {

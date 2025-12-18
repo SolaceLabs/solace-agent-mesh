@@ -22,7 +22,7 @@ apps:
     app_config:
       # --- Required ---
       namespace: ${NAMESPACE} # Namespace for A2A communication
-      database_url: "${PLATFORM_DATABASE_URL, sqlite:///platform-service.db}" # Platform database (agents, connectors, deployments)
+      database_url: "${PLATFORM_DATABASE_URL, sqlite:///platform.db}" # Platform database (agents, connectors, deployments)
 
       # --- FastAPI Server Configuration ---
       fastapi_host: ${PLATFORM_API_HOST, localhost}

@@ -26,7 +26,7 @@ apps:
         default_behavior: "PERSISTENT"
 
       platform_service:
-        database_url: "${PLATFORM_DATABASE_URL, sqlite:///platform.db}"
+        url: "${PLATFORM_SERVICE_URL, http://localhost:8001}"
 
       artifact_service: *default_artifact_service
 

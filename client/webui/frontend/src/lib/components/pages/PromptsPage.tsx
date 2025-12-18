@@ -19,7 +19,6 @@ export const PromptsPage: React.FC = () => {
     const loaderData = useLoaderData<{ promptId?: string; view?: string; mode?: string }>();
 
     const { addNotification, displayError } = useChatContext();
-    // Migrated to api client
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [showBuilder, setShowBuilder] = useState(false);
@@ -38,7 +37,7 @@ export const PromptsPage: React.FC = () => {
     const fetchPromptGroups = useCallback(async () => {
         setIsLoading(true);
         try {
-            const data = await api.webui.get(`/api/v1/prompts/groups/all`);
+            const data = await api.webui.get("/api/v1/prompts/groups/all");
             setPromptGroups(data);
         } catch (error) {
             displayError({ title: "Failed to Load Prompts", error: getErrorMessage(error, "An error occurred while fetching prompt groups.") });
@@ -246,7 +245,7 @@ export const PromptsPage: React.FC = () => {
                 },
             };
 
-            const result = await api.webui.post(`/api/v1/prompts/import`, apiPayload);
+            const result = await api.webui.post("/api/v1/prompts/import", apiPayload);
 
             // Navigate back to prompts page
             setShowBuilder(false);
@@ -337,7 +336,7 @@ export const PromptsPage: React.FC = () => {
             {isLoading ? (
                 <EmptyState title="Loading prompts..." variant="loading" />
             ) : (
-                <div className="relative flex-1 p-4">
+                <div className="bg-card-background relative flex-1 p-4">
                     <PromptCards
                         prompts={promptGroups}
                         onManualCreate={() => navigate("/prompts/new?mode=manual")}
@@ -368,7 +367,7 @@ export const PromptsPage: React.FC = () => {
                 />
             )}
 
-            <PromptImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
+            <PromptImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} existingPrompts={promptGroups} />
         </div>
     );
 };

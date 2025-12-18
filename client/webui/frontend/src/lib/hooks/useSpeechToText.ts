@@ -296,10 +296,19 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                         formData.append("language", settings.languageSTT);
                     }
 
-                    const response = await api.webui.post(`/api/v1/speech/stt`, undefined, {
-                        body: formData,
-                        raw: true,
-                    });
+                    const response = await api.webui.post("/api/v1/speech/stt", formData, { fullResponse: true });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        let backendMessage = "";
+                        try {
+                            const errorJson = JSON.parse(errorText);
+                            backendMessage = errorJson.detail || errorJson.message || errorJson.error || "";
+                        } catch {
+                            backendMessage = errorText;
+                        }
+                        throw new Error(backendMessage || `Transcription failed: ${response.statusText}`);
+                    }
 
                     const result = await response.json();
                     const transcribedText = result.text || "";

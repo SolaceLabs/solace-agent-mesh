@@ -9,7 +9,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-    const { frontend_use_authorization: useAuthorization, configAuthLoginUrl: authLoginUrl } = useConfigContext();
+    const { configUseAuthorization, configAuthLoginUrl } = useConfigContext();
     const { fetchCsrfToken, clearCsrfToken } = useCsrfContext();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -19,7 +19,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         let isMounted = true;
 
         const checkAuthStatus = async () => {
-            if (!useAuthorization) {
+            if (!configUseAuthorization) {
                 if (isMounted) {
                     setIsAuthenticated(true);
                     setIsLoading(false);
@@ -28,8 +28,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
 
             try {
-                const userData = await api.webui.get(`/api/v1/users/me`);
-
+                const userData = await api.webui.get<Record<string, unknown>>("/api/v1/users/me");
                 console.log("User is authenticated:", userData);
 
                 if (isMounted) {
@@ -37,7 +36,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     setIsAuthenticated(true);
                 }
 
-                // Get CSRF token for authenticated requests if not already cached
                 console.log("Fetching CSRF token for authenticated requests...");
                 await fetchCsrfToken();
             } catch (authError) {
@@ -66,16 +64,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             isMounted = false;
             window.removeEventListener("storage", handleStorageChange);
         };
-    }, [useAuthorization, authLoginUrl, fetchCsrfToken]);
+    }, [configUseAuthorization, configAuthLoginUrl, fetchCsrfToken]);
 
     const login = () => {
-        window.location.href = authLoginUrl;
+        window.location.href = configAuthLoginUrl;
     };
 
-    const logout = () => {
-        setIsAuthenticated(false);
-        setUserInfo(null);
-        clearCsrfToken();
+    const logout = async () => {
+        try {
+            if (configUseAuthorization) {
+                await api.webui.post("/api/v1/auth/logout");
+            }
+        } catch (error) {
+            console.error("Error calling logout endpoint:", error);
+        } finally {
+            setIsAuthenticated(false);
+            setUserInfo(null);
+            clearCsrfToken();
+        }
     };
 
     if (isLoading) {
@@ -93,7 +99,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         <AuthContext.Provider
             value={{
                 isAuthenticated,
-                useAuthorization,
+                useAuthorization: configUseAuthorization,
                 login,
                 logout,
                 userInfo,

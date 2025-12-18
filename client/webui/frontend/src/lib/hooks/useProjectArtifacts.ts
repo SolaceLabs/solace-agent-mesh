@@ -3,7 +3,6 @@ import { api } from "@/lib/api";
 
 import type { ArtifactInfo } from "@/lib/types";
 
-
 interface UseProjectArtifactsReturn {
     artifacts: ArtifactInfo[];
     isLoading: boolean;
@@ -17,7 +16,6 @@ interface UseProjectArtifactsReturn {
  * @returns Object containing artifacts data, loading state, error state, and refetch function.
  */
 export const useProjectArtifacts = (projectId?: string): UseProjectArtifactsReturn => {
-    // Migrated to api client
     const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -42,7 +40,7 @@ export const useProjectArtifacts = (projectId?: string): UseProjectArtifactsRetu
         } finally {
             setIsLoading(false);
         }
-    }, [ projectId]);
+    }, [projectId]);
 
     useEffect(() => {
         fetchArtifacts();

@@ -61,7 +61,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
         const initChat = async () => {
             try {
-                const data = await api.webui.get(`/api/v1/prompts/chat/init`);
+                const data = await api.webui.get("/api/v1/prompts/chat/init");
 
                 // Use different greeting message for editing mode
                 const greetingMessage = isEditing ? "Hi! I'll help you edit this prompt template. What changes would you like to make?" : data.message;
@@ -88,32 +88,50 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
                     // Send the message to the API
                     try {
-                        const chatData: ChatResponse = await api.webui.post(`/api/v1/prompts/chat`, {
-                            message: initialMessage,
-                            conversation_history: [
-                                {
-                                    role: "assistant",
-                                    content: data.message,
-                                },
-                            ],
-                            current_template: currentConfig,
-                        });
+                        const chatResponse = await api.webui.post(
+                            "/api/v1/prompts/chat",
+                            {
+                                message: initialMessage,
+                                conversation_history: [
+                                    {
+                                        role: "assistant",
+                                        content: data.message,
+                                    },
+                                ],
+                                current_template: currentConfig,
+                            },
+                            { fullResponse: true }
+                        );
 
-                        const assistantMessage: Message = {
-                            role: "assistant",
-                            content: chatData.message,
-                            timestamp: new Date(),
-                        };
-                        setMessages(prev => [...prev, assistantMessage]);
+                        if (chatResponse.ok) {
+                            const chatData: ChatResponse = await chatResponse.json();
 
-                        if (Object.keys(chatData.template_updates).length > 0) {
-                            onConfigUpdate(chatData.template_updates);
+                            const assistantMessage: Message = {
+                                role: "assistant",
+                                content: chatData.message,
+                                timestamp: new Date(),
+                            };
+                            setMessages(prev => [...prev, assistantMessage]);
+
+                            if (Object.keys(chatData.template_updates).length > 0) {
+                                onConfigUpdate(chatData.template_updates);
+                            }
+
+                            onReadyToSave(chatData.ready_to_save);
+
+                            // Scroll to bottom after AI response
+                            setTimeout(() => scrollToBottom(), 100);
+                        } else {
+                            const errorData = await chatResponse.json().catch(() => ({}));
+                            console.error("Prompt builder API error:", errorData);
+
+                            const errorMessage: Message = {
+                                role: "assistant",
+                                content: "The conversation history is too long for automatic processing. Please describe your task manually, and I'll help you create a template.",
+                                timestamp: new Date(),
+                            };
+                            setMessages(prev => [...prev, errorMessage]);
                         }
-
-                        onReadyToSave(chatData.ready_to_save);
-
-                        // Scroll to bottom after AI response
-                        setTimeout(() => scrollToBottom(), 100);
                     } catch (error) {
                         console.error("Error sending initial message:", error);
                         const errorMessage: Message = {
@@ -204,7 +222,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
         setHasUserMessage(true);
 
         try {
-            const data: ChatResponse = await api.webui.post(`/api/v1/prompts/chat`, {
+            const data: ChatResponse = await api.webui.post("/api/v1/prompts/chat", {
                 message: userMessage.content,
                 conversation_history: messages
                     .filter(m => m.content && m.content.trim().length > 0)

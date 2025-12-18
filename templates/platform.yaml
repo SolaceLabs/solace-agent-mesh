@@ -20,7 +20,7 @@ apps:
     app_config:
       # --- Required ---
       namespace: ${NAMESPACE}
-      database_url: "${PLATFORM_DATABASE_URL, sqlite:///platform-service.db}"
+      database_url: "${PLATFORM_DATABASE_URL, sqlite:///platform.db}"
 
       # --- FastAPI Server Configuration ---
       fastapi_host: ${PLATFORM_API_HOST, localhost}

@@ -76,7 +76,7 @@ result = await multi_speaker_text_to_speech(
 - `append_to_artifact(filename: str, content_chunk: str, mime_type: str, tool_context: ToolContext = None) -> Dict[str, Any]` - Appends content to existing artifact
 - `apply_embed_and_create_artifact(output_filename: str, embed_directive: str, output_metadata: Optional[Dict[str, Any]] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Resolves embed directives and creates artifacts
 - `extract_content_from_artifact(filename: str, extraction_goal: str, version: Optional[str] = "latest", output_filename_base: Optional[str] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Uses LLM to extract/transform artifact content
-- `delete_artifact(filename: str, version: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Deletes artifact versions
+- `delete_artifact(filename: str, version: Optional[int] = None, confirm_delete: bool = False, tool_context: ToolContext = None) -> Dict[str, Any]` - Deletes ALL versions of an artifact (requires confirmation)
 
 **Usage Examples:**
 ```python

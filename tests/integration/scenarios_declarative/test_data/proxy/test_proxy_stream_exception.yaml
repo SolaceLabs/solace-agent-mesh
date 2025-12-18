@@ -1,0 +1,28 @@
+test_case_id: "proxy_stream_exception_001"
+description: "Tests that proxy catches and reports exceptions during event stream from remote agent"
+tags: ["all", "proxy"]
+skip_intermediate_events: false
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "proxy_tester@example.com"
+  parts:
+    - type: "text"
+      text: "This will cause stream exception"
+  external_context:
+    a2a_session_id: "session_proxy_exception_001"
+
+# Downstream sends one event then the test framework will simulate a stream error
+downstream_a2a_agent_responses:
+  - id: "task-from-downstream"
+    contextId: "session_proxy_exception_001"
+    kind: "task"
+    status:
+      state: "working"
+  # After this, we need to trigger an exception somehow
+
+# Expecting error response
+expected_gateway_output:
+  - type: "error"
+    error_code: -32603
+    error_message_contains: "disconnected without completing the task"
