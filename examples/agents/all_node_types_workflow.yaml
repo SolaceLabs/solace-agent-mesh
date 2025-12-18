@@ -769,9 +769,15 @@ apps:
               items:
                 type: object
                 properties:
-                  item_id: {type: string}
-                  quantity: {type: integer}
-                  price: {type: number}
+                  item_id:
+                    type: string
+                    description: "Item identifier"
+                  quantity:
+                    type: integer
+                    description: "Quantity ordered"
+                  price:
+                    type: number
+                    description: "Price per unit"
                 required: [item_id, quantity, price]
             shipping_priority:
               type: string
