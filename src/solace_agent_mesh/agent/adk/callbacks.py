@@ -480,9 +480,19 @@ async def process_artifact_blocks_callback(
                                         host_component, a2a_context, final_progress_data
                                     )
 
-                            # Don't send completion signal here - it will be sent later
-                            # when we inject the _notify_artifact_save tool call
-                            # This ensures the signal and tool call arrive together with matching IDs
+                            # Publish completion status immediately via SSE
+                            if a2a_context:
+                                progress_data = ArtifactCreationProgressData(
+                                    filename=filename,
+                                    description=params.get("description"),
+                                    status="completed",
+                                    bytes_transferred=len(event.content),
+                                    mime_type=params.get("mime_type"),
+                                    version=version_for_tool,
+                                )
+                                await _publish_data_part_status_update(
+                                    host_component, a2a_context, progress_data
+                                )
                         else:
                             status_for_tool = "error"
                             version_for_tool = 0
