@@ -2182,21 +2182,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         // If the artifact has a newer version, refresh the preview
         if (artifactLatestVersion && artifactLatestVersion > currentMaxVersion && lastCheckedVersionRef.current !== artifactLatestVersion) {
-            // Prevent concurrent fetches for the same file
-            if (artifactFetchInProgressRef.current.has(previewArtifactFilename)) {
-                return;
-            }
-
             // Capture values at effect start to avoid stale closures
             let cancelled = false;
             const currentFilename = previewArtifactFilename;
-            const currentTimestamp = previewedArtifact?.last_modified || new Date().toISOString();
             const versionToFetch = artifactLatestVersion;
 
-            // Mark as in-progress to prevent duplicate fetches
-            artifactFetchInProgressRef.current.add(currentFilename);
-
-            // Refresh versions and switch to latest
+            // Refresh versions list and navigate to the latest version
             (async () => {
                 try {
                     let versionsUrl: string;
@@ -2219,53 +2210,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
                     const newVersion = Math.max(...availableVersions);
 
-                    // Fetch and display the new version
-                    let contentUrl: string;
-                    if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                        contentUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(currentFilename)}/versions/${newVersion}`;
-                    } else if (activeProject?.id) {
-                        contentUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(currentFilename)}/versions/${newVersion}?project_id=${activeProject.id}`;
-                    } else {
-                        return;
+                    // Use navigateArtifactVersion to fetch and display the new version
+                    const result = await navigateArtifactVersion(currentFilename, newVersion);
+
+                    // Only mark as processed if successful and still relevant
+                    if (!cancelled && previewArtifactFilename === currentFilename && result) {
+                        lastCheckedVersionRef.current = versionToFetch;
                     }
-
-                    const contentResponse = await fetchWithError(contentUrl);
-                    const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
-                    const mimeType = contentType.split(";")[0].trim();
-
-                    const blob = await contentResponse.blob();
-                    const base64Content = await new Promise<string>((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
-                        reader.onerror = reject;
-                        reader.readAsDataURL(blob);
-                    });
-
-                    // Final check before updating state
-                    if (cancelled || previewArtifactFilename !== currentFilename) {
-                        return;
-                    }
-
-                    const fileData: FileAttachment = {
-                        name: currentFilename,
-                        mime_type: mimeType,
-                        content: base64Content,
-                        last_modified: currentTimestamp,
-                    };
-
-                    setCurrentPreviewedVersionNumber(newVersion);
-                    setPreviewFileContent(fileData);
-
-                    // Only mark as processed after successful completion
-                    lastCheckedVersionRef.current = versionToFetch;
                 } catch (error) {
                     if (!cancelled) {
                         console.error("Failed to refresh preview after artifact update:", error);
                     }
                     // Don't update lastCheckedVersionRef on error - allow retry on next effect run
-                } finally {
-                    // Always remove from in-progress set
-                    artifactFetchInProgressRef.current.delete(currentFilename);
                 }
             })();
 
@@ -2274,7 +2230,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 cancelled = true;
             };
         }
-    }, [artifacts, previewArtifactFilename, previewedArtifactAvailableVersions, sessionId, apiPrefix, activeProject]);
+    }, [artifacts, previewArtifactFilename, previewedArtifactAvailableVersions, sessionId, apiPrefix, activeProject, navigateArtifactVersion]);
 
     useEffect(() => {
         const handleProjectDeleted = (deletedProjectId: string) => {
