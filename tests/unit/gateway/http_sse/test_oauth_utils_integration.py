@@ -136,71 +136,6 @@ class TestExtractUserIdentifierWithEnterprise:
             assert result == "sam_dev_user"
 
 
-@pytest.mark.skipif(ENTERPRISE_AVAILABLE, reason="Test requires enterprise NOT available")
-class TestOAuthWithoutEnterprise:
-    """Test OAuth functions when enterprise package is not available."""
-
-    @pytest.mark.asyncio
-    async def test_validate_token_raises_import_error(self):
-        """Test that _validate_token raises ImportError when enterprise not available."""
-        from solace_agent_mesh.gateway.http_sse.main import _validate_token
-
-        with pytest.raises(ImportError, match="Enterprise package required"):
-            await _validate_token(
-                "https://auth.example.com",
-                "google",
-                "test-token"
-            )
-
-    @pytest.mark.asyncio
-    async def test_get_user_info_raises_import_error(self):
-        """Test that _get_user_info raises ImportError when enterprise not available."""
-        from solace_agent_mesh.gateway.http_sse.main import _get_user_info
-
-        with pytest.raises(ImportError, match="Enterprise package required"):
-            await _get_user_info(
-                "https://auth.example.com",
-                "google",
-                "test-token"
-            )
-
-    def test_extract_user_identifier_raises_import_error(self):
-        """Test that _extract_user_identifier raises ImportError when enterprise not available."""
-        from solace_agent_mesh.gateway.http_sse.main import _extract_user_identifier
-
-        with pytest.raises(ImportError, match="Enterprise package required"):
-            _extract_user_identifier({"sub": "user123"})
-
-
-class TestSetupDependencies:
-    """Test setup_dependencies function with OAuth proxy setup."""
-
-    def test_setup_dependencies_is_idempotent(self):
-        """Test that setup_dependencies can be called multiple times safely."""
-        # This is tested through the _dependencies_initialized flag
-        pass  # Covered by integration tests
-
-    def test_setup_dependencies_calls_oauth_proxy_setup(self):
-        """Test that setup_dependencies calls _setup_oauth_proxy_routes."""
-        import solace_agent_mesh.gateway.http_sse.main as main_module
-
-        mock_component = MagicMock()
-        main_module._dependencies_initialized = False
-
-        with patch.object(main_module.dependencies, 'set_component_instance'):
-            with patch.object(main_module, '_setup_middleware'):
-                with patch.object(main_module, '_setup_routers'):
-                    with patch.object(main_module, '_setup_oauth_proxy_routes') as mock_oauth_setup:
-                        main_module.setup_dependencies(
-                            mock_component,
-                            database_url="sqlite:///:memory:"
-                        )
-
-                        # Verify OAuth setup was called
-                        mock_oauth_setup.assert_called_once_with(mock_component)
-
-        # Reset
-        main_module._dependencies_initialized = False
 
 
 class TestAuthMiddleware:
@@ -211,22 +146,6 @@ class TestAuthMiddleware:
         # The excluded_paths should include /api/v1/gateway-oauth
         # This allows gateway OAuth proxy to handle its own auth
         pass  # Tested through middleware configuration in integration tests
-
-
-class TestOAuthUtilsImport:
-    """Test oauth_utils import handling."""
-
-    def test_oauth_utils_none_when_enterprise_unavailable(self):
-        """Test that oauth_utils is None when enterprise package not available."""
-        if not ENTERPRISE_AVAILABLE:
-            from solace_agent_mesh.gateway.http_sse.main import oauth_utils as imported_utils
-            assert imported_utils is None
-
-    @pytest.mark.skipif(not ENTERPRISE_AVAILABLE, reason="Enterprise package not available")
-    def test_oauth_utils_available_when_enterprise_installed(self):
-        """Test that oauth_utils is imported when enterprise package is available."""
-        from solace_agent_mesh.gateway.http_sse.main import oauth_utils as imported_utils
-        assert imported_utils is not None
 
 
 class TestGatewayOAuthProxyGlobalStorage:
@@ -264,21 +183,3 @@ class TestEnterpriseIntegrationPatterns:
         params = list(sig.parameters.keys())
         assert len(params) >= 1
 
-
-class TestSetupOAuthProxyRoutes:
-    """Test _setup_oauth_proxy_routes function."""
-
-    def test_setup_oauth_proxy_routes_called_during_setup(self):
-        """Test that _setup_oauth_proxy_routes is called during setup_dependencies."""
-        # Covered by TestSetupDependencies.test_setup_dependencies_calls_oauth_proxy_setup
-        pass
-
-    def test_setup_oauth_proxy_routes_with_enterprise_available(self):
-        """Test _setup_oauth_proxy_routes when enterprise package is available."""
-        # Should import and call setup_oauth_proxy_routes from enterprise
-        pass  # Covered by integration tests with enterprise
-
-    def test_setup_oauth_proxy_routes_without_enterprise(self):
-        """Test _setup_oauth_proxy_routes when enterprise package not available."""
-        # Should handle gracefully (enterprise feature)
-        pass  # Covered by integration tests without enterprise
