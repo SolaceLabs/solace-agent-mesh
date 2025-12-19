@@ -1,5 +1,5 @@
 ---
-title: "Migration to Platform Service (Enterprise v1.25.0+)"
+title: "Migration to Platform Service (Enterprise v1.27.0+)"
 sidebar_position: 20
 ---
 
@@ -16,7 +16,7 @@ sidebar_position: 20
 
 ## Overview
 
-Previously, backend enterprise functionality was served from the WebUI Gateway. With version 1.25.0+, the architecture splits the WebUI Gateway into two separate services:
+Previously, backend enterprise functionality was served from the WebUI Gateway. With version 1.27.0+, the architecture splits the WebUI Gateway into two separate services:
 
 - **WebUI Gateway** (port 8000): Handles chat sessions, task submissions, and real-time streaming
 - **Platform Service** (port 8001): Handles Agent Builder, Connector management, and deployment orchestration
@@ -25,7 +25,7 @@ Previously, backend enterprise functionality was served from the WebUI Gateway. 
 
 ### Split
 
-|  | Until v1.24.x      | After v1.25.0                  |
+|  | Until v1.24.x      | After v1.27.0                  |
 |--------|--------------------|--------------------------------|
 | **Architecture** | WebUI Gateway      | WebUI Gateway + Platform Service |
 | **Ports** | Single port (8000) | WebUI (8000) + Platform (8001) |
@@ -47,7 +47,7 @@ Previously, backend enterprise functionality was served from the WebUI Gateway. 
 - Background tasks (heartbeat monitoring, deployment tracking)
 
 :::warning
-If you upgrade to v1.25.0+ without completing this migration, users will lose access to the Agent Builder, Connector management, and dynamic agent deployment capabilities. Chat functionality will continue to work, but enterprise features will be unavailable.
+If you upgrade to v1.27.0+ without completing this migration, users will lose access to the Agent Builder, Connector management, and dynamic agent deployment capabilities. Chat functionality will continue to work, but enterprise features will be unavailable.
 :::
 
 ## Migration Steps
