@@ -1,4 +1,4 @@
-import React, { useRef, useState, useLayoutEffect } from "react";
+import React, { useRef, useState, useLayoutEffect, useEffect, useCallback } from "react";
 import { Workflow, Maximize2, Minimize2 } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 import AgentNodeV2 from "./AgentNodeV2";
@@ -57,14 +57,15 @@ function generateBezierPath(
 const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [bezierPaths, setBezierPaths] = useState<BezierPath[]>([]);
+    const [resizeCounter, setResizeCounter] = useState(0);
 
     const isCollapsed = node.data.isCollapsed;
     const isExpanded = node.data.isExpanded;
     const isProcessing = node.data.hasProcessingChildren;
     const haloClass = isProcessing ? 'processing-halo' : '';
 
-    // Calculate bezier paths after render
-    useLayoutEffect(() => {
+    // Function to calculate bezier paths
+    const calculateBezierPaths = useCallback(() => {
         if (!containerRef.current || isCollapsed) {
             setBezierPaths([]);
             return;
@@ -127,6 +128,28 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
         });
 
         setBezierPaths(paths);
+    }, [isCollapsed]);
+
+    // Calculate bezier paths after render
+    useLayoutEffect(() => {
+        calculateBezierPaths();
+    }, [node.children, isCollapsed, resizeCounter, calculateBezierPaths]);
+
+    // Use ResizeObserver to detect when children expand/collapse (changes their size)
+    useEffect(() => {
+        if (!containerRef.current || isCollapsed) return;
+
+        const resizeObserver = new ResizeObserver(() => {
+            // Trigger recalculation by incrementing counter
+            setResizeCounter(c => c + 1);
+        });
+
+        // Observe the container and all nodes within it
+        resizeObserver.observe(containerRef.current);
+        const nodes = containerRef.current.querySelectorAll('[data-node-id]');
+        nodes.forEach(node => resizeObserver.observe(node));
+
+        return () => resizeObserver.disconnect();
     }, [node.children, isCollapsed]);
 
     // Render a child node with data attributes for connector calculation
