@@ -35,6 +35,18 @@ log:
   log_file: my-agent.log
 ```
 using a dedicated logging configuration file (YAML, JSON) is the recommended approach. The simple `log:` section configuration has lower precedence and will only be active when a dedicated logging configuration file is not provided.
+
+### Simple Log Configuration Fields
+
+When using the simple `log:` section in agent or gateway configuration files, the following fields are available:
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `stdout_log_level` | string | Yes | `INFO` | Logging level for console output. Valid values: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `log_file_level` | string | No | `INFO` | Logging level for file output. Typically set to `DEBUG` for detailed troubleshooting |
+| `log_file` | string | No | None | Path to the log file. If not specified, file logging is disabled. Examples: `agent.log`, `/var/log/sam/agent.log` |
+
+**Note:** The simple log configuration provides basic logging capabilities. For advanced features such as structured logging, log rotation, multiple handlers, or fine-grained control over specific modules, use a dedicated logging configuration file as described below.
 :::
 
 ## Default Logging Configuration
