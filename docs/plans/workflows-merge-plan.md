@@ -8,7 +8,7 @@ The `ed/prescriptive-workflows` branch introduces a comprehensive "Prescriptive 
 
 ---
 
-## High-Level Components Identified
+## High-Level Components
 
 ### 1. **Core Workflow Runtime** (~4,100 lines)
 Location: `src/solace_agent_mesh/workflow/`
@@ -149,40 +149,58 @@ All existing design docs will be removed and replaced with focused PR-specific d
 
 ---
 
-## Merge Strategy: Feature Branch Approach
+## Merge Strategy: Stacked PRs Approach
 
 ### Branching Model
 
+Each PR builds on the previous one, creating a stack where the final branch contains all changes:
+
 ```
-main ◄─────────────────────────────────────── Final merge (after all reviews complete)
+main
   │
-  └── feature/prescriptive-workflows ◄────── Intermediate branch (all PRs merge here)
+  └── feature/prescriptive-workflows (base branch, created from main)
          │
-         ├── PR 1: Foundation
-         ├── PR 2: Workflow Models
-         ├── PR 3: Agent Support
-         ├── PR 4: Workflow Tool
-         ├── PR 5: Runtime Core
-         ├── PR 6: Frontend Layout
-         ├── PR 7: Frontend Viz
-         └── PR 8: Integration
+         └── pr/workflows-1-foundation
+                │
+                └── pr/workflows-2-models
+                       │
+                       └── pr/workflows-3-agent-support
+                              │
+                              └── pr/workflows-4-workflow-tool
+                                     │
+                                     └── pr/workflows-5a-orchestrator
+                                            │
+                                            └── pr/workflows-5b-dag-core
+                                                   │
+                                                   └── pr/workflows-5c-advanced-nodes
+                                                          │
+                                                          └── pr/workflows-6-integration
+                                                                 │
+                                                                 └── pr/workflows-7-frontend (LAST)
 ```
+
+**How stacked PRs work:**
+- PR 1 targets `feature/prescriptive-workflows`
+- PR 2 targets PR 1's branch (shows only PR 2's changes in diff)
+- When PR 1 merges, PR 2 auto-retargets to `feature/prescriptive-workflows`
+- Final branch (`pr/workflows-7-frontend`) contains all changes
 
 **Benefits of this approach:**
-- PRs can be reviewed independently without needing to be functional in isolation
+- Each PR shows only its incremental changes (clean, focused diff)
 - Reviewers focus on specific code sections without full context overhead
-- Feature branch acts as integration point - we know the whole thing works there
-- No risk of breaking main with partial merges
+- The full branch is always available for testing
+- Frontend reviewer (PR 7) can test full workflow execution since all backend is in place
 - Once all PRs are reviewed and merged to feature branch, single final merge to main
 
-**Feature Flag:** Runtime config flag `workflows: { enabled: true/false }` will be required before final merge to main.
+**Note:** No feature flag is required - workflows and structured agents must be explicitly configured to be used, which acts as an implicit feature flag.
 
 ---
 
-## Proposed PR Breakdown (Revised - 10 PRs)
+## Proposed PR Breakdown (9 PRs)
 
 ### PR 1: Foundation - Data Models & Constants
 **Scope:** ~300 lines | **Review Focus:** Data structures, type definitions
+**Target:** `feature/prescriptive-workflows`
 
 **Files:**
 - `src/solace_agent_mesh/common/data_parts.py` - New workflow data parts
@@ -196,6 +214,7 @@ main ◄────────────────────────
 
 ### PR 2: Workflow Definition Models
 **Scope:** ~650 lines | **Review Focus:** Pydantic models, YAML schema design
+**Target:** `pr/workflows-1-foundation`
 
 **Files:**
 - `src/solace_agent_mesh/workflow/app.py` - Pydantic models for workflow definition
@@ -207,6 +226,7 @@ main ◄────────────────────────
 
 ### PR 3: Structured Invocation Support
 **Scope:** ~1,400 lines | **Review Focus:** How agents can be invoked with schema-validated input/output
+**Target:** `pr/workflows-2-models`
 
 **Files:**
 - `src/solace_agent_mesh/agent/sac/structured_invocation/` (new package)
@@ -221,6 +241,7 @@ main ◄────────────────────────
 
 ### PR 4: Workflow Tool for Agents
 **Scope:** ~500 lines | **Review Focus:** ADK tool implementation
+**Target:** `pr/workflows-3-agent-support`
 
 **Files:**
 - `src/solace_agent_mesh/agent/tools/workflow_tool.py`
@@ -231,6 +252,7 @@ main ◄────────────────────────
 
 ### PR 5a: Workflow Runtime - Orchestrator Component
 **Scope:** ~1,100 lines | **Review Focus:** Component lifecycle, message routing, agent card
+**Target:** `pr/workflows-4-workflow-tool`
 
 **Files:**
 - `src/solace_agent_mesh/workflow/component.py` - WorkflowExecutorComponent
@@ -248,6 +270,7 @@ main ◄────────────────────────
 
 ### PR 5b: Workflow Runtime - DAG Executor Core
 **Scope:** ~700 lines | **Review Focus:** Dependency graph, basic node execution
+**Target:** `pr/workflows-5a-orchestrator`
 
 **Files:**
 - `src/solace_agent_mesh/workflow/dag_executor.py` (lines 1-700 approx)
@@ -272,6 +295,7 @@ main ◄────────────────────────
 
 ### PR 5c: Workflow Runtime - Advanced Node Types
 **Scope:** ~700 lines | **Review Focus:** Loop, map, switch execution
+**Target:** `pr/workflows-5b-dag-core`
 
 **Files:**
 - `src/solace_agent_mesh/workflow/dag_executor.py` (lines 700-1382 approx)
@@ -293,37 +317,9 @@ main ◄────────────────────────
 
 ---
 
-### PR 6: Frontend - Layout & Types
-**Scope:** ~2,100 lines | **Review Focus:** Layout algorithm, type definitions
-
-**Files:**
-- `client/webui/frontend/src/lib/components/activities/FlowChart/utils/layoutEngine.ts`
-- `client/webui/frontend/src/lib/components/activities/FlowChart/utils/types.ts`
-- `client/webui/frontend/src/lib/components/activities/FlowChart/utils/nodeDetailsHelper.ts`
-- `client/webui/frontend/src/lib/types/activities.ts`
-
-**Documentation to include:** How the layout algorithm works.
-
----
-
-### PR 7: Frontend - Components
-**Scope:** ~2,900 lines | **Review Focus:** React components, SVG rendering
-
-**Files:**
-- `client/webui/frontend/src/lib/components/activities/FlowChart/`
-  - `FlowChartPanel.tsx`
-  - `WorkflowRenderer.tsx`
-  - `EdgeLayer.tsx`
-  - `NodeDetailsCard.tsx`
-  - `nodes/*.tsx` (all node components)
-  - `index.ts`
-
-**Documentation to include:** Component architecture, how to add new node types.
-
----
-
-### PR 8: Integration, Examples & Tests
+### PR 6: Integration, Examples & Tests
 **Scope:** ~3,500 lines | **Review Focus:** Integration points, examples, tests
+**Target:** `pr/workflows-5c-advanced-nodes`
 
 **Files:**
 - `client/webui/frontend/src/lib/components/activities/index.ts`
@@ -338,46 +334,66 @@ main ◄────────────────────────
 
 ---
 
-## Work Remaining Before PRs
+### PR 7: Frontend - Visualization (LAST)
+**Scope:** ~5,000 lines | **Review Focus:** Layout algorithm, React components, SVG rendering
+**Target:** `pr/workflows-6-integration`
 
-1. **Feature Flag Implementation** - Add runtime config for enabling/disabling workflows
-2. **Documentation Rewrite** - Remove existing design docs, write focused PR-specific docs
-3. **Code Cleanup** - Review for debug code, TODOs, rough edges
-4. **Test Coverage** - Add/improve test coverage for each PR section
+**Why this is last:** The frontend reviewer can pull this branch and test full workflow execution, since all backend components and integration are in place.
+
+**Files:**
+- `client/webui/frontend/src/lib/components/activities/FlowChart/utils/layoutEngine.ts`
+- `client/webui/frontend/src/lib/components/activities/FlowChart/utils/types.ts`
+- `client/webui/frontend/src/lib/components/activities/FlowChart/utils/nodeDetailsHelper.ts`
+- `client/webui/frontend/src/lib/types/activities.ts`
+- `client/webui/frontend/src/lib/components/activities/FlowChart/FlowChartPanel.tsx`
+- `client/webui/frontend/src/lib/components/activities/FlowChart/WorkflowRenderer.tsx`
+- `client/webui/frontend/src/lib/components/activities/FlowChart/EdgeLayer.tsx`
+- `client/webui/frontend/src/lib/components/activities/FlowChart/NodeDetailsCard.tsx`
+- `client/webui/frontend/src/lib/components/activities/FlowChart/nodes/*.tsx` (all node components)
+- `client/webui/frontend/src/lib/components/activities/FlowChart/index.ts`
+
+**Documentation to include:** Layout algorithm explanation, component architecture, how to add new node types.
 
 ---
 
-## PR Review Parallelization
+## Work Remaining Before PRs
 
-PRs can be reviewed in parallel tracks:
+1. **Documentation** - Create PR summary files for each PR
+2. **Code Cleanup** - Review for debug code, TODOs, rough edges
+3. **Test Coverage** - Add/improve test coverage for each PR section
 
-**Backend Track:** PRs 1-4, 5a, 5b, 5c (can be sequential but reviewed by backend experts)
-**Frontend Track:** PRs 6, 7 (can be reviewed by frontend experts in parallel with backend)
-**Integration Track:** PR 8 (depends on both tracks completing)
+---
+
+## PR Review Flow
+
+With stacked PRs, reviews happen sequentially but the full branch is always testable:
 
 ```
 Timeline Visualization:
 
-Backend:   [PR1] → [PR2] → [PR3] → [PR4] → [5a] → [5b] → [5c] ─┐
-                                                                 ├─→ [PR8]
-Frontend:                                   [PR6] ─────→ [PR7] ─┘
+[PR1] → [PR2] → [PR3] → [PR4] → [5a] → [5b] → [5c] → [PR6] → [PR7]
+  │       │       │       │      │      │      │       │       │
+  └───────┴───────┴───────┴──────┴──────┴──────┴───────┴───────┘
+                    Backend Runtime                Integration  Frontend
+                                                                (testable!)
 ```
+
+**Key benefit:** PR 7 (Frontend) reviewer can pull the branch and test real workflow execution end-to-end.
 
 ---
 
 ## Summary Table
 
-| PR | Name | Lines | Dependencies | Reviewer Expertise |
-|----|------|-------|--------------|-------------------|
-| 1 | Foundation | ~300 | None | Backend |
-| 2 | Workflow Models | ~650 | PR 1 | Backend |
-| 3 | Agent Node Support | ~1,400 | PR 1, 2 | Backend |
-| 4 | Workflow Tool | ~500 | PR 1, 2 | Backend |
-| 5a | Orchestrator Component | ~1,100 | PR 1-4 | Backend |
-| 5b | DAG Executor Core | ~700 | PR 5a | Backend |
-| 5c | Advanced Nodes | ~700 | PR 5b | Backend |
-| 6 | Frontend Layout | ~2,100 | None | Frontend |
-| 7 | Frontend Components | ~2,900 | PR 6 | Frontend |
-| 8 | Integration | ~3,500 | All above | Full-stack |
+| PR | Name | ~Lines | Target Branch | Reviewer Focus |
+|----|------|--------|---------------|----------------|
+| 1 | Foundation | 300 | `feature/prescriptive-workflows` | Data structures |
+| 2 | Workflow Models | 650 | `pr/workflows-1-foundation` | Pydantic models |
+| 3 | Structured Invocation | 1,400 | `pr/workflows-2-models` | Agent schema validation |
+| 4 | Workflow Tool | 500 | `pr/workflows-3-agent-support` | ADK tool |
+| 5a | Orchestrator Component | 1,100 | `pr/workflows-4-workflow-tool` | Component lifecycle |
+| 5b | DAG Executor Core | 700 | `pr/workflows-5a-orchestrator` | Dependency graph |
+| 5c | Advanced Nodes | 700 | `pr/workflows-5b-dag-core` | Loop/map/switch |
+| 6 | Integration & Examples | 3,500 | `pr/workflows-5c-advanced-nodes` | Integration, tests |
+| 7 | Frontend (LAST) | 5,000 | `pr/workflows-6-integration` | Layout, components |
 
 **Total:** ~13,850 lines (excluding docs)

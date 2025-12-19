@@ -437,9 +437,7 @@ class DAGExecutor:
             elif node.type == "switch":
                 await self._execute_switch_node(node, workflow_state, workflow_context)
             elif node.type == "loop":
-                log.info(f"{log_id} [LOOP_DEBUG] About to call _execute_loop_node for node {node.id}")
                 await self._execute_loop_node(node, workflow_state, workflow_context)
-                log.info(f"{log_id} [LOOP_DEBUG] _execute_loop_node returned for node {node.id}")
             elif node.type == "map":
                 await self._execute_map_node(node, workflow_state, workflow_context, parallel_group_id)
             else:
@@ -702,7 +700,6 @@ class DAGExecutor:
     ):
         """Execute loop node for while-loop iteration."""
         log_id = f"{self.host.log_identifier}[Loop:{node.id}]"
-        log.info(f"{log_id} [LOOP_DEBUG] _execute_loop_node ENTERED")
 
         from .flow_control.conditional import evaluate_condition
         from .utils import parse_duration
@@ -712,7 +709,6 @@ class DAGExecutor:
             workflow_state.loop_iterations[node.id] = 0
 
         iteration = workflow_state.loop_iterations[node.id]
-        log.info(f"{log_id} [LOOP_DEBUG] iteration={iteration}, condition={node.condition}")
 
         # Check max iterations
         if iteration >= node.max_iterations:
@@ -735,17 +731,14 @@ class DAGExecutor:
         # This makes the loop behave like a "do-while" - condition is checked after first run
         if iteration == 0:
             should_continue = True
-            log.info(f"{log_id} [LOOP_DEBUG] First iteration - skipping condition check, will run inner node")
         else:
             try:
                 should_continue = evaluate_condition(node.condition, workflow_state)
-                log.info(f"{log_id} [LOOP_DEBUG] Condition evaluated to: {should_continue}")
             except Exception as e:
-                log.error(f"{log_id} [LOOP_DEBUG] Loop condition evaluation failed: {e}")
+                log.error(f"{log_id} Loop condition evaluation failed: {e}")
                 should_continue = False
 
         if not should_continue:
-            log.info(f"{log_id} [LOOP_DEBUG] Loop condition false after {iteration} iterations, exiting loop")
             workflow_state.completed_nodes[node.id] = "loop_condition_false"
             if node.id in workflow_state.pending_nodes:
                 workflow_state.pending_nodes.remove(node.id)
@@ -769,9 +762,7 @@ class DAGExecutor:
             await self.host.publish_workflow_event(workflow_context, result_data)
 
             # Continue workflow
-            log.info(f"{log_id} [LOOP_DEBUG] Calling execute_workflow to continue after loop")
             await self.execute_workflow(workflow_state, workflow_context)
-            log.info(f"{log_id} [LOOP_DEBUG] execute_workflow returned after loop completion")
             return
 
         # Apply delay if configured
@@ -799,10 +790,6 @@ class DAGExecutor:
         sub_task_id = f"wf_{workflow_state.execution_id}_{iter_node.id}_{uuid.uuid4().hex[:8]}"
 
         # Emit start event for loop iteration child
-        log.info(
-            f"{log_id} [LOOP_DEBUG] Publishing child start event: node_id={iter_node.id}, "
-            f"parent_node_id={node.id}, iteration={iteration}"
-        )
         start_data = WorkflowNodeExecutionStartData(
             type="workflow_node_execution_start",
             node_id=iter_node.id,

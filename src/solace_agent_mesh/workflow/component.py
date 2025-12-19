@@ -132,16 +132,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         status_sub = a2a.get_agent_status_subscription_topic(
             self.namespace, self.workflow_name
         )
-
-        # DEBUG: Log all incoming messages
-        log.info(
-            f"{self.log_identifier} [MSG_DEBUG] Received message on topic: {topic} | "
-            f"expected_request_topic: {request_topic} | "
-            f"is_request_match: {topic == request_topic}"
-        )
-
         if topic == request_topic:
-            log.info(f"{self.log_identifier} [MSG_DEBUG] Handling as TASK REQUEST")
             await handle_task_request(self, message)
         elif topic == discovery_topic:
             handle_agent_card_message(self, message)
@@ -160,15 +151,6 @@ class WorkflowExecutorComponent(SamComponentBase):
         """
         # Set up periodic agent card publishing
         self._setup_periodic_agent_card_publishing()
-
-        # DEBUG: Log subscription details
-        request_topic = a2a.get_agent_request_topic(self.namespace, self.workflow_name)
-        log.info(
-            f"{self.log_identifier} [MSG_DEBUG] Workflow setup complete | "
-            f"namespace={self.namespace} | "
-            f"workflow_name={self.workflow_name} | "
-            f"subscribed_request_topic={request_topic}"
-        )
 
         # Component is now ready to receive requests
         log.info(f"{self.log_identifier} Workflow ready: {self.workflow_name}")
@@ -585,23 +567,6 @@ class WorkflowExecutorComponent(SamComponentBase):
     ):
         """Publish a workflow status event."""
         try:
-            # DEBUG: Log workflow event details
-            event_type = getattr(event_data, 'type', 'unknown')
-            if event_type == 'workflow_execution_start':
-                log.info(
-                    f"{self.log_identifier} [WF_EVENT_DEBUG] Publishing workflow_execution_start: "
-                    f"execution_id={getattr(event_data, 'execution_id', 'N/A')}, "
-                    f"workflow_name={getattr(event_data, 'workflow_name', 'N/A')}, "
-                    f"workflow_input={getattr(event_data, 'workflow_input', 'N/A')}, "
-                    f"task_id={workflow_context.a2a_context.get('logical_task_id', 'N/A')}"
-                )
-            elif event_type in ['workflow_node_execution_start', 'workflow_node_execution_result']:
-                log.info(
-                    f"{self.log_identifier} [WF_EVENT_DEBUG] Publishing {event_type}: "
-                    f"node_id={getattr(event_data, 'node_id', 'N/A')}, "
-                    f"task_id={workflow_context.a2a_context.get('logical_task_id', 'N/A')}"
-                )
-
             status_update_event = a2a.create_data_signal_event(
                 task_id=workflow_context.a2a_context["logical_task_id"],
                 context_id=workflow_context.a2a_context["session_id"],
@@ -814,16 +779,6 @@ class WorkflowExecutorComponent(SamComponentBase):
             request_id=workflow_context.a2a_context["jsonrpc_request_id"],
         )
 
-        # DEBUG: Log task ID when sending success response to gateway/client
-        log.error(
-            f"{log_id} [TASK_ID_DEBUG] SENDING workflow SUCCESS response to gateway/client | "
-            f"logical_task_id={workflow_context.a2a_context['logical_task_id']} | "
-            f"jsonrpc_request_id={workflow_context.a2a_context['jsonrpc_request_id']} | "
-            f"response_topic={response_topic} | "
-            f"client_id={workflow_context.a2a_context.get('client_id')} | "
-            f"context_id={workflow_context.a2a_context['session_id']}"
-        )
-
         self.publish_a2a_message(
             payload=response.model_dump(exclude_none=True),
             topic=response_topic,
@@ -944,17 +899,6 @@ class WorkflowExecutorComponent(SamComponentBase):
         response = a2a.create_success_response(
             result=final_task,
             request_id=workflow_context.a2a_context["jsonrpc_request_id"],
-        )
-
-        # DEBUG: Log task ID when sending failure response to gateway/client
-        log.error(
-            f"{log_id} [TASK_ID_DEBUG] SENDING workflow FAILURE response to gateway/client | "
-            f"logical_task_id={workflow_context.a2a_context['logical_task_id']} | "
-            f"jsonrpc_request_id={workflow_context.a2a_context['jsonrpc_request_id']} | "
-            f"response_topic={response_topic} | "
-            f"client_id={workflow_context.a2a_context.get('client_id')} | "
-            f"context_id={workflow_context.a2a_context['session_id']} | "
-            f"error={str(error)}"
         )
 
         self.publish_a2a_message(

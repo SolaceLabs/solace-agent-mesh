@@ -115,16 +115,6 @@ async def handle_task_request(
         # Use the logical task ID as the workflow task ID for tracking
         workflow_task_id = logical_task_id
 
-        # DEBUG: Log task ID reception from gateway/client
-        log.debug(
-            f"{component.log_identifier} [TASK_ID_DEBUG] RECEIVED workflow request from gateway/client | "
-            f"logical_task_id={logical_task_id} | "
-            f"jsonrpc_request_id={request_id} | "
-            f"client_id={client_id} | "
-            f"replyTo={reply_to} | "
-            f"context_id={a2a_message.context_id}"
-        )
-
         a2a_context = {
             "logical_task_id": logical_task_id,
             "session_id": a2a_message.context_id,

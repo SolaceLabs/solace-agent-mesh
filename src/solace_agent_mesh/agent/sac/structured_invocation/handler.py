@@ -358,9 +358,6 @@ class StructuredInvocationHandler:
         if not uri:
             raise ValueError("FilePart has no URI")
 
-        # DEBUG: Log the URI being loaded
-        log.info(f"{log_id} [URI_DEBUG] Loading artifact from URI: {uri}")
-
         try:
             uri_parts = parse_artifact_uri(uri)
         except ValueError as e:
@@ -386,9 +383,6 @@ class StructuredInvocationHandler:
         # Decode artifact data
         mime_type = artifact.inline_data.mime_type
         data = self._decode_file_bytes(artifact.inline_data.data, mime_type)
-
-        # DEBUG: Log the actual data loaded from the artifact
-        log.info(f"{log_id} [URI_DEBUG] Loaded artifact: {uri_parts['filename']}, data={data}")
 
         log.info(f"{log_id} Loaded and decoded artifact: {uri_parts['filename']}")
 
