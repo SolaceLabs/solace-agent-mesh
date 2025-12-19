@@ -25,6 +25,8 @@ Once you've explored the basic functionality and want to set up your own develop
 
 For those ready to build their own projects from scratch, comprehensive guidance is available for creating and configuring custom deployments with full control over your agent mesh. This approach provides the flexibility needed for serious development work and production environments. To learn about project creation and configuration, see [Creating and Running an Agent Mesh Project](../installing-and-configuring/run-project.md)
 
+Vibe coding is an alternative approach for learning and building projects from scratch with minimal prior knowledge of Solace Agent Mesh. To learn more about vibe coding, see [Vibe Coding](../installing-and-configuring/vibe_coding.md)
+
 ## Building with Agent Mesh
 
 Creating effective AI systems requires understanding how to design and implement the right components for your use case. The framework provides several key building blocks that you can combine and customize to meet your specific needs.
