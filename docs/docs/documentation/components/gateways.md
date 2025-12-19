@@ -135,3 +135,160 @@ To learn more about creating your own gateway, see [Creating Custom Gateways](..
 :::tip[Share and Reuse]
 If you would like to share your custom gateway with the community or re-use it within other projects, you can create a plugin for it. For more information, see [Create Plugins](./plugins.md#create-a-plugin).
 :::
+
+## Gateway Configuration
+
+Gateways are configured through YAML files that define how they connect to the event mesh and process external requests. This section covers the essential configuration options for different gateway types.
+
+### Core Gateway Configuration
+
+All gateways share these common configuration fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `namespace` | string | Yes | A2A topic namespace for the gateway |
+| `gateway_id` | string | No | Unique gateway identifier (auto-generated if omitted) |
+| `system_purpose` | string | No | Description of the gateway's purpose, sets context for all incoming requests |
+| `response_format` | string | No | Instructions for how responses should be formatted for the external system |
+| `artifact_service` | object | No | Configuration for artifact storage (see [Artifact Storage](../installing-and-configuring/artifact-storage.md)) |
+| `session_service` | object | No | Configuration for session management (see [Session Storage](../installing-and-configuring/session-storage.md)) |
+
+### WebUI Gateway Configuration
+
+The WebUI Gateway provides a real-time web interface with streaming responses. It requires additional configuration for the FastAPI server and session management.
+
+#### Required Configuration
+
+```yaml
+app_config:
+  namespace: "myorg/ai-agents"
+  gateway_id: "web-ui-gateway"
+  session_secret_key: "${SESSION_SECRET_KEY}"  # Required for session signing
+  
+  # FastAPI Server Configuration
+  fastapi_host: "0.0.0.0"
+  fastapi_port: 8000
+  
+  # CORS Configuration
+  cors_allowed_origins:
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
+```
+
+#### WebUI-Specific Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `session_secret_key` | string | *Required* | Secret key for signing web session cookies. Must be consistent across all instances |
+| `fastapi_host` | string | `127.0.0.1` | Host address for the FastAPI server |
+| `fastapi_port` | integer | `8000` | Port for the FastAPI server |
+| `cors_allowed_origins` | array[string] | `[]` | List of allowed CORS origins for web requests |
+| `gateway_artifact_content_limit_bytes` | integer | `10485760` | Maximum artifact size in bytes (default: 10MB) |
+| `gateway_recursive_embed_depth` | integer | `3` | Maximum depth for recursive embed resolution |
+| `enable_embed_resolution` | boolean | `true` | Enable dynamic embed processing in messages |
+
+#### Complete WebUI Gateway Example
+
+```yaml
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: webui_gateway.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: webui_gateway_app
+    app_base_path: .
+    app_module: solace_agent_mesh.gateway.http_sse.app
+
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "myorg/ai-agents"
+      gateway_id: "web-ui-gateway"
+      session_secret_key: "${SESSION_SECRET_KEY}"
+      
+      fastapi_host: "0.0.0.0"
+      fastapi_port: 8000
+      cors_allowed_origins:
+        - "http://localhost:3000"
+        - "http://127.0.0.1:3000"
+
+      artifact_service: *default_artifact_service
+      session_service:
+        type: "sql"
+        database_url: "sqlite:///webui-gateway.db"
+        default_behavior: "PERSISTENT"
+
+      model: *general_model
+      system_purpose: "Web interface for AI agent interactions"
+      response_format: "Provide clear, helpful responses suitable for web display"
+      enable_embed_resolution: true
+```
+
+### Generic Gateway Configuration
+
+Generic gateways use custom adapters to integrate with external systems. The adapter handles the protocol-specific logic while the gateway manages A2A communication.
+
+#### Required Configuration
+
+```yaml
+app_config:
+  namespace: "${NAMESPACE}"
+  gateway_adapter: "your_package.adapter.YourAdapter"
+  
+  adapter_config:
+    # Adapter-specific configuration
+    custom_field: "value"
+```
+
+#### Generic Gateway Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `gateway_adapter` | string | Yes | Python module path to the adapter class (e.g., `sam_slack_gateway_adapter.adapter.SlackAdapter`) |
+| `adapter_config` | object | No | Adapter-specific configuration passed to the adapter implementation |
+
+#### Slack Gateway Example
+
+```yaml
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: slack_gateway.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: slack_gateway_app
+    app_base_path: .
+    app_module: solace_agent_mesh.gateway.generic.app
+
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}"
+      gateway_adapter: sam_slack_gateway_adapter.adapter.SlackAdapter
+      
+      adapter_config:
+        slack_bot_token: "${SLACK_BOT_TOKEN}"
+        slack_app_token: "${SLACK_APP_TOKEN}"
+        slack_initial_status_message: ":thinking_face: Thinking..."
+        correct_markdown_formatting: true
+        slack_email_cache_ttl_seconds: 0
+
+      artifact_service: *default_artifact_service
+      system_purpose: "Slack interface for team AI agent interactions"
+      response_format: "Format responses appropriately for Slack channels"
+```
+
+### Configuration Best Practices
+
+1. **Use Environment Variables**: Store sensitive information like API keys and secrets in environment variables
+2. **Shared Configuration**: Use `!include` to reference shared broker and service configurations
+3. **System Purpose**: Define clear system purpose to set appropriate context for incoming requests
+4. **Response Format**: Customize response formatting based on the target platform's requirements
+5. **Session Management**: Configure persistent session storage for production deployments

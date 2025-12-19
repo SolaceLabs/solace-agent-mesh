@@ -42,16 +42,92 @@ Contrast with session storage:
 
 For session storage configuration, see [Session Storage](./session-storage.md).
 
+## Artifact Scoping
+
+Artifact scoping controls how artifacts are organized and isolated within your storage backend. This determines which components can access which artifacts.
+
+### Scope Types
+
+Agent Mesh supports three artifact scope types:
+
+| Scope Type | Description | Use Case |
+|------------|-------------|----------|
+| `namespace` | Artifacts scoped to A2A namespace | Default; isolates artifacts by namespace |
+| `app` | Artifacts scoped to application instance | Isolates artifacts per agent/gateway |
+| `custom` | Custom scope identifier | Advanced use cases requiring custom isolation |
+
+### Namespace Scope (Default)
+
+Artifacts are organized by A2A namespace, allowing all agents and gateways within the same namespace to share artifacts:
+
+```yaml
+artifact_service:
+  type: "filesystem"
+  base_path: "/tmp/artifacts"
+  artifact_scope: "namespace"  # Default
+```
+
+### App Scope
+
+Artifacts are isolated per application instance, preventing sharing between different agents or gateways:
+
+```yaml
+artifact_service:
+  type: "filesystem"
+  base_path: "/tmp/artifacts"
+  artifact_scope: "app"
+```
+
+### Custom Scope
+
+For advanced scenarios requiring custom isolation logic:
+
+```yaml
+artifact_service:
+  type: "filesystem"
+  base_path: "/tmp/artifacts"
+  artifact_scope: "custom"
+  artifact_scope_value: "my-custom-scope"
+```
+
+**Use Cases for Custom Scope:**
+- Multi-tenant deployments with custom tenant identifiers
+- Departmental isolation within an organization
+- Environment-specific artifact separation (dev/staging/prod)
+- Custom compliance or regulatory requirements
+
 ## Artifact Storage Backends
 
 Agent Mesh supports multiple storage backends for artifacts. Choose based on your deployment environment and requirements.
 
 | Backend | Best For | Production Ready | Setup Complexity |
 |---------|----------|------------------|------------------|
+| Memory | Testing, ephemeral workloads | ❌ | Simple |
 | Filesystem | Local development | ❌ | Simple |
 | S3 (AWS) | AWS deployments | ✅ | Medium |
 | S3-Compatible API | On-premises, private cloud | ✅ | Medium |
 | GCS | Google Cloud deployments | ✅ | Medium |
+
+### Memory Storage
+
+Memory storage keeps artifacts in RAM only. This is useful for testing and ephemeral workloads where persistence is not required.
+
+Characteristics:
+- Artifacts stored in memory only
+- No disk I/O overhead
+- Data lost on restart
+- Fastest performance
+- No configuration required
+
+Use only for testing, development, or ephemeral workloads where artifact persistence is not needed.
+
+Configuration:
+```yaml
+artifact_service:
+  type: "memory"
+```
+
+**Important:** All artifacts are lost when the application restarts. This backend is not suitable for production use.
 
 ### Filesystem Storage (Default)
 
@@ -258,7 +334,15 @@ Choose your artifact storage backend based on your deployment environment.
 
 ### Development Setup
 
-For local development and testing, use filesystem storage:
+For local development and testing, you can use either memory or filesystem storage:
+
+**Memory storage (fastest, no persistence):**
+```yaml
+artifact_service:
+  type: "memory"
+```
+
+**Filesystem storage (persists across restarts):**
 
 ```yaml
 artifact_service:
