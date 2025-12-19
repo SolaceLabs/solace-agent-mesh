@@ -54,53 +54,10 @@ If you upgrade to v1.25.0+ without completing this migration, users will lose ac
 
 ### Step 1: Create Platform Service Configuration
 
-Create a new file `configs/services/platform.yaml` in your project with the following content:
+Create a new file `configs/services/platform.yaml` in your project with the contents from [/templates/platform.yaml](../../../../templates/platform.yaml) :
 
-```yaml
-log:
-  stdout_log_level: INFO
-  log_file_level: INFO
-  log_file: platform_service.log
-
-!include ../shared_config.yaml
-
-apps:
-  - name: platform_service_app
-    app_base_path: .
-    app_module: solace_agent_mesh.services.platform.app
-
-    broker:
-      <<: *broker_connection 
-
-    app_config:
-      namespace: ${NAMESPACE} 
-      database_url: "${PLATFORM_DATABASE_URL, sqlite:///platform.db}" # Must point to your existing platform.db
-
-      fastapi_host: ${PLATFORM_API_HOST, localhost}
-      fastapi_port: ${PLATFORM_API_PORT, 8001}
-      cors_allowed_origins:
-        - "http://localhost:3000"
-        - "http://127.0.0.1:3000"
-        # Add other origins as needed
-
-      # --- Message Size Configuration ---
-      max_message_size_bytes: ${MAX_MESSAGE_SIZE_BYTES, 10000000} # 10MB default
-
-      # --- OAuth2 Authentication ---
-      external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL}
-      external_auth_provider: ${EXTERNAL_AUTH_PROVIDER, generic}
-      frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION, false} # Set to true for production
-
-      # --- Background Task Configuration ---
-      # Deployment monitoring
-      deployment_timeout_minutes: ${DEPLOYMENT_TIMEOUT_MINUTES, 5}
-      deployment_check_interval_seconds: ${DEPLOYMENT_CHECK_INTERVAL, 60}
-
-      # Deployer heartbeat monitoring
-      heartbeat_timeout_seconds: ${HEARTBEAT_TIMEOUT_SECONDS, 90}
-```
 :::important
-`database_url` must point to the existing `platform.db` to retain agent and deployment data.
+`app_config.database_url` must point to the existing `platform.db` to retain agent and deployment data.
 :::
 
 ### Step 2: Update WebUI Configuration
