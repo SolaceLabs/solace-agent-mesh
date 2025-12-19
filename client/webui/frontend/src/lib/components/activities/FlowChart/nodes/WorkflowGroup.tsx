@@ -23,7 +23,8 @@ interface BezierPath {
 
 /**
  * Generate a cubic bezier path from source bottom-center to target top-center
- * The curve starts going straight down and ends going straight up for clean vertical transitions
+ * The curve uses a constant control offset at the source for a consistent departure curve,
+ * and a scaled control offset at the target to create long vertical sections for longer distances.
  *
  * @param scale - The current zoom scale factor (to convert screen coordinates to SVG coordinates)
  */
@@ -44,16 +45,21 @@ function generateBezierPath(
 
     // Control points for a curve with vertical start and end
     const verticalDistance = Math.abs(y2 - y1);
-    // Use a larger offset to create longer vertical sections
-    const controlOffset = Math.max(verticalDistance * 0.4, 40);
+
+    // Target control point: constant offset for consistent curve at arrival
+    const targetControlOffset = 40;
+
+    // Source control point: extends far down to create a very long vertical section
+    // Using 90% of the distance creates an almost straight drop from the source
+    const sourceControlOffset = Math.max(verticalDistance * 1.0, 40);
 
     // Control point 1: directly below source (same x) for vertical start
     const cx1 = x1;
-    const cy1 = y1 + controlOffset;
+    const cy1 = y1 + sourceControlOffset;
 
     // Control point 2: directly above target (same x) for vertical end
     const cx2 = x2;
-    const cy2 = y2 - controlOffset;
+    const cy2 = y2 - targetControlOffset;
 
     return `M ${x1},${y1} C ${cx1},${cy1} ${cx2},${cy2} ${x2},${y2}`;
 }
@@ -287,9 +293,8 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
     if (isCollapsed) {
         return (
             <div
-                className={`group relative rounded-md border-2 border-dashed border-purple-500 bg-white shadow-md transition-all duration-200 ease-in-out hover:shadow-xl dark:border-purple-400 dark:bg-gray-800 ${
-                    isSelected ? "ring-2 ring-blue-500" : ""
-                } ${haloClass}`}
+                className={`group relative rounded-md border-2 border-dashed border-purple-500 bg-white shadow-md transition-all duration-200 ease-in-out hover:shadow-xl dark:border-purple-400 dark:bg-gray-800 ${isSelected ? "ring-2 ring-blue-500" : ""
+                    } ${haloClass}`}
                 style={{
                     minWidth: "180px",
                 }}
@@ -330,9 +335,8 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
     return (
         <div
             ref={containerRef}
-            className={`group rounded-lg border-2 border-dashed border-gray-400 bg-gray-50/50 dark:border-gray-600 dark:bg-gray-900/50 ${
-                isSelected ? "ring-2 ring-blue-500" : ""
-            }`}
+            className={`group rounded-lg border-2 border-dashed border-gray-400 bg-gray-50/50 dark:border-gray-600 dark:bg-gray-900/50 ${isSelected ? "ring-2 ring-blue-500" : ""
+                }`}
             style={{
                 minWidth: "200px",
                 position: "relative",
@@ -398,10 +402,10 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                             {renderChild(child, precedingNodeId, followingNodeId)}
                             {/* Connector line to next child (only if current is not parallelBlock and next is not parallelBlock) */}
                             {index < node.children.length - 1 &&
-                             child.type !== 'parallelBlock' &&
-                             node.children[index + 1].type !== 'parallelBlock' && (
-                                <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
-                            )}
+                                child.type !== 'parallelBlock' &&
+                                node.children[index + 1].type !== 'parallelBlock' && (
+                                    <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
+                                )}
                         </React.Fragment>
                     );
                 })}
