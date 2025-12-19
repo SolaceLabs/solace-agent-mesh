@@ -239,7 +239,6 @@ def _create_auth_middleware(component):
                 "/api/v1/auth/login",
                 "/api/v1/auth/refresh",
                 "/api/v1/csrf-token",
-                "/api/v1/gateway-oauth",  # Gateway OAuth proxy endpoints (enterprise)
                 "/health",
             ]
 
