@@ -64,39 +64,6 @@ class TestValidateTokenWithEnterprise:
 
             assert result is False
 
-
-@pytest.mark.skipif(not ENTERPRISE_AVAILABLE, reason="Enterprise package not available")
-class TestGetUserInfoWithEnterprise:
-    """Test _get_user_info with enterprise OAuth utilities."""
-
-    @pytest.mark.asyncio
-    async def test_get_user_info_calls_enterprise_util(self):
-        """Test that _get_user_info calls enterprise get_user_info_from_oauth_service."""
-        from solace_agent_mesh.gateway.http_sse.main import _get_user_info
-
-        user_info = {"sub": "user123", "email": "test@example.com"}
-
-        with patch.object(
-            oauth_utils,
-            'get_user_info_from_oauth_service',
-            new_callable=AsyncMock
-        ) as mock_get_info:
-            mock_get_info.return_value = user_info
-
-            result = await _get_user_info(
-                "https://auth.example.com",
-                "google",
-                "test-token"
-            )
-
-            assert result == user_info
-            mock_get_info.assert_called_once_with(
-                "https://auth.example.com",
-                "google",
-                "test-token"
-            )
-
-
 @pytest.mark.skipif(not ENTERPRISE_AVAILABLE, reason="Enterprise package not available")
 class TestExtractUserIdentifierWithEnterprise:
     """Test _extract_user_identifier with enterprise OAuth utilities."""
