@@ -54,7 +54,7 @@ If you upgrade to v1.27.0+ without completing this migration, users will lose ac
 
 ### Step 1: Create Platform Service Configuration
 
-Create a new file `configs/services/platform.yaml` in your project with the contents from [/templates/platform.yaml](../../../../templates/platform.yaml) :
+Create a new file `configs/services/platform.yaml` in your project with the contents from [templates/platform.yaml](https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/main/templates/platform.yaml):
 
 :::important
 `app_config.database_url` must point to the existing `platform.db` to retain agent and deployment data.
