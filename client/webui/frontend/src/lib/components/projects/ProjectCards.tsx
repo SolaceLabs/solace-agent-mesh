@@ -45,7 +45,7 @@ export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuer
                     <EmptyState variant="noImage" title="No Projects Found" subtitle={<ProjectsDescriptionTwoParagraphs />} buttons={[{ text: "Create New Project", variant: "default", onClick: () => onCreateNew() }]} />
                 ) : (
                     <div className="flex-1 overflow-y-auto">
-                        <MessageBanner variant="info" message={PROJECTS_DESCRIPTION_FULL} className="mr-6 mb-4 rounded-md" />
+                        <MessageBanner variant="info" message={PROJECTS_DESCRIPTION_FULL} className="mr-6 mb-4" />
                         <div className="flex flex-wrap gap-6">
                             <CreateProjectCard onClick={onCreateNew} />
                             {projects.map(project => (

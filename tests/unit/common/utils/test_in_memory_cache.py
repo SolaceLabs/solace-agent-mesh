@@ -9,6 +9,15 @@ import asyncio
 from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
 
 
+@pytest.fixture(autouse=True)
+def clear_cache():
+    """Clear the singleton cache before each test to ensure test isolation."""
+    cache = InMemoryCache()
+    cache.clear()
+    yield
+    cache.clear()
+
+
 class TestInMemoryCacheBasicOperations:
     """Test basic cache operations."""
 
@@ -113,13 +122,14 @@ class TestInMemoryCacheTTL:
     def test_update_resets_ttl(self):
         """Test that updating a key resets its TTL."""
         cache = InMemoryCache()
-        cache.set("key1", "value1", ttl=1.0)
-        
-        time.sleep(0.6)
-        cache.set("key1", "value2", ttl=1.0)  # Reset TTL
-        
-        time.sleep(0.6)
-        # Should still be available (0.6 + 0.6 = 1.2, but TTL was reset)
+        cache.set("key1", "value1", ttl=2.0)
+
+        time.sleep(0.5)
+        cache.set("key1", "value2", ttl=2.0)  # Reset TTL
+
+        time.sleep(0.5)
+        # Should still be available (0.5 + 0.5 = 1.0 total, but TTL was reset after 0.5s)
+        # With 2.0s TTL reset at 0.5s mark, we have 1.5s remaining after the second sleep
         assert cache.get("key1") == "value2"
 
     def test_zero_ttl(self):

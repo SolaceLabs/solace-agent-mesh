@@ -1,5 +1,7 @@
-import click
 from pathlib import Path
+
+import click
+
 from ...utils import ask_if_not_provided
 
 ENV_DEFAULTS = {
@@ -25,6 +27,7 @@ ENV_DEFAULTS = {
     "S3_BUCKET_NAME": "",
     "S3_ENDPOINT_URL": "",
     "S3_REGION": "us-east-1",
+    "PLATFORM_SERVICE_URL": None,
     "LLM_SERVICE_OAUTH_TOKEN_URL": "YOUR_LLM_SERVICE_OAUTH_TOKEN_URL_HERE",
     "LLM_SERVICE_OAUTH_CLIENT_ID": "YOUR_LLM_SERVICE_OAUTH_CLIENT_ID_HERE",
     "LLM_SERVICE_OAUTH_CLIENT_SECRET": "YOUR_LLM_SERVICE_OAUTH_CLIENT_SECRET_HERE",
@@ -33,7 +36,9 @@ ENV_DEFAULTS = {
     "LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS": "300",
     "LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME": "YOUR_LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME_HERE",
     "LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME": "YOUR_LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME_HERE",
-    "LLM_SERVICE_OAUTH_ENDPOINT": "YOUR_LLM_SERVICE_OAUTH_ENDPOINT_HERE"
+    "LLM_SERVICE_OAUTH_ENDPOINT": "YOUR_LLM_SERVICE_OAUTH_ENDPOINT_HERE",
+    "PLATFORM_API_HOST": "127.0.0.1",
+    "PLATFORM_API_PORT": "8001",
 }
 
 
@@ -201,6 +206,20 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             False,
             "S3_REGION",
         ),
+        (
+            "platform_api_host",
+            "PLATFORM_API_HOST",
+            "Enter Platform API Host",
+            False,
+            "PLATFORM_API_HOST",
+        ),
+        (
+            "platform_api_port",
+            "PLATFORM_API_PORT",
+            "Enter Platform API Port",
+            False,
+            "PLATFORM_API_PORT",
+        ),
     ]
 
     env_vars_to_write = {}
@@ -222,6 +241,14 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
         and not str(env_vars_to_write["NAMESPACE"]).endswith("/")
     ):
         env_vars_to_write["NAMESPACE"] = str(env_vars_to_write["NAMESPACE"]) + "/"
+
+    # Handle Platform Service URL generation
+    frontend_is_ssl = env_vars_to_write.get("SSL_CERTFILE") and env_vars_to_write.get("SSL_KEYFILE")
+    if not env_vars_to_write.get("PLATFORM_SERVICE_URL"):
+        platform_url = "https://" if frontend_is_ssl else "http://"
+        platform_url += env_vars_to_write.get("PLATFORM_API_HOST") or "127.0.0.1"
+        platform_url += ":" + str(env_vars_to_write.get("PLATFORM_API_PORT") or 8001)
+        env_vars_to_write["PLATFORM_SERVICE_URL"] = platform_url
 
     final_env_vars = {k: v for k, v in env_vars_to_write.items() if v is not None}
     env_content_lines = [f'{key}="{value}"' for key, value in final_env_vars.items()]

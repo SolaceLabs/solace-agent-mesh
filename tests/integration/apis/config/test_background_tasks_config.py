@@ -73,7 +73,7 @@ def _create_background_tasks_config_client(
 
     # Set up auth overrides
     from fastapi import Request
-    from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+    from solace_agent_mesh.shared.api.auth_utils import get_current_user
     from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id
 
     async def override_get_current_user(request: Request):
