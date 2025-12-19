@@ -1,13 +1,13 @@
 import React from "react";
 import type { LayoutNode } from "../utils/types";
 
-interface LLMNodeV2Props {
+interface LLMNodeProps {
     node: LayoutNode;
     isSelected?: boolean;
     onClick?: (node: LayoutNode) => void;
 }
 
-const LLMNodeV2: React.FC<LLMNodeV2Props> = ({ node, isSelected, onClick }) => {
+const LLMNode: React.FC<LLMNodeProps> = ({ node, isSelected, onClick }) => {
     const isProcessing = node.data.status === "in-progress";
     const haloClass = isProcessing ? 'processing-halo' : '';
 
@@ -32,4 +32,4 @@ const LLMNodeV2: React.FC<LLMNodeV2Props> = ({ node, isSelected, onClick }) => {
     );
 };
 
-export default LLMNodeV2;
+export default LLMNode;

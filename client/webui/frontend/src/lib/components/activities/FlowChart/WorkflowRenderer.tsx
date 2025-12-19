@@ -2,10 +2,10 @@ import React, { useMemo, useState } from "react";
 import type { VisualizerStep } from "@/lib/types";
 import { processSteps } from "./utils/layoutEngine";
 import type { LayoutNode, Edge } from "./utils/types";
-import AgentNodeV2 from "./nodes/AgentNodeV2";
-import UserNodeV2 from "./nodes/UserNodeV2";
-import WorkflowGroupV2 from "./nodes/WorkflowGroupV2";
-// import EdgeLayerV2 from "./EdgeLayerV2";
+import AgentNode from "./nodes/AgentNode";
+import UserNode from "./nodes/UserNode";
+import WorkflowGroup from "./nodes/WorkflowGroup";
+// import EdgeLayer from "./EdgeLayer";
 
 /**
  * Check if a node or any of its descendants has status 'in-progress'
@@ -217,7 +217,7 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number, expandedNo
     return node;
 }
 
-interface WorkflowRendererV2Props {
+interface WorkflowRendererProps {
     processedSteps: VisualizerStep[];
     agentNameMap: Record<string, string>;
     selectedStepId?: string | null;
@@ -226,7 +226,7 @@ interface WorkflowRendererV2Props {
     showDetail?: boolean;
 }
 
-const WorkflowRendererV2: React.FC<WorkflowRendererV2Props> = ({
+const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({
     processedSteps,
     agentNameMap,
     selectedStepId,
@@ -259,7 +259,7 @@ const WorkflowRendererV2: React.FC<WorkflowRendererV2Props> = ({
         try {
             return processSteps(processedSteps, agentNameMap);
         } catch (error) {
-            console.error("[WorkflowRendererV2] Error processing steps:", error);
+            console.error("[WorkflowRenderer] Error processing steps:", error);
             return { nodes: [], edges: [], totalWidth: 800, totalHeight: 600 };
         }
     }, [processedSteps, agentNameMap]);
@@ -310,13 +310,13 @@ const WorkflowRendererV2: React.FC<WorkflowRendererV2Props> = ({
 
         switch (node.type) {
             case 'agent':
-                component = <AgentNodeV2 {...nodeProps} />;
+                component = <AgentNode {...nodeProps} />;
                 break;
             case 'user':
-                component = <UserNodeV2 {...nodeProps} />;
+                component = <UserNode {...nodeProps} />;
                 break;
             case 'group':
-                component = <WorkflowGroupV2 {...nodeProps} />;
+                component = <WorkflowGroup {...nodeProps} />;
                 break;
             default:
                 return null;
@@ -355,4 +355,4 @@ const WorkflowRendererV2: React.FC<WorkflowRendererV2Props> = ({
     );
 };
 
-export default WorkflowRendererV2;
+export default WorkflowRenderer;

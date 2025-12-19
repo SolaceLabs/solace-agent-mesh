@@ -1,6 +1,9 @@
 """
-WorkflowNodeHandler implementation.
-Enables a standard agent to act as a workflow node.
+StructuredInvocationHandler implementation.
+
+Enables agents to be invoked with schema-validated input/output,
+functioning as a "structured function call" pattern. Used by workflows
+and other programmatic callers that require predictable, validated responses.
 """
 
 import logging
@@ -32,8 +35,8 @@ from a2a.types import (
 
 from ....common import a2a
 from ....common.data_parts import (
-    WorkflowNodeRequestData,
-    WorkflowNodeResultData,
+    StructuredInvocationRequest,
+    StructuredInvocationResult,
 )
 from ....agent.adk.runner import run_adk_async_task_thread_wrapper
 from ....common.utils.embeds.constants import EMBED_REGEX
@@ -61,9 +64,13 @@ class ResultEmbed:
         self.message = message
 
 
-class WorkflowNodeHandler:
+class StructuredInvocationHandler:
     """
-    Handles workflow-specific logic for an agent.
+    Handles structured invocation logic for an agent.
+
+    Enables agents to be invoked with schema-validated input and output,
+    supporting retry on validation failure. Used by workflows and other
+    programmatic callers that need predictable, validated responses.
     """
 
     def __init__(self, host_component: "SamAgentComponent"):
@@ -74,17 +81,17 @@ class WorkflowNodeHandler:
             "validation_max_retries", 2
         )
 
-    def extract_workflow_context(
+    def extract_structured_invocation_context(
         self, message: A2AMessage
-    ) -> Optional[WorkflowNodeRequestData]:
+    ) -> Optional[StructuredInvocationRequest]:
         """
-        Extract workflow context from message if present.
-        Workflow messages contain WorkflowNodeRequestData as first DataPart.
+        Extract structured invocation context from message if present.
+        Structured invocation messages contain StructuredInvocationRequest as first DataPart.
         """
         if not message.parts:
             return None
 
-        # Check first part for workflow data
+        # Check first part for structured invocation data
         # Note: A2AMessage parts are wrapped in Part(root=...)
         first_part_wrapper = message.parts[0]
         first_part = first_part_wrapper.root
@@ -92,37 +99,37 @@ class WorkflowNodeHandler:
         if not hasattr(first_part, "data") or not first_part.data:
             return None
 
-        # Check for workflow_node_request type
-        if first_part.data.get("type") != "workflow_node_request":
+        # Check for structured_invocation_request type
+        if first_part.data.get("type") != "structured_invocation_request":
             return None
 
-        # Parse workflow request data
+        # Parse structured invocation request data
         try:
-            workflow_data = WorkflowNodeRequestData.model_validate(first_part.data)
-            return workflow_data
+            invocation_data = StructuredInvocationRequest.model_validate(first_part.data)
+            return invocation_data
         except ValidationError as e:
-            log.error(f"{self.host.log_identifier} Invalid workflow request data: {e}")
+            log.error(f"{self.host.log_identifier} Invalid structured invocation request data: {e}")
             return None
 
-    async def execute_workflow_node(
+    async def execute_structured_invocation(
         self,
         message: A2AMessage,
-        workflow_data: WorkflowNodeRequestData,
+        invocation_data: StructuredInvocationRequest,
         a2a_context: Dict[str, Any],
         original_solace_message: Any = None,
     ):
-        """Execute agent as a workflow node with validation."""
-        log_id = f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}]"
+        """Execute agent as a structured invocation with schema validation."""
+        log_id = f"{self.host.log_identifier}[StructuredInvocation:{invocation_data.node_id}]"
 
-        log.error(
-            f"{log_id} [DEBUG] Received workflow node request. Workflow: {workflow_data.workflow_name}, "
-            f"node_id: {workflow_data.node_id}, suggested_output_filename: {workflow_data.suggested_output_filename}"
+        log.debug(
+            f"{log_id} Received structured invocation request. Context: {invocation_data.workflow_name}, "
+            f"node_id: {invocation_data.node_id}, suggested_output_filename: {invocation_data.suggested_output_filename}"
         )
 
         try:
             # Determine effective schemas
-            input_schema = workflow_data.input_schema or self.input_schema
-            output_schema = workflow_data.output_schema or self.output_schema
+            input_schema = invocation_data.input_schema or self.input_schema
+            output_schema = invocation_data.output_schema or self.output_schema
 
             # Default input schema to single text field if not provided
             if not input_schema:
@@ -152,35 +159,35 @@ class WorkflowNodeHandler:
                 log.error(f"{log_id} Input validation failed: {validation_errors}")
 
                 # Return validation error immediately
-                result_data = WorkflowNodeResultData(
-                    type="workflow_node_result",
+                result_data = StructuredInvocationResult(
+                    type="structured_invocation_result",
                     status="failure",
                     error_message=f"Input validation failed: {validation_errors}",
                 )
-                return await self._return_workflow_result(
-                    workflow_data, result_data, a2a_context
+                return await self._return_structured_result(
+                    invocation_data, result_data, a2a_context
                 )
 
             # Input valid, proceed with execution
             return await self._execute_with_output_validation(
                 message,
-                workflow_data,
+                invocation_data,
                 output_schema,
                 a2a_context,
                 original_solace_message,
             )
 
         except Exception as e:
-            # Catch any unhandled exceptions and return as workflow node failure
-            log.warning(f"{log_id} Workflow node execution failed: {e}")
+            # Catch any unhandled exceptions and return as structured invocation failure
+            log.warning(f"{log_id} Structured invocation execution failed: {e}")
 
-            result_data = WorkflowNodeResultData(
-                type="workflow_node_result",
+            result_data = StructuredInvocationResult(
+                type="structured_invocation_result",
                 status="failure",
                 error_message=f"Node execution error: {str(e)}",
             )
-            return await self._return_workflow_result(
-                workflow_data, result_data, a2a_context
+            return await self._return_structured_result(
+                invocation_data, result_data, a2a_context
             )
 
     async def _validate_input(
@@ -430,16 +437,16 @@ class WorkflowNodeHandler:
     async def _execute_with_output_validation(
         self,
         message: A2AMessage,
-        workflow_data: WorkflowNodeRequestData,
+        invocation_data: StructuredInvocationRequest,
         output_schema: Optional[Dict[str, Any]],
         a2a_context: Dict[str, Any],
         original_solace_message: Any = None,
     ):
         """Execute agent with output validation and retry logic."""
-        log_id = f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}]"
+        log_id = f"{self.host.log_identifier}[StructuredInvocation:{invocation_data.node_id}]"
 
         # Create callback for instruction injection
-        workflow_callback = self._create_workflow_callback(workflow_data, output_schema)
+        workflow_callback = self._create_workflow_callback(invocation_data, output_schema)
 
         # We need to register this callback with the agent.
         # Since SamAgentComponent manages the agent lifecycle, we need a way to inject this.
@@ -470,7 +477,7 @@ class WorkflowNodeHandler:
 
         logical_task_id = a2a_context.get("logical_task_id")
 
-        # Create and register TaskExecutionContext for this workflow node execution
+        # Create and register TaskExecutionContext for this structured invocation
         task_context = TaskExecutionContext(
             task_id=logical_task_id, a2a_context=a2a_context
         )
@@ -486,7 +493,7 @@ class WorkflowNodeHandler:
             self.host.active_tasks[logical_task_id] = task_context
 
         log.debug(
-            f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] Created TaskExecutionContext for task {logical_task_id}"
+            f"{self.host.log_identifier}[StructuredInvocation:{invocation_data.node_id}] Created TaskExecutionContext for task {logical_task_id}"
         )
 
         try:
@@ -498,10 +505,10 @@ class WorkflowNodeHandler:
 
             # Prepare ADK content
             user_id = a2a_context.get("user_id")
-            # For workflow nodes, create a run-based session ID following the same pattern
+            # For structured invocations, create a run-based session ID following the same pattern
             # as RUN_BASED A2A requests: {original_session_id}:{logical_task_id}:run
             # This ensures:
-            # 1. Each node invocation starts with a fresh session (RUN_BASED behavior)
+            # 1. Each invocation starts with a fresh session (RUN_BASED behavior)
             # 2. get_original_session_id() can extract the parent session for artifact sharing
             original_session_id = a2a_context.get("session_id")
             logical_task_id = a2a_context.get("logical_task_id")
@@ -514,7 +521,7 @@ class WorkflowNodeHandler:
                 session_id=session_id,
             )
 
-            # Always create a new session for workflow nodes (RUN_BASED behavior)
+            # Always create a new session for structured invocations (RUN_BASED behavior)
             adk_session = await self.host.session_service.create_session(
                 app_name=self.host.agent_name,
                 user_id=user_id,
@@ -533,7 +540,7 @@ class WorkflowNodeHandler:
                 adk_content,
                 run_config,
                 a2a_context,
-                skip_finalization=True,  # Workflow nodes do custom finalization
+                skip_finalization=True,  # Structured invocations do custom finalization
             )
 
             # After execution, we need to validate the result.
@@ -559,8 +566,8 @@ class WorkflowNodeHandler:
             if not last_model_event:
                 log.warning(f"{log_id} No model event found in session history.")
 
-            result_data = await self._finalize_workflow_node_execution(
-                adk_session, last_model_event, workflow_data, output_schema, retry_count=0
+            result_data = await self._finalize_structured_invocation(
+                adk_session, last_model_event, invocation_data, output_schema, retry_count=0
             )
 
             log.error(
@@ -568,7 +575,7 @@ class WorkflowNodeHandler:
             )
 
             # Send result back to workflow
-            await self._return_workflow_result(workflow_data, result_data, a2a_context)
+            await self._return_structured_result(invocation_data, result_data, a2a_context)
 
         finally:
             # Clean up task context
@@ -576,7 +583,7 @@ class WorkflowNodeHandler:
                 if logical_task_id in self.host.active_tasks:
                     del self.host.active_tasks[logical_task_id]
                     log.debug(
-                        f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] Removed TaskExecutionContext for task {logical_task_id}"
+                        f"{self.host.log_identifier}[StructuredInvocation:{invocation_data.node_id}] Removed TaskExecutionContext for task {logical_task_id}"
                     )
 
             # Restore original callback
@@ -584,7 +591,7 @@ class WorkflowNodeHandler:
 
     def _create_workflow_callback(
         self,
-        workflow_data: WorkflowNodeRequestData,
+        invocation_data: StructuredInvocationRequest,
         output_schema: Optional[Dict[str, Any]],
     ) -> Callable:
         """Create callback for workflow instruction injection."""
@@ -592,13 +599,13 @@ class WorkflowNodeHandler:
         def inject_instructions(
             callback_context: CallbackContext, llm_request: LlmRequest
         ) -> Optional[str]:
-            return self._generate_workflow_instructions(workflow_data, output_schema)
+            return self._generate_workflow_instructions(invocation_data, output_schema)
 
         return inject_instructions
 
     def _generate_workflow_instructions(
         self,
-        workflow_data: WorkflowNodeRequestData,
+        invocation_data: StructuredInvocationRequest,
         output_schema: Optional[Dict[str, Any]],
     ) -> str:
         """Generate workflow-specific instructions."""
@@ -606,17 +613,17 @@ class WorkflowNodeHandler:
         workflow_instructions = f"""
 
 === WORKFLOW EXECUTION CONTEXT ===
-You are executing as node '{workflow_data.node_id}' in workflow '{workflow_data.workflow_name}'.
+You are executing as node '{invocation_data.node_id}' in workflow '{invocation_data.workflow_name}'.
 """
 
         # Add required output filename if provided
-        if workflow_data.suggested_output_filename:
+        if invocation_data.suggested_output_filename:
             workflow_instructions += f"""
 === REQUIRED OUTPUT ARTIFACT FILENAME ===
 You MUST save your output artifact with this exact filename:
-{workflow_data.suggested_output_filename}
+{invocation_data.suggested_output_filename}
 
-When you complete this task, use: «result:artifact={workflow_data.suggested_output_filename} status=success»
+When you complete this task, use: «result:artifact={invocation_data.suggested_output_filename} status=success»
 """
 
         # Add output schema requirement if present
@@ -624,7 +631,7 @@ When you complete this task, use: «result:artifact={workflow_data.suggested_out
             workflow_instructions += f"""
 
 === CRITICAL: REQUIRED OUTPUT FORMAT ===
-You MUST follow these steps to complete this workflow node:
+You MUST follow these steps to complete this task:
 
 1. Create an artifact containing your result data conforming to this JSON Schema:
 
@@ -642,11 +649,11 @@ You MUST follow these steps to complete this workflow node:
 
 IMPORTANT NOTES:
 - Use the save_artifact tool OR inline fenced blocks to create the output artifact
-- The result embed («result:artifact=...») is MANDATORY - the workflow will fail without it
+- The result embed («result:artifact=...») is MANDATORY - the invocation will fail without it
 - The artifact format (JSON, YAML, etc.) must be parseable
 - Additional fields beyond the schema are allowed, but all required fields must be present
 
-FAILURE TO INCLUDE THE RESULT EMBED WILL CAUSE THE WORKFLOW TO FAIL.
+FAILURE TO INCLUDE THE RESULT EMBED WILL CAUSE THE INVOCATION TO FAIL.
 """
         else:
             # No output schema, just mark result
@@ -657,7 +664,7 @@ You MUST end your response with the result embed to mark your completion:
 
 «result:artifact=<artifact_name> status=success»
 
-This result embed is MANDATORY. The workflow cannot proceed without it.
+This result embed is MANDATORY. The invocation cannot proceed without it.
 
    IMPORTANT: Do NOT include a version number if returning the latest version - the system will automatically provide the most recent version.
 
@@ -666,19 +673,19 @@ If you cannot complete the task, use:
 """
         return workflow_instructions.strip()
 
-    async def _finalize_workflow_node_execution(
+    async def _finalize_structured_invocation(
         self,
         session,
         last_event: ADKEvent,
-        workflow_data: WorkflowNodeRequestData,
+        invocation_data: StructuredInvocationRequest,
         output_schema: Optional[Dict[str, Any]],
         retry_count: int = 0,
-    ) -> WorkflowNodeResultData:
+    ) -> StructuredInvocationResult:
         """
-        Finalize workflow node execution with output validation.
+        Finalize structured invocation with output validation.
         Handles retry on validation failure or missing result embed.
         """
-        log_id = f"{self.host.log_identifier}[Node:{workflow_data.node_id}]"
+        log_id = f"{self.host.log_identifier}[Node:{invocation_data.node_id}]"
 
         # 1. Parse result embed from agent output
         result_embed = self._parse_result_embed(last_event)
@@ -698,14 +705,14 @@ Please retry and ensure you include this embed.
 """
                 return await self._execute_retry_loop(
                     session,
-                    workflow_data,
+                    invocation_data,
                     output_schema,
                     feedback_text,
                     retry_count + 1,
                 )
             else:
-                return WorkflowNodeResultData(
-                    type="workflow_node_result",
+                return StructuredInvocationResult(
+                    type="structured_invocation_result",
                     status="failure",
                     error_message=error_msg,
                     retry_count=retry_count,
@@ -713,8 +720,8 @@ Please retry and ensure you include this embed.
 
         # Handle explicit failure status
         if result_embed.status == "failure":
-            return WorkflowNodeResultData(
-                type="workflow_node_result",
+            return StructuredInvocationResult(
+                type="structured_invocation_result",
                 status="failure",
                 error_message=result_embed.message or "Agent reported failure",
                 artifact_name=result_embed.artifact_name,
@@ -747,8 +754,8 @@ Please retry and ensure you include this embed.
                     log.error(
                         f"{log_id} No versions found for artifact {result_embed.artifact_name}"
                     )
-                    return WorkflowNodeResultData(
-                        type="workflow_node_result",
+                    return StructuredInvocationResult(
+                        type="structured_invocation_result",
                         status="failure",
                         error_message=f"Artifact {result_embed.artifact_name} not found (no versions available)",
                         retry_count=retry_count,
@@ -769,8 +776,8 @@ Please retry and ensure you include this embed.
             )
         except Exception as e:
             log.error(f"{log_id} Failed to load artifact: {e}")
-            return WorkflowNodeResultData(
-                type="workflow_node_result",
+            return StructuredInvocationResult(
+                type="structured_invocation_result",
                 status="failure",
                 error_message=f"Failed to load result artifact: {e}",
                 retry_count=retry_count,
@@ -802,15 +809,15 @@ Remember to end your response with the result embed:
 """
                     return await self._execute_retry_loop(
                         session,
-                        workflow_data,
+                        invocation_data,
                         output_schema,
                         feedback_text,
                         retry_count + 1,
                     )
                 else:
                     # Max retries exceeded
-                    return WorkflowNodeResultData(
-                        type="workflow_node_result",
+                    return StructuredInvocationResult(
+                        type="structured_invocation_result",
                         status="failure",
                         error_message="Output validation failed after max retries",
                         validation_errors=validation_errors,
@@ -818,8 +825,8 @@ Remember to end your response with the result embed:
                     )
 
         # 4. Validation succeeded
-        return WorkflowNodeResultData(
-            type="workflow_node_result",
+        return StructuredInvocationResult(
+            type="structured_invocation_result",
             status="success",
             artifact_name=result_embed.artifact_name,
             artifact_version=version,
@@ -939,15 +946,15 @@ Remember to end your response with the result embed:
     async def _execute_retry_loop(
         self,
         session,
-        workflow_data: WorkflowNodeRequestData,
+        invocation_data: StructuredInvocationRequest,
         output_schema: Optional[Dict[str, Any]],
         feedback_text: str,
         retry_count: int,
-    ) -> WorkflowNodeResultData:
+    ) -> StructuredInvocationResult:
         """
         Execute a retry loop: append feedback, run agent, and validate result.
         """
-        log_id = f"{self.host.log_identifier}[Node:{workflow_data.node_id}]"
+        log_id = f"{self.host.log_identifier}[Node:{invocation_data.node_id}]"
         log.info(f"{log_id} Executing retry loop {retry_count}/{self.max_validation_retries}")
 
         # 1. Prepare feedback content
@@ -969,8 +976,8 @@ Remember to end your response with the result embed:
             else:
                 # Fallback or error
                 log.error(f"{log_id} Could not extract logical_task_id from session ID {session.id}. Cannot retry.")
-                return WorkflowNodeResultData(
-                    type="workflow_node_result",
+                return StructuredInvocationResult(
+                    type="structured_invocation_result",
                     status="failure",
                     error_message="Internal error: Lost task context during retry",
                     retry_count=retry_count
@@ -981,8 +988,8 @@ Remember to end your response with the result embed:
             
             if not task_context:
                 log.error(f"{log_id} TaskExecutionContext not found for {logical_task_id}. Cannot retry.")
-                return WorkflowNodeResultData(
-                    type="workflow_node_result",
+                return StructuredInvocationResult(
+                    type="structured_invocation_result",
                     status="failure",
                     error_message="Internal error: Task context lost during retry",
                     retry_count=retry_count
@@ -1028,30 +1035,30 @@ Remember to end your response with the result embed:
                 # This will trigger another retry if count allows, via _finalize...
 
             # Recursively call finalize to validate the new output
-            return await self._finalize_workflow_node_execution(
+            return await self._finalize_structured_invocation(
                 updated_session, 
                 last_model_event, 
-                workflow_data, 
+                invocation_data, 
                 output_schema, 
                 retry_count
             )
 
         except Exception as e:
             log.exception(f"{log_id} Error during retry execution: {e}")
-            return WorkflowNodeResultData(
-                type="workflow_node_result",
+            return StructuredInvocationResult(
+                type="structured_invocation_result",
                 status="failure",
                 error_message=f"Retry execution failed: {e}",
                 retry_count=retry_count
             )
 
-    async def _return_workflow_result(
+    async def _return_structured_result(
         self,
-        workflow_data: WorkflowNodeRequestData,
-        result_data: WorkflowNodeResultData,
+        invocation_data: StructuredInvocationRequest,
+        result_data: StructuredInvocationResult,
         a2a_context: Dict[str, Any],
     ):
-        """Return workflow node result to workflow executor."""
+        """Return structured invocation result to the caller."""
         try:
             # Create message with result data part
             result_message = a2a.create_agent_parts_message(
@@ -1077,8 +1084,8 @@ Remember to end your response with the result embed:
                 final_status=task_status,
                 metadata={
                     "agent_name": self.host.agent_name,
-                    "workflow_node_id": workflow_data.node_id,
-                    "workflow_name": workflow_data.workflow_name,
+                    "workflow_node_id": invocation_data.node_id,
+                    "workflow_name": invocation_data.workflow_name,
                 },
             )
 
@@ -1090,22 +1097,22 @@ Remember to end your response with the result embed:
             # Publish to workflow's response topic
             response_topic = a2a_context.get("replyToTopic")
 
-            # DEBUG: Log task ID when agent returns result to workflow executor
-            log.error(
-                f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] "
-                f"[TASK_ID_DEBUG] AGENT returning result to WORKFLOW EXECUTOR | "
+            # DEBUG: Log task ID when agent returns result to caller
+            log.debug(
+                f"{self.host.log_identifier}[StructuredInvocation:{invocation_data.node_id}] "
+                f"Returning structured invocation result to caller | "
                 f"sub_task_id={a2a_context['logical_task_id']} | "
                 f"jsonrpc_request_id={a2a_context['jsonrpc_request_id']} | "
                 f"result_status={result_data.status} | "
                 f"response_topic={response_topic} | "
-                f"workflow_name={workflow_data.workflow_name} | "
-                f"node_id={workflow_data.node_id}"
+                f"workflow_name={invocation_data.workflow_name} | "
+                f"node_id={invocation_data.node_id}"
             )
 
             if not response_topic:
                 log.error(
-                    f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] "
-                    f"No replyToTopic in a2a_context! Cannot send workflow node result. "
+                    f"{self.host.log_identifier}[StructuredInvocation:{invocation_data.node_id}] "
+                    f"No replyToTopic in a2a_context! Cannot send structured invocation result. "
                     f"a2a_context keys: {list(a2a_context.keys())}"
                 )
                 # Still ACK the message to avoid redelivery
@@ -1120,8 +1127,8 @@ Remember to end your response with the result embed:
                 return
 
             log.info(
-                f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] "
-                f"Publishing workflow node result (status={result_data.status}) to {response_topic}"
+                f"{self.host.log_identifier}[StructuredInvocation:{invocation_data.node_id}] "
+                f"Publishing structured invocation result (status={result_data.status}) to {response_topic}"
             )
 
             self.host.publish_a2a_message(
@@ -1142,8 +1149,8 @@ Remember to end your response with the result embed:
 
         except Exception as e:
             log.error(
-                f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] "
-                f"CRITICAL: Failed to return workflow node result to workflow executor: {e}",
+                f"{self.host.log_identifier}[StructuredInvocation:{invocation_data.node_id}] "
+                f"CRITICAL: Failed to return structured invocation result to caller: {e}",
                 exc_info=True,
             )
             # Try to ACK message even on error to avoid redelivery loop
@@ -1158,6 +1165,6 @@ Remember to end your response with the result embed:
                             original_message.call_acknowledgements()
             except Exception as ack_e:
                 log.error(
-                    f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] "
+                    f"{self.host.log_identifier}[StructuredInvocation:{invocation_data.node_id}] "
                     f"Failed to ACK message after error: {ack_e}"
                 )

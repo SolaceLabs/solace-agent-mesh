@@ -1,13 +1,13 @@
 import React, { useRef, useState, useLayoutEffect, useEffect, useCallback } from "react";
 import { Workflow, Maximize2, Minimize2 } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
-import AgentNodeV2 from "./AgentNodeV2";
-import ConditionalNodeV2 from "./ConditionalNodeV2";
-import SwitchNodeV2 from "./SwitchNodeV2";
-import LoopNodeV2 from "./LoopNodeV2";
-import MapNodeV2 from "./MapNodeV2";
+import AgentNode from "./AgentNode";
+import ConditionalNode from "./ConditionalNode";
+import SwitchNode from "./SwitchNode";
+import LoopNode from "./LoopNode";
+import MapNode from "./MapNode";
 
-interface WorkflowGroupV2Props {
+interface WorkflowGroupProps {
     node: LayoutNode;
     isSelected?: boolean;
     onClick?: (node: LayoutNode) => void;
@@ -24,19 +24,23 @@ interface BezierPath {
 /**
  * Generate a cubic bezier path from source bottom-center to target top-center
  * The curve starts going straight down and ends going straight up for clean vertical transitions
+ *
+ * @param scale - The current zoom scale factor (to convert screen coordinates to SVG coordinates)
  */
 function generateBezierPath(
     sourceRect: DOMRect,
     targetRect: DOMRect,
-    containerRect: DOMRect
+    containerRect: DOMRect,
+    scale: number = 1
 ): string {
     // Source: bottom center of the source element
-    const x1 = sourceRect.left + sourceRect.width / 2 - containerRect.left;
-    const y1 = sourceRect.bottom - containerRect.top;
+    // Divide by scale to convert from screen coordinates (affected by zoom) to SVG coordinates
+    const x1 = (sourceRect.left + sourceRect.width / 2 - containerRect.left) / scale;
+    const y1 = (sourceRect.bottom - containerRect.top) / scale;
 
     // Target: top center of the target element
-    const x2 = targetRect.left + targetRect.width / 2 - containerRect.left;
-    const y2 = targetRect.top - containerRect.top;
+    const x2 = (targetRect.left + targetRect.width / 2 - containerRect.left) / scale;
+    const y2 = (targetRect.top - containerRect.top) / scale;
 
     // Control points for a curve with vertical start and end
     const verticalDistance = Math.abs(y2 - y1);
@@ -54,7 +58,7 @@ function generateBezierPath(
     return `M ${x1},${y1} C ${cx1},${cy1} ${cx2},${cy2} ${x2},${y2}`;
 }
 
-const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [bezierPaths, setBezierPaths] = useState<BezierPath[]>([]);
     const [resizeCounter, setResizeCounter] = useState(0);
@@ -73,6 +77,10 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
 
         const container = containerRef.current;
         const containerRect = container.getBoundingClientRect();
+
+        // Calculate the current zoom scale by comparing the visual size (getBoundingClientRect)
+        // with the actual size (offsetWidth). When zoomed, the visual size changes but offsetWidth stays the same.
+        const scale = containerRect.width / container.offsetWidth;
 
         const paths: BezierPath[] = [];
 
@@ -95,7 +103,7 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
                     branchStartNodes.forEach((branchStartEl, index) => {
                         const targetEl = branchStartEl.firstElementChild || branchStartEl;
                         const targetRect = targetEl.getBoundingClientRect();
-                        const pathD = generateBezierPath(precedingRect, targetRect, containerRect);
+                        const pathD = generateBezierPath(precedingRect, targetRect, containerRect, scale);
 
                         paths.push({
                             id: `${blockId}-start-${index}`,
@@ -116,7 +124,7 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
                     branchEndNodes.forEach((branchEndEl, index) => {
                         const sourceEl = branchEndEl.firstElementChild || branchEndEl;
                         const sourceRect = sourceEl.getBoundingClientRect();
-                        const pathD = generateBezierPath(sourceRect, followingRect, containerRect);
+                        const pathD = generateBezierPath(sourceRect, followingRect, containerRect, scale);
 
                         paths.push({
                             id: `${blockId}-end-${index}`,
@@ -152,6 +160,38 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
         return () => resizeObserver.disconnect();
     }, [node.children, isCollapsed]);
 
+    // Use MutationObserver to detect zoom/pan changes from react-zoom-pan-pinch
+    // The transform is applied to ancestor elements, so we watch for style changes
+    useEffect(() => {
+        if (!containerRef.current || isCollapsed) return;
+
+        // Find the TransformComponent wrapper by looking for an ancestor with transform style
+        let transformedParent: Element | null = containerRef.current.parentElement;
+        while (transformedParent && !transformedParent.hasAttribute('style')) {
+            transformedParent = transformedParent.parentElement;
+        }
+
+        if (!transformedParent) return;
+
+        const mutationObserver = new MutationObserver((mutations) => {
+            // Check if any mutation is a style change (which includes transform changes)
+            const hasStyleChange = mutations.some(m => m.attributeName === 'style');
+            if (hasStyleChange) {
+                setResizeCounter(c => c + 1);
+            }
+        });
+
+        // Observe style attribute changes on the transformed parent and its ancestors
+        // (react-zoom-pan-pinch may apply transforms at different levels)
+        let current: Element | null = transformedParent;
+        while (current && current !== document.body) {
+            mutationObserver.observe(current, { attributes: true, attributeFilter: ['style'] });
+            current = current.parentElement;
+        }
+
+        return () => mutationObserver.disconnect();
+    }, [isCollapsed]);
+
     // Render a child node with data attributes for connector calculation
     const renderChild = (child: LayoutNode, precedingNodeId?: string, followingNodeId?: string): React.ReactNode => {
         const childProps = {
@@ -165,31 +205,31 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
             case 'agent':
                 return (
                     <div key={child.id} data-node-id={child.id}>
-                        <AgentNodeV2 {...childProps} onChildClick={onChildClick} />
+                        <AgentNode {...childProps} onChildClick={onChildClick} />
                     </div>
                 );
             case 'conditional':
                 return (
                     <div key={child.id} data-node-id={child.id}>
-                        <ConditionalNodeV2 {...childProps} />
+                        <ConditionalNode {...childProps} />
                     </div>
                 );
             case 'switch':
                 return (
                     <div key={child.id} data-node-id={child.id}>
-                        <SwitchNodeV2 {...childProps} />
+                        <SwitchNode {...childProps} />
                     </div>
                 );
             case 'loop':
                 return (
                     <div key={child.id} data-node-id={child.id}>
-                        <LoopNodeV2 {...childProps} onChildClick={onChildClick} />
+                        <LoopNode {...childProps} onChildClick={onChildClick} />
                     </div>
                 );
             case 'map':
                 return (
                     <div key={child.id} data-node-id={child.id}>
-                        <MapNodeV2 {...childProps} onChildClick={onChildClick} />
+                        <MapNode {...childProps} onChildClick={onChildClick} />
                     </div>
                 );
             case 'parallelBlock': {
@@ -370,4 +410,4 @@ const WorkflowGroupV2: React.FC<WorkflowGroupV2Props> = ({ node, isSelected, onC
     );
 };
 
-export default WorkflowGroupV2;
+export default WorkflowGroup;

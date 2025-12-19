@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import type { Edge } from "./utils/types";
 
-interface EdgeLayerV2Props {
+interface EdgeLayerProps {
     edges: Edge[];
     selectedEdgeId?: string | null;
     onEdgeClick?: (edge: Edge) => void;
 }
 
-const EdgeLayerV2: React.FC<EdgeLayerV2Props> = ({ edges, selectedEdgeId, onEdgeClick }) => {
+const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, selectedEdgeId, onEdgeClick }) => {
     const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
 
     // Calculate bezier curve path
@@ -169,4 +169,4 @@ const EdgeLayerV2: React.FC<EdgeLayerV2Props> = ({ edges, selectedEdgeId, onEdge
     );
 };
 
-export default EdgeLayerV2;
+export default EdgeLayer;

@@ -81,7 +81,7 @@ from ...common.data_parts import AgentProgressUpdateData
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
 from ...common.utils.rbac_utils import validate_agent_access
-from .workflow_support.handler import WorkflowNodeHandler
+from .structured_invocation.handler import StructuredInvocationHandler
 
 log = logging.getLogger(__name__)
 
@@ -266,8 +266,8 @@ class SamAgentComponent(SamComponentBase):
         ] = None
         self._active_background_tasks = set()
 
-        # Initialize workflow support
-        self.workflow_handler = WorkflowNodeHandler(self)
+        # Initialize structured invocation support
+        self.structured_invocation_handler = StructuredInvocationHandler(self)
 
         try:
             self.agent_specific_state: Dict[str, Any] = {}

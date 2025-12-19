@@ -1,8 +1,8 @@
 import React from "react";
 import type { LayoutNode } from "../utils/types";
-import AgentNodeV2 from "./AgentNodeV2";
+import AgentNode from "./AgentNode";
 
-interface MapNodeV2Props {
+interface MapNodeProps {
     node: LayoutNode;
     isSelected?: boolean;
     onClick?: (node: LayoutNode) => void;
@@ -11,7 +11,7 @@ interface MapNodeV2Props {
     onCollapse?: (nodeId: string) => void;
 }
 
-const MapNodeV2: React.FC<MapNodeV2Props> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
     const getStatusColor = () => {
         switch (node.data.status) {
             case "completed":
@@ -60,7 +60,7 @@ const MapNodeV2: React.FC<MapNodeV2Props> = ({ node, isSelected, onClick, onChil
 
         switch (child.type) {
             case 'agent':
-                return <AgentNodeV2 key={child.id} {...childProps} />;
+                return <AgentNode key={child.id} {...childProps} />;
             default:
                 return null;
         }
@@ -172,4 +172,4 @@ const MapNodeV2: React.FC<MapNodeV2Props> = ({ node, isSelected, onClick, onChil
     );
 };
 
-export default MapNodeV2;
+export default MapNode;

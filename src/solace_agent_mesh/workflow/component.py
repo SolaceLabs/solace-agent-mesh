@@ -565,10 +565,10 @@ class WorkflowExecutorComponent(SamComponentBase):
         )
 
         # Create timeout error
-        from ..common.data_parts import WorkflowNodeResultData
+        from ..common.data_parts import StructuredInvocationResult
 
-        result_data = WorkflowNodeResultData(
-            type="workflow_node_result",
+        result_data = StructuredInvocationResult(
+            type="structured_invocation_result",
             status="failure",
             error_message=f"Agent timed out after {timeout_seconds} seconds",
         )

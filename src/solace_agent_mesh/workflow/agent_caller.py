@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional, TYPE_CHECKING
 from a2a.types import MessageSendParams, SendMessageRequest, Message as A2AMessage
 
 from ..common import a2a
-from ..common.data_parts import WorkflowNodeRequestData
+from ..common.data_parts import StructuredInvocationRequest
 from ..common.agent_card_utils import get_schemas_from_agent_card
 from ..agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
@@ -197,16 +197,16 @@ This is MANDATORY for the workflow to continue.
         # node.id already includes iteration index for map nodes (e.g., "generate_data_0")
         suggested_output_filename = f"{safe_workflow_name}_{node.id}_{unique_suffix}.json"
 
-        # 1. Workflow context (must be first)
-        workflow_data = WorkflowNodeRequestData(
-            type="workflow_node_request",
+        # 1. Structured invocation request (must be first)
+        invocation_request = StructuredInvocationRequest(
+            type="structured_invocation_request",
             workflow_name=workflow_state.workflow_name,
             node_id=node.id,
             input_schema=input_schema,
             output_schema=output_schema,
             suggested_output_filename=suggested_output_filename,
         )
-        parts.append(a2a.create_data_part(data=workflow_data.model_dump()))
+        parts.append(a2a.create_data_part(data=invocation_request.model_dump()))
 
         # Determine if we should send as structured artifact or text
         should_send_artifact = False

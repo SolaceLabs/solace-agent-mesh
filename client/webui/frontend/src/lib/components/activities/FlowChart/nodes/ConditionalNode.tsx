@@ -1,13 +1,13 @@
 import React from "react";
 import type { LayoutNode } from "../utils/types";
 
-interface ConditionalNodeV2Props {
+interface ConditionalNodeProps {
     node: LayoutNode;
     isSelected?: boolean;
     onClick?: (node: LayoutNode) => void;
 }
 
-const ConditionalNodeV2: React.FC<ConditionalNodeV2Props> = ({ node, isSelected, onClick }) => {
+const ConditionalNode: React.FC<ConditionalNodeProps> = ({ node, isSelected, onClick }) => {
     const getStatusColor = () => {
         switch (node.data.status) {
             case "completed":
@@ -60,4 +60,4 @@ const ConditionalNodeV2: React.FC<ConditionalNodeV2Props> = ({ node, isSelected,
     );
 };
 
-export default ConditionalNodeV2;
+export default ConditionalNode;

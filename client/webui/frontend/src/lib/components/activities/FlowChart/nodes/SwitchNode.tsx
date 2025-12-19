@@ -1,13 +1,13 @@
 import React from "react";
 import type { LayoutNode } from "../utils/types";
 
-interface SwitchNodeV2Props {
+interface SwitchNodeProps {
     node: LayoutNode;
     isSelected?: boolean;
     onClick?: (node: LayoutNode) => void;
 }
 
-const SwitchNodeV2: React.FC<SwitchNodeV2Props> = ({ node, isSelected, onClick }) => {
+const SwitchNode: React.FC<SwitchNodeProps> = ({ node, isSelected, onClick }) => {
     const getStatusColor = () => {
         switch (node.data.status) {
             case "completed":
@@ -67,4 +67,4 @@ const SwitchNodeV2: React.FC<SwitchNodeV2Props> = ({ node, isSelected, onClick }
     );
 };
 
-export default SwitchNodeV2;
+export default SwitchNode;

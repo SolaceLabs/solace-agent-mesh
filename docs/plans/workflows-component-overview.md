@@ -42,18 +42,18 @@ Prescriptive workflows are ideal for:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              User/Client                                     │
+│                              User/Client                                    │
 │                    (WebUI, CLI, External Systems)                           │
 └─────────────────────────────────────────────────────────────────────────────┘
                                      │
                                      │ A2A Protocol (via Solace Broker)
                                      ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        WorkflowExecutorComponent                             │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐ │
-│  │ Event Handlers  │  │  DAG Executor   │  │     Agent Caller           │ │
-│  │ (Protocol)      │◄─┤  (Orchestration)│──►│     (A2A Invocation)       │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────────────────┘ │
+│                        WorkflowExecutorComponent                            │
+│  ┌─────────────────┐  ┌─────────────────┐   ┌─────────────────────────────┐ │
+│  │ Event Handlers  │  │  DAG Executor   │   │     Agent Caller            │ │
+│  │ (Protocol)      │◄─┤  (Orchestration)│──►│     (A2A Invocation)        │ │
+│  └─────────────────┘  └─────────────────┘   └─────────────────────────────┘ │
 │           │                    │                        │                   │
 │           │                    ▼                        │                   │
 │           │           ┌─────────────────┐               │                   │
@@ -65,25 +65,25 @@ Prescriptive workflows are ideal for:
             │ A2A Messages                                │ A2A Messages
             ▼                                             ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Agent Pool (SamAgentComponents)                      │
-│  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐       │
-│  │   Agent A         │  │   Agent B         │  │   Agent C         │       │
-│  │ ┌───────────────┐ │  │ ┌───────────────┐ │  │ ┌───────────────┐ │       │
-│  │ │WorkflowNode   │ │  │ │WorkflowNode   │ │  │ │WorkflowNode   │ │       │
-│  │ │Handler        │ │  │ │Handler        │ │  │ │Handler        │ │       │
-│  │ └───────────────┘ │  │ └───────────────┘ │  │ └───────────────┘ │       │
-│  └───────────────────┘  └───────────────────┘  └───────────────────┘       │
+│                         Agent Pool (SamAgentComponents)                     │
+│  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐        │
+│  │   Agent A         │  │   Agent B         │  │   Agent C         │        │
+│  │ ┌───────────────┐ │  │ ┌───────────────┐ │  │ ┌───────────────┐ │        │
+│  │ │WorkflowNode   │ │  │ │WorkflowNode   │ │  │ │WorkflowNode   │ │        │
+│  │ │Handler        │ │  │ │Handler        │ │  │ │Handler        │ │        │
+│  │ └───────────────┘ │  │ └───────────────┘ │  │ └───────────────┘ │        │
+│  └───────────────────┘  └───────────────────┘  └───────────────────┘        │
 └─────────────────────────────────────────────────────────────────────────────┘
                                      │
                                      │ Status Events (SSE)
                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────────────────────┐
 │                         Frontend (WebUI)                                     │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐ │
-│  │ Task Visualizer │  │  Layout Engine  │  │     V2 Components          │ │
-│  │ Processor       │──►│  (layoutEngine) │──►│     (FlowChartPanelV2)     │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────────┘
+│  ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────────────────┐ │
+│  │ Task Visualizer │   │  Layout Engine  │   │     FlowChart               │ │
+│  │ Processor       │──►│  (layoutEngine) │──►│     Components              │ │
+│  └─────────────────┘   └─────────────────┘   └─────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Communication Patterns
@@ -117,9 +117,11 @@ Foundation layer providing shared data structures and utilities used across all 
 #### Data Models
 
 ```python
-# Core workflow message types
-WorkflowNodeRequestData      # Workflow → Agent: "Execute this node"
-WorkflowNodeResultData       # Agent → Workflow: "Here's the result"
+# Structured invocation types (generic agent-as-function pattern)
+StructuredInvocationRequest  # Caller → Agent: "Execute with schema validation"
+StructuredInvocationResult   # Agent → Caller: "Here's the validated result"
+
+# Workflow-specific visualization types
 WorkflowExecutionStartData   # Workflow → Client: "Execution started"
 WorkflowNodeExecutionStartData  # Workflow → Client: "Node started"
 WorkflowNodeExecutionResultData # Workflow → Client: "Node completed"
@@ -128,6 +130,8 @@ WorkflowMapProgressData      # Workflow → Client: "Map iteration X of Y"
 
 #### Role in Architecture
 These models define the **contract** between components. They ensure type safety and validation across the system boundary.
+
+Note: `StructuredInvocationRequest/Result` are generic types usable by any programmatic caller (workflows, gateways, APIs). The `WorkflowNode*` types are workflow-specific visualization events.
 
 ---
 
@@ -315,21 +319,21 @@ input:
 
 ---
 
-### 4. Agent Workflow Support
+### 4. Structured Invocation Support
 
-**Location:** `src/solace_agent_mesh/agent/sac/workflow_support/`
+**Location:** `src/solace_agent_mesh/agent/sac/structured_invocation/`
 
 #### Purpose
-Enable standard SAM agents to participate as nodes in workflows.
+Enable agents to be invoked with schema-validated input/output, functioning as a "structured function call" pattern. Used by workflows and other programmatic callers that need predictable, validated responses.
 
-#### 4.1 WorkflowNodeHandler (`handler.py`)
+#### 4.1 StructuredInvocationHandler (`handler.py`)
 
 **Responsibilities:**
-- Detect workflow context in incoming messages
+- Detect structured invocation context in incoming messages
 - Validate input against schema
-- Execute agent with workflow-specific prompts
+- Execute agent with structured prompts
 - Validate output against schema (with retry logic)
-- Format result as `WorkflowNodeResultData`
+- Format result as `StructuredInvocationResult`
 
 **Execution Flow:**
 ```
@@ -337,8 +341,8 @@ Incoming A2A Message
         │
         ▼
 ┌───────────────────────┐
-│ Extract Workflow      │  ← Is this a workflow request?
-│ Context               │     (check for WorkflowNodeRequestData)
+│ Extract Structured    │  ← Is this a structured invocation?
+│ Invocation Context    │     (check for StructuredInvocationRequest)
 └───────────────────────┘
         │ Yes
         ▼
@@ -359,7 +363,7 @@ Incoming A2A Message
         │
         ▼
 ┌───────────────────────┐
-│ Send Result           │  ← WorkflowNodeResultData
+│ Send Result           │  ← StructuredInvocationResult
 └───────────────────────┘
 ```
 
@@ -404,9 +408,9 @@ This creates a **bridge** between agent-driven orchestration and prescriptive wo
 
 ---
 
-### 6. Frontend Visualization (V2)
+### 6. Frontend Visualization
 
-**Location:** `client/webui/frontend/src/lib/components/activities/FlowChart/v2/`
+**Location:** `client/webui/frontend/src/lib/components/activities/FlowChart/`
 
 #### Purpose
 Render real-time workflow execution visualization in the WebUI.
@@ -414,27 +418,27 @@ Render real-time workflow execution visualization in the WebUI.
 #### Component Hierarchy
 
 ```
-FlowChartPanelV2
+FlowChartPanel
     │
-    ├── WorkflowRendererV2
+    ├── WorkflowRenderer
     │       │
-    │       ├── EdgeLayerV2 (connections)
+    │       ├── EdgeLayer (connections)
     │       │
     │       └── Node Components
-    │               ├── AgentNodeV2
-    │               ├── UserNodeV2
-    │               ├── ToolNodeV2
-    │               ├── LLMNodeV2
-    │               ├── ConditionalNodeV2
-    │               ├── SwitchNodeV2
-    │               ├── LoopNodeV2
-    │               ├── MapNodeV2
-    │               └── WorkflowGroupV2 (containers)
+    │               ├── AgentNode
+    │               ├── UserNode
+    │               ├── ToolNode
+    │               ├── LLMNode
+    │               ├── ConditionalNode
+    │               ├── SwitchNode
+    │               ├── LoopNode
+    │               ├── MapNode
+    │               └── WorkflowGroup (containers)
     │
     └── NodeDetailsCard (sidebar details)
 ```
 
-#### 6.1 Layout Engine (`utils/layoutEngine.ts`)
+#### Layout Engine (`utils/layoutEngine.ts`)
 
 **Purpose:** Transform execution events into a visual tree structure.
 
@@ -467,20 +471,20 @@ LayoutResult { nodes, edges, totalWidth, totalHeight }
 - Dynamic updates (nodes completing in real-time)
 - Collapse/expand for complex workflows
 
-#### 6.2 Node Components
+#### Node Components
 
 Each node type has a dedicated React component:
 
 | Component | Purpose | Visual Style |
 |-----------|---------|--------------|
-| `AgentNodeV2` | Agent invocation | Card with header |
-| `WorkflowGroupV2` | Container for nested items | Bordered group |
-| `ConditionalNodeV2` | If/else decision | Diamond shape |
-| `SwitchNodeV2` | Multi-way decision | Diamond with multiple outputs |
-| `MapNodeV2` | Parallel iteration | Container with iteration count |
-| `LoopNodeV2` | While loop | Container with iteration info |
+| `AgentNode` | Agent invocation | Card with header |
+| `WorkflowGroup` | Container for nested items | Bordered group |
+| `ConditionalNode` | If/else decision | Diamond shape |
+| `SwitchNode` | Multi-way decision | Diamond with multiple outputs |
+| `MapNode` | Parallel iteration | Container with iteration count |
+| `LoopNode` | While loop | Container with iteration info |
 
-#### 6.3 Node Details Card
+#### Node Details Card
 
 Sidebar component showing detailed information about selected node:
 - Input/output data
@@ -540,10 +544,10 @@ Minor modifications to forward workflow-specific events to clients via SSE.
    e. Publish WorkflowNodeExecutionResultData
 
 5. AGENT EXECUTION (for each agent node)
-   a. Agent receives WorkflowNodeRequestData in message
-   b. WorkflowNodeHandler.execute_workflow_node()
+   a. Agent receives StructuredInvocationRequest in message
+   b. StructuredInvocationHandler.execute_structured_invocation()
    c. Validate input, run agent, validate output
-   d. Return WorkflowNodeResultData
+   d. Return StructuredInvocationResult
 
 6. WORKFLOW COMPLETES
    - Evaluate output_mapping
@@ -596,7 +600,7 @@ nodes:
 
 | Component | Integration |
 |-----------|-------------|
-| SamAgentComponent | Extended with WorkflowNodeHandler |
+| SamAgentComponent | Extended with StructuredInvocationHandler |
 | Agent Registry | Workflows register as agents |
 | Artifact Service | Input/output stored as artifacts |
 | Session Service | Workflow sessions for artifact scoping |
@@ -606,7 +610,7 @@ nodes:
 
 1. **Custom Node Types**: Add new node types in `app.py` and `dag_executor.py`
 2. **Custom Validators**: Extend schema validation in `validator.py`
-3. **Custom Visualizations**: Add node components in `v2/nodes/`
+3. **Custom Visualizations**: Add node components in `nodes/`
 4. **Exit Handlers**: Define cleanup/notification logic
 
 ---
@@ -618,7 +622,7 @@ The Prescriptive Workflows feature introduces a layered architecture:
 1. **Foundation Layer** (data_parts, constants) - Shared contracts
 2. **Definition Layer** (app.py) - YAML schema and validation
 3. **Runtime Layer** (component, dag_executor, agent_caller) - Execution engine
-4. **Agent Layer** (workflow_support) - Agent participation
+4. **Agent Layer** (structured_invocation) - Agent participation
 5. **Tool Layer** (workflow_tool) - Agent-to-workflow bridge
 6. **Visualization Layer** (V2 components) - Real-time UI
 

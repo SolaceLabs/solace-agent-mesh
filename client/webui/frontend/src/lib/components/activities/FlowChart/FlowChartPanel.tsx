@@ -5,12 +5,12 @@ import { PopoverManual } from "@/lib/components/ui";
 import { useTaskContext } from "@/lib/hooks";
 import { useAgentCards } from "@/lib/hooks";
 // import { getThemeButtonHtmlStyles } from "@/lib/utils";
-import WorkflowRendererV2 from "./WorkflowRendererV2";
+import WorkflowRenderer from "./WorkflowRenderer";
 import type { LayoutNode, Edge } from "./utils/types";
 import { findNodeDetails, type NodeDetails } from "./utils/nodeDetailsHelper";
 import NodeDetailsCard from "./NodeDetailsCard";
 
-interface FlowChartPanelV2Props {
+interface FlowChartPanelProps {
     processedSteps: VisualizerStep[];
     isRightPanelVisible?: boolean;
     isSidePanelTransitioning?: boolean;
@@ -19,7 +19,7 @@ interface FlowChartPanelV2Props {
 // Stable offset object to prevent unnecessary re-renders
 const POPOVER_OFFSET = { x: 16, y: 0 };
 
-const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
+const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
     processedSteps,
     isRightPanelVisible = false
 }) => {
@@ -142,7 +142,7 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
                                 }}
                                 onClick={handlePaneClick}
                             >
-                                <WorkflowRendererV2
+                                <WorkflowRenderer
                                     processedSteps={processedSteps}
                                     agentNameMap={agentNameMap}
                                     selectedStepId={highlightedStepId}
@@ -174,4 +174,4 @@ const FlowChartPanelV2: React.FC<FlowChartPanelV2Props> = ({
     );
 };
 
-export default FlowChartPanelV2;
+export default FlowChartPanel;

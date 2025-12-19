@@ -1,8 +1,8 @@
 import React from "react";
 import type { LayoutNode } from "../utils/types";
-import AgentNodeV2 from "./AgentNodeV2";
+import AgentNode from "./AgentNode";
 
-interface LoopNodeV2Props {
+interface LoopNodeProps {
     node: LayoutNode;
     isSelected?: boolean;
     onClick?: (node: LayoutNode) => void;
@@ -11,7 +11,7 @@ interface LoopNodeV2Props {
     onCollapse?: (nodeId: string) => void;
 }
 
-const LoopNodeV2: React.FC<LoopNodeV2Props> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
     const getStatusColor = () => {
         switch (node.data.status) {
             case "completed":
@@ -41,7 +41,7 @@ const LoopNodeV2: React.FC<LoopNodeV2Props> = ({ node, isSelected, onClick, onCh
 
         switch (child.type) {
             case 'agent':
-                return <AgentNodeV2 key={child.id} {...childProps} />;
+                return <AgentNode key={child.id} {...childProps} />;
             default:
                 // Loop children are typically agents, but handle other types if needed
                 return null;
@@ -156,4 +156,4 @@ const LoopNodeV2: React.FC<LoopNodeV2Props> = ({ node, isSelected, onClick, onCh
     );
 };
 
-export default LoopNodeV2;
+export default LoopNode;

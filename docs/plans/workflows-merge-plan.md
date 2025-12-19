@@ -44,13 +44,13 @@ Location: `src/solace_agent_mesh/workflow/`
 - Lines 480-700: Event publishing, exit handlers
 - Lines 700-1087: Workflow finalization, output construction, cleanup
 
-### 2. **Agent Workflow Support** (~1,700 lines)
+### 2. **Structured Invocation Support** (~1,700 lines)
 Location: `src/solace_agent_mesh/agent/`
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `sac/workflow_support/handler.py` | 1163 | WorkflowNodeHandler - enables agents to act as workflow nodes |
-| `sac/workflow_support/validator.py` | 29 | Schema validation |
+| `sac/structured_invocation/handler.py` | 1163 | StructuredInvocationHandler - enables agents to be invoked with schema validation |
+| `sac/structured_invocation/validator.py` | 29 | Schema validation |
 | `tools/workflow_tool.py` | 453 | ADK Tool for invoking workflows from agents |
 | `sac/component.py` | +125 | Modifications to SamAgentComponent |
 
@@ -65,40 +65,30 @@ Location: `src/solace_agent_mesh/common/`
 | `a2a/types.py` | +9 | A2A types |
 | `agent_card_utils.py` | +35 | Agent card utilities |
 
-### 4. **Frontend Visualization V2** (~6,500 lines) - ONLY V2
-Location: `client/webui/frontend/src/lib/components/activities/FlowChart/v2/`
+### 4. **Frontend Visualization** (~6,500 lines)
+Location: `client/webui/frontend/src/lib/components/activities/FlowChart/`
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `FlowChartPanelV2.tsx` | 177 | Main panel component |
-| `WorkflowRendererV2.tsx` | 358 | SVG workflow renderer |
-| `EdgeLayerV2.tsx` | 172 | Edge/connection rendering |
+| `FlowChartPanel.tsx` | 177 | Main panel component |
+| `WorkflowRenderer.tsx` | 358 | SVG workflow renderer |
+| `EdgeLayer.tsx` | 172 | Edge/connection rendering |
 | `NodeDetailsCard.tsx` | 1006 | Node details sidebar |
 | `utils/layoutEngine.ts` | 1448 | Layout algorithm |
 | `utils/nodeDetailsHelper.ts` | 416 | Node details extraction |
 | `utils/types.ts` | 125 | TypeScript types |
 | **Node components:** | |
-| `nodes/AgentNodeV2.tsx` | 289 | Agent node rendering |
-| `nodes/WorkflowGroupV2.tsx` | 373 | Group/container rendering |
-| `nodes/MapNodeV2.tsx` | 175 | Map node rendering |
-| `nodes/LoopNodeV2.tsx` | 159 | Loop node rendering |
-| `nodes/ConditionalNodeV2.tsx` | 63 | Conditional rendering |
-| `nodes/SwitchNodeV2.tsx` | 70 | Switch node rendering |
+| `nodes/AgentNode.tsx` | 289 | Agent node rendering |
+| `nodes/WorkflowGroup.tsx` | 373 | Group/container rendering |
+| `nodes/MapNode.tsx` | 175 | Map node rendering |
+| `nodes/LoopNode.tsx` | 159 | Loop node rendering |
+| `nodes/ConditionalNode.tsx` | 63 | Conditional rendering |
+| `nodes/SwitchNode.tsx` | 70 | Switch node rendering |
 
-### 5. ~~**Frontend V1 Modifications**~~ - WILL BE REMOVED
-The V1 visualization code will not be included. Only V2 will ship.
-
-Files to remove/not include:
-- `layout/BlockBuilder.ts`
-- `layout/LayoutBlock.ts`
-- `taskToFlowData.ts` (V1 version)
-- `taskToFlowData.helpers.ts` (V1 version)
-- V1-specific custom nodes
-
-### 6. **Supporting Frontend Changes** (~700 lines)
+### 5. **Supporting Frontend Changes** (~700 lines)
 | File | Purpose |
 |------|---------|
-| `FlowChartPanel.tsx` | Modified to use V2 only |
+| `index.ts` | Activity component exports |
 | `taskVisualizerProcessor.ts` | Process workflow visualization data |
 | `VisualizerStepCard.tsx` | Step card component |
 | `types/activities.ts` | New activity types |
@@ -152,7 +142,7 @@ All existing design docs will be removed and replaced with focused PR-specific d
                             │
                             ▼
                    ┌────────────────┐
-                   │ Frontend V2    │
+                   │ Frontend       │
                    │ Visualization  │
                    └────────────────┘
 ```
@@ -174,7 +164,7 @@ main ◄────────────────────────
          ├── PR 4: Workflow Tool
          ├── PR 5: Runtime Core
          ├── PR 6: Frontend Layout
-         ├── PR 7: Frontend V2 Viz
+         ├── PR 7: Frontend Viz
          └── PR 8: Integration
 ```
 
@@ -215,17 +205,17 @@ main ◄────────────────────────
 
 ---
 
-### PR 3: Agent Workflow Node Support
-**Scope:** ~1,400 lines | **Review Focus:** How agents participate as workflow nodes
+### PR 3: Structured Invocation Support
+**Scope:** ~1,400 lines | **Review Focus:** How agents can be invoked with schema-validated input/output
 
 **Files:**
-- `src/solace_agent_mesh/agent/sac/workflow_support/` (new package)
-  - `handler.py` - WorkflowNodeHandler
+- `src/solace_agent_mesh/agent/sac/structured_invocation/` (new package)
+  - `handler.py` - StructuredInvocationHandler
   - `validator.py` - Schema validation
 - `src/solace_agent_mesh/agent/sac/component.py` (modifications)
 - `src/solace_agent_mesh/agent/sac/app.py` (modifications)
 
-**Documentation to include:** How to configure an agent to participate in workflows.
+**Documentation to include:** How to configure an agent for structured invocation (used by workflows and other programmatic callers).
 
 ---
 
@@ -303,27 +293,27 @@ main ◄────────────────────────
 
 ---
 
-### PR 6: Frontend V2 - Layout & Types
+### PR 6: Frontend - Layout & Types
 **Scope:** ~2,100 lines | **Review Focus:** Layout algorithm, type definitions
 
 **Files:**
-- `client/webui/frontend/src/lib/components/activities/FlowChart/v2/utils/layoutEngine.ts`
-- `client/webui/frontend/src/lib/components/activities/FlowChart/v2/utils/types.ts`
-- `client/webui/frontend/src/lib/components/activities/FlowChart/v2/utils/nodeDetailsHelper.ts`
+- `client/webui/frontend/src/lib/components/activities/FlowChart/utils/layoutEngine.ts`
+- `client/webui/frontend/src/lib/components/activities/FlowChart/utils/types.ts`
+- `client/webui/frontend/src/lib/components/activities/FlowChart/utils/nodeDetailsHelper.ts`
 - `client/webui/frontend/src/lib/types/activities.ts`
 
 **Documentation to include:** How the layout algorithm works.
 
 ---
 
-### PR 7: Frontend V2 - Components
+### PR 7: Frontend - Components
 **Scope:** ~2,900 lines | **Review Focus:** React components, SVG rendering
 
 **Files:**
-- `client/webui/frontend/src/lib/components/activities/FlowChart/v2/`
-  - `FlowChartPanelV2.tsx`
-  - `WorkflowRendererV2.tsx`
-  - `EdgeLayerV2.tsx`
+- `client/webui/frontend/src/lib/components/activities/FlowChart/`
+  - `FlowChartPanel.tsx`
+  - `WorkflowRenderer.tsx`
+  - `EdgeLayer.tsx`
   - `NodeDetailsCard.tsx`
   - `nodes/*.tsx` (all node components)
   - `index.ts`
@@ -336,7 +326,7 @@ main ◄────────────────────────
 **Scope:** ~3,500 lines | **Review Focus:** Integration points, examples, tests
 
 **Files:**
-- `client/webui/frontend/src/lib/components/activities/FlowChartPanel.tsx`
+- `client/webui/frontend/src/lib/components/activities/index.ts`
 - `client/webui/frontend/src/lib/components/activities/taskVisualizerProcessor.ts`
 - `client/webui/frontend/src/lib/components/activities/VisualizerStepCard.tsx`
 - `client/webui/frontend/src/lib/providers/*.tsx`
@@ -351,10 +341,9 @@ main ◄────────────────────────
 ## Work Remaining Before PRs
 
 1. **Feature Flag Implementation** - Add runtime config for enabling/disabling workflows
-2. **V1 Code Removal** - Remove V1 visualization code, keep only V2
-3. **Documentation Rewrite** - Remove existing design docs, write focused PR-specific docs
-4. **Code Cleanup** - Review for debug code, TODOs, rough edges
-5. **Test Coverage** - Add/improve test coverage for each PR section
+2. **Documentation Rewrite** - Remove existing design docs, write focused PR-specific docs
+3. **Code Cleanup** - Review for debug code, TODOs, rough edges
+4. **Test Coverage** - Add/improve test coverage for each PR section
 
 ---
 
@@ -391,4 +380,4 @@ Frontend:                                   [PR6] ─────→ [PR7] ─�
 | 7 | Frontend Components | ~2,900 | PR 6 | Frontend |
 | 8 | Integration | ~3,500 | All above | Full-stack |
 
-**Total:** ~13,850 lines (excluding removed V1 code and docs)
+**Total:** ~13,850 lines (excluding docs)

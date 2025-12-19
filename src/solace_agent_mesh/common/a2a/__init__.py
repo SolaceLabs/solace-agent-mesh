@@ -125,8 +125,8 @@ from .translation import (
     translate_adk_part_to_a2a_filepart,
 )
 from ..data_parts import (
-    WorkflowNodeRequestData,
-    WorkflowNodeResultData,
+    StructuredInvocationRequest,
+    StructuredInvocationResult,
 )
 
 __all__ = [
@@ -242,6 +242,6 @@ __all__ = [
     "translate_a2a_to_adk_content",
     "translate_adk_function_response_to_a2a_parts",
     "translate_adk_part_to_a2a_filepart",
-    "WorkflowNodeRequestData",
-    "WorkflowNodeResultData",
+    "StructuredInvocationRequest",
+    "StructuredInvocationResult",
 ]

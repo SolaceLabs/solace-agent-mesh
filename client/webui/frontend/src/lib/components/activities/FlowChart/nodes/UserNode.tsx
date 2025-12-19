@@ -2,13 +2,13 @@ import React from "react";
 import { User } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 
-interface UserNodeV2Props {
+interface UserNodeProps {
     node: LayoutNode;
     isSelected?: boolean;
     onClick?: (node: LayoutNode) => void;
 }
 
-const UserNodeV2: React.FC<UserNodeV2Props> = ({ node, isSelected, onClick }) => {
+const UserNode: React.FC<UserNodeProps> = ({ node, isSelected, onClick }) => {
     return (
         <div
             className={`cursor-pointer rounded-md border-2 border-purple-600 bg-white px-4 py-3 text-gray-800 shadow-md transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-purple-400 dark:bg-gray-800 dark:text-gray-200 ${
@@ -31,4 +31,4 @@ const UserNodeV2: React.FC<UserNodeV2Props> = ({ node, isSelected, onClick }) =>
     );
 };
 
-export default UserNodeV2;
+export default UserNode;

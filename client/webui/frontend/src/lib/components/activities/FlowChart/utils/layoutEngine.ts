@@ -1135,7 +1135,7 @@ function measureGroupNode(node: LayoutNode): void {
         contentHeight -= SPACING.VERTICAL;
     }
 
-    // Group uses p-6 (24px) padding in WorkflowGroupV2
+    // Group uses p-6 (24px) padding in WorkflowGroup
     const groupPadding = 24;
     node.width = contentWidth + (groupPadding * 2);
     node.height = contentHeight + (groupPadding * 2);

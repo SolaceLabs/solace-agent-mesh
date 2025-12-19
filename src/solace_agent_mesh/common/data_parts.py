@@ -160,36 +160,43 @@ class TemplateBlockData(BaseModel):
     template_content: str = Field(..., description="The full Liquid template content.")
 
 
-class WorkflowNodeRequestData(BaseModel):
+class StructuredInvocationRequest(BaseModel):
     """
-    Data part sent by workflow to agent for node execution.
-    Corresponds to workflow_node_request.json schema.
+    Data part for structured agent invocation with schema-validated input/output.
+
+    Used by workflows and other programmatic callers to invoke an agent in
+    "function mode" where input is validated against a schema, and output
+    is validated (with retry) against an output schema.
+
+    The agent responds with a StructuredInvocationResult.
     """
 
-    type: Literal["workflow_node_request"] = Field(
-        "workflow_node_request", description="The constant type for this data part."
+    type: Literal["structured_invocation_request"] = Field(
+        "structured_invocation_request", description="The constant type for this data part."
     )
-    workflow_name: str = Field(..., description="Name of the workflow")
-    node_id: str = Field(..., description="ID of the workflow node")
+    workflow_name: str = Field(..., description="Name of the workflow (or caller context)")
+    node_id: str = Field(..., description="ID of the invocation (workflow node ID or caller-defined)")
     input_schema: Optional[Dict[str, Any]] = Field(
-        None, description="JSON Schema for input (overrides agent card)"
+        None, description="JSON Schema for input validation (overrides agent card)"
     )
     output_schema: Optional[Dict[str, Any]] = Field(
-        None, description="JSON Schema for output (overrides agent card)"
+        None, description="JSON Schema for output validation (overrides agent card)"
     )
     suggested_output_filename: Optional[str] = Field(
         None, description="Suggested unique filename for the output artifact"
     )
 
 
-class WorkflowNodeResultData(BaseModel):
+class StructuredInvocationResult(BaseModel):
     """
-    Data part returned by agent to workflow with execution result.
-    Corresponds to workflow_node_result.json schema.
+    Data part returned by agent after a structured invocation.
+
+    Contains the result of a schema-validated agent execution, including
+    artifact reference, validation status, and any error information.
     """
 
-    type: Literal["workflow_node_result"] = Field(
-        "workflow_node_result", description="The constant type for this data part."
+    type: Literal["structured_invocation_result"] = Field(
+        "structured_invocation_result", description="The constant type for this data part."
     )
     status: Literal["success", "failure"] = Field(
         ..., description="Execution result status"
@@ -380,8 +387,8 @@ SignalData = Union[
     ArtifactCreationProgressData,
     ToolResultData,
     TemplateBlockData,
-    WorkflowNodeRequestData,
-    WorkflowNodeResultData,
+    StructuredInvocationRequest,
+    StructuredInvocationResult,
     WorkflowExecutionStartData,
     WorkflowNodeExecutionStartData,
     WorkflowNodeExecutionResultData,

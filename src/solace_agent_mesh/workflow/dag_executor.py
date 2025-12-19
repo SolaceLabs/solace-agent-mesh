@@ -23,7 +23,7 @@ from .app import (
 )
 from .workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
 from ..common.data_parts import (
-    WorkflowNodeResultData,
+    StructuredInvocationResult,
     WorkflowNodeExecutionStartData,
     WorkflowNodeExecutionResultData,
     WorkflowMapProgressData,
@@ -1112,7 +1112,7 @@ class DAGExecutor:
         self,
         workflow_context: WorkflowExecutionContext,
         sub_task_id: str,
-        result: WorkflowNodeResultData,
+        result: StructuredInvocationResult,
     ):
         """Handle completion of a workflow node."""
         log_id = f"{self.host.log_identifier}[Workflow:{workflow_context.workflow_task_id}]"
@@ -1210,7 +1210,7 @@ class DAGExecutor:
         self,
         control_node_id: str,
         sub_task_id: str,
-        result: WorkflowNodeResultData,
+        result: StructuredInvocationResult,
         workflow_state: WorkflowExecutionState,
         workflow_context: WorkflowExecutionContext,
     ):

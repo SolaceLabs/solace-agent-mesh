@@ -1,15 +1,15 @@
 import React from "react";
 import { Bot, Maximize2, Minimize2 } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
-import LLMNodeV2 from "./LLMNodeV2";
-import ToolNodeV2 from "./ToolNodeV2";
-import ConditionalNodeV2 from "./ConditionalNodeV2";
-import SwitchNodeV2 from "./SwitchNodeV2";
-import LoopNodeV2 from "./LoopNodeV2";
-import WorkflowGroupV2 from "./WorkflowGroupV2";
+import LLMNode from "./LLMNode";
+import ToolNode from "./ToolNode";
+import ConditionalNode from "./ConditionalNode";
+import SwitchNode from "./SwitchNode";
+import LoopNode from "./LoopNode";
+import WorkflowGroup from "./WorkflowGroup";
 
 
-interface AgentNodeV2Props {
+interface AgentNodeProps {
     node: LayoutNode;
     isSelected?: boolean;
     onClick?: (node: LayoutNode) => void;
@@ -18,7 +18,7 @@ interface AgentNodeV2Props {
     onCollapse?: (nodeId: string) => void;
 }
 
-const AgentNodeV2: React.FC<AgentNodeV2Props> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+const AgentNode: React.FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
     // Render a child node recursively
     const renderChild = (child: LayoutNode) => {
         const childProps = {
@@ -31,19 +31,19 @@ const AgentNodeV2: React.FC<AgentNodeV2Props> = ({ node, isSelected, onClick, on
         switch (child.type) {
             case 'agent':
                 // Recursive!
-                return <AgentNodeV2 key={child.id} {...childProps} onChildClick={onChildClick} />;
+                return <AgentNode key={child.id} {...childProps} onChildClick={onChildClick} />;
             case 'llm':
-                return <LLMNodeV2 key={child.id} {...childProps} />;
+                return <LLMNode key={child.id} {...childProps} />;
             case 'tool':
-                return <ToolNodeV2 key={child.id} {...childProps} />;
+                return <ToolNode key={child.id} {...childProps} />;
             case 'conditional':
-                return <ConditionalNodeV2 key={child.id} {...childProps} />;
+                return <ConditionalNode key={child.id} {...childProps} />;
             case 'switch':
-                return <SwitchNodeV2 key={child.id} {...childProps} />;
+                return <SwitchNode key={child.id} {...childProps} />;
             case 'loop':
-                return <LoopNodeV2 key={child.id} {...childProps} />;
+                return <LoopNode key={child.id} {...childProps} />;
             case 'group':
-                return <WorkflowGroupV2 key={child.id} {...childProps} onChildClick={onChildClick} />;
+                return <WorkflowGroup key={child.id} {...childProps} onChildClick={onChildClick} />;
             case 'parallelBlock':
                 // Render parallel block - children displayed side-by-side with bounding box
                 return (
@@ -286,4 +286,4 @@ const AgentNodeV2: React.FC<AgentNodeV2Props> = ({ node, isSelected, onClick, on
     );
 };
 
-export default AgentNodeV2;
+export default AgentNode;

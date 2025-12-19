@@ -285,21 +285,20 @@ async def handle_agent_response(
         
         if isinstance(result, Task):
             # Final response
-            # Extract WorkflowNodeResultData from Task
+            # Extract StructuredInvocationResult from Task
             # The agent should have returned it as a DataPart
-            # But wait, standard agents return Task with status.message
-            # WorkflowNodeHandler puts WorkflowNodeResultData in the message.
-            
+            # StructuredInvocationHandler puts StructuredInvocationResult in the message.
+
             task_message = result.status.message
             data_parts = a2a.get_data_parts_from_message(task_message)
-            
+
             node_result = None
             for part in data_parts:
-                if part.data.get("type") == "workflow_node_result":
-                    from ...common.data_parts import WorkflowNodeResultData
-                    node_result = WorkflowNodeResultData.model_validate(part.data)
+                if part.data.get("type") == "structured_invocation_result":
+                    from ...common.data_parts import StructuredInvocationResult
+                    node_result = StructuredInvocationResult.model_validate(part.data)
                     break
-            
+
             if node_result:
                 # Remove the cache entry for timeout tracking since we received a response
                 component.cache_service.remove_data(sub_task_id)
@@ -308,7 +307,7 @@ async def handle_agent_response(
                     workflow_context, sub_task_id, node_result
                 )
             else:
-                log.error(f"{component.log_identifier} Received Task response without WorkflowNodeResultData")
+                log.error(f"{component.log_identifier} Received Task response without StructuredInvocationResult")
                 
         # Handle status updates if needed (for logging/monitoring)
         

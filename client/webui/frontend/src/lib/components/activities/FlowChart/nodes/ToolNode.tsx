@@ -2,13 +2,13 @@ import React from "react";
 import { Wrench } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 
-interface ToolNodeV2Props {
+interface ToolNodeProps {
     node: LayoutNode;
     isSelected?: boolean;
     onClick?: (node: LayoutNode) => void;
 }
 
-const ToolNodeV2: React.FC<ToolNodeV2Props> = ({ node, isSelected, onClick }) => {
+const ToolNode: React.FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
     const isProcessing = node.data.status === "in-progress";
     const haloClass = isProcessing ? 'processing-halo' : '';
 
@@ -31,4 +31,4 @@ const ToolNodeV2: React.FC<ToolNodeV2Props> = ({ node, isSelected, onClick }) =>
     );
 };
 
-export default ToolNodeV2;
+export default ToolNode;

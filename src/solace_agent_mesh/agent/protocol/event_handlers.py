@@ -418,19 +418,19 @@ async def handle_a2a_request(component, message: SolaceMessage):
                         )
                     return None
 
-        # Check for workflow mode
+        # Check for structured invocation mode
         if method in ["message/send", "message/stream"]:
             a2a_message = a2a.get_message_from_send_request(a2a_request)
-            workflow_data = component.workflow_handler.extract_workflow_context(
+            invocation_data = component.structured_invocation_handler.extract_structured_invocation_context(
                 a2a_message
             )
 
-            if workflow_data:
+            if invocation_data:
                 log.info(
-                    "%s Detected workflow node request for node '%s' in workflow '%s'. Delegating to WorkflowNodeHandler.",
+                    "%s Detected structured invocation request for node '%s' in context '%s'. Delegating to StructuredInvocationHandler.",
                     component.log_identifier,
-                    workflow_data.node_id,
-                    workflow_data.workflow_name,
+                    invocation_data.node_id,
+                    invocation_data.workflow_name,
                 )
 
                 # Extract context needed for handler
@@ -438,13 +438,8 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 original_session_id = a2a_message.context_id
                 user_id = message.get_user_properties().get("userId", "default_user")
 
-                # For workflow nodes, we use the original session ID as the effective session ID
-                # because the workflow executor manages the session scope.
-                # Or should we use a unique session ID for the node execution?
-                # The design doc says: "Re-run agent with updated session" in retry logic.
-                # And "Load artifact from artifact service... session_id=session.id".
-                # The workflow executor passes `execution_id` as `contextId`.
-                # Let's use that.
+                # For structured invocations, we use the original session ID as the effective session ID
+                # because the caller manages the session scope.
 
                 a2a_context = {
                     "logical_task_id": logical_task_id,
@@ -460,21 +455,20 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 }
                 # Note: original_solace_message is NOT stored in a2a_context to avoid
                 # serialization issues when a2a_context is stored in ADK session state.
-                # It is stored in TaskExecutionContext by the workflow node handler.
+                # It is stored in TaskExecutionContext by the structured invocation handler.
 
-                # Execute as workflow node
-                # Note: execute_workflow_node is async
+                # Execute as structured invocation
                 loop = component.get_async_loop()
                 if loop and loop.is_running():
                     asyncio.run_coroutine_threadsafe(
-                        component.workflow_handler.execute_workflow_node(
-                            a2a_message, workflow_data, a2a_context, message
+                        component.structured_invocation_handler.execute_structured_invocation(
+                            a2a_message, invocation_data, a2a_context, message
                         ),
                         loop,
                     )
                 else:
                     log.error(
-                        "%s Async loop not available. Cannot execute workflow node.",
+                        "%s Async loop not available. Cannot execute structured invocation.",
                         component.log_identifier,
                     )
                 return
