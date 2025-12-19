@@ -1,5 +1,5 @@
 import React from "react";
-import { Wrench } from "lucide-react";
+import { FileText, Wrench } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 
 interface ToolNodeProps {
@@ -11,6 +11,7 @@ interface ToolNodeProps {
 const ToolNode: React.FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
     const isProcessing = node.data.status === "in-progress";
     const haloClass = isProcessing ? 'processing-halo' : '';
+    const artifactCount = node.data.createdArtifacts?.length || 0;
 
     return (
         <div
@@ -26,6 +27,12 @@ const ToolNode: React.FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
             <div className="flex items-center justify-center gap-2">
                 <Wrench className="h-3.5 w-3.5 flex-shrink-0 text-cyan-600 dark:text-cyan-400" />
                 <div className="text-sm truncate">{node.data.label}</div>
+                {artifactCount > 0 && (
+                    <span className="flex items-center gap-0.5 rounded-full bg-indigo-100 px-1 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300" title={`${artifactCount} ${artifactCount === 1 ? 'artifact' : 'artifacts'} created`}>
+                        <FileText className="h-2.5 w-2.5" />
+                        {artifactCount}
+                    </span>
+                )}
             </div>
         </div>
     );

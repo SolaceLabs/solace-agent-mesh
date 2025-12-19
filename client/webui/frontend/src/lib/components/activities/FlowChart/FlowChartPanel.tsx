@@ -168,7 +168,7 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
                 placement="right-start"
                 className="max-w-[900px] min-w-[600px] max-h-[80vh] overflow-y-auto"
             >
-                {selectedNodeDetails && <NodeDetailsCard nodeDetails={selectedNodeDetails} />}
+                {selectedNodeDetails && <NodeDetailsCard nodeDetails={selectedNodeDetails} onClose={handlePopoverClose} />}
             </PopoverManual>
         </div>
     );

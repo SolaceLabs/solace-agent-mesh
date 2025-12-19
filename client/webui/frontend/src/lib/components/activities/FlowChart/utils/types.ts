@@ -33,6 +33,13 @@ export interface LayoutNode {
         currentIteration?: number;
         // Map/Fork node fields
         iterationIndex?: number;
+        // Tool node fields - artifacts created by this tool
+        createdArtifacts?: Array<{
+            filename: string;
+            version?: number;
+            mimeType?: string;
+            description?: string;
+        }>;
         // Common fields
         isTopNode?: boolean;
         isBottomNode?: boolean;

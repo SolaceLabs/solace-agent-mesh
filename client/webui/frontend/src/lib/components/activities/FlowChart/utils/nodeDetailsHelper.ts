@@ -2,6 +2,16 @@ import type { VisualizerStep } from "@/lib/types";
 import type { LayoutNode } from "./types";
 
 /**
+ * Represents an artifact created by a tool
+ */
+export interface CreatedArtifact {
+    filename: string;
+    version?: number;
+    mimeType?: string;
+    description?: string;
+}
+
+/**
  * Represents the request and result information for a node
  */
 export interface NodeDetails {
@@ -11,6 +21,7 @@ export interface NodeDetails {
     resultStep?: VisualizerStep;
     outputArtifactStep?: VisualizerStep; // For workflow nodes - the WORKFLOW_NODE_EXECUTION_RESULT with output artifact
     relatedSteps?: VisualizerStep[]; // For additional context
+    createdArtifacts?: CreatedArtifact[]; // For tool nodes - artifacts created by this tool
 }
 
 /**
@@ -262,11 +273,15 @@ function findToolNodeDetails(
         );
     }
 
+    // Get created artifacts from node data (populated by layoutEngine)
+    const createdArtifacts = node.data.createdArtifacts;
+
     return {
         nodeType: 'tool',
         label: node.data.label,
         requestStep,
         resultStep,
+        createdArtifacts,
     };
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ArrowRight, Bot, CheckCircle, GitBranch, GitMerge, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, Zap } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle, FileText, GitBranch, GitMerge, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, Zap } from "lucide-react";
 import type { NodeDetails } from "./utils/nodeDetailsHelper";
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
 import type { VisualizerStep, ToolDecision } from "@/lib/types";
@@ -146,12 +146,14 @@ const ArtifactContentViewer: React.FC<ArtifactContentViewerProps> = ({ uri, name
 
 interface NodeDetailsCardProps {
     nodeDetails: NodeDetails;
+    onClose?: () => void;
 }
 
 /**
  * Component to display detailed request and result information for a clicked node
  */
-const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails }) => {
+const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose }) => {
+    const { artifacts, setPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed, navigateArtifactVersion } = useChatContext();
     const getNodeIcon = () => {
         switch (nodeDetails.nodeType) {
             case 'user':
@@ -922,6 +924,89 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails }) => {
         );
     };
 
+    // Helper to render created artifacts for tool nodes
+    const renderCreatedArtifacts = () => {
+        if (!nodeDetails.createdArtifacts || nodeDetails.createdArtifacts.length === 0) return null;
+
+        const handleArtifactClick = (filename: string, version?: number) => {
+            // Find the artifact by filename
+            const artifact = artifacts.find(a => a.filename === filename);
+
+            if (artifact) {
+                // Switch to Files tab
+                setActiveSidePanelTab("files");
+
+                // Expand side panel if collapsed
+                setIsSidePanelCollapsed(false);
+
+                // Set preview artifact to open the file
+                setPreviewArtifact(artifact);
+
+                // If a specific version is indicated, navigate to it
+                if (version !== undefined && version !== artifact.version) {
+                    // Wait a bit for the file to load, then navigate to the specific version
+                    setTimeout(() => {
+                        navigateArtifactVersion(filename, version);
+                    }, 100);
+                }
+
+                // Close the popover
+                onClose?.();
+            }
+        };
+
+        return (
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-2 mb-3">
+                    <FileText className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
+                    <h4 className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                        Created Artifacts ({nodeDetails.createdArtifacts.length})
+                    </h4>
+                </div>
+                <div className="space-y-3">
+                    {nodeDetails.createdArtifacts.map((artifact, index) => (
+                        <div
+                            key={`${artifact.filename}-${artifact.version ?? index}`}
+                            className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-md border border-indigo-200 dark:border-indigo-700"
+                        >
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                                <button
+                                    onClick={() => handleArtifactClick(artifact.filename, artifact.version)}
+                                    className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-indigo-100 hover:underline cursor-pointer transition-colors truncate min-w-0"
+                                    title={artifact.filename}
+                                >
+                                    {artifact.filename}
+                                </button>
+                                {artifact.version !== undefined && (
+                                    <span className="text-xs px-1.5 py-0.5 bg-indigo-200 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-300 rounded flex-shrink-0">
+                                        v{artifact.version}
+                                    </span>
+                                )}
+                            </div>
+                            {artifact.description && (
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                                    {artifact.description}
+                                </p>
+                            )}
+                            {artifact.mimeType && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    <span className="font-medium">Type:</span> {artifact.mimeType}
+                                </div>
+                            )}
+                            <div className="mt-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                                <ArtifactContentViewer
+                                    name={artifact.filename}
+                                    version={artifact.version}
+                                    mimeType={artifact.mimeType}
+                                />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="flex flex-col h-full max-h-[80vh]">
             {/* Header */}
@@ -963,6 +1048,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails }) => {
                             </div>
                             {renderStepContent(nodeDetails.resultStep, false)}
                             {renderOutputArtifact()}
+                            {renderCreatedArtifacts()}
                         </div>
                     </div>
                 ) : (
@@ -989,6 +1075,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails }) => {
                                 </div>
                                 {renderStepContent(nodeDetails.resultStep, false)}
                                 {renderOutputArtifact()}
+                                {renderCreatedArtifacts()}
                             </div>
                         )}
                         {!nodeDetails.requestStep && !nodeDetails.resultStep && (

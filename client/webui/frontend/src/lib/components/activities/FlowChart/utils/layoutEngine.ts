@@ -113,6 +113,9 @@ function processStep(step: VisualizerStep, context: BuildContext): void {
         case "WORKFLOW_NODE_EXECUTION_RESULT":
             handleWorkflowNodeResult(step, context);
             break;
+        case "AGENT_ARTIFACT_NOTIFICATION":
+            handleArtifactNotification(step, context);
+            break;
         // Add other cases as needed
     }
 }
@@ -435,6 +438,27 @@ function handleToolResult(step: VisualizerStep, context: BuildContext): void {
     const node = context.functionCallToNodeMap.get(functionCallId);
     if (node) {
         node.data.status = 'completed';
+    }
+}
+
+/**
+ * Handle AGENT_ARTIFACT_NOTIFICATION - associate artifact with the tool that created it
+ */
+function handleArtifactNotification(step: VisualizerStep, context: BuildContext): void {
+    const functionCallId = step.functionCallId;
+    if (!functionCallId) return;
+
+    const node = context.functionCallToNodeMap.get(functionCallId);
+    if (node && step.data.artifactNotification) {
+        if (!node.data.createdArtifacts) {
+            node.data.createdArtifacts = [];
+        }
+        node.data.createdArtifacts.push({
+            filename: step.data.artifactNotification.artifactName,
+            version: step.data.artifactNotification.version,
+            mimeType: step.data.artifactNotification.mimeType,
+            description: step.data.artifactNotification.description,
+        });
     }
 }
 
