@@ -49,6 +49,7 @@ from ...common.utils.embeds.types import ResolutionMode
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
 from ...common import a2a
+from ...common.a2a.types import ArtifactInfo
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
@@ -490,7 +491,6 @@ async def process_artifact_blocks_callback(
                                     mime_type=params.get("mime_type"),
                                     version=version_for_tool,
                                 )
-
                                 await _publish_data_part_status_update(
                                     host_component, a2a_context, progress_data
                                 )
@@ -514,6 +514,9 @@ async def process_artifact_blocks_callback(
                                 "filename": filename,
                                 "version": version_for_tool,
                                 "status": status_for_tool,
+                                "description": params.get("description"),
+                                "mime_type": params.get("mime_type"),
+                                "bytes_transferred": len(event.content),
                                 "original_text": original_text,
                             }
                         )
@@ -666,8 +669,12 @@ async def process_artifact_blocks_callback(
                 len(completed_blocks_list),
             )
 
+            # Get a2a_context for sending signals
+            a2a_context = callback_context.state.get("a2a_context")
+
             tool_call_parts = []
             for block_info in completed_blocks_list:
+                function_call_id = f"host-notify-{uuid.uuid4()}"
                 notify_tool_call = adk_types.FunctionCall(
                     name="_notify_artifact_save",
                     args={
@@ -675,9 +682,39 @@ async def process_artifact_blocks_callback(
                         "version": block_info["version"],
                         "status": block_info["status"],
                     },
-                    id=f"host-notify-{uuid.uuid4()}",
+                    id=function_call_id,
                 )
                 tool_call_parts.append(adk_types.Part(function_call=notify_tool_call))
+
+                # Send artifact saved notification now that we have the function_call_id
+                # This ensures the signal and tool call arrive together
+                if block_info["status"] == "success" and a2a_context:
+                    try:
+                        artifact_info = ArtifactInfo(
+                            filename=block_info["filename"],
+                            version=block_info["version"],
+                            mime_type=block_info.get("mime_type") or "application/octet-stream",
+                            size=block_info.get("bytes_transferred", 0),
+                            description=block_info.get("description"),
+                            version_count=None,  # Count not available in save context
+                        )
+                        await host_component.notify_artifact_saved(
+                            artifact_info=artifact_info,
+                            a2a_context=a2a_context,
+                            function_call_id=function_call_id,
+                        )
+                        log.debug(
+                            "%s Published artifact saved notification for fenced block: %s (function_call_id=%s)",
+                            log_identifier,
+                            block_info["filename"],
+                            function_call_id,
+                        )
+                    except Exception as signal_err:
+                        log.warning(
+                            "%s Failed to publish artifact saved notification: %s",
+                            log_identifier,
+                            signal_err,
+                        )
 
             existing_parts = llm_response.content.parts if llm_response.content else []
             final_existing_parts = existing_parts

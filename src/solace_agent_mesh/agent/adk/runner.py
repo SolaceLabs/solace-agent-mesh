@@ -205,13 +205,13 @@ async def run_adk_async_task_thread_wrapper(
             llm_limit_e,
         )
     except BadRequestError as e:
+        exception_to_finalize_with = e
         log.error(
-            "%s Bad Request for task %s: %s.",
+            "%s Bad Request for task %s: %s. Scheduling finalization.",
             component.log_identifier,
             logical_task_id,
             e.message,
         )
-        raise
     except Exception as e:
         exception_to_finalize_with = e
         log.exception(

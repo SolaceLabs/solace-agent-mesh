@@ -1,8 +1,9 @@
 import React from "react";
 
-import { CheckCircle, FileText, GitCommit, GitMerge, HardDrive, Link, List, MessageSquare, Share2, Split, Terminal, User, Workflow, XCircle, Zap } from "lucide-react";
+import { CheckCircle, ExternalLink, FileText, GitCommit, GitMerge, HardDrive, Link, List, MessageSquare, Share2, Split, Terminal, User, Workflow, XCircle, Zap } from "lucide-react";
 
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
+import { useChatContext } from "@/lib/hooks";
 import type {
     ArtifactNotificationData,
     LLMCallData,
@@ -25,6 +26,8 @@ interface VisualizerStepCardProps {
 }
 
 const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlighted, onClick, variant = "list" }) => {
+    const { artifacts, setPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed, navigateArtifactVersion } = useChatContext();
+
     const getStepIcon = () => {
         switch (step.type) {
             case "USER_REQUEST":
@@ -180,24 +183,59 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
             </div>
         </div>
     );
-    const renderArtifactNotificationData = (data: ArtifactNotificationData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-            <p>
-                <strong>Artifact:</strong> {data.artifactName}
-                {data.version !== undefined && <span className="text-gray-500 dark:text-gray-400"> (v{data.version})</span>}
-            </p>
-            {data.mimeType && (
-                <p>
-                    <strong>Type:</strong> {data.mimeType}
-                </p>
-            )}
-            {data.description && (
-                <p className="mt-1">
-                    <strong>Description:</strong> {data.description}
-                </p>
-            )}
-        </div>
-    );
+    const renderArtifactNotificationData = (data: ArtifactNotificationData) => {
+        const handleViewFile = async (e: React.MouseEvent) => {
+            e.stopPropagation();
+
+            // Find the artifact by filename
+            const artifact = artifacts.find(a => a.filename === data.artifactName);
+
+            if (artifact) {
+                // Switch to Files tab
+                setActiveSidePanelTab("files");
+
+                // Expand side panel if collapsed
+                setIsSidePanelCollapsed(false);
+
+                // Set preview artifact to open the file (loads latest by default)
+                setPreviewArtifact(artifact);
+
+                // If a specific version is indicated in the workflow data, navigate to it
+                if (data.version !== undefined && data.version !== artifact.version) {
+                    // Wait a bit for the file to load, then navigate to the specific version
+                    setTimeout(() => {
+                        navigateArtifactVersion(artifact.filename, data.version!);
+                    }, 100);
+                }
+            }
+            // If artifact not found, do nothing (silent failure)
+        };
+
+        return (
+            <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                <div className="flex items-center justify-between">
+                    <p>
+                        <strong>Artifact:</strong> {data.artifactName}
+                        {data.version !== undefined && <span className="text-gray-500 dark:text-gray-400"> (v{data.version})</span>}
+                    </p>
+                    <button onClick={handleViewFile} className="flex items-center gap-1 text-blue-600 transition-colors hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300" title="View in Files tab">
+                        <span className="text-xs">View File</span>
+                        <ExternalLink size={12} />
+                    </button>
+                </div>
+                {data.mimeType && (
+                    <p>
+                        <strong>Type:</strong> {data.mimeType}
+                    </p>
+                )}
+                {data.description && (
+                    <p className="mt-1">
+                        <strong>Description:</strong> {data.description}
+                    </p>
+                )}
+            </div>
+        );
+    };
 
     const renderWorkflowNodeStartData = (data: WorkflowNodeExecutionStartData) => (
         <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">

@@ -328,26 +328,41 @@ def _schema_to_dict(schema: types.Schema) -> dict:
     """
 
     schema_dict = schema.model_dump(exclude_none=True)
+
+    # Convert top-level type from enum to lowercase string
     if "type" in schema_dict:
-        schema_dict["type"] = schema_dict["type"].lower()
+        if isinstance(schema_dict["type"], types.Type):
+            schema_dict["type"] = schema_dict["type"].value.lower()
+        else:
+            schema_dict["type"] = str(schema_dict["type"]).lower()
+
+    # Recursively handle items (for array types)
     if "items" in schema_dict:
-        if isinstance(schema_dict["items"], dict):
+        # Check if we have the original Schema object for items
+        if isinstance(schema.items, types.Schema):
+            # Recursively convert the Schema object - this ensures nested Type enums are converted
+            schema_dict["items"] = _schema_to_dict(schema.items)
+        elif isinstance(schema_dict["items"], dict):
+            # If items is already a dict, validate and recurse
             schema_dict["items"] = _schema_to_dict(
                 types.Schema.model_validate(schema_dict["items"])
             )
-        elif isinstance(schema_dict["items"]["type"], types.Type):
-            schema_dict["items"]["type"] = TYPE_LABELS[
-                schema_dict["items"]["type"].value
-            ]
+
+    # Recursively handle properties (for object types)
     if "properties" in schema_dict:
         properties = {}
         for key, value in schema_dict["properties"].items():
             if isinstance(value, types.Schema):
+                # If it's a Schema object, recursively convert it
                 properties[key] = _schema_to_dict(value)
+            elif isinstance(value, dict):
+                # If it's already a dict, validate and recurse to handle nested Type enums
+                properties[key] = _schema_to_dict(
+                    types.Schema.model_validate(value)
+                )
             else:
+                # For other types, just copy as-is
                 properties[key] = value
-                if "type" in properties[key]:
-                    properties[key]["type"] = properties[key]["type"].lower()
         schema_dict["properties"] = properties
     return schema_dict
 
@@ -366,20 +381,23 @@ def _function_declaration_to_tool_param(
 
     assert function_declaration.name
 
-    properties = {}
-    if function_declaration.parameters and function_declaration.parameters.properties:
-        for key, value in function_declaration.parameters.properties.items():
-            properties[key] = _schema_to_dict(value)
+    # Convert the entire parameters schema to ensure all fields (type, properties, required, etc.)
+    # are properly converted, including nested Type enums
+    # If no parameters provided, default to empty object schema (required by OpenAI)
+    if function_declaration.parameters:
+        parameters = _schema_to_dict(function_declaration.parameters)
+    else:
+        parameters = {
+            "type": "object",
+            "properties": {},
+        }
 
     return {
         "type": "function",
         "function": {
             "name": function_declaration.name,
             "description": function_declaration.description or "",
-            "parameters": {
-                "type": "object",
-                "properties": properties,
-            },
+            "parameters": parameters,
         },
     }
 

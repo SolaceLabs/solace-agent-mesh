@@ -43,7 +43,7 @@ class ArtifactInfo(BaseModel):
     schema_definition: Optional[Dict[str, Any]] = Field(default=None, alias="schema")
     uri: Optional[str] = None
     version: Optional[Union[int, str]] = None
-    version_count: int
+    version_count: Optional[int] = None
     source: Optional[str] = None  # Optional: Source of the artifact (e.g., "project")
 
     model_config = ConfigDict(populate_by_name=True)
