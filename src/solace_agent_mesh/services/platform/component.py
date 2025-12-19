@@ -166,27 +166,24 @@ class PlatformServiceComponent(SamComponentBase):
 
         log.info("%s Platform Service Component initialized.", self.log_identifier)
 
-        # Start FastAPI server immediately (doesn't depend on broker)
-        self._start_fastapi_server()
-
-        # Note: Direct publisher and background tasks are started in _late_init()
-        # after SamComponentBase.run() is called and broker is guaranteed ready
+        # Note: FastAPI server, direct publisher, and background tasks are started
+        # in _late_init() after SamComponentBase.run() is called and broker is ready
 
     def _late_init(self):
         """
         Late initialization called by SamComponentBase.run() after broker is ready.
 
         This is the proper place to initialize services that require broker connectivity:
+        - FastAPI server (with startup event for background tasks)
         - Direct message publisher (for deployer commands)
-        - Background tasks (heartbeat listener, deployment checker)
         """
         log.info("%s Starting late initialization (broker-dependent services)...", self.log_identifier)
 
         # Initialize direct message publisher for deployer commands
         self._init_direct_publisher()
 
-        # Start background tasks (heartbeat listener + deployment checker)
-        self._start_background_tasks()
+        # Start FastAPI server (background tasks started via FastAPI startup event)
+        self._start_fastapi_server()
 
         log.info("%s Late initialization complete", self.log_identifier)
 
@@ -221,6 +218,28 @@ class PlatformServiceComponent(SamComponentBase):
 
             # Setup dependencies (idempotent - safe to call multiple times)
             setup_dependencies(self, self.database_url)
+
+            # Register startup event for background tasks
+            @self.fastapi_app.on_event("startup")
+            async def start_background_tasks():
+                try:
+                    from solace_agent_mesh_enterprise.init_enterprise import start_platform_background_tasks
+
+                    log.info("%s Starting enterprise platform background tasks...", self.log_identifier)
+                    await start_platform_background_tasks(self)
+                    log.info("%s Enterprise platform background tasks started", self.log_identifier)
+                except ImportError:
+                    log.info(
+                        "%s Enterprise package not available - no background tasks to start",
+                        self.log_identifier
+                    )
+                except Exception as e:
+                    log.error(
+                        "%s Failed to start enterprise background tasks: %s",
+                        self.log_identifier,
+                        e,
+                        exc_info=True
+                    )
 
             # Determine port based on SSL configuration
             port = (
@@ -314,39 +333,6 @@ class PlatformServiceComponent(SamComponentBase):
                 "%s Could not initialize direct publisher: %s (deployment commands will not work)",
                 self.log_identifier,
                 e
-            )
-
-    def _start_background_tasks(self):
-        """
-        Start background tasks for Platform Service.
-
-        This method calls the enterprise function to start background tasks
-        if the enterprise package is available. Follows the same pattern as
-        WebUI Gateway for graceful degradation.
-
-        Background tasks (enterprise-only):
-        - Heartbeat listener (monitors deployer heartbeats)
-        - Deployment status checker (checks deployment timeouts)
-        - Agent registry (tracks agent availability)
-        """
-        try:
-            from solace_agent_mesh_enterprise.init_enterprise import start_platform_background_tasks
-
-            log.info("%s Starting enterprise platform background tasks...", self.log_identifier)
-            start_platform_background_tasks(self)
-            log.info("%s Enterprise platform background tasks started", self.log_identifier)
-
-        except ImportError:
-            log.info(
-                "%s Enterprise package not available - no background tasks to start",
-                self.log_identifier
-            )
-        except Exception as e:
-            log.error(
-                "%s Failed to start enterprise background tasks: %s",
-                self.log_identifier,
-                e,
-                exc_info=True
             )
 
     async def _handle_message_async(self, message, topic: str) -> None:
