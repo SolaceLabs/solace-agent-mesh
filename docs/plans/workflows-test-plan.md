@@ -346,12 +346,14 @@ llm_responses = [
 
 ## Implementation Priority
 
-### Phase 1 - Unit Tests for Pure Functions (High Priority) ✅ IN SCOPE
+### Phase 1 - Unit Tests for Pure Functions (High Priority) ✅ COMPLETE
 These can be written quickly with no infrastructure setup:
-1. Template resolution tests (`test_template_resolution.py`)
-2. Conditional evaluation tests (`test_conditional_evaluation.py`)
-3. DAG logic tests (`test_dag_logic.py`)
-4. Workflow model validation tests (`test_workflow_models.py`)
+1. Template resolution tests (`test_template_resolution.py`) - **27 tests**
+2. Conditional evaluation tests (`test_conditional_evaluation.py`) - **27 tests**
+3. DAG logic tests (`test_dag_logic.py`) - **17 tests**
+4. Workflow model validation tests (`test_workflow_models.py`) - **22 tests**
+
+**Total Phase 1: 93 tests** (all passing)
 
 ### Phase 2 - Control Flow Declarative Tests (High Priority) ✅ IN SCOPE
 Follow the pattern of existing declarative tests:
@@ -382,12 +384,12 @@ Programmatic tests for scenarios awkward in YAML:
 
 ### In Scope (Phases 1-3)
 
-| Category | Existing | Needed | Total |
-|----------|----------|--------|-------|
-| Unit Tests (behavior-focused) | 0 | ~20 | ~20 |
+| Category | Existing | Added | Total |
+|----------|----------|-------|-------|
+| Unit Tests (behavior-focused) | 0 | **93** ✅ | **93** |
 | Declarative Integration Tests | 2 | ~8 | ~10 |
 | Programmatic Integration Tests | 0 | ~15 | ~15 |
-| **In Scope Total** | **2** | **~43** | **~45** |
+| **In Scope Total** | **2** | **~116** | **~118** |
 
 ### Deferred (Phases 4-5)
 
