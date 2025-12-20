@@ -910,6 +910,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
     };
 
     const hasRequestAndResult = nodeDetails.requestStep && nodeDetails.resultStep;
+    const hasCreatedArtifacts = nodeDetails.createdArtifacts && nodeDetails.createdArtifacts.length > 0;
 
     // Helper to render output artifact if available
     const renderOutputArtifact = () => {
@@ -936,7 +937,8 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
     };
 
     // Helper to render created artifacts for tool nodes
-    const renderCreatedArtifacts = () => {
+    // When asColumn is true, renders without the top border (for 3-column layout)
+    const renderCreatedArtifacts = (asColumn: boolean = false) => {
         if (!nodeDetails.createdArtifacts || nodeDetails.createdArtifacts.length === 0) return null;
 
         const handleArtifactClick = (filename: string, version?: number) => {
@@ -967,11 +969,12 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         };
 
         return (
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-2 mb-3">
-                    <FileText className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
+            <div className={asColumn ? "" : "mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"}>
+                <div className={`flex items-center gap-2 ${asColumn ? "mb-3 pb-2 border-b border-gray-200 dark:border-gray-700" : "mb-3"}`}>
+                    <div className={`${asColumn ? "w-2 h-2 rounded-full bg-indigo-500" : ""}`}></div>
+                    <FileText className={`h-4 w-4 text-indigo-500 dark:text-indigo-400 ${asColumn ? "hidden" : ""}`} />
                     <h4 className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
-                        Created Artifacts ({nodeDetails.createdArtifacts.length})
+                        {asColumn ? "CREATED ARTIFACTS" : `Created Artifacts (${nodeDetails.createdArtifacts.length})`}
                     </h4>
                 </div>
                 <div className="space-y-3">
@@ -1057,8 +1060,8 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
             {/* Content */}
             <div className="flex-1 overflow-y-auto">
                 {hasRequestAndResult ? (
-                    /* Split view for request and result */
-                    <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-200 dark:divide-gray-700">
+                    /* Split view for request and result (and optionally created artifacts) */
+                    <div className={`grid grid-cols-1 ${hasCreatedArtifacts ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} divide-y lg:divide-y-0 lg:divide-x divide-gray-200 dark:divide-gray-700`}>
                         {/* Request Column */}
                         <div className="p-4">
                             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
@@ -1080,8 +1083,14 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                             </div>
                             {renderStepContent(nodeDetails.resultStep, false)}
                             {renderOutputArtifact()}
-                            {renderCreatedArtifacts()}
                         </div>
+
+                        {/* Created Artifacts Column (when present) */}
+                        {hasCreatedArtifacts && (
+                            <div className="p-4">
+                                {renderCreatedArtifacts(true)}
+                            </div>
+                        )}
                     </div>
                 ) : (
                     /* Single view when only request or result is available */

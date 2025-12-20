@@ -423,15 +423,21 @@ export const processTaskForVisualization = (
             if (params?.message?.parts) {
                 const textParts = params.message.parts.filter((p: any) => p.kind === "text" && p.text);
                 // Filter out gateway timestamp parts (they appear like "Request received by gateway at: 2025-12-19T22:46:16.994017+00:00")
+                // The gateway prepends this as the first part, so we can skip parts that match this pattern
+                const gatewayTimestampPattern = /^Request received by gateway at:/;
                 const filteredParts = textParts.filter(
-                    (p: any) => !p.text.trim().startsWith("Request received by gateway at:")
+                    (p: any) => !gatewayTimestampPattern.test(p.text.trim())
                 );
                 if (filteredParts.length > 0) {
                     // Join remaining text parts
                     userText = filteredParts.map((p: any) => p.text).join("\n");
                 } else if (textParts.length > 0) {
-                    // Fallback to last part if all parts were filtered
-                    userText = textParts[textParts.length - 1].text;
+                    // Fallback: if all parts were filtered, use the last part but strip the gateway prefix
+                    const lastPart = textParts[textParts.length - 1].text;
+                    // Try to extract text after the timestamp line
+                    const lines = lastPart.split('\n');
+                    const nonGatewayLines = lines.filter((line: string) => !gatewayTimestampPattern.test(line.trim()));
+                    userText = nonGatewayLines.length > 0 ? nonGatewayLines.join('\n') : lastPart;
                 }
             }
             visualizerSteps.push({

@@ -5,6 +5,12 @@ import { TaskContext, type TaskContextValue } from "@/lib/contexts/TaskContext";
 import { getAccessToken } from "@/lib/utils/api";
 import { api } from "@/lib/api";
 
+// Helper to strip gateway timestamp prefix from request text
+const stripGatewayTimestamp = (text: string): string => {
+    const gatewayTimestampPattern = /^Request received by gateway at:[^\n]*\n?/;
+    return text.replace(gatewayTimestampPattern, '').trim();
+};
+
 interface SubscriptionResponse {
     stream_id: string;
     sse_endpoint_url: string;
@@ -63,7 +69,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                     if (params?.message?.parts) {
                         const textParts = params.message.parts.filter(p => p.kind === "text" && p.text);
                         if (textParts.length > 0) {
-                            initialRequestText = textParts[textParts.length - 1].text;
+                            // Join all text parts and strip any gateway timestamp prefix
+                            const combinedText = textParts.map(p => p.text).join("\n");
+                            initialRequestText = stripGatewayTimestamp(combinedText);
                         }
                     }
                 }
@@ -299,9 +307,10 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
             for (const [tid, taskData] of Object.entries(allTasks)) {
                 const events = taskData.events;
+                const rawRequestText = taskData.initial_request_text || "Task loaded from history";
                 const taskFE: TaskFE = {
                     taskId: tid,
-                    initialRequestText: taskData.initial_request_text || "Task loaded from history",
+                    initialRequestText: stripGatewayTimestamp(rawRequestText),
                     events: events,
                     firstSeen: new Date(events[0]?.timestamp || Date.now()),
                     lastUpdated: new Date(events[events.length - 1]?.timestamp || Date.now()),

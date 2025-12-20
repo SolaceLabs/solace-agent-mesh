@@ -1,49 +1,17 @@
 import React, { useCallback, useState, useRef, useEffect } from "react";
-import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 import { Home } from "lucide-react";
 import type { VisualizerStep } from "@/lib/types";
 import { Dialog, DialogContent, DialogFooter, VisuallyHidden, DialogTitle, DialogDescription, Button, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import { useTaskContext } from "@/lib/hooks";
 import { useAgentCards } from "@/lib/hooks";
-// import { getThemeButtonHtmlStyles } from "@/lib/utils";
 import WorkflowRenderer from "./WorkflowRenderer";
 import type { LayoutNode, Edge } from "./utils/types";
 import { findNodeDetails, type NodeDetails } from "./utils/nodeDetailsHelper";
 import NodeDetailsCard from "./NodeDetailsCard";
+import PanZoomCanvas, { type PanZoomCanvasRef } from "./PanZoomCanvas";
 
-// Inner component that has access to transform controls via hook
-interface TransformControlsProps {
-    processedSteps: VisualizerStep[];
-    showDetail: boolean;
-    hasUserInteracted: React.MutableRefObject<boolean>;
-    prevStepCount: React.MutableRefObject<number>;
-}
-
-const TransformControls: React.FC<TransformControlsProps> = ({
-    processedSteps,
-    showDetail,
-    hasUserInteracted,
-    prevStepCount,
-}) => {
-    const { resetTransform } = useControls();
-
-    // Auto-fit when new steps are added (D-2) - only if user hasn't interacted
-    useEffect(() => {
-        const currentCount = processedSteps.length;
-        if (currentCount > prevStepCount.current && !hasUserInteracted.current) {
-            // New steps added and user hasn't interacted - reset to center
-            setTimeout(() => resetTransform(), 50);
-        }
-        prevStepCount.current = currentCount;
-    }, [processedSteps.length, resetTransform, hasUserInteracted, prevStepCount]);
-
-    // Re-center when showDetail changes (D-3)
-    useEffect(() => {
-        setTimeout(() => resetTransform(), 50);
-    }, [showDetail, resetTransform]);
-
-    return null;
-};
+// Approximate width of the right side panel when visible
+const RIGHT_PANEL_WIDTH = 400;
 
 interface FlowChartPanelProps {
     processedSteps: VisualizerStep[];
@@ -66,9 +34,53 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
     // Show detail toggle - controls whether to show nested agent internals
     const [showDetail, setShowDetail] = useState(true);
 
-    // Track if user has manually interacted with pan/zoom (D-2)
+    // Pan/zoom canvas ref
+    const canvasRef = useRef<PanZoomCanvasRef>(null);
+
+    // Ref to measure actual rendered content dimensions
+    const contentRef = useRef<HTMLDivElement>(null);
+
+    // Track if user has manually interacted with pan/zoom
     const hasUserInteracted = useRef(false);
     const prevStepCount = useRef(processedSteps.length);
+
+    // Track content dimensions (measured from actual DOM, adjusted for current scale)
+    // Using a ref so effects don't re-run when it changes
+    const contentWidthRef = useRef(800);
+
+    // Use ResizeObserver to automatically detect content size changes
+    // This handles node expansions, collapses, and any other layout changes
+    useEffect(() => {
+        const element = contentRef.current;
+        if (!element) return;
+
+        const measureContent = () => {
+            if (contentRef.current && canvasRef.current) {
+                const rect = contentRef.current.getBoundingClientRect();
+                // getBoundingClientRect returns scaled dimensions, so divide by current scale
+                // to get the "natural" width at scale 1.0
+                const currentScale = canvasRef.current.getTransform().scale;
+                const naturalWidth = rect.width / currentScale;
+                contentWidthRef.current = naturalWidth;
+            }
+        };
+
+        // Initial measurement
+        measureContent();
+
+        // Watch for size changes
+        const resizeObserver = new ResizeObserver(() => {
+            measureContent();
+        });
+        resizeObserver.observe(element);
+
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, []);
+
+    // Calculate side panel width for auto-fit calculations
+    const sidePanelWidth = isRightPanelVisible ? RIGHT_PANEL_WIDTH : 0;
 
     // Reset interaction flag when a new task starts (step count goes back to near zero)
     useEffect(() => {
@@ -78,6 +90,34 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
         }
     }, [processedSteps.length]);
 
+    // Auto-fit when new steps are added - only if user hasn't interacted
+    useEffect(() => {
+        const currentCount = processedSteps.length;
+        if (currentCount > prevStepCount.current && !hasUserInteracted.current) {
+            // New steps added and user hasn't interacted - fit to content with animation
+            setTimeout(() => {
+                canvasRef.current?.fitToContent(contentWidthRef.current, { animated: true });
+            }, 150); // Longer delay to let content measurement update
+        }
+        prevStepCount.current = currentCount;
+    }, [processedSteps.length]);
+
+    // Re-fit when showDetail changes - allow zooming in up to 2.5x for collapsed views
+    useEffect(() => {
+        setTimeout(() => {
+            canvasRef.current?.fitToContent(contentWidthRef.current, { animated: true, maxFitScale: 2.5 });
+        }, 150); // Longer delay to let content measurement update
+    }, [showDetail]);
+
+    // Re-fit when side panel visibility changes (if user hasn't interacted)
+    useEffect(() => {
+        if (!hasUserInteracted.current) {
+            setTimeout(() => {
+                canvasRef.current?.fitToContent(contentWidthRef.current, { animated: true });
+            }, 150);
+        }
+    }, [isRightPanelVisible]);
+
     // Handler to mark user interaction
     const handleUserInteraction = useCallback(() => {
         hasUserInteracted.current = true;
@@ -86,6 +126,9 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
     // Handle node click
     const handleNodeClick = useCallback(
         (node: LayoutNode) => {
+            // Mark user interaction to stop auto-fit
+            hasUserInteracted.current = true;
+
             const stepId = node.data.visualizerStepId;
 
             // Find detailed information about this node
@@ -145,104 +188,81 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
         [setHighlightedStepId]
     );
 
+    // Handle re-center button click - allow zooming in up to 2.5x
+    const handleRecenter = useCallback(() => {
+        canvasRef.current?.fitToContent(contentWidthRef.current, { animated: true, maxFitScale: 2.5 });
+        hasUserInteracted.current = false;
+    }, []);
+
     return (
         <div style={{ height: "100%", width: "100%" }} className="relative">
-            <TransformWrapper
-                initialScale={1}
-                minScale={0.2}
-                maxScale={2}
-                centerOnInit
-                limitToBounds={false}
-                panning={{ disabled: false }}
-                wheel={{ step: 0.2 }}
-                doubleClick={{ disabled: true }}
-                onPanning={handleUserInteraction}
-                onZoom={handleUserInteraction}
-            >
-                {({ resetTransform }) => (
-                    <>
-                        {/* TransformControls - handles auto-fit and re-center effects */}
-                        <TransformControls
-                            processedSteps={processedSteps}
-                            showDetail={showDetail}
-                            hasUserInteracted={hasUserInteracted}
-                            prevStepCount={prevStepCount}
-                        />
-
-                        {/* Controls bar - Show Detail toggle and Re-center button */}
-                        <div className="absolute top-4 right-4 z-50 flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-2 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
-                            {/* Re-center button (D-6) */}
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={() => {
-                                            resetTransform();
-                                            hasUserInteracted.current = false;
-                                        }}
-                                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                    >
-                                        <Home className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent>Re-center diagram</TooltipContent>
-                            </Tooltip>
-
-                            <div className="w-px h-6 bg-gray-200 dark:bg-gray-600" />
-
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Show Detail
-                            </span>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={() => setShowDetail(!showDetail)}
-                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                            showDetail ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
-                                        }`}
-                                    >
-                                        <span
-                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                                showDetail ? "translate-x-6" : "translate-x-1"
-                                            }`}
-                                        />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent>{showDetail ? "Hide nested agent details" : "Show nested agent details"}</TooltipContent>
-                            </Tooltip>
-                        </div>
-
-                        <TransformComponent
-                            wrapperStyle={{
-                                width: "100%",
-                                height: "100%",
-                            }}
-                            contentStyle={{
-                                width: "100%",
-                                height: "100%",
-                            }}
+            {/* Controls bar - Show Detail toggle and Re-center button */}
+            <div className="absolute top-4 right-4 z-50 flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-2 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
+                {/* Re-center button (D-6) */}
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <button
+                            onClick={handleRecenter}
+                            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
-                            <div
-                                style={{
-                                    minWidth: "100%",
-                                    minHeight: "100%",
-                                    cursor: "grab",
-                                }}
-                                onClick={handlePaneClick}
-                            >
-                                <WorkflowRenderer
-                                    processedSteps={processedSteps}
-                                    agentNameMap={agentNameMap}
-                                    selectedStepId={highlightedStepId}
-                                    onNodeClick={handleNodeClick}
-                                    onEdgeClick={handleEdgeClick}
-                                    showDetail={showDetail}
-                                />
-                            </div>
-                        </TransformComponent>
+                            <Home className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Re-center diagram</TooltipContent>
+                </Tooltip>
 
-                    </>
-                )}
-            </TransformWrapper>
+                <div className="w-px h-6 bg-gray-200 dark:bg-gray-600" />
+
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Show Detail
+                </span>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <button
+                            onClick={() => setShowDetail(!showDetail)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                showDetail ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
+                            }`}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    showDetail ? "translate-x-6" : "translate-x-1"
+                                }`}
+                            />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{showDetail ? "Hide nested agent details" : "Show nested agent details"}</TooltipContent>
+                </Tooltip>
+            </div>
+
+            <PanZoomCanvas
+                ref={canvasRef}
+                initialScale={1}
+                minScale={0.1}
+                maxScale={4}
+                onUserInteraction={handleUserInteraction}
+                sidePanelWidth={sidePanelWidth}
+            >
+                <div
+                    style={{
+                        minWidth: "100%",
+                        minHeight: "100%",
+                        padding: "40px",
+                    }}
+                    onClick={handlePaneClick}
+                >
+                    <div ref={contentRef} style={{ width: "fit-content" }}>
+                        <WorkflowRenderer
+                            processedSteps={processedSteps}
+                            agentNameMap={agentNameMap}
+                            selectedStepId={highlightedStepId}
+                            onNodeClick={handleNodeClick}
+                            onEdgeClick={handleEdgeClick}
+                            showDetail={showDetail}
+                        />
+                    </div>
+                </div>
+            </PanZoomCanvas>
 
             {/* Node Details Dialog */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
