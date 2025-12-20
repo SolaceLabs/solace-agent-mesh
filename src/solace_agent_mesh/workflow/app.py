@@ -395,7 +395,7 @@ class WorkflowDefinition(BaseModel):
 
     @model_validator(mode="after")
     def validate_dag_structure(self) -> "WorkflowDefinition":
-        """Validate DAG has no cycles, valid references, and consistent control flow."""
+        """Validate DAG has valid references and consistent control flow."""
         node_map = {node.id: node for node in self.nodes}
 
         for node in self.nodes:
@@ -433,6 +433,13 @@ class WorkflowDefinition(BaseModel):
                 if node.node not in node_map:
                     raise ValueError(
                         f"LoopNode '{node.id}' references non-existent node '{node.node}'"
+                    )
+
+            # Validate MapNode target reference
+            if node.type == "map":
+                if node.node not in node_map:
+                    raise ValueError(
+                        f"MapNode '{node.id}' references non-existent node '{node.node}'"
                     )
 
         # Validate exit handler references
@@ -480,9 +487,6 @@ class WorkflowDefinition(BaseModel):
 
 class WorkflowAppConfig(SamAgentAppConfig):
     """Workflow app configuration extends agent config."""
-
-    # Override type indicator (optional, but good for clarity)
-    # agent_type: Literal["workflow"] = "workflow"
 
     # Workflow definition
     workflow: WorkflowDefinition = Field(..., description="The workflow DAG definition")
@@ -542,7 +546,6 @@ class WorkflowApp(App):
         # Extract workflow-specific settings
         namespace = app_config.namespace
         workflow_name = app_config.agent_name
-        # workflow_def = app_config.workflow  # Available if needed for future enhancements
 
         # Auto-populate agent card with workflow schemas in skills
         # Note: AgentCardConfig doesn't have input_schema/output_schema directly

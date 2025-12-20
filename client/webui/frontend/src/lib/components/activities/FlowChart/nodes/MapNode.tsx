@@ -1,4 +1,5 @@
 import React from "react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import type { LayoutNode } from "../utils/types";
 import AgentNode from "./AgentNode";
 
@@ -46,7 +47,6 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, onClick, onChildCli
     const colorClass = "border-indigo-400 bg-indigo-50/30 dark:border-indigo-600 dark:bg-indigo-900/20";
     const labelColorClass = "text-indigo-600 dark:text-indigo-400 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50";
     const connectorColor = "bg-indigo-400 dark:bg-indigo-600";
-    const iterationLabelColor = "text-indigo-600 dark:text-indigo-400";
 
     // Render a child node (iterations are agent nodes)
     const renderChild = (child: LayoutNode) => {
@@ -79,39 +79,39 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, onClick, onChildCli
                 }}
             >
                 {/* Label with icon - clickable */}
-                <div
-                    className={`absolute -top-3 left-4 px-2 text-xs font-bold bg-gray-50 dark:bg-gray-900 rounded-md border flex items-center gap-1.5 cursor-pointer transition-colors ${labelColorClass}`}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onClick?.(node);
-                    }}
-                    title={`${label}: ${branches.length} parallel branches`}
-                >
-                    {/* Parallel/Branch Icon */}
-                    <svg
-                        className="w-3 h-3"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                        />
-                    </svg>
-                    {node.data.label || label}
-                </div>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <div
+                            className={`absolute -top-3 left-4 px-2 text-xs font-bold bg-gray-50 dark:bg-gray-900 rounded-md border flex items-center gap-1.5 cursor-pointer transition-colors ${labelColorClass}`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onClick?.(node);
+                            }}
+                        >
+                            {/* Parallel/Branch Icon */}
+                            <svg
+                                className="w-3 h-3"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                                />
+                            </svg>
+                            {node.data.label || label}
+                        </div>
+                    </TooltipTrigger>
+                    <TooltipContent>{`${label}: ${branches.length} parallel branches`}</TooltipContent>
+                </Tooltip>
 
                 {/* Parallel branches displayed side-by-side */}
                 <div className="p-4 pt-3 flex flex-row items-start gap-4">
                     {branches.map((branch, branchIndex) => (
                         <div key={`branch-${branchIndex}`} className="flex flex-col items-center">
-                            {/* Branch label */}
-                            <div className={`text-[10px] font-medium ${iterationLabelColor} mb-2`}>
-                                Item {branchIndex + 1}
-                            </div>
                             {/* Branch children */}
                             {branch.map((child, childIndex) => (
                                 <React.Fragment key={child.id}>
@@ -130,45 +130,51 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, onClick, onChildCli
     }
 
     // No parallel branches yet - render as compact badge
-    return (
-        <div
-            className="relative flex items-center justify-center cursor-pointer"
-            style={{ width: `${node.width}px`, height: `${node.height}px` }}
-            onClick={(e) => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
-            title={node.data.description || `Map: Waiting for items...`}
-        >
-            {/* Stadium/Pill shape */}
-            <div
-                className={`relative w-20 h-10 rounded-full border-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md flex items-center justify-center ${getStatusColor()} ${
-                    isSelected ? "ring-2 ring-blue-500" : ""
-                }`}
-            >
-                {/* Parallel Icon */}
-                <svg
-                    className="absolute -top-1 -right-1 w-4 h-4 text-indigo-600 dark:text-indigo-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                </svg>
+    const badgeTooltip = node.data.description || `Map: Waiting for items...`;
 
-                {/* Content */}
-                <div className="flex flex-col items-center justify-center text-center pointer-events-none">
-                    <div className="text-[10px] font-bold text-gray-800 dark:text-gray-200">
-                        {node.data.label || label}
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <div
+                    className="relative flex items-center justify-center cursor-pointer"
+                    style={{ width: `${node.width}px`, height: `${node.height}px` }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onClick?.(node);
+                    }}
+                >
+                    {/* Stadium/Pill shape */}
+                    <div
+                        className={`relative w-20 h-10 rounded-full border-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md flex items-center justify-center ${getStatusColor()} ${
+                            isSelected ? "ring-2 ring-blue-500" : ""
+                        }`}
+                    >
+                        {/* Parallel Icon */}
+                        <svg
+                            className="absolute -top-1 -right-1 w-4 h-4 text-indigo-600 dark:text-indigo-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                            />
+                        </svg>
+
+                        {/* Content */}
+                        <div className="flex flex-col items-center justify-center text-center pointer-events-none">
+                            <div className="text-[10px] font-bold text-gray-800 dark:text-gray-200">
+                                {node.data.label || label}
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
+            </TooltipTrigger>
+            <TooltipContent>{badgeTooltip}</TooltipContent>
+        </Tooltip>
     );
 };
 

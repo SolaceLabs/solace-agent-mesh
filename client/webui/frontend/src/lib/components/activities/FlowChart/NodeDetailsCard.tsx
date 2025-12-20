@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ArrowRight, Bot, CheckCircle, FileText, GitBranch, GitMerge, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, Zap } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle, Eye, FileText, GitBranch, GitMerge, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, X, Zap } from "lucide-react";
 import type { NodeDetails } from "./utils/nodeDetailsHelper";
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
 import type { VisualizerStep, ToolDecision } from "@/lib/types";
@@ -147,13 +147,23 @@ const ArtifactContentViewer: React.FC<ArtifactContentViewerProps> = ({ uri, name
 interface NodeDetailsCardProps {
     nodeDetails: NodeDetails;
     onClose?: () => void;
+    onWidthChange?: (isExpanded: boolean) => void;
 }
 
 /**
  * Component to display detailed request and result information for a clicked node
  */
-const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose }) => {
-    const { artifacts, setPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed, navigateArtifactVersion } = useChatContext();
+const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose, onWidthChange }) => {
+    const { artifacts, setPreviewArtifact: setSidePanelPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed, navigateArtifactVersion } = useChatContext();
+
+    // Local state for inline artifact preview (NP-3)
+    const [inlinePreviewArtifact, setInlinePreviewArtifact] = useState<{ name: string; version?: number; mimeType?: string } | null>(null);
+
+    // Notify parent when expansion state changes
+    useEffect(() => {
+        onWidthChange?.(inlinePreviewArtifact !== null);
+    }, [inlinePreviewArtifact, onWidthChange]);
+
     const getNodeIcon = () => {
         switch (nodeDetails.nodeType) {
             case 'user':
@@ -460,11 +470,11 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose 
         return (
             <div className="space-y-3">
                 {entries.map(([key, value]) => (
-                    <div key={key} className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700">
+                    <div key={key} className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
                         <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1">
                             {key}
                         </div>
-                        <div className="text-xs">
+                        <div className="text-xs overflow-auto max-h-60">
                             {renderArgumentValue(value)}
                         </div>
                     </div>
@@ -484,7 +494,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose 
 
         // Handle primitives
         if (typeof value === 'string') {
-            return <span className="text-gray-800 dark:text-gray-200">{value}</span>;
+            return <span className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">{value}</span>;
         }
         if (typeof value === 'number') {
             return <span className="text-purple-600 dark:text-purple-400">{value}</span>;
@@ -529,9 +539,9 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose 
                 return (
                     <div className="space-y-1">
                         {entries.map(([k, v]) => (
-                            <div key={k} className="flex gap-2">
-                                <span className="font-semibold text-gray-600 dark:text-gray-400">{k}:</span>
-                                {renderArgumentValue(v)}
+                            <div key={k} className="flex gap-2 min-w-0">
+                                <span className="font-semibold text-gray-600 dark:text-gray-400 flex-shrink-0">{k}:</span>
+                                <span className="min-w-0 break-words">{renderArgumentValue(v)}</span>
                             </div>
                         ))}
                     </div>
@@ -568,8 +578,8 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose 
                         {typeof data.resultData === "object" && data.resultData !== null ? (
                             renderFormattedArguments(data.resultData)
                         ) : (
-                            <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700">
-                                <div className="text-xs">
+                            <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                <div className="text-xs overflow-auto max-h-60">
                                     {renderArgumentValue(data.resultData)}
                                 </div>
                             </div>
@@ -610,13 +620,13 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose 
                                         Artifact Reference
                                     </div>
                                     <div className="space-y-1">
-                                        <div className="flex gap-2">
-                                            <span className="font-semibold text-gray-600 dark:text-gray-400">name:</span>
-                                            <span className="text-gray-800 dark:text-gray-200">{data.inputArtifactRef.name}</span>
+                                        <div className="flex gap-2 min-w-0">
+                                            <span className="font-semibold text-gray-600 dark:text-gray-400 flex-shrink-0">name:</span>
+                                            <span className="text-gray-800 dark:text-gray-200 truncate" title={data.inputArtifactRef.name}>{data.inputArtifactRef.name}</span>
                                         </div>
                                         {data.inputArtifactRef.version !== undefined && (
                                             <div className="flex gap-2">
-                                                <span className="font-semibold text-gray-600 dark:text-gray-400">version:</span>
+                                                <span className="font-semibold text-gray-600 dark:text-gray-400 flex-shrink-0">version:</span>
                                                 <span className="text-purple-600 dark:text-purple-400">{data.inputArtifactRef.version}</span>
                                             </div>
                                         )}
@@ -908,10 +918,11 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose 
 
         return (
             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <div className="text-xs font-semibold mb-2 text-gray-600 dark:text-gray-400">
-                    Output Artifact: <span className="font-normal text-gray-500">{outputArtifactRef.name}</span>
+                <div className="text-xs font-semibold mb-2 text-gray-600 dark:text-gray-400 flex items-baseline gap-1 min-w-0">
+                    <span className="flex-shrink-0">Output Artifact:</span>
+                    <span className="font-normal text-gray-500 truncate min-w-0" title={outputArtifactRef.name}>{outputArtifactRef.name}</span>
                     {outputArtifactRef.version !== undefined && (
-                        <span className="ml-1 text-purple-600 dark:text-purple-400">v{outputArtifactRef.version}</span>
+                        <span className="ml-1 text-purple-600 dark:text-purple-400 flex-shrink-0">v{outputArtifactRef.version}</span>
                     )}
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700">
@@ -940,7 +951,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose 
                 setIsSidePanelCollapsed(false);
 
                 // Set preview artifact to open the file
-                setPreviewArtifact(artifact);
+                setSidePanelPreviewArtifact(artifact);
 
                 // If a specific version is indicated, navigate to it
                 if (version !== undefined && version !== artifact.version) {
@@ -977,11 +988,25 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose 
                                 >
                                     {artifact.filename}
                                 </button>
-                                {artifact.version !== undefined && (
-                                    <span className="text-xs px-1.5 py-0.5 bg-indigo-200 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-300 rounded flex-shrink-0">
-                                        v{artifact.version}
-                                    </span>
-                                )}
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    {/* Inline preview button (NP-3) */}
+                                    <button
+                                        onClick={() => setInlinePreviewArtifact({
+                                            name: artifact.filename,
+                                            version: artifact.version,
+                                            mimeType: artifact.mimeType
+                                        })}
+                                        className="p-1 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors"
+                                        title="Preview inline"
+                                    >
+                                        <Eye className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                                    </button>
+                                    {artifact.version !== undefined && (
+                                        <span className="text-xs px-1.5 py-0.5 bg-indigo-200 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-300 rounded">
+                                            v{artifact.version}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             {artifact.description && (
                                 <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
@@ -1007,28 +1032,35 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose 
         );
     };
 
-    return (
-        <div className="flex flex-col h-full max-h-[80vh]">
+    // Render the main node details content
+    const renderMainContent = () => (
+        <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+            <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
                 {getNodeIcon()}
-                <div>
-                    <h3 className="text-base font-bold text-gray-800 dark:text-gray-100">
+                <div className="min-w-0 flex-1">
+                    <h3 className="text-base font-bold text-gray-800 dark:text-gray-100 truncate">
                         {nodeDetails.label}
                     </h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                        {nodeDetails.nodeType} Node
-                    </p>
+                    {nodeDetails.description ? (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={nodeDetails.description}>
+                            {nodeDetails.description}
+                        </p>
+                    ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                            {nodeDetails.nodeType} Node
+                        </p>
+                    )}
                 </div>
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-y-auto">
                 {hasRequestAndResult ? (
                     /* Split view for request and result */
-                    <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-200 dark:divide-gray-700 h-full">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-200 dark:divide-gray-700">
                         {/* Request Column */}
-                        <div className="p-4 overflow-auto">
+                        <div className="p-4">
                             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
                                 <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                                 <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400">
@@ -1039,7 +1071,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose 
                         </div>
 
                         {/* Result Column */}
-                        <div className="p-4 overflow-auto">
+                        <div className="p-4">
                             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
                                 <div className="w-2 h-2 rounded-full bg-green-500"></div>
                                 <h4 className="text-sm font-bold text-green-600 dark:text-green-400">
@@ -1086,6 +1118,60 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose 
                     </div>
                 )}
             </div>
+        </div>
+    );
+
+    // Render the inline artifact preview panel (NP-3)
+    const renderArtifactPreviewPanel = () => {
+        if (!inlinePreviewArtifact) return null;
+
+        return (
+            <div className="flex flex-col h-full overflow-hidden border-l border-gray-200 dark:border-gray-700 w-[500px]">
+                {/* Preview Header */}
+                <div className="flex items-center justify-between gap-3 p-4 border-b border-gray-200 dark:border-gray-700 bg-purple-50 dark:bg-purple-900/30 flex-shrink-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-5 w-5 text-purple-500 dark:text-purple-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                            <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate" title={inlinePreviewArtifact.name}>
+                                {inlinePreviewArtifact.name}
+                            </h3>
+                            {inlinePreviewArtifact.version !== undefined && (
+                                <p className="text-xs text-purple-600 dark:text-purple-400">
+                                    Version {inlinePreviewArtifact.version}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setInlinePreviewArtifact(null)}
+                        className="p-1.5 rounded-md hover:bg-purple-100 dark:hover:bg-purple-800/50 transition-colors flex-shrink-0"
+                        title="Close preview"
+                    >
+                        <X className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                    </button>
+                </div>
+
+                {/* Preview Content */}
+                <div className="flex-1 overflow-y-auto p-4">
+                    <ArtifactContentViewer
+                        name={inlinePreviewArtifact.name}
+                        version={inlinePreviewArtifact.version}
+                        mimeType={inlinePreviewArtifact.mimeType}
+                    />
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex flex-row h-full">
+            {/* Main content */}
+            <div className="flex-1 min-w-0">
+                {renderMainContent()}
+            </div>
+
+            {/* Artifact preview panel (NP-3) */}
+            {renderArtifactPreviewPanel()}
         </div>
     );
 };

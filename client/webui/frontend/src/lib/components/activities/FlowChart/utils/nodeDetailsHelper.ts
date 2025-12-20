@@ -17,6 +17,7 @@ export interface CreatedArtifact {
 export interface NodeDetails {
     nodeType: LayoutNode['type'];
     label: string;
+    description?: string; // NP-4: Node description to display under the name
     requestStep?: VisualizerStep;
     resultStep?: VisualizerStep;
     outputArtifactStep?: VisualizerStep; // For workflow nodes - the WORKFLOW_NODE_EXECUTION_RESULT with output artifact
@@ -37,6 +38,7 @@ export function findNodeDetails(
         return {
             nodeType: node.type,
             label: node.data.label,
+            description: node.data.description,
         };
     }
 
@@ -47,6 +49,7 @@ export function findNodeDetails(
         return {
             nodeType: node.type,
             label: node.data.label,
+            description: node.data.description,
         };
     }
 
@@ -71,6 +74,7 @@ export function findNodeDetails(
             return {
                 nodeType: node.type,
                 label: node.data.label,
+                description: node.data.description,
                 requestStep: primaryStep,
             };
     }
@@ -189,6 +193,7 @@ function findAgentNodeDetails(
     return {
         nodeType: 'agent' as const,
         label: node.data.label,
+        description: node.data.description,
         requestStep,
         resultStep: responseStep,
         outputArtifactStep,
@@ -244,6 +249,7 @@ function findLLMNodeDetails(
     return {
         nodeType: 'llm',
         label: node.data.label,
+        description: node.data.description,
         requestStep,
         resultStep,
     };
@@ -279,6 +285,7 @@ function findToolNodeDetails(
     return {
         nodeType: 'tool',
         label: node.data.label,
+        description: node.data.description,
         requestStep,
         resultStep,
         createdArtifacts,
@@ -313,6 +320,7 @@ function findConditionalNodeDetails(
     return {
         nodeType: 'conditional',
         label: node.data.label,
+        description: node.data.description,
         requestStep,
         resultStep,
     };
@@ -346,6 +354,7 @@ function findSwitchNodeDetails(
     return {
         nodeType: 'switch',
         label: node.data.label,
+        description: node.data.description,
         requestStep,
         resultStep,
     };
@@ -386,6 +395,7 @@ function findLoopNodeDetails(
     return {
         nodeType: 'loop',
         label: node.data.label,
+        description: node.data.description,
         requestStep,
         resultStep,
         relatedSteps,
@@ -424,6 +434,7 @@ function findWorkflowGroupDetails(
     return {
         nodeType: 'group',
         label: node.data.label,
+        description: node.data.description,
         requestStep,
         resultStep,
         relatedSteps,

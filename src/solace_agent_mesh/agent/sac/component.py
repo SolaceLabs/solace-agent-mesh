@@ -1016,23 +1016,10 @@ class SamAgentComponent(SamComponentBase):
                             "required": ["text"],
                         }
 
-                    log.info(
-                        "%s [WORKFLOW_DEBUG] Creating WorkflowAgentTool | peer_name=%s | input_schema=%s",
-                        self.log_identifier,
-                        peer_name,
-                        input_schema,
-                    )
-
                     tool_instance = WorkflowAgentTool(
                         target_agent_name=peer_name,
                         input_schema=input_schema,
                         host_component=self,
-                    )
-
-                    log.info(
-                        "%s [WORKFLOW_DEBUG] WorkflowAgentTool created | tool_name=%s",
-                        self.log_identifier,
-                        tool_instance.name,
                     )
 
                     desc = (
@@ -1091,27 +1078,12 @@ class SamAgentComponent(SamComponentBase):
 
         if peer_tools_to_add:
             try:
-                workflow_tools = [t for t in peer_tools_to_add if t.name.startswith("workflow_")]
-                if workflow_tools:
-                    log.info(
-                        "%s [WORKFLOW_DEBUG] Adding workflow tools to LLM request | tools=%s",
-                        self.log_identifier,
-                        [t.name for t in workflow_tools],
-                    )
-
                 if llm_request.config.tools is None:
                     llm_request.config.tools = []
                 if len(llm_request.config.tools) > 0:
                     for tool in peer_tools_to_add:
                         llm_request.tools_dict[tool.name] = tool
                         declaration = tool._get_declaration()
-                        if tool.name.startswith("workflow_"):
-                            log.info(
-                                "%s [WORKFLOW_DEBUG] Added workflow tool declaration | name=%s | declaration=%s",
-                                self.log_identifier,
-                                tool.name,
-                                declaration,
-                            )
                         llm_request.config.tools[0].function_declarations.append(
                             declaration
                         )
@@ -3117,14 +3089,6 @@ class SamAgentComponent(SamComponentBase):
             f"{self.log_identifier}[SubmitA2ATask:{target_agent_name}]"
         )
         main_task_id = a2a_message.metadata.get("parentTaskId", "unknown_parent")
-
-        log.info(
-            "%s [WORKFLOW_DEBUG] submit_a2a_task ENTERED | target_agent=%s | sub_task_id=%s | main_task_id=%s",
-            log_identifier_helper,
-            target_agent_name,
-            sub_task_id,
-            main_task_id,
-        )
 
         log.debug(
             "%s Submitting non-blocking task for main task %s",

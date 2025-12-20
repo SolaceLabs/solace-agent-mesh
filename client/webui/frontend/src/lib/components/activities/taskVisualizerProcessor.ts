@@ -422,7 +422,15 @@ export const processTaskForVisualization = (
             let userText = "User request";
             if (params?.message?.parts) {
                 const textParts = params.message.parts.filter((p: any) => p.kind === "text" && p.text);
-                if (textParts.length > 0) {
+                // Filter out gateway timestamp parts (they appear like "Request received by gateway at: 2025-12-19T22:46:16.994017+00:00")
+                const filteredParts = textParts.filter(
+                    (p: any) => !p.text.trim().startsWith("Request received by gateway at:")
+                );
+                if (filteredParts.length > 0) {
+                    // Join remaining text parts
+                    userText = filteredParts.map((p: any) => p.text).join("\n");
+                } else if (textParts.length > 0) {
+                    // Fallback to last part if all parts were filtered
                     userText = textParts[textParts.length - 1].text;
                 }
             }

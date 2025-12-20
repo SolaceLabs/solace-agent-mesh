@@ -318,15 +318,11 @@ main
 ---
 
 ### PR 6: Integration, Examples & Tests
-**Scope:** ~3,500 lines | **Review Focus:** Integration points, examples, tests
+**Scope:** ~3,500 lines | **Review Focus:** Backend integration, examples, tests
 **Target:** `pr/workflows-5c-advanced-nodes`
 
 **Files:**
-- `client/webui/frontend/src/lib/components/activities/index.ts`
-- `client/webui/frontend/src/lib/components/activities/taskVisualizerProcessor.ts`
-- `client/webui/frontend/src/lib/components/activities/VisualizerStepCard.tsx`
-- `client/webui/frontend/src/lib/providers/*.tsx`
-- `src/solace_agent_mesh/gateway/http_sse/component.py`
+- `src/solace_agent_mesh/gateway/http_sse/component.py` - Gateway workflow event forwarding
 - `examples/agents/*.yaml` (workflow examples)
 - `tests/integration/` (test fixtures and workflows)
 
@@ -335,16 +331,20 @@ main
 ---
 
 ### PR 7: Frontend - Visualization (LAST)
-**Scope:** ~5,000 lines | **Review Focus:** Layout algorithm, React components, SVG rendering
+**Scope:** ~5,700 lines | **Review Focus:** ALL frontend changes - layout algorithm, React components, SVG rendering
 **Target:** `pr/workflows-6-integration`
 
 **Why this is last:** The frontend reviewer can pull this branch and test full workflow execution, since all backend components and integration are in place.
 
 **Files:**
+- `client/webui/frontend/src/lib/components/activities/index.ts` - Activity component exports
+- `client/webui/frontend/src/lib/components/activities/taskVisualizerProcessor.ts` - Event processing
+- `client/webui/frontend/src/lib/components/activities/VisualizerStepCard.tsx` - Step card component
+- `client/webui/frontend/src/lib/providers/*.tsx` - Provider updates
+- `client/webui/frontend/src/lib/types/activities.ts` - Activity types
 - `client/webui/frontend/src/lib/components/activities/FlowChart/utils/layoutEngine.ts`
 - `client/webui/frontend/src/lib/components/activities/FlowChart/utils/types.ts`
 - `client/webui/frontend/src/lib/components/activities/FlowChart/utils/nodeDetailsHelper.ts`
-- `client/webui/frontend/src/lib/types/activities.ts`
 - `client/webui/frontend/src/lib/components/activities/FlowChart/FlowChartPanel.tsx`
 - `client/webui/frontend/src/lib/components/activities/FlowChart/WorkflowRenderer.tsx`
 - `client/webui/frontend/src/lib/components/activities/FlowChart/EdgeLayer.tsx`
@@ -393,7 +393,7 @@ Timeline Visualization:
 | 5a | Orchestrator Component | 1,100 | `pr/workflows-4-workflow-tool` | Component lifecycle |
 | 5b | DAG Executor Core | 700 | `pr/workflows-5a-orchestrator` | Dependency graph |
 | 5c | Advanced Nodes | 700 | `pr/workflows-5b-dag-core` | Loop/map/switch |
-| 6 | Integration & Examples | 3,500 | `pr/workflows-5c-advanced-nodes` | Integration, tests |
-| 7 | Frontend (LAST) | 5,000 | `pr/workflows-6-integration` | Layout, components |
+| 6 | Integration & Examples | 2,800 | `pr/workflows-5c-advanced-nodes` | Backend integration, tests |
+| 7 | Frontend (LAST) | 5,700 | `pr/workflows-6-integration` | ALL frontend changes |
 
 **Total:** ~13,850 lines (excluding docs)

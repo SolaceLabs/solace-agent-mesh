@@ -5,7 +5,7 @@ Utility functions for working with A2A Agent Cards.
 from typing import Optional, Dict, Tuple
 from a2a.types import AgentCard
 
-SCHEMAS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/schemas"
+from .constants import EXTENSION_URI_SCHEMAS
 
 
 def get_schemas_from_agent_card(
@@ -28,7 +28,7 @@ def get_schemas_from_agent_card(
         return None, None
 
     for ext in agent_card.capabilities.extensions:
-        if ext.uri == SCHEMAS_EXTENSION_URI:
+        if ext.uri == EXTENSION_URI_SCHEMAS:
             params = ext.params or {}
             return params.get("input_schema"), params.get("output_schema")
 

@@ -131,8 +131,8 @@ class WorkflowAgentTool(BaseTool):
                     args, tool_context, log_identifier
                 )
             except jsonschema.ValidationError as e:
-                log.error(
-                    "%s Caught ValidationError in run_async | message=%s",
+                log.warning(
+                    "%s Input validation failed | message=%s",
                     log_identifier,
                     e.message,
                 )
@@ -210,8 +210,8 @@ class WorkflowAgentTool(BaseTool):
         try:
             jsonschema.validate(instance=args, schema=self.input_schema)
         except jsonschema.ValidationError as ve:
-            log.error(
-                "%s Schema validation FAILED | error=%s | path=%s",
+            log.warning(
+                "%s Schema validation failed | error=%s | path=%s",
                 log_identifier,
                 ve.message,
                 list(ve.absolute_path),
@@ -359,13 +359,6 @@ class WorkflowAgentTool(BaseTool):
             component=self.host_component,
         )
 
-        # DEBUG: Log the target agent name and expected topic
-        from ...common import a2a as a2a_module
-
-        expected_topic = a2a_module.get_agent_request_topic(
-            self.host_component.namespace, self.target_agent_name
-        )
-
         self.host_component.submit_a2a_task(
             target_agent_name=self.target_agent_name,
             a2a_message=a2a_message,
@@ -375,5 +368,5 @@ class WorkflowAgentTool(BaseTool):
         )
 
         log.info(
-            "%s Workflow task submitted to topic: %s", log_identifier, expected_topic
+            "%s Workflow task submitted for agent: %s", log_identifier, self.target_agent_name
         )

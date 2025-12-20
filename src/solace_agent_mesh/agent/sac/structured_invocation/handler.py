@@ -146,8 +146,8 @@ class StructuredInvocationHandler:
             input_data = await self._extract_input_data(
                 message, input_schema, a2a_context
             )
-            log.error(
-                f"{log_id} [DEBUG] Resolved input data: {json.dumps(input_data, default=str)}"
+            log.debug(
+                f"{log_id} Resolved input data: {json.dumps(input_data, default=str)}"
             )
 
             # Validate input
@@ -179,7 +179,7 @@ class StructuredInvocationHandler:
 
         except Exception as e:
             # Catch any unhandled exceptions and return as structured invocation failure
-            log.warning(f"{log_id} Structured invocation execution failed: {e}")
+            log.warning(f"{log_id} Structured invocation execution failed: {e}", exc_info=True)
 
             result_data = StructuredInvocationResult(
                 type="structured_invocation_result",
@@ -564,8 +564,8 @@ class StructuredInvocationHandler:
                 adk_session, last_model_event, invocation_data, output_schema, retry_count=0
             )
 
-            log.error(
-                f"{log_id} [DEBUG] Final result data: {result_data.model_dump_json()}"
+            log.debug(
+                f"{log_id} Final result data: {result_data.model_dump_json()}"
             )
 
             # Send result back to workflow
@@ -693,7 +693,7 @@ If you cannot complete the task, use:
                 feedback_text = f"""
 ERROR: You failed to provide the mandatory result embed in your response.
 You MUST end your response with:
-«result:artifact=<your_artifact_name>:v<version> status=success»
+«result:artifact=<your_artifact_name>:<version> status=success»
 
 Please retry and ensure you include this embed.
 """
@@ -799,7 +799,7 @@ Please review the required schema and create a corrected artifact that addresses
 {json.dumps(output_schema, indent=2)}
 
 Remember to end your response with the result embed:
-«result:artifact=<corrected_artifact_name>:v<version> status=success»
+«result:artifact=<corrected_artifact_name>:<version> status=success»
 """
                     return await self._execute_retry_loop(
                         session,

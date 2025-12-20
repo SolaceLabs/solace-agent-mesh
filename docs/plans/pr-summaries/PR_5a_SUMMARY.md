@@ -109,3 +109,17 @@ graph TD
     process --> output([Output])
 ```
 
+## Known Limitations
+
+### Cancellation Not Implemented
+
+The `handle_cancel_request()` function in `event_handlers.py` is a stub:
+
+```python
+def handle_cancel_request(component: "WorkflowExecutorComponent", task_id: str):
+    """Handle workflow cancellation request."""
+    # TODO: Implement cancellation logic
+    pass
+```
+
+Workflow cancellation will be implemented in a future PR. For now, workflows run to completion or failure.

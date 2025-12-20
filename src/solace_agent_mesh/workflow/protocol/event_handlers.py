@@ -199,7 +199,7 @@ async def handle_task_request(
             # Fallback ACK to prevent redelivery loop if NACK fails or logic is broken
             try:
                 message.call_acknowledgements()
-            except:
+            except Exception:
                 pass
 
 

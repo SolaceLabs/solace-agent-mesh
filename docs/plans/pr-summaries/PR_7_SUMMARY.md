@@ -2,7 +2,7 @@
 
 ## Overview
 
-This PR adds the complete frontend visualization for workflow execution. It includes the layout engine that transforms execution events into a visual tree, and React components for rendering each node type. **This PR is intentionally last** so the reviewer can test full workflow execution end-to-end.
+This PR adds **ALL frontend changes** for workflow visualization. It includes event processing, providers, the layout engine, and all React components for rendering workflows. **This PR is intentionally last** so the reviewer can test full workflow execution end-to-end.
 
 ## Branch Information
 
@@ -12,6 +12,33 @@ This PR adds the complete frontend visualization for workflow execution. It incl
 **Note:** At this point, the full backend is in place. Reviewers can pull this branch and test real workflow execution to validate the visualization.
 
 ## Files Changed
+
+### Event Processing & Providers
+
+#### `client/webui/frontend/src/lib/components/activities/index.ts`
+
+Exports for activity components including workflow visualization.
+
+#### `client/webui/frontend/src/lib/components/activities/taskVisualizerProcessor.ts`
+
+Processes A2A events into `VisualizerStep` objects:
+
+| Event Type | Processing |
+|------------|------------|
+| `WORKFLOW_EXECUTION_START` | Create workflow container step |
+| `WORKFLOW_NODE_EXECUTION_START` | Create node step with type info |
+| `WORKFLOW_NODE_EXECUTION_RESULT` | Update node with result |
+| `WORKFLOW_MAP_PROGRESS` | Update map node progress |
+
+#### `client/webui/frontend/src/lib/components/activities/VisualizerStepCard.tsx`
+
+Step card component for displaying individual execution steps.
+
+#### `client/webui/frontend/src/lib/providers/*.tsx`
+
+Provider updates for workflow state management:
+- `ChatProvider.tsx`: Workflow message handling
+- `TaskProvider.tsx`: Workflow task tracking
 
 ### Layout Engine
 

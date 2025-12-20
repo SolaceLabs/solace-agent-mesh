@@ -228,7 +228,7 @@ const AgentNode: React.FC<AgentNodeProps> = ({ node, isSelected, onClick, onChil
             )}
             {/* Header */}
             <div
-                className={`cursor-pointer bg-blue-50 px-4 py-3 dark:bg-gray-700 ${
+                className={`cursor-pointer bg-blue-50 pl-4 pr-8 py-3 dark:bg-gray-700 ${
                     node.children.length === 0 && (!node.parallelBranches || node.parallelBranches.length === 0)
                         ? 'rounded-md'  // No content below, round all corners
                         : 'rounded-t-md'  // Content below, round only top

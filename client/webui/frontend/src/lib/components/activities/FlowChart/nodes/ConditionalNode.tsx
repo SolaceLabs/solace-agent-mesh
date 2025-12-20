@@ -1,4 +1,5 @@
 import React from "react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import type { LayoutNode } from "../utils/types";
 
 interface ConditionalNodeProps {
@@ -22,41 +23,38 @@ const ConditionalNode: React.FC<ConditionalNodeProps> = ({ node, isSelected, onC
     };
 
     return (
-        <div
-            className="relative flex items-center justify-center cursor-pointer"
-            style={{ width: `${node.width}px`, height: `${node.height}px` }}
-            onClick={(e) => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
-            title={node.data.description}
-        >
-            {/* Diamond Shape using rotation */}
-            <div
-                className={`absolute h-12 w-12 rotate-45 border-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${getStatusColor()} ${
-                    isSelected ? "ring-2 ring-blue-500" : ""
-                }`}
-            />
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <div
+                    className="relative flex items-center justify-center cursor-pointer"
+                    style={{ width: `${node.width}px`, height: `${node.height}px` }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onClick?.(node);
+                    }}
+                >
+                    {/* Diamond Shape using rotation */}
+                    <div
+                        className={`absolute h-12 w-12 rotate-45 border-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${getStatusColor()} ${
+                            isSelected ? "ring-2 ring-blue-500" : ""
+                        }`}
+                    />
 
-            {/* Content (unrotated) */}
-            <div className="z-10 flex flex-col items-center justify-center text-center pointer-events-none px-1">
-                <div className="text-[10px] font-bold text-gray-800 dark:text-gray-200 max-w-[100px] truncate">
-                    {node.data.label}
+                    {/* Content (unrotated) */}
+                    <div className="z-10 flex flex-col items-center justify-center text-center pointer-events-none px-1">
+                        <div className="text-[10px] font-bold text-gray-800 dark:text-gray-200 max-w-[100px] truncate">
+                            {/* Show condition result when completed, otherwise show label */}
+                            {node.data.conditionResult !== undefined
+                                ? (node.data.conditionResult ? "True" : "False")
+                                : node.data.label}
+                        </div>
+                    </div>
                 </div>
-            </div>
-
-            {/* Branch Labels */}
-            {node.data.conditionResult !== undefined && (
-                <>
-                    <div className="absolute bottom-[-20px] left-1/2 transform -translate-x-1/2 text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-white/80 dark:bg-gray-900/80 px-1 rounded">
-                        {node.data.conditionResult ? "True" : "False"}
-                    </div>
-                    <div className="absolute right-[-20px] top-1/2 transform -translate-y-1/2 text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-white/80 dark:bg-gray-900/80 px-1 rounded">
-                        {node.data.conditionResult ? "False" : "True"}
-                    </div>
-                </>
+            </TooltipTrigger>
+            {node.data.description && (
+                <TooltipContent>{node.data.description}</TooltipContent>
             )}
-        </div>
+        </Tooltip>
     );
 };
 

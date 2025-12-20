@@ -7,6 +7,7 @@ import logging
 import re
 import asyncio
 import json
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
@@ -254,8 +255,6 @@ class DAGExecutor:
                 return  # Execution will resume on node completion
 
             # Execute next nodes with implicit parallelism detection and branch inheritance
-            import uuid as uuid_module
-
             # Determine parallel group and branch assignments for each node
             node_parallel_info = {}  # node_id -> (parallel_group_id, branch_index)
 
@@ -263,7 +262,7 @@ class DAGExecutor:
                 # Multiple nodes ready = implicit parallel execution (like implicit fork)
                 # Check if all nodes share the same single dependency in the same branch
                 # If so, this is a new fork point
-                parallel_group_id = f"implicit_parallel_{workflow_state.execution_id}_{uuid_module.uuid4().hex[:8]}"
+                parallel_group_id = f"implicit_parallel_{workflow_state.execution_id}_{uuid.uuid4().hex[:8]}"
                 log.info(f"{log_id} Implicit parallel execution: {len(next_nodes)} nodes, group={parallel_group_id}")
 
                 # Assign each node to a separate branch
@@ -369,7 +368,6 @@ class DAGExecutor:
             # Generate sub-task ID for agent nodes to link events
             sub_task_id = None
             if node.type == "agent":
-                import uuid
                 sub_task_id = f"wf_{workflow_state.execution_id}_{node.id}_{uuid.uuid4().hex[:8]}"
 
             # Publish start event
@@ -786,7 +784,6 @@ class DAGExecutor:
         workflow_state.node_outputs["_loop_iteration"] = {"output": iteration}
 
         # Generate sub-task ID
-        import uuid
         sub_task_id = f"wf_{workflow_state.execution_id}_{iter_node.id}_{uuid.uuid4().hex[:8]}"
 
         # Emit start event for loop iteration child
@@ -953,7 +950,6 @@ class DAGExecutor:
             iter_node.id = f"{map_node_id}_{index}"
 
             # Generate sub-task ID
-            import uuid
             sub_task_id = f"wf_{workflow_state.execution_id}_{iter_node.id}_{uuid.uuid4().hex[:8]}"
 
             # Emit start event for iteration BEFORE execution

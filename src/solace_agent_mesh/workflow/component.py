@@ -4,6 +4,7 @@ Orchestrates workflow execution by coordinating agents.
 """
 
 import logging
+import re
 import threading
 import uuid
 import asyncio
@@ -230,7 +231,6 @@ class WorkflowExecutorComponent(SamComponentBase):
             expanded_parts = []
             for part in parts:
                 # Insert space before capital letters in camelCase
-                import re
                 expanded = re.sub(r'([a-z])([A-Z])', r'\1 \2', part)
                 expanded_parts.extend(expanded.split())
             # Capitalize each word
@@ -988,8 +988,6 @@ class WorkflowExecutorComponent(SamComponentBase):
         We use the parent workflow session ID to load artifacts, as agents are expected
         to save their outputs to the shared parent session scope.
         """
-        import json
-
         user_id = workflow_context.a2a_context["user_id"]
         # Use the parent session ID (caller's session) to ensure artifacts are shared/persisted
         workflow_session_id = workflow_context.a2a_context["session_id"]
