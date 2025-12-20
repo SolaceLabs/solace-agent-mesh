@@ -1300,6 +1300,143 @@ def shared_solace_connector(
             "app_module": "solace_agent_mesh.workflow.app",
         },
         {
+            "name": "TestConditionalWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "agent_name": "ConditionalTestWorkflow",
+                "display_name": "Conditional Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow with conditional branching based on status",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "input_text": {"type": "string"},
+                            "should_succeed": {"type": "boolean"},
+                        },
+                        "required": ["input_text", "should_succeed"],
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "result": {"type": "string"},
+                            "path_taken": {"type": "string"},
+                        },
+                    },
+                    "nodes": [
+                        {
+                            "id": "check_status",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "input": {
+                                "task": "Check status",
+                                "should_succeed": "{{workflow.input.should_succeed}}",
+                            },
+                        },
+                        {
+                            "id": "branch",
+                            "type": "conditional",
+                            "condition": "'{{check_status.output.status}}' == 'success'",
+                            "true_branch": "success_path",
+                            "false_branch": "failure_path",
+                            "depends_on": ["check_status"],
+                        },
+                        {
+                            "id": "success_path",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentB",
+                            "depends_on": ["branch"],
+                            "input": {"task": "Handle success"},
+                        },
+                        {
+                            "id": "failure_path",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentC",
+                            "depends_on": ["branch"],
+                            "input": {"task": "Handle failure"},
+                        },
+                    ],
+                    "output_mapping": {
+                        "result": {
+                            "coalesce": [
+                                "{{success_path.output.result}}",
+                                "{{failure_path.output.result}}",
+                            ]
+                        },
+                        "path_taken": {
+                            "coalesce": [
+                                "{{success_path.output.path}}",
+                                "{{failure_path.output.path}}",
+                            ]
+                        },
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestMapWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "agent_name": "MapTestWorkflow",
+                "display_name": "Map Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow that iterates over a list of items",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "items": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                        },
+                        "required": ["items"],
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "results": {
+                                "type": "array",
+                                "items": {"type": "object"},
+                            },
+                        },
+                    },
+                    "nodes": [
+                        {
+                            "id": "process_items",
+                            "type": "map",
+                            "node": "process_single_item",
+                            "items": "{{workflow.input.items}}",
+                        },
+                        {
+                            "id": "process_single_item",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "input": {
+                                "item": "{{_map_item}}",
+                                "index": "{{_map_index}}",
+                            },
+                        },
+                    ],
+                    "output_mapping": {
+                        "results": "{{process_items.output}}",
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
             "name": "TestA2AProxyApp",
             "app_config": {
                 "namespace": "test_namespace",

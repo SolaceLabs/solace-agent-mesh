@@ -355,12 +355,14 @@ These can be written quickly with no infrastructure setup:
 
 **Total Phase 1: 93 tests** (all passing)
 
-### Phase 2 - Control Flow Declarative Tests (High Priority) ✅ IN SCOPE
+### Phase 2 - Control Flow Declarative Tests (High Priority) ✅ PARTIALLY COMPLETE
 Follow the pattern of existing declarative tests:
-1. Conditional workflow (true/false branch)
-2. Map workflow (iterate over array)
-3. Switch workflow (multi-way branch)
-4. Loop workflow (while condition)
+1. Conditional workflow (true/false branch) - **2 tests** ✅
+2. Map workflow (iterate over array) - **1 test** ✅
+3. Switch workflow (multi-way branch) - *deferred (similar to conditional)*
+4. Loop workflow (while condition) - *deferred (less common pattern)*
+
+**Total Phase 2: 3 new tests** (all passing)
 
 ### Phase 3 - Error Cases (Medium Priority) ✅ IN SCOPE
 Programmatic tests for scenarios awkward in YAML:
@@ -387,9 +389,9 @@ Programmatic tests for scenarios awkward in YAML:
 | Category | Existing | Added | Total |
 |----------|----------|-------|-------|
 | Unit Tests (behavior-focused) | 0 | **93** ✅ | **93** |
-| Declarative Integration Tests | 2 | ~8 | ~10 |
+| Declarative Integration Tests | 2 | **3** ✅ | **5** |
 | Programmatic Integration Tests | 0 | ~15 | ~15 |
-| **In Scope Total** | **2** | **~116** | **~118** |
+| **In Scope Total** | **2** | **~111** | **~113** |
 
 ### Deferred (Phases 4-5)
 
