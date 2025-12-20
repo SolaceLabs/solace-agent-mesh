@@ -1437,6 +1437,159 @@ def shared_solace_connector(
             "app_module": "solace_agent_mesh.workflow.app",
         },
         {
+            "name": "TestSwitchWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "agent_name": "SwitchTestWorkflow",
+                "display_name": "Switch Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow with switch (multi-way) branching",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "action": {"type": "string"},
+                        },
+                        "required": ["action"],
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "result": {"type": "string"},
+                            "action_taken": {"type": "string"},
+                        },
+                    },
+                    "nodes": [
+                        {
+                            "id": "route_action",
+                            "type": "switch",
+                            "cases": [
+                                {
+                                    "condition": "'{{workflow.input.action}}' == 'create'",
+                                    "node": "create_handler",
+                                },
+                                {
+                                    "condition": "'{{workflow.input.action}}' == 'update'",
+                                    "node": "update_handler",
+                                },
+                                {
+                                    "condition": "'{{workflow.input.action}}' == 'delete'",
+                                    "node": "delete_handler",
+                                },
+                            ],
+                            "default": "default_handler",
+                        },
+                        {
+                            "id": "create_handler",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "depends_on": ["route_action"],
+                            "input": {"task": "Create resource"},
+                        },
+                        {
+                            "id": "update_handler",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentB",
+                            "depends_on": ["route_action"],
+                            "input": {"task": "Update resource"},
+                        },
+                        {
+                            "id": "delete_handler",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentC",
+                            "depends_on": ["route_action"],
+                            "input": {"task": "Delete resource"},
+                        },
+                        {
+                            "id": "default_handler",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "depends_on": ["route_action"],
+                            "input": {"task": "Handle unknown action"},
+                        },
+                    ],
+                    "output_mapping": {
+                        "result": {
+                            "coalesce": [
+                                "{{create_handler.output.result}}",
+                                "{{update_handler.output.result}}",
+                                "{{delete_handler.output.result}}",
+                                "{{default_handler.output.result}}",
+                            ]
+                        },
+                        "action_taken": {
+                            "coalesce": [
+                                "{{create_handler.output.action}}",
+                                "{{update_handler.output.action}}",
+                                "{{delete_handler.output.action}}",
+                                "{{default_handler.output.action}}",
+                            ]
+                        },
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestLoopWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "agent_name": "LoopTestWorkflow",
+                "display_name": "Loop Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow with loop iteration",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "max_count": {"type": "integer"},
+                        },
+                        "required": ["max_count"],
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "final_count": {"type": "integer"},
+                            "iterations": {"type": "integer"},
+                        },
+                    },
+                    "nodes": [
+                        {
+                            "id": "count_loop",
+                            "type": "loop",
+                            "node": "increment_counter",
+                            "condition": "{{increment_counter.output.count}} < {{workflow.input.max_count}}",
+                            "max_iterations": 10,
+                        },
+                        {
+                            "id": "increment_counter",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "input": {
+                                "task": "Increment counter",
+                                "current_iteration": "{{_loop_iteration}}",
+                            },
+                        },
+                    ],
+                    "output_mapping": {
+                        "final_count": "{{increment_counter.output.count}}",
+                        "iterations": "{{count_loop.output.iterations_completed}}",
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
             "name": "TestA2AProxyApp",
             "app_config": {
                 "namespace": "test_namespace",

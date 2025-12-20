@@ -352,8 +352,9 @@ These can be written quickly with no infrastructure setup:
 2. Conditional evaluation tests (`test_conditional_evaluation.py`) - **27 tests**
 3. DAG logic tests (`test_dag_logic.py`) - **17 tests**
 4. Workflow model validation tests (`test_workflow_models.py`) - **22 tests**
+5. Utility functions tests (`test_utils.py`) - **23 tests**
 
-**Total Phase 1: 93 tests** (all passing)
+**Total Phase 1: 116 tests** (all passing)
 
 ### Phase 2 - Control Flow Declarative Tests (High Priority) ✅ PARTIALLY COMPLETE
 Follow the pattern of existing declarative tests:
@@ -364,12 +365,15 @@ Follow the pattern of existing declarative tests:
 
 **Total Phase 2: 3 new tests** (all passing)
 
-### Phase 3 - Error Cases (Medium Priority) ✅ IN SCOPE
+### Phase 3 - Error Cases (Medium Priority) ✅ COMPLETE
 Programmatic tests for scenarios awkward in YAML:
-1. Invalid input schema rejection
-2. Node failure handling
-3. Timeout handling
-4. Missing agent error
+1. Invalid input schema rejection - **2 tests** ✅
+2. Node failure handling - **1 test** ✅
+3. Empty response handling - **1 test** ✅
+4. Successful workflow validation - **1 test** ✅
+5. Output schema validation with retry - **1 test** ✅
+
+**Total Phase 3: 6 tests** (all passing)
 
 ### Phase 4 - Frontend ⏸️ DEFERRED
 > **Deferred:** Frontend team is setting up test environment. Will revisit to avoid incompatible tests.
@@ -384,14 +388,14 @@ Programmatic tests for scenarios awkward in YAML:
 
 ## Estimated Test Count
 
-### In Scope (Phases 1-3)
+### In Scope (Phases 1-3) ✅ COMPLETE
 
 | Category | Existing | Added | Total |
 |----------|----------|-------|-------|
-| Unit Tests (behavior-focused) | 0 | **93** ✅ | **93** |
+| Unit Tests (behavior-focused) | 0 | **116** ✅ | **116** |
 | Declarative Integration Tests | 2 | **3** ✅ | **5** |
-| Programmatic Integration Tests | 0 | ~15 | ~15 |
-| **In Scope Total** | **2** | **~111** | **~113** |
+| Programmatic Integration Tests | 0 | **6** ✅ | **6** |
+| **In Scope Total** | **2** | **125** | **127** |
 
 ### Deferred (Phases 4-5)
 
