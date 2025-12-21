@@ -285,6 +285,10 @@ class SamAgentAppConfig(SamConfigBase):
         description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev').",
     )
     agent_name: str = Field(..., description="Unique name for this ADK agent instance.")
+    agent_type: Literal["standard", "workflow"] = Field(
+        default="standard",
+        description="Type of agent: 'standard' (default) or 'workflow'.",
+    )
     display_name: str = Field(
         default=None,
         description="Human-friendly display name for this ADK agent instance.",
@@ -394,6 +398,14 @@ class SamAgentAppConfig(SamConfigBase):
     enable_artifact_content_instruction: bool = Field(
         default=True,
         description="Inject instructions about the 'artifact_content' embed type.",
+    )
+    input_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="JSON Schema for validating agent input when used as a workflow node.",
+    )
+    output_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="JSON Schema for validating agent output when used as a workflow node.",
     )
     agent_card: AgentCardConfig = Field(
         ..., description="Static definition of this agent's capabilities for discovery."
