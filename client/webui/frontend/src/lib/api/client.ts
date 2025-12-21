@@ -84,7 +84,7 @@ const getErrorFromResponse = async (response: Response): Promise<string> => {
     }
 };
 
-const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
+export const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     const accessToken = getAccessToken();
 
     if (!accessToken) {

@@ -52,6 +52,7 @@ export interface PerformanceReport {
  */
 export type VisualizerStepType =
     | "USER_REQUEST" // User's initial input to the agent/system
+    | "WORKFLOW_AGENT_REQUEST" // Workflow executor's request to an agent node
     | "AGENT_LLM_CALL" // An agent making a call to an LLM
     | "AGENT_LLM_RESPONSE_TOOL_DECISION" // LLM response includes a decision to call a tool
     | "AGENT_LLM_RESPONSE_TO_AGENT" // LLM response back to the calling agent
@@ -61,7 +62,12 @@ export type VisualizerStepType =
     | "AGENT_RESPONSE_TEXT" // Agent provides textual output (intermediate or final for a turn)
     | "AGENT_STATUS_UPDATE" // A simple status update from the agent (e.g., "Thinking...")
     | "TASK_COMPLETED" // Task has successfully completed
-    | "TASK_FAILED"; // Task has failed
+    | "TASK_FAILED" // Task has failed
+    | "WORKFLOW_EXECUTION_START" // Workflow execution started
+    | "WORKFLOW_NODE_EXECUTION_START" // A specific node in the workflow started
+    | "WORKFLOW_NODE_EXECUTION_RESULT" // A specific node in the workflow completed
+    | "WORKFLOW_MAP_PROGRESS" // Progress update for a map/loop node
+    | "WORKFLOW_EXECUTION_RESULT"; // Workflow execution finished
 
 /**
  * Represents specific data associated with an 'AGENT_LLM_CALL' step.
@@ -77,7 +83,8 @@ export interface LLMCallData {
  */
 export interface LLMResponseToAgentData {
     modelName?: string; // Optional, as it might be part of the preceding LLMCallData
-    responsePreview: string; // Snippet or summary of the LLM's response to the agent
+    responsePreview: string; // Snippet or summary of the LLM's response to the agent (first 200 chars)
+    response: string; // Full LLM response text
     isFinalResponse?: boolean; // Indicates if this is the complete final response from the LLM to agent for that turn
     // Potentially add response token counts if available
 }
@@ -110,6 +117,7 @@ export interface ToolInvocationStartData {
     toolName: string;
     toolArguments: Record<string, any>;
     isPeerInvocation?: boolean; // True if this tool invocation is targeting a peer agent
+    parallelGroupId?: string; // ID grouping tool calls that execute in parallel
 }
 
 /**
@@ -150,6 +158,89 @@ export interface DelegationInfo {
     subTaskId?: string; // Optional: The ID of the sub-task created for this delegation
 }
 
+export interface ArtifactRef {
+    name: string;
+    version?: number;
+}
+
+export interface WorkflowExecutionStartData {
+    workflowName: string;
+    executionId: string;
+    inputArtifactRef?: ArtifactRef;
+    workflowInput?: Record<string, any>;
+}
+
+export interface WorkflowAgentRequestData {
+    agentName: string;
+    nodeId?: string;
+    workflowName?: string;
+    inputText?: string; // Text input if sent as text parts
+    inputArtifactRef?: {
+        name: string;
+        version?: number;
+        uri?: string; // Full artifact URI for fetching content
+        mimeType?: string;
+    };
+}
+
+export interface SwitchCaseInfo {
+    condition: string;
+    node: string;
+}
+
+export interface WorkflowNodeExecutionStartData {
+    nodeId: string;
+    nodeType: string;
+    agentName?: string;
+    inputArtifactRef?: ArtifactRef;
+    iterationIndex?: number;
+    condition?: string;
+    trueBranch?: string;
+    falseBranch?: string;
+    trueBranchLabel?: string;
+    falseBranchLabel?: string;
+    subTaskId?: string;
+    parentNodeId?: string;
+    // Switch node fields
+    cases?: SwitchCaseInfo[];
+    defaultBranch?: string;
+    // Join node fields
+    waitFor?: string[];
+    joinStrategy?: string;
+    joinN?: number;
+    // Loop node fields
+    maxIterations?: number;
+    loopDelay?: string;
+    // Parallel execution grouping
+    parallelGroupId?: string; // ID grouping nodes that execute in parallel
+}
+
+export interface WorkflowNodeExecutionResultData {
+    nodeId: string;
+    status: "success" | "failure" | "skipped";
+    outputArtifactRef?: ArtifactRef;
+    errorMessage?: string;
+    metadata?: Record<string, any>;
+    conditionResult?: boolean;
+    // Switch node result fields (from metadata)
+    selectedBranch?: string;
+    selectedCaseIndex?: number;
+}
+
+export interface WorkflowMapProgressData {
+    nodeId: string;
+    totalItems: number;
+    completedItems: number;
+    status: "in-progress" | "completed" | "failed";
+}
+
+export interface WorkflowExecutionResultData {
+    status: "success" | "failure";
+    outputArtifactRef?: ArtifactRef;
+    errorMessage?: string;
+    workflowOutput?: Record<string, any>;
+}
+
 /**
  * Represents a single logical step in the visualized task flow.
  */
@@ -172,6 +263,12 @@ export interface VisualizerStep {
         errorDetails?: ErrorDetailsData; // For TASK_FAILED
         statusText?: string; // For AGENT_STATUS_UPDATE
         finalMessage?: string; // For TASK_COMPLETED (if there's a final summary message)
+        workflowExecutionStart?: WorkflowExecutionStartData; // For WORKFLOW_EXECUTION_START
+        workflowAgentRequest?: WorkflowAgentRequestData; // For WORKFLOW_AGENT_REQUEST
+        workflowNodeExecutionStart?: WorkflowNodeExecutionStartData; // For WORKFLOW_NODE_EXECUTION_START
+        workflowNodeExecutionResult?: WorkflowNodeExecutionResultData; // For WORKFLOW_NODE_EXECUTION_RESULT
+        workflowMapProgress?: WorkflowMapProgressData; // For WORKFLOW_MAP_PROGRESS
+        workflowExecutionResult?: WorkflowExecutionResultData; // For WORKFLOW_EXECUTION_RESULT
     };
     rawEventIds: string[]; // Array of IDs/indices referencing the raw A2AEventSSEPayload(s) that constitute this logical step
     functionCallId?: string; // The function call ID this step is related to, especially for sub-task steps.
@@ -179,6 +276,7 @@ export interface VisualizerStep {
     isSubTaskStep?: boolean; // True if this step is part of a sub-task's execution flow
     nestingLevel: number; // ADDED: 0 for root, 1 for first sub-task, 2 for sub-task of sub-task, etc.
     owningTaskId: string; // ADDED: The ID of the task this step is part of
+    parentTaskId?: string; // ADDED: The ID of the parent task, if any
 }
 
 /**
