@@ -4,7 +4,7 @@ These models correspond to the JSON schemas defined in a2a_spec/schemas/
 and are used for validating non-visible status update messages.
 """
 
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 
 
@@ -24,6 +24,10 @@ class ToolInvocationStartData(BaseModel):
     function_call_id: str = Field(
         ..., description="The ID from the LLM's function call."
     )
+    parallel_group_id: Optional[str] = Field(
+        None,
+        description="ID grouping tool calls that execute in parallel. Tools with the same ID should be rendered side-by-side.",
+    )
 
 
 class LlmInvocationData(BaseModel):
@@ -42,6 +46,24 @@ class LlmInvocationData(BaseModel):
     usage: Optional[Dict[str, Any]] = Field(
         None,
         description="Token usage information for this LLM call (input_tokens, output_tokens, cached_input_tokens, model)",
+    )
+
+
+class LlmResponseData(BaseModel):
+    """
+    Data model for an LLM response signal.
+    Corresponds to llm_response.json schema.
+    """
+
+    type: Literal["llm_response"] = Field(
+        "llm_response", description="The constant type for this data part."
+    )
+    data: Dict[str, Any] = Field(
+        ..., description="The raw response data from the LLM."
+    )
+    usage: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Token usage information.",
     )
 
 
@@ -162,17 +184,244 @@ class TemplateBlockData(BaseModel):
     limit: Optional[int] = Field(
         None, description="Optional limit on number of items/rows to pass to template."
     )
-    template_content: str = Field(
-        ..., description="The full Liquid template content."
+    template_content: str = Field(..., description="The full Liquid template content.")
+
+
+class StructuredInvocationRequest(BaseModel):
+    """
+    Data part for structured agent invocation with schema-validated input/output.
+
+    Used by workflows and other programmatic callers to invoke an agent in
+    "function mode" where input is validated against a schema, and output
+    is validated (with retry) against an output schema.
+
+    The agent responds with a StructuredInvocationResult.
+    """
+
+    type: Literal["structured_invocation_request"] = Field(
+        "structured_invocation_request", description="The constant type for this data part."
+    )
+    workflow_name: str = Field(..., description="Name of the workflow (or caller context)")
+    node_id: str = Field(..., description="ID of the invocation (workflow node ID or caller-defined)")
+    input_schema: Optional[Dict[str, Any]] = Field(
+        None, description="JSON Schema for input validation (overrides agent card)"
+    )
+    output_schema: Optional[Dict[str, Any]] = Field(
+        None, description="JSON Schema for output validation (overrides agent card)"
+    )
+    suggested_output_filename: Optional[str] = Field(
+        None, description="Suggested unique filename for the output artifact"
+    )
+
+
+class StructuredInvocationResult(BaseModel):
+    """
+    Data part returned by agent after a structured invocation.
+
+    Contains the result of a schema-validated agent execution, including
+    artifact reference, validation status, and any error information.
+    """
+
+    type: Literal["structured_invocation_result"] = Field(
+        "structured_invocation_result", description="The constant type for this data part."
+    )
+    status: Literal["success", "failure"] = Field(
+        ..., description="Execution result status"
+    )
+    artifact_name: Optional[str] = Field(
+        None, description="Name of result artifact if success"
+    )
+    artifact_version: Optional[int] = Field(
+        None, description="Version of result artifact"
+    )
+    error_message: Optional[str] = Field(None, description="Error message if failure")
+    validation_errors: Optional[List[str]] = Field(
+        None, description="Schema validation errors if any"
+    )
+    retry_count: int = Field(0, description="Number of retries attempted")
+
+
+class ArtifactRef(BaseModel):
+    """Reference to an artifact."""
+
+    name: str
+    version: Optional[int] = None
+
+
+class WorkflowExecutionStartData(BaseModel):
+    """
+    Data part signaling the start of a workflow execution.
+    Corresponds to workflow_execution_start.json schema.
+    """
+
+    type: Literal["workflow_execution_start"] = Field(
+        "workflow_execution_start", description="The constant type for this data part."
+    )
+    workflow_name: str = Field(..., description="Name of the workflow")
+    execution_id: str = Field(..., description="Unique execution ID")
+    input_artifact_ref: Optional[ArtifactRef] = Field(
+        None, description="Reference to the input artifact"
+    )
+    workflow_input: Optional[Dict[str, Any]] = Field(
+        None, description="Input data for the workflow"
+    )
+
+
+class SwitchCaseInfo(BaseModel):
+    """Information about a single case in a switch node."""
+
+    condition: str = Field(..., description="Condition expression for this case")
+    node: str = Field(..., description="Target node ID if this case matches")
+
+
+class WorkflowNodeExecutionStartData(BaseModel):
+    """
+    Data part signaling the start of a workflow node execution.
+    Corresponds to workflow_node_execution_start.json schema.
+    """
+
+    type: Literal["workflow_node_execution_start"] = Field(
+        "workflow_node_execution_start",
+        description="The constant type for this data part.",
+    )
+    node_id: str = Field(..., description="ID of the node")
+    node_type: str = Field(..., description="Type of the node (agent, conditional, switch, join, loop, etc.)")
+    agent_name: Optional[str] = Field(
+        None, description="Name of the agent persona if applicable"
+    )
+    input_artifact_ref: Optional[ArtifactRef] = Field(
+        None, description="Reference to the input artifact for this node"
+    )
+    iteration_index: Optional[int] = Field(
+        None, description="Index if inside a map/loop"
+    )
+    condition: Optional[str] = Field(
+        None, description="Condition expression for conditional/loop nodes"
+    )
+    true_branch: Optional[str] = Field(
+        None, description="Node ID for true branch"
+    )
+    false_branch: Optional[str] = Field(
+        None, description="Node ID for false branch"
+    )
+    true_branch_label: Optional[str] = Field(
+        None, description="Label/Persona for true branch"
+    )
+    false_branch_label: Optional[str] = Field(
+        None, description="Label/Persona for false branch"
+    )
+    sub_task_id: Optional[str] = Field(
+        None, description="The sub-task ID associated with this node execution"
+    )
+    parent_node_id: Optional[str] = Field(
+        None, description="ID of the parent node (e.g. for map iterations)"
+    )
+    # Switch node fields
+    cases: Optional[List[SwitchCaseInfo]] = Field(
+        None, description="Cases for switch nodes"
+    )
+    default_branch: Optional[str] = Field(
+        None, description="Default branch for switch nodes"
+    )
+    # Join node fields
+    wait_for: Optional[List[str]] = Field(
+        None, description="Node IDs to wait for in join nodes"
+    )
+    join_strategy: Optional[str] = Field(
+        None, description="Join strategy: all, any, or n_of_m"
+    )
+    join_n: Optional[int] = Field(
+        None, description="N value for n_of_m join strategy"
+    )
+    # Loop node fields
+    max_iterations: Optional[int] = Field(
+        None, description="Maximum iterations for loop nodes"
+    )
+    loop_delay: Optional[str] = Field(
+        None, description="Delay between loop iterations"
+    )
+    # Parallel execution grouping
+    parallel_group_id: Optional[str] = Field(
+        None,
+        description="ID grouping nodes that execute in parallel. Nodes with the same ID should be rendered side-by-side.",
+    )
+
+
+class WorkflowNodeExecutionResultData(BaseModel):
+    """
+    Data part signaling the completion of a workflow node execution.
+    Corresponds to workflow_node_execution_result.json schema.
+    """
+
+    type: Literal["workflow_node_execution_result"] = Field(
+        "workflow_node_execution_result",
+        description="The constant type for this data part.",
+    )
+    node_id: str = Field(..., description="ID of the node")
+    status: Literal["success", "failure", "skipped"] = Field(
+        ..., description="Execution status"
+    )
+    output_artifact_ref: Optional[ArtifactRef] = Field(
+        None, description="Reference to the output artifact"
+    )
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Additional metadata (e.g., condition result)"
+    )
+
+
+class WorkflowMapProgressData(BaseModel):
+    """
+    Data part signaling progress of a map node.
+    Corresponds to workflow_map_progress.json schema.
+    """
+
+    type: Literal["workflow_map_progress"] = Field(
+        "workflow_map_progress", description="The constant type for this data part."
+    )
+    node_id: str = Field(..., description="ID of the map node")
+    total_items: int = Field(..., description="Total items to process")
+    completed_items: int = Field(..., description="Items processed so far")
+    status: Literal["in-progress", "completed", "failed"] = Field(
+        ..., description="Status of the map operation"
+    )
+
+
+class WorkflowExecutionResultData(BaseModel):
+    """
+    Data part signaling the completion of a workflow execution.
+    Corresponds to workflow_execution_result.json schema.
+    """
+
+    type: Literal["workflow_execution_result"] = Field(
+        "workflow_execution_result", description="The constant type for this data part."
+    )
+    status: Literal["success", "failure", "cancelled"] = Field(
+        ..., description="Final status"
+    )
+    output_artifact_ref: Optional[ArtifactRef] = Field(
+        None, description="Reference to the final output artifact"
+    )
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    workflow_output: Optional[Dict[str, Any]] = Field(
+        None, description="Final output data of the workflow"
     )
 
 
 SignalData = Union[
     ToolInvocationStartData,
     LlmInvocationData,
+    LlmResponseData,
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
     ArtifactSavedData,
     ToolResultData,
     TemplateBlockData,
+    StructuredInvocationRequest,
+    StructuredInvocationResult,
+    WorkflowExecutionStartData,
+    WorkflowNodeExecutionStartData,
+    WorkflowNodeExecutionResultData,
+    WorkflowMapProgressData,
+    WorkflowExecutionResultData,
 ]
