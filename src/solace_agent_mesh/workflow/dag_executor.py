@@ -109,6 +109,10 @@ class DAGExecutor:
             if not deps and node_id not in self.inner_nodes
         ]
 
+    def get_node_by_id(self, node_id: str) -> Optional[WorkflowNode]:
+        """Get a node by its ID."""
+        return self.nodes.get(node_id)
+
     def get_next_nodes(
         self, workflow_state: WorkflowExecutionState
     ) -> List[str]:
@@ -218,6 +222,11 @@ class DAGExecutor:
         log_id = f"{self.host.log_identifier}[Workflow:{workflow_state.execution_id}]"
 
         while True:
+            # Check for cancellation before proceeding
+            if workflow_context.is_cancelled():
+                log.info(f"{log_id} Workflow cancelled, stopping execution")
+                return
+
             # Get next nodes to execute
             next_nodes = self.get_next_nodes(workflow_state)
 
@@ -893,18 +902,10 @@ class DAGExecutor:
         }
 
         # Store in active_branches (using a dict instead of list for map state)
-        # Note: active_branches type hint is Dict[str, List[Dict]], but we are storing a Dict.
-        # We should probably update the type hint or wrap this in a list.
-        # For compatibility with existing structure, let's wrap it or adapt.
-        # The existing structure expects a list of branches.
-        # Let's adapt: active_branches[node.id] will hold the list of *active* sub-tasks.
-        # But we need to store the *pending* state somewhere.
-        # We can store the map_state in a special metadata field or abuse active_branches.
-        # Let's use a list of dicts where the first element is the metadata/state.
-        # This is a bit hacky but avoids schema changes.
-        # Better: Use `metadata` field in WorkflowExecutionState for map state.
+        # Store map state in metadata field (designed for node-specific extensible state).
+        # active_branches tracks the currently executing sub-tasks for this map node.
         workflow_state.metadata[f"map_state_{node.id}"] = map_state
-        workflow_state.active_branches[node.id] = []  # Will hold active sub-tasks
+        workflow_state.active_branches[node.id] = []
 
         # Launch initial batch
         await self._launch_map_iterations(node.id, workflow_state, workflow_context)
@@ -1099,6 +1100,11 @@ class DAGExecutor:
     ):
         """Handle completion of a workflow node."""
         log_id = f"{self.host.log_identifier}[Workflow:{workflow_context.workflow_task_id}]"
+
+        # Check for cancellation - don't process results if workflow is cancelled
+        if workflow_context.is_cancelled():
+            log.info(f"{log_id} Workflow cancelled, ignoring node completion for sub-task {sub_task_id}")
+            return
 
         # Find which node this sub-task corresponds to
         node_id = workflow_context.get_node_id_for_sub_task(sub_task_id)

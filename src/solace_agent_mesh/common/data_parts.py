@@ -396,7 +396,9 @@ class WorkflowExecutionResultData(BaseModel):
     type: Literal["workflow_execution_result"] = Field(
         "workflow_execution_result", description="The constant type for this data part."
     )
-    status: Literal["success", "failure"] = Field(..., description="Final status")
+    status: Literal["success", "failure", "cancelled"] = Field(
+        ..., description="Final status"
+    )
     output_artifact_ref: Optional[ArtifactRef] = Field(
         None, description="Reference to the final output artifact"
     )

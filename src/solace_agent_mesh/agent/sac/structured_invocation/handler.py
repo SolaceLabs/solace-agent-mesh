@@ -142,18 +142,10 @@ class StructuredInvocationHandler:
                     f"{log_id} No input schema provided, using default text schema"
                 )
 
-            # Extract and log input data
-            input_data = await self._extract_input_data(
-                message, input_schema, a2a_context
+            # Validate input against schema
+            validation_errors = await self._validate_input(
+                message, input_schema, a2a_context, log_id
             )
-            log.debug(
-                f"{log_id} Resolved input data: {json.dumps(input_data, default=str)}"
-            )
-
-            # Validate input
-            from .validator import validate_against_schema
-
-            validation_errors = validate_against_schema(input_data, input_schema)
 
             if validation_errors:
                 log.error(f"{log_id} Input validation failed: {validation_errors}")
@@ -195,6 +187,7 @@ class StructuredInvocationHandler:
         message: A2AMessage,
         input_schema: Dict[str, Any],
         a2a_context: Dict[str, Any],
+        log_id: str = "",
     ) -> Optional[List[str]]:
         """
         Validate message content against input schema.
@@ -204,6 +197,10 @@ class StructuredInvocationHandler:
 
         # Extract input data from message
         input_data = await self._extract_input_data(message, input_schema, a2a_context)
+
+        log.debug(
+            f"{log_id} Resolved input data: {json.dumps(input_data, default=str)}"
+        )
 
         # Validate against schema
         errors = validate_against_schema(input_data, input_schema)

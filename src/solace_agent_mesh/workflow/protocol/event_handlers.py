@@ -316,10 +316,78 @@ async def handle_agent_response(
         message.call_acknowledgements() # ACK to avoid redelivery loop on error
 
 
-def handle_cancel_request(component: "WorkflowExecutorComponent", task_id: str):
-    """Handle workflow cancellation request."""
-    # TODO: Implement cancellation logic
-    pass
+async def handle_cancel_request(
+    component: "WorkflowExecutorComponent",
+    task_id: str,
+    message: SolaceMessage,
+):
+    """
+    Handle workflow cancellation request.
+
+    When a CancelTaskRequest is received:
+    1. Signal cancellation to the workflow context
+    2. Cancel any active agent sub-tasks
+    3. Finalize the workflow as cancelled
+    4. Clean up resources
+    """
+    log_id = f"{component.log_identifier}[CancelWorkflow:{task_id}]"
+    log.info(f"{log_id} Received cancellation request")
+
+    # Find the workflow context
+    with component.active_workflows_lock:
+        workflow_context = component.active_workflows.get(task_id)
+
+    if not workflow_context:
+        log.warning(f"{log_id} Workflow not found or already completed")
+        message.call_acknowledgements()
+        return
+
+    # Signal cancellation to the workflow context
+    workflow_context.cancel()
+    log.info(f"{log_id} Cancellation signal sent to workflow")
+
+    # Cancel any active agent sub-tasks
+    sub_task_ids = workflow_context.get_all_sub_task_ids()
+    if sub_task_ids:
+        log.info(f"{log_id} Cancelling {len(sub_task_ids)} active agent sub-task(s)")
+
+        for sub_task_id in sub_task_ids:
+            node_id = workflow_context.get_node_id_for_sub_task(sub_task_id)
+            if not node_id:
+                continue
+
+            # Get the target agent for this node
+            node = component.dag_executor.get_node_by_id(node_id)
+            if node and hasattr(node, 'agent_name'):
+                try:
+                    from ...common import a2a
+                    cancel_request = a2a.create_cancel_task_request(task_id=sub_task_id)
+                    target_topic = a2a.get_agent_request_topic(
+                        component.namespace, node.agent_name
+                    )
+                    component.publish_a2a_message(
+                        payload=cancel_request.model_dump(exclude_none=True),
+                        topic=target_topic,
+                        user_properties={"clientId": component.workflow_name},
+                    )
+                    log.info(
+                        f"{log_id} Sent CancelTaskRequest to agent '{node.agent_name}' "
+                        f"for sub-task {sub_task_id}"
+                    )
+                except Exception as e:
+                    log.error(
+                        f"{log_id} Failed to send CancelTaskRequest to agent "
+                        f"'{node.agent_name}': {e}"
+                    )
+
+    # Finalize the workflow as cancelled
+    try:
+        await component.finalize_workflow_cancelled(workflow_context)
+    except Exception as e:
+        log.error(f"{log_id} Error finalizing cancelled workflow: {e}")
+
+    message.call_acknowledgements()
+    log.info(f"{log_id} Cancellation complete")
 
 
 def handle_agent_card_message(component: "WorkflowExecutorComponent", message: SolaceMessage):

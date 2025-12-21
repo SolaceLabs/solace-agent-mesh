@@ -49,6 +49,7 @@ from .protocol.event_handlers import (
 )
 
 from a2a.types import (
+    A2ARequest,
     AgentCard,
     AgentCapabilities,
     TaskState,
@@ -134,7 +135,20 @@ class WorkflowExecutorComponent(SamComponentBase):
             self.namespace, self.workflow_name
         )
         if topic == request_topic:
-            await handle_task_request(self, message)
+            # Check if this is a cancel request or a regular task request
+            try:
+                payload = message.get_payload()
+                method = payload.get("method") if isinstance(payload, dict) else None
+                if method == "tasks/cancel":
+                    task_id = a2a.get_task_id_from_cancel_request(
+                        A2ARequest.model_validate(payload)
+                    )
+                    await handle_cancel_request(self, task_id, message)
+                else:
+                    await handle_task_request(self, message)
+            except Exception as e:
+                log.error(f"{self.log_identifier} Error processing request: {e}")
+                message.call_acknowledgements()
         elif topic == discovery_topic:
             handle_agent_card_message(self, message)
         elif a2a.topic_matches_subscription(
@@ -915,6 +929,70 @@ class WorkflowExecutorComponent(SamComponentBase):
             original_message.call_acknowledgements()
 
         await self._cleanup_workflow_state(workflow_context)
+
+    async def finalize_workflow_cancelled(
+        self, workflow_context: WorkflowExecutionContext
+    ):
+        """Finalize cancelled workflow execution and publish cancellation status."""
+        log_id = f"{self.log_identifier}[Workflow:{workflow_context.workflow_task_id}]"
+        log.info(f"{log_id} Finalizing workflow cancellation")
+
+        # Execute exit handlers (passing cancellation info)
+        await self._execute_exit_handlers(workflow_context, "cancelled")
+
+        # Publish cancellation event
+        await self.publish_workflow_event(
+            workflow_context,
+            WorkflowExecutionResultData(
+                type="workflow_execution_result",
+                status="cancelled",
+                error_message="Workflow was cancelled",
+            ),
+        )
+
+        # Create final task response with cancelled state
+        final_task = a2a.create_final_task(
+            task_id=workflow_context.a2a_context["logical_task_id"],
+            context_id=workflow_context.a2a_context["session_id"],
+            final_status=a2a.create_task_status(
+                state=TaskState.canceled,
+                message=a2a.create_agent_text_message(
+                    text="Workflow was cancelled"
+                ),
+            ),
+            metadata={
+                "workflow_name": self.workflow_name,
+                "agent_name": self.workflow_name,
+            },
+        )
+
+        # Publish response
+        response_topic = workflow_context.a2a_context.get(
+            "replyToTopic"
+        ) or a2a.get_client_response_topic(
+            self.namespace, workflow_context.a2a_context["client_id"]
+        )
+
+        response = a2a.create_success_response(
+            result=final_task,
+            request_id=workflow_context.a2a_context["jsonrpc_request_id"],
+        )
+
+        self.publish_a2a_message(
+            payload=response.model_dump(exclude_none=True),
+            topic=response_topic,
+            user_properties={
+                "a2aUserConfig": workflow_context.a2a_context.get("a2a_user_config", {})
+            },
+        )
+
+        # ACK original message
+        original_message = workflow_context.get_original_solace_message()
+        if original_message:
+            original_message.call_acknowledgements()
+
+        await self._cleanup_workflow_state(workflow_context)
+        log.info(f"{log_id} Workflow cancellation finalized")
 
     async def _construct_final_output(
         self, workflow_context: WorkflowExecutionContext
