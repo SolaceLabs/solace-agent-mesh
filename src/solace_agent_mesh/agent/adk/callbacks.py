@@ -33,6 +33,7 @@ from ...agent.utils.context_helpers import (
     get_session_from_callback_context,
 )
 from ..tools.tool_definition import BuiltinTool
+from ..tools.workflow_tool import WorkflowAgentTool, WORKFLOW_TOOL_PREFIX
 from ..tools.peer_agent_tool import PEER_TOOL_PREFIX
 
 from ...common.utils.embeds import (
@@ -1668,6 +1669,27 @@ If a plan is created:
             log_identifier,
         )
 
+    # Check for WorkflowAgentTool instances and inject specific instructions
+    has_workflow_tools = False
+    if llm_request.tools_dict:
+        for tool in llm_request.tools_dict.values():
+            if isinstance(tool, WorkflowAgentTool):
+                has_workflow_tools = True
+                break
+
+    if has_workflow_tools:
+        workflow_instruction = (
+            "**Workflow Execution:**\n"
+            "You have access to workflow tools (prefixed with `workflow_`). These tools represent structured business processes.\n"
+            "They support two modes of invocation:\n"
+            "1. **Parameter Mode:** Provide arguments directly matching the tool's schema. Use this for new data or simple inputs.\n"
+            "2. **Artifact Mode:** Provide a single `input_artifact` argument with the filename of an existing JSON artifact. "
+            "Use this when passing large datasets or outputs from previous steps to avoid re-tokenizing.\n"
+            "Do NOT provide both parameters and `input_artifact` simultaneously."
+        )
+        injected_instructions.append(workflow_instruction)
+        log.debug("%s Injected workflow execution instructions.", log_identifier)
+
     last_call_notification_message_added = False
     try:
         invocation_context = callback_context._invocation_context
@@ -2102,6 +2124,28 @@ def solace_llm_response_callback(
         agent_name = host_component.get_config("agent_name", "unknown_agent")
         logical_task_id = a2a_context.get("logical_task_id")
 
+        # Check for parallel tool calls - if multiple function_calls in this response,
+        # generate a parallel_group_id for the frontend to group them visually
+        function_calls = []
+        if llm_response.content and llm_response.content.parts:
+            function_calls = [
+                p for p in llm_response.content.parts if p.function_call
+            ]
+
+        if len(function_calls) > 1:
+            import uuid
+            parallel_group_id = f"llm_batch_{uuid.uuid4().hex[:8]}"
+            callback_context.state["parallel_group_id"] = parallel_group_id
+            log.debug(
+                "%s Detected %d parallel tool calls, assigned parallel_group_id=%s",
+                log_identifier,
+                len(function_calls),
+                parallel_group_id,
+            )
+        else:
+            # Clear any previous parallel_group_id
+            callback_context.state["parallel_group_id"] = None
+
         llm_response_data = {
             "type": "llm_response",
             "data": llm_response.model_dump(exclude_none=True),
@@ -2232,10 +2276,14 @@ def notify_tool_invocation_start_callback(
             except TypeError:
                 serializable_args[k] = str(v)
 
+        # Get parallel_group_id from callback state if this is part of a parallel batch
+        parallel_group_id = tool_context.state.get("parallel_group_id")
+
         tool_data = ToolInvocationStartData(
             tool_name=tool.name,
             tool_args=serializable_args,
             function_call_id=tool_context.function_call_id,
+            parallel_group_id=parallel_group_id,
         )
         asyncio.run_coroutine_threadsafe(
             _publish_data_part_status_update(host_component, a2a_context, tool_data),
@@ -2439,12 +2487,12 @@ def preregister_long_running_tools_callback(
     if not llm_response.content or not llm_response.content.parts:
         return None
 
-    # Find all long-running tool calls (identified by peer_ prefix)
+    # Find all long-running tool calls (identified by peer_ or workflow_ prefix)
     long_running_calls = []
     for part in llm_response.content.parts:
         if part.function_call:
             tool_name = part.function_call.name
-            if tool_name.startswith(PEER_TOOL_PREFIX):
+            if tool_name.startswith(PEER_TOOL_PREFIX) or tool_name.startswith(WORKFLOW_TOOL_PREFIX):
                 long_running_calls.append(part.function_call)
 
     if not long_running_calls:

@@ -39,6 +39,7 @@ async def run_adk_async_task_thread_wrapper(
     run_config: RunConfig,
     a2a_context: dict[str, Any],
     append_context_event: bool = True,
+    skip_finalization: bool = False,
 ):
     """
     Wrapper to run the async ADK task.
@@ -50,6 +51,8 @@ async def run_adk_async_task_thread_wrapper(
         adk_content: The input content for the ADK agent.
         run_config: The ADK run configuration.
         a2a_context: The context dictionary for this specific A2A request.
+        append_context_event: Whether to append the context-setting event to the session.
+        skip_finalization: If True, skips automatic finalization (for custom finalization like workflow nodes).
     """
     logical_task_id = a2a_context.get("logical_task_id", "unknown_task")
     is_paused = False
@@ -81,11 +84,12 @@ async def run_adk_async_task_thread_wrapper(
                     invocation_id=context_setting_invocation_id,
                     author="A2A_Host_System",
                     content=adk_types.Content(
+                        role="user",  # Must set role to avoid breaking ADK's is_final_response() logic
                         parts=[
                             adk_types.Part(
                                 text="Initializing A2A context for task run."
                             )
-                        ]
+                        ],
                     ),
                     actions=EventActions(state_delta={"a2a_context": a2a_context}),
                     branch=None,
@@ -217,22 +221,29 @@ async def run_adk_async_task_thread_wrapper(
             e,
         )
 
-    loop = component.get_async_loop()
-    if loop and loop.is_running():
-        log.debug(
-            "%s Scheduling finalize_task_with_cleanup for task %s.",
-            component.log_identifier,
-            logical_task_id,
-        )
-        asyncio.run_coroutine_threadsafe(
-            component.finalize_task_with_cleanup(
-                a2a_context, is_paused, exception_to_finalize_with
-            ),
-            loop,
-        )
+    if not skip_finalization:
+        loop = component.get_async_loop()
+        if loop and loop.is_running():
+            log.debug(
+                "%s Scheduling finalize_task_with_cleanup for task %s.",
+                component.log_identifier,
+                logical_task_id,
+            )
+            asyncio.run_coroutine_threadsafe(
+                component.finalize_task_with_cleanup(
+                    a2a_context, is_paused, exception_to_finalize_with
+                ),
+                loop,
+            )
+        else:
+            log.error(
+                "%s Async loop not available. Cannot schedule finalization for task %s.",
+                component.log_identifier,
+                logical_task_id,
+            )
     else:
-        log.error(
-            "%s Async loop not available. Cannot schedule finalization for task %s.",
+        log.debug(
+            "%s Skipping automatic finalization for task %s (skip_finalization=True).",
             component.log_identifier,
             logical_task_id,
         )
