@@ -28,7 +28,7 @@ Advanced node execution methods:
 
 ### `src/solace_agent_mesh/workflow/agent_caller.py`
 
-Agent invocation via A2A (~370 lines):
+Agent invocation via A2A (~350 lines):
 
 | Method | Purpose |
 |--------|---------|

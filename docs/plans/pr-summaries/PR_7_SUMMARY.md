@@ -100,7 +100,7 @@ interface LayoutEdge {
 
 #### `client/webui/frontend/src/lib/components/activities/FlowChart/utils/nodeDetailsHelper.ts`
 
-Helper functions for extracting node details (~400 lines):
+Helper functions for extracting node details (~440 lines):
 - Extract input/output data
 - Format timing information
 - Parse error details
@@ -110,7 +110,7 @@ Helper functions for extracting node details (~400 lines):
 
 #### `client/webui/frontend/src/lib/components/activities/FlowChart/FlowChartPanel.tsx`
 
-Main panel component (~175 lines):
+Main panel component (~300 lines):
 - Container for workflow visualization
 - Handles zoom/pan controls
 - Manages selected node state
@@ -131,9 +131,17 @@ Edge rendering component (~170 lines):
 - Animated connection lines
 - Different styles for different edge types
 
+#### `client/webui/frontend/src/lib/components/activities/FlowChart/PanZoomCanvas.tsx`
+
+Pan and zoom controls component (~215 lines):
+- Mouse drag for panning
+- Scroll wheel for zooming
+- Zoom controls UI
+- Viewport transform management
+
 #### `client/webui/frontend/src/lib/components/activities/FlowChart/NodeDetailsCard.tsx`
 
-Details sidebar (~1,000 lines):
+Details sidebar (~1,190 lines):
 - Input/output data display
 - Timing information
 - Error details
@@ -154,7 +162,7 @@ Each node type has a dedicated React component:
 | `SwitchNode` | `nodes/SwitchNode.tsx` | Multi-way decision (~70 lines) |
 | `MapNode` | `nodes/MapNode.tsx` | Parallel iteration (~175 lines) |
 | `LoopNode` | `nodes/LoopNode.tsx` | While iteration (~160 lines) |
-| `WorkflowGroup` | `nodes/WorkflowGroup.tsx` | Container for nested items (~375 lines) |
+| `WorkflowGroup` | `nodes/WorkflowGroup.tsx` | Container for nested items (~420 lines) |
 
 ### Type Definitions
 

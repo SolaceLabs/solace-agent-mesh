@@ -13,7 +13,7 @@ This PR provides an ADK Tool implementation that allows agents to invoke workflo
 
 ### `src/solace_agent_mesh/agent/tools/workflow_tool.py`
 
-The `WorkflowAgentTool` class (~450 lines) provides:
+The `WorkflowAgentTool` class (~370 lines) provides:
 
 | Method | Purpose |
 |--------|---------|

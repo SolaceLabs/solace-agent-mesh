@@ -23,35 +23,14 @@ Gateway modifications for workflow event forwarding:
 
 ### Example Workflows
 
-#### `examples/agents/all_node_types_workflow.yaml`
+#### `examples/agents/all_node_types_workflow.yaml` (~1,150 lines)
 
-Comprehensive example demonstrating all node types:
+Comprehensive example demonstrating all node types with supporting agents:
+- Echo agent, counter agent, list generator
+- Conditional, switch, loop, and map node demonstrations
+- Full working example that can be run standalone
 
-```yaml
-workflow:
-  description: "Demonstrates all workflow node types"
-  nodes:
-    - id: fetch
-      type: agent
-      agent_name: DataFetcher
-
-    - id: check_type
-      type: conditional
-      depends_on: [fetch]
-      condition: "'{{fetch.output.type}}' == 'batch'"
-      true_branch: batch_process
-      false_branch: single_process
-
-    - id: batch_process
-      type: map
-      depends_on: [check_type]
-      items: "{{fetch.output.items}}"
-      node: process_item
-
-    # ... additional nodes
-```
-
-#### `examples/agents/jira_bug_triage_workflow.yaml`
+#### `examples/agents/jira_bug_triage_workflow.yaml` (~570 lines)
 
 Real-world example for bug triage workflow:
 - Fetch bugs from Jira
@@ -59,23 +38,46 @@ Real-world example for bug triage workflow:
 - Route to appropriate handlers
 - Send notifications
 
-### Test Infrastructure
+### Unit Tests
 
-#### `tests/integration/conftest.py`
+#### `tests/unit/workflow/` (~1,770 lines total)
 
-Test fixtures for workflow testing:
-- Workflow configuration fixtures
-- Mock agent responses
-- A2A message helpers
+Behavior-focused unit tests for pure functions:
 
-#### `tests/integration/scenarios_declarative/test_data/workflows/*.yaml`
+| File | Lines | Coverage |
+|------|-------|----------|
+| `test_template_resolution.py` | 338 | Template variable resolution, nested paths, operators |
+| `test_conditional_evaluation.py` | 305 | Condition expressions, comparisons, Argo aliases |
+| `test_dag_logic.py` | 314 | Dependency graph, node readiness, skip propagation |
+| `test_workflow_models.py` | 378 | Pydantic model validation, YAML parsing |
+| `test_utils.py` | 130 | Duration parsing, utility functions |
+| `test_agent_caller.py` | 308 | Input resolution, message construction |
 
-Test workflow definitions:
-- Simple linear workflow
-- Conditional branching workflow
-- Map iteration workflow
-- Loop iteration workflow
-- Error handling workflow
+### Integration Tests
+
+#### `tests/integration/scenarios_programmatic/test_workflow_errors.py` (~2,000 lines)
+
+Programmatic integration tests for error scenarios and edge cases:
+- Invalid input schema rejection
+- Node failure handling
+- Empty response handling
+- Output schema validation with retry
+- Successful workflow validation
+
+#### `tests/integration/scenarios_declarative/test_data/workflows/*.yaml` (~550 lines)
+
+Declarative test workflow definitions:
+
+| File | Purpose |
+|------|---------|
+| `test_simple_two_node_workflow.yaml` | Linear 2-node workflow |
+| `test_workflow_with_structured_input.yaml` | Schema validation |
+| `test_conditional_workflow_true_branch.yaml` | Conditional true path |
+| `test_conditional_workflow_false_branch.yaml` | Conditional false path |
+| `test_map_workflow.yaml` | Map iteration |
+| `test_loop_workflow.yaml` | Loop iteration |
+| `test_switch_workflow_create_case.yaml` | Switch case matching |
+| `test_switch_workflow_default_case.yaml` | Switch default fallback |
 
 ## Key Concepts
 

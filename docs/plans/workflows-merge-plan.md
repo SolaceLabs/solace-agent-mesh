@@ -98,19 +98,18 @@ Location: `client/webui/frontend/src/lib/components/activities/FlowChart/`
 ### 7. **Documentation** - TO BE REWRITTEN
 All existing design docs will be removed and replaced with focused PR-specific documentation.
 
-### 8. **Examples** (~3,000 lines)
+### 8. **Examples** (~1,700 lines)
 | File | Purpose |
 |------|---------|
-| `examples/agents/simple_workflow_test.yaml` | Basic workflow |
-| `examples/agents/workflow_example.yaml` | Full example |
-| `examples/agents/all_node_types_workflow.yaml` | All node types |
-| `examples/agents/jira_bug_triage_workflow.yaml` | Real-world example |
+| `examples/agents/all_node_types_workflow.yaml` | Comprehensive example with all node types |
+| `examples/agents/jira_bug_triage_workflow.yaml` | Real-world bug triage example |
 
-### 9. **Tests** (~350 lines)
+### 9. **Tests** (~4,300 lines)
 | File | Purpose |
 |------|---------|
-| `tests/integration/conftest.py` | Test fixtures |
-| `tests/integration/scenarios_declarative/test_data/workflows/*.yaml` | Test workflows |
+| `tests/unit/workflow/*.py` | Unit tests for pure functions (~1,770 lines) |
+| `tests/integration/scenarios_programmatic/test_workflow_errors.py` | Integration tests (~2,000 lines) |
+| `tests/integration/scenarios_declarative/test_data/workflows/*.yaml` | Declarative test workflows (~550 lines) |
 
 ---
 
@@ -240,7 +239,7 @@ main
 ---
 
 ### PR 4: Workflow Tool for Agents
-**Scope:** ~500 lines | **Review Focus:** ADK tool implementation
+**Scope:** ~370 lines | **Review Focus:** ADK tool implementation
 **Target:** `pr/workflows-3-agent-support`
 
 **Files:**
@@ -251,7 +250,7 @@ main
 ---
 
 ### PR 5a: Workflow Runtime - Orchestrator Component
-**Scope:** ~1,100 lines | **Review Focus:** Component lifecycle, message routing, agent card
+**Scope:** ~1,500 lines | **Review Focus:** Component lifecycle, message routing, agent card
 **Target:** `pr/workflows-4-workflow-tool`
 
 **Files:**
@@ -318,13 +317,16 @@ main
 ---
 
 ### PR 6: Integration, Examples & Tests
-**Scope:** ~3,500 lines | **Review Focus:** Backend integration, examples, tests
+**Scope:** ~6,000 lines | **Review Focus:** Examples, unit tests, integration tests
 **Target:** `pr/workflows-5c-advanced-nodes`
 
 **Files:**
 - `src/solace_agent_mesh/gateway/http_sse/component.py` - Gateway workflow event forwarding
-- `examples/agents/*.yaml` (workflow examples)
-- `tests/integration/` (test fixtures and workflows)
+- `examples/agents/all_node_types_workflow.yaml` - Comprehensive workflow example
+- `examples/agents/jira_bug_triage_workflow.yaml` - Real-world example
+- `tests/unit/workflow/*.py` - Unit tests (~1,770 lines, 6 test files)
+- `tests/integration/scenarios_programmatic/test_workflow_errors.py` - Integration tests (~2,000 lines)
+- `tests/integration/scenarios_declarative/test_data/workflows/*.yaml` - Declarative test workflows (8 files)
 
 **Documentation to include:** Getting started guide, example walkthrough.
 
@@ -348,6 +350,7 @@ main
 - `client/webui/frontend/src/lib/components/activities/FlowChart/FlowChartPanel.tsx`
 - `client/webui/frontend/src/lib/components/activities/FlowChart/WorkflowRenderer.tsx`
 - `client/webui/frontend/src/lib/components/activities/FlowChart/EdgeLayer.tsx`
+- `client/webui/frontend/src/lib/components/activities/FlowChart/PanZoomCanvas.tsx`
 - `client/webui/frontend/src/lib/components/activities/FlowChart/NodeDetailsCard.tsx`
 - `client/webui/frontend/src/lib/components/activities/FlowChart/nodes/*.tsx` (all node components)
 - `client/webui/frontend/src/lib/components/activities/FlowChart/index.ts`
@@ -389,11 +392,11 @@ Timeline Visualization:
 | 1 | Foundation | 300 | `feature/prescriptive-workflows` | Data structures |
 | 2 | Workflow Models | 650 | `pr/workflows-1-foundation` | Pydantic models |
 | 3 | Structured Invocation | 1,400 | `pr/workflows-2-models` | Agent schema validation |
-| 4 | Workflow Tool | 500 | `pr/workflows-3-agent-support` | ADK tool |
-| 5a | Orchestrator Component | 1,100 | `pr/workflows-4-workflow-tool` | Component lifecycle |
+| 4 | Workflow Tool | 370 | `pr/workflows-3-agent-support` | ADK tool |
+| 5a | Orchestrator Component | 1,500 | `pr/workflows-4-workflow-tool` | Component lifecycle |
 | 5b | DAG Executor Core | 700 | `pr/workflows-5a-orchestrator` | Dependency graph |
 | 5c | Advanced Nodes | 700 | `pr/workflows-5b-dag-core` | Loop/map/switch |
-| 6 | Integration & Examples | 2,800 | `pr/workflows-5c-advanced-nodes` | Backend integration, tests |
+| 6 | Integration & Examples | 6,000 | `pr/workflows-5c-advanced-nodes` | Examples, unit tests, integration tests |
 | 7 | Frontend (LAST) | 5,700 | `pr/workflows-6-integration` | ALL frontend changes |
 
-**Total:** ~13,850 lines (excluding docs)
+**Total:** ~17,320 lines (excluding docs)

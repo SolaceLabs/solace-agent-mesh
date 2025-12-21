@@ -40,7 +40,7 @@ The `WorkflowExecutorComponent` class (~1,100 lines) extends `SamComponentBase`:
 
 ### `src/solace_agent_mesh/workflow/protocol/event_handlers.py`
 
-A2A protocol message handlers (~350 lines):
+A2A protocol message handlers (~400 lines):
 
 | Handler | Purpose |
 |---------|---------|
