@@ -1,17 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEvent, type ReactNode } from "react";
+import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { v4 } from "uuid";
 
-import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor } from "@/lib/hooks";
-import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-
-import { getAccessToken, getErrorMessage } from "@/lib/utils/api";
-import { createFileSizeErrorMessage } from "@/lib/utils/file-validation";
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
+import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useSidePanel, useFeedback, useArtifactOperations } from "@/lib/hooks";
+import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
+import { fileToBase64, getAccessToken, getErrorMessage, INLINE_FILE_SIZE_LIMIT_BYTES } from "@/lib/utils";
+import { migrateTask, CURRENT_SCHEMA_VERSION } from "@/lib/utils/taskMigration";
+
 import type {
-    ArtifactInfo,
-    ArtifactRenderingState,
     CancelTaskRequest,
     DataPart,
     FileAttachment,
@@ -31,48 +29,55 @@ import type {
     ArtifactPart,
     AgentCardInfo,
     Project,
+    StoredTaskData,
 } from "@/lib/types";
 
-// Type for tasks loaded from the API
-interface TaskFromAPI {
-    taskId: string;
-    messageBubbles: string; // JSON string
-    taskMetadata: string | null; // JSON string
-    createdTime: number;
-    userMessage?: string;
-}
-
-// Schema version for data migration purposes
-const CURRENT_SCHEMA_VERSION = 1;
-
-// Migration function: V0 -> V1 (adds schema_version to tasks without one)
-const migrateV0ToV1 = (task: any): any => {
+// Helper function to create an artifact part
+const getArtifactPart = (sessionId: string, filename: string) => {
     return {
-        ...task,
-        taskMetadata: {
-            ...task.taskMetadata,
-            schema_version: 1,
+        kind: "artifact",
+        status: "completed",
+        name: filename,
+        file: {
+            name: filename,
+            uri: `artifact://${sessionId}/${filename}`,
         },
     };
 };
 
-// Migration registry: maps version numbers to migration functions
+// Helper function to extract artifact markers and create artifact parts
+const extractArtifactMarkers = (text: string, sessionId: string, addedArtifacts: Set<string>, processedParts: any[]) => {
+    // Extract artifact_return markers
+    const returnRegex = /«artifact_return:([^»]+)»/g;
+    let match;
+    while ((match = returnRegex.exec(text)) !== null) {
+        const artifactFilename = match[1];
+        if (!addedArtifacts.has(artifactFilename)) {
+            addedArtifacts.add(artifactFilename);
+            processedParts.push(getArtifactPart(sessionId, artifactFilename));
+        }
+    }
 
-const MIGRATIONS: Record<number, (task: any) => any> = {
-    0: migrateV0ToV1,
-    // Uncomment when future branch merges:
-    // 1: migrateV1ToV2,
+    // Extract artifact: markers
+    const artifactRegex = /«artifact:([^»]+)»/g;
+    while ((match = artifactRegex.exec(text)) !== null) {
+        const artifactFilename = match[1];
+        if (!addedArtifacts.has(artifactFilename)) {
+            addedArtifacts.add(artifactFilename);
+            processedParts.push(getArtifactPart(sessionId, artifactFilename));
+        }
+    }
 };
 
-const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
+// Helper function to remove artifact and status update markers from text strings
+const removeArtifactMarkers = (textContent: string): string => {
+    if (!textContent) return textContent;
 
-const fileToBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve((reader.result as string).split(",")[1]);
-        reader.onerror = error => reject(error);
-    });
+    return textContent
+        .replace(/«artifact_return:[^»]+»/g, "")
+        .replace(/«artifact:[^»]+»/g, "")
+        .replace(/«status_update:[^»]+»\n?/g, "");
+};
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -95,10 +100,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const savingTasksRef = useRef<Set<string>>(new Set());
 
-    // Track in-flight artifact preview fetches to prevent duplicates
-    const artifactFetchInProgressRef = useRef<Set<string>>(new Set());
-    const artifactDownloadInProgressRef = useRef<Set<string>>(new Set());
-
     // Track isCancelling in ref to access in async callbacks
     const isCancellingRef = useRef(isCancelling);
     useEffect(() => {
@@ -110,8 +111,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     useEffect(() => {
         currentSessionIdRef.current = sessionId;
     }, [sessionId]);
-
-    const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
     const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isFinalizing = useRef(false);
     const latestStatusText = useRef<string | null>(null);
@@ -119,44 +118,50 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
     const messagesRef = useRef<MessageFE[]>([]);
 
-    // Agents State
+    // Agents
     const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
 
-    // Chat Side Panel State
+    // Artfiacts
     const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts } = useArtifacts(sessionId);
 
-    // Side Panel Control State
-    const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
-    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow">("files");
-
-    // Delete Modal State
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [artifactToDelete, setArtifactToDelete] = useState<ArtifactInfo | null>(null);
-
-    // Chat Side Panel Edit Mode State
-    const [isArtifactEditMode, setIsArtifactEditMode] = useState<boolean>(false);
-    const [selectedArtifactFilenames, setSelectedArtifactFilenames] = useState<Set<string>>(new Set());
-    const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState<boolean>(false);
-
-    // Preview State
-    const [previewArtifactFilename, setPreviewArtifactFilename] = useState<string | null>(null);
-    const [previewedArtifactAvailableVersions, setPreviewedArtifactAvailableVersions] = useState<number[] | null>(null);
-    const [currentPreviewedVersionNumber, setCurrentPreviewedVersionNumber] = useState<number | null>(null);
-    const [previewFileContent, setPreviewFileContent] = useState<FileAttachment | null>(null);
-
-    // Derive previewArtifact from artifacts array to ensure it's always up-to-date
-    const previewArtifact = useMemo(() => {
-        if (!previewArtifactFilename) return null;
-        return artifacts.find(a => a.filename === previewArtifactFilename) || null;
-    }, [artifacts, previewArtifactFilename]);
-
-    // Artifact Rendering State
-    const [artifactRenderingState, setArtifactRenderingState] = useState<ArtifactRenderingState>({
-        expandedArtifacts: new Set<string>(),
+    // Side Panel
+    const {
+        isCollapsed: isSidePanelCollapsed,
+        activeTab: activeSidePanelTab,
+        taskId: taskIdInSidePanel,
+        setCollapsed: setIsSidePanelCollapsed,
+        setActiveTab: setActiveSidePanelTab,
+        setTaskId: setTaskIdInSidePanel,
+        openTab: openSidePanelTab,
+    } = useSidePanel({
+        defaultTab: "files",
+        defaultCollapsed: true,
     });
 
-    // Feedback State
-    const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
+    // Artifact Preview
+    const {
+        preview: artifactPreview,
+        previewArtifact,
+        openPreview: openArtifactForPreview,
+        navigateToVersion: navigateArtifactVersion,
+        closePreview: closeArtifactPreview,
+        setPreviewByArtifact: setPreviewArtifact,
+    } = useArtifactPreview({
+        sessionId,
+        projectId: activeProject?.id,
+        artifacts,
+        onError: (title, error) => setError({ title, error }),
+    });
+
+    // Feedback
+    const {
+        submittedFeedback,
+        submitFeedback: handleFeedbackSubmit,
+        setSubmittedFeedback,
+    } = useFeedback({
+        sessionId,
+        onError: (title, error) => setError({ title, error }),
+    });
 
     // Pending prompt state for starting new chat with a prompt template
     const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
@@ -304,133 +309,66 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [sessionId, persistenceEnabled]
     );
 
-    // Helper function to extract artifact markers and create artifact parts
-    const extractArtifactMarkers = useCallback((text: string, sessionId: string, addedArtifacts: Set<string>, processedParts: any[]) => {
-        const ARTIFACT_RETURN_REGEX = /«artifact_return:([^»]+)»/g;
-        const ARTIFACT_REGEX = /«artifact:([^»]+)»/g;
-
-        const createArtifactPart = (filename: string) => ({
-            kind: "artifact",
-            status: "completed",
-            name: filename,
-            file: {
-                name: filename,
-                uri: `artifact://${sessionId}/${filename}`,
-            },
-        });
-
-        // Extract artifact_return markers
-        let match;
-        while ((match = ARTIFACT_RETURN_REGEX.exec(text)) !== null) {
-            const artifactFilename = match[1];
-            if (!addedArtifacts.has(artifactFilename)) {
-                addedArtifacts.add(artifactFilename);
-                processedParts.push(createArtifactPart(artifactFilename));
-            }
-        }
-
-        // Extract artifact: markers
-        while ((match = ARTIFACT_REGEX.exec(text)) !== null) {
-            const artifactFilename = match[1];
-            if (!addedArtifacts.has(artifactFilename)) {
-                addedArtifacts.add(artifactFilename);
-                processedParts.push(createArtifactPart(artifactFilename));
-            }
-        }
-    }, []);
-
     // Helper function to deserialize task data to MessageFE objects
-    const deserializeTaskToMessages = useCallback(
-        (task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, sessionId: string): MessageFE[] => {
-            return task.messageBubbles.map(bubble => {
-                // Process parts to handle markers and reconstruct artifact parts if needed
-                const processedParts: any[] = [];
-                const originalParts = bubble.parts || [{ kind: "text", text: bubble.text || "" }];
+    const deserializeTaskToMessages = useCallback((task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, sessionId: string): MessageFE[] => {
+        return task.messageBubbles.map(bubble => {
+            // Process parts to handle markers and reconstruct artifact parts if needed
+            const processedParts: any[] = [];
+            const originalParts = bubble.parts || [{ kind: "text", text: bubble.text || "" }];
 
-                // Track artifact names we've already added to avoid duplicates
-                const addedArtifacts = new Set<string>();
+            // Track artifact names we've already added to avoid duplicates
+            const addedArtifacts = new Set<string>();
 
-                // First, check the bubble.text field for artifact markers (TaskLoggerService saves markers there)
-                // This handles the case where backend saves text with markers but parts without artifacts
-                if (bubble.text) {
-                    extractArtifactMarkers(bubble.text, sessionId, addedArtifacts, processedParts);
-                }
+            // First, check the bubble.text field for artifact markers (TaskLoggerService saves markers there)
+            // This handles the case where backend saves text with markers but parts without artifacts
+            if (bubble.text) {
+                extractArtifactMarkers(bubble.text, sessionId, addedArtifacts, processedParts);
+            }
 
-                for (const part of originalParts) {
-                    if (part.kind === "text" && part.text) {
-                        let textContent = part.text;
+            for (const part of originalParts) {
+                if (part.kind === "text" && part.text) {
+                    let textContent = part.text;
 
-                        // Extract artifact markers and convert them to artifact parts
-                        extractArtifactMarkers(textContent, sessionId, addedArtifacts, processedParts);
+                    // Extract artifact markers and convert them to artifact parts
+                    extractArtifactMarkers(textContent, sessionId, addedArtifacts, processedParts);
+                    // Remove artifact markers from text content
+                    textContent = removeArtifactMarkers(textContent);
 
-                        // Remove artifact markers from text content
-                        textContent = textContent.replace(/«artifact_return:[^»]+»/g, "");
-                        textContent = textContent.replace(/«artifact:[^»]+»/g, "");
-
-                        // Remove status update markers
-                        textContent = textContent.replace(/«status_update:[^»]+»\n?/g, "");
-
-                        // Add text part if there's content
-                        if (textContent.trim()) {
-                            processedParts.push({ kind: "text", text: textContent });
-                        }
-                    } else if (part.kind === "artifact") {
-                        // Only add artifact part if not already added (from markers)
-                        const artifactName = part.name;
-                        if (artifactName && !addedArtifacts.has(artifactName)) {
-                            addedArtifacts.add(artifactName);
-                            processedParts.push(part);
-                        }
-                        // Skip duplicate artifacts
-                    } else {
-                        // Keep other non-text parts as-is
+                    // Add text part if there's content
+                    if (textContent.trim()) {
+                        processedParts.push({ kind: "text", text: textContent });
+                    }
+                } else if (part.kind === "artifact") {
+                    // Only add artifact part if not already added (from markers)
+                    const artifactName = part.name;
+                    if (artifactName && !addedArtifacts.has(artifactName)) {
+                        addedArtifacts.add(artifactName);
                         processedParts.push(part);
                     }
+                    // Skip duplicate artifacts
+                } else {
+                    // Keep other non-text parts as-is
+                    processedParts.push(part);
                 }
-
-                return {
-                    taskId: task.taskId,
-                    role: bubble.type === "user" ? "user" : "agent",
-                    parts: processedParts,
-                    isUser: bubble.type === "user",
-                    isComplete: true,
-                    files: bubble.files,
-                    uploadedFiles: bubble.uploadedFiles,
-                    artifactNotification: bubble.artifactNotification,
-                    isError: bubble.isError,
-                    metadata: {
-                        messageId: bubble.id,
-                        sessionId: sessionId,
-                        lastProcessedEventSequence: 0,
-                    },
-                };
-            });
-        },
-        [extractArtifactMarkers]
-    );
-
-    // Helper function to apply migrations to a task
-    const migrateTask = useCallback((task: any): any => {
-        const version = task.taskMetadata?.schema_version || 0;
-
-        if (version >= CURRENT_SCHEMA_VERSION) {
-            // Already at current version
-            return task;
-        }
-
-        // Apply migrations sequentially
-        let migratedTask = task;
-        for (let v = version; v < CURRENT_SCHEMA_VERSION; v++) {
-            const migrationFunc = MIGRATIONS[v];
-            if (migrationFunc) {
-                migratedTask = migrationFunc(migratedTask);
-                console.log(`Migrated task ${task.taskId} from v${v} to v${v + 1}`);
-            } else {
-                console.warn(`No migration function found for version ${v}`);
             }
-        }
 
-        return migratedTask;
+            return {
+                taskId: task.taskId,
+                role: bubble.type === "user" ? "user" : "agent",
+                parts: processedParts,
+                isUser: bubble.type === "user",
+                isComplete: true,
+                files: bubble.files,
+                uploadedFiles: bubble.uploadedFiles,
+                artifactNotification: bubble.artifactNotification,
+                isError: bubble.isError,
+                metadata: {
+                    messageId: bubble.id,
+                    sessionId: sessionId,
+                    lastProcessedEventSequence: 0,
+                },
+            };
+        });
     }, []);
 
     // Helper function to load session tasks and reconstruct messages
@@ -446,11 +384,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Parse JSON strings from backend
             const tasks = data.tasks || [];
-            const parsedTasks = tasks.map((task: TaskFromAPI) => ({
-                ...task,
-                messageBubbles: JSON.parse(task.messageBubbles),
-                taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null,
-            }));
+            const parsedTasks = tasks.map((task: StoredTaskData) => {
+                return {
+                    taskId: task.taskId,
+                    createdTime: task.createdTime,
+                    userMessage: task.userMessage,
+                    messageBubbles: JSON.parse(task.messageBubbles),
+                    taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null,
+                };
+            });
 
             // Apply migrations to each task
             const migratedTasks = parsedTasks.map(migrateTask);
@@ -498,293 +440,41 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setTaskIdInSidePanel(mostRecentTask.taskId);
             }
         },
-        [deserializeTaskToMessages, migrateTask]
+        [deserializeTaskToMessages, setSubmittedFeedback, setTaskIdInSidePanel]
     );
 
-    const uploadArtifactFile = useCallback(
-        async (file: File, overrideSessionId?: string, description?: string, silent: boolean = false): Promise<{ uri: string; sessionId: string } | { error: string } | null> => {
-            const effectiveSessionId = overrideSessionId || sessionId;
-            const formData = new FormData();
-            formData.append("upload_file", file);
-            formData.append("filename", file.name);
-            // Send sessionId as form field (can be empty string for new sessions)
-            formData.append("sessionId", effectiveSessionId || "");
-
-            // Add description as metadata if provided
-            if (description) {
-                const metadata = { description };
-                formData.append("metadata_json", JSON.stringify(metadata));
-            }
-
-            try {
-                const response = await api.webui.post("/api/v1/artifacts/upload", formData, { fullResponse: true });
-
-                if (response.status === 413) {
-                    const errorData = await response.json().catch(() => ({ message: `Failed to upload ${file.name}.` }));
-                    const actualSize = errorData.actual_size_bytes;
-                    const maxSize = errorData.max_size_bytes;
-                    const errorMessage = actualSize && maxSize ? createFileSizeErrorMessage(file.name, actualSize, maxSize) : errorData.message || `File "${file.name}" exceeds the maximum allowed size.`;
-                    setError({ title: "File Upload Failed", error: errorMessage });
-                    return { error: errorMessage };
-                }
-
-                if (!response.ok) {
-                    throw new Error(
-                        await response
-                            .json()
-                            .then((d: { message?: string }) => d.message)
-                            .catch(() => `Failed to upload ${file.name}.`)
-                    );
-                }
-
-                const result = await response.json();
-                if (!silent) {
-                    addNotification(`File "${file.name}" uploaded.`, "success");
-                }
-                await artifactsRefetch();
-                return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
-            } catch (error) {
-                const errorMessage = getErrorMessage(error, `Failed to upload "${file.name}".`);
-                setError({ title: "File Upload Failed", error: errorMessage });
-                return { error: errorMessage };
-            }
-        },
-        [sessionId, addNotification, artifactsRefetch, setError]
-    );
+    // Artifact Operations (using custom hook)
+    const {
+        uploadArtifactFile,
+        isDeleteModalOpen,
+        artifactToDelete,
+        openDeleteModal,
+        closeDeleteModal,
+        confirmDelete,
+        isArtifactEditMode,
+        setIsArtifactEditMode,
+        selectedArtifactFilenames,
+        setSelectedArtifactFilenames,
+        isBatchDeleteModalOpen,
+        setIsBatchDeleteModalOpen,
+        handleDeleteSelectedArtifacts,
+        confirmBatchDeleteArtifacts,
+        downloadAndResolveArtifact,
+    } = useArtifactOperations({
+        sessionId,
+        artifacts,
+        setArtifacts,
+        artifactsRefetch,
+        onNotification: addNotification,
+        onError: (title, error) => setError({ title, error }),
+        previewArtifact,
+        closeArtifactPreview,
+    });
 
     // Session State
     const [sessionName, setSessionName] = useState<string | null>(null);
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
     const [isLoadingSession, setIsLoadingSession] = useState<boolean>(false);
-
-    const deleteArtifactInternal = useCallback(
-        async (filename: string) => {
-            try {
-                await api.webui.delete(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`);
-                addNotification(`File "${filename}" deleted.`, "success");
-                artifactsRefetch();
-            } catch (error) {
-                setError({ title: "File Deletion Failed", error: getErrorMessage(error, `Failed to delete ${filename}.`) });
-            }
-        },
-        [sessionId, addNotification, artifactsRefetch, setError]
-    );
-
-    const openDeleteModal = useCallback((artifact: ArtifactInfo) => {
-        setArtifactToDelete(artifact);
-        setIsDeleteModalOpen(true);
-    }, []);
-
-    const closeDeleteModal = useCallback(() => {
-        setArtifactToDelete(null);
-        setIsDeleteModalOpen(false);
-    }, []);
-
-    // Wrapper function to set preview artifact by filename
-    // IMPORTANT: Must be defined before confirmDelete to avoid circular dependency
-    const setPreviewArtifact = useCallback((artifact: ArtifactInfo | null) => {
-        setPreviewArtifactFilename(artifact?.filename || null);
-    }, []);
-
-    const confirmDelete = useCallback(async () => {
-        if (artifactToDelete) {
-            // Check if the artifact being deleted is currently being previewed
-            const isCurrentlyPreviewed = previewArtifact?.filename === artifactToDelete.filename;
-
-            await deleteArtifactInternal(artifactToDelete.filename);
-
-            // If the deleted artifact was being previewed, go back to file list
-            if (isCurrentlyPreviewed) {
-                setPreviewArtifact(null);
-            }
-        }
-        closeDeleteModal();
-    }, [artifactToDelete, deleteArtifactInternal, closeDeleteModal, previewArtifact, setPreviewArtifact]);
-
-    const handleDeleteSelectedArtifacts = useCallback(() => {
-        if (selectedArtifactFilenames.size === 0) {
-            return;
-        }
-        setIsBatchDeleteModalOpen(true);
-    }, [selectedArtifactFilenames]);
-
-    const confirmBatchDeleteArtifacts = useCallback(async () => {
-        setIsBatchDeleteModalOpen(false);
-        const filenamesToDelete = Array.from(selectedArtifactFilenames);
-        let successCount = 0;
-        let errorCount = 0;
-        for (const filename of filenamesToDelete) {
-            try {
-                await api.webui.delete(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`);
-                successCount++;
-            } catch (error: unknown) {
-                console.error(error);
-                errorCount++;
-            }
-        }
-        if (successCount > 0) addNotification(`${successCount} files(s) deleted.`, "success");
-        if (errorCount > 0) {
-            setError({ title: "File Deletion Failed", error: `${errorCount} file(s) failed to delete.` });
-        }
-        artifactsRefetch();
-        setSelectedArtifactFilenames(new Set());
-        setIsArtifactEditMode(false);
-    }, [selectedArtifactFilenames, addNotification, artifactsRefetch, sessionId, setError]);
-
-    const openArtifactForPreview = useCallback(
-        async (artifactFilename: string): Promise<FileAttachment | null> => {
-            // Prevent duplicate fetches for the same file
-            if (artifactFetchInProgressRef.current.has(artifactFilename)) {
-                return null;
-            }
-
-            // Mark this file as being fetched
-            artifactFetchInProgressRef.current.add(artifactFilename);
-
-            // Only clear state if this is a different file from what we're currently previewing
-            // This prevents clearing state during duplicate fetch attempts
-            if (previewArtifactFilename !== artifactFilename) {
-                setPreviewedArtifactAvailableVersions(null);
-                setCurrentPreviewedVersionNumber(null);
-                setPreviewFileContent(null);
-            }
-            try {
-                // Determine the correct URL based on context
-                let versionsUrl: string;
-                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    versionsUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`;
-                } else if (activeProject?.id) {
-                    versionsUrl = `/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions?project_id=${activeProject.id}`;
-                } else {
-                    throw new Error("No valid context for artifact preview");
-                }
-
-                const availableVersions: number[] = await api.webui.get(versionsUrl);
-                if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
-                setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
-                const latestVersion = Math.max(...availableVersions);
-                setCurrentPreviewedVersionNumber(latestVersion);
-                let contentUrl: string;
-                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    contentUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`;
-                } else if (activeProject?.id) {
-                    contentUrl = `/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}?project_id=${activeProject.id}`;
-                } else {
-                    throw new Error("No valid context for artifact content");
-                }
-
-                const contentResponse = await api.webui.get(contentUrl, { fullResponse: true });
-                if (!contentResponse.ok) {
-                    throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
-                }
-
-                // Get MIME type from response headers - this is the correct MIME type for this specific version
-                const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
-                // Strip charset and other parameters from Content-Type
-                const mimeType = contentType.split(";")[0].trim();
-
-                const blob = await contentResponse.blob();
-                const base64Content = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
-                const fileData: FileAttachment = {
-                    name: artifactFilename,
-                    // Use MIME type from response headers (version-specific), not from artifact list (latest version)
-                    mime_type: mimeType,
-                    content: base64Content,
-                    last_modified: artifactInfo?.last_modified || new Date().toISOString(),
-                };
-                setPreviewFileContent(fileData);
-                return fileData;
-            } catch (error) {
-                setError({ title: "Artifact Preview Failed", error: getErrorMessage(error, "Failed to load artifact preview.") });
-                return null;
-            } finally {
-                // Remove from in-progress set immediately when done
-                artifactFetchInProgressRef.current.delete(artifactFilename);
-            }
-        },
-        [sessionId, activeProject?.id, artifacts, previewArtifactFilename, setError]
-    );
-
-    const navigateArtifactVersion = useCallback(
-        async (artifactFilename: string, targetVersion: number): Promise<FileAttachment | null> => {
-            // If versions aren't loaded yet, this is likely a timing issue where this was called
-            // before openArtifactForPreview completed. Just silently return - the artifact will
-            // show the latest version when loaded, which is acceptable behavior.
-            if (!previewedArtifactAvailableVersions || previewedArtifactAvailableVersions.length === 0) {
-                return null;
-            }
-
-            // Now check if the specific version exists
-            if (!previewedArtifactAvailableVersions.includes(targetVersion)) {
-                console.warn(`Requested version ${targetVersion} not available for ${artifactFilename}`);
-                return null;
-            }
-            setPreviewFileContent(null);
-            try {
-                // Determine the correct URL based on context
-                let contentUrl: string;
-                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    contentUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`;
-                } else if (activeProject?.id) {
-                    contentUrl = `/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}?project_id=${activeProject.id}`;
-                } else {
-                    throw new Error("No valid context for artifact navigation");
-                }
-
-                const contentResponse = await api.webui.get(contentUrl, { fullResponse: true });
-                if (!contentResponse.ok) {
-                    throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
-                }
-
-                // Get MIME type from response headers - this is the correct MIME type for this specific version
-                const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
-                // Strip charset and other parameters from Content-Type
-                const mimeType = contentType.split(";")[0].trim();
-
-                const blob = await contentResponse.blob();
-                const base64Content = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
-                const fileData: FileAttachment = {
-                    name: artifactFilename,
-                    // Use MIME type from response headers (version-specific), not from artifact list (latest version)
-                    mime_type: mimeType,
-                    content: base64Content,
-                    last_modified: artifactInfo?.last_modified || new Date().toISOString(),
-                };
-                setCurrentPreviewedVersionNumber(targetVersion);
-                setPreviewFileContent(fileData);
-                return fileData;
-            } catch (error) {
-                setError({ title: "Artifact Version Preview Failed", error: getErrorMessage(error, "Failed to fetch artifact version.") });
-                return null;
-            }
-        },
-        [artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id, setError]
-    );
-
-    const openSidePanelTab = useCallback((tab: "files" | "workflow") => {
-        setIsSidePanelCollapsed(false);
-        setActiveSidePanelTab(tab);
-
-        if (typeof window !== "undefined") {
-            window.dispatchEvent(
-                new CustomEvent("expand-side-panel", {
-                    detail: { tab },
-                })
-            );
-        }
-    }, []);
 
     const closeCurrentEventSource = useCallback(() => {
         if (cancelTimeoutRef.current) {
@@ -799,77 +489,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
         isFinalizing.current = false;
     }, []);
-
-    // Download and resolve artifact with embeds
-    const downloadAndResolveArtifact = useCallback(
-        async (filename: string): Promise<FileAttachment | null> => {
-            // Prevent duplicate downloads for the same file
-            if (artifactDownloadInProgressRef.current.has(filename)) {
-                console.log(`[ChatProvider] Skipping duplicate download for ${filename} - already in progress`);
-                return null;
-            }
-
-            // Mark this file as being downloaded
-            artifactDownloadInProgressRef.current.add(filename);
-
-            try {
-                // Find the artifact in state
-                const artifact = artifacts.find(art => art.filename === filename);
-                if (!artifact) {
-                    console.error(`Artifact ${filename} not found in state`);
-                    return null;
-                }
-
-                // Fetch the latest version with embeds resolved
-                const availableVersions: number[] = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
-                if (!availableVersions || availableVersions.length === 0) {
-                    throw new Error("No versions available");
-                }
-
-                const latestVersion = Math.max(...availableVersions);
-                const contentResponse = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`, { fullResponse: true });
-                if (!contentResponse.ok) {
-                    throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
-                }
-                const blob = await contentResponse.blob();
-                const base64Content = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-
-                const fileData: FileAttachment = {
-                    name: filename,
-                    mime_type: artifact.mime_type || "application/octet-stream",
-                    content: base64Content,
-                    last_modified: artifact.last_modified || new Date().toISOString(),
-                };
-
-                // Clear the accumulated content and flags after successful download
-                setArtifacts(prevArtifacts => {
-                    return prevArtifacts.map(art =>
-                        art.filename === filename
-                            ? {
-                                  ...art,
-                                  accumulatedContent: undefined,
-                                  needsEmbedResolution: false,
-                              }
-                            : art
-                    );
-                });
-
-                return fileData;
-            } catch (error) {
-                setError({ title: "File Download Failed", error: getErrorMessage(error, `Failed to download ${filename}.`) });
-                return null;
-            } finally {
-                // Remove from in-progress set immediately when done
-                artifactDownloadInProgressRef.current.delete(filename);
-            }
-        },
-        [sessionId, artifacts, setArtifacts, setError]
-    );
 
     const handleSseMessage = useCallback(
         (event: MessageEvent) => {
@@ -1464,7 +1083,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact, isTaskRunningInBackground]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, activeProject, setTaskIdInSidePanel, setPreviewArtifact, isTaskRunningInBackground, setActiveProject]
     );
 
     // Start a new chat session with a prompt template pre-filled
@@ -1606,22 +1225,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         },
         [
+            backgroundTasks,
             closeCurrentEventSource,
             isResponding,
             currentTaskId,
             selectedAgentName,
             isCancelling,
+            sessionId,
+            isTaskRunningInBackground,
+            setTaskIdInSidePanel,
+            setPreviewArtifact,
             loadSessionTasks,
             activeProject,
             projects,
             setActiveProject,
-            setPreviewArtifact,
-            setError,
-            backgroundTasks,
             checkTaskStatus,
-            sessionId,
             unregisterBackgroundTask,
-            isTaskRunningInBackground,
+            setError,
         ]
     );
 
@@ -1667,31 +1287,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         },
         [addNotification, handleNewSession, sessionId, setError]
-    );
-
-    // Artifact Rendering Actions
-    const toggleArtifactExpanded = useCallback((filename: string) => {
-        setArtifactRenderingState(prevState => {
-            const newExpandedArtifacts = new Set(prevState.expandedArtifacts);
-
-            if (newExpandedArtifacts.has(filename)) {
-                newExpandedArtifacts.delete(filename);
-            } else {
-                newExpandedArtifacts.add(filename);
-            }
-
-            return {
-                ...prevState,
-                expandedArtifacts: newExpandedArtifacts,
-            };
-        });
-    }, []);
-
-    const isArtifactExpanded = useCallback(
-        (filename: string) => {
-            return artifactRenderingState.expandedArtifacts.has(filename);
-        },
-        [artifactRenderingState.expandedArtifacts]
     );
 
     // Artifact Display and Cache Management
@@ -1757,31 +1352,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsCancelling(false);
         }
     }, [isResponding, isCancelling, currentTaskId, addNotification, setError, closeCurrentEventSource]);
-
-    const handleFeedbackSubmit = useCallback(
-        async (taskId: string, feedbackType: "up" | "down", feedbackText: string) => {
-            if (!sessionId) {
-                console.error("Cannot submit feedback without a session ID.");
-                return;
-            }
-            try {
-                await api.webui.post("/api/v1/feedback", {
-                    taskId,
-                    sessionId,
-                    feedbackType,
-                    feedbackText,
-                });
-                setSubmittedFeedback(prev => ({
-                    ...prev,
-                    [taskId]: { type: feedbackType, text: feedbackText },
-                }));
-            } catch (error) {
-                console.error("Failed to submit feedback:", error);
-                throw error;
-            }
-        },
-        [sessionId]
-    );
 
     const handleSseOpen = useCallback(() => {
         /* console.log for SSE open */
@@ -2099,20 +1669,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         },
         [
-            sessionId,
             isResponding,
             isCancelling,
             selectedAgentName,
             closeCurrentEventSource,
+            sessionId,
+            backgroundTasksEnabled,
+            activeProject?.id,
+            setTaskIdInSidePanel,
             uploadArtifactFile,
-            updateSessionName,
-            saveTaskToBackend,
-            serializeMessageBubble,
-            activeProject,
             cleanupUploadedFiles,
             setError,
             backgroundTasksDefaultTimeoutMs,
-            backgroundTasksEnabled,
+            updateSessionName,
+            saveTaskToBackend,
+            serializeMessageBubble,
             registerBackgroundTask,
         ]
     );
@@ -2401,21 +1972,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         confirmBatchDeleteArtifacts,
         isBatchDeleteModalOpen,
         setIsBatchDeleteModalOpen,
-        previewedArtifactAvailableVersions,
-        currentPreviewedVersionNumber,
-        previewFileContent,
+        previewedArtifactAvailableVersions: artifactPreview.availableVersions,
+        currentPreviewedVersionNumber: artifactPreview.currentVersion,
+        previewFileContent: artifactPreview.content,
         openArtifactForPreview,
         navigateArtifactVersion,
         previewArtifact,
-        setPreviewArtifact, // Now uses the wrapper function that sets filename
+        setPreviewArtifact,
         updateSessionName,
         deleteSession,
-
-        /** Artifact Rendering Actions */
-        toggleArtifactExpanded,
-        isArtifactExpanded,
-        setArtifactRenderingState,
-        artifactRenderingState,
 
         /** Artifact Display and Cache Management */
         markArtifactAsDisplayed,

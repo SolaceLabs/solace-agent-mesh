@@ -8,7 +8,7 @@ import { useProjectArtifacts } from "@/lib/hooks/useProjectArtifacts";
 import { useProjectContext } from "@/lib/providers";
 import { useDownload } from "@/lib/hooks/useDownload";
 import { useConfigContext } from "@/lib/hooks";
-import { validateFileSizes } from "@/lib/utils/file-validation";
+import { validateFileSizes } from "@/lib/utils/fileValidation";
 import type { Project } from "@/lib/types/projects";
 import type { ArtifactInfo } from "@/lib/types";
 import { DocumentListItem } from "./DocumentListItem";
