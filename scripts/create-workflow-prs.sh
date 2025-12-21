@@ -96,10 +96,15 @@ verify_repo() {
 # Check for uncommitted changes
 check_clean_state() {
     if [ -n "$(git status --porcelain)" ]; then
-        log_error "Working directory has uncommitted changes. Please commit or stash them first."
-        exit 1
+        if [ "$DRY_RUN" = true ]; then
+            log_warning "Working directory has uncommitted changes (ignored in dry-run mode)"
+        else
+            log_error "Working directory has uncommitted changes. Please commit or stash them first."
+            exit 1
+        fi
+    else
+        log_success "Working directory is clean"
     fi
-    log_success "Working directory is clean"
 }
 
 # Create the base feature branch
@@ -209,11 +214,12 @@ create_github_pr() {
         return
     fi
 
-    # Read PR body from summary file if it exists
+    # Read PR body from summary file in SOURCE_BRANCH (not current branch)
     local pr_body=""
-    if [ -f "$summary_file" ]; then
-        pr_body=$(cat "$summary_file")
-    else
+    pr_body=$(git show "${SOURCE_BRANCH}:${summary_file}" 2>/dev/null) || pr_body=""
+
+    if [ -z "$pr_body" ]; then
+        log_warning "Could not read $summary_file from $SOURCE_BRANCH"
         pr_body="See PR summary in $summary_file"
     fi
 
@@ -244,9 +250,7 @@ Prescriptive Workflows feature:
 - Extension URI constants
 - Agent card schema utilities
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>" \
+" \
         "src/solace_agent_mesh/common/data_parts.py" \
         "src/solace_agent_mesh/common/constants.py" \
         "src/solace_agent_mesh/common/a2a/types.py" \
@@ -269,9 +273,7 @@ definitions with Argo Workflows-compatible syntax:
 - WorkflowDefinition with DAG validation
 - RetryStrategy and ExitHandler models
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>" \
+" \
         "src/solace_agent_mesh/workflow/app.py" \
         "src/solace_agent_mesh/workflow/__init__.py"
 
@@ -289,13 +291,13 @@ Enables agents to be invoked with schema-validated input/output:
 - StructuredInvocationHandler for schema validation and retry
 - Integration with SamAgentComponent
 - Result embed pattern for structured output
+- A2A event handler integration for structured invocation detection
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>" \
+" \
         "src/solace_agent_mesh/agent/sac/structured_invocation/" \
         "src/solace_agent_mesh/agent/sac/component.py" \
-        "src/solace_agent_mesh/agent/sac/app.py"
+        "src/solace_agent_mesh/agent/sac/app.py" \
+        "src/solace_agent_mesh/agent/protocol/event_handlers.py"
 
     create_github_pr "3-agent-support" "pr/workflows-2-models" \
         "PR 3: Structured Invocation Support" \
@@ -311,11 +313,12 @@ Adds ADK Tool that allows agents to invoke workflows:
 - Dynamic tool generation from workflow schema
 - Dual-mode invocation (parameters or artifact)
 - Long-running execution with polling
+- LLM callback integration for workflow tool instructions
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>" \
-        "src/solace_agent_mesh/agent/tools/workflow_tool.py"
+" \
+        "src/solace_agent_mesh/agent/tools/workflow_tool.py" \
+        "src/solace_agent_mesh/agent/adk/callbacks.py" \
+        "src/solace_agent_mesh/agent/adk/runner.py"
 
     create_github_pr "4-workflow-tool" "pr/workflows-3-agent-support" \
         "PR 4: Workflow Tool for Agents" \
@@ -333,9 +336,7 @@ Adds the WorkflowExecutorComponent that coordinates execution:
 - Event publishing for visualization
 - A2A protocol message handlers
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>" \
+" \
         "src/solace_agent_mesh/workflow/component.py" \
         "src/solace_agent_mesh/workflow/protocol/"
 
@@ -356,9 +357,7 @@ Adds the core DAG execution engine:
 - Conditional expression evaluation
 - Execution context management
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>" \
+" \
         "src/solace_agent_mesh/workflow/dag_executor.py" \
         "src/solace_agent_mesh/workflow/workflow_execution_context.py" \
         "src/solace_agent_mesh/workflow/flow_control/" \
@@ -379,9 +378,7 @@ Adds the AgentCaller for invoking agents via A2A:
 - A2A message construction
 - Artifact creation for input data
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>" \
+" \
         "src/solace_agent_mesh/workflow/agent_caller.py"
 
     create_github_pr "5c-advanced-nodes" "pr/workflows-5b-dag-core" \
@@ -400,17 +397,21 @@ Adds backend integration and comprehensive test coverage:
 - Unit tests for pure functions (~1,770 lines)
 - Integration tests for error scenarios (~2,000 lines)
 - Declarative test workflows (8 YAML files)
+- Test fixtures for workflow apps
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>" \
+" \
         "src/solace_agent_mesh/gateway/http_sse/" \
         "examples/agents/all_node_types_workflow.yaml" \
         "examples/agents/jira_bug_triage_workflow.yaml" \
         "examples/agents/new_node_types_test.yaml" \
+        "examples/agents/test_agent_example.yaml" \
         "tests/unit/workflow/" \
         "tests/integration/scenarios_programmatic/test_workflow_errors.py" \
-        "tests/integration/scenarios_declarative/test_data/workflows/"
+        "tests/integration/scenarios_declarative/test_data/workflows/" \
+        "tests/integration/conftest.py" \
+        "pyproject.toml" \
+        ".vscode/launch.json" \
+        "src/solace_agent_mesh/common/sac/sam_component_base.py"
 
     create_github_pr "6-integration" "pr/workflows-5c-advanced-nodes" \
         "PR 6: Integration, Examples & Tests" \
@@ -429,13 +430,24 @@ Adds all frontend changes for workflow visualization:
 - NodeDetailsCard sidebar
 - Task visualizer processor
 - Provider updates
+- Agent utilities for workflow detection
+- Mermaid diagram modal
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>" \
+" \
         "client/webui/frontend/src/lib/components/activities/" \
+        "client/webui/frontend/src/lib/components/agents/" \
+        "client/webui/frontend/src/lib/components/chat/ChatMessage.tsx" \
         "client/webui/frontend/src/lib/providers/" \
-        "client/webui/frontend/src/lib/types/activities.ts"
+        "client/webui/frontend/src/lib/types/activities.ts" \
+        "client/webui/frontend/src/lib/types/be.ts" \
+        "client/webui/frontend/src/lib/utils/agentUtils.ts" \
+        "client/webui/frontend/src/lib/contexts/TaskContext.ts" \
+        "client/webui/frontend/src/lib/index.css" \
+        "client/webui/frontend/src/stories/mocks/MockTaskProvider.tsx" \
+        "client/webui/frontend/package.json" \
+        "client/webui/frontend/package-lock.json" \
+        "client/webui/frontend/vite.config.ts" \
+        "client/webui/frontend/src/lib/api/"
 
     create_github_pr "7-frontend" "pr/workflows-6-integration" \
         "PR 7: Frontend - Visualization" \
