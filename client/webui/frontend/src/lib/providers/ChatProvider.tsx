@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEvent, type ReactNode } from "react";
 import { v4 } from "uuid";
 
-import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor } from "@/lib/hooks";
+import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useBackgroundTaskMonitor } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 
 import { getAccessToken, getErrorMessage } from "@/lib/utils/api";
@@ -81,6 +81,7 @@ interface ChatProviderProps {
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs } = useConfigContext();
     const { activeProject, setActiveProject, projects } = useProjectContext();
+    const { registerTaskEarly } = useTaskContext();
     const { ErrorDialog, setError } = useErrorDialog();
 
     // State Variables from useChat
@@ -851,10 +852,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     return prevArtifacts.map(art =>
                         art.filename === filename
                             ? {
-                                  ...art,
-                                  accumulatedContent: undefined,
-                                  needsEmbedResolution: false,
-                              }
+                                ...art,
+                                accumulatedContent: undefined,
+                                needsEmbedResolution: false,
+                            }
                             : art
                     );
                 });
@@ -935,9 +936,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             switch (result.kind) {
                 case "task":
                     isFinalEvent = true;
-                    // For the final task object, we only use it as a signal to end the turn.
-                    // The content has already been streamed via status_updates.
-                    messageToProcess = undefined;
+                    // For the final task object, extract the error message if the task failed
+                    // This handles cases where the task fails before streaming any status updates
+                    if (result.status?.state === "failed" && result.status?.message) {
+                        messageToProcess = result.status.message;
+                    } else {
+                        // For successful tasks, content has already been streamed via status_updates
+                        messageToProcess = undefined;
+                    }
                     currentTaskIdFromResult = result.id;
                     break;
                 case "status-update":
@@ -1010,8 +1016,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     status === "in-progress" && artifact_chunk
                                                         ? (existingArtifact.accumulatedContent || "") + artifact_chunk
                                                         : status === "completed" && !isDisplayed
-                                                          ? undefined // Clear accumulated content when completed if NOT displayed
-                                                          : existingArtifact.accumulatedContent, // Keep for displayed artifacts
+                                                            ? undefined // Clear accumulated content when completed if NOT displayed
+                                                            : existingArtifact.accumulatedContent, // Keep for displayed artifacts
                                                 // Mark that streaming content is plain text (not base64)
                                                 isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : existingArtifact.isAccumulatedContentPlainText,
                                                 // Update mime_type when completed
@@ -1178,7 +1184,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     break;
                                 }
                                 default:
-                                    console.warn("Received unknown data part type:", data.type);
+                                    console.log("Received unknown data part type:", data.type);
                             }
                         }
                     }
@@ -1187,6 +1193,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             const newContentParts = messageToProcess?.parts?.filter(p => p.kind !== "data") || [];
             const hasNewFiles = newContentParts.some(p => p.kind === "file");
+
+            // Check if this is a failed task
+            const isTaskFailed = result.kind === "task" && result.status?.state === "failed";
 
             // Update UI state based on processed parts
             setMessages(prevMessages => {
@@ -1201,11 +1210,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Check if we can append to the last message
-                if (lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
+                if (lastMessage && !lastMessage.isUser && lastMessage.taskId === currentTaskIdFromResult && newContentParts.length > 0) {
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
                         parts: [...lastMessage.parts, ...newContentParts],
                         isComplete: isFinalEvent || hasNewFiles,
+                        isError: isTaskFailed || lastMessage.isError,
                         metadata: {
                             ...lastMessage.metadata,
                             lastProcessedEventSequence: currentEventSequence,
@@ -1213,15 +1223,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     };
                     newMessages[newMessages.length - 1] = updatedMessage;
                 } else {
-                    // Only create a new bubble if there is visible content to render.
-                    const hasVisibleContent = newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file");
+                    // For failed tasks, always create a message bubble even if there are no content parts
+                    // For other cases, only create a new bubble if there is visible content to render
+                    const hasVisibleContent = isTaskFailed || newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file");
                     if (hasVisibleContent) {
                         const newBubble: MessageFE = {
                             role: "agent",
                             parts: newContentParts,
-                            taskId: (result as TaskStatusUpdateEvent).taskId,
+                            taskId: currentTaskIdFromResult,
                             isUser: false,
                             isComplete: isFinalEvent || hasNewFiles,
+                            isError: isTaskFailed,
                             metadata: {
                                 messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
@@ -2075,6 +2087,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 console.log(`ChatProvider handleSubmit: Received taskId ${taskId}. Setting currentTaskId and taskIdInSidePanel.`);
                 setCurrentTaskId(taskId);
                 setTaskIdInSidePanel(taskId);
+
+                // Pre-register the task in the task monitor so it's available for visualization immediately
+                // This prevents race conditions where the side panel tries to visualize before SSE events arrive
+                const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
+                const initialRequestText = textParts.map(p => p.text).join(" ").trim() || "Task started...";
+                registerTaskEarly(taskId, initialRequestText);
 
                 // Check if this should be a background task (enabled via gateway config)
                 if (enabledForBackground) {
