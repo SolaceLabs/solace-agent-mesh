@@ -15,7 +15,7 @@ interface UseArtifactPreviewOptions {
     sessionId: string;
     projectId?: string;
     artifacts: ArtifactInfo[];
-    onError?: (title: string, error: string) => void;
+    setError?: (error: { title: string; error: string }) => void;
 }
 
 interface UseArtifactPreviewReturn {
@@ -35,7 +35,7 @@ interface UseArtifactPreviewReturn {
  * Custom hook to manage artifact preview functionality
  * Handles opening artifacts, navigating versions, and managing preview state
  */
-export const useArtifactPreview = ({ sessionId, projectId, artifacts, onError }: UseArtifactPreviewOptions): UseArtifactPreviewReturn => {
+export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }: UseArtifactPreviewOptions): UseArtifactPreviewReturn => {
     // State
     const [preview, setPreview] = useState<ArtifactPreviewState>({
         filename: null,
@@ -131,14 +131,14 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, onError }:
                 return fileData;
             } catch (error) {
                 const errorMessage = getErrorMessage(error, "Failed to load artifact preview.");
-                onError?.("Artifact Preview Failed", errorMessage);
+                setError?.({ title: "Artifact Preview Failed", error: errorMessage });
                 return null;
             } finally {
                 setIsLoading(false);
                 fetchInProgressRef.current.delete(filename);
             }
         },
-        [sessionId, projectId, preview.filename, getFileAttachment, onError]
+        [sessionId, projectId, preview.filename, getFileAttachment, setError]
     );
 
     /**
@@ -186,13 +186,13 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, onError }:
                 return fileData;
             } catch (error) {
                 const errorMessage = getErrorMessage(error, "Failed to fetch artifact version.");
-                onError?.("Artifact Version Preview Failed", errorMessage);
+                setError?.({ title: "Artifact Version Preview Failed", error: errorMessage });
                 return null;
             } finally {
                 setIsLoading(false);
             }
         },
-        [sessionId, projectId, preview.availableVersions, getFileAttachment, onError]
+        [sessionId, projectId, preview.availableVersions, getFileAttachment, setError]
     );
 
     /**

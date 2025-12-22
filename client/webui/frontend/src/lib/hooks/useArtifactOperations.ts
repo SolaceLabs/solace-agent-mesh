@@ -8,10 +8,10 @@ interface UseArtifactOperationsOptions {
     artifacts: ArtifactInfo[];
     setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
     artifactsRefetch: () => Promise<void>;
-    onNotification: (message: string, type?: "success" | "info" | "warning") => void;
-    onError: (title: string, error: string) => void;
+    addNotification: (message: string, type?: "success" | "info" | "warning") => void;
+    setError: (error: { title: string; error: string }) => void;
     previewArtifact: { filename: string } | null;
-    closeArtifactPreview: () => void;
+    closePreview: () => void;
 }
 
 interface UseArtifactOperationsReturn {
@@ -56,7 +56,7 @@ const getFileAttachment = (artifactInfos: ArtifactInfo[], filename: string, mime
  * Custom hook to manage artifact CRUD operations
  * Handles upload, download, delete (single and batch), and modal state
  */
-export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, artifactsRefetch, onNotification, onError, previewArtifact, closeArtifactPreview }: UseArtifactOperationsOptions): UseArtifactOperationsReturn => {
+export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, artifactsRefetch, addNotification, setError, previewArtifact, closePreview }: UseArtifactOperationsOptions): UseArtifactOperationsReturn => {
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [artifactToDelete, setArtifactToDelete] = useState<ArtifactInfo | null>(null);
@@ -93,7 +93,7 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
                     const actualSize = errorData.actual_size_bytes;
                     const maxSize = errorData.max_size_bytes;
                     const errorMessage = actualSize && maxSize ? createFileSizeErrorMessage(file.name, actualSize, maxSize) : errorData.message || `File "${file.name}" exceeds the maximum allowed size.`;
-                    onError("File Upload Failed", errorMessage);
+                    setError({ title: "File Upload Failed", error: errorMessage });
                     return { error: errorMessage };
                 }
 
@@ -108,17 +108,17 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
 
                 const result = await response.json();
                 if (!silent) {
-                    onNotification(`File "${file.name}" uploaded.`, "success");
+                    addNotification(`File "${file.name}" uploaded.`, "success");
                 }
                 await artifactsRefetch();
                 return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
             } catch (error) {
                 const errorMessage = getErrorMessage(error, `Failed to upload "${file.name}".`);
-                onError("File Upload Failed", errorMessage);
+                setError({ title: "File Upload Failed", error: errorMessage });
                 return { error: errorMessage };
             }
         },
-        [sessionId, onNotification, artifactsRefetch, onError]
+        [sessionId, addNotification, artifactsRefetch, setError]
     );
 
     /**
@@ -128,13 +128,13 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
         async (filename: string) => {
             try {
                 await api.webui.delete(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`);
-                onNotification(`File "${filename}" deleted.`, "success");
+                addNotification(`File "${filename}" deleted.`, "success");
                 artifactsRefetch();
             } catch (error) {
-                onError("File Deletion Failed", getErrorMessage(error, `Failed to delete ${filename}.`));
+                setError({ title: "File Deletion Failed", error: getErrorMessage(error, `Failed to delete ${filename}.`) });
             }
         },
-        [sessionId, onNotification, artifactsRefetch, onError]
+        [sessionId, addNotification, artifactsRefetch, setError]
     );
 
     /**
@@ -165,11 +165,11 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
 
             // If the deleted artifact was being previewed, close the preview
             if (isCurrentlyPreviewed) {
-                closeArtifactPreview();
+                closePreview();
             }
         }
         closeDeleteModal();
-    }, [artifactToDelete, deleteArtifactInternal, closeDeleteModal, previewArtifact, closeArtifactPreview]);
+    }, [artifactToDelete, deleteArtifactInternal, closeDeleteModal, previewArtifact, closePreview]);
 
     /**
      * Open batch delete modal
@@ -200,15 +200,15 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
             }
         }
 
-        if (successCount > 0) onNotification(`${successCount} files(s) deleted.`, "success");
+        if (successCount > 0) addNotification(`${successCount} files(s) deleted.`, "success");
         if (errorCount > 0) {
-            onError("File Deletion Failed", `${errorCount} file(s) failed to delete.`);
+            setError({ title: "File Deletion Failed", error: `${errorCount} file(s) failed to delete.` });
         }
 
         artifactsRefetch();
         setSelectedArtifactFilenames(new Set());
         setIsArtifactEditMode(false);
-    }, [selectedArtifactFilenames, onNotification, artifactsRefetch, sessionId, onError]);
+    }, [selectedArtifactFilenames, addNotification, artifactsRefetch, sessionId, setError]);
 
     /**
      * Download and resolve artifact with embeds
@@ -263,14 +263,14 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
 
                 return fileData;
             } catch (error) {
-                onError("File Download Failed", getErrorMessage(error, `Failed to download ${filename}.`));
+                setError({ title: "File Download Failed", error: getErrorMessage(error, `Failed to download ${filename}.`) });
                 return null;
             } finally {
                 // Remove from in-progress set immediately when done
                 artifactDownloadInProgressRef.current.delete(filename);
             }
         },
-        [sessionId, artifacts, setArtifacts, onError]
+        [sessionId, artifacts, setArtifacts, setError]
     );
 
     return {
