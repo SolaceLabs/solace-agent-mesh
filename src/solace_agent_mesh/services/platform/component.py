@@ -300,30 +300,38 @@ class PlatformServiceComponent(SamComponentBase):
         Uses direct publishing (not A2A protocol) since deployer is a
         standalone service, not an A2A agent.
 
-        Called from _late_init() after broker is guaranteed to be connected.
+        Called from _late_init() and lazily from publish_a2a() if needed.
+        Uses SAC's existing broker connection via the BrokerOutput component.
         """
         try:
-            # Get messaging service from broker_output
-            # Note: broker_output might not be ready yet in _late_init (timing varies)
-            if not hasattr(self, 'broker_output') or not self.broker_output:
+            main_app = self.get_app()
+            if not main_app or not main_app.flows:
                 log.info(
-                    "%s Broker output not yet available - direct publisher will be initialized later if needed",
+                    "%s App flows not yet available - direct publisher will be initialized later",
                     self.log_identifier
                 )
                 return
 
-            if not hasattr(self.broker_output, 'messaging_service'):
-                log.warning(
-                    "%s Broker output missing messaging_service - deployment commands unavailable",
+            # Find BrokerOutput component in the flow (same pattern as App.send_message)
+            broker_output = None
+            flow = main_app.flows[0]
+            if flow.component_groups:
+                for group in reversed(flow.component_groups):
+                    if group:
+                        comp = group[0]
+                        if comp.module_info.get("class_name") == "BrokerOutput":
+                            broker_output = comp
+                            break
+
+            if not broker_output or not hasattr(broker_output, 'messaging_service'):
+                log.info(
+                    "%s BrokerOutput component not ready - direct publisher will be initialized later",
                     self.log_identifier
                 )
                 return
 
-            messaging_service = self.broker_output.messaging_service
-
-            from solace.messaging.publisher.direct_message_publisher import DirectMessagePublisher
-
-            self.direct_publisher = messaging_service.create_direct_message_publisher_builder().build()
+            self._messaging_service = broker_output.messaging_service.messaging_service
+            self.direct_publisher = self._messaging_service.create_direct_message_publisher_builder().build()
             self.direct_publisher.start()
 
             log.info("%s Direct message publisher initialized for deployer commands", self.log_identifier)
@@ -620,18 +628,19 @@ class PlatformServiceComponent(SamComponentBase):
 
         try:
             if not self.direct_publisher:
-                raise RuntimeError("Direct publisher not initialized")
+                self._init_direct_publisher()
+                if not self.direct_publisher:
+                    raise RuntimeError("Direct publisher not initialized")
 
-            # Serialize payload to JSON
+            # Serialize payload to JSON and convert to bytearray
             message_body = json.dumps(payload)
-
-            # Build message
-            main_app = self.get_app()
-            messaging_service = main_app.connector.get_messaging_service()
-            message = messaging_service.message_builder().build(message_body)
+            message_bytes = bytearray(message_body.encode("utf-8"))
 
             # Publish directly to topic
-            self.direct_publisher.publish(message, Topic.of(topic))
+            self.direct_publisher.publish(
+                message=message_bytes,
+                destination=Topic.of(topic)
+            )
 
             log.debug(
                 "%s Successfully published deployer command to topic: %s (payload size: %d bytes)",
