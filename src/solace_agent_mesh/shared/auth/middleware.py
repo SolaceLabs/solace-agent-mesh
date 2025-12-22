@@ -199,7 +199,8 @@ def create_oauth_middleware(component):
             use_auth = self.component.get_config("frontend_use_authorization", False)
 
             if use_auth:
-                await self._handle_authenticated_request(request, scope, receive, send)
+                if await self._handle_authenticated_request(request, scope, receive, send):
+                    return
             else:
                 request.state.user = {
                     "id": "sam_dev_user",
@@ -212,7 +213,14 @@ def create_oauth_middleware(component):
 
             await self.app(scope, receive, send)
 
-        async def _handle_authenticated_request(self, request, scope, receive, send):
+        async def _handle_authenticated_request(self, request, scope, receive, send) -> bool:
+            """
+            Handle authentication for a request.
+
+            Returns:
+                True if an error response was sent (caller should not continue),
+                False if authentication succeeded (caller should proceed with app).
+            """
             access_token = _extract_access_token(request)
 
             if not access_token:
@@ -225,7 +233,7 @@ def create_oauth_middleware(component):
                     },
                 )
                 await response(scope, receive, send)
-                return
+                return True
 
             auth_service_url = getattr(self.component, "external_auth_service_url", None)
             auth_provider = getattr(self.component, "external_auth_provider", "generic")
@@ -237,7 +245,7 @@ def create_oauth_middleware(component):
                     content={"detail": "Auth service not configured"},
                 )
                 await response(scope, receive, send)
-                return
+                return True
 
             if not await _validate_token(auth_service_url, auth_provider, access_token):
                 log.warning("AuthMiddleware: Token validation failed")
@@ -246,7 +254,7 @@ def create_oauth_middleware(component):
                     content={"detail": "Invalid token", "error_type": "invalid_token"},
                 )
                 await response(scope, receive, send)
-                return
+                return True
 
             user_info = await _get_user_info(auth_service_url, auth_provider, access_token)
             if not user_info:
@@ -256,7 +264,7 @@ def create_oauth_middleware(component):
                     content={"detail": "Could not retrieve user info"},
                 )
                 await response(scope, receive, send)
-                return
+                return True
 
             user_identifier = _extract_user_identifier(user_info)
             email_from_auth, display_name = _extract_user_details(user_info, user_identifier)
@@ -266,6 +274,7 @@ def create_oauth_middleware(component):
             )
 
             log.debug(f"AuthMiddleware: Authenticated user: {request.state.user['id']}")
+            return False
 
     return AuthMiddleware
 
