@@ -2,13 +2,12 @@
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { v4 } from "uuid";
 
-import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations } from "@/lib/hooks";
-import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-
-import { getAccessToken, getErrorMessage } from "@/lib/utils/api";
-import { migrateTask, CURRENT_SCHEMA_VERSION } from "@/lib/utils/taskMigration";
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
+import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations } from "@/lib/hooks";
+import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
+import { getAccessToken, getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION } from "@/lib/utils";
+
 import type {
     CancelTaskRequest,
     DataPart,
@@ -31,7 +30,6 @@ import type {
     Project,
     StoredTaskData,
 } from "@/lib/types";
-import { fileToBase64 } from "../utils";
 
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
 
@@ -112,8 +110,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         });
     }, []);
 
-    // Artifact Preview
-    const { preview, previewArtifact, openPreview, navigateToVersion, closePreview, setPreviewByArtifact } = useArtifactPreview({
+    // Artifact Preview Hook (expanded destructuring for direct access)
+    const {
+        preview: { availableVersions: previewedArtifactAvailableVersions, currentVersion: currentPreviewedVersionNumber, content: previewFileContent },
+        previewArtifact,
+        openPreview,
+        navigateToVersion,
+        closePreview,
+        setPreviewByArtifact,
+    } = useArtifactPreview({
         sessionId,
         projectId: activeProject?.id,
         artifacts,
@@ -1984,9 +1989,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         confirmBatchDeleteArtifacts,
         isBatchDeleteModalOpen,
         setIsBatchDeleteModalOpen,
-        previewedArtifactAvailableVersions: preview.availableVersions,
-        currentPreviewedVersionNumber: preview.currentVersion,
-        previewFileContent: preview.content,
+        previewedArtifactAvailableVersions,
+        currentPreviewedVersionNumber,
+        previewFileContent,
         openArtifactForPreview: openPreview,
         navigateArtifactVersion: navigateToVersion,
         previewArtifact,
