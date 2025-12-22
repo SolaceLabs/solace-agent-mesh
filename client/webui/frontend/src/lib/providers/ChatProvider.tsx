@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEvent, type ReactNode } from "react";
+import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { v4 } from "uuid";
 
-import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor } from "@/lib/hooks";
+import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 
 import { getAccessToken, getErrorMessage } from "@/lib/utils/api";
@@ -73,8 +73,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const savingTasksRef = useRef<Set<string>>(new Set());
 
-    // Track in-flight artifact preview fetches to prevent duplicates
-    const artifactFetchInProgressRef = useRef<Set<string>>(new Set());
+    // Track in-flight artifact download fetches to prevent duplicates
     const artifactDownloadInProgressRef = useRef<Set<string>>(new Set());
 
     // Track isCancelling in ref to access in async callbacks
@@ -103,6 +102,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Chat Side Panel State
     const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts } = useArtifacts(sessionId);
 
+    // Artifact Preview Hook
+    const { preview, previewArtifact, openPreview, navigateToVersion, closePreview, setPreviewByArtifact } = useArtifactPreview({
+        sessionId,
+        projectId: activeProject?.id,
+        artifacts,
+        onError: (title: string, error: string) => setError({ title, error }),
+    });
+
     // Side Panel Control State
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
     const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow">("files");
@@ -115,18 +122,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [isArtifactEditMode, setIsArtifactEditMode] = useState<boolean>(false);
     const [selectedArtifactFilenames, setSelectedArtifactFilenames] = useState<Set<string>>(new Set());
     const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState<boolean>(false);
-
-    // Preview State
-    const [previewArtifactFilename, setPreviewArtifactFilename] = useState<string | null>(null);
-    const [previewedArtifactAvailableVersions, setPreviewedArtifactAvailableVersions] = useState<number[] | null>(null);
-    const [currentPreviewedVersionNumber, setCurrentPreviewedVersionNumber] = useState<number | null>(null);
-    const [previewFileContent, setPreviewFileContent] = useState<FileAttachment | null>(null);
-
-    // Derive previewArtifact from artifacts array to ensure it's always up-to-date
-    const previewArtifact = useMemo(() => {
-        if (!previewArtifactFilename) return null;
-        return artifacts.find(a => a.filename === previewArtifactFilename) || null;
-    }, [artifacts, previewArtifactFilename]);
 
     // Feedback State
     const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
@@ -529,12 +524,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setIsDeleteModalOpen(false);
     }, []);
 
-    // Wrapper function to set preview artifact by filename
-    // IMPORTANT: Must be defined before confirmDelete to avoid circular dependency
-    const setPreviewArtifact = useCallback((artifact: ArtifactInfo | null) => {
-        setPreviewArtifactFilename(artifact?.filename || null);
-    }, []);
-
     const confirmDelete = useCallback(async () => {
         if (artifactToDelete) {
             // Check if the artifact being deleted is currently being previewed
@@ -544,11 +533,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // If the deleted artifact was being previewed, go back to file list
             if (isCurrentlyPreviewed) {
-                setPreviewArtifact(null);
+                closePreview();
             }
         }
         closeDeleteModal();
-    }, [artifactToDelete, deleteArtifactInternal, closeDeleteModal, previewArtifact, setPreviewArtifact]);
+    }, [artifactToDelete, deleteArtifactInternal, closeDeleteModal, previewArtifact, closePreview]);
 
     const handleDeleteSelectedArtifacts = useCallback(() => {
         if (selectedArtifactFilenames.size === 0) {
@@ -579,148 +568,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setSelectedArtifactFilenames(new Set());
         setIsArtifactEditMode(false);
     }, [selectedArtifactFilenames, addNotification, artifactsRefetch, sessionId, setError]);
-
-    const openArtifactForPreview = useCallback(
-        async (artifactFilename: string): Promise<FileAttachment | null> => {
-            // Prevent duplicate fetches for the same file
-            if (artifactFetchInProgressRef.current.has(artifactFilename)) {
-                return null;
-            }
-
-            // Mark this file as being fetched
-            artifactFetchInProgressRef.current.add(artifactFilename);
-
-            // Only clear state if this is a different file from what we're currently previewing
-            // This prevents clearing state during duplicate fetch attempts
-            if (previewArtifactFilename !== artifactFilename) {
-                setPreviewedArtifactAvailableVersions(null);
-                setCurrentPreviewedVersionNumber(null);
-                setPreviewFileContent(null);
-            }
-            try {
-                // Determine the correct URL based on context
-                let versionsUrl: string;
-                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    versionsUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`;
-                } else if (activeProject?.id) {
-                    versionsUrl = `/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions?project_id=${activeProject.id}`;
-                } else {
-                    throw new Error("No valid context for artifact preview");
-                }
-
-                const availableVersions: number[] = await api.webui.get(versionsUrl);
-                if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
-                setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
-                const latestVersion = Math.max(...availableVersions);
-                setCurrentPreviewedVersionNumber(latestVersion);
-                let contentUrl: string;
-                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    contentUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`;
-                } else if (activeProject?.id) {
-                    contentUrl = `/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}?project_id=${activeProject.id}`;
-                } else {
-                    throw new Error("No valid context for artifact content");
-                }
-
-                const contentResponse = await api.webui.get(contentUrl, { fullResponse: true });
-                if (!contentResponse.ok) {
-                    throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
-                }
-
-                // Get MIME type from response headers - this is the correct MIME type for this specific version
-                const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
-                // Strip charset and other parameters from Content-Type
-                const mimeType = contentType.split(";")[0].trim();
-
-                const blob = await contentResponse.blob();
-                const base64Content = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
-                const fileData: FileAttachment = {
-                    name: artifactFilename,
-                    // Use MIME type from response headers (version-specific), not from artifact list (latest version)
-                    mime_type: mimeType,
-                    content: base64Content,
-                    last_modified: artifactInfo?.last_modified || new Date().toISOString(),
-                };
-                setPreviewFileContent(fileData);
-                return fileData;
-            } catch (error) {
-                setError({ title: "Artifact Preview Failed", error: getErrorMessage(error, "Failed to load artifact preview.") });
-                return null;
-            } finally {
-                // Remove from in-progress set immediately when done
-                artifactFetchInProgressRef.current.delete(artifactFilename);
-            }
-        },
-        [sessionId, activeProject?.id, artifacts, previewArtifactFilename, setError]
-    );
-
-    const navigateArtifactVersion = useCallback(
-        async (artifactFilename: string, targetVersion: number): Promise<FileAttachment | null> => {
-            // If versions aren't loaded yet, this is likely a timing issue where this was called
-            // before openArtifactForPreview completed. Just silently return - the artifact will
-            // show the latest version when loaded, which is acceptable behavior.
-            if (!previewedArtifactAvailableVersions || previewedArtifactAvailableVersions.length === 0) {
-                return null;
-            }
-
-            // Now check if the specific version exists
-            if (!previewedArtifactAvailableVersions.includes(targetVersion)) {
-                console.warn(`Requested version ${targetVersion} not available for ${artifactFilename}`);
-                return null;
-            }
-            setPreviewFileContent(null);
-            try {
-                // Determine the correct URL based on context
-                let contentUrl: string;
-                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    contentUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`;
-                } else if (activeProject?.id) {
-                    contentUrl = `/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}?project_id=${activeProject.id}`;
-                } else {
-                    throw new Error("No valid context for artifact navigation");
-                }
-
-                const contentResponse = await api.webui.get(contentUrl, { fullResponse: true });
-                if (!contentResponse.ok) {
-                    throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
-                }
-
-                // Get MIME type from response headers - this is the correct MIME type for this specific version
-                const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
-                // Strip charset and other parameters from Content-Type
-                const mimeType = contentType.split(";")[0].trim();
-
-                const blob = await contentResponse.blob();
-                const base64Content = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
-                const fileData: FileAttachment = {
-                    name: artifactFilename,
-                    // Use MIME type from response headers (version-specific), not from artifact list (latest version)
-                    mime_type: mimeType,
-                    content: base64Content,
-                    last_modified: artifactInfo?.last_modified || new Date().toISOString(),
-                };
-                setCurrentPreviewedVersionNumber(targetVersion);
-                setPreviewFileContent(fileData);
-                return fileData;
-            } catch (error) {
-                setError({ title: "Artifact Version Preview Failed", error: getErrorMessage(error, "Failed to fetch artifact version.") });
-                return null;
-            }
-        },
-        [artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id, setError]
-    );
 
     const openSidePanelTab = useCallback((tab: "files" | "workflow") => {
         setIsSidePanelCollapsed(false);
@@ -1399,7 +1246,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsResponding(false);
             setCurrentTaskId(null);
             setTaskIdInSidePanel(null);
-            setPreviewArtifact(null);
+            closePreview();
             isFinalizing.current = false;
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
@@ -1413,7 +1260,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact, isTaskRunningInBackground]
+        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, closePreview, isTaskRunningInBackground]
     );
 
     // Start a new chat session with a prompt template pre-filled
@@ -1518,7 +1365,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setIsResponding(false);
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
-                setPreviewArtifact(null);
+                closePreview();
                 isFinalizing.current = false;
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
@@ -1564,7 +1411,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             activeProject,
             projects,
             setActiveProject,
-            setPreviewArtifact,
+            closePreview,
             setError,
             backgroundTasks,
             checkTaskStatus,
@@ -2325,13 +2172,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         confirmBatchDeleteArtifacts,
         isBatchDeleteModalOpen,
         setIsBatchDeleteModalOpen,
-        previewedArtifactAvailableVersions,
-        currentPreviewedVersionNumber,
-        previewFileContent,
-        openArtifactForPreview,
-        navigateArtifactVersion,
+        previewedArtifactAvailableVersions: preview.availableVersions,
+        currentPreviewedVersionNumber: preview.currentVersion,
+        previewFileContent: preview.content,
+        openArtifactForPreview: openPreview,
+        navigateArtifactVersion: navigateToVersion,
         previewArtifact,
-        setPreviewArtifact,
+        setPreviewArtifact: setPreviewByArtifact,
         updateSessionName,
         deleteSession,
 
