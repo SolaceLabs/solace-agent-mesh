@@ -31,26 +31,11 @@ import type {
     ArtifactPart,
     AgentCardInfo,
     Project,
+    StoredTaskData,
 } from "@/lib/types";
-
-// Type for tasks loaded from the API
-interface TaskFromAPI {
-    taskId: string;
-    messageBubbles: string; // JSON string
-    taskMetadata: string | null; // JSON string
-    createdTime: number;
-    userMessage?: string;
-}
+import { fileToBase64 } from "../utils";
 
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
-
-const fileToBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve((reader.result as string).split(",")[1]);
-        reader.onerror = error => reject(error);
-    });
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -390,7 +375,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Parse JSON strings from backend
             const tasks = data.tasks || [];
-            const parsedTasks = tasks.map((task: TaskFromAPI) => ({
+            const parsedTasks = tasks.map((task: StoredTaskData) => ({
                 ...task,
                 messageBubbles: JSON.parse(task.messageBubbles),
                 taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null,
