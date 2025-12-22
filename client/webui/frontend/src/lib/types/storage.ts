@@ -45,7 +45,7 @@ export interface StoredTaskData {
 /**
  * Parsed task structure (after JSON parsing but before migration)
  */
-export interface TaskData extends Omit<StoredTaskData, "messageBubbles" | "taskMetadata"> {
+export interface ParsedTaskData extends Omit<StoredTaskData, "messageBubbles" | "taskMetadata"> {
     messageBubbles: MessageBubble[];
     taskMetadata: TaskMetadata | null;
 }

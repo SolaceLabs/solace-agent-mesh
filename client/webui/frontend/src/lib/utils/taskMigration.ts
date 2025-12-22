@@ -1,14 +1,9 @@
-/**
- * Task schema migration utilities
- * Handles versioned migrations for task data structures
- */
-
-import type { TaskData } from "@/lib/types/storage";
+import type { ParsedTaskData } from "@/lib/types/storage";
 
 export const CURRENT_SCHEMA_VERSION = 1;
 
 // Migration function type
-type MigrationFunction = (task: TaskData) => TaskData;
+type MigrationFunction = (task: ParsedTaskData) => ParsedTaskData;
 
 /**
  * Migration V0 -> V1: Add schema_version field to tasks
@@ -52,7 +47,7 @@ const MIGRATIONS: Record<number, MigrationFunction> = {
  * @param task - The task to migrate
  * @returns The migrated task at the current schema version
  */
-export const migrateTask = (task: TaskData): TaskData => {
+export const migrateTask = (task: ParsedTaskData): ParsedTaskData => {
     const version = task.taskMetadata?.schema_version ?? 0;
 
     // Already at current version
@@ -81,7 +76,7 @@ export const migrateTask = (task: TaskData): TaskData => {
  * @param tasks - Array of tasks to migrate
  * @returns Array of migrated tasks
  */
-export const migrateTasks = (tasks: TaskData[]): TaskData[] => {
+export const migrateTasks = (tasks: ParsedTaskData[]): ParsedTaskData[] => {
     return tasks.map(migrateTask);
 };
 
@@ -90,7 +85,7 @@ export const migrateTasks = (tasks: TaskData[]): TaskData[] => {
  * @param task - The task to check
  * @returns true if migration is needed
  */
-export const needsMigration = (task: TaskData): boolean => {
+export const needsMigration = (task: ParsedTaskData): boolean => {
     const version = task.taskMetadata?.schema_version ?? 0;
     return version < CURRENT_SCHEMA_VERSION;
 };
