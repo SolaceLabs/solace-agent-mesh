@@ -14,6 +14,10 @@ from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
 from solace_agent_mesh.common.middleware.config_resolver import ConfigResolver
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from solace_agent_mesh.common import a2a
+from solace_agent_mesh.common.constants import (
+    HEALTH_CHECK_INTERVAL_SECONDS,
+    HEALTH_CHECK_TTL_SECONDS,
+)
 from a2a.types import AgentCard
 
 log = logging.getLogger(__name__)
@@ -63,6 +67,8 @@ class PlatformServiceComponent(SamComponentBase):
     - Independent from WebUI gateway
     - NOT A2A communication (deployer is a service, not an agent)
     """
+
+    HEALTH_CHECK_TIMER_ID = "platform_agent_health_check"
 
     def get_config(self, key: str, default: Any = None) -> Any:
         """
@@ -118,6 +124,14 @@ class PlatformServiceComponent(SamComponentBase):
             self.deployment_timeout_minutes = self.get_config("deployment_timeout_minutes", 5)
             self.heartbeat_timeout_seconds = self.get_config("heartbeat_timeout_seconds", 90)
             self.deployment_check_interval_seconds = self.get_config("deployment_check_interval_seconds", 60)
+
+            # Agent health check configuration (for removing expired agents from registry)
+            self.health_check_interval_seconds = self.get_config(
+                "health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS
+            )
+            self.health_check_ttl_seconds = self.get_config(
+                "health_check_ttl_seconds", HEALTH_CHECK_TTL_SECONDS
+            )
 
             log.info(
                 "%s Platform service configuration retrieved (Host: %s, Port: %d, Auth: %s).",
@@ -176,6 +190,7 @@ class PlatformServiceComponent(SamComponentBase):
         This is the proper place to initialize services that require broker connectivity:
         - FastAPI server (with startup event for background tasks)
         - Direct message publisher (for deployer commands)
+        - Agent health check timer (for removing expired agents from registry)
         """
         log.info("%s Starting late initialization (broker-dependent services)...", self.log_identifier)
 
@@ -184,6 +199,9 @@ class PlatformServiceComponent(SamComponentBase):
 
         # Start FastAPI server (background tasks started via FastAPI startup event)
         self._start_fastapi_server()
+
+        # Schedule agent health checks to remove expired agents from registry
+        self._schedule_agent_health_check()
 
         log.info("%s Late initialization complete", self.log_identifier)
 
@@ -506,10 +524,14 @@ class PlatformServiceComponent(SamComponentBase):
             except Exception as e:
                 log.warning("%s Error stopping heartbeat listener: %s", self.log_identifier, e)
 
+        # Cancel health check timer before clearing registry
+        self.cancel_timer(self.HEALTH_CHECK_TIMER_ID)
+        log.info("%s Health check timer cancelled", self.log_identifier)
+
         # Stop agent registry
         if self.agent_registry:
             try:
-                self.agent_registry.cleanup()
+                self.agent_registry.clear()
                 log.info("%s Agent registry stopped", self.log_identifier)
             except Exception as e:
                 log.warning("%s Error stopping agent registry: %s", self.log_identifier, e)
@@ -598,6 +620,79 @@ class PlatformServiceComponent(SamComponentBase):
             AgentRegistry instance if initialized, None otherwise.
         """
         return self.agent_registry
+
+    def _schedule_agent_health_check(self):
+        """
+        Schedule periodic agent health checks to remove expired agents from registry.
+
+        This is essential for deployment status checking - when an agent is undeployed,
+        the deployment status checker needs to see the agent removed from the registry
+        to mark the undeploy as successful.
+        """
+        if self.health_check_interval_seconds > 0:
+            log.info(
+                "%s Scheduling agent health check every %d seconds (TTL: %d seconds)",
+                self.log_identifier,
+                self.health_check_interval_seconds,
+                self.health_check_ttl_seconds,
+            )
+            self.add_timer(
+                delay_ms=self.health_check_interval_seconds * 1000,
+                timer_id=self.HEALTH_CHECK_TIMER_ID,
+                interval_ms=self.health_check_interval_seconds * 1000,
+                callback=lambda timer_data: self._check_agent_health(),
+            )
+        else:
+            log.warning(
+                "%s Agent health check disabled (interval=%d). "
+                "Agents will not be automatically removed from registry when they stop sending heartbeats.",
+                self.log_identifier,
+                self.health_check_interval_seconds,
+            )
+
+    def _check_agent_health(self):
+        """
+        Check agent health and remove expired agents from registry.
+
+        Called periodically by the health check timer. Iterates through all
+        registered agents and removes any whose TTL has expired (i.e., they
+        haven't sent a heartbeat recently).
+        """
+        log.debug("%s Performing agent health check...", self.log_identifier)
+
+        agent_names = self.agent_registry.get_agent_names()
+        total_agents = len(agent_names)
+        agents_removed = 0
+
+        for agent_name in agent_names:
+            is_expired, time_since_last_seen = self.agent_registry.check_ttl_expired(
+                agent_name, self.health_check_ttl_seconds
+            )
+
+            if is_expired:
+                log.warning(
+                    "%s Agent '%s' TTL expired (last seen: %d seconds ago, TTL: %d seconds). Removing from registry.",
+                    self.log_identifier,
+                    agent_name,
+                    time_since_last_seen,
+                    self.health_check_ttl_seconds,
+                )
+                self.agent_registry.remove_agent(agent_name)
+                agents_removed += 1
+
+        if agents_removed > 0:
+            log.info(
+                "%s Agent health check complete: %d/%d agents removed",
+                self.log_identifier,
+                agents_removed,
+                total_agents,
+            )
+        else:
+            log.debug(
+                "%s Agent health check complete: %d agents, all healthy",
+                self.log_identifier,
+                total_agents,
+            )
 
     def publish_a2a(
         self, topic: str, payload: dict, user_properties: dict | None = None
