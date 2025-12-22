@@ -2,7 +2,7 @@ export * from "./api";
 export * from "./cnTailwind";
 export * from "./download";
 export * from "./file";
-export * from "./fileValidation";
+export * from "./file-validation";
 export * from "./format";
 export * from "./promptUtils";
 export * from "./taskMigration";

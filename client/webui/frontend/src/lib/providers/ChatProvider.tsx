@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useSidePanel, useFeedback, useArtifactOperations } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-import { fileToBase64, getAccessToken, getErrorMessage, INLINE_FILE_SIZE_LIMIT_BYTES } from "@/lib/utils";
+import { fileToBase64, getAccessToken, getErrorMessage } from "@/lib/utils";
 import { migrateTask, CURRENT_SCHEMA_VERSION } from "@/lib/utils/taskMigration";
 
 import type {
@@ -32,9 +32,12 @@ import type {
     StoredTaskData,
 } from "@/lib/types";
 
-// Helper function to create an artifact part
-const getArtifactPart = (sessionId: string, filename: string) => {
-    return {
+// Helper function to extract artifact markers and create artifact parts
+const extractArtifactMarkers = (text: string, sessionId: string, addedArtifacts: Set<string>, processedParts: any[]) => {
+    const ARTIFACT_RETURN_REGEX = /«artifact_return:([^»]+)»/g;
+    const ARTIFACT_REGEX = /«artifact:([^»]+)»/g;
+
+    const createArtifactPart = (filename: string) => ({
         kind: "artifact",
         status: "completed",
         name: filename,
@@ -42,29 +45,24 @@ const getArtifactPart = (sessionId: string, filename: string) => {
             name: filename,
             uri: `artifact://${sessionId}/${filename}`,
         },
-    };
-};
+    });
 
-// Helper function to extract artifact markers and create artifact parts
-const extractArtifactMarkers = (text: string, sessionId: string, addedArtifacts: Set<string>, processedParts: any[]) => {
     // Extract artifact_return markers
-    const returnRegex = /«artifact_return:([^»]+)»/g;
     let match;
-    while ((match = returnRegex.exec(text)) !== null) {
+    while ((match = ARTIFACT_RETURN_REGEX.exec(text)) !== null) {
         const artifactFilename = match[1];
         if (!addedArtifacts.has(artifactFilename)) {
             addedArtifacts.add(artifactFilename);
-            processedParts.push(getArtifactPart(sessionId, artifactFilename));
+            processedParts.push(createArtifactPart(artifactFilename));
         }
     }
 
     // Extract artifact: markers
-    const artifactRegex = /«artifact:([^»]+)»/g;
-    while ((match = artifactRegex.exec(text)) !== null) {
+    while ((match = ARTIFACT_REGEX.exec(text)) !== null) {
         const artifactFilename = match[1];
         if (!addedArtifacts.has(artifactFilename)) {
             addedArtifacts.add(artifactFilename);
-            processedParts.push(getArtifactPart(sessionId, artifactFilename));
+            processedParts.push(createArtifactPart(artifactFilename));
         }
     }
 };
@@ -78,6 +76,8 @@ const removeArtifactMarkers = (textContent: string): string => {
         .replace(/«artifact:[^»]+»/g, "")
         .replace(/«status_update:[^»]+»\n?/g, "");
 };
+
+const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
 
 interface ChatProviderProps {
     children: ReactNode;

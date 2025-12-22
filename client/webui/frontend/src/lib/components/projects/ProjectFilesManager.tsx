@@ -3,7 +3,7 @@ import { Loader2, FileText, AlertTriangle, Plus } from "lucide-react";
 
 import { useProjectArtifacts } from "@/lib/hooks/useProjectArtifacts";
 import { useConfigContext } from "@/lib/hooks";
-import { validateFileSizes } from "@/lib/utils/fileValidation";
+import { validateFileSizes } from "@/lib/utils/file-validation";
 import type { Project } from "@/lib/types/projects";
 import { Button } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";

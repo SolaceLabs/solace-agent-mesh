@@ -1,8 +1,6 @@
 /**
- * File validation utilities for consistent file size validation.
+ * File validation utilities for consistent file size validation across the application.
  */
-
-export const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
 
 export interface FileSizeValidationResult {
     valid: boolean;

@@ -37,31 +37,12 @@ export const blobToBase64 = (blob: Blob): Promise<string> => {
  * @param options.version - Optional version number. If omitted, returns URL for listing all versions
  * @returns The constructed artifact URL
  * @throws {Error} When neither sessionId nor projectId is provided
- *
- * @example
- * // Get a specific version with session
- * getArtifactUrl({ filename: 'data.json', sessionId: 'abc123', version: 1 })
- * // Returns: '/api/v1/artifacts/abc123/data.json/versions/1'
- *
- * @example
- * // List all versions with session
- * getArtifactUrl({ filename: 'data.json', sessionId: 'abc123' })
- * // Returns: '/api/v1/artifacts/abc123/data.json/versions'
- *
- * @example
- * // Get a specific version with project ID
- * getArtifactUrl({ filename: 'data.json', projectId: 'proj456', version: 2 })
- * // Returns: '/api/v1/artifacts/null/data.json/versions/2?project_id=proj456'
  */
 export const getArtifactUrl = ({ filename, sessionId, projectId, version }: { filename: string; sessionId?: string; projectId?: string; version?: number }): string => {
     const isValidSession = sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined";
     const encodedFilename = encodeURIComponent(filename);
 
-    // Build the base path based on whether we have a valid session
     const basePath = isValidSession ? `/api/v1/artifacts/${sessionId}/${encodedFilename}/versions` : `/api/v1/artifacts/null/${encodedFilename}/versions`;
-
-    // If version is provided, append it to get a specific version
-    // Otherwise, return the base path to list all versions
     const versionPath = version !== undefined ? `/${version}` : "";
     const url = `${basePath}${versionPath}`;
 
@@ -70,7 +51,6 @@ export const getArtifactUrl = ({ filename, sessionId, projectId, version }: { fi
         return `${url}?project_id=${projectId}`;
     }
 
-    // Validate that at least one context (sessionId or projectId) is provided
     if (!isValidSession && !projectId) {
         throw new Error("No valid context for artifact: either sessionId or projectId must be provided");
     }
