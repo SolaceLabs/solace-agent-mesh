@@ -110,7 +110,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         });
     }, []);
 
-    // Artifact Preview Hook (expanded destructuring for direct access)
+    // Artifact Preview
     const {
         preview: { availableVersions: previewedArtifactAvailableVersions, currentVersion: currentPreviewedVersionNumber, content: previewFileContent },
         previewArtifact,
