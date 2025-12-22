@@ -583,7 +583,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Wrapper function to set preview artifact by filename
     // IMPORTANT: Must be defined before confirmDelete to avoid circular dependency
     const setPreviewArtifact = useCallback((artifact: ArtifactInfo | null) => {
-        setPreviewArtifactFilename(artifact?.filename || null);
+        setPreviewArtifactFilename(prevFilename => {
+            const newFilename = artifact?.filename || null;
+            // Clear version-related state only when filename actually changes
+            if (newFilename !== prevFilename) {
+                setPreviewedArtifactAvailableVersions(null);
+                setCurrentPreviewedVersionNumber(null);
+                setPreviewFileContent(null);
+            }
+            return newFilename;
+        });
     }, []);
 
     const confirmDelete = useCallback(async () => {
@@ -712,16 +721,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const navigateArtifactVersion = useCallback(
-        async (artifactFilename: string, targetVersion: number): Promise<FileAttachment | null> => {
+        async (artifactFilename: string, targetVersion: number, availableVersions?: number[]): Promise<FileAttachment | null> => {
+            // Use provided versions or fall back to state
+            const versions = availableVersions || previewedArtifactAvailableVersions;
+
             // If versions aren't loaded yet, this is likely a timing issue where this was called
             // before openArtifactForPreview completed. Just silently return - the artifact will
             // show the latest version when loaded, which is acceptable behavior.
-            if (!previewedArtifactAvailableVersions || previewedArtifactAvailableVersions.length === 0) {
+            if (!versions || versions.length === 0) {
                 return null;
             }
 
             // Now check if the specific version exists
-            if (!previewedArtifactAvailableVersions.includes(targetVersion)) {
+            if (!versions.includes(targetVersion)) {
                 console.warn(`Requested version ${targetVersion} not available for ${artifactFilename}`);
                 return null;
             }
@@ -755,6 +767,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     reader.readAsDataURL(blob);
                 });
                 const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
+
                 const fileData: FileAttachment = {
                     name: artifactFilename,
                     // Use MIME type from response headers (version-specific), not from artifact list (latest version)
@@ -2120,6 +2133,90 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const prevProjectIdRef = useRef<string | null | undefined>("");
     const isSessionSwitchRef = useRef(false);
     const isSessionMoveRef = useRef(false);
+
+    // Auto-refresh preview when the previewed artifact gets updated
+    const lastCheckedVersionRef = useRef<number | null>(null);
+    useEffect(() => {
+        if (!previewArtifactFilename) {
+            // Reset ref when preview is closed
+            lastCheckedVersionRef.current = null;
+            return;
+        }
+
+        const previewedArtifact = artifacts.find(a => a.filename === previewArtifactFilename);
+        if (!previewedArtifact) return;
+
+        const artifactLatestVersion = previewedArtifact.version;
+        if (!artifactLatestVersion) return;
+
+        // Determine if we need to refresh
+        let shouldRefresh = false;
+
+        if (!previewedArtifactAvailableVersions) {
+            // Versions list not loaded yet (user clicked while streaming) - refresh if we haven't checked this version
+            shouldRefresh = lastCheckedVersionRef.current !== artifactLatestVersion;
+        } else {
+            // Versions list loaded - refresh if artifact has a newer version than in dropdown
+            const currentMaxVersion = Math.max(...previewedArtifactAvailableVersions);
+            shouldRefresh = artifactLatestVersion > currentMaxVersion && lastCheckedVersionRef.current !== artifactLatestVersion;
+        }
+
+        // If the artifact has a newer version, refresh the preview
+        if (shouldRefresh) {
+            // Capture values at effect start to avoid stale closures
+            let cancelled = false;
+            const currentFilename = previewArtifactFilename;
+            const versionToFetch = artifactLatestVersion;
+
+            // Refresh versions list and navigate to the latest version
+            (async () => {
+                try {
+                    let versionsUrl: string;
+                    if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
+                        versionsUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(currentFilename)}/versions`;
+                    } else if (activeProject?.id) {
+                        versionsUrl = `/api/v1/artifacts/null/${encodeURIComponent(currentFilename)}/versions?project_id=${activeProject.id}`;
+                    } else {
+                        return;
+                    }
+
+                    const availableVersions: number[] = await api.webui.get(versionsUrl);
+                    if (!availableVersions || availableVersions.length === 0) return;
+
+                    // Check if we're still relevant before updating state
+                    if (cancelled || previewArtifactFilename !== currentFilename) {
+                        return;
+                    }
+
+                    const sortedVersions = availableVersions.sort((a, b) => a - b);
+                    setPreviewedArtifactAvailableVersions(sortedVersions);
+                    const newVersion = Math.max(...availableVersions);
+
+                    // Set version number immediately so dropdown shows correct value
+                    setCurrentPreviewedVersionNumber(newVersion);
+
+                    // Use navigateArtifactVersion with the versions we just fetched
+                    // Pass sortedVersions directly to avoid race condition with state updates
+                    const result = await navigateArtifactVersion(currentFilename, newVersion, sortedVersions);
+
+                    // Only mark as processed if successful and not cancelled
+                    if (!cancelled && result) {
+                        lastCheckedVersionRef.current = versionToFetch;
+                    }
+                } catch (error) {
+                    if (!cancelled) {
+                        console.error("Failed to refresh preview after artifact update:", error);
+                    }
+                    // Don't update lastCheckedVersionRef on error - allow retry on next effect run
+                }
+            })();
+
+            // Cleanup function to cancel in-flight requests
+            return () => {
+                cancelled = true;
+            };
+        }
+    }, [artifacts, previewArtifactFilename, previewedArtifactAvailableVersions, sessionId, activeProject, navigateArtifactVersion]);
 
     useEffect(() => {
         const handleProjectDeleted = (deletedProjectId: string) => {
