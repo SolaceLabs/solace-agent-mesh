@@ -23,7 +23,7 @@ interface PromptTemplateBuilderProps {
 export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ onBack, onSuccess, initialMessage, editingGroup, isEditing = false, initialMode }) => {
     const { config, updateConfig, saveTemplate, updateTemplate, resetConfig, validationErrors, isLoading } = usePromptTemplateBuilder(editingGroup);
 
-    const [builderMode, setBuilderMode] = useState<"manual" | "ai-assisted">(initialMode || (isEditing ? "manual" : "ai-assisted"));
+    const [builderMode, setBuilderMode] = useState<"manual" | "ai-assisted">(initialMode || "ai-assisted");
     const [isReadyToSave, setIsReadyToSave] = useState(false);
     const [highlightedFields, setHighlightedFields] = useState<string[]>([]);
 
