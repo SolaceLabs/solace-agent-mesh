@@ -2071,7 +2071,8 @@ class BaseGatewayComponent(SamComponentBase):
 
         extensions = [gateway_role_extension]
 
-        deployment_id = self.get_config("deployment_id")
+        deployment_config = self.get_config("deployment", {})
+        deployment_id = deployment_config.get("id") if isinstance(deployment_config, dict) else None
         if deployment_id:
             deployment_extension = AgentExtension(
                 uri="https://solace.com/a2a/extensions/sam/deployment",
