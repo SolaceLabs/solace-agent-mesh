@@ -26,7 +26,7 @@ To provide a logging configuration, set the `LOGGING_CONFIG_PATH=path/to/logging
 While the INI format using Python's `fileConfig()` is still supported by Agent Mesh, it is not recommended due to [its limitations](https://docs.python.org/3/library/logging.config.html#configuration-file-format) compared to YAML and JSON formats.
 :::
 
-:::info[Agent/Gateway Specific Logging Configuration]
+## Simple Logging Configuration
 While individual agent and gateway YAML files may contain a log section similar to the example below:
 ```
 log:
@@ -34,9 +34,6 @@ log:
   log_file_level: INFO
   log_file: my-agent.log
 ```
-using a dedicated logging configuration file (YAML, JSON) is the recommended approach. The simple `log:` section configuration has lower precedence and will only be active when a dedicated logging configuration file is not provided.
-
-### Simple Log Configuration Fields
 
 When using the simple `log:` section in agent or gateway configuration files, the following fields are available:
 
@@ -46,10 +43,11 @@ When using the simple `log:` section in agent or gateway configuration files, th
 | `log_file_level` | string | No | `INFO` | Logging level for file output. Typically set to `DEBUG` for detailed troubleshooting |
 | `log_file` | string | No | None | Path to the log file. If not specified, file logging is disabled. Examples: `agent.log`, `/var/log/sam/agent.log` |
 
-**Note:** The simple log configuration provides basic logging capabilities. For advanced features such as structured logging, log rotation, multiple handlers, or fine-grained control over specific modules, use a dedicated logging configuration file as described below.
+:::note
+using a dedicated logging configuration file (YAML, JSON) is the recommended approach. The simple `log:` section configuration has lower precedence and will only be active when a dedicated logging configuration file is not provided.
 :::
 
-## Default Logging Configuration
+## Advanced Logging Configuration
 
 When you run `sam init`, Agent Mesh automatically generates a `configs/logging_config.yaml` file in your project directory. This file establishes sensible defaults while remaining easy to customize for your specific needs.
 
