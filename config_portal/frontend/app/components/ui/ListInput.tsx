@@ -26,7 +26,7 @@ const ListInput: React.FC<ListInputProps> = ({
   required,
   itemPlaceholder = "Enter value",
 }) => {
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState<string>("");
 
   const handleAddItem = () => {
     if (inputValue.trim() === "") {
@@ -82,7 +82,7 @@ const ListInput: React.FC<ListInputProps> = ({
             id={id}
             name={id}
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={itemPlaceholder}
             className="flex-1"
@@ -95,9 +95,9 @@ const ListInput: React.FC<ListInputProps> = ({
         {/* Display existing items */}
         {values.length > 0 && (
           <div className="border border-gray-200 rounded-md divide-y divide-gray-200">
-            {values.map((item, index) => (
+            {values.map((item: string, index: number) => (
               <div
-                key={index}
+                key={`${item}-${index}`}
                 className="flex items-center space-x-2 p-2 hover:bg-gray-50"
               >
                 <div className="flex flex-col space-y-1">
@@ -132,7 +132,7 @@ const ListInput: React.FC<ListInputProps> = ({
                 <Input
                   id={`${id}-item-${index}`}
                   value={item}
-                  onChange={(e) => handleUpdateItem(index, e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdateItem(index, e.target.value)}
                   className="flex-1 text-sm"
                   placeholder={itemPlaceholder}
                 />

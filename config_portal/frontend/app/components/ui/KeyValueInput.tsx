@@ -28,8 +28,8 @@ const KeyValueInput: React.FC<KeyValueInputProps> = ({
   keyPlaceholder = "Key",
   valuePlaceholder = "Value",
 }) => {
-  const [keyInput, setKeyInput] = useState("");
-  const [valueInput, setValueInput] = useState("");
+  const [keyInput, setKeyInput] = useState<string>("");
+  const [valueInput, setValueInput] = useState<string>("");
 
   const handleAddItem = () => {
     const trimmedKey = keyInput.trim();
@@ -41,7 +41,7 @@ const KeyValueInput: React.FC<KeyValueInputProps> = ({
 
     // Avoid silently overwriting an existing key; existing entries
     // should be updated via the inline edit path instead.
-    if (Object.prototype.hasOwnProperty.call(values, trimmedKey)) {
+    if (Object.hasOwn(values, trimmedKey)) {
       return;
     }
 
@@ -67,7 +67,7 @@ const KeyValueInput: React.FC<KeyValueInputProps> = ({
     }
   };
 
-  const entries = Object.entries(values);
+  const entries: [string, string][] = Object.entries(values);
 
   return (
     <FormField
@@ -84,7 +84,7 @@ const KeyValueInput: React.FC<KeyValueInputProps> = ({
             id={`${id}-key`}
             name={`${id}-key`}
             value={keyInput}
-            onChange={(e) => setKeyInput(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setKeyInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={keyPlaceholder}
             className="flex-1"
@@ -93,7 +93,7 @@ const KeyValueInput: React.FC<KeyValueInputProps> = ({
             id={`${id}-value`}
             name={`${id}-value`}
             value={valueInput}
-            onChange={(e) => setValueInput(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setValueInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={valuePlaceholder}
             className="flex-1"
@@ -106,7 +106,7 @@ const KeyValueInput: React.FC<KeyValueInputProps> = ({
         {/* Display existing key-value pairs */}
         {entries.length > 0 && (
           <div className="border border-gray-200 rounded-md divide-y divide-gray-200">
-            {entries.map(([key, value]) => (
+            {entries.map(([key, value]: [string, string]) => (
               <div
                 key={key}
                 className="flex items-center space-x-2 p-2 hover:bg-gray-50"
@@ -117,7 +117,7 @@ const KeyValueInput: React.FC<KeyValueInputProps> = ({
                 <Input
                   id={`${id}-value-${key}`}
                   value={value}
-                  onChange={(e) => handleUpdateValue(key, e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdateValue(key, e.target.value)}
                   className="flex-1 text-sm"
                   placeholder="Value"
                 />
