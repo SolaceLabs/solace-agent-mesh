@@ -1,6 +1,6 @@
 ---
 title: Vibe Coding
-sidebar_position: 315
+sidebar_position: 20
 ---
 
 # Vibe Coding
