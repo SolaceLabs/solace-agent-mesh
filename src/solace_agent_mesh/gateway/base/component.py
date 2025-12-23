@@ -191,6 +191,13 @@ class BaseGatewayComponent(SamComponentBase):
             self.log_identifier,
         )
 
+        self._gateway_card_publishing_config = self.get_config(
+            "gateway_card_publishing",
+            {"enabled": True, "interval_seconds": 30}
+        )
+        self._gateway_card_config = self.get_config("gateway_card", {})
+        self._gateway_card_timer_id = f"publish_gateway_card_{self.gateway_id}"
+
         log.info(
             "%s Initialized Base Gateway Component.", self.log_identifier
         )
@@ -1795,6 +1802,9 @@ class BaseGatewayComponent(SamComponentBase):
         # Call base class to initialize Trust Manager
         await super()._async_setup_and_run()
 
+        if self._gateway_card_publishing_config.get("enabled", True):
+            self._start_gateway_card_publishing()
+
         log.info(
             "%s Starting _start_listener() to initiate external platform connection.",
             self.log_identifier,
@@ -2016,6 +2026,130 @@ class BaseGatewayComponent(SamComponentBase):
         self, external_request_context: Dict[str, Any], error_data: JSONRPCError
     ) -> None:
         pass
+
+    def _detect_gateway_type(self) -> str:
+        """Auto-detect gateway type from component class or configuration."""
+        configured_type = self.get_config("gateway_type")
+        if configured_type:
+            return configured_type
+
+        class_name = self.__class__.__name__
+        if "WebUI" in class_name or "HttpSse" in class_name:
+            return "http_sse"
+
+        if hasattr(self, 'adapter') and self.adapter:
+            adapter_name = self.adapter.__class__.__name__.lower()
+            if "rest" in adapter_name:
+                return "rest"
+            if "slack" in adapter_name:
+                return "slack"
+            if "teams" in adapter_name:
+                return "teams"
+
+        return "generic"
+
+    def _build_gateway_card(self) -> AgentCard:
+        """Build gateway discovery card as AgentCard with gateway extension."""
+        from a2a.types import AgentCapabilities, AgentExtension
+
+        gateway_type = self._detect_gateway_type()
+        gateway_url = f"solace:{self.namespace}/a2a/v1/gateway/request/{self.gateway_id}"
+        description = self._gateway_card_config.get(
+            "description",
+            f"{gateway_type.upper()} Gateway"
+        )
+
+        gateway_role_extension = AgentExtension(
+            uri="https://solace.com/a2a/extensions/sam/gateway-role",
+            required=False,
+            params={
+                "gateway_id": self.gateway_id,
+                "gateway_type": gateway_type,
+                "namespace": self.namespace,
+            }
+        )
+
+        extensions = [gateway_role_extension]
+
+        deployment_id = self.get_config("deployment_id")
+        if deployment_id:
+            deployment_extension = AgentExtension(
+                uri="https://solace.com/a2a/extensions/sam/deployment",
+                required=False,
+                params={
+                    "deployment_id": deployment_id,
+                }
+            )
+            extensions.append(deployment_extension)
+
+        try:
+            from solace_agent_mesh import __version__ as sam_version
+        except ImportError:
+            sam_version = "unknown"
+
+        gateway_card = AgentCard(
+            name=self.gateway_id,
+            url=gateway_url,
+            description=description,
+            version=sam_version,
+            protocol_version="1.0",
+            capabilities=AgentCapabilities(
+                supports_streaming=True,
+                supports_cancellation=True,
+                extensions=extensions
+            )
+        )
+
+        return gateway_card
+
+    def _publish_gateway_card(self) -> None:
+        """Publish gateway card to discovery topic."""
+        try:
+            gateway_card = self._build_gateway_card()
+            discovery_topic = a2a.get_discovery_topic(self.namespace)
+
+            payload = gateway_card.model_dump(by_alias=True, exclude_none=True)
+            self.publish_a2a_message(payload, discovery_topic)
+
+            log.debug(
+                "%s Published gateway card: gateway_id=%s, type=%s, topic=%s",
+                self.log_identifier,
+                self.gateway_id,
+                self._detect_gateway_type(),
+                discovery_topic
+            )
+        except Exception as e:
+            log.error(
+                "%s Failed to publish gateway card: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
+
+    def _start_gateway_card_publishing(self) -> None:
+        """Start periodic gateway card publishing."""
+        interval_seconds = self._gateway_card_publishing_config.get("interval_seconds", 30)
+
+        if interval_seconds <= 0:
+            log.info(
+                "%s Gateway card publishing disabled (interval_seconds=%d)",
+                self.log_identifier,
+                interval_seconds
+            )
+            return
+
+        log.info(
+            "%s Starting gateway card publishing every %d seconds",
+            self.log_identifier,
+            interval_seconds
+        )
+
+        self.add_timer(
+            delay_ms=1000,
+            timer_id=self._gateway_card_timer_id,
+            interval_ms=interval_seconds * 1000,
+            callback=lambda timer_data: self._publish_gateway_card()
+        )
 
     def _get_component_id(self) -> str:
         """Returns the gateway ID as the component identifier."""

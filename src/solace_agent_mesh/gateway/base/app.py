@@ -135,6 +135,49 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "default": None,
             "description": "Configuration for the pluggable Identity Service provider.",
         },
+        # --- Gateway Type Configuration ---
+        {
+            "name": "gateway_type",
+            "required": False,
+            "type": "string",
+            "default": None,
+            "description": "Type of gateway for discovery and monitoring (e.g., 'rest', 'slack', 'teams', 'http_sse'). Auto-detected if not specified.",
+        },
+        # --- Gateway Card Publishing Configuration ---
+        {
+            "name": "gateway_card_publishing",
+            "required": False,
+            "type": "object",
+            "default": {"enabled": True, "interval_seconds": 30},
+            "description": "Configuration for publishing gateway discovery cards to enable platform monitoring and deployment tracking.",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Enable periodic gateway card publishing for discovery and health monitoring.",
+                },
+                "interval_seconds": {
+                    "type": "integer",
+                    "default": 30,
+                    "description": "Interval in seconds between gateway card publishes. Acts as heartbeat for deployment tracking.",
+                },
+            },
+        },
+        # --- Gateway Card Configuration ---
+        {
+            "name": "gateway_card",
+            "required": False,
+            "type": "object",
+            "default": {},
+            "description": "Metadata for the gateway's discovery card.",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Human-readable description of this gateway instance.",
+                },
+            },
+        },
     ]
 }
 
