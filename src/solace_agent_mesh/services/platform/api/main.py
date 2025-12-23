@@ -307,9 +307,17 @@ def _setup_routers():
     """
     Mount community and enterprise routers to the FastAPI application.
 
+    All platform service routers (both community and enterprise) are mounted
+    under the PLATFORM_SERVICE_PREFIX. This ensures a consistent API structure
+    where /api/v1/platform/* contains all platform management endpoints.
+
     Community routers: Loaded from .routers (empty in Phase 1)
     Enterprise routers: Dynamically loaded from enterprise package if available
     """
+    # Define the platform service API prefix
+    # This is the single source of truth for all platform service endpoints
+    PLATFORM_SERVICE_PREFIX = "/api/v1/platform"
+
     # Load community platform routers (empty in Phase 1)
     from .routers import get_community_platform_routers
 
@@ -317,7 +325,7 @@ def _setup_routers():
     for router_config in community_routers:
         app.include_router(
             router_config["router"],
-            prefix=router_config["prefix"],
+            prefix=PLATFORM_SERVICE_PREFIX,
             tags=router_config["tags"],
         )
     log.info(f"Mounted {len(community_routers)} community platform routers")
@@ -330,10 +338,10 @@ def _setup_routers():
         for router_config in enterprise_routers:
             app.include_router(
                 router_config["router"],
-                prefix=router_config["prefix"],
+                prefix=PLATFORM_SERVICE_PREFIX,
                 tags=router_config["tags"],
             )
-        log.info(f"Mounted {len(enterprise_routers)} enterprise platform routers")
+        log.info(f"Mounted {len(enterprise_routers)} enterprise platform routers under {PLATFORM_SERVICE_PREFIX}")
 
     except ImportError:
         log.info(
