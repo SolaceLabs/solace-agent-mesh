@@ -12,6 +12,7 @@ from a2a.types import AgentCard
 
 log = logging.getLogger(__name__)
 
+
 class AgentRegistry:
     """Stores and manages discovered AgentCards with health tracking."""
 

@@ -14,6 +14,10 @@ from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
 from solace_agent_mesh.common.middleware.config_resolver import ConfigResolver
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from solace_agent_mesh.common import a2a
+from solace_agent_mesh.common.constants import (
+    HEALTH_CHECK_INTERVAL_SECONDS,
+    HEALTH_CHECK_TTL_SECONDS,
+)
 from a2a.types import AgentCard
 
 log = logging.getLogger(__name__)
@@ -63,6 +67,8 @@ class PlatformServiceComponent(SamComponentBase):
     - Independent from WebUI gateway
     - NOT A2A communication (deployer is a service, not an agent)
     """
+
+    HEALTH_CHECK_TIMER_ID = "platform_agent_health_check"
 
     def get_config(self, key: str, default: Any = None) -> Any:
         """
@@ -119,6 +125,14 @@ class PlatformServiceComponent(SamComponentBase):
             self.heartbeat_timeout_seconds = self.get_config("heartbeat_timeout_seconds", 90)
             self.deployment_check_interval_seconds = self.get_config("deployment_check_interval_seconds", 60)
 
+            # Agent health check configuration (for removing expired agents from registry)
+            self.health_check_interval_seconds = self.get_config(
+                "health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS
+            )
+            self.health_check_ttl_seconds = self.get_config(
+                "health_check_ttl_seconds", HEALTH_CHECK_TTL_SECONDS
+            )
+
             log.info(
                 "%s Platform service configuration retrieved (Host: %s, Port: %d, Auth: %s).",
                 self.log_identifier,
@@ -166,27 +180,28 @@ class PlatformServiceComponent(SamComponentBase):
 
         log.info("%s Platform Service Component initialized.", self.log_identifier)
 
-        # Start FastAPI server immediately (doesn't depend on broker)
-        self._start_fastapi_server()
-
-        # Note: Direct publisher and background tasks are started in _late_init()
-        # after SamComponentBase.run() is called and broker is guaranteed ready
+        # Note: FastAPI server, direct publisher, and background tasks are started
+        # in _late_init() after SamComponentBase.run() is called and broker is ready
 
     def _late_init(self):
         """
         Late initialization called by SamComponentBase.run() after broker is ready.
 
         This is the proper place to initialize services that require broker connectivity:
+        - FastAPI server (with startup event for background tasks)
         - Direct message publisher (for deployer commands)
-        - Background tasks (heartbeat listener, deployment checker)
+        - Agent health check timer (for removing expired agents from registry)
         """
         log.info("%s Starting late initialization (broker-dependent services)...", self.log_identifier)
 
         # Initialize direct message publisher for deployer commands
         self._init_direct_publisher()
 
-        # Start background tasks (heartbeat listener + deployment checker)
-        self._start_background_tasks()
+        # Start FastAPI server (background tasks started via FastAPI startup event)
+        self._start_fastapi_server()
+
+        # Schedule agent health checks to remove expired agents from registry
+        self._schedule_agent_health_check()
 
         log.info("%s Late initialization complete", self.log_identifier)
 
@@ -221,6 +236,28 @@ class PlatformServiceComponent(SamComponentBase):
 
             # Setup dependencies (idempotent - safe to call multiple times)
             setup_dependencies(self, self.database_url)
+
+            # Register startup event for background tasks
+            @self.fastapi_app.on_event("startup")
+            async def start_background_tasks():
+                try:
+                    from solace_agent_mesh_enterprise.init_enterprise import start_platform_background_tasks
+
+                    log.info("%s Starting enterprise platform background tasks...", self.log_identifier)
+                    await start_platform_background_tasks(self)
+                    log.info("%s Enterprise platform background tasks started", self.log_identifier)
+                except ImportError:
+                    log.info(
+                        "%s Enterprise package not available - no background tasks to start",
+                        self.log_identifier
+                    )
+                except Exception as e:
+                    log.error(
+                        "%s Failed to start enterprise background tasks: %s",
+                        self.log_identifier,
+                        e,
+                        exc_info=True
+                    )
 
             # Determine port based on SSL configuration
             port = (
@@ -281,30 +318,38 @@ class PlatformServiceComponent(SamComponentBase):
         Uses direct publishing (not A2A protocol) since deployer is a
         standalone service, not an A2A agent.
 
-        Called from _late_init() after broker is guaranteed to be connected.
+        Called from _late_init() and lazily from publish_a2a() if needed.
+        Uses SAC's existing broker connection via the BrokerOutput component.
         """
         try:
-            # Get messaging service from broker_output
-            # Note: broker_output might not be ready yet in _late_init (timing varies)
-            if not hasattr(self, 'broker_output') or not self.broker_output:
+            main_app = self.get_app()
+            if not main_app or not main_app.flows:
                 log.info(
-                    "%s Broker output not yet available - direct publisher will be initialized later if needed",
+                    "%s App flows not yet available - direct publisher will be initialized later",
                     self.log_identifier
                 )
                 return
 
-            if not hasattr(self.broker_output, 'messaging_service'):
-                log.warning(
-                    "%s Broker output missing messaging_service - deployment commands unavailable",
+            # Find BrokerOutput component in the flow (same pattern as App.send_message)
+            broker_output = None
+            flow = main_app.flows[0]
+            if flow.component_groups:
+                for group in reversed(flow.component_groups):
+                    if group:
+                        comp = group[0]
+                        if comp.module_info.get("class_name") == "BrokerOutput":
+                            broker_output = comp
+                            break
+
+            if not broker_output or not hasattr(broker_output, 'messaging_service'):
+                log.info(
+                    "%s BrokerOutput component not ready - direct publisher will be initialized later",
                     self.log_identifier
                 )
                 return
 
-            messaging_service = self.broker_output.messaging_service
-
-            from solace.messaging.publisher.direct_message_publisher import DirectMessagePublisher
-
-            self.direct_publisher = messaging_service.create_direct_message_publisher_builder().build()
+            self._messaging_service = broker_output.messaging_service.messaging_service
+            self.direct_publisher = self._messaging_service.create_direct_message_publisher_builder().build()
             self.direct_publisher.start()
 
             log.info("%s Direct message publisher initialized for deployer commands", self.log_identifier)
@@ -314,39 +359,6 @@ class PlatformServiceComponent(SamComponentBase):
                 "%s Could not initialize direct publisher: %s (deployment commands will not work)",
                 self.log_identifier,
                 e
-            )
-
-    def _start_background_tasks(self):
-        """
-        Start background tasks for Platform Service.
-
-        This method calls the enterprise function to start background tasks
-        if the enterprise package is available. Follows the same pattern as
-        WebUI Gateway for graceful degradation.
-
-        Background tasks (enterprise-only):
-        - Heartbeat listener (monitors deployer heartbeats)
-        - Deployment status checker (checks deployment timeouts)
-        - Agent registry (tracks agent availability)
-        """
-        try:
-            from solace_agent_mesh_enterprise.init_enterprise import start_platform_background_tasks
-
-            log.info("%s Starting enterprise platform background tasks...", self.log_identifier)
-            start_platform_background_tasks(self)
-            log.info("%s Enterprise platform background tasks started", self.log_identifier)
-
-        except ImportError:
-            log.info(
-                "%s Enterprise package not available - no background tasks to start",
-                self.log_identifier
-            )
-        except Exception as e:
-            log.error(
-                "%s Failed to start enterprise background tasks: %s",
-                self.log_identifier,
-                e,
-                exc_info=True
             )
 
     async def _handle_message_async(self, message, topic: str) -> None:
@@ -512,10 +524,14 @@ class PlatformServiceComponent(SamComponentBase):
             except Exception as e:
                 log.warning("%s Error stopping heartbeat listener: %s", self.log_identifier, e)
 
+        # Cancel health check timer before clearing registry
+        self.cancel_timer(self.HEALTH_CHECK_TIMER_ID)
+        log.info("%s Health check timer cancelled", self.log_identifier)
+
         # Stop agent registry
         if self.agent_registry:
             try:
-                self.agent_registry.cleanup()
+                self.agent_registry.clear()
                 log.info("%s Agent registry stopped", self.log_identifier)
             except Exception as e:
                 log.warning("%s Error stopping agent registry: %s", self.log_identifier, e)
@@ -605,6 +621,79 @@ class PlatformServiceComponent(SamComponentBase):
         """
         return self.agent_registry
 
+    def _schedule_agent_health_check(self):
+        """
+        Schedule periodic agent health checks to remove expired agents from registry.
+
+        This is essential for deployment status checking - when an agent is undeployed,
+        the deployment status checker needs to see the agent removed from the registry
+        to mark the undeploy as successful.
+        """
+        if self.health_check_interval_seconds > 0:
+            log.info(
+                "%s Scheduling agent health check every %d seconds (TTL: %d seconds)",
+                self.log_identifier,
+                self.health_check_interval_seconds,
+                self.health_check_ttl_seconds,
+            )
+            self.add_timer(
+                delay_ms=self.health_check_interval_seconds * 1000,
+                timer_id=self.HEALTH_CHECK_TIMER_ID,
+                interval_ms=self.health_check_interval_seconds * 1000,
+                callback=lambda timer_data: self._check_agent_health(),
+            )
+        else:
+            log.warning(
+                "%s Agent health check disabled (interval=%d). "
+                "Agents will not be automatically removed from registry when they stop sending heartbeats.",
+                self.log_identifier,
+                self.health_check_interval_seconds,
+            )
+
+    def _check_agent_health(self):
+        """
+        Check agent health and remove expired agents from registry.
+
+        Called periodically by the health check timer. Iterates through all
+        registered agents and removes any whose TTL has expired (i.e., they
+        haven't sent a heartbeat recently).
+        """
+        log.debug("%s Performing agent health check...", self.log_identifier)
+
+        agent_names = self.agent_registry.get_agent_names()
+        total_agents = len(agent_names)
+        agents_removed = 0
+
+        for agent_name in agent_names:
+            is_expired, time_since_last_seen = self.agent_registry.check_ttl_expired(
+                agent_name, self.health_check_ttl_seconds
+            )
+
+            if is_expired:
+                log.warning(
+                    "%s Agent '%s' TTL expired (last seen: %d seconds ago, TTL: %d seconds). Removing from registry.",
+                    self.log_identifier,
+                    agent_name,
+                    time_since_last_seen,
+                    self.health_check_ttl_seconds,
+                )
+                self.agent_registry.remove_agent(agent_name)
+                agents_removed += 1
+
+        if agents_removed > 0:
+            log.info(
+                "%s Agent health check complete: %d/%d agents removed",
+                self.log_identifier,
+                agents_removed,
+                total_agents,
+            )
+        else:
+            log.debug(
+                "%s Agent health check complete: %d agents, all healthy",
+                self.log_identifier,
+                total_agents,
+            )
+
     def publish_a2a(
         self, topic: str, payload: dict, user_properties: dict | None = None
     ):
@@ -634,18 +723,19 @@ class PlatformServiceComponent(SamComponentBase):
 
         try:
             if not self.direct_publisher:
-                raise RuntimeError("Direct publisher not initialized")
+                self._init_direct_publisher()
+                if not self.direct_publisher:
+                    raise RuntimeError("Direct publisher not initialized")
 
-            # Serialize payload to JSON
+            # Serialize payload to JSON and convert to bytearray
             message_body = json.dumps(payload)
-
-            # Build message
-            main_app = self.get_app()
-            messaging_service = main_app.connector.get_messaging_service()
-            message = messaging_service.message_builder().build(message_body)
+            message_bytes = bytearray(message_body.encode("utf-8"))
 
             # Publish directly to topic
-            self.direct_publisher.publish(message, Topic.of(topic))
+            self.direct_publisher.publish(
+                message=message_bytes,
+                destination=Topic.of(topic)
+            )
 
             log.debug(
                 "%s Successfully published deployer command to topic: %s (payload size: %d bytes)",

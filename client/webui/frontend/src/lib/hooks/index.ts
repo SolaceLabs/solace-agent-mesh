@@ -1,4 +1,6 @@
 export * from "./useAgentCards";
+export * from "./useArtifactOperations";
+export * from "./useArtifactPreview";
 export * from "./useArtifactRendering";
 export * from "./useArtifacts";
 export * from "./useAudioSettings";
