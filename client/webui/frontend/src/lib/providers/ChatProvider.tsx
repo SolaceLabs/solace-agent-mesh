@@ -1,17 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEvent, type ReactNode } from "react";
+import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { v4 } from "uuid";
 
-import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor } from "@/lib/hooks";
-import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-
-import { getAccessToken, getErrorMessage } from "@/lib/utils/api";
-import { createFileSizeErrorMessage } from "@/lib/utils/file-validation";
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
+import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations } from "@/lib/hooks";
+import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
+import { getAccessToken, getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION } from "@/lib/utils";
+
 import type {
-    ArtifactInfo,
-    ArtifactRenderingState,
     CancelTaskRequest,
     DataPart,
     FileAttachment,
@@ -31,48 +28,10 @@ import type {
     ArtifactPart,
     AgentCardInfo,
     Project,
+    StoredTaskData,
 } from "@/lib/types";
 
-// Type for tasks loaded from the API
-interface TaskFromAPI {
-    taskId: string;
-    messageBubbles: string; // JSON string
-    taskMetadata: string | null; // JSON string
-    createdTime: number;
-    userMessage?: string;
-}
-
-// Schema version for data migration purposes
-const CURRENT_SCHEMA_VERSION = 1;
-
-// Migration function: V0 -> V1 (adds schema_version to tasks without one)
-const migrateV0ToV1 = (task: any): any => {
-    return {
-        ...task,
-        taskMetadata: {
-            ...task.taskMetadata,
-            schema_version: 1,
-        },
-    };
-};
-
-// Migration registry: maps version numbers to migration functions
-
-const MIGRATIONS: Record<number, (task: any) => any> = {
-    0: migrateV0ToV1,
-    // Uncomment when future branch merges:
-    // 1: migrateV1ToV2,
-};
-
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
-
-const fileToBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve((reader.result as string).split(",")[1]);
-        reader.onerror = error => reject(error);
-    });
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -94,10 +53,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
 
     const savingTasksRef = useRef<Set<string>>(new Set());
-
-    // Track in-flight artifact preview fetches to prevent duplicates
-    const artifactFetchInProgressRef = useRef<Set<string>>(new Set());
-    const artifactDownloadInProgressRef = useRef<Set<string>>(new Set());
 
     // Track isCancelling in ref to access in async callbacks
     const isCancellingRef = useRef(isCancelling);
@@ -129,32 +84,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
     const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow">("files");
 
-    // Delete Modal State
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [artifactToDelete, setArtifactToDelete] = useState<ArtifactInfo | null>(null);
-
-    // Chat Side Panel Edit Mode State
-    const [isArtifactEditMode, setIsArtifactEditMode] = useState<boolean>(false);
-    const [selectedArtifactFilenames, setSelectedArtifactFilenames] = useState<Set<string>>(new Set());
-    const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState<boolean>(false);
-
-    // Preview State
-    const [previewArtifactFilename, setPreviewArtifactFilename] = useState<string | null>(null);
-    const [previewedArtifactAvailableVersions, setPreviewedArtifactAvailableVersions] = useState<number[] | null>(null);
-    const [currentPreviewedVersionNumber, setCurrentPreviewedVersionNumber] = useState<number | null>(null);
-    const [previewFileContent, setPreviewFileContent] = useState<FileAttachment | null>(null);
-
-    // Derive previewArtifact from artifacts array to ensure it's always up-to-date
-    const previewArtifact = useMemo(() => {
-        if (!previewArtifactFilename) return null;
-        return artifacts.find(a => a.filename === previewArtifactFilename) || null;
-    }, [artifacts, previewArtifactFilename]);
-
-    // Artifact Rendering State
-    const [artifactRenderingState, setArtifactRenderingState] = useState<ArtifactRenderingState>({
-        expandedArtifacts: new Set<string>(),
-    });
-
     // Feedback State
     const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
 
@@ -180,6 +109,52 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             return [...prev, newNotification];
         });
     }, []);
+
+    // Artifact Preview
+    const {
+        preview: { availableVersions: previewedArtifactAvailableVersions, currentVersion: currentPreviewedVersionNumber, content: previewFileContent },
+        previewArtifact,
+        openPreview,
+        navigateToVersion,
+        closePreview,
+        setPreviewByArtifact,
+    } = useArtifactPreview({
+        sessionId,
+        projectId: activeProject?.id,
+        artifacts,
+        setError,
+    });
+
+    // Artifact Operations
+    const {
+        uploadArtifactFile,
+
+        isDeleteModalOpen,
+        artifactToDelete,
+        openDeleteModal,
+        closeDeleteModal,
+        confirmDelete,
+
+        isArtifactEditMode,
+        setIsArtifactEditMode,
+        selectedArtifactFilenames,
+        setSelectedArtifactFilenames,
+        isBatchDeleteModalOpen,
+        setIsBatchDeleteModalOpen,
+        handleDeleteSelectedArtifacts,
+        confirmBatchDeleteArtifacts,
+
+        downloadAndResolveArtifact,
+    } = useArtifactOperations({
+        sessionId,
+        artifacts,
+        setArtifacts,
+        artifactsRefetch,
+        addNotification,
+        setError,
+        previewArtifact,
+        closePreview,
+    });
 
     const {
         backgroundTasks,
@@ -409,30 +384,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [extractArtifactMarkers]
     );
 
-    // Helper function to apply migrations to a task
-    const migrateTask = useCallback((task: any): any => {
-        const version = task.taskMetadata?.schema_version || 0;
-
-        if (version >= CURRENT_SCHEMA_VERSION) {
-            // Already at current version
-            return task;
-        }
-
-        // Apply migrations sequentially
-        let migratedTask = task;
-        for (let v = version; v < CURRENT_SCHEMA_VERSION; v++) {
-            const migrationFunc = MIGRATIONS[v];
-            if (migrationFunc) {
-                migratedTask = migrationFunc(migratedTask);
-                console.log(`Migrated task ${task.taskId} from v${v} to v${v + 1}`);
-            } else {
-                console.warn(`No migration function found for version ${v}`);
-            }
-        }
-
-        return migratedTask;
-    }, []);
-
     // Helper function to load session tasks and reconstruct messages
     const loadSessionTasks = useCallback(
         async (sessionId: string) => {
@@ -446,7 +397,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Parse JSON strings from backend
             const tasks = data.tasks || [];
-            const parsedTasks = tasks.map((task: TaskFromAPI) => ({
+            const parsedTasks = tasks.map((task: StoredTaskData) => ({
                 ...task,
                 messageBubbles: JSON.parse(task.messageBubbles),
                 taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null,
@@ -498,280 +449,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setTaskIdInSidePanel(mostRecentTask.taskId);
             }
         },
-        [deserializeTaskToMessages, migrateTask]
-    );
-
-    const uploadArtifactFile = useCallback(
-        async (file: File, overrideSessionId?: string, description?: string, silent: boolean = false): Promise<{ uri: string; sessionId: string } | { error: string } | null> => {
-            const effectiveSessionId = overrideSessionId || sessionId;
-            const formData = new FormData();
-            formData.append("upload_file", file);
-            formData.append("filename", file.name);
-            // Send sessionId as form field (can be empty string for new sessions)
-            formData.append("sessionId", effectiveSessionId || "");
-
-            // Add description as metadata if provided
-            if (description) {
-                const metadata = { description };
-                formData.append("metadata_json", JSON.stringify(metadata));
-            }
-
-            try {
-                const response = await api.webui.post("/api/v1/artifacts/upload", formData, { fullResponse: true });
-
-                if (response.status === 413) {
-                    const errorData = await response.json().catch(() => ({ message: `Failed to upload ${file.name}.` }));
-                    const actualSize = errorData.actual_size_bytes;
-                    const maxSize = errorData.max_size_bytes;
-                    const errorMessage = actualSize && maxSize ? createFileSizeErrorMessage(file.name, actualSize, maxSize) : errorData.message || `File "${file.name}" exceeds the maximum allowed size.`;
-                    setError({ title: "File Upload Failed", error: errorMessage });
-                    return { error: errorMessage };
-                }
-
-                if (!response.ok) {
-                    throw new Error(
-                        await response
-                            .json()
-                            .then((d: { message?: string }) => d.message)
-                            .catch(() => `Failed to upload ${file.name}.`)
-                    );
-                }
-
-                const result = await response.json();
-                if (!silent) {
-                    addNotification(`File "${file.name}" uploaded.`, "success");
-                }
-                await artifactsRefetch();
-                return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
-            } catch (error) {
-                const errorMessage = getErrorMessage(error, `Failed to upload "${file.name}".`);
-                setError({ title: "File Upload Failed", error: errorMessage });
-                return { error: errorMessage };
-            }
-        },
-        [sessionId, addNotification, artifactsRefetch, setError]
+        [deserializeTaskToMessages]
     );
 
     // Session State
     const [sessionName, setSessionName] = useState<string | null>(null);
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
     const [isLoadingSession, setIsLoadingSession] = useState<boolean>(false);
-
-    const deleteArtifactInternal = useCallback(
-        async (filename: string) => {
-            try {
-                await api.webui.delete(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`);
-                addNotification(`File "${filename}" deleted.`, "success");
-                artifactsRefetch();
-            } catch (error) {
-                setError({ title: "File Deletion Failed", error: getErrorMessage(error, `Failed to delete ${filename}.`) });
-            }
-        },
-        [sessionId, addNotification, artifactsRefetch, setError]
-    );
-
-    const openDeleteModal = useCallback((artifact: ArtifactInfo) => {
-        setArtifactToDelete(artifact);
-        setIsDeleteModalOpen(true);
-    }, []);
-
-    const closeDeleteModal = useCallback(() => {
-        setArtifactToDelete(null);
-        setIsDeleteModalOpen(false);
-    }, []);
-
-    // Wrapper function to set preview artifact by filename
-    // IMPORTANT: Must be defined before confirmDelete to avoid circular dependency
-    const setPreviewArtifact = useCallback((artifact: ArtifactInfo | null) => {
-        setPreviewArtifactFilename(artifact?.filename || null);
-    }, []);
-
-    const confirmDelete = useCallback(async () => {
-        if (artifactToDelete) {
-            // Check if the artifact being deleted is currently being previewed
-            const isCurrentlyPreviewed = previewArtifact?.filename === artifactToDelete.filename;
-
-            await deleteArtifactInternal(artifactToDelete.filename);
-
-            // If the deleted artifact was being previewed, go back to file list
-            if (isCurrentlyPreviewed) {
-                setPreviewArtifact(null);
-            }
-        }
-        closeDeleteModal();
-    }, [artifactToDelete, deleteArtifactInternal, closeDeleteModal, previewArtifact, setPreviewArtifact]);
-
-    const handleDeleteSelectedArtifacts = useCallback(() => {
-        if (selectedArtifactFilenames.size === 0) {
-            return;
-        }
-        setIsBatchDeleteModalOpen(true);
-    }, [selectedArtifactFilenames]);
-
-    const confirmBatchDeleteArtifacts = useCallback(async () => {
-        setIsBatchDeleteModalOpen(false);
-        const filenamesToDelete = Array.from(selectedArtifactFilenames);
-        let successCount = 0;
-        let errorCount = 0;
-        for (const filename of filenamesToDelete) {
-            try {
-                await api.webui.delete(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}`);
-                successCount++;
-            } catch (error: unknown) {
-                console.error(error);
-                errorCount++;
-            }
-        }
-        if (successCount > 0) addNotification(`${successCount} files(s) deleted.`, "success");
-        if (errorCount > 0) {
-            setError({ title: "File Deletion Failed", error: `${errorCount} file(s) failed to delete.` });
-        }
-        artifactsRefetch();
-        setSelectedArtifactFilenames(new Set());
-        setIsArtifactEditMode(false);
-    }, [selectedArtifactFilenames, addNotification, artifactsRefetch, sessionId, setError]);
-
-    const openArtifactForPreview = useCallback(
-        async (artifactFilename: string): Promise<FileAttachment | null> => {
-            // Prevent duplicate fetches for the same file
-            if (artifactFetchInProgressRef.current.has(artifactFilename)) {
-                return null;
-            }
-
-            // Mark this file as being fetched
-            artifactFetchInProgressRef.current.add(artifactFilename);
-
-            // Only clear state if this is a different file from what we're currently previewing
-            // This prevents clearing state during duplicate fetch attempts
-            if (previewArtifactFilename !== artifactFilename) {
-                setPreviewedArtifactAvailableVersions(null);
-                setCurrentPreviewedVersionNumber(null);
-                setPreviewFileContent(null);
-            }
-            try {
-                // Determine the correct URL based on context
-                let versionsUrl: string;
-                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    versionsUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`;
-                } else if (activeProject?.id) {
-                    versionsUrl = `/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions?project_id=${activeProject.id}`;
-                } else {
-                    throw new Error("No valid context for artifact preview");
-                }
-
-                const availableVersions: number[] = await api.webui.get(versionsUrl);
-                if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
-                setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
-                const latestVersion = Math.max(...availableVersions);
-                setCurrentPreviewedVersionNumber(latestVersion);
-                let contentUrl: string;
-                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    contentUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`;
-                } else if (activeProject?.id) {
-                    contentUrl = `/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}?project_id=${activeProject.id}`;
-                } else {
-                    throw new Error("No valid context for artifact content");
-                }
-
-                const contentResponse = await api.webui.get(contentUrl, { fullResponse: true });
-                if (!contentResponse.ok) {
-                    throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
-                }
-
-                // Get MIME type from response headers - this is the correct MIME type for this specific version
-                const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
-                // Strip charset and other parameters from Content-Type
-                const mimeType = contentType.split(";")[0].trim();
-
-                const blob = await contentResponse.blob();
-                const base64Content = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
-                const fileData: FileAttachment = {
-                    name: artifactFilename,
-                    // Use MIME type from response headers (version-specific), not from artifact list (latest version)
-                    mime_type: mimeType,
-                    content: base64Content,
-                    last_modified: artifactInfo?.last_modified || new Date().toISOString(),
-                };
-                setPreviewFileContent(fileData);
-                return fileData;
-            } catch (error) {
-                setError({ title: "Artifact Preview Failed", error: getErrorMessage(error, "Failed to load artifact preview.") });
-                return null;
-            } finally {
-                // Remove from in-progress set immediately when done
-                artifactFetchInProgressRef.current.delete(artifactFilename);
-            }
-        },
-        [sessionId, activeProject?.id, artifacts, previewArtifactFilename, setError]
-    );
-
-    const navigateArtifactVersion = useCallback(
-        async (artifactFilename: string, targetVersion: number): Promise<FileAttachment | null> => {
-            // If versions aren't loaded yet, this is likely a timing issue where this was called
-            // before openArtifactForPreview completed. Just silently return - the artifact will
-            // show the latest version when loaded, which is acceptable behavior.
-            if (!previewedArtifactAvailableVersions || previewedArtifactAvailableVersions.length === 0) {
-                return null;
-            }
-
-            // Now check if the specific version exists
-            if (!previewedArtifactAvailableVersions.includes(targetVersion)) {
-                console.warn(`Requested version ${targetVersion} not available for ${artifactFilename}`);
-                return null;
-            }
-            setPreviewFileContent(null);
-            try {
-                // Determine the correct URL based on context
-                let contentUrl: string;
-                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    contentUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`;
-                } else if (activeProject?.id) {
-                    contentUrl = `/api/v1/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}?project_id=${activeProject.id}`;
-                } else {
-                    throw new Error("No valid context for artifact navigation");
-                }
-
-                const contentResponse = await api.webui.get(contentUrl, { fullResponse: true });
-                if (!contentResponse.ok) {
-                    throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
-                }
-
-                // Get MIME type from response headers - this is the correct MIME type for this specific version
-                const contentType = contentResponse.headers.get("Content-Type") || "application/octet-stream";
-                // Strip charset and other parameters from Content-Type
-                const mimeType = contentType.split(";")[0].trim();
-
-                const blob = await contentResponse.blob();
-                const base64Content = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-                const artifactInfo = artifacts.find(art => art.filename === artifactFilename);
-                const fileData: FileAttachment = {
-                    name: artifactFilename,
-                    // Use MIME type from response headers (version-specific), not from artifact list (latest version)
-                    mime_type: mimeType,
-                    content: base64Content,
-                    last_modified: artifactInfo?.last_modified || new Date().toISOString(),
-                };
-                setCurrentPreviewedVersionNumber(targetVersion);
-                setPreviewFileContent(fileData);
-                return fileData;
-            } catch (error) {
-                setError({ title: "Artifact Version Preview Failed", error: getErrorMessage(error, "Failed to fetch artifact version.") });
-                return null;
-            }
-        },
-        [artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id, setError]
-    );
 
     const openSidePanelTab = useCallback((tab: "files" | "workflow") => {
         setIsSidePanelCollapsed(false);
@@ -799,77 +483,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
         isFinalizing.current = false;
     }, []);
-
-    // Download and resolve artifact with embeds
-    const downloadAndResolveArtifact = useCallback(
-        async (filename: string): Promise<FileAttachment | null> => {
-            // Prevent duplicate downloads for the same file
-            if (artifactDownloadInProgressRef.current.has(filename)) {
-                console.log(`[ChatProvider] Skipping duplicate download for ${filename} - already in progress`);
-                return null;
-            }
-
-            // Mark this file as being downloaded
-            artifactDownloadInProgressRef.current.add(filename);
-
-            try {
-                // Find the artifact in state
-                const artifact = artifacts.find(art => art.filename === filename);
-                if (!artifact) {
-                    console.error(`Artifact ${filename} not found in state`);
-                    return null;
-                }
-
-                // Fetch the latest version with embeds resolved
-                const availableVersions: number[] = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
-                if (!availableVersions || availableVersions.length === 0) {
-                    throw new Error("No versions available");
-                }
-
-                const latestVersion = Math.max(...availableVersions);
-                const contentResponse = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`, { fullResponse: true });
-                if (!contentResponse.ok) {
-                    throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
-                }
-                const blob = await contentResponse.blob();
-                const base64Content = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-
-                const fileData: FileAttachment = {
-                    name: filename,
-                    mime_type: artifact.mime_type || "application/octet-stream",
-                    content: base64Content,
-                    last_modified: artifact.last_modified || new Date().toISOString(),
-                };
-
-                // Clear the accumulated content and flags after successful download
-                setArtifacts(prevArtifacts => {
-                    return prevArtifacts.map(art =>
-                        art.filename === filename
-                            ? {
-                                  ...art,
-                                  accumulatedContent: undefined,
-                                  needsEmbedResolution: false,
-                              }
-                            : art
-                    );
-                });
-
-                return fileData;
-            } catch (error) {
-                setError({ title: "File Download Failed", error: getErrorMessage(error, `Failed to download ${filename}.`) });
-                return null;
-            } finally {
-                // Remove from in-progress set immediately when done
-                artifactDownloadInProgressRef.current.delete(filename);
-            }
-        },
-        [sessionId, artifacts, setArtifacts, setError]
-    );
 
     const handleSseMessage = useCallback(
         (event: MessageEvent) => {
@@ -1450,7 +1063,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsResponding(false);
             setCurrentTaskId(null);
             setTaskIdInSidePanel(null);
-            setPreviewArtifact(null);
+            closePreview();
             isFinalizing.current = false;
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
@@ -1464,7 +1077,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact, isTaskRunningInBackground]
+        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, closePreview, isTaskRunningInBackground]
     );
 
     // Start a new chat session with a prompt template pre-filled
@@ -1569,7 +1182,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setIsResponding(false);
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
-                setPreviewArtifact(null);
+                closePreview();
                 isFinalizing.current = false;
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
@@ -1615,7 +1228,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             activeProject,
             projects,
             setActiveProject,
-            setPreviewArtifact,
+            closePreview,
             setError,
             backgroundTasks,
             checkTaskStatus,
@@ -1667,31 +1280,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         },
         [addNotification, handleNewSession, sessionId, setError]
-    );
-
-    // Artifact Rendering Actions
-    const toggleArtifactExpanded = useCallback((filename: string) => {
-        setArtifactRenderingState(prevState => {
-            const newExpandedArtifacts = new Set(prevState.expandedArtifacts);
-
-            if (newExpandedArtifacts.has(filename)) {
-                newExpandedArtifacts.delete(filename);
-            } else {
-                newExpandedArtifacts.add(filename);
-            }
-
-            return {
-                ...prevState,
-                expandedArtifacts: newExpandedArtifacts,
-            };
-        });
-    }, []);
-
-    const isArtifactExpanded = useCallback(
-        (filename: string) => {
-            return artifactRenderingState.expandedArtifacts.has(filename);
-        },
-        [artifactRenderingState.expandedArtifacts]
     );
 
     // Artifact Display and Cache Management
@@ -2404,18 +1992,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         previewedArtifactAvailableVersions,
         currentPreviewedVersionNumber,
         previewFileContent,
-        openArtifactForPreview,
-        navigateArtifactVersion,
+        openArtifactForPreview: openPreview,
+        navigateArtifactVersion: navigateToVersion,
         previewArtifact,
-        setPreviewArtifact, // Now uses the wrapper function that sets filename
+        setPreviewArtifact: setPreviewByArtifact,
         updateSessionName,
         deleteSession,
-
-        /** Artifact Rendering Actions */
-        toggleArtifactExpanded,
-        isArtifactExpanded,
-        setArtifactRenderingState,
-        artifactRenderingState,
 
         /** Artifact Display and Cache Management */
         markArtifactAsDisplayed,
