@@ -353,15 +353,3 @@ def _setup_routers():
     from solace_agent_mesh.shared.exceptions.exception_handlers import register_exception_handlers
     register_exception_handlers(app)
     log.info("Registered shared exception handlers")
-
-
-@app.get("/health", tags=["Health"])
-async def health_check():
-    """
-    Platform Service health check endpoint.
-
-    Returns:
-        Dictionary with status and service name.
-    """
-    log.debug("Health check endpoint '/health' called")
-    return {"status": "healthy", "service": "Platform Service"}
