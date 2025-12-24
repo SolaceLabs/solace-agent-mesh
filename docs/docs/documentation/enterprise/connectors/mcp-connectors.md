@@ -3,15 +3,15 @@ title: MCP Connectors
 sidebar_position: 2
 ---
 
-MCP connectors enable agents to communicate with remote MCP servers and access external tools.
+MCP connectors allow agents to communicate with remote MCP servers and access external tools.
 
 ## Overview
 
-When you create an MCP connector, agents can discover and invoke tools provided by Model Context Protocol (MCP) servers. MCP is a standardized protocol that allows agents to interact with external data sources and services through a uniform interface.
+Model Context Protocol (MCP) is a standardized protocol that allows agents to interact with external data sources and services through a uniform interface. MCP connectors discover and invoke tools provided by MCP servers.
 
-MCP connectors establish connections to remote MCP servers using Server-Sent Events (SSE) or Streamable HTTP transport protocols. The connector automatically discovers the tools that each server provides, and agents can then invoke these tools through natural language interactions. The connector handles protocol communication, authentication, and request formatting.
+MCP connectors establish connections to remote MCP servers using one of two transport protocols: Server-Sent Events (SSE) or Streamable HTTP. The connector automatically discovers the tools that each server provides. Agents invoke these tools through natural language interactions. The connector handles protocol communication, authentication, and request formatting.
 
-Agent Mesh Enterprise supports remote MCP servers only. Local MCP servers that use stdio (standard input/output) for communication are not supported through Agent Builder. The connector requires network-accessible MCP servers using SSE or Streamable HTTP transport protocols. The connector supports multiple authentication methods and provides tool selection capabilities to control which MCP tools are available to agents.
+Agent Mesh Enterprise supports remote MCP servers only through the connector interface. The system does not support local MCP servers that use stdio (standard input/output) for communication. The connector requires network-accessible MCP servers using SSE or Streamable HTTP transport protocols. The connector supports multiple authentication methods and provides tool selection capabilities to control which MCP tools are available to agents.
 
 ## Prerequisites
 
@@ -29,11 +29,11 @@ You need the URL endpoint of the MCP server. This is typically an HTTPS URL that
 
 Depending on the MCP server's authentication requirements, you may need:
 
-- API keys for servers using API key authentication
-- Username and password for servers using basic authentication
-- Bearer tokens for servers using token-based authentication
-- OAuth2/OIDC credentials for servers using OAuth2 flows
-- No credentials for public MCP servers without authentication
+- API keys for servers using API key authentication.
+- Username and password for servers using basic authentication.
+- Bearer tokens for servers using token-based authentication.
+- OAuth2/OIDC credentials for servers using OAuth2 flows.
+- No credentials for public MCP servers without authentication.
 
 ### Network Access
 
@@ -64,8 +64,8 @@ Example: `https://mcp.example.com/v1`
 **Transport Protocol**
 
 Select the transport protocol that the MCP server uses:
-- SSE (Server-Sent Events): The server uses Server-Sent Events for streaming communication
-- Streamable HTTP: The server uses HTTP streaming for communication
+- SSE (Server-Sent Events): The server uses Server-Sent Events for streaming communication.
+- Streamable HTTP: The server uses HTTP streaming for communication.
 
 Verify with your MCP server administrator which transport protocol the server supports.
 
@@ -73,10 +73,10 @@ Verify with your MCP server administrator which transport protocol the server su
 
 Select the authentication method that matches your MCP server's requirements. The available options are:
 
-- None: The MCP server does not require authentication
-- API Key: The MCP server requires an API key sent in a header or query parameter
-- HTTP: The MCP server uses HTTP authentication (Basic Auth or Bearer Token)
-- OAuth2/OIDC: The MCP server uses OAuth2 or OpenID Connect flows
+- None: The MCP server does not require authentication.
+- API Key: The MCP server requires an API key sent in a header or query parameter.
+- HTTP: The MCP server uses HTTP authentication (Basic Auth or Bearer Token).
+- OAuth2/OIDC: The MCP server uses OAuth2 or OpenID Connect flows.
 
 The authentication configuration fields that appear depend on the type you select.
 
@@ -94,13 +94,13 @@ Select this option for public MCP servers that do not require authentication. No
 
 Configure API key authentication by providing:
 
-**Location**: Select where the API key should be sent:
-- Header: The API key is sent in an HTTP header
-- Query Parameter: The API key is sent as a URL query parameter
+**Location:** Select where the connector should send the API key:
+- Header: Send the API key in an HTTP header.
+- Query Parameter: Send the API key as a URL query parameter.
 
-**Parameter Name**: Enter the name of the header or query parameter that should contain the API key.
+**Parameter Name:** Enter the name of the header or query parameter that should contain the API key.
 
-**API Key Value**: Enter the API key value.
+**API Key Value:** Enter the API key value.
 
 **Example Configuration (Header):**
 - Location: Header
@@ -111,21 +111,21 @@ Configure API key authentication by providing:
 
 Configure HTTP authentication by providing:
 
-**HTTP Authentication Type**: Select the specific HTTP authentication method:
-- Basic: Uses HTTP Basic Authentication with username and password
-- Bearer: Uses Bearer token authentication
+**HTTP Authentication Type:** Select the specific HTTP authentication method:
+- Basic: Uses HTTP Basic Authentication with username and password.
+- Bearer: Uses Bearer token authentication.
 
 **For Basic Authentication:**
 
-**Username**: Enter the username for Basic Authentication
+**Username:** Enter the username for Basic Authentication.
 
-**Password**: Enter the password for Basic Authentication
+**Password:** Enter the password for Basic Authentication.
 
 The connector automatically encodes the username and password in Base64 format and sends them in the `Authorization` header as required by the HTTP Basic Authentication specification.
 
 **For Bearer Token:**
 
-**Token**: Enter the bearer token value
+**Token:** Enter the bearer token value.
 
 The connector sends the token in the `Authorization` header with the `Bearer` prefix as required by the Bearer token specification.
 
@@ -145,15 +145,15 @@ In manual mode, you specify the OAuth2 endpoints and configuration explicitly. U
 
 Configure the following fields:
 
-**Authorization Endpoint**: The URL where users authorize the application
+**Authorization Endpoint:** The URL where users authorize the application.
 
-**Token Endpoint**: The URL where access tokens are obtained
+**Token Endpoint:** The URL where access tokens are obtained.
 
-**Client ID**: Your OAuth2 client identifier
+**Client ID:** Your OAuth2 client identifier.
 
-**Client Secret**: Your OAuth2 client secret
+**Client Secret:** Your OAuth2 client secret.
 
-**Scopes**: Space-separated list of OAuth2 scopes to request (optional)
+**Scopes:** Space-separated list of OAuth2 scopes to request (optional).
 
 The connector uses these credentials to obtain access tokens and automatically refreshes them when they expire.
 
@@ -164,12 +164,17 @@ After you configure the connector settings and authentication, click Next to pro
 You can then specify which tools should be available to agents by selecting specific tools or allowing all tools.
 
 Tool selection helps you:
-- Limit agents to relevant tools for their purpose
-- Exclude potentially dangerous or administrative operations
-- Reduce the number of tools agents must consider, improving response time and accuracy
-- Control costs by limiting tool usage
+- Limit agents to relevant tools for their purpose.
+- Exclude potentially dangerous or administrative operations.
+- Reduce the number of tools agents must consider, improving response time and accuracy.
+- Control costs by limiting tool usage.
 
-If tool retrieval fails, verify the MCP server URL is correct and accessible, check that the transport protocol selection matches what the server supports, ensure authentication credentials are valid, and confirm network connectivity to the server.
+If tool retrieval fails:
+
+1. Verify the MCP server URL is correct and accessible.
+2. Check that the transport protocol selection matches what the server supports.
+3. Ensure authentication credentials are valid.
+4. Confirm network connectivity to the server.
 
 ## After Creating the Connector
 
@@ -193,16 +198,39 @@ Users can potentially invoke any tool the connector allows by phrasing requests 
 
 ### Connection Test Failures
 
-If the connection test fails, verify the MCP server URL is correct and accessible, check that the transport protocol selection (SSE or Streamable HTTP) matches what the server supports, ensure authentication credentials are valid and not expired, confirm the MCP server implements the Model Context Protocol correctly, and verify network connectivity and firewall rules allow access to the server.
+If the connection test fails:
+
+1. Verify the MCP server URL is correct and accessible.
+2. Check that the transport protocol selection (SSE or Streamable HTTP) matches what the server supports.
+3. Ensure authentication credentials are valid and not expired.
+4. Confirm the MCP server implements the Model Context Protocol correctly.
+5. Verify network connectivity and firewall rules allow access to the server.
 
 ### Authentication Failures
 
-If tool invocations fail with authentication errors, verify credentials are correct by testing them with the MCP server's documentation or API, check that OAuth2 tokens have not expired (the connector should refresh them automatically), confirm the authentication method matches the server's requirements, ensure credentials have sufficient permissions for the tools agents attempt to invoke, and for OAuth2 discovery mode verify the issuer URL is correct and the discovery endpoint is accessible.
+If tool invocations fail with authentication errors:
+
+1. Verify credentials are correct by testing them with the MCP server's documentation or API.
+2. Check that OAuth2 tokens have not expired. The connector should refresh them automatically.
+3. Confirm the authentication method matches the server's requirements.
+4. Ensure credentials have sufficient permissions for the tools agents attempt to invoke.
+5. For OAuth2 discovery mode, verify the issuer URL is correct and the discovery endpoint is accessible.
 
 ### Tools Not Available
 
-If agents report that tools are not available, verify the MCP server is running and responding to discovery requests, check that tool selection is configured correctly, review connector logs for tool discovery messages, and confirm the MCP server exposes the expected tools through the protocol.
+If agents report that tools are not available:
+
+1. Verify the MCP server is running and responding to discovery requests.
+2. Check that tool selection is configured correctly.
+3. Review connector logs for tool discovery messages.
+4. Confirm the MCP server exposes the expected tools through the protocol.
 
 ### Protocol Compatibility Issues
 
-If you encounter protocol errors, verify the MCP server implements a compatible version of the Model Context Protocol, confirm the server supports the selected transport protocol (SSE or Streamable HTTP), check server logs for protocol-level errors or incompatibilities, ensure the server responds with valid protocol messages, and contact the MCP server administrator if the server implementation appears incompatible.
+If you encounter protocol errors:
+
+1. Verify the MCP server implements a compatible version of the Model Context Protocol.
+2. Confirm the server supports the selected transport protocol (SSE or Streamable HTTP).
+3. Check server logs for protocol-level errors or incompatibilities.
+4. Ensure the server responds with valid protocol messages.
+5. Contact the MCP server administrator if the server implementation appears incompatible.

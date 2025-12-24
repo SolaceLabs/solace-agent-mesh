@@ -5,33 +5,33 @@ sidebar_position: 10
 
 # Connectors
 
-Connectors link agents to external data sources and services. Each connector type provides access to different systems using configured credentials and connection details. Agents use connectors to retrieve information, execute queries, and interact with external platforms through natural language conversations.
+Connectors allow your agents to access external data sources and services. You configure each connector with credentials and connection details for a specific system. Agents use connectors to retrieve information, execute queries, and interact with external platforms through natural language conversations.
 
 ## Connector Types
 
-Agent Mesh Enterprise supports multiple connector types, each designed for specific integration scenarios.
+Agent Mesh Enterprise provides multiple connector types. Each type integrates with different external systems.
 
-### API Connectors
+### OpenAPI Connectors
 
-API connectors allow agents to interact with REST APIs defined by OpenAPI specifications. These connectors automatically generate callable tools from API endpoints, enabling agents to make authenticated HTTP requests to external services. For detailed information about creating and configuring API connectors, see [API Connectors](api-connectors.md).
+OpenAPI connectors allow agents to interact with REST APIs that use OpenAPI specifications. The connectors automatically generate callable tools from API endpoints. Agents use these tools to make authenticated HTTP requests to external services. For detailed information about creating and configuring OpenAPI connectors, see [OpenAPI Connectors](openapi-connectors.md).
 
 ### MCP Connectors
 
-MCP (Model Context Protocol) connectors enable agents to communicate with MCP-compliant servers. These connectors provide access to external tools and data sources that implement the Model Context Protocol standard. For detailed information about creating and configuring MCP connectors, see [MCP Connectors](mcp-connectors.md).
+Model Context Protocol (MCP) connectors allow agents to communicate with MCP-compliant servers. The connectors provide access to external tools and data sources that implement the MCP standard. For detailed information about creating and configuring MCP connectors, see [MCP Connectors](mcp-connectors.md).
 
 ### SQL Connectors
 
-SQL connectors enable agents to query relational databases using natural language. These connectors convert user questions into SQL queries and execute them against MySQL, PostgreSQL, or MariaDB databases. For detailed information about creating and configuring SQL connectors, see [SQL Connectors](sql-connectors.md).
+SQL connectors allow agents to query relational databases using natural language. The connectors convert user questions into SQL queries and execute them against MySQL, PostgreSQL, or MariaDB databases. For detailed information about creating and configuring SQL connectors, see [SQL Connectors](sql-connectors.md).
 
 ## Creating Connectors
 
-You create connectors through the Connectors section of the Agent Mesh Enterprise web interface. Navigate to the Connectors page and click the Create Connector button to begin the creation process. The creation process varies depending on the connector type, but all connectors require a unique name and connection credentials appropriate for the target system.
+You create connectors through the Connectors section of the Agent Mesh Enterprise web interface. Navigate to the Connectors page and click the Create Connector button to begin the creation process. The creation process varies depending on the connector type. All connectors require a unique name and connection credentials appropriate for the target system.
 
 Once you create a connector, it becomes available for assignment to any agent in your deployment. This reusability means you can connect multiple agents to the same external system without duplicating connection configuration.
 
 ## Shared Credential Model
 
-All connector types in Agent Mesh Enterprise implement a shared credential model. When you create a connector, you configure it with specific credentials (database passwords, API keys, service account tokens, etc.). All agents assigned to that connector use those same credentials and have identical access permissions to the external system.
+All connector types in Agent Mesh Enterprise implement a shared credential model. When you create a connector, you configure it with specific credentials (database passwords, API keys, service account tokens, etc.). All agents assigned to that connector use the connector's credentials and have identical access permissions to the external system.
 
 This design has important security implications. You cannot restrict one agent to read-only access and another agent to write access if they share the same connector. Security boundaries exist at the external system level (database permissions, API scopes, etc.), not at the connector assignment level within Agent Mesh Enterprise.
 
@@ -47,13 +47,13 @@ Changes to connector assignments take effect when you deploy or update the agent
 
 ### Editing Connectors
 
-You can modify connector configurations at any time through the Connectors interface. Changes to connection details or credentials take effect for new connections. Depending on the connector type, existing active connections may continue using previous credentials until they expire and reconnect.
+You can modify connector configurations at any time through the Connectors interface. The connector applies changes to connection details or credentials when you deploy a new agent. Existing agents continue to use the previous configuration until you redeploy them.
 
 If agents are actively using a connector when you modify it, temporary failures may occur during the transition period. You should plan connector updates during maintenance windows or coordinate with agent users to minimize disruptions.
 
 ### Deleting Connectors
 
-You can delete connectors, but the system enforces restrictions to prevent breaking deployed agents. To delete a connector, it must not be assigned to any agents. If agents have the connector assigned, you must first undeploy those agents, remove the connector assignment from the agent configuration, and then you can delete the connector.
+You can delete a connector only if no agents are assigned to it. The system enforces this restriction to prevent breaking deployed agents. If agents have the connector assigned, you must first undeploy those agents, remove the connector assignment from the agent configuration, and then delete the connector.
 
 The deletion process removes the connector configuration from Agent Mesh Enterprise but does not affect the external system. Database users, API keys, and other external credentials remain in place, requiring separate cleanup if you no longer need them.
 
