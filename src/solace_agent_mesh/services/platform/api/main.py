@@ -311,14 +311,14 @@ def _setup_routers():
     under the PLATFORM_SERVICE_PREFIX. This ensures a consistent API structure
     where /api/v1/platform/* contains all platform management endpoints.
 
-    Community routers: Loaded from .routers (empty in Phase 1)
+    Community routers: Loaded from .routers
     Enterprise routers: Dynamically loaded from enterprise package if available
     """
     # Define the platform service API prefix
     # This is the single source of truth for all platform service endpoints
     PLATFORM_SERVICE_PREFIX = "/api/v1/platform"
 
-    # Load community platform routers (empty in Phase 1)
+    # Load community platform routers
     from .routers import get_community_platform_routers
 
     community_routers = get_community_platform_routers()
