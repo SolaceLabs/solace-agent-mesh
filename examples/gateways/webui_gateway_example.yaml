@@ -39,7 +39,7 @@ apps:
 
       # --- Platform Service Configuration ---
       # URL for Platform Service (runs separately on port 8001)
-      # Frontend will route /api/v1/enterprise/* requests to this URL
+      # Frontend will route /api/v1/platform/* requests to this URL
       platform_service:
         url: "${PLATFORM_SERVICE_URL, http://localhost:8001}"
 
