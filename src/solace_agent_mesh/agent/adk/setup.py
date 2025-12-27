@@ -33,12 +33,18 @@ from ..tools.tool_config_types import (
     AnyToolConfig,
     BuiltinToolConfig,
     BuiltinGroupToolConfig,
+    ExecutorToolConfig,
     McpToolConfig,
     PythonToolConfig,
+)
+from ..tools.executors import (
+    ExecutorBasedTool,
+    create_executor,
 )
 from ..tools.tool_definition import BuiltinTool
 from .app_llm_agent import AppLlmAgent
 from .embed_resolving_mcp_toolset import EmbedResolvingMCPToolset
+from .tool_result_processor import ToolResultProcessor
 from .tool_wrapper import ADKToolWrapper
 
 if TYPE_CHECKING:
@@ -772,6 +778,155 @@ async def _load_openapi_tool(component: "SamAgentComponent", tool_config: Dict) 
         return [], [], []
 
 
+async def _load_executor_tool(
+    component: "SamAgentComponent", tool_config: Dict
+) -> ToolLoadingResult:
+    """
+    Load an executor-based tool from configuration.
+
+    Executor tools run on different backends (Python, Lambda, HTTP) through
+    a unified configuration interface.
+    """
+    from google.genai import types as adk_types
+
+    tool_config_model = ExecutorToolConfig.model_validate(tool_config)
+    log_identifier = f"[ExecutorTool:{tool_config_model.name}]"
+
+    log.info(
+        "%s Loading executor tool with %s executor",
+        log_identifier,
+        tool_config_model.executor,
+    )
+
+    # Build executor kwargs based on type
+    executor_kwargs = {}
+
+    if tool_config_model.executor == "python":
+        executor_kwargs = {
+            "module": tool_config_model.module,
+            "function": tool_config_model.function,
+            "pass_tool_context": tool_config_model.pass_tool_context,
+            "pass_tool_config": tool_config_model.pass_tool_config,
+        }
+    elif tool_config_model.executor == "lambda":
+        executor_kwargs = {
+            "function_arn": tool_config_model.function_arn,
+            "region": tool_config_model.region,
+            "invocation_type": tool_config_model.invocation_type,
+            "include_context": tool_config_model.include_context,
+            "timeout_seconds": tool_config_model.timeout_seconds,
+        }
+    elif tool_config_model.executor == "http":
+        executor_kwargs = {
+            "endpoint": tool_config_model.endpoint,
+            "method": tool_config_model.method,
+            "auth_type": tool_config_model.auth_type,
+            "auth_token": tool_config_model.auth_token,
+            "api_key_header": tool_config_model.api_key_header,
+            "timeout_seconds": tool_config_model.timeout_seconds,
+            "include_context": tool_config_model.include_context,
+            "args_location": tool_config_model.args_location,
+            "headers": tool_config_model.headers,
+        }
+
+    # Create executor
+    executor = create_executor(tool_config_model.executor, **executor_kwargs)
+
+    # Build parameter schema
+    parameters_schema = _build_executor_schema(tool_config_model.parameters)
+
+    # Create tool instance
+    tool = ExecutorBasedTool(
+        name=tool_config_model.name,
+        description=tool_config_model.description,
+        parameters_schema=parameters_schema,
+        executor=executor,
+        tool_config=tool_config_model.tool_config,
+        artifact_content_args=tool_config_model.artifact_content_args,
+    )
+
+    # Initialize executor
+    await tool.init(component, tool_config_model)
+
+    # Create cleanup function
+    async def cleanup_executor():
+        await tool.cleanup(component, tool_config_model)
+
+    log.info(
+        "%s Loaded executor tool '%s'",
+        component.log_identifier,
+        tool_config_model.name,
+    )
+
+    return [tool], [], [cleanup_executor]
+
+
+def _build_executor_schema(params_config: Optional[Dict]) -> "adk_types.Schema":
+    """Build an ADK Schema from a parameters configuration dict."""
+    from google.genai import types as adk_types
+
+    if not params_config:
+        return adk_types.Schema(
+            type=adk_types.Type.OBJECT,
+            properties={},
+            required=[],
+        )
+
+    type_map = {
+        "string": adk_types.Type.STRING,
+        "str": adk_types.Type.STRING,
+        "integer": adk_types.Type.INTEGER,
+        "int": adk_types.Type.INTEGER,
+        "number": adk_types.Type.NUMBER,
+        "float": adk_types.Type.NUMBER,
+        "boolean": adk_types.Type.BOOLEAN,
+        "bool": adk_types.Type.BOOLEAN,
+        "array": adk_types.Type.ARRAY,
+        "list": adk_types.Type.ARRAY,
+        "object": adk_types.Type.OBJECT,
+        "dict": adk_types.Type.OBJECT,
+    }
+
+    # Handle standard JSON Schema format
+    if "properties" in params_config:
+        properties = {}
+        for name, prop_config in params_config.get("properties", {}).items():
+            prop_type = prop_config.get("type", "string")
+            adk_type = type_map.get(prop_type.lower(), adk_types.Type.STRING)
+            properties[name] = adk_types.Schema(
+                type=adk_type,
+                description=prop_config.get("description"),
+                nullable=prop_config.get("nullable", False),
+            )
+
+        return adk_types.Schema(
+            type=adk_types.Type.OBJECT,
+            properties=properties,
+            required=params_config.get("required", []),
+        )
+
+    # Handle simple format: {param_name: type_or_config}
+    properties = {}
+    for name, type_spec in params_config.items():
+        if isinstance(type_spec, str):
+            adk_type = type_map.get(type_spec.lower(), adk_types.Type.STRING)
+            properties[name] = adk_types.Schema(type=adk_type)
+        elif isinstance(type_spec, dict):
+            prop_type = type_spec.get("type", "string")
+            adk_type = type_map.get(prop_type.lower(), adk_types.Type.STRING)
+            properties[name] = adk_types.Schema(
+                type=adk_type,
+                description=type_spec.get("description"),
+                nullable=type_spec.get("nullable", False),
+            )
+
+    return adk_types.Schema(
+        type=adk_types.Type.OBJECT,
+        properties=properties,
+        required=[],
+    )
+
+
 def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[str]) -> ToolLoadingResult:
     """Loads internal framework tools that are not explicitly configured by the user."""
     loaded_tools: List[Union[BaseTool, Callable]] = []
@@ -899,6 +1054,12 @@ async def load_adk_tools(
                         new_builtins,
                         new_cleanups,
                     ) = await _load_openapi_tool(component, tool_config)
+                elif tool_type == "executor":
+                    (
+                        new_tools,
+                        new_builtins,
+                        new_cleanups,
+                    ) = await _load_executor_tool(component, tool_config)
                 else:
                     log.warning(
                         "%s Unknown tool type '%s' in config: %s",
@@ -1156,6 +1317,9 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
+        # Create ToolResult processor for handling structured tool responses
+        tool_result_processor = ToolResultProcessor(component)
+
         large_response_cb_with_component = functools.partial(
             adk_callbacks.manage_large_mcp_tool_responses_callback,
             host_component=component,
@@ -1185,20 +1349,31 @@ def initialize_adk_agent(
             )
 
             try:
-                # First, notify the UI about the raw result.
-                # This is a fire-and-forget notification that does not modify the response.
-                notify_tool_result_cb_with_component(
-                    tool, args, tool_context, tool_response
+                # Step 0: Process ToolResult objects if present.
+                # This converts ToolResult to a dict with automatic artifact handling.
+                processed_tool_response = await tool_result_processor.process(
+                    tool_response, tool_context, tool.name
+                )
+                effective_response = (
+                    processed_tool_response
+                    if processed_tool_response is not None
+                    else tool_response
                 )
 
-                # Now, proceed with the existing chain that modifies the response for the LLM.
+                # Step 1: Notify the UI about the result.
+                # This is a fire-and-forget notification that does not modify the response.
+                notify_tool_result_cb_with_component(
+                    tool, args, tool_context, effective_response
+                )
+
+                # Step 2: Handle large MCP responses.
                 processed_by_large_handler = await large_response_cb_with_component(
-                    tool, args, tool_context, tool_response
+                    tool, args, tool_context, effective_response
                 )
                 response_for_metadata_injector = (
                     processed_by_large_handler
                     if processed_by_large_handler is not None
-                    else tool_response
+                    else effective_response
                 )
 
                 final_response_after_metadata = (
@@ -1238,7 +1413,8 @@ def initialize_adk_agent(
 
         agent.after_tool_callback = chained_after_tool_callback
         log.debug(
-            "%s Chained 'manage_large_mcp_tool_responses_callback' and 'after_tool_callback_inject_metadata' as after_tool_callback.",
+            "%s Chained after_tool callbacks: ToolResultProcessor -> "
+            "manage_large_mcp_tool_responses -> inject_metadata -> track_artifacts",
             component.log_identifier,
         )
 

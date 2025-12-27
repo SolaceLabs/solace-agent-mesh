@@ -969,6 +969,20 @@ def shared_solace_connector(
         model_suffix="config-context",
     )
 
+    artifact_content_agent_config = create_agent_config(
+        agent_name="ArtifactContentAgent",
+        description="Agent for testing ArtifactContent type hint artifact pre-loading.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.artifact_content_tools",
+            },
+            {"tool_type": "builtin-group", "group_name": "artifact_management"},
+        ],
+        model_suffix="artifact-content",
+    )
+
     # Generic Gateway test apps
     minimal_gateway_config = {
         "namespace": "test_namespace",
@@ -1133,6 +1147,12 @@ def shared_solace_connector(
         {
             "name": "ConfigContextAgent_App",
             "app_config": config_context_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "ArtifactContentAgent_App",
+            "app_config": artifact_content_agent_config,
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.agent.sac.app",
         },
@@ -1340,6 +1360,18 @@ def config_context_agent_app_under_test(
     yield app_instance
 
 
+@pytest.fixture(scope="session")
+def artifact_content_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the ArtifactContentAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("ArtifactContentAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve ArtifactContentAgent_App."
+    yield app_instance
+
+
 def get_component_from_app(app: SamAgentApp) -> SamAgentComponent:
     """Helper to get the component from an app."""
     if app.flows and app.flows[0].component_groups:
@@ -1431,6 +1463,14 @@ def config_context_agent_component(
 ) -> SamAgentComponent:
     """Retrieves the ConfigContextAgent component instance."""
     return get_component_from_app(config_context_agent_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def artifact_content_agent_component(
+    artifact_content_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the ArtifactContentAgent component instance."""
+    return get_component_from_app(artifact_content_agent_app_under_test)
 
 
 @pytest.fixture(scope="function")

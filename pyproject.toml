@@ -210,6 +210,7 @@ markers = [
     "peer_agent_tool: marks tests related to the peer_agent_tool",
     "web_tools: marks tests related to the web_tools",
     "dynamic_tools: marks tests related to the dynamic_tools",
+    "artifact_preloading: marks tests related to ArtifactContent type hint pre-loading",
     "auth: marks tests associated with authentication and authorization",
     "oauth: OAuth specific tests",
     "error_handling: Tests related to error handling and recovery",
