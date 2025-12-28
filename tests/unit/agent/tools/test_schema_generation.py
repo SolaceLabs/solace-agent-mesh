@@ -2,7 +2,7 @@
 Unit tests for schema generation from function signatures.
 
 Tests for the _get_schema_from_signature function that converts Python function
-type hints into ADK schemas, including detection of ArtifactContent types for
+type hints into ADK schemas, including detection of Artifact types for
 artifact pre-loading.
 """
 
@@ -14,7 +14,7 @@ from solace_agent_mesh.agent.tools.dynamic_tool import (
     _get_schema_from_signature,
     _SchemaDetectionResult,
 )
-from solace_agent_mesh.agent.tools.artifact_types import ArtifactContent
+from solace_agent_mesh.agent.tools.artifact_types import Artifact
 from solace_agent_mesh.agent.utils.tool_context_facade import ToolContextFacade
 
 
@@ -79,22 +79,22 @@ class TestSchemaFromSignatureBasicTypes:
 
 
 class TestSchemaFromSignatureWithArtifacts:
-    """Test ArtifactContent handling in schema generation."""
+    """Test Artifact handling in schema generation."""
 
-    def test_single_artifact_content_param(self):
-        """ArtifactContent param should generate STRING schema."""
-        async def tool_func(input_content: ArtifactContent, filename: str):
+    def test_single_artifact_param(self):
+        """Artifact param should generate STRING schema."""
+        async def tool_func(input_content: Artifact, filename: str):
             pass
 
         schema = _get_schema_from_signature(tool_func)
 
-        # ArtifactContent should be translated to STRING for LLM
+        # Artifact should be translated to STRING for LLM
         assert schema.properties["input_content"].type == adk_types.Type.STRING
         assert schema.properties["filename"].type == adk_types.Type.STRING
 
-    def test_list_artifact_content_param(self):
-        """List[ArtifactContent] param should generate ARRAY of STRING schema."""
-        async def tool_func(input_files: List[ArtifactContent]):
+    def test_list_artifact_param(self):
+        """List[Artifact] param should generate ARRAY of STRING schema."""
+        async def tool_func(input_files: List[Artifact]):
             pass
 
         schema = _get_schema_from_signature(tool_func)
@@ -102,9 +102,9 @@ class TestSchemaFromSignatureWithArtifacts:
         assert schema.properties["input_files"].type == adk_types.Type.ARRAY
         assert schema.properties["input_files"].items.type == adk_types.Type.STRING
 
-    def test_optional_artifact_content_param(self):
-        """Optional[ArtifactContent] should be nullable STRING."""
-        async def tool_func(input_content: Optional[ArtifactContent] = None):
+    def test_optional_artifact_param(self):
+        """Optional[Artifact] should be nullable STRING."""
+        async def tool_func(input_content: Optional[Artifact] = None):
             pass
 
         schema = _get_schema_from_signature(tool_func)
@@ -115,7 +115,7 @@ class TestSchemaFromSignatureWithArtifacts:
     def test_mixed_artifact_and_regular_params(self):
         """Function with mixed param types should work correctly."""
         async def tool_func(
-            input_content: ArtifactContent,
+            input_content: Artifact,
             output_name: str,
             max_rows: int,
             include_header: bool = True,
@@ -134,35 +134,35 @@ class TestSchemaFromSignatureWithDetectionResult:
     """Test schema generation with _SchemaDetectionResult for artifact tracking."""
 
     def test_artifact_detected_in_result(self):
-        """ArtifactContent params should be tracked in detection result."""
-        async def tool_func(input_content: ArtifactContent, filename: str):
+        """Artifact params should be tracked in detection result."""
+        async def tool_func(input_content: Artifact, filename: str):
             pass
 
         detection_result = _SchemaDetectionResult()
         schema = _get_schema_from_signature(tool_func, detection_result=detection_result)
 
-        assert "input_content" in detection_result.artifact_content_params
-        assert detection_result.artifact_content_params["input_content"].is_artifact is True
-        assert detection_result.artifact_content_params["input_content"].is_list is False
+        assert "input_content" in detection_result.artifact_params
+        assert detection_result.artifact_params["input_content"].is_artifact is True
+        assert detection_result.artifact_params["input_content"].is_list is False
 
-        # filename should NOT be in artifact_content_params
-        assert "filename" not in detection_result.artifact_content_params
+        # filename should NOT be in artifact_params
+        assert "filename" not in detection_result.artifact_params
 
     def test_list_artifact_detected_as_list(self):
-        """List[ArtifactContent] should be detected with is_list=True."""
-        async def tool_func(input_files: List[ArtifactContent]):
+        """List[Artifact] should be detected with is_list=True."""
+        async def tool_func(input_files: List[Artifact]):
             pass
 
         detection_result = _SchemaDetectionResult()
         _get_schema_from_signature(tool_func, detection_result=detection_result)
 
-        assert "input_files" in detection_result.artifact_content_params
-        assert detection_result.artifact_content_params["input_files"].is_list is True
+        assert "input_files" in detection_result.artifact_params
+        assert detection_result.artifact_params["input_files"].is_list is True
 
     def test_tool_context_facade_detected(self):
         """ToolContextFacade param should be detected and excluded from schema."""
         async def tool_func(
-            input_content: ArtifactContent,
+            input_content: Artifact,
             ctx: ToolContextFacade = None,
         ):
             pass
@@ -174,11 +174,11 @@ class TestSchemaFromSignatureWithDetectionResult:
         assert detection_result.ctx_facade_param_name == "ctx"
         assert "ctx" not in schema.properties
 
-    def test_artifact_content_args_property(self):
-        """detection_result.artifact_content_args should return set of param names."""
+    def test_artifact_args_property(self):
+        """detection_result.artifact_args should return set of param names."""
         async def tool_func(
-            file1: ArtifactContent,
-            file2: ArtifactContent,
+            file1: Artifact,
+            file2: Artifact,
             name: str,
         ):
             pass
@@ -186,7 +186,7 @@ class TestSchemaFromSignatureWithDetectionResult:
         detection_result = _SchemaDetectionResult()
         _get_schema_from_signature(tool_func, detection_result=detection_result)
 
-        args = detection_result.artifact_content_args
+        args = detection_result.artifact_args
         assert isinstance(args, set)
         assert "file1" in args
         assert "file2" in args
@@ -218,9 +218,9 @@ class TestSchemaFromSignatureRequired:
         assert "enabled" not in schema.required
 
     def test_artifact_excluded_from_required_when_optional(self):
-        """Optional ArtifactContent should not be in required."""
+        """Optional Artifact should not be in required."""
         async def tool_func(
-            input_content: Optional[ArtifactContent] = None,
+            input_content: Optional[Artifact] = None,
             name: str = "default",
         ):
             pass

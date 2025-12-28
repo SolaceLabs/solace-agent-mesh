@@ -28,6 +28,7 @@ from ...agent.utils.context_helpers import get_original_session_id
 
 from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
+from .tool_result import ToolResult
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ async def convert_file_to_markdown(
     input_filename: str,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Converts an input file artifact to Markdown using the MarkItDown library.
     The supported input types are those supported by MarkItDown (e.g., PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP).
@@ -61,10 +62,10 @@ async def convert_file_to_markdown(
         tool_config: Optional dictionary for tool-specific configuration (unused by this tool).
 
     Returns:
-        A dictionary with status, output artifact details, and a preview of the result.
+        ToolResult with output artifact details and a preview of the result.
     """
     if not tool_context:
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
     log_identifier = f"[GeneralTool:convert_to_markdown:{input_filename}]"
     log.info("%s Processing request.", log_identifier)
@@ -81,10 +82,14 @@ async def convert_file_to_markdown(
         if not artifact_service:
             raise ValueError("ArtifactService is not available in the context.")
 
-        parts = input_filename.split(":", 1)
-        filename_base_for_load = parts[0]
-        version_str = parts[1] if len(parts) > 1 else None
-        version_to_load = int(version_str) if version_str else None
+        # Parse filename:version format (rsplit to handle colons in filenames)
+        parts = input_filename.rsplit(":", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            filename_base_for_load = parts[0]
+            version_to_load = int(parts[1])
+        else:
+            filename_base_for_load = input_filename
+            version_to_load = None
 
         if version_to_load is None:
             list_versions_method = getattr(artifact_service, "list_versions")
@@ -249,32 +254,30 @@ async def convert_file_to_markdown(
         if truncated:
             preview_message += f" Preview shows first portion."
 
-        return {
-            "status": "success",
-            "message": preview_message,
-            "output_filename": output_filename,
-            "output_version": save_result["data_version"],
-            "result_preview": preview_data,
-            "result_truncated": truncated,
-        }
+        return ToolResult.ok(
+            preview_message,
+            data={
+                "output_filename": output_filename,
+                "output_version": save_result["data_version"],
+                "result_preview": preview_data,
+                "result_truncated": truncated,
+            },
+        )
 
     except FileNotFoundError as e:
         log.warning("%s File not found error: %s", log_identifier, e)
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except UnsupportedFormatException as e:
         log.warning("%s MarkItDown unsupported format: %s", log_identifier, e)
-        return {
-            "status": "error",
-            "message": f"Unsupported file format for MarkItDown: {e}",
-        }
+        return ToolResult.error(f"Unsupported file format for MarkItDown: {e}")
     except ValueError as e:
         log.warning("%s Value error: %s", log_identifier, e)
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except Exception as e:
         log.exception(
             "%s Unexpected error in convert_file_to_markdown: %s", log_identifier, e
         )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
     finally:
         if (
             temp_input_file
@@ -346,7 +349,7 @@ async def mermaid_diagram_generator(
     output_filename: Optional[str] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Generates a PNG image from Mermaid diagram syntax and saves it as an artifact.
     The diagram must be detailed.
@@ -359,10 +362,10 @@ async def mermaid_diagram_generator(
         tool_config: Optional dictionary for tool-specific configuration (unused by this tool).
 
     Returns:
-        A dictionary with status, output artifact details, and a preview message.
+        ToolResult with output artifact details and a preview message.
     """
     if not tool_context:
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
     log_identifier = f"[GeneralTool:mermaid_diagram_generator]"
     if output_filename:
@@ -393,10 +396,9 @@ async def mermaid_diagram_generator(
                 "%s Failed to render Mermaid diagram. No image data returned.",
                 log_identifier,
             )
-            return {
-                "status": "error",
-                "message": "Failed to render Mermaid diagram. No image data returned.",
-            }
+            return ToolResult.error(
+                "Failed to render Mermaid diagram. No image data returned."
+            )
         try:
             scale = max(2, len(mermaid_syntax.splitlines()) // 10)
             image_data = await _convert_svg_to_png_with_playwright(svg_image_data.decode("utf-8"), scale)
@@ -406,10 +408,7 @@ async def mermaid_diagram_generator(
                 log_identifier,
                 e,
             )
-            return {
-                "status": "error",
-                "message": f"Failed to convert SVG to PNG: {e}",
-            }
+            return ToolResult.error(f"Failed to convert SVG to PNG: {e}")
 
         log.debug(
             "%s Mermaid diagram rendered successfully with scale %d, image_data length: %d bytes",
@@ -473,27 +472,28 @@ async def mermaid_diagram_generator(
 
         preview_message = f"Mermaid diagram rendered and saved as artifact '{final_output_filename}' v{save_result['data_version']}."
 
-        return {
-            "status": "success",
-            "message": preview_message,
-            "output_filename": final_output_filename,
-            "output_version": save_result["data_version"],
-            "result_preview": f"Artifact '{final_output_filename}' (v{save_result['data_version']}) created successfully.",
-        }
+        return ToolResult.ok(
+            preview_message,
+            data={
+                "output_filename": final_output_filename,
+                "output_version": save_result["data_version"],
+                "result_preview": f"Artifact '{final_output_filename}' (v{save_result['data_version']}) created successfully.",
+            },
+        )
 
     except ValueError as e:
         log.warning(
             "%s Value error in mermaid_diagram_generator: %s", log_identifier, e
         )
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except IOError as e:
         log.warning("%s IO error in mermaid_diagram_generator: %s", log_identifier, e)
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except Exception as e:
         log.exception(
             "%s Unexpected error in mermaid_diagram_generator: %s", log_identifier, e
         )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 async def _continue_generation() -> Dict[str, Any]:

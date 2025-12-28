@@ -29,7 +29,7 @@ from google.genai import types as adk_types
 from solace_agent_mesh.agent.utils.context_helpers import get_original_session_id
 from solace_agent_mesh.agent.utils.artifact_helpers import load_artifact_content_or_metadata
 from solace_agent_mesh.agent.utils.tool_context_facade import ToolContextFacade
-from .artifact_types import is_artifact_content_type, get_artifact_content_info, ArtifactContentInfo
+from .artifact_types import Artifact, is_artifact_type, get_artifact_info, ArtifactTypeInfo
 
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
@@ -133,14 +133,14 @@ class DynamicTool(BaseTool, ABC):
         return "early"
 
     @property
-    def artifact_content_args(self) -> List[str]:
+    def artifact_args(self) -> List[str]:
         """
-        Return a list of argument names that should have artifact content pre-loaded.
-        The framework will load the artifact content before invoking the tool,
-        replacing the filename with the actual content (bytes or str).
+        Return a list of argument names that should have artifacts pre-loaded.
+        The framework will load the artifact before invoking the tool,
+        replacing the filename with an Artifact object containing content and metadata.
 
         Subclasses can override this property to specify which parameters
-        should have artifact content pre-loaded.
+        should have artifacts pre-loaded.
 
         Returns:
             List of parameter names to pre-load artifacts for.
@@ -148,22 +148,22 @@ class DynamicTool(BaseTool, ABC):
         return []
 
     @property
-    def artifact_content_params(self) -> Dict[str, ArtifactContentInfo]:
+    def artifact_params(self) -> Dict[str, ArtifactTypeInfo]:
         """
-        Return detailed information about artifact content parameters.
+        Return detailed information about artifact parameters.
 
-        This maps parameter names to ArtifactContentInfo objects that indicate:
+        This maps parameter names to ArtifactTypeInfo objects that indicate:
         - is_list: Whether the parameter expects a list of artifacts
         - is_optional: Whether the parameter is optional
 
         Subclasses can override this for fine-grained control over artifact loading.
-        Default implementation creates basic info from artifact_content_args.
+        Default implementation creates basic info from artifact_args.
 
         Returns:
-            Dict mapping parameter names to ArtifactContentInfo.
+            Dict mapping parameter names to ArtifactTypeInfo.
         """
-        # Default: create basic info from artifact_content_args
-        return {name: ArtifactContentInfo(is_artifact=True) for name in self.artifact_content_args}
+        # Default: create basic info from artifact_args
+        return {name: ArtifactTypeInfo(is_artifact=True) for name in self.artifact_args}
 
     @property
     def ctx_facade_param_name(self) -> Optional[str]:
@@ -201,9 +201,9 @@ class DynamicTool(BaseTool, ABC):
         filename: str,
         tool_context: ToolContext,
         log_identifier: str,
-    ) -> Any:
+    ) -> Artifact:
         """
-        Load artifact content for a parameter.
+        Load artifact for a parameter.
 
         Args:
             param_name: Name of the parameter
@@ -212,7 +212,7 @@ class DynamicTool(BaseTool, ABC):
             log_identifier: Prefix for log messages
 
         Returns:
-            The artifact content (str or bytes)
+            An Artifact object containing the content and all metadata
 
         Raises:
             ValueError: If artifact loading fails
@@ -223,7 +223,7 @@ class DynamicTool(BaseTool, ABC):
                 log_identifier,
                 param_name,
             )
-            return filename
+            raise ValueError(f"Empty filename for parameter '{param_name}'")
 
         try:
             inv_context = tool_context._invocation_context
@@ -232,11 +232,14 @@ class DynamicTool(BaseTool, ABC):
             user_id = inv_context.user_id
             session_id = get_original_session_id(inv_context)
 
-            # Parse filename:version format
-            parts = filename.split(":", 1)
-            filename_base = parts[0]
-            version_str = parts[1] if len(parts) > 1 else "latest"
-            version = int(version_str) if version_str.isdigit() else "latest"
+            # Parse filename:version format (rsplit to handle colons in filenames)
+            parts = filename.rsplit(":", 1)
+            if len(parts) == 2 and parts[1].isdigit():
+                filename_base = parts[0]
+                version = int(parts[1])
+            else:
+                filename_base = filename
+                version = "latest"
 
             log.debug(
                 "%s Loading artifact '%s' (version=%s) for param '%s'",
@@ -258,14 +261,28 @@ class DynamicTool(BaseTool, ABC):
 
             if result.get("status") == "success":
                 content = result.get("raw_bytes") or result.get("content")
+                # Get metadata from result
+                loaded_version = result.get("version", 0 if version == "latest" else version)
+                mime_type = result.get("mime_type", "application/octet-stream")
+                metadata = result.get("metadata", {})
+
                 log.info(
-                    "%s Loaded artifact '%s' for param '%s' (%d bytes)",
+                    "%s Loaded artifact '%s' v%s for param '%s' (%d bytes, %s)",
                     log_identifier,
-                    filename,
+                    filename_base,
+                    loaded_version,
                     param_name,
                     len(content) if content else 0,
+                    mime_type,
                 )
-                return content
+
+                return Artifact(
+                    content=content,
+                    filename=filename_base,
+                    version=loaded_version,
+                    mime_type=mime_type,
+                    metadata=metadata,
+                )
             else:
                 error_msg = result.get("message", "Unknown error loading artifact")
                 raise ValueError(f"Failed to load artifact '{filename}': {error_msg}")
@@ -343,16 +360,16 @@ class DynamicTool(BaseTool, ABC):
                 )
                 resolved_kwargs[key] = resolved_value
 
-        # Pre-load artifacts for ArtifactContent parameters
-        artifact_params = self.artifact_content_params
-        if artifact_params:
-            for param_name, param_info in artifact_params.items():
+        # Pre-load artifacts for Artifact parameters
+        artifact_param_info = self.artifact_params
+        if artifact_param_info:
+            for param_name, param_info in artifact_param_info.items():
                 if param_name not in resolved_kwargs:
                     continue
 
                 value = resolved_kwargs[param_name]
 
-                # Handle List[ArtifactContent] - load each filename in the list
+                # Handle List[Artifact] - load each filename in the list
                 if param_info.is_list:
                     if not value:
                         # Empty list or None - keep as-is
@@ -366,17 +383,17 @@ class DynamicTool(BaseTool, ABC):
                         )
                         continue
 
-                    loaded_contents = []
+                    loaded_artifacts = []
                     for idx, filename in enumerate(value):
                         if filename and isinstance(filename, str):
                             try:
-                                content = await self._load_artifact_for_param(
+                                artifact = await self._load_artifact_for_param(
                                     param_name=f"{param_name}[{idx}]",
                                     filename=filename,
                                     tool_context=tool_context,
                                     log_identifier=log_identifier,
                                 )
-                                loaded_contents.append(content)
+                                loaded_artifacts.append(artifact)
                             except ValueError as e:
                                 log.error(
                                     "%s Artifact pre-load failed for %s[%d], returning error: %s",
@@ -391,27 +408,33 @@ class DynamicTool(BaseTool, ABC):
                                     "tool_name": self.tool_name,
                                 }
                         else:
-                            # Non-string entry - keep as-is (shouldn't happen normally)
-                            loaded_contents.append(filename)
+                            # Non-string entry - skip (shouldn't happen normally)
+                            log.warning(
+                                "%s Skipping non-string entry at %s[%d]: %s",
+                                log_identifier,
+                                param_name,
+                                idx,
+                                type(filename).__name__,
+                            )
 
-                    resolved_kwargs[param_name] = loaded_contents
+                    resolved_kwargs[param_name] = loaded_artifacts
                     log.debug(
                         "%s Pre-loaded %d artifacts for list param '%s'",
                         log_identifier,
-                        len(loaded_contents),
+                        len(loaded_artifacts),
                         param_name,
                     )
 
-                # Handle single ArtifactContent
+                # Handle single Artifact
                 elif value and isinstance(value, str):
                     try:
-                        content = await self._load_artifact_for_param(
+                        artifact = await self._load_artifact_for_param(
                             param_name=param_name,
                             filename=value,
                             tool_context=tool_context,
                             log_identifier=log_identifier,
                         )
-                        resolved_kwargs[param_name] = content
+                        resolved_kwargs[param_name] = artifact
                     except ValueError as e:
                         # Return error immediately if artifact loading fails
                         log.error(
@@ -462,19 +485,19 @@ class _SchemaDetectionResult:
 
     def __init__(self):
         self.schema: Optional[adk_types.Schema] = None
-        # Maps param name to ArtifactContentInfo (includes is_list, is_optional)
-        self.artifact_content_params: Dict[str, ArtifactContentInfo] = {}
+        # Maps param name to ArtifactTypeInfo (includes is_list, is_optional)
+        self.artifact_params: Dict[str, ArtifactTypeInfo] = {}
         self.ctx_facade_param_name: Optional[str] = None
 
     @property
-    def artifact_content_args(self) -> Set[str]:
-        """Backward-compatible property returning set of artifact param names."""
-        return set(self.artifact_content_params.keys())
+    def artifact_args(self) -> Set[str]:
+        """Property returning set of artifact param names."""
+        return set(self.artifact_params.keys())
 
 
 def _get_schema_from_signature(
     func: Callable,
-    artifact_content_args: Optional[Set[str]] = None,
+    artifact_args: Optional[Set[str]] = None,
     detection_result: Optional[_SchemaDetectionResult] = None,
 ) -> adk_types.Schema:
     """
@@ -482,8 +505,8 @@ def _get_schema_from_signature(
 
     Args:
         func: The function to introspect
-        artifact_content_args: Optional set to populate with param names that have
-                               ArtifactContent type annotation (will be pre-loaded)
+        artifact_args: Optional set to populate with param names that have
+                       Artifact type annotation (will be pre-loaded)
         detection_result: Optional result object to populate with all detected params
     """
     sig = inspect.signature(func)
@@ -525,39 +548,39 @@ def _get_schema_from_signature(
             )
             continue  # Don't add to schema - framework injects this
 
-        # Check for ArtifactContent type - translate to appropriate schema for LLM
+        # Check for Artifact type - translate to appropriate schema for LLM
         # Also check the original annotation for List/Optional detection
         original_annotation = param.annotation
-        artifact_info = get_artifact_content_info(original_annotation)
+        artifact_type_info = get_artifact_info(original_annotation)
 
-        if artifact_info.is_artifact:
-            if artifact_content_args is not None:
-                artifact_content_args.add(param.name)
+        if artifact_type_info.is_artifact:
+            if artifact_args is not None:
+                artifact_args.add(param.name)
             if detection_result is not None:
-                detection_result.artifact_content_params[param.name] = artifact_info
+                detection_result.artifact_params[param.name] = artifact_type_info
 
-            if artifact_info.is_list:
-                # List[ArtifactContent] -> array of strings (filenames)
+            if artifact_type_info.is_list:
+                # List[Artifact] -> array of strings (filenames)
                 log.debug(
-                    "Detected List[ArtifactContent] param '%s' in %s, translating to ARRAY of STRING",
+                    "Detected List[Artifact] param '%s' in %s, translating to ARRAY of STRING",
                     param.name,
                     func.__name__,
                 )
                 properties[param.name] = adk_types.Schema(
                     type=adk_types.Type.ARRAY,
                     items=adk_types.Schema(type=adk_types.Type.STRING),
-                    nullable=is_optional or artifact_info.is_optional,
+                    nullable=is_optional or artifact_type_info.is_optional,
                 )
             else:
-                # Single ArtifactContent -> string (filename)
+                # Single Artifact -> string (filename)
                 log.debug(
-                    "Detected ArtifactContent param '%s' in %s, translating to STRING",
+                    "Detected Artifact param '%s' in %s, translating to STRING",
                     param.name,
                     func.__name__,
                 )
                 properties[param.name] = adk_types.Schema(
                     type=adk_types.Type.STRING,
-                    nullable=is_optional or artifact_info.is_optional,
+                    nullable=is_optional or artifact_type_info.is_optional,
                 )
         else:
             adk_type = type_map.get(param_type)
@@ -598,11 +621,11 @@ class _FunctionAsDynamicTool(DynamicTool):
             detection_result=self._detection_result,
         )
 
-        if self._detection_result.artifact_content_args:
+        if self._detection_result.artifact_args:
             log.info(
                 "[_FunctionAsDynamicTool:%s] Will pre-load artifacts for params: %s",
                 func.__name__,
-                list(self._detection_result.artifact_content_args),
+                list(self._detection_result.artifact_args),
             )
 
         if self._detection_result.ctx_facade_param_name:
@@ -633,14 +656,14 @@ class _FunctionAsDynamicTool(DynamicTool):
         return self._schema
 
     @property
-    def artifact_content_args(self) -> List[str]:
-        """Return the detected ArtifactContent parameters."""
-        return list(self._detection_result.artifact_content_args)
+    def artifact_args(self) -> List[str]:
+        """Return the detected Artifact parameters."""
+        return list(self._detection_result.artifact_args)
 
     @property
-    def artifact_content_params(self) -> Dict[str, ArtifactContentInfo]:
-        """Return detailed info about ArtifactContent parameters (including is_list)."""
-        return self._detection_result.artifact_content_params
+    def artifact_params(self) -> Dict[str, ArtifactTypeInfo]:
+        """Return detailed info about Artifact parameters (including is_list)."""
+        return self._detection_result.artifact_params
 
     @property
     def ctx_facade_param_name(self) -> Optional[str]:

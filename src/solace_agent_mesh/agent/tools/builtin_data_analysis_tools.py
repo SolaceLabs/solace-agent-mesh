@@ -42,6 +42,7 @@ from ...agent.utils.artifact_helpers import (
 from ...agent.utils.context_helpers import get_original_session_id
 
 from .tool_definition import BuiltinTool
+from .tool_result import ToolResult
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ async def create_chart_from_plotly_config(
     output_filename: str,
     output_format: Optional[str] = "png",
     tool_context: ToolContext = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Generates a static chart image from a Plotly configuration provided as a string.
 
@@ -67,20 +68,18 @@ async def create_chart_from_plotly_config(
         tool_context: The context provided by the ADK framework.
 
     Returns:
-        A dictionary with status and output artifact details.
+        ToolResult with output artifact details.
     """
     if not tool_context:
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
     if not PLOTLY_AVAILABLE:
-        return {
-            "status": "error",
-            "message": "The plotly library is required for chart generation but it is not installed.",
-        }
+        return ToolResult.error(
+            "The plotly library is required for chart generation but it is not installed."
+        )
     if not KALEIDO_AVAILABLE:
-        return {
-            "status": "error",
-            "message": "The kaleido library is required for chart generation but it is not installed.",
-        }
+        return ToolResult.error(
+            "The kaleido library is required for chart generation but it is not installed."
+        )
 
     log_identifier = f"[DataTool:create_chart:{output_filename}]"
     log.info(
@@ -184,26 +183,27 @@ async def create_chart_from_plotly_config(
             final_output_filename,
             save_result["data_version"],
         )
-        return {
-            "status": "success",
-            "message": f"Chart image '{final_output_filename}' v{save_result['data_version']} created successfully.",
-            "output_filename": final_output_filename,
-            "output_version": save_result["data_version"],
-        }
+        return ToolResult.ok(
+            f"Chart image '{final_output_filename}' v{save_result['data_version']} created successfully.",
+            data={
+                "output_filename": final_output_filename,
+                "output_version": save_result["data_version"],
+            },
+        )
 
     except ValueError as e:
         log.warning("%s Value error: %s", log_identifier, e)
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except ImportError as e:
         log.warning("%s Missing library error: %s", log_identifier, e)
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except Exception as e:
         log.exception(
             "%s Unexpected error in create_chart_from_plotly_config: %s",
             log_identifier,
             e,
         )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 create_chart_from_plotly_config_tool_def = BuiltinTool(

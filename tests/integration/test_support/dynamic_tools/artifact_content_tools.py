@@ -1,8 +1,8 @@
 """
-Test support module for testing ArtifactContent type hint artifact pre-loading.
+Test support module for testing Artifact type hint artifact pre-loading.
 
-These tools use ArtifactContent and List[ArtifactContent] type hints to verify
-that the framework correctly pre-loads artifact content before tool execution.
+These tools use Artifact and List[Artifact] type hints to verify
+that the framework correctly pre-loads artifact objects before tool execution.
 """
 
 from typing import List, Optional
@@ -10,12 +10,12 @@ from typing import List, Optional
 from google.adk.tools import ToolContext
 
 from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool, DynamicToolProvider
-from solace_agent_mesh.agent.tools.artifact_types import ArtifactContent
+from solace_agent_mesh.agent.tools.artifact_types import Artifact
 
 
 class ArtifactContentToolProvider(DynamicToolProvider):
     """
-    Provider for tools that test ArtifactContent type hint pre-loading.
+    Provider for tools that test Artifact type hint pre-loading.
     """
 
     def create_tools(self, tool_config: Optional[dict] = None) -> List[DynamicTool]:
@@ -26,64 +26,60 @@ class ArtifactContentToolProvider(DynamicToolProvider):
 @ArtifactContentToolProvider.register_tool
 async def process_single_artifact(
     self,
-    input_content: ArtifactContent,
+    input_content: Artifact,
     input_filename: str,
     tool_context: ToolContext = None,
 ) -> dict:
     """
-    Test tool that receives a single ArtifactContent parameter.
+    Test tool that receives a single Artifact parameter.
 
-    The framework should pre-load the artifact content based on the filename
-    provided by the LLM and pass the actual content to this function.
+    The framework should pre-load the artifact based on the filename
+    provided by the LLM and pass an Artifact object to this function.
 
     Args:
-        input_content: The artifact content (pre-loaded by framework)
+        input_content: The artifact object (pre-loaded by framework)
         input_filename: The filename (passed through as-is)
 
     Returns:
-        Dict with received content info for verification
+        Dict with received artifact info for verification
     """
-    # Decode bytes to string if needed
-    if isinstance(input_content, bytes):
-        content_str = input_content.decode("utf-8")
-        content_type = "bytes"
-    else:
-        content_str = str(input_content)
-        content_type = "str"
+    # Get content as text
+    content_str = input_content.as_text()
 
     return {
         "status": "success",
         "received_content": content_str,
-        "received_content_type": content_type,
+        "received_content_type": "bytes" if isinstance(input_content.content, bytes) else "str",
         "received_content_length": len(content_str),
         "received_filename": input_filename,
+        # Include metadata from Artifact object
+        "artifact_filename": input_content.filename,
+        "artifact_version": input_content.version,
+        "artifact_mime_type": input_content.mime_type,
     }
 
 
 @ArtifactContentToolProvider.register_tool
 async def process_multiple_artifacts(
     self,
-    input_files: List[ArtifactContent],
+    input_files: List[Artifact],
     tool_context: ToolContext = None,
 ) -> dict:
     """
-    Test tool that receives a List[ArtifactContent] parameter.
+    Test tool that receives a List[Artifact] parameter.
 
-    The framework should pre-load all artifact contents based on the filenames
-    provided by the LLM and pass a list of actual contents to this function.
+    The framework should pre-load all artifacts based on the filenames
+    provided by the LLM and pass a list of Artifact objects to this function.
 
     Args:
-        input_files: List of artifact contents (pre-loaded by framework)
+        input_files: List of artifact objects (pre-loaded by framework)
 
     Returns:
-        Dict with received contents info for verification
+        Dict with received artifacts info for verification
     """
     contents = []
-    for content in input_files:
-        if isinstance(content, bytes):
-            contents.append(content.decode("utf-8"))
-        else:
-            contents.append(str(content))
+    for artifact in input_files:
+        contents.append(artifact.as_text())
 
     return {
         "status": "success",
@@ -95,15 +91,15 @@ async def process_multiple_artifacts(
 @ArtifactContentToolProvider.register_tool
 async def process_optional_artifact(
     self,
-    input_content: Optional[ArtifactContent] = None,
+    input_content: Optional[Artifact] = None,
     fallback_value: str = "default",
     tool_context: ToolContext = None,
 ) -> dict:
     """
-    Test tool that receives an Optional[ArtifactContent] parameter.
+    Test tool that receives an Optional[Artifact] parameter.
 
     Args:
-        input_content: Optional artifact content (pre-loaded if provided)
+        input_content: Optional artifact (pre-loaded if provided)
         fallback_value: Value to use if no artifact provided
 
     Returns:
@@ -116,10 +112,7 @@ async def process_optional_artifact(
             "received_content": fallback_value,
         }
 
-    if isinstance(input_content, bytes):
-        content_str = input_content.decode("utf-8")
-    else:
-        content_str = str(input_content)
+    content_str = input_content.as_text()
 
     return {
         "status": "success",
@@ -131,17 +124,17 @@ async def process_optional_artifact(
 @ArtifactContentToolProvider.register_tool
 async def process_mixed_params(
     self,
-    input_content: ArtifactContent,
+    input_content: Artifact,
     output_filename: str,
     max_length: int = 1000,
     include_metadata: bool = False,
     tool_context: ToolContext = None,
 ) -> dict:
     """
-    Test tool with mixed ArtifactContent and regular parameters.
+    Test tool with mixed Artifact and regular parameters.
 
     Args:
-        input_content: Artifact content (pre-loaded by framework)
+        input_content: Artifact object (pre-loaded by framework)
         output_filename: Output filename (regular string)
         max_length: Maximum content length to process
         include_metadata: Whether to include metadata
@@ -149,10 +142,7 @@ async def process_mixed_params(
     Returns:
         Dict with all received parameters for verification
     """
-    if isinstance(input_content, bytes):
-        content_str = input_content.decode("utf-8")
-    else:
-        content_str = str(input_content)
+    content_str = input_content.as_text()
 
     # Truncate if needed
     truncated = len(content_str) > max_length
@@ -170,8 +160,11 @@ async def process_mixed_params(
 
     if include_metadata:
         result["metadata"] = {
-            "original_length": len(content_str) if not truncated else "unknown",
+            "original_length": len(input_content.as_text()),
             "truncated": truncated,
+            "artifact_filename": input_content.filename,
+            "artifact_version": input_content.version,
+            "artifact_mime_type": input_content.mime_type,
         }
 
     return result

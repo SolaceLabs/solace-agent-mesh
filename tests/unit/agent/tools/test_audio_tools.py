@@ -680,14 +680,17 @@ class TestSaveAudioArtifact:
              patch('src.solace_agent_mesh.agent.tools.audio_tools.save_artifact_with_metadata') as mock_save:
             
             mock_get_session.return_value = "test_session"
-            mock_save.return_value = {"status": "success", "data_version": 1}
-            
+            mock_result = MagicMock()
+            mock_result.status = "success"
+            mock_result.data = {"data_version": 1}
+            mock_save.return_value = mock_result
+
             result = await _save_audio_artifact(
                 audio_data, filename, metadata, mock_tool_context
             )
-            
-            assert result["status"] == "success"
-            assert result["data_version"] == 1
+
+            assert result.status == "success"
+            assert result.data["data_version"] == 1
             mock_save.assert_called_once()
 
     @pytest.mark.asyncio
@@ -725,8 +728,11 @@ class TestSaveAudioArtifact:
              patch('src.solace_agent_mesh.agent.tools.audio_tools.save_artifact_with_metadata') as mock_save:
             
             mock_get_session.return_value = "test_session"
-            mock_save.return_value = {"status": "error", "message": "Save failed"}
-            
+            mock_result = MagicMock()
+            mock_result.status = "error"
+            mock_result.message = "Save failed"
+            mock_save.return_value = mock_result
+
             with pytest.raises(IOError, match="Failed to save audio artifact"):
                 await _save_audio_artifact(
                     audio_data, filename, metadata, mock_tool_context
@@ -740,44 +746,44 @@ class TestSelectVoice:
     async def test_select_voice_with_gender(self):
         """Test voice selection with gender parameter"""
         result = await select_voice(gender="male")
-        
-        assert result["status"] == "success"
-        assert "voice_name" in result
-        assert isinstance(result["voice_name"], str)
+
+        assert result.status == "success"
+        assert "voice_name" in result.data
+        assert isinstance(result.data["voice_name"], str)
 
     @pytest.mark.asyncio
     async def test_select_voice_with_tone(self):
         """Test voice selection with tone parameter"""
         result = await select_voice(tone="friendly")
-        
-        assert result["status"] == "success"
-        assert "voice_name" in result
+
+        assert result.status == "success"
+        assert "voice_name" in result.data
 
     @pytest.mark.asyncio
     async def test_select_voice_with_exclusions(self):
         """Test voice selection with excluded voices"""
         exclude_list = ["Kore", "Puck"]
         result = await select_voice(exclude_voices=exclude_list)
-        
-        assert result["status"] == "success"
-        assert result["voice_name"] not in exclude_list
+
+        assert result.status == "success"
+        assert result.data["voice_name"] not in exclude_list
 
     @pytest.mark.asyncio
     async def test_select_voice_no_params(self):
         """Test voice selection with no parameters"""
         result = await select_voice()
-        
-        assert result["status"] == "success"
-        assert "voice_name" in result
+
+        assert result.status == "success"
+        assert "voice_name" in result.data
 
     @pytest.mark.asyncio
     async def test_select_voice_exception_handling(self):
         """Test exception handling in select_voice"""
         with patch('src.solace_agent_mesh.agent.tools.audio_tools._get_voice_for_speaker', side_effect=Exception("Test error")):
             result = await select_voice(gender="male")
-            
-            assert result["status"] == "error"
-            assert "error" in result["message"].lower()
+
+            assert result.status == "error"
+            assert "error" in result.message.lower()
 
 
 class TestTextToSpeech:
@@ -787,33 +793,33 @@ class TestTextToSpeech:
     async def test_text_to_speech_missing_context(self):
         """Test error when tool context is missing"""
         result = await text_to_speech("Hello world", tool_context=None)
-        
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
+
+        assert result.status == "error"
+        assert "ToolContext is missing" in result.message
 
     @pytest.mark.asyncio
     async def test_text_to_speech_empty_text(self):
         """Test error when text is empty"""
         mock_context = MagicMock()
         result = await text_to_speech("", tool_context=mock_context)
-        
-        assert result["status"] == "error"
-        assert "Text input is required" in result["message"]
+
+        assert result.status == "error"
+        assert "Text input is required" in result.message
 
     @pytest.mark.asyncio
     async def test_text_to_speech_missing_api_key(self):
         """Test error when API key is missing"""
         mock_context = MagicMock()
         tool_config = {}
-        
+
         result = await text_to_speech(
             "Hello world",
             tool_context=mock_context,
             tool_config=tool_config
         )
-        
-        assert result["status"] == "error"
-        assert "GEMINI_API_KEY is required" in result["message"]
+
+        assert result.status == "error"
+        assert "GEMINI_API_KEY is required" in result.message
 
     @pytest.mark.asyncio
     async def test_text_to_speech_success(self):
@@ -824,31 +830,34 @@ class TestTextToSpeech:
         mock_inv_context.user_id = "test_user"
         mock_inv_context.artifact_service = MagicMock()
         mock_context._invocation_context = mock_inv_context
-        
+
         tool_config = {
             "gemini_api_key": "test_key",
             "model": "test-model"
         }
-        
+
         with patch('src.solace_agent_mesh.agent.tools.audio_tools.genai.Client') as mock_client, \
              patch('src.solace_agent_mesh.agent.tools.audio_tools._generate_audio_with_gemini') as mock_generate, \
              patch('src.solace_agent_mesh.agent.tools.audio_tools._convert_pcm_to_mp3') as mock_convert, \
              patch('src.solace_agent_mesh.agent.tools.audio_tools._save_audio_artifact') as mock_save, \
              patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id'):
-            
+
             mock_generate.return_value = b'wav_data'
             mock_convert.return_value = b'mp3_data'
-            mock_save.return_value = {"status": "success", "data_version": 1}
-            
+            mock_save_result = MagicMock()
+            mock_save_result.status = "success"
+            mock_save_result.data = {"data_version": 1}
+            mock_save.return_value = mock_save_result
+
             result = await text_to_speech(
                 "Hello world",
                 tool_context=mock_context,
                 tool_config=tool_config
             )
-            
-            assert result["status"] == "success"
-            assert "output_filename" in result
-            assert "output_version" in result
+
+            assert result.status == "success"
+            assert "output_filename" in result.data
+            assert "output_version" in result.data
 
     @pytest.mark.asyncio
     async def test_text_to_speech_with_voice_name(self):
@@ -859,28 +868,31 @@ class TestTextToSpeech:
         mock_inv_context.user_id = "test_user"
         mock_inv_context.artifact_service = MagicMock()
         mock_context._invocation_context = mock_inv_context
-        
+
         tool_config = {"gemini_api_key": "test_key"}
-        
+
         with patch('src.solace_agent_mesh.agent.tools.audio_tools.genai.Client'), \
              patch('src.solace_agent_mesh.agent.tools.audio_tools._generate_audio_with_gemini') as mock_generate, \
              patch('src.solace_agent_mesh.agent.tools.audio_tools._convert_pcm_to_mp3') as mock_convert, \
              patch('src.solace_agent_mesh.agent.tools.audio_tools._save_audio_artifact') as mock_save, \
              patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id'):
-            
+
             mock_generate.return_value = b'wav_data'
             mock_convert.return_value = b'mp3_data'
-            mock_save.return_value = {"status": "success", "data_version": 1}
-            
+            mock_save_result = MagicMock()
+            mock_save_result.status = "success"
+            mock_save_result.data = {"data_version": 1}
+            mock_save.return_value = mock_save_result
+
             result = await text_to_speech(
                 "Hello world",
                 voice_name="Puck",
                 tool_context=mock_context,
                 tool_config=tool_config
             )
-            
-            assert result["status"] == "success"
-            assert result["voice_used"] == "Puck"
+
+            assert result.status == "success"
+            assert result.data["voice_used"] == "Puck"
 
 
 class TestMultiSpeakerTextToSpeech:
@@ -893,33 +905,33 @@ class TestMultiSpeakerTextToSpeech:
             "Speaker1: Hello\nSpeaker2: Hi",
             tool_context=None
         )
-        
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
+
+        assert result.status == "error"
+        assert "ToolContext is missing" in result.message
 
     @pytest.mark.asyncio
     async def test_multi_speaker_empty_text(self):
         """Test error when conversation text is empty"""
         mock_context = MagicMock()
         result = await multi_speaker_text_to_speech("", tool_context=mock_context)
-        
-        assert result["status"] == "error"
-        assert "Conversation text input is required" in result["message"]
+
+        assert result.status == "error"
+        assert "Conversation text input is required" in result.message
 
     @pytest.mark.asyncio
     async def test_multi_speaker_missing_api_key(self):
         """Test error when API key is missing"""
         mock_context = MagicMock()
         tool_config = {}
-        
+
         result = await multi_speaker_text_to_speech(
             "Speaker1: Hello",
             tool_context=mock_context,
             tool_config=tool_config
         )
-        
-        assert result["status"] == "error"
-        assert "GEMINI_API_KEY is required" in result["message"]
+
+        assert result.status == "error"
+        assert "GEMINI_API_KEY is required" in result.message
 
     @pytest.mark.asyncio
     async def test_multi_speaker_success(self):
@@ -930,33 +942,36 @@ class TestMultiSpeakerTextToSpeech:
         mock_inv_context.user_id = "test_user"
         mock_inv_context.artifact_service = MagicMock()
         mock_context._invocation_context = mock_inv_context
-        
+
         tool_config = {"gemini_api_key": "test_key"}
         speaker_configs = [
             {"name": "Speaker1", "voice": "Kore"},
             {"name": "Speaker2", "voice": "Puck"}
         ]
-        
+
         with patch('src.solace_agent_mesh.agent.tools.audio_tools.genai.Client'), \
              patch('src.solace_agent_mesh.agent.tools.audio_tools._generate_audio_with_gemini') as mock_generate, \
              patch('src.solace_agent_mesh.agent.tools.audio_tools._convert_pcm_to_mp3') as mock_convert, \
              patch('src.solace_agent_mesh.agent.tools.audio_tools._save_audio_artifact') as mock_save, \
              patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id'):
-            
+
             mock_generate.return_value = b'wav_data'
             mock_convert.return_value = b'mp3_data'
-            mock_save.return_value = {"status": "success", "data_version": 1}
-            
+            mock_save_result = MagicMock()
+            mock_save_result.status = "success"
+            mock_save_result.data = {"data_version": 1}
+            mock_save.return_value = mock_save_result
+
             result = await multi_speaker_text_to_speech(
                 "Speaker1: Hello\nSpeaker2: Hi there",
                 speaker_configs=speaker_configs,
                 tool_context=mock_context,
                 tool_config=tool_config
             )
-            
-            assert result["status"] == "success"
-            assert "output_filename" in result
-            assert "speakers_used" in result
+
+            assert result.status == "success"
+            assert "output_filename" in result.data
+            assert "speakers_used" in result.data
 
 
 class TestConcatenateAudio:

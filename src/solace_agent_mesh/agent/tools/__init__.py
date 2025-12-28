@@ -18,20 +18,18 @@ from . import dynamic_tool
 # Export ToolResult abstraction for tool authors
 from .tool_result import ToolResult, DataObject, DataDisposition
 
-# Export artifact pre-loading types for tool authors
+# Export artifact types for tool authors
 from .artifact_types import (
-    ArtifactContent,
-    ArtifactMetadata,
-    ArtifactContentInfo,
-    get_artifact_content_info,
+    Artifact,
+    ArtifactTypeInfo,
+    get_artifact_info,
 )
 
 __all__ = [
     "ToolResult",
     "DataObject",
     "DataDisposition",
-    "ArtifactContent",
-    "ArtifactMetadata",
-    "ArtifactContentInfo",
-    "get_artifact_content_info",
+    "Artifact",
+    "ArtifactTypeInfo",
+    "get_artifact_info",
 ]

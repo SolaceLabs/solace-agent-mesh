@@ -16,7 +16,7 @@ from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
 )
 from ...common.utils.embeds.types import ResolutionMode
-from ..tools.artifact_types import is_artifact_content_type, get_artifact_content_info, ArtifactContentInfo
+from ..tools.artifact_types import Artifact, is_artifact_type, get_artifact_info, ArtifactTypeInfo
 from ..utils.artifact_helpers import load_artifact_content_or_metadata
 from ..utils.context_helpers import get_original_session_id
 from ..utils.tool_context_facade import ToolContextFacade
@@ -51,7 +51,7 @@ class ADKToolWrapper:
         origin: str,
         raw_string_args: Optional[List[str]] = None,
         resolution_type: Literal["early", "all"] = "all",
-        artifact_content_args: Optional[List[str]] = None,
+        artifact_args: Optional[List[str]] = None,
     ):
         self._original_func = original_func
         self._tool_config = tool_config or {}
@@ -101,28 +101,28 @@ class ADKToolWrapper:
             self._accepts_tool_config = False
             log.warning("Could not determine signature for tool '%s'.", self._tool_name)
 
-        # Initialize artifact content params from explicit config
-        # Maps param name to ArtifactContentInfo
-        self._artifact_content_params: Dict[str, ArtifactContentInfo] = {}
-        if artifact_content_args:
-            for name in artifact_content_args:
-                self._artifact_content_params[name] = ArtifactContentInfo(is_artifact=True)
+        # Initialize artifact params from explicit config
+        # Maps param name to ArtifactTypeInfo
+        self._artifact_params: Dict[str, ArtifactTypeInfo] = {}
+        if artifact_args:
+            for name in artifact_args:
+                self._artifact_params[name] = ArtifactTypeInfo(is_artifact=True)
 
         # Track if the function expects a ToolContextFacade
         self._ctx_facade_param_name: Optional[str] = None
 
-        # Auto-detect ArtifactContent and ToolContextFacade type annotations
+        # Auto-detect Artifact and ToolContextFacade type annotations
         self._detect_special_params()
 
     @property
-    def _artifact_content_args(self) -> Set[str]:
-        """Backward-compatible property returning set of artifact param names."""
-        return set(self._artifact_content_params.keys())
+    def _artifact_args(self) -> Set[str]:
+        """Property returning set of artifact param names."""
+        return set(self._artifact_params.keys())
 
     def _detect_special_params(self) -> None:
         """
         Detect special parameter types:
-        - ArtifactContent / List[ArtifactContent]: Will have artifact content pre-loaded
+        - Artifact / List[Artifact]: Will have artifact pre-loaded
         - ToolContextFacade: Will have facade injected automatically
         """
         if self.__signature__ is None:
@@ -132,19 +132,19 @@ class ADKToolWrapper:
             if param_name in ("tool_context", "tool_config", "kwargs", "self", "cls"):
                 continue
 
-            # Check for ArtifactContent (including List[ArtifactContent])
-            artifact_info = get_artifact_content_info(param.annotation)
-            if artifact_info.is_artifact:
-                self._artifact_content_params[param_name] = artifact_info
-                if artifact_info.is_list:
+            # Check for Artifact (including List[Artifact])
+            artifact_type_info = get_artifact_info(param.annotation)
+            if artifact_type_info.is_artifact:
+                self._artifact_params[param_name] = artifact_type_info
+                if artifact_type_info.is_list:
                     log.debug(
-                        "[ADKToolWrapper:%s] Detected List[ArtifactContent] param: %s",
+                        "[ADKToolWrapper:%s] Detected List[Artifact] param: %s",
                         self._tool_name,
                         param_name,
                     )
                 else:
                     log.debug(
-                        "[ADKToolWrapper:%s] Detected ArtifactContent param: %s",
+                        "[ADKToolWrapper:%s] Detected Artifact param: %s",
                         self._tool_name,
                         param_name,
                     )
@@ -158,11 +158,11 @@ class ADKToolWrapper:
                     param_name,
                 )
 
-        if self._artifact_content_params:
+        if self._artifact_params:
             log.info(
                 "[ADKToolWrapper:%s] Will pre-load artifacts for params: %s",
                 self._tool_name,
-                list(self._artifact_content_params.keys()),
+                list(self._artifact_params.keys()),
             )
 
         if self._ctx_facade_param_name:
@@ -178,9 +178,9 @@ class ADKToolWrapper:
         filename: str,
         tool_context: Any,
         log_identifier: str,
-    ) -> Any:
+    ) -> Artifact:
         """
-        Load artifact content for a parameter.
+        Load artifact for a parameter.
 
         Args:
             param_name: Name of the parameter
@@ -189,7 +189,7 @@ class ADKToolWrapper:
             log_identifier: Prefix for log messages
 
         Returns:
-            The artifact content (str or bytes)
+            An Artifact object containing the content and all metadata
 
         Raises:
             ValueError: If artifact loading fails
@@ -200,7 +200,7 @@ class ADKToolWrapper:
                 log_identifier,
                 param_name,
             )
-            return filename
+            raise ValueError(f"Empty filename for parameter '{param_name}'")
 
         try:
             inv_context = tool_context._invocation_context
@@ -209,11 +209,14 @@ class ADKToolWrapper:
             user_id = inv_context.user_id
             session_id = get_original_session_id(inv_context)
 
-            # Parse filename:version format
-            parts = filename.split(":", 1)
-            filename_base = parts[0]
-            version_str = parts[1] if len(parts) > 1 else "latest"
-            version = int(version_str) if version_str.isdigit() else "latest"
+            # Parse filename:version format (rsplit to handle colons in filenames)
+            parts = filename.rsplit(":", 1)
+            if len(parts) == 2 and parts[1].isdigit():
+                filename_base = parts[0]
+                version = int(parts[1])
+            else:
+                filename_base = filename
+                version = "latest"
 
             log.debug(
                 "%s Loading artifact '%s' (version=%s) for param '%s'",
@@ -235,18 +238,34 @@ class ADKToolWrapper:
 
             if result.get("status") == "success":
                 content = result.get("raw_bytes") or result.get("content")
+                # Get metadata from result
+                loaded_version = result.get("version", 0 if version == "latest" else version)
+                mime_type = result.get("mime_type", "application/octet-stream")
+                metadata = result.get("metadata", {})
+
                 log.info(
-                    "%s Loaded artifact '%s' for param '%s' (%d bytes)",
+                    "%s Loaded artifact '%s' v%s for param '%s' (%d bytes, %s)",
                     log_identifier,
-                    filename,
+                    filename_base,
+                    loaded_version,
                     param_name,
                     len(content) if content else 0,
+                    mime_type,
                 )
-                return content
+
+                return Artifact(
+                    content=content,
+                    filename=filename_base,
+                    version=loaded_version,
+                    mime_type=mime_type,
+                    metadata=metadata,
+                )
             else:
                 error_msg = result.get("message", "Unknown error loading artifact")
                 raise ValueError(f"Failed to load artifact '{filename}': {error_msg}")
 
+        except ValueError:
+            raise
         except Exception as e:
             log.error(
                 "%s Failed to load artifact '%s' for param '%s': %s",
@@ -332,15 +351,15 @@ class ADKToolWrapper:
                 self._ctx_facade_param_name,
             )
 
-        # Pre-load artifacts for ArtifactContent parameters
-        if self._artifact_content_params and context_for_embeds:
-            for param_name, param_info in self._artifact_content_params.items():
+        # Pre-load artifacts for Artifact parameters
+        if self._artifact_params and context_for_embeds:
+            for param_name, param_info in self._artifact_params.items():
                 if param_name not in resolved_kwargs:
                     continue
 
                 value = resolved_kwargs[param_name]
 
-                # Handle List[ArtifactContent] - load each filename in the list
+                # Handle List[Artifact] - load each filename in the list
                 if param_info.is_list:
                     if not value:
                         # Empty list or None - keep as-is
@@ -354,17 +373,17 @@ class ADKToolWrapper:
                         )
                         continue
 
-                    loaded_contents = []
+                    loaded_artifacts = []
                     for idx, filename in enumerate(value):
                         if filename and isinstance(filename, str):
                             try:
-                                content = await self._load_artifact_for_param(
+                                artifact = await self._load_artifact_for_param(
                                     param_name=f"{param_name}[{idx}]",
                                     filename=filename,
                                     tool_context=context_for_embeds,
                                     log_identifier=log_identifier,
                                 )
-                                loaded_contents.append(content)
+                                loaded_artifacts.append(artifact)
                             except ValueError as e:
                                 log.error(
                                     "%s Artifact pre-load failed for %s[%d], returning error: %s",
@@ -379,27 +398,33 @@ class ADKToolWrapper:
                                     "tool_name": self._tool_name,
                                 }
                         else:
-                            # Non-string entry - keep as-is
-                            loaded_contents.append(filename)
+                            # Non-string entry - skip
+                            log.warning(
+                                "%s Skipping non-string entry at %s[%d]: %s",
+                                log_identifier,
+                                param_name,
+                                idx,
+                                type(filename).__name__,
+                            )
 
-                    resolved_kwargs[param_name] = loaded_contents
+                    resolved_kwargs[param_name] = loaded_artifacts
                     log.debug(
                         "%s Pre-loaded %d artifacts for list param '%s'",
                         log_identifier,
-                        len(loaded_contents),
+                        len(loaded_artifacts),
                         param_name,
                     )
 
-                # Handle single ArtifactContent
+                # Handle single Artifact
                 elif value and isinstance(value, str):
                     try:
-                        content = await self._load_artifact_for_param(
+                        artifact = await self._load_artifact_for_param(
                             param_name=param_name,
                             filename=value,
                             tool_context=context_for_embeds,
                             log_identifier=log_identifier,
                         )
-                        resolved_kwargs[param_name] = content
+                        resolved_kwargs[param_name] = artifact
                     except ValueError as e:
                         # Return error immediately if artifact loading fails
                         log.error(

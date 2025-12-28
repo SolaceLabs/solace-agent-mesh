@@ -24,6 +24,7 @@ from ..utils.context_helpers import get_original_session_id
 
 from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
+from .tool_result import ToolResult
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ async def create_image_from_description(
     output_filename: Optional[str] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Generates an image based on a textual description using LiteLLM and saves it as a PNG artifact.
     Configuration for LiteLLM (model, api_key, etc.) is expected in `tool_config`.
@@ -46,17 +47,12 @@ async def create_image_from_description(
         tool_config: Optional dictionary containing specific configuration for this tool.
 
     Returns:
-        A dictionary containing:
-        - "status": "success" or "error".
-        - "message": A descriptive message about the outcome.
-        - "output_filename": The name of the saved image artifact (if successful).
-        - "output_version": The version of the saved image artifact (if successful).
-        - "result_preview": A brief preview message (if successful).
+        ToolResult with output artifact details.
     """
     log_identifier = f"[ImageTools:create_image_from_description]"
     if not tool_context:
         log.error(f"{log_identifier} ToolContext is missing.")
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
     try:
         inv_context = tool_context._invocation_context
@@ -137,21 +133,17 @@ async def create_image_from_description(
             log.error(
                 f"{log_identifier} HTTP error calling image generation API {hse.request.url}: {hse.response.status_code} - {hse.response.text}"
             )
-            return {
-                "status": "error",
-                "message": f"API error generating image: {hse.response.status_code} - {hse.response.text}",
-            }
+            return ToolResult.error(
+                f"API error generating image: {hse.response.status_code} - {hse.response.text}"
+            )
         except httpx.RequestError as re:
             log.error(
                 f"{log_identifier} Request error calling image generation API {re.request.url}: {re}"
             )
-            return {
-                "status": "error",
-                "message": f"Request error generating image: {re}",
-            }
+            return ToolResult.error(f"Request error generating image: {re}")
         except Exception as e:
             log.error(f"{log_identifier} Error calling image generation API: {e}")
-            return {"status": "error", "message": f"Error generating image: {e}"}
+            return ToolResult.error(f"Error generating image: {e}")
 
         log.debug(f"{log_identifier} Image generation API response received.")
 
@@ -233,47 +225,48 @@ async def create_image_from_description(
             tool_context=tool_context,
         )
 
-        if save_result.get("status") == "error":
+        if save_result.status == "error":
             raise IOError(
-                f"Failed to save image artifact: {save_result.get('message', 'Unknown error')}"
+                f"Failed to save image artifact: {save_result.message}"
             )
 
+        data_version = save_result.data.get("data_version", 1) if save_result.data else 1
         log.info(
-            f"{log_identifier} Artifact '{final_output_filename}' v{save_result['data_version']} saved successfully."
+            f"{log_identifier} Artifact '{final_output_filename}' v{data_version} saved successfully."
         )
 
-        return {
-            "status": "success",
-            "message": "Image generated and saved successfully.",
-            "output_filename": final_output_filename,
-            "output_version": save_result["data_version"],
-            "result_preview": f"Image '{final_output_filename}' (v{save_result['data_version']}) created from prompt: \"{image_description[:50]}...\"",
-        }
+        return ToolResult.ok(
+            "Image generated and saved successfully.",
+            data={
+                "output_filename": final_output_filename,
+                "output_version": data_version,
+                "result_preview": f"Image '{final_output_filename}' (v{data_version}) created from prompt: \"{image_description[:50]}...\"",
+            },
+        )
 
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
-        return {"status": "error", "message": str(ve)}
+        return ToolResult.error(str(ve))
     except httpx.HTTPStatusError as hse:
         log.error(
             f"{log_identifier} HTTP error fetching image from URL {hse.request.url}: {hse.response.status_code} - {hse.response.text}"
         )
-        return {
-            "status": "error",
-            "message": f"HTTP error fetching image: {hse.response.status_code}",
-        }
+        return ToolResult.error(
+            f"HTTP error fetching image: {hse.response.status_code}"
+        )
     except httpx.RequestError as re:
         log.error(
             f"{log_identifier} Request error fetching image from URL {re.request.url}: {re}"
         )
-        return {"status": "error", "message": f"Request error fetching image: {re}"}
+        return ToolResult.error(f"Request error fetching image: {re}")
     except IOError as ioe:
         log.error(f"{log_identifier} IO error: {ioe}")
-        return {"status": "error", "message": str(ioe)}
+        return ToolResult.error(str(ioe))
     except Exception as e:
         log.exception(
             f"{log_identifier} Unexpected error in create_image_from_description: {e}"
         )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 def _get_image_mime_type(filename: str) -> str:
@@ -307,7 +300,7 @@ async def describe_image(
     prompt: str = "What is in this image?",
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Describes an image using an OpenAI-compatible vision API.
 
@@ -318,18 +311,12 @@ async def describe_image(
         tool_config: Configuration dictionary containing model, api_base, api_key.
 
     Returns:
-        A dictionary containing:
-        - "status": "success" or "error".
-        - "message": A descriptive message about the outcome.
-        - "description": The image description from the API (if successful).
-        - "image_filename": The name of the input image artifact (if successful).
-        - "image_version": The version of the input image artifact (if successful).
-        - "tokens_used": Token usage information from the API (if available).
+        ToolResult with description data.
     """
     log_identifier = f"[ImageTools:describe_image:{image_filename}]"
     if not tool_context:
         log.error(f"{log_identifier} ToolContext is missing.")
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
     try:
         inv_context = tool_context._invocation_context
@@ -378,10 +365,14 @@ async def describe_image(
 
         log.debug(f"{log_identifier} Using model: {model_name}, API base: {api_base}")
 
+        # Parse filename:version format (rsplit to handle colons in filenames)
         parts = image_filename.rsplit(":", 1)
-        filename_base_for_load = parts[0]
-        version_str = parts[1] if len(parts) > 1 else None
-        version_to_load = int(version_str) if version_str else None
+        if len(parts) == 2 and parts[1].isdigit():
+            filename_base_for_load = parts[0]
+            version_to_load = int(parts[1])
+        else:
+            filename_base_for_load = image_filename
+            version_to_load = None
 
         if not _is_supported_image_format(filename_base_for_load):
             raise ValueError(
@@ -489,35 +480,36 @@ async def describe_image(
             f"{log_identifier} Image described successfully. Description length: {len(description)} characters"
         )
 
-        return {
-            "status": "success",
-            "message": "Image described successfully",
-            "description": description,
-            "image_filename": filename_base_for_load,
-            "image_version": version_to_load,
-            "tokens_used": tokens_used,
-        }
+        return ToolResult.ok(
+            "Image described successfully",
+            data={
+                "description": description,
+                "image_filename": filename_base_for_load,
+                "image_version": version_to_load,
+                "tokens_used": tokens_used,
+            },
+        )
 
     except FileNotFoundError as e:
         log.warning(f"{log_identifier} File not found error: {e}")
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
-        return {"status": "error", "message": str(ve)}
+        return ToolResult.error(str(ve))
     except httpx.HTTPStatusError as hse:
         log.error(
             f"{log_identifier} HTTP error calling vision API: {hse.response.status_code} - {hse.response.text}"
         )
-        return {"status": "error", "message": f"API error: {hse.response.status_code}"}
+        return ToolResult.error(f"API error: {hse.response.status_code}")
     except httpx.RequestError as re:
         log.error(f"{log_identifier} Request error calling vision API: {re}")
-        return {"status": "error", "message": f"Request error: {re}"}
+        return ToolResult.error(f"Request error: {re}")
     except json.JSONDecodeError as jde:
         log.error(f"{log_identifier} JSON decode error: {jde}")
-        return {"status": "error", "message": "Invalid JSON response from API"}
+        return ToolResult.error("Invalid JSON response from API")
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in describe_image: {e}")
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 def _get_audio_format(filename: str) -> str:
@@ -544,7 +536,7 @@ async def describe_audio(
     prompt: str = "What is in this recording?",
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Describes an audio recording using an OpenAI-compatible audio API.
 
@@ -555,18 +547,12 @@ async def describe_audio(
         tool_config: Configuration dictionary containing model, api_base, api_key.
 
     Returns:
-        A dictionary containing:
-        - "status": "success" or "error".
-        - "message": A descriptive message about the outcome.
-        - "description": The audio description from the API (if successful).
-        - "audio_filename": The name of the input audio artifact (if successful).
-        - "audio_version": The version of the input audio artifact (if successful).
-        - "tokens_used": Token usage information from the API (if available).
+        ToolResult with description data.
     """
     log_identifier = f"[ImageTools:describe_audio:{audio_filename}]"
     if not tool_context:
         log.error(f"{log_identifier} ToolContext is missing.")
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
     try:
         inv_context = tool_context._invocation_context
@@ -615,10 +601,14 @@ async def describe_audio(
 
         log.debug(f"{log_identifier} Using model: {model_name}, API base: {api_base}")
 
+        # Parse filename:version format (rsplit to handle colons in filenames)
         parts = audio_filename.rsplit(":", 1)
-        filename_base_for_load = parts[0]
-        version_str = parts[1] if len(parts) > 1 else None
-        version_to_load = int(version_str) if version_str else None
+        if len(parts) == 2 and parts[1].isdigit():
+            filename_base_for_load = parts[0]
+            version_to_load = int(parts[1])
+        else:
+            filename_base_for_load = audio_filename
+            version_to_load = None
 
         if not _is_supported_audio_format(filename_base_for_load):
             raise ValueError(f"Unsupported audio format. Supported formats: .wav, .mp3")
@@ -735,35 +725,36 @@ async def describe_audio(
             f"{log_identifier} Audio described successfully. Description length: {len(description)} characters"
         )
 
-        return {
-            "status": "success",
-            "message": "Audio described successfully",
-            "description": description,
-            "audio_filename": filename_base_for_load,
-            "audio_version": version_to_load,
-            "tokens_used": tokens_used,
-        }
+        return ToolResult.ok(
+            "Audio described successfully",
+            data={
+                "description": description,
+                "audio_filename": filename_base_for_load,
+                "audio_version": version_to_load,
+                "tokens_used": tokens_used,
+            },
+        )
 
     except FileNotFoundError as e:
         log.warning(f"{log_identifier} File not found error: {e}")
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
-        return {"status": "error", "message": str(ve)}
+        return ToolResult.error(str(ve))
     except httpx.HTTPStatusError as hse:
         log.error(
             f"{log_identifier} HTTP error calling audio API: {hse.response.status_code} - {hse.response.text}"
         )
-        return {"status": "error", "message": f"API error: {hse.response.status_code}"}
+        return ToolResult.error(f"API error: {hse.response.status_code}")
     except httpx.RequestError as re:
         log.error(f"{log_identifier} Request error calling audio API: {re}")
-        return {"status": "error", "message": f"Request error: {re}"}
+        return ToolResult.error(f"Request error: {re}")
     except json.JSONDecodeError as jde:
         log.error(f"{log_identifier} JSON decode error: {jde}")
-        return {"status": "error", "message": "Invalid JSON response from API"}
+        return ToolResult.error("Invalid JSON response from API")
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in describe_audio: {e}")
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 async def edit_image_with_gemini(
@@ -772,7 +763,7 @@ async def edit_image_with_gemini(
     output_filename: Optional[str] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Edits an existing image based on a text prompt using Google's Gemini 2.0 Flash Preview Image Generation model.
 
@@ -785,19 +776,12 @@ async def edit_image_with_gemini(
         tool_config: Configuration dictionary containing gemini_api_key and model.
 
     Returns:
-        A dictionary containing:
-        - "status": "success" or "error".
-        - "message": A descriptive message about the outcome.
-        - "output_filename": The name of the saved edited image artifact (if successful).
-        - "output_version": The version of the saved edited image artifact (if successful).
-        - "result_preview": A brief preview message (if successful).
-        - "original_filename": The name of the input image artifact (if successful).
-        - "original_version": The version of the input image artifact (if successful).
+        ToolResult with output artifact details.
     """
     log_identifier = f"[ImageTools:edit_image_with_gemini:{image_filename}]"
     if not tool_context:
         log.error(f"{log_identifier} ToolContext is missing.")
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
     try:
         try:
@@ -807,10 +791,7 @@ async def edit_image_with_gemini(
             from io import BytesIO
         except ImportError as ie:
             log.error(f"{log_identifier} Required dependencies not available: {ie}")
-            return {
-                "status": "error",
-                "message": f"Required dependencies not available: {ie}",
-            }
+            return ToolResult.error(f"Required dependencies not available: {ie}")
 
         inv_context = tool_context._invocation_context
         if not inv_context:
@@ -859,10 +840,14 @@ async def edit_image_with_gemini(
 
         log.debug(f"{log_identifier} Using Gemini model: {model_name}")
 
+        # Parse filename:version format (rsplit to handle colons in filenames)
         parts = image_filename.rsplit(":", 1)
-        filename_base_for_load = parts[0]
-        version_str = parts[1] if len(parts) > 1 else None
-        version_to_load = int(version_str) if version_str else None
+        if len(parts) == 2 and parts[1].isdigit():
+            filename_base_for_load = parts[0]
+            version_to_load = int(parts[1])
+        else:
+            filename_base_for_load = image_filename
+            version_to_load = None
 
         if not _is_supported_image_format(filename_base_for_load):
             raise ValueError(
@@ -1044,39 +1029,41 @@ async def edit_image_with_gemini(
             tool_context=tool_context,
         )
 
-        if save_result.get("status") == "error":
+        if save_result.status == "error":
             raise IOError(
-                f"Failed to save edited image artifact: {save_result.get('message', 'Unknown error')}"
+                f"Failed to save edited image artifact: {save_result.message}"
             )
 
+        data_version = save_result.data.get("data_version", 1) if save_result.data else 1
         log.info(
-            f"{log_identifier} Edited image artifact '{final_output_filename}' v{save_result['data_version']} saved successfully."
+            f"{log_identifier} Edited image artifact '{final_output_filename}' v{data_version} saved successfully."
         )
 
-        return {
-            "status": "success",
-            "message": "Image edited and saved successfully.",
-            "output_filename": final_output_filename,
-            "output_version": save_result["data_version"],
-            "result_preview": f"Edited image '{final_output_filename}' (v{save_result['data_version']}) created from '{filename_base_for_load}' with prompt: \"{edit_prompt[:50]}...\"",
-            "original_filename": filename_base_for_load,
-            "original_version": version_to_load,
-        }
+        return ToolResult.ok(
+            "Image edited and saved successfully.",
+            data={
+                "output_filename": final_output_filename,
+                "output_version": data_version,
+                "result_preview": f"Edited image '{final_output_filename}' (v{data_version}) created from '{filename_base_for_load}' with prompt: \"{edit_prompt[:50]}...\"",
+                "original_filename": filename_base_for_load,
+                "original_version": version_to_load,
+            },
+        )
 
     except FileNotFoundError as e:
         log.warning(f"{log_identifier} File not found error: {e}")
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
-        return {"status": "error", "message": str(ve)}
+        return ToolResult.error(str(ve))
     except IOError as ioe:
         log.error(f"{log_identifier} IO error: {ioe}")
-        return {"status": "error", "message": str(ioe)}
+        return ToolResult.error(str(ioe))
     except Exception as e:
         log.exception(
             f"{log_identifier} Unexpected error in edit_image_with_gemini: {e}"
         )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 create_image_from_description_tool_def = BuiltinTool(

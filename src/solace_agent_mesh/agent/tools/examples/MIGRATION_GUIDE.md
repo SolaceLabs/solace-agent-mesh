@@ -97,10 +97,14 @@ app_name = ctx.app_name
 # Old pattern
 async def my_tool(input_filename: str, tool_context: ToolContext = None):
     inv_context = tool_context._invocation_context
-    # Parse version
-    parts = input_filename.split(":", 1)
-    filename_base = parts[0]
-    version = int(parts[1]) if len(parts) > 1 else "latest"
+    # Parse filename:version format (rsplit to handle colons in filenames)
+    parts = input_filename.rsplit(":", 1)
+    if len(parts) == 2 and parts[1].isdigit():
+        filename_base = parts[0]
+        version = int(parts[1])
+    else:
+        filename_base = input_filename
+        version = "latest"
 
     load_result = await load_artifact_content_or_metadata(
         artifact_service=inv_context.artifact_service,
@@ -137,10 +141,14 @@ async def my_tool(
     ctx: ToolContextFacade = None,
 ) -> ToolResult:
     for table_name, filename in input_files.items():
-        # Parse version
-        parts = filename.split(":", 1)
-        filename_base = parts[0]
-        version = int(parts[1]) if len(parts) > 1 else "latest"
+        # Parse filename:version format (rsplit to handle colons in filenames)
+        parts = filename.rsplit(":", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            filename_base = parts[0]
+            version = int(parts[1])
+        else:
+            filename_base = filename
+            version = "latest"
 
         # Simple one-liner instead of 15+ lines
         content = await ctx.load_artifact(filename_base, version=version)

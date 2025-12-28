@@ -13,7 +13,7 @@ from solace_agent_mesh.agent.tools.executors.executor_tool import (
     _build_schema_from_config,
     SchemaParseResult,
 )
-from solace_agent_mesh.agent.tools.artifact_types import ArtifactContentInfo
+from solace_agent_mesh.agent.tools.artifact_types import ArtifactTypeInfo
 
 
 class TestBuildSchemaFromConfigBasicTypes:
@@ -329,8 +329,8 @@ class TestSchemaParseResult:
         assert isinstance(result.schema, adk_types.Schema)
         assert isinstance(result.artifact_params, dict)
 
-    def test_artifact_content_info_in_result(self):
-        """artifact_params should contain ArtifactContentInfo instances."""
+    def test_artifact_type_info_in_result(self):
+        """artifact_params should contain ArtifactTypeInfo instances."""
         config = {
             "properties": {
                 "file": {"type": "artifact"}
@@ -339,5 +339,5 @@ class TestSchemaParseResult:
         result = _build_schema_from_config(config)
 
         info = result.artifact_params["file"]
-        assert isinstance(info, ArtifactContentInfo)
+        assert isinstance(info, ArtifactTypeInfo)
         assert info.is_artifact is True

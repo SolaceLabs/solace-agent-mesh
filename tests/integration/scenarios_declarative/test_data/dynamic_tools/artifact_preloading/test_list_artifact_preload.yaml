@@ -1,8 +1,8 @@
 test_case_id: "artifact_preload_list_001"
 description: |
-  Verifies that a tool with a List[ArtifactContent] type hint receives a list
-  of actual artifact contents (pre-loaded by the framework) instead of filenames.
-  The LLM provides a list of filenames, but the tool receives a list of contents.
+  Verifies that a tool with a List[Artifact] type hint receives a list
+  of Artifact objects (pre-loaded by the framework) instead of filenames.
+  The LLM provides a list of filenames, but the tool receives a list of Artifact objects.
 skip_intermediate_events: true
 tags: ["all", "agent", "tools", "dynamic_tools", "artifact_preloading"]
 
@@ -37,7 +37,7 @@ llm_interactions:
     expected_request:
       expected_tool_declarations_contain:
         - name: "process_multiple_artifacts"
-          description_contains: "List[ArtifactContent] parameter"
+          description_contains: "List[Artifact] parameter"
     static_response:
       id: "chatcmpl-artifact-list-1"
       object: "chat.completion"

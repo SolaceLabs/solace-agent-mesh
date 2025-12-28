@@ -13,7 +13,7 @@ from google.genai import types as adk_types
 
 from ..dynamic_tool import DynamicTool
 from ..tool_result import ToolResult, DataObject
-from ..artifact_types import ArtifactContentInfo
+from ..artifact_types import ArtifactTypeInfo
 from .base import ToolExecutor, ToolExecutionResult
 
 if TYPE_CHECKING:
@@ -50,10 +50,10 @@ class ExecutorBasedTool(DynamicTool):
         parameters_schema: adk_types.Schema,
         executor: ToolExecutor,
         tool_config: Optional[Dict[str, Any]] = None,
-        artifact_content_params: Optional[Dict[str, ArtifactContentInfo]] = None,
-        # Deprecated - use artifact_content_params or type: artifact in schema
-        artifact_content_args: Optional[List[str]] = None,
-        artifact_content_list_args: Optional[List[str]] = None,
+        artifact_params: Optional[Dict[str, ArtifactTypeInfo]] = None,
+        # Deprecated - use artifact_params or type: artifact in schema
+        artifact_args: Optional[List[str]] = None,
+        artifact_list_args: Optional[List[str]] = None,
     ):
         """
         Initialize an executor-based tool.
@@ -64,9 +64,9 @@ class ExecutorBasedTool(DynamicTool):
             parameters_schema: ADK Schema defining parameters
             executor: The executor to delegate to
             tool_config: Optional tool configuration
-            artifact_content_params: Dict mapping param names to ArtifactContentInfo
-            artifact_content_args: (Deprecated) Parameter names (single) to pre-load
-            artifact_content_list_args: (Deprecated) Parameter names (lists) to pre-load
+            artifact_params: Dict mapping param names to ArtifactTypeInfo
+            artifact_args: (Deprecated) Parameter names (single) to pre-load
+            artifact_list_args: (Deprecated) Parameter names (lists) to pre-load
         """
         super().__init__(tool_config=tool_config)
         self._name = name
@@ -74,18 +74,18 @@ class ExecutorBasedTool(DynamicTool):
         self._schema = parameters_schema
         self._executor = executor
 
-        # Use artifact_content_params if provided, otherwise build from deprecated args
-        if artifact_content_params is not None:
-            self._artifact_content_params = artifact_content_params
+        # Use artifact_params if provided, otherwise build from deprecated args
+        if artifact_params is not None:
+            self._artifact_params = artifact_params
         else:
             # Build from deprecated args for backward compatibility
-            self._artifact_content_params = {}
-            for param_name in (artifact_content_args or []):
-                self._artifact_content_params[param_name] = ArtifactContentInfo(
+            self._artifact_params = {}
+            for param_name in (artifact_args or []):
+                self._artifact_params[param_name] = ArtifactTypeInfo(
                     is_artifact=True, is_list=False
                 )
-            for param_name in (artifact_content_list_args or []):
-                self._artifact_content_params[param_name] = ArtifactContentInfo(
+            for param_name in (artifact_list_args or []):
+                self._artifact_params[param_name] = ArtifactTypeInfo(
                     is_artifact=True, is_list=True
                 )
 
@@ -102,14 +102,14 @@ class ExecutorBasedTool(DynamicTool):
         return self._schema
 
     @property
-    def artifact_content_args(self) -> List[str]:
-        """Return list of all artifact content parameter names."""
-        return list(self._artifact_content_params.keys())
+    def artifact_args(self) -> List[str]:
+        """Return list of all artifact parameter names."""
+        return list(self._artifact_params.keys())
 
     @property
-    def artifact_content_params(self) -> Dict[str, ArtifactContentInfo]:
-        """Return detailed info about artifact content parameters."""
-        return self._artifact_content_params
+    def artifact_params(self) -> Dict[str, ArtifactTypeInfo]:
+        """Return detailed info about artifact parameters."""
+        return self._artifact_params
 
     async def init(
         self,
@@ -282,14 +282,14 @@ def create_executor_tool_from_config(
     artifact_params = dict(schema_result.artifact_params)
 
     # Add any explicitly configured artifact args (backward compat, deprecated)
-    for param_name in config.get("artifact_content_args", []):
+    for param_name in config.get("artifact_args", []):
         if param_name not in artifact_params:
-            artifact_params[param_name] = ArtifactContentInfo(
+            artifact_params[param_name] = ArtifactTypeInfo(
                 is_artifact=True, is_list=False
             )
-    for param_name in config.get("artifact_content_list_args", []):
+    for param_name in config.get("artifact_list_args", []):
         if param_name not in artifact_params:
-            artifact_params[param_name] = ArtifactContentInfo(
+            artifact_params[param_name] = ArtifactTypeInfo(
                 is_artifact=True, is_list=True
             )
 
@@ -300,7 +300,7 @@ def create_executor_tool_from_config(
         parameters_schema=schema_result.schema,
         executor=executor,
         tool_config=config.get("tool_config", {}),
-        artifact_content_params=artifact_params,
+        artifact_params=artifact_params,
     )
 
 
@@ -310,7 +310,7 @@ class SchemaParseResult:
     def __init__(
         self,
         schema: adk_types.Schema,
-        artifact_params: Dict[str, ArtifactContentInfo],
+        artifact_params: Dict[str, ArtifactTypeInfo],
     ):
         self.schema = schema
         self.artifact_params = artifact_params
@@ -335,7 +335,7 @@ def _build_schema_from_config(
     Returns:
         SchemaParseResult with schema and artifact parameter info
     """
-    artifact_params: Dict[str, ArtifactContentInfo] = {}
+    artifact_params: Dict[str, ArtifactTypeInfo] = {}
 
     if not params_config:
         return SchemaParseResult(
@@ -370,7 +370,7 @@ def _build_schema_from_config(
             # Simple type string: "string", "artifact", etc.
             prop_type = prop_config.lower()
             if prop_type == "artifact":
-                artifact_params[name] = ArtifactContentInfo(
+                artifact_params[name] = ArtifactTypeInfo(
                     is_artifact=True, is_list=False
                 )
             adk_type = type_map.get(prop_type, adk_types.Type.STRING)
@@ -383,7 +383,7 @@ def _build_schema_from_config(
 
             # Check for artifact type
             if prop_type == "artifact":
-                artifact_params[name] = ArtifactContentInfo(
+                artifact_params[name] = ArtifactTypeInfo(
                     is_artifact=True, is_list=False
                 )
                 return adk_types.Schema(
@@ -399,7 +399,7 @@ def _build_schema_from_config(
 
                 if items_type == "artifact":
                     # Array of artifacts -> array of strings
-                    artifact_params[name] = ArtifactContentInfo(
+                    artifact_params[name] = ArtifactTypeInfo(
                         is_artifact=True, is_list=True
                     )
                     return adk_types.Schema(

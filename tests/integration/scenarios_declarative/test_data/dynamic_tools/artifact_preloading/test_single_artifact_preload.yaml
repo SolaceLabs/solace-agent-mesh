@@ -1,8 +1,8 @@
 test_case_id: "artifact_preload_single_001"
 description: |
-  Verifies that a tool with an ArtifactContent type hint receives the actual
-  artifact content (pre-loaded by the framework) instead of just the filename.
-  The LLM provides a filename, but the tool receives the content.
+  Verifies that a tool with an Artifact type hint receives a full Artifact object
+  (pre-loaded by the framework) instead of just the filename.
+  The LLM provides a filename, but the tool receives an Artifact with content and metadata.
 skip_intermediate_events: true
 tags: ["all", "agent", "tools", "dynamic_tools", "artifact_preloading"]
 
@@ -28,7 +28,7 @@ llm_interactions:
     expected_request:
       expected_tool_declarations_contain:
         - name: "process_single_artifact"
-          description_contains: "single ArtifactContent parameter"
+          description_contains: "single Artifact parameter"
     static_response:
       id: "chatcmpl-artifact-preload-1"
       object: "chat.completion"
@@ -52,8 +52,9 @@ llm_interactions:
             status: "success"
             # The tool received the actual content, not the filename
             received_content: "This is the pre-loaded content from the artifact."
-            received_content_type: "bytes"
             received_filename: "input_data.txt"
+            # Artifact metadata is also available
+            artifact_filename: "input_data.txt"
     static_response:
       id: "chatcmpl-artifact-preload-2"
       object: "chat.completion"

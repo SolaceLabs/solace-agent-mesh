@@ -25,6 +25,7 @@ from ...agent.utils.context_helpers import get_original_session_id
 
 from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
+from .tool_result import ToolResult
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ async def web_request(
     output_artifact_filename: Optional[str] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Makes an HTTP request to the specified URL, processes the content (e.g., HTML to Markdown),
     and saves the result as an artifact.
@@ -85,21 +86,21 @@ async def web_request(
         tool_config: Optional. Configuration passed by the ADK, generally not used by this simplified tool.
 
     Returns:
-        A dictionary with status, message, and artifact details if successful.
+        ToolResult with artifact details if successful.
     """
     log_identifier = f"[WebTools:web_request:{method}:{url}]"
     if not tool_context:
         log.error(f"{log_identifier} ToolContext is missing.")
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
     # Check if loopback URLs are allowed (for testing)
     allow_loopback = False
     if tool_config:
         allow_loopback = tool_config.get("allow_loopback", False)
-    
+
     if not allow_loopback and not _is_safe_url(url):
         log.error(f"{log_identifier} URL is not safe to request: {url}")
-        return {"status": "error", "message": "URL is not safe to request."}
+        return ToolResult.error("URL is not safe to request.")
 
     if headers is None:
         headers = {}
@@ -286,18 +287,19 @@ async def web_request(
             if len(response_content_bytes) > 200:
                 preview_text += "..."
 
-        return {
-            "status": "success",
-            "message": f"Successfully fetched content from {url} (status: {response_status_code}). "
+        return ToolResult.ok(
+            f"Successfully fetched content from {url} (status: {response_status_code}). "
             f"Saved as artifact '{final_artifact_filename}' v{save_result['data_version']}. "
             f"Analyze the content of '{final_artifact_filename}' before providing a final answer to the user.",
-            "output_filename": final_artifact_filename,
-            "output_version": save_result["data_version"],
-            "response_status_code": response_status_code,
-            "original_content_type": original_content_type,
-            "processed_content_type": processed_content_type,
-            "result_preview": preview_text,
-        }
+            data={
+                "output_filename": final_artifact_filename,
+                "output_version": save_result["data_version"],
+                "response_status_code": response_status_code,
+                "original_content_type": original_content_type,
+                "processed_content_type": processed_content_type,
+                "result_preview": preview_text,
+            },
+        )
 
     except httpx.HTTPStatusError as hse:
         error_message = f"HTTP error {hse.response.status_code} while fetching {url}: {hse.response.text[:500]}"
@@ -323,30 +325,29 @@ async def web_request(
                 datetime.now(timezone.utc),
                 tool_context=tool_context,
             )
-            return {
-                "status": "error",
-                "message": error_message,
-                "error_artifact": error_filename,
-            }
+            return ToolResult.error(
+                error_message,
+                data={"error_artifact": error_filename},
+            )
         except Exception as e_save:
             log.error(
                 f"{log_identifier} Could not save HTTPStatusError response: {e_save}"
             )
-            return {"status": "error", "message": error_message}
+            return ToolResult.error(error_message)
 
     except httpx.RequestError as re:
         error_message = f"Request error while fetching {url}: {re}"
         log.error(f"{log_identifier} {error_message}", exc_info=True)
-        return {"status": "error", "message": error_message}
+        return ToolResult.error(error_message)
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}", exc_info=True)
-        return {"status": "error", "message": str(ve)}
+        return ToolResult.error(str(ve))
     except IOError as ioe:
         log.error(f"{log_identifier} IO error: {ioe}", exc_info=True)
-        return {"status": "error", "message": str(ioe)}
+        return ToolResult.error(str(ioe))
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in web_request: {e}")
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 web_request_tool_def = BuiltinTool(

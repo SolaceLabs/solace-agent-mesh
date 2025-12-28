@@ -1,7 +1,7 @@
 test_case_id: "artifact_preload_mixed_params_001"
 description: |
-  Verifies that a tool with mixed ArtifactContent and regular parameters works
-  correctly. The ArtifactContent param gets pre-loaded while regular params
+  Verifies that a tool with mixed Artifact and regular parameters works
+  correctly. The Artifact param gets pre-loaded while regular params
   are passed through unchanged.
 skip_intermediate_events: true
 tags: ["all", "agent", "tools", "dynamic_tools", "artifact_preloading"]
@@ -27,7 +27,7 @@ llm_interactions:
     expected_request:
       expected_tool_declarations_contain:
         - name: "process_mixed_params"
-          description_contains: "mixed ArtifactContent and regular parameters"
+          description_contains: "mixed Artifact and regular parameters"
     static_response:
       id: "chatcmpl-mixed-params-1"
       object: "chat.completion"

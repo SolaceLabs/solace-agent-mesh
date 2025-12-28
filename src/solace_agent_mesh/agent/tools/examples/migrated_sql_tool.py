@@ -204,11 +204,14 @@ async def query_data_with_sql(
             table_log_id = f"{log_id}[{table_name}]"
             log.debug("%s Loading '%s'...", table_log_id, input_filename)
 
-            # Parse filename and version
-            parts = input_filename.split(":", 1)
-            filename_base = parts[0]
-            version_str = parts[1] if len(parts) > 1 else "latest"
-            version = int(version_str) if version_str.isdigit() else "latest"
+            # Parse filename:version format (rsplit to handle colons in filenames)
+            parts = input_filename.rsplit(":", 1)
+            if len(parts) == 2 and parts[1].isdigit():
+                filename_base = parts[0]
+                version = int(parts[1])
+            else:
+                filename_base = input_filename
+                version = "latest"
 
             # Use ToolContextFacade for simplified artifact loading
             try:

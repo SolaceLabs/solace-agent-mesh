@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from google.adk.agents.invocation_context import InvocationContext
 from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
+from .tool_result import ToolResult
 from .registry import tool_registry
 from ...agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
@@ -53,7 +54,7 @@ async def _internal_create_artifact(
     description: Optional[str] = None,
     metadata_json: Optional[str] = None,
     schema_max_keys: Optional[int] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Internal helper to create an artifact with its first chunk of content and metadata.
     This function is not intended to be called directly by the LLM.
@@ -72,21 +73,19 @@ async def _internal_create_artifact(
 
 
     Returns:
-        A dictionary indicating the result, returned by save_artifact_with_metadata.
+        A ToolResult indicating the result of the save operation.
     """
     if not tool_context:
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": "ToolContext is missing, cannot save artifact.",
-        }
+        return ToolResult.error(
+            "ToolContext is missing, cannot save artifact.",
+            data={"filename": filename}
+        )
 
     if not is_filename_safe(filename):
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": "Filename is invalid or contains disallowed characters (e.g., '/', '..').",
-        }
+        return ToolResult.error(
+            "Filename is invalid or contains disallowed characters (e.g., '/', '..').",
+            data={"filename": filename}
+        )
 
     log_identifier = f"[BuiltinArtifactTool:_internal_create_artifact:{filename}]"
 
@@ -180,19 +179,24 @@ async def _internal_create_artifact(
         log.info(
             "%s Result from save_artifact_with_metadata: %s", log_identifier, result
         )
-        return result
+        # Convert helper dict result to ToolResult
+        status = result.pop("status", "success")
+        if status == "error":
+            message = result.pop("message", "Unknown error")
+            return ToolResult.error(message, data=result)
+        message = result.pop("message", f"Created artifact {filename}")
+        return ToolResult.ok(message, data=result)
     except Exception as e:
         log.exception(
             "%s Error creating artifact '%s': %s", log_identifier, filename, e
         )
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": f"Failed to create artifact: {e}",
-        }
+        return ToolResult.error(
+            f"Failed to create artifact: {e}",
+            data={"filename": filename}
+        )
 
 
-async def list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]:
+async def list_artifacts(tool_context: ToolContext = None) -> ToolResult:
     """
     Lists all available data artifact filenames and their versions for the current session.
     Includes a summary of the latest version's metadata for each artifact.
@@ -201,10 +205,10 @@ async def list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]:
         tool_context: The context provided by the ADK framework.
 
     Returns:
-        A dictionary containing the list of artifacts with metadata summaries or an error.
+        A ToolResult containing the list of artifacts with metadata summaries or an error.
     """
     if not tool_context:
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
     log_identifier = "[BuiltinArtifactTool:list_artifacts]"
     log.debug("%s Processing request.", log_identifier)
     try:
@@ -352,10 +356,13 @@ async def list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]:
             len(response_files),
             session_id,
         )
-        return {"status": "success", "artifacts": response_files}
+        return ToolResult.ok(
+            f"Found {len(response_files)} artifacts.",
+            data={"artifacts": response_files}
+        )
     except Exception as e:
         log.exception("%s Error listing artifacts: %s", log_identifier, e)
-        return {"status": "error", "message": f"Failed to list artifacts: {e}"}
+        return ToolResult.error(f"Failed to list artifacts: {e}")
 
 
 async def load_artifact(
@@ -365,7 +372,7 @@ async def load_artifact(
     max_content_length: Optional[int] = None,
     include_line_numbers: bool = False,
     tool_context: ToolContext = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Loads the content or metadata of a specific artifact version.
     Early-stage embeds in the filename argument are resolved.
@@ -385,15 +392,13 @@ async def load_artifact(
         tool_context: The context provided by the ADK framework.
 
     Returns:
-        A dictionary containing the artifact details and content/metadata or an error.
+        A ToolResult containing the artifact details and content/metadata or an error.
     """
     if not tool_context:
-        return {
-            "status": "error",
-            "filename": filename,
-            "version": version,
-            "message": "ToolContext is missing.",
-        }
+        return ToolResult.error(
+            "ToolContext is missing.",
+            data={"filename": filename, "version": version}
+        )
     log_identifier = f"[BuiltinArtifactTool:load_artifact:{filename}:{version}]"
     log.debug(
         "%s Processing request (load_metadata_only=%s).",
@@ -424,39 +429,39 @@ async def load_artifact(
             component=host_component,
             log_identifier_prefix="[BuiltinArtifactTool:load_artifact]",
         )
-        return result
+        # Convert helper dict result to ToolResult
+        status = result.pop("status", "success")
+        if status in ("error", "not_found"):
+            message = result.pop("message", "Unknown error")
+            return ToolResult.error(message, data=result)
+        message = result.pop("message", f"Loaded artifact {filename}")
+        return ToolResult.ok(message, data=result)
     except FileNotFoundError as fnf_err:
         log.warning(
             "%s Artifact not found (reported by helper): %s", log_identifier, fnf_err
         )
-        return {
-            "status": "error",
-            "filename": filename,
-            "version": version,
-            "message": str(fnf_err),
-        }
+        return ToolResult.error(
+            str(fnf_err),
+            data={"filename": filename, "version": version}
+        )
     except ValueError as val_err:
         log.warning(
             "%s Value error during load (reported by helper): %s",
             log_identifier,
             val_err,
         )
-        return {
-            "status": "error",
-            "filename": filename,
-            "version": version,
-            "message": str(val_err),
-        }
+        return ToolResult.error(
+            str(val_err),
+            data={"filename": filename, "version": version}
+        )
     except Exception as e:
         log.exception(
             "%s Unexpected error in load_artifact tool: %s", log_identifier, e
         )
-        return {
-            "status": "error",
-            "filename": filename,
-            "version": version,
-            "message": f"Unexpected error processing load request: {e}",
-        }
+        return ToolResult.error(
+            f"Unexpected error processing load request: {e}",
+            data={"filename": filename, "version": version}
+        )
 
 
 async def apply_embed_and_create_artifact(
@@ -464,7 +469,7 @@ async def apply_embed_and_create_artifact(
     embed_directive: str,
     output_metadata: Optional[Dict[str, Any]] = None,
     tool_context: ToolContext = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Resolves an 'artifact_content' embed directive (including modifiers and formatting)
     and saves the resulting content as a new artifact. The entire embed directive
@@ -477,10 +482,10 @@ async def apply_embed_and_create_artifact(
         tool_context: The context provided by the ADK framework.
 
     Returns:
-        A dictionary indicating the result, including the new filename and version.
+        A ToolResult indicating the result, including the new filename and version.
     """
     if not tool_context:
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
     log_identifier = f"[BuiltinArtifactTool:apply_embed:{output_filename}]"
     log.info(
@@ -489,20 +494,16 @@ async def apply_embed_and_create_artifact(
 
     match = EMBED_REGEX.fullmatch(embed_directive)
     if not match:
-        return {
-            "status": "error",
-            "message": f"Invalid embed directive format: {embed_directive}",
-        }
+        return ToolResult.error(f"Invalid embed directive format: {embed_directive}")
 
     embed_type = match.group(1)
     expression = match.group(2)
     format_spec = match.group(3)
 
     if embed_type != "artifact_content":
-        return {
-            "status": "error",
-            "message": f"This tool only supports 'artifact_content' embeds, got '{embed_type}'.",
-        }
+        return ToolResult.error(
+            f"This tool only supports 'artifact_content' embeds, got '{embed_type}'."
+        )
 
     try:
         inv_context = tool_context._invocation_context
@@ -541,10 +542,7 @@ async def apply_embed_and_create_artifact(
             log_identifier,
             ctx_err,
         )
-        return {
-            "status": "error",
-            "message": f"Internal error preparing context: {ctx_err}",
-        }
+        return ToolResult.error(f"Internal error preparing context: {ctx_err}")
 
     resolved_content_str, error_msg_from_eval, _ = await evaluate_embed(
         embed_type=embed_type,
@@ -561,10 +559,7 @@ async def apply_embed_and_create_artifact(
     ):
         error_to_report = error_msg_from_eval or resolved_content_str
         log.error("%s Embed resolution failed: %s", log_identifier, error_to_report)
-        return {
-            "status": "error",
-            "message": f"Embed resolution failed: {error_to_report}",
-        }
+        return ToolResult.error(f"Embed resolution failed: {error_to_report}")
 
     output_mime_type = "text/plain"
     final_format = None
@@ -630,13 +625,14 @@ async def apply_embed_and_create_artifact(
             output_filename,
             save_result.get("data_version"),
         )
-        return {
-            "status": "success",
-            "output_filename": output_filename,
-            "output_version": save_result.get("data_version"),
-            "output_mime_type": output_mime_type,
-            "message": f"Successfully created artifact '{output_filename}' v{save_result.get('data_version')} from embed directive.",
-        }
+        return ToolResult.ok(
+            f"Successfully created artifact '{output_filename}' v{save_result.get('data_version')} from embed directive.",
+            data={
+                "output_filename": output_filename,
+                "output_version": save_result.get("data_version"),
+                "output_mime_type": output_mime_type,
+            }
+        )
 
     except Exception as save_err:
         log.exception(
@@ -645,10 +641,7 @@ async def apply_embed_and_create_artifact(
             output_filename,
             save_err,
         )
-        return {
-            "status": "error",
-            "message": f"Failed to save new artifact: {save_err}",
-        }
+        return ToolResult.error(f"Failed to save new artifact: {save_err}")
 
 
 async def extract_content_from_artifact(
@@ -657,7 +650,7 @@ async def extract_content_from_artifact(
     version: Optional[str] = "latest",
     output_filename_base: Optional[str] = None,
     tool_context: ToolContext = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Loads an existing artifact, uses an internal LLM to process its content
     based on an "extraction_goal," and manages the output by returning it
@@ -681,10 +674,9 @@ async def extract_content_from_artifact(
         tool_context (ToolContext): Provided by the ADK framework.
 
     Returns:
-        Dict[str, Any]: A dictionary containing the status of the operation,
-                        a message for the LLM, and potentially the extracted
-                        data or details of a newly saved artifact.
-                        Refer to the design document for specific response structures.
+        ToolResult: A ToolResult containing the status of the operation,
+                    a message for the LLM, and potentially the extracted
+                    data or details of a newly saved artifact.
     """
     log_identifier = f"[BuiltinArtifactTool:extract_content:{filename}:{version}]"
     log.debug(
@@ -695,25 +687,20 @@ async def extract_content_from_artifact(
     )
 
     if not tool_context:
-        return {
-            "status": "error_tool_context_missing",
-            "message_to_llm": "Tool execution failed: ToolContext is missing.",
-            "filename": filename,
-            "version_requested": str(version),
-        }
+        return ToolResult.error(
+            "Tool execution failed: ToolContext is missing.",
+            data={"filename": filename, "version_requested": str(version)}
+        )
     if not filename:
-        return {
-            "status": "error_missing_filename",
-            "message_to_llm": "Tool execution failed: 'filename' parameter is required.",
-            "version_requested": str(version),
-        }
+        return ToolResult.error(
+            "Tool execution failed: 'filename' parameter is required.",
+            data={"version_requested": str(version)}
+        )
     if not extraction_goal:
-        return {
-            "status": "error_missing_extraction_goal",
-            "message_to_llm": "Tool execution failed: 'extraction_goal' parameter is required.",
-            "filename": filename,
-            "version_requested": str(version),
-        }
+        return ToolResult.error(
+            "Tool execution failed: 'extraction_goal' parameter is required.",
+            data={"filename": filename, "version_requested": str(version)}
+        )
 
     inv_context = tool_context._invocation_context
     host_component = getattr(inv_context.agent, "host_component", None)
@@ -722,12 +709,10 @@ async def extract_content_from_artifact(
             "%s Host component not found on agent. Cannot retrieve config.",
             log_identifier,
         )
-        return {
-            "status": "error_internal_configuration",
-            "message_to_llm": "Tool configuration error: Host component not accessible.",
-            "filename": filename,
-            "version_requested": str(version),
-        }
+        return ToolResult.error(
+            "Tool configuration error: Host component not accessible.",
+            data={"filename": filename, "version_requested": str(version)}
+        )
 
     try:
         save_threshold = host_component.get_config(
@@ -745,12 +730,10 @@ async def extract_content_from_artifact(
         model_config_for_extraction = extraction_config.get("model")
     except Exception as e:
         log.exception("%s Error retrieving tool configuration: %s", log_identifier, e)
-        return {
-            "status": "error_internal_configuration",
-            "message_to_llm": f"Tool configuration error: {e}",
-            "filename": filename,
-            "version_requested": str(version),
-        }
+        return ToolResult.error(
+            f"Tool configuration error: {e}",
+            data={"filename": filename, "version_requested": str(version)}
+        )
 
     source_artifact_data = None
     processed_version: Union[int, str]
@@ -768,12 +751,10 @@ async def extract_content_from_artifact(
                 log_identifier,
                 version,
             )
-            return {
-                "status": "error_invalid_version_format",
-                "message_to_llm": f"Invalid version format '{version}'. Version must be an integer or 'latest'.",
-                "filename": filename,
-                "version_requested": str(version),
-            }
+            return ToolResult.error(
+                f"Invalid version format '{version}'. Version must be an integer or 'latest'.",
+                data={"filename": filename, "version_requested": str(version)}
+            )
     try:
         log.debug(
             "%s Loading source artifact '%s' version '%s' (processed as: %s)",
@@ -805,20 +786,16 @@ async def extract_content_from_artifact(
         )
     except FileNotFoundError as e:
         log.warning("%s Source artifact not found: %s", log_identifier, e)
-        return {
-            "status": "error_artifact_not_found",
-            "message_to_llm": f"Could not extract content. Source artifact '{filename}' (version {version}) was not found: {e}",
-            "filename": filename,
-            "version_requested": str(version),
-        }
+        return ToolResult.error(
+            f"Could not extract content. Source artifact '{filename}' (version {version}) was not found: {e}",
+            data={"filename": filename, "version_requested": str(version)}
+        )
     except Exception as e:
         log.exception("%s Error loading source artifact: %s", log_identifier, e)
-        return {
-            "status": "error_loading_artifact",
-            "message_to_llm": f"Error loading source artifact '{filename}': {e}",
-            "filename": filename,
-            "version_requested": str(version),
-        }
+        return ToolResult.error(
+            f"Error loading source artifact '{filename}': {e}",
+            data={"filename": filename, "version_requested": str(version)}
+        )
 
     source_artifact_content_bytes = source_artifact_data.get("raw_bytes")
     source_mime_type = source_artifact_data.get("mime_type", "application/octet-stream")
@@ -854,12 +831,10 @@ async def extract_content_from_artifact(
             )
     except Exception as e:
         log.exception("%s Error initializing LLM for extraction: %s", log_identifier, e)
-        return {
-            "status": "error_internal_llm_setup",
-            "message_to_llm": f"Failed to set up LLM for extraction: {e}",
-            "filename": filename,
-            "version_requested": str(version),
-        }
+        return ToolResult.error(
+            f"Failed to set up LLM for extraction: {e}",
+            data={"filename": filename, "version_requested": str(version)}
+        )
 
     llm_parts = []
     is_binary_supported = False
@@ -1035,12 +1010,10 @@ async def extract_content_from_artifact(
         log.exception(
             "%s Internal LLM call for extraction failed: %s", log_identifier, e
         )
-        return {
-            "status": "error_extraction_failed",
-            "message_to_llm": f"The LLM failed to process the artifact content for your goal '{extraction_goal}'. Error: {e}",
-            "filename": filename,
-            "version_requested": str(version),
-        }
+        return ToolResult.error(
+            f"The LLM failed to process the artifact content for your goal '{extraction_goal}'. Error: {e}",
+            data={"filename": filename, "version_requested": str(version)}
+        )
 
     extracted_content_bytes = extracted_content_str.encode("utf-8")
     extracted_content_size_bytes = len(extracted_content_bytes)
@@ -1189,7 +1162,9 @@ async def extract_content_from_artifact(
         final_status,
         final_response_dict,
     )
-    return final_response_dict
+    # Convert to ToolResult - this is a success path
+    message = final_response_dict.pop("message_to_llm", "Extraction completed.")
+    return ToolResult.ok(message, data=final_response_dict)
 
 
 async def append_to_artifact(
@@ -1197,7 +1172,7 @@ async def append_to_artifact(
     content_chunk: str,
     mime_type: str,
     tool_context: ToolContext = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Appends a chunk of content to an existing artifact. This operation will
     create a new version of the artifact. The content_chunk should be a string,
@@ -1216,14 +1191,13 @@ async def append_to_artifact(
         tool_context: The context provided by the ADK framework.
 
     Returns:
-        A dictionary indicating the result, including the new version of the artifact.
+        A ToolResult indicating the result, including the new version of the artifact.
     """
     if not tool_context:
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": "ToolContext is missing, cannot append to artifact.",
-        }
+        return ToolResult.error(
+            "ToolContext is missing, cannot append to artifact.",
+            data={"filename": filename}
+        )
 
     log_identifier = f"[BuiltinArtifactTool:append_to_artifact:{filename}]"
     log.debug("%s Processing request to append chunk.", log_identifier)
@@ -1264,11 +1238,10 @@ async def append_to_artifact(
                 filename,
                 content_load_result.get("message"),
             )
-            return {
-                "status": "error",
-                "filename": filename,
-                "message": f"Failed to load original artifact content to append to: {content_load_result.get('message')}",
-            }
+            return ToolResult.error(
+                f"Failed to load original artifact content to append to: {content_load_result.get('message')}",
+                data={"filename": filename}
+            )
 
         original_artifact_bytes = content_load_result.get("raw_bytes", b"")
         original_mime_type = content_load_result.get(
@@ -1381,27 +1354,27 @@ async def append_to_artifact(
                 f"Failed to save appended artifact: {save_result.get('message', 'Unknown error')}"
             )
 
-        return {
-            "status": "success",
-            "filename": filename,
-            "new_version": save_result.get("data_version"),
-            "total_size_bytes": len(combined_bytes),
-            "message": f"Chunk appended to '{filename}'. New version is {save_result.get('data_version')} with total size {len(combined_bytes)} bytes.",
-        }
+        return ToolResult.ok(
+            f"Chunk appended to '{filename}'. New version is {save_result.get('data_version')} with total size {len(combined_bytes)} bytes.",
+            data={
+                "filename": filename,
+                "new_version": save_result.get("data_version"),
+                "total_size_bytes": len(combined_bytes),
+            }
+        )
 
     except FileNotFoundError as e:
         log.warning("%s Original artifact not found for append: %s", log_identifier, e)
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": f"Original artifact '{filename}' not found: {e}",
-        }
+        return ToolResult.error(
+            f"Original artifact '{filename}' not found: {e}",
+            data={"filename": filename}
+        )
     except ValueError as e:
         log.warning("%s Value error during append: %s", log_identifier, e)
-        return {"status": "error", "filename": filename, "message": str(e)}
+        return ToolResult.error(str(e), data={"filename": filename})
     except IOError as e:
         log.warning("%s IO error during append: %s", log_identifier, e)
-        return {"status": "error", "filename": filename, "message": str(e)}
+        return ToolResult.error(str(e), data={"filename": filename})
     except Exception as e:
         log.exception(
             "%s Unexpected error appending to artifact '%s': %s",
@@ -1409,11 +1382,10 @@ async def append_to_artifact(
             filename,
             e,
         )
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": f"Failed to append to artifact: {e}",
-        }
+        return ToolResult.error(
+            f"Failed to append to artifact: {e}",
+            data={"filename": filename}
+        )
 
 
 async def _save_extracted_artifact(
@@ -1743,7 +1715,7 @@ async def delete_artifact(
     version: Optional[int] = None,
     confirm_delete: bool = False,
     tool_context: ToolContext = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Deletes all versions of an artifact. Version-specific deletion is not currently supported.
 
@@ -1754,14 +1726,13 @@ async def delete_artifact(
         tool_context: The context provided by the ADK framework.
 
     Returns:
-        A dictionary indicating the result of the deletion or requesting confirmation.
+        A ToolResult indicating the result of the deletion or requesting confirmation.
     """
     if not tool_context:
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": "ToolContext is missing, cannot delete artifact.",
-        }
+        return ToolResult.error(
+            "ToolContext is missing, cannot delete artifact.",
+            data={"filename": filename}
+        )
 
     log_identifier = f"[BuiltinArtifactTool:delete_artifact:{filename}]"
     log.debug("%s Processing request.", log_identifier)
@@ -1783,12 +1754,10 @@ async def delete_artifact(
 
         # Error if version-specific deletion requested (not currently supported)
         if version is not None:
-            return {
-                "status": "error",
-                "filename": filename,
-                "version_requested": version,
-                "message": f"Deleting a specific version ({version}) is not currently supported. Only deletion of ALL versions is supported. To delete all versions, omit 'version' and set confirm_delete=True.",
-            }
+            return ToolResult.error(
+                f"Deleting a specific version ({version}) is not currently supported. Only deletion of ALL versions is supported. To delete all versions, omit 'version' and set confirm_delete=True.",
+                data={"filename": filename, "version_requested": version}
+            )
 
         # Get version list for confirmation message
         versions = await artifact_service.list_versions(
@@ -1798,13 +1767,15 @@ async def delete_artifact(
         # Require confirmation before deleting
         if not confirm_delete:
             count = len(versions) if versions else "unknown number of"
-            return {
-                "status": "confirmation_required",
-                "filename": filename,
-                "version_count": len(versions) if versions else None,
-                "versions": versions,
-                "message": f"WARNING: This operation is irreversible and will permanently delete artifact '{filename}' and ALL {count} version(s). To proceed, call this tool again with confirm_delete=True.",
-            }
+            return ToolResult.partial(
+                f"WARNING: This operation is irreversible and will permanently delete artifact '{filename}' and ALL {count} version(s). To proceed, call this tool again with confirm_delete=True.",
+                data={
+                    "filename": filename,
+                    "version_count": len(versions) if versions else None,
+                    "versions": versions,
+                    "confirmation_required": True,
+                }
+            )
 
         # Proceed with deletion
         await artifact_service.delete_artifact(
@@ -1815,29 +1786,28 @@ async def delete_artifact(
         )
 
         log.info("%s Successfully deleted artifact '%s'.", log_identifier, filename)
-        return {
-            "status": "success",
-            "filename": filename,
-            "versions_deleted": len(versions) if versions else None,
-            "message": f"Artifact '{filename}' deleted successfully.",
-        }
+        return ToolResult.ok(
+            f"Artifact '{filename}' deleted successfully.",
+            data={
+                "filename": filename,
+                "versions_deleted": len(versions) if versions else None,
+            }
+        )
 
     except FileNotFoundError as e:
         log.warning("%s Artifact not found for deletion: %s", log_identifier, e)
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": f"Artifact '{filename}' not found.",
-        }
+        return ToolResult.error(
+            f"Artifact '{filename}' not found.",
+            data={"filename": filename}
+        )
     except Exception as e:
         log.exception(
             "%s Error deleting artifact '%s': %s", log_identifier, filename, e
         )
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": f"Failed to delete artifact: {e}",
-        }
+        return ToolResult.error(
+            f"Failed to delete artifact: {e}",
+            data={"filename": filename}
+        )
 
 
 delete_artifact_tool_def = BuiltinTool(
@@ -1984,7 +1954,7 @@ async def artifact_search_and_replace_regex(
     new_description: Optional[str] = None,
     replacements: Optional[List[Dict[str, Any]]] = None,
     tool_context: ToolContext = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Performs search and replace on an artifact's text content using either
     literal string matching or regular expressions. Note that this is run once across the entire artifact.
@@ -2017,14 +1987,13 @@ async def artifact_search_and_replace_regex(
         new_description: Optional. Description for the new/updated artifact.
 
     Returns:
-        A dictionary containing the result status, filename, version, match count, and any error messages.
+        A ToolResult containing the result status, filename, version, match count, and any error messages.
     """
     if not tool_context:
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": "ToolContext is missing, cannot perform search and replace.",
-        }
+        return ToolResult.error(
+            "ToolContext is missing, cannot perform search and replace.",
+            data={"filename": filename}
+        )
 
     log_identifier = (
         f"[BuiltinArtifactTool:artifact_search_and_replace_regex:{filename}:{version}]"
@@ -2035,61 +2004,54 @@ async def artifact_search_and_replace_regex(
     if replacements is not None and (
         search_expression is not None or replace_expression is not None
     ):
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": "Cannot provide both 'replacements' array and individual 'search_expression'/'replace_expression'. Use one or the other.",
-        }
+        return ToolResult.error(
+            "Cannot provide both 'replacements' array and individual 'search_expression'/'replace_expression'. Use one or the other.",
+            data={"filename": filename}
+        )
 
     if replacements is None and (
         search_expression is None or replace_expression is None
     ):
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": "Must provide either 'replacements' array or both 'search_expression' and 'replace_expression'.",
-        }
+        return ToolResult.error(
+            "Must provide either 'replacements' array or both 'search_expression' and 'replace_expression'.",
+            data={"filename": filename}
+        )
 
     if replacements is not None:
         if not isinstance(replacements, list) or len(replacements) == 0:
-            return {
-                "status": "error",
-                "filename": filename,
-                "message": "replacements must be a non-empty array.",
-            }
+            return ToolResult.error(
+                "replacements must be a non-empty array.",
+                data={"filename": filename}
+            )
 
         # Validate each replacement entry
         for idx, repl in enumerate(replacements):
             if not isinstance(repl, dict):
-                return {
-                    "status": "error",
-                    "filename": filename,
-                    "message": f"Replacement at index {idx} must be a dictionary.",
-                }
+                return ToolResult.error(
+                    f"Replacement at index {idx} must be a dictionary.",
+                    data={"filename": filename}
+                )
             if "search" not in repl or "replace" not in repl or "is_regexp" not in repl:
-                return {
-                    "status": "error",
-                    "filename": filename,
-                    "message": f"Replacement at index {idx} missing required fields: 'search', 'replace', 'is_regexp'.",
-                }
+                return ToolResult.error(
+                    f"Replacement at index {idx} missing required fields: 'search', 'replace', 'is_regexp'.",
+                    data={"filename": filename}
+                )
 
     # Validate inputs for single replacement mode
     if replacements is None and not search_expression:
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": "search_expression cannot be empty.",
-        }
+        return ToolResult.error(
+            "search_expression cannot be empty.",
+            data={"filename": filename}
+        )
 
     # Determine output filename
     output_filename = new_filename if new_filename else filename
 
     if new_filename and not is_filename_safe(new_filename):
-        return {
-            "status": "error",
-            "filename": filename,
-            "message": f"Invalid new_filename: '{new_filename}'. Filename must not contain path separators or traversal sequences.",
-        }
+        return ToolResult.error(
+            f"Invalid new_filename: '{new_filename}'. Filename must not contain path separators or traversal sequences.",
+            data={"filename": filename}
+        )
 
     try:
         inv_context = tool_context._invocation_context
@@ -2119,12 +2081,10 @@ async def artifact_search_and_replace_regex(
         )
 
         if load_result.get("status") != "success":
-            return {
-                "status": "error",
-                "filename": filename,
-                "version": version,
-                "message": f"Failed to load artifact: {load_result.get('message', 'Unknown error')}",
-            }
+            return ToolResult.error(
+                f"Failed to load artifact: {load_result.get('message', 'Unknown error')}",
+                data={"filename": filename, "version": version}
+            )
 
         source_bytes = load_result.get("raw_bytes")
         source_mime_type = load_result.get("mime_type", "application/octet-stream")
@@ -2132,12 +2092,10 @@ async def artifact_search_and_replace_regex(
 
         # Verify it's a text-based artifact
         if not is_text_based_file(source_mime_type, source_bytes):
-            return {
-                "status": "error",
-                "filename": filename,
-                "version": actual_version,
-                "message": f"Cannot perform search and replace on binary artifact of type '{source_mime_type}'. This tool only works with text-based content.",
-            }
+            return ToolResult.error(
+                f"Cannot perform search and replace on binary artifact of type '{source_mime_type}'. This tool only works with text-based content.",
+                data={"filename": filename, "version": actual_version}
+            )
 
         # Decode the content
         try:
@@ -2148,12 +2106,10 @@ async def artifact_search_and_replace_regex(
                 log_identifier,
                 decode_err,
             )
-            return {
-                "status": "error",
-                "filename": filename,
-                "version": actual_version,
-                "message": f"Failed to decode artifact content as UTF-8: {decode_err}",
-            }
+            return ToolResult.error(
+                f"Failed to decode artifact content as UTF-8: {decode_err}",
+                data={"filename": filename, "version": actual_version}
+            )
 
         # Perform the search and replace
         if replacements:
@@ -2213,18 +2169,19 @@ async def artifact_search_and_replace_regex(
                             }
                         )
 
-                    return {
-                        "status": "error",
-                        "filename": filename,
-                        "version": actual_version,
-                        "message": f"Batch replacement failed: No changes applied due to error in replacement {idx + 1}",
-                        "replacement_results": all_results,
-                        "failed_replacement": {
-                            "index": idx,
-                            "search": search_expr,
-                            "error": error_msg,
-                        },
-                    }
+                    return ToolResult.error(
+                        f"Batch replacement failed: No changes applied due to error in replacement {idx + 1}",
+                        data={
+                            "filename": filename,
+                            "version": actual_version,
+                            "replacement_results": all_results,
+                            "failed_replacement": {
+                                "index": idx,
+                                "search": search_expr,
+                                "error": error_msg,
+                            },
+                        }
+                    )
 
                 # Success - update state and continue
                 current_content = new_content
@@ -2270,20 +2227,20 @@ async def artifact_search_and_replace_regex(
             if error_msg:
                 # Check if it's a "no matches" error specifically
                 if match_count == 0 and "No matches found" in error_msg:
-                    return {
-                        "status": "no_matches",
-                        "filename": filename,
-                        "version": actual_version,
-                        "match_count": 0,
-                        "message": f"No matches found for pattern '{search_expression}'. Artifact not modified.",
-                    }
+                    return ToolResult.partial(
+                        f"No matches found for pattern '{search_expression}'. Artifact not modified.",
+                        data={
+                            "filename": filename,
+                            "version": actual_version,
+                            "match_count": 0,
+                            "no_matches": True,
+                        }
+                    )
                 else:
-                    return {
-                        "status": "error",
-                        "filename": filename,
-                        "version": actual_version,
-                        "message": error_msg,
-                    }
+                    return ToolResult.error(
+                        error_msg,
+                        data={"filename": filename, "version": actual_version}
+                    )
 
             total_replacements = 1
             total_matches = match_count
@@ -2363,12 +2320,10 @@ async def artifact_search_and_replace_regex(
                 log_identifier,
                 save_result.get("message"),
             )
-            return {
-                "status": "error",
-                "filename": filename,
-                "version": actual_version,
-                "message": f"Search and replace succeeded, but failed to save result: {save_result.get('message')}",
-            }
+            return ToolResult.error(
+                f"Search and replace succeeded, but failed to save result: {save_result.get('message')}",
+                data={"filename": filename, "version": actual_version}
+            )
 
         result_version = save_result.get("data_version")
         log.info(
@@ -2380,17 +2335,18 @@ async def artifact_search_and_replace_regex(
 
         # Return appropriate response based on mode
         if replacements:
-            return {
-                "status": "success",
-                "source_filename": filename,
-                "source_version": actual_version,
-                "output_filename": output_filename,
-                "output_version": result_version,
-                "total_replacements": total_replacements,
-                "replacement_results": replacement_results,
-                "total_matches": total_matches,
-                "message": f"Batch replacement completed: {total_replacements} operations, {total_matches} total matches",
-            }
+            return ToolResult.ok(
+                f"Batch replacement completed: {total_replacements} operations, {total_matches} total matches",
+                data={
+                    "source_filename": filename,
+                    "source_version": actual_version,
+                    "output_filename": output_filename,
+                    "output_version": result_version,
+                    "total_replacements": total_replacements,
+                    "replacement_results": replacement_results,
+                    "total_matches": total_matches,
+                }
+            )
         else:
             # Compute replacements_made for backward compatibility
             # For literal replacements, all matches are replaced
@@ -2400,36 +2356,33 @@ async def artifact_search_and_replace_regex(
                 match_count if not is_regexp or global_replace else min(match_count, 1)
             )
 
-            return {
-                "status": "success",
-                "source_filename": filename,
-                "source_version": actual_version,
-                "output_filename": output_filename,
-                "output_version": result_version,
-                "match_count": match_count,
-                "replacements_made": replacements_made,
-                "message": f"Successfully performed {'regex' if is_regexp else 'literal'} search and replace. "
+            return ToolResult.ok(
+                f"Successfully performed {'regex' if is_regexp else 'literal'} search and replace. "
                 f"Found {match_count} match(es), saved result as '{output_filename}' v{result_version}.",
-            }
+                data={
+                    "source_filename": filename,
+                    "source_version": actual_version,
+                    "output_filename": output_filename,
+                    "output_version": result_version,
+                    "match_count": match_count,
+                    "replacements_made": replacements_made,
+                }
+            )
 
     except FileNotFoundError as fnf_err:
         log.warning("%s Artifact not found: %s", log_identifier, fnf_err)
-        return {
-            "status": "error",
-            "filename": filename,
-            "version": version,
-            "message": f"Artifact not found: {fnf_err}",
-        }
+        return ToolResult.error(
+            f"Artifact not found: {fnf_err}",
+            data={"filename": filename, "version": version}
+        )
     except Exception as e:
         log.exception(
             "%s Unexpected error during search and replace: %s", log_identifier, e
         )
-        return {
-            "status": "error",
-            "filename": filename,
-            "version": version,
-            "message": f"Unexpected error: {e}",
-        }
+        return ToolResult.error(
+            f"Unexpected error: {e}",
+            data={"filename": filename, "version": version}
+        )
 
 
 artifact_search_and_replace_regex_tool_def = BuiltinTool(

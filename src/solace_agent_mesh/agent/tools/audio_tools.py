@@ -31,6 +31,7 @@ from ...agent.utils.artifact_helpers import (
 from ...agent.utils.context_helpers import get_original_session_id
 
 from .tool_definition import BuiltinTool
+from .tool_result import ToolResult
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -589,9 +590,9 @@ async def _save_audio_artifact(
         tool_context=tool_context,
     )
 
-    if save_result.get("status") == "error":
+    if save_result.status == "error":
         raise IOError(
-            f"Failed to save audio artifact: {save_result.get('message', 'Unknown error')}"
+            f"Failed to save audio artifact: {save_result.message}"
         )
 
     return save_result
@@ -603,7 +604,7 @@ async def select_voice(
     exclude_voices: Optional[List[str]] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Selects a suitable voice name based on criteria like gender and tone.
     Use this to get a consistent voice name that can be passed to the `text_to_speech` tool for multiple calls.
@@ -616,7 +617,7 @@ async def select_voice(
         tool_config: Configuration including voice mappings.
 
     Returns:
-        Dictionary with status and the selected voice name.
+        ToolResult with selected voice name.
     """
     log_identifier = "[AudioTools:select_voice]"
     log.info(
@@ -642,15 +643,14 @@ async def select_voice(
 
         log.info(f"{log_identifier} Selected voice: {selected_voice}")
 
-        return {
-            "status": "success",
-            "message": f"Successfully selected voice '{selected_voice}'.",
-            "voice_name": selected_voice,
-        }
+        return ToolResult.ok(
+            f"Successfully selected voice '{selected_voice}'.",
+            data={"voice_name": selected_voice},
+        )
 
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in select_voice: {e}")
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 async def text_to_speech(
@@ -662,7 +662,7 @@ async def text_to_speech(
     language: Optional[str] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Converts text to speech using Gemini TTS API and saves as MP3 artifact.
 
@@ -679,15 +679,15 @@ async def text_to_speech(
         tool_config: Configuration including API key, model settings, and voice mappings.
 
     Returns:
-        Dictionary with status, output filename, version, and preview.
+        ToolResult with output artifact details.
     """
     log_identifier = "[AudioTools:text_to_speech]"
 
     if not tool_context:
-        return {"status": "error", "message": "ToolContext is missing"}
+        return ToolResult.error("ToolContext is missing")
 
     if not text or not text.strip():
-        return {"status": "error", "message": "Text input is required"}
+        return ToolResult.error("Text input is required")
 
     try:
         log.info(f"{log_identifier} Processing TTS request for text: '{text[:50]}...'")
@@ -703,10 +703,7 @@ async def text_to_speech(
         )
 
         if not api_key:
-            return {
-                "status": "error",
-                "message": "GEMINI_API_KEY is required in tool configuration",
-            }
+            return ToolResult.error("GEMINI_API_KEY is required in tool configuration")
 
         final_voice = voice_name
         if not final_voice:
@@ -785,29 +782,31 @@ async def text_to_speech(
             tool_context=tool_context,
         )
 
+        data_version = save_result.data.get("data_version", 1) if save_result.data else 1
         log.info(
-            f"{log_identifier} Audio artifact saved successfully: {final_filename} v{save_result['data_version']}"
+            f"{log_identifier} Audio artifact saved successfully: {final_filename} v{data_version}"
         )
 
-        return {
-            "status": "success",
-            "message": f"Text-to-speech audio generated and saved successfully",
-            "output_filename": final_filename,
-            "output_version": save_result["data_version"],
-            "voice_used": final_voice,
-            "language_used": final_language,
-            "result_preview": f"Audio '{final_filename}' (v{save_result['data_version']}) created from text: \"{text[:100]}...\"",
-        }
+        return ToolResult.ok(
+            "Text-to-speech audio generated and saved successfully",
+            data={
+                "output_filename": final_filename,
+                "output_version": data_version,
+                "voice_used": final_voice,
+                "language_used": final_language,
+                "result_preview": f"Audio '{final_filename}' (v{data_version}) created from text: \"{text[:100]}...\"",
+            },
+        )
 
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
-        return {"status": "error", "message": str(ve)}
+        return ToolResult.error(str(ve))
     except IOError as ioe:
         log.error(f"{log_identifier} IO error: {ioe}")
-        return {"status": "error", "message": str(ioe)}
+        return ToolResult.error(str(ioe))
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in text_to_speech: {e}")
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 async def multi_speaker_text_to_speech(
@@ -817,7 +816,7 @@ async def multi_speaker_text_to_speech(
     language: Optional[str] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Converts conversation text with speaker labels to speech using multiple voices.
 
@@ -838,15 +837,15 @@ async def multi_speaker_text_to_speech(
         tool_config: Configuration including API key, model, default speakers, and voice mappings.
 
     Returns:
-        Dictionary with status, output filename, version, and preview.
+        ToolResult with output artifact details.
     """
     log_identifier = "[AudioTools:multi_speaker_text_to_speech]"
 
     if not tool_context:
-        return {"status": "error", "message": "ToolContext is missing"}
+        return ToolResult.error("ToolContext is missing")
 
     if not conversation_text or not conversation_text.strip():
-        return {"status": "error", "message": "Conversation text input is required"}
+        return ToolResult.error("Conversation text input is required")
 
     try:
         log.info(
@@ -881,10 +880,7 @@ async def multi_speaker_text_to_speech(
         )
 
         if not api_key:
-            return {
-                "status": "error",
-                "message": "GEMINI_API_KEY is required in tool configuration",
-            }
+            return ToolResult.error("GEMINI_API_KEY is required in tool configuration")
 
         final_speaker_configs = []
         used_voices_in_current_call: Set[str] = set()
@@ -992,35 +988,37 @@ async def multi_speaker_text_to_speech(
             tool_context=tool_context,
         )
 
+        data_version = save_result.data.get("data_version", 1) if save_result.data else 1
         log.info(
-            f"{log_identifier} Multi-speaker audio artifact saved successfully: {final_filename} v{save_result['data_version']}"
+            f"{log_identifier} Multi-speaker audio artifact saved successfully: {final_filename} v{data_version}"
         )
 
         speaker_summary = ", ".join(
             [f"{s['name']} ({s['voice']})" for s in final_speaker_configs]
         )
 
-        return {
-            "status": "success",
-            "message": f"Multi-speaker text-to-speech audio generated and saved successfully: Speakers: {speaker_summary}",
-            "output_filename": final_filename,
-            "output_version": save_result["data_version"],
-            "speakers_used": speaker_summary,
-            "language_used": final_language,
-            "result_preview": f"Multi-speaker audio '{final_filename}' (v{save_result['data_version']}) created with {len(final_speaker_configs)} speakers from conversation: \"{conversation_text[:100]}...\"",
-        }
+        return ToolResult.ok(
+            f"Multi-speaker text-to-speech audio generated and saved successfully: Speakers: {speaker_summary}",
+            data={
+                "output_filename": final_filename,
+                "output_version": data_version,
+                "speakers_used": speaker_summary,
+                "language_used": final_language,
+                "result_preview": f"Multi-speaker audio '{final_filename}' (v{data_version}) created with {len(final_speaker_configs)} speakers from conversation: \"{conversation_text[:100]}...\"",
+            },
+        )
 
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
-        return {"status": "error", "message": str(ve)}
+        return ToolResult.error(str(ve))
     except IOError as ioe:
         log.error(f"{log_identifier} IO error: {ioe}")
-        return {"status": "error", "message": str(ioe)}
+        return ToolResult.error(str(ioe))
     except Exception as e:
         log.exception(
             f"{log_identifier} Unexpected error in multi_speaker_text_to_speech: {e}"
         )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 def _is_supported_audio_format_for_transcription(filename: str) -> bool:
@@ -1042,7 +1040,7 @@ async def concatenate_audio(
     output_filename: Optional[str] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Combines multiple audio artifacts in a specified order into a single audio file.
     Allows for custom pause durations between each clip.
@@ -1058,16 +1056,13 @@ async def concatenate_audio(
         tool_config: Configuration dictionary.
 
     Returns:
-        A dictionary with status and output artifact details.
+        ToolResult with output artifact details.
     """
     log_identifier = "[AudioTools:concatenate_audio]"
     if not tool_context:
-        return {"status": "error", "message": "ToolContext is missing"}
+        return ToolResult.error("ToolContext is missing")
     if not clips_to_join:
-        return {
-            "status": "error",
-            "message": "The 'clips_to_join' list cannot be empty.",
-        }
+        return ToolResult.error("The 'clips_to_join' list cannot be empty.")
 
     try:
         inv_context = tool_context._invocation_context
@@ -1095,12 +1090,14 @@ async def concatenate_audio(
 
             source_filenames.append(clip_filename_with_version)
 
+            # Parse filename:version format (rsplit to handle colons in filenames)
             parts = clip_filename_with_version.rsplit(":", 1)
-            filename_base = parts[0]
-            version_str = None
-            if len(parts) > 1 and parts[1].isdigit():
-                version_str = parts[1]
-            version_to_load = int(version_str) if version_str else "latest"
+            if len(parts) == 2 and parts[1].isdigit():
+                filename_base = parts[0]
+                version_to_load = int(parts[1])
+            else:
+                filename_base = clip_filename_with_version
+                version_to_load = "latest"
 
             load_result = await load_artifact_content_or_metadata(
                 artifact_service=artifact_service,
@@ -1151,10 +1148,7 @@ async def concatenate_audio(
                     )
 
         if combined_audio is None:
-            return {
-                "status": "error",
-                "message": "No audio clips were successfully processed.",
-            }
+            return ToolResult.error("No audio clips were successfully processed.")
 
         output_buffer = io.BytesIO()
         await asyncio.to_thread(combined_audio.export, output_buffer, format="mp3")
@@ -1183,30 +1177,32 @@ async def concatenate_audio(
             tool_context=tool_context,
         )
 
+        data_version = save_result.data.get("data_version", 1) if save_result.data else 1
         log.info(
-            f"{log_identifier} Concatenated audio artifact saved successfully: {final_filename} v{save_result['data_version']}"
+            f"{log_identifier} Concatenated audio artifact saved successfully: {final_filename} v{data_version}"
         )
 
-        return {
-            "status": "success",
-            "message": f"Audio clips concatenated and saved successfully.",
-            "output_filename": final_filename,
-            "output_version": save_result["data_version"],
-            "result_preview": f"Concatenated audio '{final_filename}' (v{save_result['data_version']}) created from {len(clips_to_join)} clips.",
-        }
+        return ToolResult.ok(
+            "Audio clips concatenated and saved successfully.",
+            data={
+                "output_filename": final_filename,
+                "output_version": data_version,
+                "result_preview": f"Concatenated audio '{final_filename}' (v{data_version}) created from {len(clips_to_join)} clips.",
+            },
+        )
 
     except FileNotFoundError as e:
         log.warning(f"{log_identifier} File not found error: {e}")
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
-        return {"status": "error", "message": str(ve)}
+        return ToolResult.error(str(ve))
     except IOError as ioe:
         log.error(f"{log_identifier} IO error: {ioe}")
-        return {"status": "error", "message": str(ioe)}
+        return ToolResult.error(str(ioe))
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in concatenate_audio: {e}")
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 async def transcribe_audio(
@@ -1215,7 +1211,7 @@ async def transcribe_audio(
     description: Optional[str] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Transcribes an audio recording and saves the transcription as a text artifact.
 
@@ -1227,18 +1223,12 @@ async def transcribe_audio(
         tool_config: Configuration dictionary containing model, api_base, api_key.
 
     Returns:
-        A dictionary containing:
-        - "status": "success" or "error".
-        - "message": A descriptive message about the outcome.
-        - "output_filename": The name of the saved transcription artifact.
-        - "output_version": The version of the saved transcription artifact.
-        - "audio_filename": The name of the input audio artifact.
-        - "audio_version": The version of the input audio artifact.
+        ToolResult with transcription artifact details.
     """
     log_identifier = f"[AudioTools:transcribe_audio:{audio_filename}]"
     if not tool_context:
         log.error(f"{log_identifier} ToolContext is missing.")
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
     try:
         inv_context = tool_context._invocation_context
@@ -1287,10 +1277,14 @@ async def transcribe_audio(
 
         log.debug(f"{log_identifier} Using model: {model_name}, API base: {api_base}")
 
-        parts = audio_filename.split(":", 1)
-        filename_base_for_load = parts[0]
-        version_str = parts[1] if len(parts) > 1 else None
-        version_to_load = int(version_str) if version_str else None
+        # Parse filename:version format (rsplit to handle colons in filenames)
+        parts = audio_filename.rsplit(":", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            filename_base_for_load = parts[0]
+            version_to_load = int(parts[1])
+        else:
+            filename_base_for_load = audio_filename
+            version_to_load = None
 
         if not _is_supported_audio_format_for_transcription(filename_base_for_load):
             raise ValueError(f"Unsupported audio format. Supported formats: .wav, .mp3")
@@ -1476,27 +1470,28 @@ async def transcribe_audio(
                 tool_context=tool_context,
             )
 
-            if save_result.get("status") != "success":
-                error_msg = save_result.get("message", "Failed to save transcription artifact")
+            if save_result.status != "success":
+                error_msg = save_result.message or "Failed to save transcription artifact"
                 log.error(f"{log_identifier} {error_msg}")
-                return {
-                    "status": "error",
-                    "message": f"Transcription succeeded but failed to save as artifact: {error_msg}",
-                }
+                return ToolResult.error(
+                    f"Transcription succeeded but failed to save as artifact: {error_msg}"
+                )
 
+            data_version = save_result.data.get("data_version", 1) if save_result.data else 1
             log.info(
-                f"{log_identifier} Transcription saved to '{final_filename}' v{save_result['data_version']}"
+                f"{log_identifier} Transcription saved to '{final_filename}' v{data_version}"
             )
 
-            return {
-                "status": "success",
-                "message": "Audio transcribed and saved successfully",
-                "output_filename": final_filename,
-                "output_version": save_result["data_version"],
-                "audio_filename": filename_base_for_load,
-                "audio_version": version_to_load,
-                "result_preview": f"Transcription saved to '{final_filename}' (v{save_result['data_version']}). Length: {transcription_char_count} characters, {transcription_word_count} words."
-            }
+            return ToolResult.ok(
+                "Audio transcribed and saved successfully",
+                data={
+                    "output_filename": final_filename,
+                    "output_version": data_version,
+                    "audio_filename": filename_base_for_load,
+                    "audio_version": version_to_load,
+                    "result_preview": f"Transcription saved to '{final_filename}' (v{data_version}). Length: {transcription_char_count} characters, {transcription_word_count} words.",
+                },
+            )
 
         finally:
             if temp_file_path and os.path.exists(temp_file_path):
@@ -1512,24 +1507,24 @@ async def transcribe_audio(
 
     except FileNotFoundError as e:
         log.warning(f"{log_identifier} File not found error: {e}")
-        return {"status": "error", "message": str(e)}
+        return ToolResult.error(str(e))
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
-        return {"status": "error", "message": str(ve)}
+        return ToolResult.error(str(ve))
     except httpx.HTTPStatusError as hse:
         log.error(
             f"{log_identifier} HTTP error calling transcription API: {hse.response.status_code} - {hse.response.text}"
         )
-        return {"status": "error", "message": f"API error: {hse.response.status_code}"}
+        return ToolResult.error(f"API error: {hse.response.status_code}")
     except httpx.RequestError as re:
         log.error(f"{log_identifier} Request error calling transcription API: {re}")
-        return {"status": "error", "message": f"Request error: {re}"}
+        return ToolResult.error(f"Request error: {re}")
     except json.JSONDecodeError as jde:
         log.error(f"{log_identifier} JSON decode error: {jde}")
-        return {"status": "error", "message": "Invalid JSON response from API"}
+        return ToolResult.error("Invalid JSON response from API")
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in transcribe_audio: {e}")
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 select_voice_tool_def = BuiltinTool(
