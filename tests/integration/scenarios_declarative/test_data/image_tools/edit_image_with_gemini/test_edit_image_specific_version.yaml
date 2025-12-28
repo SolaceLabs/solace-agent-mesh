@@ -29,7 +29,7 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "edit_image_with_gemini"
-                  arguments: '{"image_filename": "versioned_image.jpg:1", "edit_prompt": "make it yellow"}'
+                  arguments: '{"input_image": "versioned_image.jpg:1", "edit_prompt": "make it yellow"}'
   - expected_request:
       messages:
         - role: "tool"

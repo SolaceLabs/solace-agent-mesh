@@ -415,6 +415,7 @@ async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) 
             sam_tool_def.name,
             origin="builtin",
             raw_string_args=sam_tool_def.raw_string_args,
+            artifact_args=sam_tool_def.artifact_args,
         )
         log.info(
             "%s Loaded SAM built-in tool: %s",
@@ -498,6 +499,7 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
             tool_def.name,
             origin="builtin",
             raw_string_args=tool_def.raw_string_args,
+            artifact_args=tool_def.artifact_args,
         )
         loaded_tools.append(tool_callable)
         enabled_builtin_tools.append(tool_def)
@@ -978,6 +980,7 @@ def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[
                 None,  # No specific config for internal tools
                 tool_def.name,
                 origin="internal",
+                artifact_args=tool_def.artifact_args,
             )
 
             tool_callable.__doc__ = tool_def.description

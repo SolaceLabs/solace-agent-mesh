@@ -4,7 +4,6 @@ Collection of Python tools for audio processing and text-to-speech generation.
 
 import logging
 import asyncio
-import inspect
 import io
 import json
 import os
@@ -24,14 +23,12 @@ from pydub import AudioSegment
 
 from ...agent.utils.artifact_helpers import (
     load_artifact_content_or_metadata,
-    save_artifact_with_metadata,
     ensure_correct_extension,
-    DEFAULT_SCHEMA_MAX_KEYS,
 )
 from ...agent.utils.context_helpers import get_original_session_id
 
 from .tool_definition import BuiltinTool
-from .tool_result import ToolResult
+from .tool_result import ToolResult, DataObject, DataDisposition
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -549,55 +546,6 @@ async def _convert_pcm_to_mp3(pcm_data: bytes) -> bytes:
                 pass
 
 
-async def _save_audio_artifact(
-    audio_data: bytes,
-    filename: str,
-    metadata: Dict[str, Any],
-    tool_context: ToolContext,
-) -> Dict[str, Any]:
-    """
-    Shared function for saving audio artifacts with metadata.
-
-    Args:
-        audio_data: Audio data to save
-        filename: Filename for the artifact
-        metadata: Metadata dictionary
-        tool_context: ADK tool context
-
-    Returns:
-        Save result dictionary
-    """
-    inv_context = tool_context._invocation_context
-    app_name = inv_context.app_name
-    user_id = inv_context.user_id
-    session_id = get_original_session_id(inv_context)
-    artifact_service = inv_context.artifact_service
-
-    if not artifact_service:
-        raise ValueError("ArtifactService is not available in the context")
-
-    save_result = await save_artifact_with_metadata(
-        artifact_service=artifact_service,
-        app_name=app_name,
-        user_id=user_id,
-        session_id=session_id,
-        filename=filename,
-        content_bytes=audio_data,
-        mime_type="audio/mpeg",
-        metadata_dict=metadata,
-        timestamp=datetime.now(timezone.utc),
-        schema_max_keys=DEFAULT_SCHEMA_MAX_KEYS,
-        tool_context=tool_context,
-    )
-
-    if save_result.status == "error":
-        raise IOError(
-            f"Failed to save audio artifact: {save_result.message}"
-        )
-
-    return save_result
-
-
 async def select_voice(
     gender: Optional[str] = None,
     tone: Optional[str] = None,
@@ -774,28 +722,24 @@ async def text_to_speech(
         if language:
             metadata["requested_language"] = language
 
-        log.info(f"{log_identifier} Saving audio artifact '{final_filename}'")
-        save_result = await _save_audio_artifact(
-            audio_data=mp3_data,
-            filename=final_filename,
-            metadata=metadata,
-            tool_context=tool_context,
-        )
-
-        data_version = save_result.data.get("data_version", 1) if save_result.data else 1
-        log.info(
-            f"{log_identifier} Audio artifact saved successfully: {final_filename} v{data_version}"
-        )
+        log.info(f"{log_identifier} Returning audio as DataObject for artifact storage")
 
         return ToolResult.ok(
-            "Text-to-speech audio generated and saved successfully",
+            "Text-to-speech audio generated successfully.",
             data={
-                "output_filename": final_filename,
-                "output_version": data_version,
                 "voice_used": final_voice,
                 "language_used": final_language,
-                "result_preview": f"Audio '{final_filename}' (v{data_version}) created from text: \"{text[:100]}...\"",
             },
+            data_objects=[
+                DataObject(
+                    name=final_filename,
+                    content=mp3_data,
+                    mime_type="audio/mpeg",
+                    disposition=DataDisposition.ARTIFACT,
+                    description=f"Text-to-speech audio. Voice: {final_voice}. Text: {text[:100]}...",
+                    metadata=metadata,
+                )
+            ],
         )
 
     except ValueError as ve:
@@ -980,32 +924,28 @@ async def multi_speaker_text_to_speech(
         if speaker_configs:
             metadata["requested_speaker_configs"] = json.dumps(speaker_configs)
 
-        log.info(f"{log_identifier} Saving audio artifact '{final_filename}'")
-        save_result = await _save_audio_artifact(
-            audio_data=mp3_data,
-            filename=final_filename,
-            metadata=metadata,
-            tool_context=tool_context,
-        )
-
-        data_version = save_result.data.get("data_version", 1) if save_result.data else 1
-        log.info(
-            f"{log_identifier} Multi-speaker audio artifact saved successfully: {final_filename} v{data_version}"
-        )
-
         speaker_summary = ", ".join(
             [f"{s['name']} ({s['voice']})" for s in final_speaker_configs]
         )
 
+        log.info(f"{log_identifier} Returning audio as DataObject for artifact storage")
+
         return ToolResult.ok(
-            f"Multi-speaker text-to-speech audio generated and saved successfully: Speakers: {speaker_summary}",
+            f"Multi-speaker text-to-speech audio generated successfully. Speakers: {speaker_summary}",
             data={
-                "output_filename": final_filename,
-                "output_version": data_version,
                 "speakers_used": speaker_summary,
                 "language_used": final_language,
-                "result_preview": f"Multi-speaker audio '{final_filename}' (v{data_version}) created with {len(final_speaker_configs)} speakers from conversation: \"{conversation_text[:100]}...\"",
             },
+            data_objects=[
+                DataObject(
+                    name=final_filename,
+                    content=mp3_data,
+                    mime_type="audio/mpeg",
+                    disposition=DataDisposition.ARTIFACT,
+                    description=f"Multi-speaker TTS audio. Speakers: {speaker_summary}. Text: {conversation_text[:100]}...",
+                    metadata=metadata,
+                )
+            ],
         )
 
     except ValueError as ve:
@@ -1167,28 +1107,24 @@ async def concatenate_audio(
             "generation_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-        log.info(
-            f"{log_identifier} Saving concatenated audio artifact '{final_filename}'"
-        )
-        save_result = await _save_audio_artifact(
-            audio_data=mp3_data,
-            filename=final_filename,
-            metadata=metadata,
-            tool_context=tool_context,
-        )
-
-        data_version = save_result.data.get("data_version", 1) if save_result.data else 1
-        log.info(
-            f"{log_identifier} Concatenated audio artifact saved successfully: {final_filename} v{data_version}"
-        )
+        log.info(f"{log_identifier} Returning concatenated audio as DataObject for artifact storage")
 
         return ToolResult.ok(
-            "Audio clips concatenated and saved successfully.",
+            "Audio clips concatenated successfully.",
             data={
-                "output_filename": final_filename,
-                "output_version": data_version,
-                "result_preview": f"Concatenated audio '{final_filename}' (v{data_version}) created from {len(clips_to_join)} clips.",
+                "clips_count": len(clips_to_join),
+                "source_clips": source_filenames,
             },
+            data_objects=[
+                DataObject(
+                    name=final_filename,
+                    content=mp3_data,
+                    mime_type="audio/mpeg",
+                    disposition=DataDisposition.ARTIFACT,
+                    description=f"Concatenated audio from {len(clips_to_join)} clips.",
+                    metadata=metadata,
+                )
+            ],
         )
 
     except FileNotFoundError as e:
@@ -1206,7 +1142,7 @@ async def concatenate_audio(
 
 
 async def transcribe_audio(
-    audio_filename: str,
+    input_audio: str,  # Artifact filename - wrapper converts to Artifact object
     output_filename: Optional[str] = None,
     description: Optional[str] = None,
     tool_context: ToolContext = None,
@@ -1216,7 +1152,7 @@ async def transcribe_audio(
     Transcribes an audio recording and saves the transcription as a text artifact.
 
     Args:
-        audio_filename: The filename (and optional :version) of the input audio artifact.
+        input_audio: The artifact filename (framework pre-loads as Artifact object).
         output_filename: Optional filename for the transcription text file (without extension).
         description: Optional description of the transcription for metadata.
         tool_context: The context provided by the ADK framework.
@@ -1224,45 +1160,16 @@ async def transcribe_audio(
 
     Returns:
         ToolResult with transcription artifact details.
+
+    Note:
+        The input_audio parameter is declared as str for ADK schema compatibility,
+        but the framework wrapper pre-loads it as an Artifact object with .filename,
+        .as_bytes(), .mime_type attributes available at runtime.
     """
-    log_identifier = f"[AudioTools:transcribe_audio:{audio_filename}]"
-    if not tool_context:
-        log.error(f"{log_identifier} ToolContext is missing.")
-        return ToolResult.error("ToolContext is missing.")
+    log_identifier = f"[AudioTools:transcribe_audio:{input_audio.filename}]"
 
     try:
-        inv_context = tool_context._invocation_context
-        if not inv_context:
-            raise ValueError("InvocationContext is not available.")
-
-        app_name = getattr(inv_context, "app_name", None)
-        user_id = getattr(inv_context, "user_id", None)
-        session_id = get_original_session_id(inv_context)
-        artifact_service = getattr(inv_context, "artifact_service", None)
-
-        if not all([app_name, user_id, session_id, artifact_service]):
-            missing_parts = [
-                part
-                for part, val in [
-                    ("app_name", app_name),
-                    ("user_id", user_id),
-                    ("session_id", session_id),
-                    ("artifact_service", artifact_service),
-                ]
-                if not val
-            ]
-            raise ValueError(
-                f"Missing required context parts: {', '.join(missing_parts)}"
-            )
-
-        log.info(f"{log_identifier} Processing request for session {session_id}.")
-
         current_tool_config = tool_config if tool_config is not None else {}
-
-        if not current_tool_config:
-            log.warning(
-                f"{log_identifier} Tool-specific configuration (tool_config) is empty."
-            )
 
         model_name = current_tool_config.get("model")
         api_key = current_tool_config.get("api_key")
@@ -1277,94 +1184,21 @@ async def transcribe_audio(
 
         log.debug(f"{log_identifier} Using model: {model_name}, API base: {api_base}")
 
-        # Parse filename:version format (rsplit to handle colons in filenames)
-        parts = audio_filename.rsplit(":", 1)
-        if len(parts) == 2 and parts[1].isdigit():
-            filename_base_for_load = parts[0]
-            version_to_load = int(parts[1])
-        else:
-            filename_base_for_load = audio_filename
-            version_to_load = None
+        # Use pre-loaded artifact data
+        audio_filename = input_audio.filename
+        audio_version = input_audio.version
+        audio_mime_type = input_audio.mime_type
+        audio_bytes = input_audio.as_bytes()
+        source_audio_metadata = input_audio.metadata or {}
 
-        if not _is_supported_audio_format_for_transcription(filename_base_for_load):
-            raise ValueError(f"Unsupported audio format. Supported formats: .wav, .mp3")
+        if not _is_supported_audio_format_for_transcription(audio_filename):
+            raise ValueError("Unsupported audio format. Supported formats: .wav, .mp3")
 
-        if version_to_load is None:
-            list_versions_method = getattr(artifact_service, "list_versions")
-            if inspect.iscoroutinefunction(list_versions_method):
-                versions = await list_versions_method(
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename_base_for_load,
-                )
-            else:
-                versions = await asyncio.to_thread(
-                    list_versions_method,
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename_base_for_load,
-                )
-            if not versions:
-                raise FileNotFoundError(
-                    f"Audio artifact '{filename_base_for_load}' not found."
-                )
-            version_to_load = max(versions)
-            log.debug(
-                f"{log_identifier} Using latest version for input: {version_to_load}"
-            )
-
-        load_artifact_method = getattr(artifact_service, "load_artifact")
-        if inspect.iscoroutinefunction(load_artifact_method):
-            audio_artifact_part = await load_artifact_method(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename_base_for_load,
-                version=version_to_load,
-            )
-        else:
-            audio_artifact_part = await asyncio.to_thread(
-                load_artifact_method,
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename_base_for_load,
-                version=version_to_load,
-            )
-
-        if not audio_artifact_part or not audio_artifact_part.inline_data:
-            raise FileNotFoundError(
-                f"Content for audio artifact '{filename_base_for_load}' v{version_to_load} not found."
-            )
-
-        audio_bytes = audio_artifact_part.inline_data.data
-        audio_mime_type = audio_artifact_part.inline_data.mime_type or "application/octet-stream"
-        log.debug(f"{log_identifier} Loaded audio artifact: {len(audio_bytes)} bytes")
-
-        # Load source audio metadata to copy description
-        source_audio_metadata = {}
-        try:
-            metadata_result = await load_artifact_content_or_metadata(
-                artifact_service=artifact_service,
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename_base_for_load,
-                version=version_to_load,
-                load_metadata_only=True,
-                log_identifier_prefix=f"{log_identifier}[source_metadata]",
-            )
-            if metadata_result.get("status") == "success":
-                source_audio_metadata = metadata_result.get("metadata", {})
-                log.debug(f"{log_identifier} Loaded source audio metadata")
-        except Exception as meta_err:
-            log.warning(f"{log_identifier} Could not load source audio metadata: {meta_err}")
+        log.debug(f"{log_identifier} Using pre-loaded audio: {len(audio_bytes)} bytes")
 
         temp_file_path = None
         try:
-            file_ext = os.path.splitext(filename_base_for_load)[1]
+            file_ext = os.path.splitext(audio_filename)[1]
 
             with tempfile.NamedTemporaryFile(
                 suffix=file_ext, delete=False
@@ -1377,11 +1211,11 @@ async def transcribe_audio(
             api_url = f"{api_base.rstrip('/')}/v1/audio/transcriptions"
             headers = {"Authorization": f"Bearer {api_key}"}
 
-            mime_type = _get_audio_mime_type(filename_base_for_load)
+            mime_type = _get_audio_mime_type(audio_filename)
 
             with open(temp_file_path, "rb") as audio_file:
                 files = {
-                    "file": (filename_base_for_load, audio_file, mime_type),
+                    "file": (audio_filename, audio_file, mime_type),
                     "model": (None, model_name),
                 }
 
@@ -1408,35 +1242,36 @@ async def transcribe_audio(
                 final_filename = ensure_correct_extension(output_filename, "txt")
             else:
                 # Auto-generate from source audio filename
-                base_name = os.path.splitext(filename_base_for_load)[0]
+                base_name = os.path.splitext(audio_filename)[0]
                 final_filename = f"{base_name}_transcription.txt"
 
             # Build comprehensive metadata
             transcription_word_count = len(transcription.split())
             transcription_char_count = len(transcription)
-            
+
             # Build description from multiple sources
             description_parts = []
-            
+
             # Add user-provided description
             if description:
                 description_parts.append(description)
-            
+
             # Add source audio description if available
             source_description = source_audio_metadata.get("description")
             if source_description:
                 description_parts.append(f"Source: {source_description}")
-            
+
             # Add source audio info
-            description_parts.append(f"Transcribed from audio file '{filename_base_for_load}' (version {version_to_load}, {audio_mime_type})")
-            
+            description_parts.append(
+                f"Transcribed from audio file '{audio_filename}' (version {audio_version}, {audio_mime_type})"
+            )
+
             # Combine all description parts
             final_description = ". ".join(description_parts)
-            
+
             metadata = {
-                "description": final_description,
-                "source_audio_filename": filename_base_for_load,
-                "source_audio_version": version_to_load,
+                "source_audio_filename": audio_filename,
+                "source_audio_version": audio_version,
                 "source_audio_mime_type": audio_mime_type,
                 "transcription_model": model_name,
                 "transcription_timestamp": datetime.now(timezone.utc).isoformat(),
@@ -1444,53 +1279,36 @@ async def transcribe_audio(
                 "transcription_char_count": transcription_char_count,
                 "generation_tool": "transcribe_audio",
             }
-            
+
             # Copy source audio description separately for reference
             if source_description:
                 metadata["source_audio_description"] = source_description
-            
+
             # Add user-provided description separately if provided
             if description:
                 metadata["user_provided_description"] = description
 
-            # Save transcription as text artifact
-            transcription_bytes = transcription.encode("utf-8")
-            
-            save_result = await save_artifact_with_metadata(
-                artifact_service=artifact_service,
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=final_filename,
-                content_bytes=transcription_bytes,
-                mime_type="text/plain",
-                metadata_dict=metadata,
-                timestamp=datetime.now(timezone.utc),
-                schema_max_keys=DEFAULT_SCHEMA_MAX_KEYS,
-                tool_context=tool_context,
-            )
-
-            if save_result.status != "success":
-                error_msg = save_result.message or "Failed to save transcription artifact"
-                log.error(f"{log_identifier} {error_msg}")
-                return ToolResult.error(
-                    f"Transcription succeeded but failed to save as artifact: {error_msg}"
-                )
-
-            data_version = save_result.data.get("data_version", 1) if save_result.data else 1
-            log.info(
-                f"{log_identifier} Transcription saved to '{final_filename}' v{data_version}"
-            )
+            log.info(f"{log_identifier} Returning transcription as DataObject for artifact storage")
 
             return ToolResult.ok(
-                "Audio transcribed and saved successfully",
+                "Audio transcribed successfully.",
                 data={
-                    "output_filename": final_filename,
-                    "output_version": data_version,
-                    "audio_filename": filename_base_for_load,
-                    "audio_version": version_to_load,
-                    "result_preview": f"Transcription saved to '{final_filename}' (v{data_version}). Length: {transcription_char_count} characters, {transcription_word_count} words.",
+                    "audio_filename": audio_filename,
+                    "audio_version": audio_version,
+                    "transcription_word_count": transcription_word_count,
+                    "transcription_char_count": transcription_char_count,
                 },
+                data_objects=[
+                    DataObject(
+                        name=final_filename,
+                        content=transcription,
+                        mime_type="text/plain",
+                        disposition=DataDisposition.ARTIFACT_WITH_PREVIEW,
+                        description=final_description,
+                        metadata=metadata,
+                        preview=transcription[:500] + "..." if len(transcription) > 500 else transcription,
+                    )
+                ],
             )
 
         finally:
@@ -1505,9 +1323,6 @@ async def transcribe_audio(
                         f"{log_identifier} Failed to clean up temporary file {temp_file_path}: {e}"
                     )
 
-    except FileNotFoundError as e:
-        log.warning(f"{log_identifier} File not found error: {e}")
-        return ToolResult.error(str(e))
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
         return ToolResult.error(str(ve))
@@ -1705,10 +1520,11 @@ transcribe_audio_tool_def = BuiltinTool(
     description="Transcribes an audio recording and saves the transcription as a text artifact.",
     category="audio",
     required_scopes=["tool:audio:transcribe", "tool:artifact:create"],
+    artifact_args=["input_audio"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
         properties={
-            "audio_filename": adk_types.Schema(
+            "input_audio": adk_types.Schema(
                 type=adk_types.Type.STRING,
                 description="The filename (and optional :version) of the input audio artifact.",
             ),
@@ -1723,7 +1539,7 @@ transcribe_audio_tool_def = BuiltinTool(
                 nullable=True,
             ),
         },
-        required=["audio_filename"],
+        required=["input_audio"],
     ),
     examples=[],
 )

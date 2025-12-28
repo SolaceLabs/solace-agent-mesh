@@ -27,7 +27,6 @@ from src.solace_agent_mesh.agent.tools.audio_tools import (
     _create_wav_file,
     _convert_pcm_to_mp3,
     _generate_audio_with_gemini,
-    _save_audio_artifact,
     _is_supported_audio_format_for_transcription,
     _get_audio_mime_type,
     select_voice,
@@ -659,86 +658,6 @@ class TestGenerateAudioWithGemini:
                 )
 
 
-class TestSaveAudioArtifact:
-    """Tests for _save_audio_artifact async function"""
-
-    @pytest.mark.asyncio
-    async def test_save_audio_artifact_success(self):
-        """Test successful audio artifact saving"""
-        audio_data = b'test_audio_data'
-        filename = "test.mp3"
-        metadata = {"description": "Test audio"}
-        
-        mock_tool_context = MagicMock()
-        mock_inv_context = MagicMock()
-        mock_inv_context.app_name = "test_app"
-        mock_inv_context.user_id = "test_user"
-        mock_inv_context.artifact_service = MagicMock()
-        mock_tool_context._invocation_context = mock_inv_context
-        
-        with patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id') as mock_get_session, \
-             patch('src.solace_agent_mesh.agent.tools.audio_tools.save_artifact_with_metadata') as mock_save:
-            
-            mock_get_session.return_value = "test_session"
-            mock_result = MagicMock()
-            mock_result.status = "success"
-            mock_result.data = {"data_version": 1}
-            mock_save.return_value = mock_result
-
-            result = await _save_audio_artifact(
-                audio_data, filename, metadata, mock_tool_context
-            )
-
-            assert result.status == "success"
-            assert result.data["data_version"] == 1
-            mock_save.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_save_audio_artifact_no_service(self):
-        """Test error when artifact service is not available"""
-        audio_data = b'test_audio_data'
-        filename = "test.mp3"
-        metadata = {"description": "Test audio"}
-        
-        mock_tool_context = MagicMock()
-        mock_inv_context = MagicMock()
-        mock_inv_context.artifact_service = None
-        mock_tool_context._invocation_context = mock_inv_context
-        
-        with pytest.raises(ValueError, match="ArtifactService is not available"):
-            await _save_audio_artifact(
-                audio_data, filename, metadata, mock_tool_context
-            )
-
-    @pytest.mark.asyncio
-    async def test_save_audio_artifact_save_error(self):
-        """Test error handling when save fails"""
-        audio_data = b'test_audio_data'
-        filename = "test.mp3"
-        metadata = {"description": "Test audio"}
-        
-        mock_tool_context = MagicMock()
-        mock_inv_context = MagicMock()
-        mock_inv_context.app_name = "test_app"
-        mock_inv_context.user_id = "test_user"
-        mock_inv_context.artifact_service = MagicMock()
-        mock_tool_context._invocation_context = mock_inv_context
-        
-        with patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id') as mock_get_session, \
-             patch('src.solace_agent_mesh.agent.tools.audio_tools.save_artifact_with_metadata') as mock_save:
-            
-            mock_get_session.return_value = "test_session"
-            mock_result = MagicMock()
-            mock_result.status = "error"
-            mock_result.message = "Save failed"
-            mock_save.return_value = mock_result
-
-            with pytest.raises(IOError, match="Failed to save audio artifact"):
-                await _save_audio_artifact(
-                    audio_data, filename, metadata, mock_tool_context
-                )
-
-
 class TestSelectVoice:
     """Tests for select_voice async function"""
 
@@ -838,16 +757,10 @@ class TestTextToSpeech:
 
         with patch('src.solace_agent_mesh.agent.tools.audio_tools.genai.Client') as mock_client, \
              patch('src.solace_agent_mesh.agent.tools.audio_tools._generate_audio_with_gemini') as mock_generate, \
-             patch('src.solace_agent_mesh.agent.tools.audio_tools._convert_pcm_to_mp3') as mock_convert, \
-             patch('src.solace_agent_mesh.agent.tools.audio_tools._save_audio_artifact') as mock_save, \
-             patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id'):
+             patch('src.solace_agent_mesh.agent.tools.audio_tools._convert_pcm_to_mp3') as mock_convert:
 
             mock_generate.return_value = b'wav_data'
             mock_convert.return_value = b'mp3_data'
-            mock_save_result = MagicMock()
-            mock_save_result.status = "success"
-            mock_save_result.data = {"data_version": 1}
-            mock_save.return_value = mock_save_result
 
             result = await text_to_speech(
                 "Hello world",
@@ -856,8 +769,11 @@ class TestTextToSpeech:
             )
 
             assert result.status == "success"
-            assert "output_filename" in result.data
-            assert "output_version" in result.data
+            assert "voice_used" in result.data
+            assert "language_used" in result.data
+            assert result.data_objects is not None
+            assert len(result.data_objects) == 1
+            assert result.data_objects[0].mime_type == "audio/mpeg"
 
     @pytest.mark.asyncio
     async def test_text_to_speech_with_voice_name(self):
@@ -873,16 +789,10 @@ class TestTextToSpeech:
 
         with patch('src.solace_agent_mesh.agent.tools.audio_tools.genai.Client'), \
              patch('src.solace_agent_mesh.agent.tools.audio_tools._generate_audio_with_gemini') as mock_generate, \
-             patch('src.solace_agent_mesh.agent.tools.audio_tools._convert_pcm_to_mp3') as mock_convert, \
-             patch('src.solace_agent_mesh.agent.tools.audio_tools._save_audio_artifact') as mock_save, \
-             patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id'):
+             patch('src.solace_agent_mesh.agent.tools.audio_tools._convert_pcm_to_mp3') as mock_convert:
 
             mock_generate.return_value = b'wav_data'
             mock_convert.return_value = b'mp3_data'
-            mock_save_result = MagicMock()
-            mock_save_result.status = "success"
-            mock_save_result.data = {"data_version": 1}
-            mock_save.return_value = mock_save_result
 
             result = await text_to_speech(
                 "Hello world",
@@ -893,6 +803,8 @@ class TestTextToSpeech:
 
             assert result.status == "success"
             assert result.data["voice_used"] == "Puck"
+            assert result.data_objects is not None
+            assert len(result.data_objects) == 1
 
 
 class TestMultiSpeakerTextToSpeech:
@@ -951,16 +863,10 @@ class TestMultiSpeakerTextToSpeech:
 
         with patch('src.solace_agent_mesh.agent.tools.audio_tools.genai.Client'), \
              patch('src.solace_agent_mesh.agent.tools.audio_tools._generate_audio_with_gemini') as mock_generate, \
-             patch('src.solace_agent_mesh.agent.tools.audio_tools._convert_pcm_to_mp3') as mock_convert, \
-             patch('src.solace_agent_mesh.agent.tools.audio_tools._save_audio_artifact') as mock_save, \
-             patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id'):
+             patch('src.solace_agent_mesh.agent.tools.audio_tools._convert_pcm_to_mp3') as mock_convert:
 
             mock_generate.return_value = b'wav_data'
             mock_convert.return_value = b'mp3_data'
-            mock_save_result = MagicMock()
-            mock_save_result.status = "success"
-            mock_save_result.data = {"data_version": 1}
-            mock_save.return_value = mock_save_result
 
             result = await multi_speaker_text_to_speech(
                 "Speaker1: Hello\nSpeaker2: Hi there",
@@ -970,8 +876,11 @@ class TestMultiSpeakerTextToSpeech:
             )
 
             assert result.status == "success"
-            assert "output_filename" in result.data
             assert "speakers_used" in result.data
+            assert "language_used" in result.data
+            assert result.data_objects is not None
+            assert len(result.data_objects) == 1
+            assert result.data_objects[0].mime_type == "audio/mpeg"
 
 
 class TestConcatenateAudio:

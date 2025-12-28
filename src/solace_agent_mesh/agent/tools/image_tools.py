@@ -6,7 +6,6 @@ Includes tools for image description and audio description using vision and audi
 import logging
 import asyncio
 import base64
-import inspect
 import json
 import os
 import uuid
@@ -16,15 +15,9 @@ from typing import Any, Dict, Optional
 import httpx
 from google.adk.tools import ToolContext
 
-from ..utils.artifact_helpers import (
-    save_artifact_with_metadata,
-    DEFAULT_SCHEMA_MAX_KEYS,
-)
-from ..utils.context_helpers import get_original_session_id
-
 from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
-from .tool_result import ToolResult
+from .tool_result import ToolResult, DataObject, DataDisposition
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -47,40 +40,14 @@ async def create_image_from_description(
         tool_config: Optional dictionary containing specific configuration for this tool.
 
     Returns:
-        ToolResult with output artifact details.
+        ToolResult with output artifact details (artifact storage handled by ToolResultProcessor).
     """
-    log_identifier = f"[ImageTools:create_image_from_description]"
+    log_identifier = "[ImageTools:create_image_from_description]"
     if not tool_context:
         log.error(f"{log_identifier} ToolContext is missing.")
         return ToolResult.error("ToolContext is missing.")
 
     try:
-        inv_context = tool_context._invocation_context
-        if not inv_context:
-            raise ValueError("InvocationContext is not available.")
-
-        app_name = getattr(inv_context, "app_name", None)
-        user_id = getattr(inv_context, "user_id", None)
-        session_id = get_original_session_id(inv_context)
-        artifact_service = getattr(inv_context, "artifact_service", None)
-
-        if not all([app_name, user_id, session_id, artifact_service]):
-            missing_parts = [
-                part
-                for part, val in [
-                    ("app_name", app_name),
-                    ("user_id", user_id),
-                    ("session_id", session_id),
-                    ("artifact_service", artifact_service),
-                ]
-                if not val
-            ]
-            raise ValueError(
-                f"Missing required context parts: {', '.join(missing_parts)}"
-            )
-
-        log.info(f"{log_identifier} Processing request for session {session_id}.")
-
         current_tool_config = tool_config if tool_config is not None else {}
 
         if not current_tool_config:
@@ -180,6 +147,7 @@ async def create_image_from_description(
         if not image_bytes:
             raise ValueError("Failed to retrieve image bytes.")
 
+        # Determine output filename
         final_output_filename = ""
         if output_filename:
             if not output_filename.lower().endswith(".png"):
@@ -192,11 +160,9 @@ async def create_image_from_description(
             f"{log_identifier} Determined output filename: {final_output_filename}"
         )
 
-        output_mime_type = "image/png"
+        # Build metadata for the artifact
         current_timestamp_iso = datetime.now(timezone.utc).isoformat()
-
         metadata_dict = {
-            "description": f"Image generated from prompt: {image_description}",
             "source_prompt": image_description,
             "generation_tool": "direct_api",
             "generation_model": model_name,
@@ -209,39 +175,22 @@ async def create_image_from_description(
             metadata_dict["api_request_params"] = json.dumps(extra_params)
 
         log.info(
-            f"{log_identifier} Saving artifact '{final_output_filename}' with mime_type '{output_mime_type}'."
-        )
-        save_result = await save_artifact_with_metadata(
-            artifact_service=artifact_service,
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=final_output_filename,
-            content_bytes=image_bytes,
-            mime_type=output_mime_type,
-            metadata_dict=metadata_dict,
-            timestamp=datetime.now(timezone.utc),
-            schema_max_keys=DEFAULT_SCHEMA_MAX_KEYS,
-            tool_context=tool_context,
+            f"{log_identifier} Returning image as DataObject for artifact storage: '{final_output_filename}'"
         )
 
-        if save_result.status == "error":
-            raise IOError(
-                f"Failed to save image artifact: {save_result.message}"
-            )
-
-        data_version = save_result.data.get("data_version", 1) if save_result.data else 1
-        log.info(
-            f"{log_identifier} Artifact '{final_output_filename}' v{data_version} saved successfully."
-        )
-
+        # Return ToolResult with DataObject - artifact storage handled by ToolResultProcessor
         return ToolResult.ok(
-            "Image generated and saved successfully.",
-            data={
-                "output_filename": final_output_filename,
-                "output_version": data_version,
-                "result_preview": f"Image '{final_output_filename}' (v{data_version}) created from prompt: \"{image_description[:50]}...\"",
-            },
+            "Image generated successfully.",
+            data_objects=[
+                DataObject(
+                    name=final_output_filename,
+                    content=image_bytes,
+                    mime_type="image/png",
+                    disposition=DataDisposition.ARTIFACT,
+                    description=f"Image generated from prompt: {image_description}",
+                    metadata=metadata_dict,
+                )
+            ],
         )
 
     except ValueError as ve:
@@ -259,9 +208,6 @@ async def create_image_from_description(
             f"{log_identifier} Request error fetching image from URL {re.request.url}: {re}"
         )
         return ToolResult.error(f"Request error fetching image: {re}")
-    except IOError as ioe:
-        log.error(f"{log_identifier} IO error: {ioe}")
-        return ToolResult.error(str(ioe))
     except Exception as e:
         log.exception(
             f"{log_identifier} Unexpected error in create_image_from_description: {e}"
@@ -296,7 +242,7 @@ def _create_data_url(image_bytes: bytes, mime_type: str) -> str:
 
 
 async def describe_image(
-    image_filename: str,
+    input_image: str,  # Artifact filename - wrapper converts to Artifact object
     prompt: str = "What is in this image?",
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
@@ -305,46 +251,22 @@ async def describe_image(
     Describes an image using an OpenAI-compatible vision API.
 
     Args:
-        image_filename: The filename (and optional :version) of the input image artifact.
+        input_image: The artifact filename (framework pre-loads as Artifact object).
         prompt: Custom prompt for image analysis (default: "What is in this image?").
         tool_context: The context provided by the ADK framework.
         tool_config: Configuration dictionary containing model, api_base, api_key.
 
     Returns:
         ToolResult with description data.
+
+    Note:
+        The input_image parameter is declared as str for ADK schema compatibility,
+        but the framework wrapper pre-loads it as an Artifact object with .filename,
+        .as_bytes(), .mime_type attributes available at runtime.
     """
-    log_identifier = f"[ImageTools:describe_image:{image_filename}]"
-    if not tool_context:
-        log.error(f"{log_identifier} ToolContext is missing.")
-        return ToolResult.error("ToolContext is missing.")
+    log_identifier = f"[ImageTools:describe_image:{input_image.filename}]"
 
     try:
-        inv_context = tool_context._invocation_context
-        if not inv_context:
-            raise ValueError("InvocationContext is not available.")
-
-        app_name = getattr(inv_context, "app_name", None)
-        user_id = getattr(inv_context, "user_id", None)
-        session_id = get_original_session_id(inv_context)
-        artifact_service = getattr(inv_context, "artifact_service", None)
-
-        if not all([app_name, user_id, session_id, artifact_service]):
-            missing_parts = [
-                part
-                for part, val in [
-                    ("app_name", app_name),
-                    ("user_id", user_id),
-                    ("session_id", session_id),
-                    ("artifact_service", artifact_service),
-                ]
-                if not val
-            ]
-            raise ValueError(
-                f"Missing required context parts: {', '.join(missing_parts)}"
-            )
-
-        log.info(f"{log_identifier} Processing request for session {session_id}.")
-
         current_tool_config = tool_config if tool_config is not None else {}
 
         if not current_tool_config:
@@ -365,74 +287,16 @@ async def describe_image(
 
         log.debug(f"{log_identifier} Using model: {model_name}, API base: {api_base}")
 
-        # Parse filename:version format (rsplit to handle colons in filenames)
-        parts = image_filename.rsplit(":", 1)
-        if len(parts) == 2 and parts[1].isdigit():
-            filename_base_for_load = parts[0]
-            version_to_load = int(parts[1])
-        else:
-            filename_base_for_load = image_filename
-            version_to_load = None
-
-        if not _is_supported_image_format(filename_base_for_load):
+        if not _is_supported_image_format(input_image.filename):
             raise ValueError(
-                f"Unsupported image format. Supported formats: .png, .jpg, .jpeg, .webp, .gif"
+                "Unsupported image format. Supported formats: .png, .jpg, .jpeg, .webp, .gif"
             )
 
-        if version_to_load is None:
-            list_versions_method = getattr(artifact_service, "list_versions")
-            if inspect.iscoroutinefunction(list_versions_method):
-                versions = await list_versions_method(
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename_base_for_load,
-                )
-            else:
-                versions = await asyncio.to_thread(
-                    list_versions_method,
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename_base_for_load,
-                )
-            if not versions:
-                raise FileNotFoundError(
-                    f"Image artifact '{filename_base_for_load}' not found."
-                )
-            version_to_load = max(versions)
-            log.debug(
-                f"{log_identifier} Using latest version for input: {version_to_load}"
-            )
+        # Get image data from pre-loaded artifact
+        image_bytes = input_image.as_bytes()
+        log.debug(f"{log_identifier} Using pre-loaded image: {len(image_bytes)} bytes")
 
-        load_artifact_method = getattr(artifact_service, "load_artifact")
-        if inspect.iscoroutinefunction(load_artifact_method):
-            image_artifact_part = await load_artifact_method(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename_base_for_load,
-                version=version_to_load,
-            )
-        else:
-            image_artifact_part = await asyncio.to_thread(
-                load_artifact_method,
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename_base_for_load,
-                version=version_to_load,
-            )
-
-        if not image_artifact_part or not image_artifact_part.inline_data:
-            raise FileNotFoundError(
-                f"Content for image artifact '{filename_base_for_load}' v{version_to_load} not found."
-            )
-
-        image_bytes = image_artifact_part.inline_data.data
-        log.debug(f"{log_identifier} Loaded image artifact: {len(image_bytes)} bytes")
-
-        mime_type = _get_image_mime_type(filename_base_for_load)
+        mime_type = _get_image_mime_type(input_image.filename)
         data_url = _create_data_url(image_bytes, mime_type)
         log.debug(f"{log_identifier} Created data URL with MIME type: {mime_type}")
 
@@ -484,15 +348,12 @@ async def describe_image(
             "Image described successfully",
             data={
                 "description": description,
-                "image_filename": filename_base_for_load,
-                "image_version": version_to_load,
+                "image_filename": input_image.filename,
+                "image_version": input_image.version,
                 "tokens_used": tokens_used,
             },
         )
 
-    except FileNotFoundError as e:
-        log.warning(f"{log_identifier} File not found error: {e}")
-        return ToolResult.error(str(e))
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
         return ToolResult.error(str(ve))
@@ -532,7 +393,7 @@ def _encode_audio_to_base64(audio_bytes: bytes) -> str:
 
 
 async def describe_audio(
-    audio_filename: str,
+    input_audio: str,  # Artifact filename - wrapper converts to Artifact object
     prompt: str = "What is in this recording?",
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
@@ -541,46 +402,22 @@ async def describe_audio(
     Describes an audio recording using an OpenAI-compatible audio API.
 
     Args:
-        audio_filename: The filename (and optional :version) of the input audio artifact.
+        input_audio: The artifact filename (framework pre-loads as Artifact object).
         prompt: Custom prompt for audio analysis (default: "What is in this recording?").
         tool_context: The context provided by the ADK framework.
         tool_config: Configuration dictionary containing model, api_base, api_key.
 
     Returns:
         ToolResult with description data.
+
+    Note:
+        The input_audio parameter is declared as str for ADK schema compatibility,
+        but the framework wrapper pre-loads it as an Artifact object with .filename,
+        .as_bytes(), .mime_type attributes available at runtime.
     """
-    log_identifier = f"[ImageTools:describe_audio:{audio_filename}]"
-    if not tool_context:
-        log.error(f"{log_identifier} ToolContext is missing.")
-        return ToolResult.error("ToolContext is missing.")
+    log_identifier = f"[ImageTools:describe_audio:{input_audio.filename}]"
 
     try:
-        inv_context = tool_context._invocation_context
-        if not inv_context:
-            raise ValueError("InvocationContext is not available.")
-
-        app_name = getattr(inv_context, "app_name", None)
-        user_id = getattr(inv_context, "user_id", None)
-        session_id = get_original_session_id(inv_context)
-        artifact_service = getattr(inv_context, "artifact_service", None)
-
-        if not all([app_name, user_id, session_id, artifact_service]):
-            missing_parts = [
-                part
-                for part, val in [
-                    ("app_name", app_name),
-                    ("user_id", user_id),
-                    ("session_id", session_id),
-                    ("artifact_service", artifact_service),
-                ]
-                if not val
-            ]
-            raise ValueError(
-                f"Missing required context parts: {', '.join(missing_parts)}"
-            )
-
-        log.info(f"{log_identifier} Processing request for session {session_id}.")
-
         current_tool_config = tool_config if tool_config is not None else {}
 
         if not current_tool_config:
@@ -601,72 +438,14 @@ async def describe_audio(
 
         log.debug(f"{log_identifier} Using model: {model_name}, API base: {api_base}")
 
-        # Parse filename:version format (rsplit to handle colons in filenames)
-        parts = audio_filename.rsplit(":", 1)
-        if len(parts) == 2 and parts[1].isdigit():
-            filename_base_for_load = parts[0]
-            version_to_load = int(parts[1])
-        else:
-            filename_base_for_load = audio_filename
-            version_to_load = None
+        if not _is_supported_audio_format(input_audio.filename):
+            raise ValueError("Unsupported audio format. Supported formats: .wav, .mp3")
 
-        if not _is_supported_audio_format(filename_base_for_load):
-            raise ValueError(f"Unsupported audio format. Supported formats: .wav, .mp3")
+        # Get audio data from pre-loaded artifact
+        audio_bytes = input_audio.as_bytes()
+        log.debug(f"{log_identifier} Using pre-loaded audio: {len(audio_bytes)} bytes")
 
-        if version_to_load is None:
-            list_versions_method = getattr(artifact_service, "list_versions")
-            if inspect.iscoroutinefunction(list_versions_method):
-                versions = await list_versions_method(
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename_base_for_load,
-                )
-            else:
-                versions = await asyncio.to_thread(
-                    list_versions_method,
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename_base_for_load,
-                )
-            if not versions:
-                raise FileNotFoundError(
-                    f"Audio artifact '{filename_base_for_load}' not found."
-                )
-            version_to_load = max(versions)
-            log.debug(
-                f"{log_identifier} Using latest version for input: {version_to_load}"
-            )
-
-        load_artifact_method = getattr(artifact_service, "load_artifact")
-        if inspect.iscoroutinefunction(load_artifact_method):
-            audio_artifact_part = await load_artifact_method(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename_base_for_load,
-                version=version_to_load,
-            )
-        else:
-            audio_artifact_part = await asyncio.to_thread(
-                load_artifact_method,
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename_base_for_load,
-                version=version_to_load,
-            )
-
-        if not audio_artifact_part or not audio_artifact_part.inline_data:
-            raise FileNotFoundError(
-                f"Content for audio artifact '{filename_base_for_load}' v{version_to_load} not found."
-            )
-
-        audio_bytes = audio_artifact_part.inline_data.data
-        log.debug(f"{log_identifier} Loaded audio artifact: {len(audio_bytes)} bytes")
-
-        audio_format = _get_audio_format(filename_base_for_load)
+        audio_format = _get_audio_format(input_audio.filename)
         base64_audio = _encode_audio_to_base64(audio_bytes)
         log.debug(
             f"{log_identifier} Encoded audio to base64 with format: {audio_format}"
@@ -729,15 +508,12 @@ async def describe_audio(
             "Audio described successfully",
             data={
                 "description": description,
-                "audio_filename": filename_base_for_load,
-                "audio_version": version_to_load,
+                "audio_filename": input_audio.filename,
+                "audio_version": input_audio.version,
                 "tokens_used": tokens_used,
             },
         )
 
-    except FileNotFoundError as e:
-        log.warning(f"{log_identifier} File not found error: {e}")
-        return ToolResult.error(str(e))
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
         return ToolResult.error(str(ve))
@@ -758,7 +534,7 @@ async def describe_audio(
 
 
 async def edit_image_with_gemini(
-    image_filename: str,
+    input_image: str,  # Artifact filename - wrapper converts to Artifact object
     edit_prompt: str,
     output_filename: Optional[str] = None,
     tool_context: ToolContext = None,
@@ -768,7 +544,7 @@ async def edit_image_with_gemini(
     Edits an existing image based on a text prompt using Google's Gemini 2.0 Flash Preview Image Generation model.
 
     Args:
-        image_filename: The filename (and optional :version) of the input image artifact.
+        input_image: The artifact filename (framework pre-loads as Artifact object).
         edit_prompt: Text description of the desired edits to apply to the image.
         output_filename: Optional. The desired filename for the output edited image.
                         If not provided, a unique name like 'edited_image_<uuid>.jpg' will be used.
@@ -776,12 +552,14 @@ async def edit_image_with_gemini(
         tool_config: Configuration dictionary containing gemini_api_key and model.
 
     Returns:
-        ToolResult with output artifact details.
+        ToolResult with output artifact details (artifact storage handled by ToolResultProcessor).
+
+    Note:
+        The input_image parameter is declared as str for ADK schema compatibility,
+        but the framework wrapper pre-loads it as an Artifact object with .filename,
+        .as_bytes(), .version, .mime_type attributes available at runtime.
     """
-    log_identifier = f"[ImageTools:edit_image_with_gemini:{image_filename}]"
-    if not tool_context:
-        log.error(f"{log_identifier} ToolContext is missing.")
-        return ToolResult.error("ToolContext is missing.")
+    log_identifier = f"[ImageTools:edit_image_with_gemini:{input_image.filename}]"
 
     try:
         try:
@@ -792,34 +570,6 @@ async def edit_image_with_gemini(
         except ImportError as ie:
             log.error(f"{log_identifier} Required dependencies not available: {ie}")
             return ToolResult.error(f"Required dependencies not available: {ie}")
-
-        inv_context = tool_context._invocation_context
-        if not inv_context:
-            raise ValueError("InvocationContext is not available.")
-
-        app_name = getattr(inv_context, "app_name", None)
-        user_id = getattr(inv_context, "user_id", None)
-        session_id = get_original_session_id(inv_context)
-        artifact_service = getattr(inv_context, "artifact_service", None)
-
-        if not all([app_name, user_id, session_id, artifact_service]):
-            missing_parts = [
-                part
-                for part, val in [
-                    ("app_name", app_name),
-                    ("user_id", user_id),
-                    ("session_id", session_id),
-                    ("artifact_service", artifact_service),
-                ]
-                if not val
-            ]
-            raise ValueError(
-                f"Missing required context parts: {', '.join(missing_parts)}"
-            )
-
-        log.info(
-            f"{log_identifier} Processing image edit request for session {session_id}."
-        )
 
         current_tool_config = tool_config if tool_config is not None else {}
 
@@ -840,72 +590,14 @@ async def edit_image_with_gemini(
 
         log.debug(f"{log_identifier} Using Gemini model: {model_name}")
 
-        # Parse filename:version format (rsplit to handle colons in filenames)
-        parts = image_filename.rsplit(":", 1)
-        if len(parts) == 2 and parts[1].isdigit():
-            filename_base_for_load = parts[0]
-            version_to_load = int(parts[1])
-        else:
-            filename_base_for_load = image_filename
-            version_to_load = None
-
-        if not _is_supported_image_format(filename_base_for_load):
+        if not _is_supported_image_format(input_image.filename):
             raise ValueError(
-                f"Unsupported image format. Supported formats: .png, .jpg, .jpeg, .webp, .gif"
+                "Unsupported image format. Supported formats: .png, .jpg, .jpeg, .webp, .gif"
             )
 
-        if version_to_load is None:
-            list_versions_method = getattr(artifact_service, "list_versions")
-            if inspect.iscoroutinefunction(list_versions_method):
-                versions = await list_versions_method(
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename_base_for_load,
-                )
-            else:
-                versions = await asyncio.to_thread(
-                    list_versions_method,
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename_base_for_load,
-                )
-            if not versions:
-                raise FileNotFoundError(
-                    f"Image artifact '{filename_base_for_load}' not found."
-                )
-            version_to_load = max(versions)
-            log.debug(
-                f"{log_identifier} Using latest version for input: {version_to_load}"
-            )
-
-        load_artifact_method = getattr(artifact_service, "load_artifact")
-        if inspect.iscoroutinefunction(load_artifact_method):
-            image_artifact_part = await load_artifact_method(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename_base_for_load,
-                version=version_to_load,
-            )
-        else:
-            image_artifact_part = await asyncio.to_thread(
-                load_artifact_method,
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename_base_for_load,
-                version=version_to_load,
-            )
-
-        if not image_artifact_part or not image_artifact_part.inline_data:
-            raise FileNotFoundError(
-                f"Content for image artifact '{filename_base_for_load}' v{version_to_load} not found."
-            )
-
-        image_bytes = image_artifact_part.inline_data.data
-        log.debug(f"{log_identifier} Loaded image artifact: {len(image_bytes)} bytes")
+        # Get image data from pre-loaded artifact
+        image_bytes = input_image.as_bytes()
+        log.debug(f"{log_identifier} Using pre-loaded image: {len(image_bytes)} bytes")
 
         try:
             from PIL import UnidentifiedImageError
@@ -979,6 +671,7 @@ async def edit_image_with_gemini(
         if not edited_image_bytes:
             raise ValueError("No edited image data received from Gemini API.")
 
+        # Determine output filename
         final_output_filename = ""
         if output_filename:
             sane_filename = os.path.basename(output_filename)
@@ -987,20 +680,18 @@ async def edit_image_with_gemini(
             else:
                 final_output_filename = sane_filename
         else:
-            base_name = os.path.splitext(filename_base_for_load)[0]
+            base_name = os.path.splitext(input_image.filename)[0]
             final_output_filename = f"edited_{base_name}_{uuid.uuid4().hex[:8]}.jpg"
 
         log.debug(
             f"{log_identifier} Determined output filename: {final_output_filename}"
         )
 
-        output_mime_type = "image/jpeg"
+        # Build metadata for the artifact
         current_timestamp_iso = datetime.now(timezone.utc).isoformat()
-
         metadata_dict = {
-            "description": f"Image edited with prompt: {edit_prompt}",
-            "original_image": filename_base_for_load,
-            "original_version": version_to_load,
+            "original_image": input_image.filename,
+            "original_version": input_image.version,
             "edit_prompt": edit_prompt,
             "editing_tool": "gemini",
             "editing_model": model_name,
@@ -1013,52 +704,31 @@ async def edit_image_with_gemini(
             metadata_dict["gemini_response_text"] = response_text
 
         log.info(
-            f"{log_identifier} Saving edited image artifact '{final_output_filename}' with mime_type '{output_mime_type}'."
-        )
-        save_result = await save_artifact_with_metadata(
-            artifact_service=artifact_service,
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=final_output_filename,
-            content_bytes=edited_image_bytes,
-            mime_type=output_mime_type,
-            metadata_dict=metadata_dict,
-            timestamp=datetime.now(timezone.utc),
-            schema_max_keys=DEFAULT_SCHEMA_MAX_KEYS,
-            tool_context=tool_context,
+            f"{log_identifier} Returning edited image as DataObject for artifact storage: '{final_output_filename}'"
         )
 
-        if save_result.status == "error":
-            raise IOError(
-                f"Failed to save edited image artifact: {save_result.message}"
-            )
-
-        data_version = save_result.data.get("data_version", 1) if save_result.data else 1
-        log.info(
-            f"{log_identifier} Edited image artifact '{final_output_filename}' v{data_version} saved successfully."
-        )
-
+        # Return ToolResult with DataObject - artifact storage handled by ToolResultProcessor
         return ToolResult.ok(
-            "Image edited and saved successfully.",
+            "Image edited successfully.",
             data={
-                "output_filename": final_output_filename,
-                "output_version": data_version,
-                "result_preview": f"Edited image '{final_output_filename}' (v{data_version}) created from '{filename_base_for_load}' with prompt: \"{edit_prompt[:50]}...\"",
-                "original_filename": filename_base_for_load,
-                "original_version": version_to_load,
+                "original_filename": input_image.filename,
+                "original_version": input_image.version,
             },
+            data_objects=[
+                DataObject(
+                    name=final_output_filename,
+                    content=edited_image_bytes,
+                    mime_type="image/jpeg",
+                    disposition=DataDisposition.ARTIFACT,
+                    description=f"Image edited with prompt: {edit_prompt}",
+                    metadata=metadata_dict,
+                )
+            ],
         )
 
-    except FileNotFoundError as e:
-        log.warning(f"{log_identifier} File not found error: {e}")
-        return ToolResult.error(str(e))
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
         return ToolResult.error(str(ve))
-    except IOError as ioe:
-        log.error(f"{log_identifier} IO error: {ioe}")
-        return ToolResult.error(str(ioe))
     except Exception as e:
         log.exception(
             f"{log_identifier} Unexpected error in edit_image_with_gemini: {e}"
@@ -1099,7 +769,7 @@ describe_image_tool_def = BuiltinTool(
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
         properties={
-            "image_filename": adk_types.Schema(
+            "input_image": adk_types.Schema(
                 type=adk_types.Type.STRING,
                 description="The filename (and optional :version) of the input image artifact.",
             ),
@@ -1109,9 +779,10 @@ describe_image_tool_def = BuiltinTool(
                 nullable=True,
             ),
         },
-        required=["image_filename"],
+        required=["input_image"],
     ),
     examples=[],
+    artifact_args=["input_image"],
 )
 
 describe_audio_tool_def = BuiltinTool(
@@ -1123,7 +794,7 @@ describe_audio_tool_def = BuiltinTool(
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
         properties={
-            "audio_filename": adk_types.Schema(
+            "input_audio": adk_types.Schema(
                 type=adk_types.Type.STRING,
                 description="The filename (and optional :version) of the input audio artifact.",
             ),
@@ -1133,9 +804,10 @@ describe_audio_tool_def = BuiltinTool(
                 nullable=True,
             ),
         },
-        required=["audio_filename"],
+        required=["input_audio"],
     ),
     examples=[],
+    artifact_args=["input_audio"],
 )
 
 edit_image_with_gemini_tool_def = BuiltinTool(
@@ -1147,7 +819,7 @@ edit_image_with_gemini_tool_def = BuiltinTool(
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
         properties={
-            "image_filename": adk_types.Schema(
+            "input_image": adk_types.Schema(
                 type=adk_types.Type.STRING,
                 description="The filename (and optional :version) of the input image artifact.",
             ),
@@ -1161,9 +833,10 @@ edit_image_with_gemini_tool_def = BuiltinTool(
                 nullable=True,
             ),
         },
-        required=["image_filename", "edit_prompt"],
+        required=["input_image", "edit_prompt"],
     ),
     examples=[],
+    artifact_args=["input_image"],
 )
 
 tool_registry.register(create_image_from_description_tool_def)

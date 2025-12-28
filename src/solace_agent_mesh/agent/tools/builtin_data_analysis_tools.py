@@ -33,16 +33,10 @@ except ImportError:
 from google.adk.tools import ToolContext
 from google.genai import types as adk_types
 
-from ...agent.utils.artifact_helpers import (
-    ensure_correct_extension,
-    save_artifact_with_metadata,
-    DEFAULT_SCHEMA_MAX_KEYS,
-)
-
-from ...agent.utils.context_helpers import get_original_session_id
+from ...agent.utils.artifact_helpers import ensure_correct_extension
 
 from .tool_definition import BuiltinTool
-from .tool_result import ToolResult
+from .tool_result import ToolResult, DataObject, DataDisposition
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -142,53 +136,34 @@ async def create_chart_from_plotly_config(
         }
         output_mime_type = mime_map.get(output_format.lower(), f"image/{output_format}")
 
-        inv_context = tool_context._invocation_context
-        artifact_service = inv_context.artifact_service
-        if not artifact_service:
-            raise ValueError("ArtifactService is not available in the context.")
-        host_component = getattr(inv_context.agent, "host_component", None)
-        schema_max_keys = (
-            host_component.get_config("schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS)
-            if host_component
-            else DEFAULT_SCHEMA_MAX_KEYS
-        )
-
         final_output_filename = ensure_correct_extension(output_filename, output_format)
 
-        save_metadata_dict = {
+        metadata = {
             "description": f"Chart generated from Plotly config ({config_format})",
             "source_format": config_format,
+            "output_format": output_format,
+            "generation_tool": "create_chart_from_plotly_config",
+            "generation_timestamp": datetime.now(timezone.utc).isoformat(),
         }
-        save_result = await save_artifact_with_metadata(
-            artifact_service=artifact_service,
-            app_name=inv_context.app_name,
-            user_id=inv_context.user_id,
-            session_id=get_original_session_id(inv_context),
-            filename=final_output_filename,
-            content_bytes=image_bytes,
-            mime_type=output_mime_type,
-            metadata_dict=save_metadata_dict,
-            timestamp=datetime.now(timezone.utc),
-            schema_max_keys=schema_max_keys,
-            tool_context=tool_context,
-        )
 
-        if save_result["status"] == "error":
-            raise IOError(
-                f"Failed to save chart image artifact: {save_result.get('message', 'Unknown error')}"
-            )
-        log.info(
-            "%s Successfully created chart artifact '%s' v%d.",
-            log_identifier,
-            final_output_filename,
-            save_result["data_version"],
-        )
+        log.info("%s Returning chart as DataObject for artifact storage", log_identifier)
+
         return ToolResult.ok(
-            f"Chart image '{final_output_filename}' v{save_result['data_version']} created successfully.",
+            "Chart image created successfully.",
             data={
-                "output_filename": final_output_filename,
-                "output_version": save_result["data_version"],
+                "source_format": config_format,
+                "output_format": output_format,
             },
+            data_objects=[
+                DataObject(
+                    name=final_output_filename,
+                    content=image_bytes,
+                    mime_type=output_mime_type,
+                    disposition=DataDisposition.ARTIFACT,
+                    description=f"Chart generated from Plotly config ({config_format})",
+                    metadata=metadata,
+                )
+            ],
         )
 
     except ValueError as e:
