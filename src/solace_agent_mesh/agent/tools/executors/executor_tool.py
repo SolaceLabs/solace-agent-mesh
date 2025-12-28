@@ -54,6 +54,9 @@ class ExecutorBasedTool(DynamicTool):
         # Deprecated - use artifact_params or type: artifact in schema
         artifact_args: Optional[List[str]] = None,
         artifact_list_args: Optional[List[str]] = None,
+        # Aliases for backward compatibility with setup.py / YAML configs
+        artifact_content_args: Optional[List[str]] = None,
+        artifact_content_list_args: Optional[List[str]] = None,
     ):
         """
         Initialize an executor-based tool.
@@ -67,6 +70,8 @@ class ExecutorBasedTool(DynamicTool):
             artifact_params: Dict mapping param names to ArtifactTypeInfo
             artifact_args: (Deprecated) Parameter names (single) to pre-load
             artifact_list_args: (Deprecated) Parameter names (lists) to pre-load
+            artifact_content_args: (Deprecated) Alias for artifact_args
+            artifact_content_list_args: (Deprecated) Alias for artifact_list_args
         """
         super().__init__(tool_config=tool_config)
         self._name = name
@@ -74,17 +79,24 @@ class ExecutorBasedTool(DynamicTool):
         self._schema = parameters_schema
         self._executor = executor
 
+        # Merge artifact_content_args into artifact_args for backward compatibility
+        effective_artifact_args = list(artifact_args or [])
+        effective_artifact_args.extend(artifact_content_args or [])
+
+        effective_list_args = list(artifact_list_args or [])
+        effective_list_args.extend(artifact_content_list_args or [])
+
         # Use artifact_params if provided, otherwise build from deprecated args
         if artifact_params is not None:
             self._artifact_params = artifact_params
         else:
             # Build from deprecated args for backward compatibility
             self._artifact_params = {}
-            for param_name in (artifact_args or []):
+            for param_name in effective_artifact_args:
                 self._artifact_params[param_name] = ArtifactTypeInfo(
                     is_artifact=True, is_list=False
                 )
-            for param_name in (artifact_list_args or []):
+            for param_name in effective_list_args:
                 self._artifact_params[param_name] = ArtifactTypeInfo(
                     is_artifact=True, is_list=True
                 )
@@ -282,12 +294,13 @@ def create_executor_tool_from_config(
     artifact_params = dict(schema_result.artifact_params)
 
     # Add any explicitly configured artifact args (backward compat, deprecated)
-    for param_name in config.get("artifact_args", []):
+    # Support both old names (artifact_args) and YAML config names (artifact_content_args)
+    for param_name in config.get("artifact_content_args", config.get("artifact_args", [])):
         if param_name not in artifact_params:
             artifact_params[param_name] = ArtifactTypeInfo(
                 is_artifact=True, is_list=False
             )
-    for param_name in config.get("artifact_list_args", []):
+    for param_name in config.get("artifact_content_list_args", config.get("artifact_list_args", [])):
         if param_name not in artifact_params:
             artifact_params[param_name] = ArtifactTypeInfo(
                 is_artifact=True, is_list=True

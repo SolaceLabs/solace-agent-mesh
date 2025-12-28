@@ -832,17 +832,34 @@ async def _load_executor_tool(
     # Create executor
     executor = create_executor(tool_config_model.executor, **executor_kwargs)
 
-    # Build parameter schema
-    parameters_schema = _build_executor_schema(tool_config_model.parameters)
+    # Build parameter schema using the unified schema builder
+    # This detects artifact types from the schema (type: artifact)
+    from ..tools.executors.executor_tool import _build_schema_from_config
+    from ..tools.artifact_types import ArtifactTypeInfo
+
+    schema_result = _build_schema_from_config(tool_config_model.parameters or {})
+
+    # Merge schema-detected artifacts with explicit config (backward compatibility)
+    artifact_params = dict(schema_result.artifact_params)
+    for param_name in (tool_config_model.artifact_content_args or []):
+        if param_name not in artifact_params:
+            artifact_params[param_name] = ArtifactTypeInfo(
+                is_artifact=True, is_list=False
+            )
+    for param_name in (tool_config_model.artifact_content_list_args or []):
+        if param_name not in artifact_params:
+            artifact_params[param_name] = ArtifactTypeInfo(
+                is_artifact=True, is_list=True
+            )
 
     # Create tool instance
     tool = ExecutorBasedTool(
         name=tool_config_model.name,
         description=tool_config_model.description,
-        parameters_schema=parameters_schema,
+        parameters_schema=schema_result.schema,
         executor=executor,
         tool_config=tool_config_model.tool_config,
-        artifact_content_args=tool_config_model.artifact_content_args,
+        artifact_params=artifact_params,
     )
 
     # Initialize executor
@@ -862,7 +879,13 @@ async def _load_executor_tool(
 
 
 def _build_executor_schema(params_config: Optional[Dict]) -> "adk_types.Schema":
-    """Build an ADK Schema from a parameters configuration dict."""
+    """
+    Build an ADK Schema from a parameters configuration dict.
+
+    DEPRECATED: This function is kept for backward compatibility only.
+    Use _build_schema_from_config from executor_tool.py instead, which
+    properly handles artifact types and returns artifact parameter info.
+    """
     from google.genai import types as adk_types
 
     if not params_config:
