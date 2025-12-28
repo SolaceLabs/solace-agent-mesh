@@ -2493,6 +2493,7 @@ def _get_actual_event_purpose(
                     "llm_response",
                     "agent_progress_update",
                     "artifact_creation_progress",
+                    "artifact_saved"
                 ]:
                     return signal_type
                 # Legacy check for older signals
@@ -2727,6 +2728,23 @@ async def _assert_event_details(
                             assert (
                                 data_to_check.get(k) == v_expected
                             ), f"Scenario {scenario_id}: Event {event_index+1} - Value for LLM data key '{k}' mismatch. Expected '{v_expected}', Got '{data_to_check.get(k)}'"
+
+        if actual_event_purpose == "artifact_saved":
+            data_parts = get_data_parts(actual_event.status.message.parts)
+            assert (
+                data_parts
+            ), f"Scenario {scenario_id}: Event {event_index+1} - Expected a DataPart for artifact_saved event, but none was found."
+            artifact_saved_data = data_parts[0]
+
+            if "expected_artifact_saved_data_contains" in expected_spec:
+                expected_subset = expected_spec["expected_artifact_saved_data_contains"]
+                _assert_dict_subset(
+                    expected_subset=expected_subset,
+                    actual_superset=artifact_saved_data,
+                    scenario_id=scenario_id,
+                    event_index=event_index,
+                    context_path="artifact_saved data",
+               )
 
         if "final_flag" in expected_spec:
             assert (

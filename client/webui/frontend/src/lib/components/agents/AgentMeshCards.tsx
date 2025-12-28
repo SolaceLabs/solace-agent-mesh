@@ -28,13 +28,13 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
             {agents.length === 0 ? (
                 <EmptyState image={AgentImage} title="No agents found" subtitle="No agents discovered in the current namespace." />
             ) : (
-                <div className="h-full w-full pt-2 pl-2">
+                <div className="bg-card-background h-full w-full pt-6 pl-6">
                     <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="agentSearchInput" className="mb-4 w-xs" />
 
                     {filteredAgents.length === 0 && searchQuery ? (
                         <EmptyState variant="notFound" title="No Agents Match Your Filter" subtitle="Try adjusting your filter terms." buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchQuery("") }]} />
                     ) : (
-                        <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
+                        <div className="max-h-[calc(100vh-180px)] overflow-y-auto">
                             <div className="flex flex-wrap gap-10">
                                 {filteredAgents.map(agent => (
                                     <AgentDisplayCard key={agent.name} agent={agent} isExpanded={expandedAgentName === agent.name} onToggleExpand={() => handleToggleExpand(agent.name)} />

@@ -1,9 +1,10 @@
 import { useState, useCallback } from "react";
-import { detectVariables, validatePromptText } from "@/lib/utils/promptUtils";
 import { useChatContext } from "@/lib/hooks";
+import { getErrorMessage } from "@/lib/utils";
+import { detectVariables, validatePromptText } from "@/lib/utils/promptUtils";
 import type { PromptGroup, TemplateConfig } from "@/lib/types/prompts";
 import { isReservedCommand } from "@/lib/constants/reservedCommands";
-import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 export interface ValidationErrors {
     name?: string;
@@ -120,13 +121,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             };
 
             // Call API to create prompt group
-            const createdGroup = await fetchJsonWithError("/api/v1/prompts/groups", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(templateData),
-            });
+            const createdGroup = await api.webui.post("/api/v1/prompts/groups", templateData);
 
             setSaveStatus("success");
             addNotification("Template saved", "success");
@@ -177,13 +172,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                     if (config.command !== editingGroup?.command) updateData.command = config.command;
                     updateData.initial_prompt = config.promptText;
 
-                    await fetchWithError(`/api/v1/prompts/groups/${groupId}`, {
-                        method: "PATCH",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(updateData),
-                    });
+                    await api.webui.patch(`/api/v1/prompts/groups/${groupId}`, updateData);
 
                     setSaveStatus("success");
                     const message = promptTextChanged ? "New version created and activated" : "Changes saved";
@@ -202,23 +191,13 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                         if (config.category !== editingGroup?.category) updateData.category = config.category;
                         if (config.command !== editingGroup?.command) updateData.command = config.command;
 
-                        await fetchWithError(`/api/v1/prompts/groups/${groupId}`, {
-                            method: "PATCH",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify(updateData),
-                        });
+                        await api.webui.patch(`/api/v1/prompts/groups/${groupId}`, updateData);
                     }
 
                     // Then update prompt text if it changed
                     if (promptTextChanged && editingPromptId) {
-                        await fetchWithError(`/api/v1/prompts/${editingPromptId}`, {
-                            method: "PATCH",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify({ promptText: config.promptText }),
+                        await api.webui.patch(`/api/v1/prompts/${editingPromptId}`, {
+                            promptText: config.promptText,
                         });
                     }
 

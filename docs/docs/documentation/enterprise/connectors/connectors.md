@@ -14,6 +14,7 @@ SQL connectors enable agents to query and analyze database information using nat
 ### Supported Databases
 
 SQL connectors support three database types:
+
 - MySQL
 - PostgreSQL
 - MariaDB
@@ -82,15 +83,24 @@ You can delete connectors, but the system enforces restrictions to prevent break
 
 The deletion process removes the connector configuration but does not affect the database itself. Database users and permissions remain in place, requiring separate cleanup if you no longer need them.
 
+### Troubleshooting
+
+When connecting SAM to a PostgreSQL databases hosted on Supabase, you may encounter network errors like:
+
+`{ "detail": "Invalid token", "error_type": "invalid_token" }`
+
+This is because Supabase's direct connection endpoint uses IPv6, however most Kubernetes clusters are IPv4 by default.
+The solution is to use the Session Pooler endpoint as it is IPv4 compatible.
+
 ## Access Control
 
 Connector operations require specific RBAC capabilities. The table below shows the capabilities and what they control:
 
-| Capability | Purpose |
-|------------|---------|
-| `sam:connectors:create` | Create new connectors in the Connectors section |
-| `sam:connectors:read` | View connector configurations and list available connectors |
-| `sam:connectors:update` | Modify connector configurations and credentials |
-| `sam:connectors:delete` | Remove connectors from the system |
+| Capability              | Purpose                                                     |
+| ----------------------- | ----------------------------------------------------------- |
+| `sam:connectors:create` | Create new connectors in the Connectors section             |
+| `sam:connectors:read`   | View connector configurations and list available connectors |
+| `sam:connectors:update` | Modify connector configurations and credentials             |
+| `sam:connectors:delete` | Remove connectors from the system                           |
 
 For detailed information about configuring role-based access control, see [Setting Up RBAC](../rbac-setup-guide.md).

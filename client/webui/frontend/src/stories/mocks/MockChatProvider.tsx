@@ -62,9 +62,6 @@ const defaultMockChatContext: DefaultMockContextType = {
     isBatchDeleteModalOpen: false,
     configCollectFeedback: false,
 
-    // Artifact rendering
-    artifactRenderingState: { expandedArtifacts: new Set<string>() },
-
     // Background task monitoring
     backgroundTasks: [],
     backgroundNotifications: [],
@@ -100,9 +97,6 @@ const defaultMockChatContext: DefaultMockContextType = {
     updateSessionName: async () => {},
     deleteSession: async () => {},
     handleFeedbackSubmit: async () => {},
-    toggleArtifactExpanded: () => {},
-    isArtifactExpanded: () => false,
-    setArtifactRenderingState: () => {},
     markArtifactAsDisplayed: () => {},
     downloadAndResolveArtifact: async () => null,
     agentsRefetch: async () => {},

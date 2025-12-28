@@ -1,0 +1,19 @@
+name: "PR Size Validation"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr-size-check:
+    name: PR Size Check
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+      pull-requests: read
+    steps:
+      - name: Validate PR Size
+        uses: SolaceDev/solace-public-workflows/.github/actions/pr-size-check@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          max-lines: 1500

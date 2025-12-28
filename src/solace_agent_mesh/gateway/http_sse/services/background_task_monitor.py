@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from ....gateway.http_sse.repository.task_repository import TaskRepository
 from ....gateway.http_sse.services.task_service import TaskService
-from ....gateway.http_sse.shared import now_epoch_ms
+from ....shared.utils.timestamp_utils import now_epoch_ms
 
 log = logging.getLogger(__name__)
 
