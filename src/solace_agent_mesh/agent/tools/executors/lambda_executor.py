@@ -5,18 +5,69 @@ This executor invokes AWS Lambda functions and handles the serialization
 of arguments and deserialization of results.
 """
 
+import asyncio
+import base64
+import functools
 import json
 import logging
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from google.adk.tools import ToolContext
 
 from .base import ToolExecutor, ToolExecutionResult, register_executor
+from ..artifact_types import Artifact
+from ..tool_result import ToolResult
 
 if TYPE_CHECKING:
     from ...sac.component import SamAgentComponent
 
 log = logging.getLogger(__name__)
+
+
+def _serialize_artifact(artifact: Artifact) -> Dict[str, Any]:
+    """
+    Serialize an Artifact object to a JSON-compatible dict.
+
+    Binary content is base64-encoded with a marker.
+    """
+    content = artifact.content
+    is_binary = False
+
+    if isinstance(content, bytes):
+        content = base64.b64encode(content).decode("utf-8")
+        is_binary = True
+
+    return {
+        "filename": artifact.filename,
+        "content": content,
+        "is_binary": is_binary,
+        "mime_type": artifact.mime_type,
+        "version": artifact.version,
+        "metadata": artifact.metadata,
+    }
+
+
+def _serialize_args_for_lambda(args: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Serialize args dict for Lambda invocation.
+
+    Converts Artifact objects to JSON-serializable dicts with base64-encoded
+    binary content.
+    """
+    serialized = {}
+    for key, value in args.items():
+        if isinstance(value, Artifact):
+            serialized[key] = _serialize_artifact(value)
+        elif isinstance(value, list):
+            # Handle List[Artifact]
+            serialized[key] = [
+                _serialize_artifact(item) if isinstance(item, Artifact) else item
+                for item in value
+            ]
+        else:
+            serialized[key] = value
+    return serialized
+
 
 # Try to import boto3, but don't fail if not available
 try:
@@ -142,16 +193,19 @@ class LambdaExecutor(ToolExecutor):
                 error_code="NOT_INITIALIZED",
             )
 
+        # Serialize args (handles Artifact objects with binary content)
+        serialized_args = _serialize_args_for_lambda(args)
+
         # Build payload
         payload = {
-            "args": args,
+            "args": serialized_args,
             "tool_config": tool_config,
         }
 
         # Include context if configured
         if self._include_context:
             try:
-                from ..utils.context_helpers import get_original_session_id
+                from ...utils.context_helpers import get_original_session_id
                 inv_context = tool_context._invocation_context
                 payload["context"] = {
                     "session_id": get_original_session_id(inv_context),
@@ -168,11 +222,16 @@ class LambdaExecutor(ToolExecutor):
         try:
             log.debug("%s Invoking Lambda with args: %s", log_id, list(args.keys()))
 
-            # Invoke Lambda (using sync boto3 call - could be wrapped for true async)
-            response = self._client.invoke(
-                FunctionName=self._function_arn,
-                InvocationType=self._invocation_type,
-                Payload=json.dumps(payload).encode("utf-8"),
+            # Invoke Lambda in executor to not block the event loop
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(
+                None,
+                functools.partial(
+                    self._client.invoke,
+                    FunctionName=self._function_arn,
+                    InvocationType=self._invocation_type,
+                    Payload=json.dumps(payload).encode("utf-8"),
+                ),
             )
 
             # Check for function error
@@ -193,6 +252,19 @@ class LambdaExecutor(ToolExecutor):
 
             # Handle different response formats
             if isinstance(response_payload, dict):
+                # Check for serialized ToolResult first (has _schema marker)
+                if ToolResult.is_serialized_tool_result(response_payload):
+                    log.debug("%s Detected serialized ToolResult response", log_id)
+                    try:
+                        return ToolResult.from_serialized(response_payload)
+                    except Exception as e:
+                        log.warning(
+                            "%s Failed to deserialize ToolResult: %s. Falling back to dict.",
+                            log_id,
+                            e,
+                        )
+                        # Fall through to dict handling
+
                 if "success" in response_payload:
                     # Standard ToolExecutionResult format
                     if response_payload.get("success"):

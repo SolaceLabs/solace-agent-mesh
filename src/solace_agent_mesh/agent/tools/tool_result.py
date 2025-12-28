@@ -5,11 +5,22 @@ artifact handling.
 Tools can return either a raw dict (backward compatible) or a ToolResult for
 enhanced handling where the framework automatically manages artifact storage
 based on DataObject disposition.
+
+This module also provides serialization/deserialization for ToolResult to support
+remote execution (Lambda, HTTP) where results must be transmitted as JSON.
 """
 
+import base64
+import logging
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
+
+
+log = logging.getLogger(__name__)
+
+# Schema version for serialization format - increment when making breaking changes
+TOOL_RESULT_SCHEMA_VERSION = "1.0"
 
 
 class DataDisposition(str, Enum):
@@ -95,6 +106,51 @@ class DataObject(BaseModel):
 
     class Config:
         use_enum_values = True
+
+    def to_serializable(self) -> Dict[str, Any]:
+        """
+        Convert DataObject to a JSON-serializable dictionary.
+
+        Binary content is base64-encoded with is_binary=True flag.
+        """
+        content = self.content
+        is_binary = False
+
+        if isinstance(content, bytes):
+            content = base64.b64encode(content).decode("utf-8")
+            is_binary = True
+
+        return {
+            "name": self.name,
+            "content": content,
+            "is_binary": is_binary,
+            "mime_type": self.mime_type,
+            "disposition": self.disposition if isinstance(self.disposition, str) else self.disposition.value,
+            "description": self.description,
+            "preview": self.preview,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_serialized(cls, data: Dict[str, Any]) -> "DataObject":
+        """
+        Create a DataObject from a serialized dictionary.
+
+        Handles base64-decoding of binary content.
+        """
+        content = data.get("content", "")
+        if data.get("is_binary", False):
+            content = base64.b64decode(content)
+
+        return cls(
+            name=data["name"],
+            content=content,
+            mime_type=data.get("mime_type", "text/plain"),
+            disposition=DataDisposition(data.get("disposition", "auto")),
+            description=data.get("description"),
+            preview=data.get("preview"),
+            metadata=data.get("metadata"),
+        )
 
 
 class ToolResult(BaseModel):
@@ -245,3 +301,84 @@ class ToolResult(BaseModel):
             data_objects=data_objects or [],
             error_code=error_code,
         )
+
+    def to_serializable(self) -> Dict[str, Any]:
+        """
+        Convert ToolResult to a JSON-serializable dictionary.
+
+        This format is used for transmitting ToolResult over remote executors
+        (Lambda, HTTP). The schema version is included for forward compatibility.
+
+        Returns:
+            Dictionary that can be JSON-serialized and sent over the wire.
+        """
+        return {
+            "_schema": "ToolResult",
+            "_schema_version": TOOL_RESULT_SCHEMA_VERSION,
+            "status": self.status,
+            "message": self.message,
+            "data": self.data,
+            "data_objects": [obj.to_serializable() for obj in self.data_objects],
+            "error_code": self.error_code,
+        }
+
+    @classmethod
+    def from_serialized(cls, data: Dict[str, Any]) -> "ToolResult":
+        """
+        Create a ToolResult from a serialized dictionary.
+
+        Args:
+            data: Dictionary from JSON deserialization (e.g., Lambda response)
+
+        Returns:
+            ToolResult instance
+
+        Raises:
+            ValueError: If the data doesn't match expected format
+        """
+        # Check schema marker
+        if data.get("_schema") != "ToolResult":
+            raise ValueError(
+                f"Invalid schema marker: expected 'ToolResult', got '{data.get('_schema')}'"
+            )
+
+        # Check version compatibility
+        version = data.get("_schema_version", "unknown")
+        if version != TOOL_RESULT_SCHEMA_VERSION:
+            log.warning(
+                "ToolResult schema version mismatch: expected %s, got %s. "
+                "Attempting to parse anyway.",
+                TOOL_RESULT_SCHEMA_VERSION,
+                version,
+            )
+
+        # Deserialize data_objects
+        data_objects = []
+        for obj_data in data.get("data_objects", []):
+            try:
+                data_objects.append(DataObject.from_serialized(obj_data))
+            except Exception as e:
+                log.warning("Failed to deserialize DataObject: %s. Skipping.", e)
+
+        return cls(
+            status=data.get("status", "success"),
+            message=data.get("message"),
+            data=data.get("data"),
+            data_objects=data_objects,
+            error_code=data.get("error_code"),
+        )
+
+    @staticmethod
+    def is_serialized_tool_result(data: Any) -> bool:
+        """
+        Check if a dictionary appears to be a serialized ToolResult.
+
+        Args:
+            data: Value to check
+
+        Returns:
+            True if data looks like a serialized ToolResult
+        """
+        if not isinstance(data, dict):
+            return False
+        return data.get("_schema") == "ToolResult"

@@ -5,14 +5,15 @@ This executor makes HTTP requests to external services and handles
 various authentication methods and response formats.
 """
 
+import asyncio
 import json
 import logging
 from typing import Any, Dict, List, Literal, Optional, TYPE_CHECKING
-from urllib.parse import urljoin
 
 from google.adk.tools import ToolContext
 
 from .base import ToolExecutor, ToolExecutionResult, register_executor
+from ..tool_result import ToolResult
 
 if TYPE_CHECKING:
     from ...sac.component import SamAgentComponent
@@ -265,6 +266,19 @@ class HTTPExecutor(ToolExecutor):
 
                 # Parse successful response
                 if isinstance(response_data, dict):
+                    # Check for serialized ToolResult first (has _schema marker)
+                    if ToolResult.is_serialized_tool_result(response_data):
+                        log.debug("%s Detected serialized ToolResult response", log_id)
+                        try:
+                            return ToolResult.from_serialized(response_data)
+                        except Exception as e:
+                            log.warning(
+                                "%s Failed to deserialize ToolResult: %s. Falling back to dict.",
+                                log_id,
+                                e,
+                            )
+                            # Fall through to dict handling
+
                     if "success" in response_data:
                         # Standard ToolExecutionResult format
                         if response_data.get("success"):
@@ -312,7 +326,3 @@ class HTTPExecutor(ToolExecutor):
             await self._session.close()
             self._session = None
         log.debug("[HTTPExecutor:%s] Cleaned up", self._endpoint)
-
-
-# Import asyncio for timeout handling
-import asyncio

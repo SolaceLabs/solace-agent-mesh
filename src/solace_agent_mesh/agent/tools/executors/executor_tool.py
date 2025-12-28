@@ -167,7 +167,7 @@ class ExecutorBasedTool(DynamicTool):
         args: dict,
         tool_context: ToolContext,
         credential: Optional[str] = None,
-    ) -> dict:
+    ):
         """Execute using the configured executor."""
         log_id = f"[ExecutorBasedTool:{self._name}]"
 
@@ -181,11 +181,17 @@ class ExecutorBasedTool(DynamicTool):
         log.debug("%s Executing via %s executor", log_id, self._executor.executor_type)
 
         # Execute via the executor
-        result: ToolExecutionResult = await self._executor.execute(
+        result = await self._executor.execute(
             args=args,
             tool_context=tool_context,
             tool_config=tool_config_dict,
         )
+
+        # If executor returned a ToolResult, pass it through directly
+        # ToolResultProcessor will handle artifact saving
+        if isinstance(result, ToolResult):
+            log.debug("%s Passing through ToolResult to framework", log_id)
+            return result
 
         # Convert ToolExecutionResult to dict for the framework
         return self._convert_result(result)
@@ -197,11 +203,9 @@ class ExecutorBasedTool(DynamicTool):
                 "status": "success",
             }
 
-            # Handle different data types
-            if isinstance(result.data, dict):
-                response.update(result.data)
-            elif result.data is not None:
-                response["result"] = result.data
+            # Always nest data to avoid key collisions with status/metadata
+            if result.data is not None:
+                response["data"] = result.data
 
             if result.metadata:
                 response["metadata"] = result.metadata
@@ -250,19 +254,40 @@ def create_executor_tool_from_config(
 
     executor_type = config["executor"]
 
+    # Define required fields for each executor type
+    executor_required_fields = {
+        "python": ["module", "function"],
+        "lambda": ["function_arn"],
+        "http": ["endpoint"],
+    }
+
+    # Validate executor type
+    if executor_type not in executor_required_fields:
+        raise ValueError(f"Unknown executor type: {executor_type}")
+
+    # Validate required fields for this executor type
+    missing_fields = [
+        field for field in executor_required_fields[executor_type]
+        if not config.get(field)
+    ]
+    if missing_fields:
+        raise ValueError(
+            f"Missing required fields for '{executor_type}' executor: {missing_fields}"
+        )
+
     # Build executor kwargs based on type
     executor_kwargs = {}
 
     if executor_type == "python":
         executor_kwargs = {
-            "module": config.get("module"),
-            "function": config.get("function"),
+            "module": config["module"],
+            "function": config["function"],
             "pass_tool_context": config.get("pass_tool_context", True),
             "pass_tool_config": config.get("pass_tool_config", True),
         }
     elif executor_type == "lambda":
         executor_kwargs = {
-            "function_arn": config.get("function_arn"),
+            "function_arn": config["function_arn"],
             "region": config.get("region"),
             "invocation_type": config.get("invocation_type", "RequestResponse"),
             "include_context": config.get("include_context", True),
@@ -270,7 +295,7 @@ def create_executor_tool_from_config(
         }
     elif executor_type == "http":
         executor_kwargs = {
-            "endpoint": config.get("endpoint"),
+            "endpoint": config["endpoint"],
             "method": config.get("method", "POST"),
             "auth_type": config.get("auth_type", "none"),
             "auth_token": config.get("auth_token"),
@@ -280,8 +305,6 @@ def create_executor_tool_from_config(
             "args_location": config.get("args_location", "body"),
             "headers": config.get("headers"),
         }
-    else:
-        raise ValueError(f"Unknown executor type: {executor_type}")
 
     # Create executor
     executor = create_executor(executor_type, **executor_kwargs)

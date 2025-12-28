@@ -7,10 +7,12 @@ backends (local Python, AWS Lambda, HTTP endpoints) through configuration.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, Union, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 from google.adk.tools import ToolContext
+
+from ..tool_result import ToolResult
 
 if TYPE_CHECKING:
     from ...sac.component import SamAgentComponent
@@ -100,7 +102,7 @@ class ToolExecutor(ABC):
         args: Dict[str, Any],
         tool_context: ToolContext,
         tool_config: Dict[str, Any],
-    ) -> ToolExecutionResult:
+    ) -> Union[ToolExecutionResult, ToolResult]:
         """
         Execute the tool with the given arguments.
 
@@ -110,7 +112,8 @@ class ToolExecutor(ABC):
             tool_config: Tool-specific configuration
 
         Returns:
-            ToolExecutionResult with the execution outcome
+            ToolExecutionResult for simple results, or ToolResult for results
+            with DataObjects that need artifact handling.
         """
         pass
 

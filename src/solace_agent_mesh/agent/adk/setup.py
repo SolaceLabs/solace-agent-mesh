@@ -1100,9 +1100,14 @@ async def load_adk_tools(
                         # Special handling for MCPToolset which can load multiple tools
                         await _check_and_register_tool_name_mcp(component, loaded_tool_names, tool)
                     else:
-                        tool_name = getattr(
-                            tool, "name", getattr(tool, "__name__", None)
-                        )
+                        # For DynamicTool subclasses, use tool_name property
+                        # (the inherited 'name' attr may still be the placeholder)
+                        if hasattr(tool, "tool_name"):
+                            tool_name = tool.tool_name
+                        else:
+                            tool_name = getattr(
+                                tool, "name", getattr(tool, "__name__", None)
+                            )
                         if tool_name:
                             _check_and_register_tool_name(
                                 tool_name, tool_type, loaded_tool_names

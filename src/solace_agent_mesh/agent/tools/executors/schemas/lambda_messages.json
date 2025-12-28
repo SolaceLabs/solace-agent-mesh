@@ -1,0 +1,210 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://solace.com/sam/schemas/lambda-executor/v1.0",
+  "title": "SAM Lambda Executor Message Format",
+  "description": "Schema for messages exchanged between SAM and Lambda functions via the Lambda executor",
+  "version": "1.0",
+
+  "definitions": {
+    "DataDisposition": {
+      "type": "string",
+      "enum": ["auto", "artifact", "inline", "artifact_with_preview"],
+      "description": "How the framework should handle a DataObject"
+    },
+
+    "DataObject": {
+      "type": "object",
+      "description": "A data object that can be stored as an artifact or returned inline",
+      "required": ["name", "content"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Filename for the data object"
+        },
+        "content": {
+          "type": "string",
+          "description": "Content as string. Binary content must be base64-encoded with is_binary=true"
+        },
+        "is_binary": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, content is base64-encoded binary data"
+        },
+        "mime_type": {
+          "type": "string",
+          "default": "text/plain",
+          "description": "MIME type of the content"
+        },
+        "disposition": {
+          "$ref": "#/definitions/DataDisposition",
+          "default": "auto",
+          "description": "How to handle this data object"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "Human-readable description"
+        },
+        "preview": {
+          "type": ["string", "null"],
+          "description": "Custom preview text for artifact_with_preview disposition"
+        },
+        "metadata": {
+          "type": ["object", "null"],
+          "description": "Additional metadata to store with the artifact"
+        }
+      }
+    },
+
+    "Artifact": {
+      "type": "object",
+      "description": "An artifact passed as input to a Lambda function (pre-loaded by SAM)",
+      "required": ["filename", "content"],
+      "properties": {
+        "filename": {
+          "type": "string",
+          "description": "Original filename of the artifact"
+        },
+        "content": {
+          "type": "string",
+          "description": "Content as string. Binary content is base64-encoded with is_binary=true"
+        },
+        "is_binary": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, content is base64-encoded binary data"
+        },
+        "mime_type": {
+          "type": "string",
+          "default": "application/octet-stream",
+          "description": "MIME type of the content"
+        },
+        "version": {
+          "type": "integer",
+          "description": "Artifact version number"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Artifact metadata"
+        }
+      }
+    },
+
+    "LambdaRequest": {
+      "type": "object",
+      "description": "Request payload sent to Lambda functions",
+      "required": ["args"],
+      "properties": {
+        "args": {
+          "type": "object",
+          "description": "Tool arguments. Artifact parameters contain serialized Artifact objects"
+        },
+        "context": {
+          "type": "object",
+          "description": "Session context (if include_context is true)",
+          "properties": {
+            "session_id": {
+              "type": "string",
+              "description": "Current session ID"
+            },
+            "user_id": {
+              "type": "string",
+              "description": "Current user ID"
+            },
+            "app_name": {
+              "type": "string",
+              "description": "Application name"
+            }
+          }
+        },
+        "tool_config": {
+          "type": "object",
+          "description": "Tool-specific configuration from the agent YAML"
+        }
+      }
+    },
+
+    "ToolResult": {
+      "type": "object",
+      "description": "Structured response format with automatic artifact handling",
+      "required": ["_schema", "_schema_version", "status"],
+      "properties": {
+        "_schema": {
+          "type": "string",
+          "const": "ToolResult",
+          "description": "Schema identifier - must be 'ToolResult'"
+        },
+        "_schema_version": {
+          "type": "string",
+          "description": "Schema version (currently '1.0')"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["success", "error", "partial"],
+          "description": "Execution status"
+        },
+        "message": {
+          "type": ["string", "null"],
+          "description": "Human-readable message describing the result"
+        },
+        "data": {
+          "type": ["object", "null"],
+          "description": "Inline data to return directly to the LLM"
+        },
+        "data_objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DataObject"
+          },
+          "default": [],
+          "description": "Data objects to be processed (saved as artifacts based on disposition)"
+        },
+        "error_code": {
+          "type": ["string", "null"],
+          "description": "Machine-readable error code"
+        }
+      }
+    },
+
+    "SimpleResponse": {
+      "type": "object",
+      "description": "Simple response format (backward compatible, no artifact handling)",
+      "required": ["success"],
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "Whether the execution succeeded"
+        },
+        "data": {
+          "description": "Result data (any type)"
+        },
+        "error": {
+          "type": "string",
+          "description": "Error message if success is false"
+        },
+        "error_code": {
+          "type": "string",
+          "description": "Machine-readable error code"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Additional metadata"
+        }
+      }
+    }
+  },
+
+  "oneOf": [
+    {
+      "title": "Request",
+      "$ref": "#/definitions/LambdaRequest"
+    },
+    {
+      "title": "ToolResult Response",
+      "$ref": "#/definitions/ToolResult"
+    },
+    {
+      "title": "Simple Response",
+      "$ref": "#/definitions/SimpleResponse"
+    }
+  ]
+}
