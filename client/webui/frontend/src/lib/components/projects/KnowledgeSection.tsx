@@ -242,7 +242,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                             <Upload className={`mx-auto mb-1 h-5 w-5 transition-colors ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
                             <p className={`text-xs transition-colors ${isDragging ? "text-primary font-medium" : "text-muted-foreground"}`}>{isDragging ? "Drop files here to upload" : "Drag and drop files here to upload"}</p>
                         </div>
-                        <div className="max-h-[400px] space-y-1 overflow-y-auto rounded-md">
+                        <div className="space-y-1 rounded-md">
                             {sortedArtifacts.map(artifact => (
                                 <DocumentListItem
                                     key={artifact.filename}
