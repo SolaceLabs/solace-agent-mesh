@@ -65,14 +65,22 @@ export function calculateMenuPosition(rect: DOMRect): { x: number; y: number } {
 }
 
 /**
- * Validates if a selection is meaningful (not just whitespace, meets minimum length)
+ * Maximum character limit for text selection in "Ask Followup" feature.
+ * This prevents users from selecting excessively large amounts of text
+ * which could subvert the pasted text flow and lead to very large prompts.
+ */
+export const MAX_SELECTION_LENGTH = 2000;
+
+/**
+ * Validates if a selection is meaningful (not just whitespace, meets minimum length,
+ * and doesn't exceed maximum length)
  */
 export function isValidSelection(text: string | null): boolean {
     if (!text) {
         return false;
     }
     const trimmed = text.trim();
-    return trimmed.length >= 3 && /\S/.test(trimmed);
+    return trimmed.length >= 3 && trimmed.length <= MAX_SELECTION_LENGTH && /\S/.test(trimmed);
 }
 
 /**
@@ -83,4 +91,24 @@ export function clearBrowserSelection(): void {
     if (selection) {
         selection.removeAllRanges();
     }
+}
+
+/**
+ * Checks if the selection is fully contained within a single container element.
+ * This prevents selections that span across multiple messages.
+ * @param range - The selection range to check
+ * @param container - The container element that should fully contain the selection
+ * @returns True if the selection is fully contained within the container
+ */
+export function isSelectionContainedInElement(range: Range, container: HTMLElement): boolean {
+    // Check if both the start and end of the selection are within the container
+    const startContainer = range.startContainer;
+    const endContainer = range.endContainer;
+
+    // Check if start container is within the element
+    const startInContainer = container.contains(startContainer);
+    // Check if end container is within the element
+    const endInContainer = container.contains(endContainer);
+
+    return startInContainer && endInContainer;
 }
