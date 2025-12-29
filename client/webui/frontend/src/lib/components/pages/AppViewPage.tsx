@@ -134,7 +134,8 @@ export function AppViewPage() {
 
     // Construct URL to deployed app with environment in path
     // Using path-based format to avoid query param stripping issues with module scripts
-    const deployedUrl = `/api/v1/apps/deployed/${app.appId}/env/${activeEnv}/`;
+    // Add version as cache-buster query param to ensure browser fetches fresh HTML on version changes
+    const deployedUrl = `/api/v1/apps/deployed/${app.appId}/env/${activeEnv}/?v=${activeVersion}`;
 
     return (
         <div className="flex h-full w-full flex-col">

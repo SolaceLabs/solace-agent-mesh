@@ -245,10 +245,10 @@ export function AppPreview({ appId }: AppPreviewProps) {
                 <iframe
                     ref={iframeRef}
                     key={key}
-                    src={`/api/v1/apps/preview/${appId}/`}
+                    src={`/api/v1/apps/preview/${appId}/?_t=${key}`}
                     className="w-full h-full border-0"
                     title="App Preview"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    sandbox="allow-scripts allow-forms allow-popups allow-downloads allow-modals allow-presentation"
                     onError={handleIframeError}
                 />
             </div>

@@ -20,12 +20,38 @@ This workspace contains a React application template for building SAM platform a
 │   ├── App.tsx           # Root component (includes SAM SDK examples)
 │   └── index.css         # Global styles with Tailwind imports
 ├── public/               # Static assets
+├── user_input/           # User-provided files (development only)
 ├── index.html            # HTML entry point
 ├── vite.config.ts        # Vite configuration
 ├── tailwind.config.ts    # Tailwind configuration
 ├── tsconfig.json         # TypeScript configuration
 └── package.json          # Dependencies and scripts
 ```
+
+## user_input/ Directory
+
+The `user_input/` directory contains files provided by the user during app creation or development.
+These are reference materials, sample data, or assets to help build the app.
+
+**IMPORTANT: Development-Only Directory**
+
+- **Available during development** - Read and use these files while building
+- **NOT available in deployed apps** - This directory is NOT part of the final build
+
+**What to do with user_input/ files:**
+- **Reference materials** (screenshots, mockups): Use for design guidance
+- **Data files** (JSON, CSV): Use as sample data for development/testing
+- **Assets needed in app** (logos, images): Copy to `public/` so they're bundled
+- **Configuration samples**: Use as reference for building proper config handling
+
+**Example:**
+```bash
+# If logo.png should be in the final app:
+cp user_input/logo.png public/assets/logo.png
+# Then reference: <img src="/assets/logo.png" />
+```
+
+**Always check user_input/ at the start of a task** - users may have provided context you need.
 
 ## Your Role
 
@@ -46,7 +72,7 @@ You are Claude Code - an autonomous AI developer working in this React workspace
 
 **CRITICAL**: Maintain an `APP_CONTEXT.md` file to track the project state.
 
-This file is **for YOUR benefit** - it helps you remember:
+This file is **for YOUR benefit and that of the coordinator agent** - it helps you remember:
 - What features exist and their status
 - Key architecture decisions
 - Component structure
@@ -1425,37 +1451,38 @@ const analysis = await SAM.agents.call('document-analyzer', {
 
 ## Building and Versioning
 
-### Build Script
+### CRITICAL: Always Run build_and_version.sh
 
-After making changes to your app, you should build and version it using the provided script:
+**You MUST run `./build_and_version.sh` at the end of EVERY task.** This is not optional.
 
 ```bash
-# Build and increment patch version (default)
+# Run this at the END of every task (patch is default)
+./build_and_version.sh patch
+```
+
+The script:
+1. Runs `npm run build` to compile your changes
+2. Creates a proper `VERSION` file in JSON format
+3. Commits and tags the release
+
+**NEVER edit the VERSION file manually.** The `build_and_version.sh` script is the ONLY way to create or update the VERSION file. If you write to VERSION directly, the deployment system will break.
+
+### Build Script Options
+
+```bash
+# Most changes - bug fixes, UI tweaks, small improvements (DEFAULT)
 ./build_and_version.sh patch
 
-# Build and increment minor version
+# New features that don't break existing functionality
 ./build_and_version.sh minor
 
-# Build and increment major version
+# Breaking changes, major redesigns
 ./build_and_version.sh major
 ```
 
-**What the script does:**
-1. Reads the current version from `VERSION` file (starts at 0.0.0 if not present)
-2. Increments the version based on semver rules:
-   - **patch**: Bug fixes and small changes (0.0.1 → 0.0.2)
-   - **minor**: New features, backwards compatible (0.1.0 → 0.2.0)
-   - **major**: Breaking changes (1.0.0 → 2.0.0)
-3. Runs `npm run build` to compile the app
-4. If build succeeds:
-   - Creates a git commit with message "Release vX.Y.Z"
-   - Creates a git tag "vX.Y.Z"
-   - Updates the `VERSION` file with version metadata
-5. If build fails: Exits without committing (no broken versions)
+### VERSION File Format
 
-### Version File
-
-The `VERSION` file contains metadata about the current build:
+The VERSION file MUST be valid JSON (created only by the build script):
 
 ```json
 {
@@ -1466,15 +1493,14 @@ The `VERSION` file contains metadata about the current build:
 }
 ```
 
-This file is used by the deployment system to track which version is currently deployed.
+**DO NOT:**
+- Write to VERSION directly
+- Create VERSION manually
+- Edit VERSION with any other tool
 
-### When to Use Each Increment Type
-
-- **patch** (default): Most changes - bug fixes, UI tweaks, small improvements
-- **minor**: New features that don't break existing functionality
-- **major**: Breaking changes, major redesigns, significant API changes
-
-**Note**: The App Agent will automatically call `build_and_version.sh patch` after making changes. You can tell it to use `minor` or `major` if you're making significant changes.
+**ALWAYS:**
+- Run `./build_and_version.sh` at the end of your task
+- Let the script handle VERSION file creation/updates
 
 ### Deployment
 

@@ -2,7 +2,21 @@
 
 ## Overview
 
-Implemented a sophisticated system for automatically injecting workspace files (like APP_CONTEXT.md) into the App Agent's system instruction before every LLM call. This ensures the agent always has the latest application state without requiring manual file reads or relying on LLM memory.
+Automatically injects workspace files (like APP_CONTEXT.md) into the conversation history before every LLM call. This ensures the agent always has the latest application state without requiring manual file reads or relying on LLM memory.
+
+## How It Works
+
+Injects context as the **first message pair** in conversation history:
+- **User message**: Contains APP_CONTEXT.md with a marker
+- **Assistant message**: Brief acknowledgment
+
+On subsequent turns, the context message is **updated in place** with the latest content.
+
+**Benefits:**
+- Only sent ONCE in the conversation (not repeated every turn)
+- Benefits from Anthropic's prompt caching
+- Updated in place on each turn with latest content
+- Reduces token usage significantly for long conversations
 
 ## Architecture
 
@@ -43,8 +57,10 @@ Implemented a sophisticated system for automatically injecting workspace files (
    b. Extracts user_id and app_id
    c. Determines workspace path: ~/.claude-workspaces/{user_id}/apps/{app_id}
    d. Reads APP_CONTEXT.md (if exists)
-   e. Injects content into llm_request.config.system_instruction
-6. LLM receives system instruction with latest APP_CONTEXT.md
+   e. Checks if context message already exists in history (by marker)
+   f. If exists: Updates the content in place
+   g. If not: Inserts user/assistant message pair at start of history
+6. LLM sees context at start of conversation history
 7. Agent responds with current application context
 ```
 
@@ -75,6 +91,17 @@ app_config:
         required: false
         max_size: 50000  # 50KB limit
 ```
+
+**Configuration Options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `workspace_base` | `~/.claude-workspaces` | Base directory for workspaces |
+| `files` | `[]` | List of files to inject |
+| `files[].path` | required | Relative path within workspace |
+| `files[].header` | filename | Header to prepend to content |
+| `files[].required` | `false` | Whether to warn if file missing |
+| `files[].max_size` | unlimited | Max characters to inject |
 
 ## APP_CONTEXT.md Management
 
@@ -129,12 +156,14 @@ The App Agent is instructed to:
 - No "forgetting" what was built previously
 
 ### 2. **Context Efficiency**
-- Single file injection (APP_CONTEXT.md) vs multiple tool calls to read files
-- File content injected once per LLM call (not duplicated in history)
+- Context injected ONCE at start of conversation (not every turn)
+- Benefits from Anthropic's prompt caching
 - 50KB size limit prevents context explosion
+- Drastically reduced token usage for long conversations
 
 ### 3. **Always Current**
 - File re-read before EVERY LLM call
+- Context message updated in place with latest content
 - No stale context from cached file reads
 - Works even if user manually edits APP_CONTEXT.md
 

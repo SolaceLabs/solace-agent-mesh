@@ -20,10 +20,66 @@ from fastapi import status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
 from .routers.sessions import router as session_router
+
+
+class SandboxedAppCORSMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to add permissive CORS headers for sandboxed app static file serving.
+
+    This middleware ONLY applies to:
+    - GET/HEAD/OPTIONS requests to /api/v1/apps/preview/* and /api/v1/apps/deployed/*
+
+    These routes serve static files (HTML, JS, CSS, images) to sandboxed iframes.
+    Sandboxed iframes without allow-same-origin have origin=null, which requires
+    special CORS handling (Access-Control-Allow-Origin: * without credentials).
+
+    All other API endpoints are NOT affected - they continue to use the standard
+    CORSMiddleware with credentials.
+    """
+
+    # Paths that serve static app files to sandboxed iframes
+    SANDBOXED_APP_PATHS = (
+        "/api/v1/apps/preview/",
+        "/api/v1/apps/deployed/",
+    )
+
+    # CORS headers for sandboxed iframe access (no credentials, permissive)
+    CORS_HEADERS = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+        "Cross-Origin-Resource-Policy": "cross-origin",
+    }
+
+    async def dispatch(self, request, call_next):
+        path = request.url.path
+
+        # Only handle app static file routes
+        if not any(path.startswith(prefix) for prefix in self.SANDBOXED_APP_PATHS):
+            return await call_next(request)
+
+        # Only handle GET, HEAD, OPTIONS (static file requests)
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            return await call_next(request)
+
+        # Handle OPTIONS preflight
+        if request.method == "OPTIONS":
+            from starlette.responses import Response
+            return Response(status_code=200, headers=self.CORS_HEADERS)
+
+        # Process the request
+        response = await call_next(request)
+
+        # Add CORS headers to response (including error responses)
+        for header, value in self.CORS_HEADERS.items():
+            response.headers[header] = value
+
+        return response
 from .routers.tasks import router as task_router
 from .routers.users import router as user_router
 from ...common import a2a
@@ -600,6 +656,11 @@ def _setup_middleware(component: "WebUIBackendComponent") -> None:
     auth_middleware_class = _create_auth_middleware(component)
     app.add_middleware(auth_middleware_class, component=component)
     log.info("AuthMiddleware added.")
+
+    # Add sandboxed app CORS middleware LAST (runs FIRST due to middleware stack order)
+    # This ensures CORS headers are added to all app static file responses including errors
+    app.add_middleware(SandboxedAppCORSMiddleware)
+    log.info("SandboxedAppCORSMiddleware added for /api/v1/apps/preview/* and /api/v1/apps/deployed/*")
 
 
 def _setup_routers() -> None:

@@ -208,12 +208,12 @@ apps:
       enable_embed_resolution: true
       enable_artifact_content_instruction: true
 
-      # Workspace Context Injection - Auto-inject APP_CONTEXT.md into system prompt
-      # This automatically injects workspace files into the system instruction before each LLM call
-      # The system determines the full path as: {workspace_base}/{user_id}/apps/{app_id}/{file.path}
-      # Example: ~/.claude-workspaces/sam_user/apps/todo-app-123/APP_CONTEXT.md
+      # Workspace Context Injection - Auto-inject APP_CONTEXT.md into conversation history
+      # Injects workspace files at the START of the conversation history before each LLM call.
+      # The context is updated in place on each turn, benefiting from prompt caching.
+      # Path: {workspace_base}/{user_id}/apps/{app_id}/{file.path}
       workspace_context_injection:
-        workspace_base: "${HOME}/.claude-workspaces"  # Base directory for all workspaces
+        workspace_base: "${HOME}/.claude-workspaces"
         files:
           - path: "APP_CONTEXT.md"  # Path RELATIVE to the app workspace directory
             header: "## Current Application State (Auto-Updated from Workspace)"

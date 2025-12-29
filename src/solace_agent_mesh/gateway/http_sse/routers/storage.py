@@ -4,6 +4,8 @@ FastAPI router for app-scoped key-value storage.
 This router provides persistent storage for SAM apps running in iframes.
 Each app gets its own isolated key-value namespace, accessible via the SAM SDK.
 
+Storage is persisted to the database and survives server restarts.
+
 Storage use cases:
 - User preferences (theme, layout, settings)
 - Draft data (form inputs, unsaved changes)
@@ -13,13 +15,14 @@ Storage use cases:
 
 import json
 import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
 
 from ..dependencies import get_db_optional
 from ..shared.auth_utils import get_current_user
+from ..repository.app_storage_repository import AppStorageRepository
 from .dto.requests.storage_requests import SetStorageRequest
 from .dto.responses.storage_responses import (
     StorageDeleteResponse,
@@ -31,18 +34,21 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# In-memory storage (replace with database in production)
+# Fallback in-memory storage when database is not available
 # Structure: {user_id: {app_id: {key: value}}}
-_storage: Dict[str, Dict[str, Dict[str, Any]]] = {}
+_memory_storage: Dict[str, Dict[str, Dict[str, Any]]] = {}
+
+# Repository for database operations
+_storage_repo = AppStorageRepository()
 
 
-def get_storage_path(user_id: str, app_id: str) -> tuple:
-    """Get or create storage namespace for user+app."""
-    if user_id not in _storage:
-        _storage[user_id] = {}
-    if app_id not in _storage[user_id]:
-        _storage[user_id][app_id] = {}
-    return user_id, app_id
+def _get_memory_storage(user_id: str, app_id: str) -> Dict[str, Any]:
+    """Get or create in-memory storage namespace for user+app."""
+    if user_id not in _memory_storage:
+        _memory_storage[user_id] = {}
+    if app_id not in _memory_storage[user_id]:
+        _memory_storage[user_id][app_id] = {}
+    return _memory_storage[user_id][app_id]
 
 
 @router.post("/apps/{app_id}/storage", response_model=StorageValueResponse)
@@ -50,6 +56,7 @@ async def set_storage_value(
     app_id: str,
     request: SetStorageRequest,
     user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
 ):
     """
     Set a storage value for the app.
@@ -58,23 +65,29 @@ async def set_storage_value(
     Storage is scoped to user+app, so different users see different data.
     """
     user_id = user.get("id")
-    log.info(f"User {user_id} setting storage key '{request.key}' in app {app_id}")
-
-    uid, aid = get_storage_path(user_id, app_id)
+    log.info(f"[Storage] POST set_storage_value: user={user_id} app={app_id} key={request.key}")
 
     # Validate value is JSON-serializable
     try:
         json.dumps(request.value)
     except (TypeError, ValueError) as e:
+        log.warning(f"[Storage] Invalid value for key={request.key}: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Value must be JSON-serializable: {str(e)}",
         )
 
-    # Store value
-    _storage[uid][aid][request.key] = request.value
+    if db:
+        # Use database storage
+        log.debug(f"[Storage] Using database storage for key={request.key}")
+        _storage_repo.set(db, user_id, app_id, request.key, request.value)
+    else:
+        # Fallback to in-memory storage
+        log.warning(f"[Storage] No database available, using in-memory storage for key={request.key}")
+        storage = _get_memory_storage(user_id, app_id)
+        storage[request.key] = request.value
 
-    log.info(f"Stored key '{request.key}' for app {app_id}")
+    log.info(f"[Storage] Successfully stored key={request.key} for app={app_id}")
 
     return StorageValueResponse(
         key=request.key,
@@ -89,6 +102,7 @@ async def set_storage_value_restful(
     key: str,
     request: dict,
     user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
 ):
     """
     Set a storage value for the app (RESTful PUT endpoint).
@@ -97,12 +111,11 @@ async def set_storage_value_restful(
     The value is passed in the request body as {"value": <json-value>}.
     """
     user_id = user.get("id")
-    log.info(f"User {user_id} setting storage key '{key}' in app {app_id} (PUT)")
-
-    uid, aid = get_storage_path(user_id, app_id)
+    log.info(f"[Storage] PUT set_storage_value: user={user_id} app={app_id} key={key}")
 
     # Extract value from request body
     if "value" not in request:
+        log.warning(f"[Storage] Missing 'value' field in request for key={key}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Request body must contain 'value' field",
@@ -114,15 +127,23 @@ async def set_storage_value_restful(
     try:
         json.dumps(value)
     except (TypeError, ValueError) as e:
+        log.warning(f"[Storage] Invalid value for key={key}: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Value must be JSON-serializable: {str(e)}",
         )
 
-    # Store value
-    _storage[uid][aid][key] = value
+    if db:
+        # Use database storage
+        log.debug(f"[Storage] Using database storage for key={key}")
+        _storage_repo.set(db, user_id, app_id, key, value)
+    else:
+        # Fallback to in-memory storage
+        log.warning(f"[Storage] No database available, using in-memory storage for key={key}")
+        storage = _get_memory_storage(user_id, app_id)
+        storage[key] = value
 
-    log.info(f"Stored key '{key}' for app {app_id}")
+    log.info(f"[Storage] Successfully stored key={key} for app={app_id}")
 
     return StorageValueResponse(
         key=key,
@@ -136,6 +157,7 @@ async def get_storage_value(
     app_id: str,
     key: str,
     user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
 ):
     """
     Get a storage value by key.
@@ -143,17 +165,28 @@ async def get_storage_value(
     Returns 404 if key doesn't exist.
     """
     user_id = user.get("id")
-    log.info(f"User {user_id} getting storage key '{key}' from app {app_id}")
+    log.info(f"[Storage] GET get_storage_value: user={user_id} app={app_id} key={key}")
 
-    uid, aid = get_storage_path(user_id, app_id)
+    value = None
 
-    if key not in _storage[uid][aid]:
+    if db:
+        # Use database storage
+        log.debug(f"[Storage] Querying database for key={key}")
+        value = _storage_repo.get(db, user_id, app_id, key)
+    else:
+        # Fallback to in-memory storage
+        log.warning(f"[Storage] No database available, using in-memory storage for key={key}")
+        storage = _get_memory_storage(user_id, app_id)
+        value = storage.get(key)
+
+    if value is None:
+        log.info(f"[Storage] Key not found: user={user_id} app={app_id} key={key}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Storage key '{key}' not found",
         )
 
-    value = _storage[uid][aid][key]
+    log.info(f"[Storage] Found key={key} for app={app_id}")
 
     return StorageValueResponse(
         key=key,
@@ -167,6 +200,7 @@ async def delete_storage_value(
     app_id: str,
     key: str,
     user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
 ):
     """
     Delete a storage value by key.
@@ -174,15 +208,20 @@ async def delete_storage_value(
     Returns success even if key doesn't exist (idempotent).
     """
     user_id = user.get("id")
-    log.info(f"User {user_id} deleting storage key '{key}' from app {app_id}")
+    log.info(f"[Storage] DELETE delete_storage_value: user={user_id} app={app_id} key={key}")
 
-    uid, aid = get_storage_path(user_id, app_id)
-
-    if key in _storage[uid][aid]:
-        del _storage[uid][aid][key]
-        log.info(f"Deleted key '{key}' from app {app_id}")
+    if db:
+        # Use database storage
+        log.debug(f"[Storage] Deleting from database key={key}")
+        _storage_repo.delete(db, user_id, app_id, key)
     else:
-        log.info(f"Key '{key}' not found in app {app_id} (already deleted)")
+        # Fallback to in-memory storage
+        log.warning(f"[Storage] No database available, using in-memory storage for key={key}")
+        storage = _get_memory_storage(user_id, app_id)
+        if key in storage:
+            del storage[key]
+
+    log.info(f"[Storage] Deleted key={key} from app={app_id}")
 
     return StorageDeleteResponse(
         success=True,
@@ -195,6 +234,7 @@ async def list_storage_keys(
     app_id: str,
     prefix: Optional[str] = Query(None, max_length=255),
     user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
 ):
     """
     List all storage keys for the app, optionally filtered by prefix.
@@ -205,17 +245,23 @@ async def list_storage_keys(
     - "draft.": List draft data
     """
     user_id = user.get("id")
-    log.info(f"User {user_id} listing storage keys in app {app_id} (prefix={prefix})")
+    log.info(f"[Storage] GET list_storage_keys: user={user_id} app={app_id} prefix={prefix}")
 
-    uid, aid = get_storage_path(user_id, app_id)
+    keys = []
 
-    keys = list(_storage[uid][aid].keys())
+    if db:
+        # Use database storage
+        log.debug(f"[Storage] Listing keys from database")
+        keys = _storage_repo.list_keys(db, user_id, app_id, prefix)
+    else:
+        # Fallback to in-memory storage
+        log.warning(f"[Storage] No database available, using in-memory storage")
+        storage = _get_memory_storage(user_id, app_id)
+        keys = list(storage.keys())
+        if prefix:
+            keys = [k for k in keys if k.startswith(prefix)]
 
-    # Filter by prefix if provided
-    if prefix:
-        keys = [k for k in keys if k.startswith(prefix)]
-
-    log.info(f"Found {len(keys)} keys in app {app_id}")
+    log.info(f"[Storage] Found {len(keys)} keys in app={app_id}")
 
     return StorageKeysResponse(
         keys=keys,
@@ -227,6 +273,7 @@ async def list_storage_keys(
 async def clear_storage(
     app_id: str,
     user: dict = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db_optional),
 ):
     """
     Clear all storage for the app.
@@ -234,13 +281,21 @@ async def clear_storage(
     This is a destructive operation - use with caution.
     """
     user_id = user.get("id")
-    log.info(f"User {user_id} clearing all storage for app {app_id}")
+    log.info(f"[Storage] DELETE clear_storage: user={user_id} app={app_id}")
 
-    uid, aid = get_storage_path(user_id, app_id)
+    key_count = 0
 
-    key_count = len(_storage[uid][aid])
-    _storage[uid][aid].clear()
+    if db:
+        # Use database storage
+        log.debug(f"[Storage] Clearing all keys from database")
+        key_count = _storage_repo.clear(db, user_id, app_id)
+    else:
+        # Fallback to in-memory storage
+        log.warning(f"[Storage] No database available, using in-memory storage")
+        storage = _get_memory_storage(user_id, app_id)
+        key_count = len(storage)
+        storage.clear()
 
-    log.info(f"Cleared {key_count} keys from app {app_id}")
+    log.info(f"[Storage] Cleared {key_count} keys from app={app_id}")
 
     return {"success": True, "cleared_keys": key_count}

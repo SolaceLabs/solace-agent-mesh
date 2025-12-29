@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
-import { ArrowLeft, PanelLeftIcon, Rocket } from "lucide-react";
+import { ArrowLeft, PanelLeftIcon, Rocket, MessageSquarePlus } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
@@ -68,6 +68,7 @@ export function ChatPage() {
         selectedAgentName,
         setSelectedAgentName,
         startNewChatWithPrompt,
+        handleNewSession,
     } = useChatContext();
 
     // Detect app editor mode from URL - prefer route params, fall back to query params for backwards compatibility
@@ -139,13 +140,21 @@ export function ChatPage() {
             setAppEditorMode({ appId });
             // Automatically select AppAgent when in app editor mode
             setSelectedAgentName("AppAgent");
-            // Open side panel to app-preview tab by default
+            // Open side panel to app-preview tab by default and expand its width
             setIsSidePanelCollapsed(false);
             openSidePanelTab("app-preview");
+
+            // Also expand the panel width (setIsSidePanelCollapsed only sets state, doesn't resize)
+            if (chatSidePanelRef.current) {
+                setIsSidePanelTransitioning(true);
+                const targetSize = lastExpandedSizeRef.current || sidePanelSizes.default;
+                chatSidePanelRef.current.resize(targetSize);
+                setTimeout(() => setIsSidePanelTransitioning(false), 300);
+            }
         } else {
             setAppEditorMode(null);
         }
-    }, [appId, setAppEditorMode, setSelectedAgentName, setIsSidePanelCollapsed, openSidePanelTab]);
+    }, [appId, setAppEditorMode, setSelectedAgentName, setIsSidePanelCollapsed, openSidePanelTab, sidePanelSizes.default]);
 
     // Auto-fill initial message when coming from CreateAppPage
     // We use the pendingPrompt mechanism to fill the input field
@@ -287,6 +296,15 @@ export function ChatPage() {
                     }
                     buttons={
                         appEditorMode && app ? [
+                            <Button
+                                key="new-chat"
+                                variant="ghost"
+                                onClick={() => handleNewSession()}
+                                tooltip="Start new chat (clears history)"
+                            >
+                                <MessageSquarePlus className="size-4" />
+                                New Chat
+                            </Button>,
                             <Button
                                 key="deployment"
                                 variant="default"

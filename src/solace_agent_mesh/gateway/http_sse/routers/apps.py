@@ -1036,8 +1036,18 @@ async def _serve_from_app_storage(
 
         content = html_content.encode("utf-8")
 
-    # Set cache control based on preview vs deployed
-    cache_control = "no-cache" if is_preview else "public, max-age=3600"
+    # Set cache control based on preview vs deployed and file type
+    # For preview: always no-store (never cache)
+    # For deployed HTML: no-store (so new deployments are always picked up)
+    # For deployed assets: long cache (hashes change when content changes)
+    if is_preview:
+        cache_control = "no-store, must-revalidate"
+    elif file_path == "index.html":
+        # HTML must never be cached - new versions reference different JS/CSS hashes
+        cache_control = "no-store, must-revalidate"
+    else:
+        # JS/CSS/images with hashes can be cached indefinitely
+        cache_control = "public, max-age=31536000, immutable"
 
     return Response(
         content=content,
@@ -1147,11 +1157,19 @@ async def _serve_from_versioned_storage(
 
         content = html_content.encode("utf-8")
 
+    # Smart caching: no-store for HTML (never cache), long cache for hashed assets
+    if file_path == "index.html":
+        # HTML must never be cached - new versions reference different JS/CSS hashes
+        cache_control = "no-store, must-revalidate"
+    else:
+        # JS/CSS/images with hashes can be cached indefinitely
+        cache_control = "public, max-age=31536000, immutable"
+
     return Response(
         content=content,
         media_type=content_type,
         headers={
-            "Cache-Control": "public, max-age=3600",
+            "Cache-Control": cache_control,
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "*",
