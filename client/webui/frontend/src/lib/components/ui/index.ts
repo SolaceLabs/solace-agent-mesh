@@ -6,6 +6,7 @@ export { HighlightedTextarea } from "./highlighted-textarea";
 export { Input } from "./input";
 export { SearchInput } from "./search-input";
 export { Label } from "./label";
+export { Checkbox } from "./checkbox";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
 export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent } from "./card";
 export { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "./form";

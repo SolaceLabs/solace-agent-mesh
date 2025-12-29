@@ -6,6 +6,8 @@ export { ChatSidePanel } from "./ChatSidePanel";
 export { LoadingMessageRow } from "./LoadingMessageRow";
 export { SessionSidePanel } from "./SessionSidePanel";
 export { MoveSessionDialog } from "./MoveSessionDialog";
+export { BatchMoveSessionDialog } from "./BatchMoveSessionDialog";
+export { BatchDeleteSessionDialog } from "./BatchDeleteSessionDialog";
 export { VariableDialog } from "./VariableDialog";
 export { SessionSearch } from "./SessionSearch";
 export { MessageHoverButtons } from "./MessageHoverButtons";
