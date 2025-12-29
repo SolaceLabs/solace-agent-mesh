@@ -69,7 +69,7 @@ export function calculateMenuPosition(rect: DOMRect): { x: number; y: number } {
  * This prevents users from selecting excessively large amounts of text
  * which could subvert the pasted text flow and lead to very large prompts.
  */
-export const MAX_SELECTION_LENGTH = 2000;
+export const MAX_SELECTION_LENGTH = 5000;
 
 /**
  * Validates if a selection is meaningful (not just whitespace, meets minimum length,
