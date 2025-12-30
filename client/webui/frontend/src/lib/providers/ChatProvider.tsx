@@ -112,7 +112,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Artifact Preview
     const {
-        preview: { availableVersions: previewedArtifactAvailableVersions, currentVersion: currentPreviewedVersionNumber, content: previewFileContent },
+        preview: { availableVersions: previewedArtifactAvailableVersions, currentVersion: currentPreviewedVersionNumber, content: previewFileContent, currentDescription: currentPreviewedDescription },
         previewArtifact,
         openPreview,
         navigateToVersion,
@@ -1991,6 +1991,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setIsBatchDeleteModalOpen,
         previewedArtifactAvailableVersions,
         currentPreviewedVersionNumber,
+        currentPreviewedDescription,
         previewFileContent,
         openArtifactForPreview: openPreview,
         navigateArtifactVersion: navigateToVersion,

@@ -9,6 +9,8 @@ export interface ArtifactPreviewState {
     availableVersions: number[] | null;
     currentVersion: number | null;
     content: FileAttachment | null;
+    /** Version-specific description (may differ from latest artifact description) */
+    currentDescription: string | null;
 }
 
 interface UseArtifactPreviewOptions {
@@ -42,6 +44,7 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
         availableVersions: null,
         currentVersion: null,
         content: null,
+        currentDescription: null,
     });
 
     const [isLoading, setIsLoading] = useState(false);
@@ -91,6 +94,7 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
                     availableVersions: null,
                     currentVersion: null,
                     content: null,
+                    currentDescription: null,
                 });
             }
 
@@ -110,8 +114,8 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
                 const sortedVersions = availableVersions.sort((a, b) => a - b);
                 const latestVersion = Math.max(...availableVersions);
 
-                // Fetch content for latest version
-                const { content, mimeType } = await getArtifactContent({
+                // Fetch content for latest version (includes version-specific description)
+                const { content, mimeType, description } = await getArtifactContent({
                     filename,
                     sessionId,
                     projectId,
@@ -126,6 +130,7 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
                     availableVersions: sortedVersions,
                     currentVersion: latestVersion,
                     content: fileData,
+                    currentDescription: description || null,
                 });
 
                 return fileData;
@@ -166,8 +171,8 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
             }));
 
             try {
-                // Fetch content for target version
-                const { content, mimeType } = await getArtifactContent({
+                // Fetch content for target version (includes version-specific description)
+                const { content, mimeType, description } = await getArtifactContent({
                     filename,
                     sessionId,
                     projectId,
@@ -176,11 +181,12 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
 
                 const fileData = getFileAttachment(filename, mimeType, content);
 
-                // Update version and content
+                // Update version, content, and description
                 setPreview(prev => ({
                     ...prev,
                     currentVersion: targetVersion,
                     content: fileData,
+                    currentDescription: description || null,
                 }));
 
                 return fileData;
@@ -204,6 +210,7 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
             availableVersions: null,
             currentVersion: null,
             content: null,
+            currentDescription: null,
         });
     }, []);
 
@@ -220,6 +227,7 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
                         availableVersions: null,
                         currentVersion: null,
                         content: null,
+                        currentDescription: null,
                     });
                 }
             } else {

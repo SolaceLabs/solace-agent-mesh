@@ -59,16 +59,16 @@ export const getArtifactUrl = ({ filename, sessionId, projectId, version }: { fi
 };
 
 /**
- * Retrieves the content and MIME type of a specific artifact version.
+ * Retrieves the content, MIME type, and description of a specific artifact version.
  * @param options - Configuration options for fetching the artifact content
  * @param options.filename - The name of the artifact file
  * @param options.sessionId - Optional session ID for session-scoped artifacts
  * @param options.projectId - Optional project ID for project-scoped artifacts (used when no session)
  * @param options.version - Optional version number. If omitted, fetches the latest version
- * @returns A promise that resolves to an object containing the content as a base64 string and the MIME type
+ * @returns A promise that resolves to an object containing the content as a base64 string, the MIME type, and optionally the description
  * @throws {Error} When the fetch operation fails
  */
-export const getArtifactContent = async ({ filename, sessionId, projectId, version }: { filename: string; sessionId?: string; projectId?: string; version?: number }): Promise<{ content: string; mimeType: string }> => {
+export const getArtifactContent = async ({ filename, sessionId, projectId, version }: { filename: string; sessionId?: string; projectId?: string; version?: number }): Promise<{ content: string; mimeType: string; description?: string }> => {
     const contentUrl = getArtifactUrl({
         filename,
         sessionId,
@@ -86,5 +86,9 @@ export const getArtifactContent = async ({ filename, sessionId, projectId, versi
     const blob = await contentResponse.blob();
     const content = await blobToBase64(blob);
 
-    return { content, mimeType };
+    // Get version-specific description from header if available
+    const encodedDescription = contentResponse.headers.get("X-Artifact-Description");
+    const description = encodedDescription ? decodeURIComponent(encodedDescription) : undefined;
+
+    return { content, mimeType, description };
 };
