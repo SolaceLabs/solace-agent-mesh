@@ -394,6 +394,167 @@ class SessionService:
 
         return updated_session
 
+    async def batch_move_sessions_to_project(
+        self, db: DbSession, session_ids: List[str], user_id: UserId, new_project_id: str | None
+    ) -> dict:
+        """
+        Move multiple sessions to a different project.
+
+        Args:
+            db: Database session
+            session_ids: List of session IDs to move
+            user_id: User ID performing the move
+            new_project_id: New project ID (or None to remove from project)
+
+        Returns:
+            dict: Results with 'success' (list of moved session IDs) and 'failed' (list of failed session IDs with reasons)
+        """
+        if not session_ids:
+            return {"success": [], "failed": []}
+
+        # Validate project exists and user has access if project_id is provided
+        if new_project_id:
+            from ..repository.models import ProjectModel
+            project = db.query(ProjectModel).filter(
+                ProjectModel.id == new_project_id,
+                ProjectModel.user_id == user_id,
+                ProjectModel.deleted_at.is_(None)
+            ).first()
+
+            if not project:
+                raise ValueError(f"Project {new_project_id} not found or access denied")
+
+        session_repository = self._get_repositories(db)
+        success = []
+        failed = []
+
+        for session_id in session_ids:
+            try:
+                if not self._is_valid_session_id(session_id):
+                    failed.append({"id": session_id, "reason": "Invalid session ID"})
+                    continue
+
+                updated_session = session_repository.move_to_project(db, session_id, user_id, new_project_id)
+
+                if not updated_session:
+                    failed.append({"id": session_id, "reason": "Session not found or access denied"})
+                    continue
+
+                success.append(session_id)
+
+            except Exception as e:
+                log.error(f"Failed to move session {session_id}: {e}")
+                failed.append({"id": session_id, "reason": str(e)})
+
+        # Commit all successful moves
+        if success:
+            try:
+                db.commit()
+                log.info(
+                    "Batch moved %d sessions to project %s by user %s",
+                    len(success),
+                    new_project_id or "None",
+                    user_id,
+                )
+
+                # Copy project artifacts to sessions when moving to a project
+                if new_project_id and self.component:
+                    from ..utils.artifact_copy_utils import copy_project_artifacts_to_session
+                    from ..services.project_service import ProjectService
+                    from ..dependencies import SessionLocal
+
+                    if SessionLocal:
+                        artifact_db = SessionLocal()
+                        try:
+                            project_service = ProjectService(component=self.component)
+                            for session_id in success:
+                                try:
+                                    log_prefix = f"[batch_move session_id={session_id}] "
+                                    await copy_project_artifacts_to_session(
+                                        project_id=new_project_id,
+                                        user_id=user_id,
+                                        session_id=session_id,
+                                        project_service=project_service,
+                                        component=self.component,
+                                        db=artifact_db,
+                                        log_prefix=log_prefix,
+                                    )
+                                except Exception as e:
+                                    log.warning(
+                                        "Failed to copy project artifacts for session %s: %s",
+                                        session_id,
+                                        e,
+                                    )
+                        finally:
+                            artifact_db.close()
+
+            except Exception as e:
+                db.rollback()
+                log.error("Failed to commit batch session move: %s", e)
+                raise
+
+        return {"success": success, "failed": failed}
+
+    def batch_delete_sessions(
+        self, db: DbSession, session_ids: List[str], user_id: UserId
+    ) -> dict:
+        """
+        Soft delete multiple sessions.
+
+        Args:
+            db: Database session
+            session_ids: List of session IDs to delete
+            user_id: User ID performing the deletion
+
+        Returns:
+            dict: Results with 'success' (list of deleted session IDs) and 'failed' (list of failed session IDs with reasons)
+        """
+        if not session_ids:
+            return {"success": [], "failed": []}
+
+        session_repository = self._get_repositories(db)
+        success = []
+        failed = []
+
+        for session_id in session_ids:
+            try:
+                if not self._is_valid_session_id(session_id):
+                    failed.append({"id": session_id, "reason": "Invalid session ID"})
+                    continue
+
+                session = session_repository.find_user_session(db, session_id, user_id)
+                if not session:
+                    failed.append({"id": session_id, "reason": "Session not found"})
+                    continue
+
+                if not session.can_be_deleted_by_user(user_id):
+                    failed.append({"id": session_id, "reason": "Not authorized to delete"})
+                    continue
+
+                deleted = session_repository.soft_delete(db, session_id, user_id)
+                if not deleted:
+                    failed.append({"id": session_id, "reason": "Failed to delete"})
+                    continue
+
+                success.append(session_id)
+
+                # Notify agent of deletion if applicable
+                if session.agent_id and self.component:
+                    self._notify_agent_of_session_deletion(session_id, user_id, session.agent_id)
+
+            except Exception as e:
+                log.error(f"Failed to delete session {session_id}: {e}")
+                failed.append({"id": session_id, "reason": str(e)})
+
+        if success:
+            log.info(
+                "Batch deleted %d sessions by user %s",
+                len(success),
+                user_id,
+            )
+
+        return {"success": success, "failed": failed}
+
     def search_sessions(
         self,
         db: DbSession,

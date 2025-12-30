@@ -2,7 +2,7 @@
 Session-related request DTOs.
 """
 
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field
 
 from solace_agent_mesh.shared.utils.types import SessionId, UserId
@@ -31,3 +31,14 @@ class SearchSessionsRequest(BaseModel):
     """Request DTO for searching sessions."""
     query: str = Field(..., min_length=1, description="Search query string")
     project_id: Optional[str] = Field(None, alias="projectId", description="Optional project ID to filter results")
+
+
+class BatchMoveSessionsRequest(BaseModel):
+    """Request DTO for batch moving sessions to a project."""
+    session_ids: List[str] = Field(..., alias="sessionIds", min_length=1, max_length=100, description="List of session IDs to move")
+    project_id: Optional[str] = Field(None, alias="projectId", description="Target project ID (null to remove from project)")
+
+
+class BatchDeleteSessionsRequest(BaseModel):
+    """Request DTO for batch deleting sessions."""
+    session_ids: List[str] = Field(..., alias="sessionIds", min_length=1, max_length=100, description="List of session IDs to delete")

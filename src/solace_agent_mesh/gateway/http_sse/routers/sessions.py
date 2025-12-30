@@ -14,6 +14,8 @@ from .dto.requests.session_requests import (
     UpdateSessionRequest,
     MoveSessionRequest,
     SearchSessionsRequest,
+    BatchMoveSessionsRequest,
+    BatchDeleteSessionsRequest,
 )
 from .dto.requests.task_requests import SaveTaskRequest
 from .dto.responses.session_responses import SessionResponse
@@ -611,7 +613,6 @@ async def move_session_to_project(
             created_time=updated_session.created_time,
             updated_time=updated_session.updated_time,
         )
-
     except HTTPException:
         raise
     except ValueError as e:
@@ -629,6 +630,110 @@ async def move_session_to_project(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to move session",
+        ) from e
+
+
+@router.post("/sessions/batch/move")
+async def batch_move_sessions(
+    request: BatchMoveSessionsRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """
+    Batch move multiple sessions to a project or remove from project.
+    """
+    user_id = user.get("id")
+    log.info(
+        "User %s attempting to batch move %d sessions to project %s",
+        user_id,
+        len(request.session_ids),
+        request.project_id,
+    )
+
+    try:
+        result = await session_service.batch_move_sessions_to_project(
+            db=db,
+            session_ids=request.session_ids,
+            user_id=user_id,
+            new_project_id=request.project_id,
+        )
+
+        log.info(
+            "Batch move completed: %d success, %d failed",
+            len(result["success"]),
+            len(result["failed"]),
+        )
+
+        return {
+            "success": result["success"],
+            "failed": result["failed"],
+            "totalRequested": len(request.session_ids),
+            "totalSuccess": len(result["success"]),
+            "totalFailed": len(result["failed"]),
+        }
+
+    except ValueError as e:
+        log.warning("Validation error in batch move: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    except Exception as e:
+        log.error("Error in batch move for user %s: %s", user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to batch move sessions",
+        ) from e
+
+
+@router.post("/sessions/batch/delete", status_code=status.HTTP_200_OK)
+async def batch_delete_sessions(
+    request: BatchDeleteSessionsRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """
+    Batch soft delete multiple sessions.
+    """
+    user_id = user.get("id")
+    log.info(
+        "User %s attempting to batch delete %d sessions",
+        user_id,
+        len(request.session_ids),
+    )
+
+    try:
+        result = session_service.batch_delete_sessions(
+            db=db,
+            session_ids=request.session_ids,
+            user_id=user_id,
+        )
+
+        log.info(
+            "Batch delete completed: %d success, %d failed",
+            len(result["success"]),
+            len(result["failed"]),
+        )
+
+        return {
+            "success": result["success"],
+            "failed": result["failed"],
+            "totalRequested": len(request.session_ids),
+            "totalSuccess": len(result["success"]),
+            "totalFailed": len(result["failed"]),
+        }
+
+    except ValueError as e:
+        log.warning("Validation error in batch delete: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    except Exception as e:
+        log.error("Error in batch delete for user %s: %s", user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to batch delete sessions",
         ) from e
 
 
