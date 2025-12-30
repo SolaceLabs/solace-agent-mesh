@@ -18,11 +18,11 @@ const OrchestratorAgentNode: React.FC<NodeProps<OrchestratorAgentNodeType>> = ({
                 boxShadow: "0 0 0 1px rgba(79, 70, 229, 0.3), 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
             }}
         >
-            <Handle type="source" position={Position.Right} id="orch-right-output-tools" className="!bg-indigo-500" style={{ top: "25%" }} isConnectable={true} />
-            <Handle type="target" position={Position.Right} id="orch-right-input-tools" className="!bg-indigo-500" style={{ top: "75%" }} isConnectable={true} />
-            <Handle type="target" position={Position.Top} id="orch-top-input" className="!bg-indigo-500" isConnectable={true} />
-            <Handle type="source" position={Position.Bottom} id="orch-bottom-output" className="!bg-indigo-500" isConnectable={true} />
-            <Handle type="target" position={Position.Left} id="orch-left-input" className="!bg-indigo-500" isConnectable={true} />
+            <Handle type="source" position={Position.Right} id="orch-right-output-tools" className="!bg-indigo-500" style={{ top: "25%" }} isConnectable={false} />
+            <Handle type="target" position={Position.Right} id="orch-right-input-tools" className="!bg-indigo-500" style={{ top: "75%" }} isConnectable={false} />
+            <Handle type="target" position={Position.Top} id="orch-top-input" className="!bg-indigo-500" isConnectable={false} />
+            <Handle type="source" position={Position.Bottom} id="orch-bottom-output" className="!bg-indigo-500" isConnectable={false} />
+            <Handle type="target" position={Position.Left} id="orch-left-input" className="!bg-indigo-500" isConnectable={false} />
             <div className="flex items-center justify-center">
                 <div className="text-md truncate font-bold" style={{ maxWidth: "200px" }}>
                     {data.label}

@@ -31,9 +31,9 @@ const UserNode: React.FC<NodeProps<UserNodeType>> = ({ data }) => {
             className="cursor-pointer rounded-md border-2 border-purple-600 bg-white px-4 py-3 text-gray-800 shadow-lg transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-purple-400 dark:bg-gray-700 dark:text-gray-200"
             style={{ minWidth: "120px", textAlign: "center" }}
         >
-            {data.isTopNode && <Handle type="source" position={Position.Bottom} id="user-bottom-output" className="!bg-gray-500" isConnectable={true} />}
-            {data.isBottomNode && <Handle type="target" position={Position.Top} id="user-top-input" className="!bg-gray-500" isConnectable={true} />}
-            {!data.isTopNode && !data.isBottomNode && <Handle type="source" position={Position.Right} id="user-right-output" className="!bg-gray-500" isConnectable={true} />}
+            {data.isTopNode && <Handle type="source" position={Position.Bottom} id="user-bottom-output" className="!bg-gray-500" isConnectable={false} />}
+            {data.isBottomNode && <Handle type="target" position={Position.Top} id="user-top-input" className="!bg-gray-500" isConnectable={false} />}
+            {!data.isTopNode && !data.isBottomNode && <Handle type="source" position={Position.Right} id="user-right-output" className="!bg-gray-500" isConnectable={false} />}
             <div className="flex items-center justify-center">
                 <div className={`mr-2 h-3 w-3 rounded-full ${getStatusColor()}`} />
                 <div className="text-sm font-bold">{data.label}</div>
