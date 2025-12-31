@@ -304,20 +304,20 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
 
     // Combined effect for node highlighting and edge selection based on highlightedStepId
     useEffect(() => {
-        // Update node highlighting
+        // Update node highlighting - preserve current positions, only update style
         setNodes(currentFlowNodes =>
             currentFlowNodes.map(flowNode => {
                 const isHighlighted = flowNode.data?.visualizerStepId && flowNode.data.visualizerStepId === highlightedStepId;
 
-                // Find the original node from memoizedFlowData to get its base style
-                const originalNode = memoizedFlowData.nodes.find(n => n.id === flowNode.id);
-                const baseStyle = originalNode?.style || {};
+                // Use the current node's style as base, not the original memoized style
+                // This preserves user-moved positions
+                const currentStyle = flowNode.style || {};
 
                 return {
                     ...flowNode,
                     style: {
-                        ...baseStyle,
-                        boxShadow: isHighlighted ? "0px 4px 12px rgba(0, 0, 0, 0.2)" : baseStyle.boxShadow || "none",
+                        ...currentStyle,
+                        boxShadow: isHighlighted ? "0px 4px 12px rgba(0, 0, 0, 0.2)" : currentStyle.boxShadow || "none",
                         transition: "box-shadow 0.2s ease-in-out",
                     },
                 };
@@ -337,7 +337,7 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         } else {
             setSelectedEdgeId(null);
         }
-    }, [highlightedStepId, setNodes, memoizedFlowData.nodes, computedEdges]);
+    }, [highlightedStepId, setNodes, computedEdges]);
 
     if (!processedSteps || processedSteps.length === 0) {
         return <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">{Object.keys(processedSteps).length > 0 ? "Processing flow data..." : "No steps to display in flow chart."}</div>;
