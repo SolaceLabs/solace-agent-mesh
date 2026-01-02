@@ -5,7 +5,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Search, User, Clock } from "lucide-react";
 import type { Person, PeopleSearchResponse } from "@/lib/types";
-import { fetchJsonWithError } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 import { getRecentMentions } from "@/lib/utils/recentMentions";
 
 interface MentionsCommandProps {
@@ -108,7 +108,7 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
         const fetchPeople = async () => {
             setIsLoading(true);
             try {
-                const data: PeopleSearchResponse = await fetchJsonWithError(
+                const data: PeopleSearchResponse = await api.webui.get(
                     `/api/v1/people/search?q=${encodeURIComponent(searchQuery)}&limit=10`
                 );
                 setPeople(data.data || []);
