@@ -102,6 +102,56 @@ export const processTaskForVisualization = (
         return null;
     }
 
+    // Check if there's a request event for the parent task
+    const hasRequestEvent = parentTaskObject.events?.some(event => event.direction === "request" && event.task_id === parentTaskObject.taskId);
+
+    // If no request event exists but we have initialRequestText, synthesize one
+    // This handles the case where a background task is reconnected after browser refresh
+    // and the original request event was not captured by the task logger
+    if (!hasRequestEvent && parentTaskObject.initialRequestText && parentTaskObject.events && parentTaskObject.events.length > 0) {
+        const firstEventTimestamp = parentTaskObject.events[0]?.timestamp || parentTaskObject.firstSeen.toISOString();
+        // Create a synthetic timestamp slightly before the first event
+        const syntheticTimestamp = new Date(new Date(firstEventTimestamp).getTime() - 1).toISOString();
+
+        // Determine the target agent from the first event
+        let targetAgent = "Orchestrator";
+        const firstEvent = parentTaskObject.events[0];
+        if (firstEvent?.source_entity) {
+            targetAgent = firstEvent.source_entity;
+        } else if (firstEvent?.full_payload?.result?.metadata?.agent_name) {
+            targetAgent = firstEvent.full_payload.result.metadata.agent_name;
+        }
+
+        const syntheticRequestEvent: A2AEventSSEPayload = {
+            task_id: parentTaskObject.taskId,
+            direction: "request",
+            timestamp: syntheticTimestamp,
+            source_entity: "User",
+            target_entity: targetAgent,
+            event_type: "a2a_message",
+            solace_topic: `synthetic/request/${parentTaskObject.taskId}`,
+            payload_summary: {
+                method: "message/send",
+            },
+            full_payload: {
+                method: "message/send",
+                params: {
+                    message: {
+                        parts: [
+                            {
+                                kind: "text",
+                                text: parentTaskObject.initialRequestText,
+                            },
+                        ],
+                    },
+                },
+            },
+        };
+
+        // Add the synthetic event to the beginning of the events array
+        parentTaskObject.events = [syntheticRequestEvent, ...parentTaskObject.events];
+    }
+
     // --- Performance Report Initialization ---
     const report: PerformanceReport = {
         overall: { totalTaskDurationMs: 0 },
@@ -138,6 +188,23 @@ export const processTaskForVisualization = (
     // --- End Performance Report Initialization ---
 
     const taskNestingLevels = new Map<string, number>();
+
+    // Queue for pending artifact completions that are waiting for their tool result
+    // Key: function_call_id, Value: artifact data
+    const pendingArtifacts = new Map<
+        string,
+        {
+            filename: string;
+            version?: number;
+            description?: string;
+            mimeType?: string;
+            timestamp: string;
+            agentName: string;
+            taskId: string;
+            nestingLevel: number;
+            eventId: string;
+        }
+    >();
 
     const combinedEvents = collectAllDescendantEvents(
         parentTaskObject.taskId,
@@ -572,6 +639,82 @@ export const processTaskForVisualization = (
                                     owningTaskId: currentEventOwningTaskId,
                                     functionCallId: functionCallIdForStep,
                                 });
+
+                                // Check if this is _notify_artifact_save and we have a pending artifact
+                                if (signalData.tool_name === "_notify_artifact_save" && functionCallId) {
+                                    const pendingArtifact = pendingArtifacts.get(functionCallId);
+                                    if (pendingArtifact) {
+                                        const artifactNotification: ArtifactNotificationData = {
+                                            artifactName: pendingArtifact.filename,
+                                            version: pendingArtifact.version,
+                                            description: pendingArtifact.description,
+                                            mimeType: pendingArtifact.mimeType,
+                                        };
+                                        visualizerSteps.push({
+                                            id: `vstep-artifactcreated-${visualizerSteps.length}-${pendingArtifact.eventId}`,
+                                            type: "AGENT_ARTIFACT_NOTIFICATION",
+                                            timestamp: pendingArtifact.timestamp,
+                                            title: `${pendingArtifact.agentName}: Created Artifact - ${artifactNotification.artifactName}`,
+                                            source: pendingArtifact.agentName,
+                                            target: "User/System",
+                                            data: { artifactNotification },
+                                            rawEventIds: [pendingArtifact.eventId],
+                                            isSubTaskStep: pendingArtifact.nestingLevel > 0,
+                                            nestingLevel: pendingArtifact.nestingLevel,
+                                            owningTaskId: pendingArtifact.taskId,
+                                            functionCallId: functionCallId,
+                                        });
+                                        pendingArtifacts.delete(functionCallId);
+                                    }
+                                }
+                                break;
+                            }
+                            case "artifact_creation_progress": {
+                                break;
+                            }
+                            case "artifact_saved": {
+                                // Handle new artifact_saved event type
+                                flushAggregatedTextStep(currentEventOwningTaskId);
+
+                                // Check if this has a function_call_id (from fenced blocks with _notify_artifact_save)
+                                const isSyntheticToolCall = signalData.function_call_id && signalData.function_call_id.startsWith("host-notify-");
+
+                                if (isSyntheticToolCall) {
+                                    // Queue this artifact - will be created when we see the _notify_artifact_save tool result
+                                    pendingArtifacts.set(signalData.function_call_id, {
+                                        filename: signalData.filename || "Unnamed Artifact",
+                                        version: signalData.version,
+                                        description: signalData.description,
+                                        mimeType: signalData.mime_type,
+                                        timestamp: eventTimestamp,
+                                        agentName: statusUpdateAgentName,
+                                        taskId: currentEventOwningTaskId,
+                                        nestingLevel: currentEventNestingLevel,
+                                        eventId: eventId,
+                                    });
+                                } else {
+                                    // Regular tool call - create node immediately
+                                    const artifactNotification: ArtifactNotificationData = {
+                                        artifactName: signalData.filename || "Unnamed Artifact",
+                                        version: signalData.version,
+                                        description: signalData.description,
+                                        mimeType: signalData.mime_type,
+                                    };
+                                    visualizerSteps.push({
+                                        id: `vstep-artifactsaved-${visualizerSteps.length}-${eventId}`,
+                                        type: "AGENT_ARTIFACT_NOTIFICATION",
+                                        timestamp: eventTimestamp,
+                                        title: `${statusUpdateAgentName}: Created Artifact - ${artifactNotification.artifactName}`,
+                                        source: statusUpdateAgentName,
+                                        target: "User/System",
+                                        data: { artifactNotification },
+                                        rawEventIds: [eventId],
+                                        isSubTaskStep: currentEventNestingLevel > 0,
+                                        nestingLevel: currentEventNestingLevel,
+                                        owningTaskId: currentEventOwningTaskId,
+                                        functionCallId: signalData.function_call_id || functionCallIdForStep,
+                                    });
+                                }
                                 break;
                             }
                         }

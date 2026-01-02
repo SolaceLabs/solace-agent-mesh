@@ -62,8 +62,9 @@ const defaultMockChatContext: DefaultMockContextType = {
     isBatchDeleteModalOpen: false,
     configCollectFeedback: false,
 
-    // Artifact rendering
-    artifactRenderingState: { expandedArtifacts: new Set<string>() },
+    // Background task monitoring
+    backgroundTasks: [],
+    backgroundNotifications: [],
 
     // No-op functions
     setMessages: () => {},
@@ -96,9 +97,6 @@ const defaultMockChatContext: DefaultMockContextType = {
     updateSessionName: async () => {},
     deleteSession: async () => {},
     handleFeedbackSubmit: async () => {},
-    toggleArtifactExpanded: () => {},
-    isArtifactExpanded: () => false,
-    setArtifactRenderingState: () => {},
     markArtifactAsDisplayed: () => {},
     downloadAndResolveArtifact: async () => null,
     agentsRefetch: async () => {},
@@ -110,6 +108,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     pendingPrompt: null,
     startNewChatWithPrompt: async () => {},
     clearPendingPrompt: () => {},
+    isTaskRunningInBackground: () => false,
 };
 
 interface MockChatProviderProps {

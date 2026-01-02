@@ -6,9 +6,9 @@ from sqlalchemy.orm import Session
 
 from ..dependencies import get_session_business_service, get_db
 from ..services.session_service import SessionService
-from ..shared.auth_utils import get_current_user
-from ..shared.pagination import DataResponse, PaginatedResponse, PaginationParams
-from ..shared.response_utils import create_data_response
+from solace_agent_mesh.shared.api.auth_utils import get_current_user
+from solace_agent_mesh.shared.api.pagination import DataResponse, PaginatedResponse, PaginationParams
+from solace_agent_mesh.shared.api.response_utils import create_data_response
 from .dto.requests.session_requests import (
     GetSessionRequest,
     UpdateSessionRequest,
@@ -54,6 +54,7 @@ async def get_all_sessions(
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
                 project_name=session_domain.project_name,
+                has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
             )
@@ -106,6 +107,7 @@ async def search_sessions(
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
                 project_name=session_domain.project_name,
+                has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
             )

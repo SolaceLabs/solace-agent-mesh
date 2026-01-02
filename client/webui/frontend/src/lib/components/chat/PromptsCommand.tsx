@@ -9,7 +9,7 @@ import { Search, NotepadText, Plus } from "lucide-react";
 import type { MessageFE, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { VariableDialog } from "./VariableDialog";
-import { fetchJsonWithError } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 export type ChatCommand = "create-template";
 
@@ -59,7 +59,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
         const fetchPromptGroups = async () => {
             setIsLoading(true);
             try {
-                const data = await fetchJsonWithError("/api/v1/prompts/groups/all");
+                const data = await api.webui.get("/api/v1/prompts/groups/all");
                 setPromptGroups(data);
             } catch (error) {
                 console.error("Failed to fetch prompt groups:", error);
@@ -235,7 +235,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
             {/* Backdrop */}
             <div ref={backdropRef} className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
 
-            <div className="fixed top-1/3 left-1/2 z-50 w-full max-w-[672px] -translate-x-1/2 px-4">
+            <div data-testid="promptCommand" className="fixed top-1/3 left-1/2 z-50 w-full max-w-[672px] -translate-x-1/2 px-4">
                 <div ref={popoverRef} className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg" style={{ maxHeight: "60vh" }}>
                     {/* Search Input */}
                     <div className="flex items-center gap-2 border-b border-[var(--border)] p-3">

@@ -1,6 +1,7 @@
 """
 Project API controller using 3-tiered architecture.
 """
+from __future__ import annotations
 
 import json
 from typing import List, Optional, Dict, Any
@@ -20,7 +21,7 @@ from solace_ai_connector.common.log import log
 
 from ..dependencies import get_project_service, get_sac_component, get_api_config, get_db
 from ..services.project_service import ProjectService
-from ..shared.auth_utils import get_current_user
+from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from ....common.a2a.types import ArtifactInfo
 from typing import TYPE_CHECKING
 
@@ -155,10 +156,17 @@ async def create_project(
         )
     
     except ValueError as e:
-        log.warning(f"Validation error creating project: {e}")
+        error_msg = str(e)
+        log.warning(f"Validation error creating project: {error_msg}")
+        # Check if this is a file size error
+        if "exceeds maximum" in error_msg.lower() and "bytes" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=error_msg
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=error_msg
         )
     except Exception as e:
         log.error("Error creating project for user %s: %s", user_id, e)
@@ -375,11 +383,14 @@ async def add_project_artifacts(
         )
         return results
     except ValueError as e:
-        log.warning(f"Validation error adding artifacts to project {project_id}: {e}")
-        # Could be 404 if project not found, or 400 if other validation fails
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        error_msg = str(e)
+        log.warning(f"Validation error adding artifacts to project {project_id}: {error_msg}")
+        # Could be 404 if project not found, 413 if file too large, or 400 if other validation fails
+        if "not found" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_msg)
+        if "exceeds maximum" in error_msg.lower() and "bytes" in error_msg.lower():
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=error_msg)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
     except Exception as e:
         log.error(
             "Error adding artifacts to project %s for user %s: %s",
@@ -737,10 +748,17 @@ async def import_project(
         )
     
     except ValueError as e:
-        log.warning(f"Validation error importing project: {e}")
+        error_msg = str(e)
+        log.warning(f"Validation error importing project: {error_msg}")
+        # Check if this is a file size error 
+        if "exceeds maximum" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=error_msg
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=error_msg
         )
     except Exception as e:
         log.error(f"Error importing project: {e}")

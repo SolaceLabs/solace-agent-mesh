@@ -25,10 +25,19 @@ apps:
       session_service: __SESSION_SERVICE__
       gateway_id: ${WEBUI_GATEWAY_ID}
       fastapi_host: ${FASTAPI_HOST}
-      fastapi_port: ${FASTAPI_PORT}
-      cors_allowed_origins: 
-        - "http://localhost:3000" 
+      fastapi_port: ${FASTAPI_PORT, 8000}
+      cors_allowed_origins:
+        - "http://localhost:3000"
         - "http://127.0.0.1:3000"
+
+      # Platform Service Configuration (runs as second app in this template)
+      platform_service:
+        url: "${PLATFORM_SERVICE_URL, http://localhost:8001}"
+
+      # OAuth2 Authentication (Community: false, Enterprise: true)
+      external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL}
+      external_auth_provider: ${EXTERNAL_AUTH_PROVIDER, generic}
+      frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION, false}
 
       enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution
       gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
@@ -54,11 +63,16 @@ apps:
       
       # --- Frontend Feature Flags ---
       # Uncomment to control speech features in the UI
-      # frontend_feature_enablement:
+      frontend_feature_enablement:
       #   speechToText: true   # Set to false to hide Speech-to-Text settings & microphone
       #   textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
       #   projects: true
       #   promptLibrary: true
+        background_tasks: true  # Enable background task execution
+
+      # --- Background Tasks Configuration ---
+      background_tasks:
+        default_timeout_ms: 3600000  # Default: 1 hour (3600000ms)
 
       # --- Speech Configuration (STT/TTS) ---
       speech:

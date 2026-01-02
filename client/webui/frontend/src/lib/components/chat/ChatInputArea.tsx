@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from "react"
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import { Ban, Paperclip, Send, MessageSquarePlus } from "lucide-react";
+import { Ban, Paperclip, Send, MessageSquarePlus, X } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
@@ -20,6 +20,7 @@ import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
 import { MentionsCommand } from "./MentionsCommand";
 import { VariableDialog } from "./VariableDialog";
 import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
+import { getErrorMessage } from "@/lib/utils";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     switch (command) {
@@ -52,7 +53,7 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, addNotification, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt } = useChatContext();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
@@ -164,7 +165,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }
         prevSessionIdRef.current = sessionId;
         setContextText(null);
-    }, [sessionId]);
+    }, [pendingPrompt, sessionId]);
 
     useEffect(() => {
         if (prevIsRespondingRef.current && !isResponding) {
@@ -415,12 +416,11 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                             mimeType: mimeType,
                         });
                     } else {
-                        console.error("Failed to upload pasted text as artifact:", result);
-                        addNotification(`Failed to save pasted text as artifact`, "error");
+                        const errorDetail = result && "error" in result ? result.error : "An unknown upload error occurred.";
+                        throw new Error(errorDetail);
                     }
                 } catch (error) {
-                    console.error("Error uploading pasted text:", error);
-                    addNotification(`Error saving pasted text: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+                    displayError({ title: "Failed to Save Pasted Text", error: getErrorMessage(error) });
                 }
             }
 
@@ -657,24 +657,19 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {/* Context Text Badge (from text selection) */}
             {showContextBadge && contextText && (
                 <div className="mb-2">
-                    <div className="bg-muted/50 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                        <div className="flex flex-1 items-center gap-2">
-                            <MessageSquarePlus className="text-muted-foreground h-4 w-4 flex-shrink-0" />
-                            <span className="text-muted-foreground max-w-[600px] truncate italic">"{contextText.length > 100 ? contextText.substring(0, 100) + "..." : contextText}"</span>
-                        </div>
+                    <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                        <MessageSquarePlus className="text-muted-foreground h-4 w-4 flex-shrink-0" />
+                        <span className="text-muted-foreground truncate italic">"{contextText}"</span>
                         <Button
                             variant="ghost"
-                            size="icon"
-                            className="hover:bg-background h-5 w-5 rounded-sm"
+                            className="h-5 w-5 shrink-0"
                             onClick={() => {
                                 setContextText(null);
                                 setShowContextBadge(false);
                             }}
+                            tooltip="Remove context"
                         >
-                            <span className="sr-only">Remove context</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                            </svg>
+                            <X />
                         </Button>
                     </div>
                 </div>

@@ -129,6 +129,34 @@ def parse_artifact_uri(uri: str) -> Dict[str, Any]:
     }
 
 
+def _clean_metadata_for_output(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Remove null, False, and empty values from metadata to reduce token usage.
+    Recursively cleans nested dictionaries.
+
+    Args:
+        metadata: The metadata dictionary to clean
+
+    Returns:
+        A cleaned dictionary with unnecessary fields removed
+    """
+    cleaned = {}
+    for key, value in metadata.items():
+        # Skip None, False, and empty collections
+        if value is None or value is False or value == {} or value == []:
+            continue
+
+        # Recursively clean nested dictionaries
+        if isinstance(value, dict):
+            cleaned_nested = _clean_metadata_for_output(value)
+            if cleaned_nested:  # Only include if not empty after cleaning
+                cleaned[key] = cleaned_nested
+        else:
+            cleaned[key] = value
+
+    return cleaned
+
+
 def _inspect_structure(
     data: Any, max_depth: int, max_keys: int, current_depth: int = 0
 ) -> Any:
@@ -237,6 +265,7 @@ async def save_artifact_with_metadata(
     schema_inference_depth: int = 2,
     schema_max_keys: int = DEFAULT_SCHEMA_MAX_KEYS,
     tool_context: Optional["ToolContext"] = None,
+    suppress_visualization_signal: bool = False,
 ) -> Dict[str, Any]:
     """
     Saves a data artifact and its corresponding metadata artifact using BaseArtifactService.
@@ -305,6 +334,59 @@ async def save_artifact_with_metadata(
                 filename,
                 data_version,
             )
+
+        # Always attempt to publish artifact saved notification for workflow visualization
+        # This works independently of artifact_delta and should succeed if we have
+        # the necessary context (host_component and a2a_context)
+        # Skip if suppress_visualization_signal is True (e.g., when called from fenced block callback)
+        if not suppress_visualization_signal:
+            try:
+                # Try to get context from tool_context if available
+                host_component = None
+                a2a_context = None
+                function_call_id = None
+
+                if tool_context:
+                    try:
+                        inv_context = tool_context._invocation_context
+                        agent = getattr(inv_context, "agent", None)
+                        host_component = getattr(agent, "host_component", None)
+                        a2a_context = tool_context.state.get("a2a_context")
+                        # Get function_call_id if this was created by a tool
+                        # Try state first (legacy), then the ADK attribute
+                        function_call_id = tool_context.state.get("function_call_id") or getattr(tool_context, "function_call_id", None)
+                    except Exception as ctx_err:
+                        log.info(
+                            "%s Could not extract context from tool_context: %s",
+                            log_identifier,
+                            ctx_err,
+                        )
+
+                # Only proceed if we have both required components
+                if host_component and a2a_context:
+                    # Create ArtifactInfo object
+                    artifact_info = ArtifactInfo(
+                        filename=filename,
+                        version=data_version,
+                        mime_type=mime_type,
+                        size=len(content_bytes),
+                        description=metadata_dict.get("description") if metadata_dict else None,
+                        version_count=None,  # Count not available in save context
+                    )
+
+                    # Publish artifact saved notification via component method
+                    await host_component.notify_artifact_saved(
+                        artifact_info=artifact_info,
+                        a2a_context=a2a_context,
+                        function_call_id=function_call_id,
+                    )
+            except Exception as signal_err:
+                # Don't fail artifact save if notification publishing fails
+                log.warning(
+                    "%s Failed to publish artifact saved notification (non-critical): %s",
+                    log_identifier,
+                    signal_err,
+                )
 
         final_metadata = {
             "filename": filename,
@@ -636,12 +718,15 @@ async def generate_artifact_metadata_summary(
                 metadata.pop("filename", None)
                 metadata.pop("version", None)
 
+                # Clean metadata to remove null/false/empty values for token efficiency
+                cleaned_metadata = _clean_metadata_for_output(metadata)
+
                 TRUNCATION_LIMIT_BYTES = 1024
                 TRUNCATION_MESSAGE = "\n... [truncated] ..."
 
                 try:
                     formatted_metadata_str = yaml.safe_dump(
-                        metadata,
+                        cleaned_metadata,
                         default_flow_style=False,
                         sort_keys=False,
                         allow_unicode=True,

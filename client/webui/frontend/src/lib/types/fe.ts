@@ -100,12 +100,7 @@ export interface FileAttachment {
 export interface Notification {
     id: string;
     message: string;
-    type?:
-        | "info"
-        | "success"
-        | "warning"
-        /** @deprecated Use a dialog instead of error type. */
-        | "error";
+    type?: "info" | "success" | "warning";
 }
 
 export interface ArtifactPart {
@@ -119,13 +114,6 @@ export interface ArtifactPart {
 }
 
 export type PartFE = Part | ArtifactPart;
-
-/**
- * State for managing artifact rendering preferences and expanded state
- */
-export interface ArtifactRenderingState {
-    expandedArtifacts: Set<string>;
-}
 
 /**
  * Represents a single message in the chat conversation.
@@ -229,4 +217,5 @@ export interface Session {
     name: string | null;
     projectId?: string | null;
     projectName?: string | null;
+    hasRunningBackgroundTask?: boolean;
 }

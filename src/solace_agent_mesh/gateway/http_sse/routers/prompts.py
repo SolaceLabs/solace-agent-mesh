@@ -1,6 +1,7 @@
 """
 Prompts API router for prompt library feature.
 """
+from __future__ import annotations
 
 import uuid
 from typing import List, Optional, Dict, Any, Literal
@@ -27,7 +28,7 @@ from .dto.prompt_dto import (
     PromptImportRequest,
     PromptImportResponse,
 )
-from ..shared import now_epoch_ms
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_ai_connector.common.log import log
 
 from typing import TYPE_CHECKING

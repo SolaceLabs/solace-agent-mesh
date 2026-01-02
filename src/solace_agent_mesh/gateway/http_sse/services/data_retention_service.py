@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from ..repository.feedback_repository import FeedbackRepository
 from ..repository.task_repository import TaskRepository
-from ..shared import now_epoch_ms
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 log = logging.getLogger(__name__)
 

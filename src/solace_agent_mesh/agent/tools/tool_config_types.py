@@ -47,10 +47,30 @@ class McpToolConfig(BaseToolConfig):
     """Configuration for an MCP tool or toolset."""
     tool_type: Literal["mcp"]
     connection_params: Dict[str, Any]
-    tool_name: Optional[str] = None # Optional filter
+    tool_name: Optional[str] = None  # Single tool filter (backward compat)
+    tool_name_prefix: Optional[str] = None # Optional prefix for tool names
     environment_variables: Optional[Dict[str, Any]] = None
     auth: dict[str, Any] | None = None
     manifest: list[dict[str, Any]] | None = None
+
+    # Tool filtering options (mutually exclusive with each other AND with tool_name)
+    allow_list: Optional[List[str]] = None  # Include only these tools
+    deny_list: Optional[List[str]] = None   # Exclude these tools
+
+    @model_validator(mode='after')
+    def validate_tool_filtering(self):
+        """Ensure tool_name, allow_list, and deny_list are mutually exclusive."""
+        filters_specified = [
+            self.tool_name is not None,
+            self.allow_list is not None,
+            self.deny_list is not None,
+        ]
+        if sum(filters_specified) > 1:
+            raise ValueError(
+                "MCP tool configuration error: 'tool_name', 'allow_list', and 'deny_list' "
+                "are mutually exclusive. Please use only one."
+            )
+        return self
 
 
 class OpenApiToolConfig(BaseToolConfig):

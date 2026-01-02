@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Pencil, Trash2, MoreHorizontal, Check } from "lucide-react";
-import type { PromptGroup, Prompt } from "@/lib/types/prompts";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Check, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import type { Prompt, PromptGroup } from "@/lib/types/prompts";
 import { Header } from "@/lib/components/header";
-import { Button, Label } from "@/lib/components/ui";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Label } from "@/lib/components/ui";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
-import { useChatContext } from "@/lib/hooks";
 import { MessageBanner } from "@/lib/components/common";
-import { authenticatedFetch, fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { getErrorMessage } from "@/lib/utils/api";
+import { api } from "@/lib/api";
+import { useChatContext } from "@/lib/hooks";
 
 interface VersionHistoryPageProps {
     group: PromptGroup;
@@ -36,7 +36,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         async (preserveSelection = false) => {
             setIsLoading(true);
             try {
-                const data = await fetchJsonWithError(`/api/v1/prompts/groups/${group.id}/prompts`);
+                const data = await api.webui.get(`/api/v1/prompts/groups/${group.id}/prompts`);
                 setVersions(data);
 
                 // Use a function update to access the current selectedVersion without adding it to dependencies
@@ -76,14 +76,8 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
 
     const fetchGroupData = useCallback(async () => {
         try {
-            const response = await authenticatedFetch(`/api/v1/prompts/groups/${group.id}`, {
-                credentials: "include",
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setCurrentGroup(data);
-            }
+            const data = await api.webui.get(`/api/v1/prompts/groups/${group.id}`);
+            setCurrentGroup(data);
         } catch (error) {
             console.error("Failed to fetch group data:", error);
         }
@@ -140,7 +134,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         }
 
         try {
-            await fetchWithError(`/api/v1/prompts/${selectedVersion.id}`, { method: "DELETE" });
+            await api.webui.delete(`/api/v1/prompts/${selectedVersion.id}`);
             addNotification("Version deleted successfully", "success");
 
             // Clear selection and refresh (don't preserve since we deleted it)
@@ -206,7 +200,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                     const isSelected = selectedVersion?.id === version.id;
 
                                     return (
-                                        <button key={version.id} onClick={() => setSelectedVersion(version)} className={`w-full p-3 text-left transition-colors ${isSelected ? "bg-primary/5" : "hover:bg-muted/50"}`}>
+                                        <button data-testid={version.id} key={version.id} onClick={() => setSelectedVersion(version)} className={`w-full p-3 text-left transition-colors ${isSelected ? "bg-primary/5" : "hover:bg-muted/50"}`}>
                                             <div className="mb-1 flex items-center justify-between">
                                                 <span className="text-sm font-medium">Version {version.version}</span>
                                                 {isActive && <span className="rounded-full bg-[var(--color-success-w20)] px-2 py-0.5 text-xs text-[var(--color-success-wMain)]">Active</span>}

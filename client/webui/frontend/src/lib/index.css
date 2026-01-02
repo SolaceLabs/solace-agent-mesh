@@ -12,6 +12,7 @@
     --color-foreground: var(--foreground);
     --color-card: var(--card);
     --color-card-foreground: var(--card-foreground);
+    --color-card-background: var(--card-background);
     --color-popover: var(--popover);
     --color-popover-foreground: var(--popover-foreground);
     --color-primary: var(--primary);
@@ -50,6 +51,7 @@
     --foreground: var(--color-primary-text-wMain);
     --card: var(--color-background-w10);
     --card-foreground: var(--color-primary-text-wMain);
+    --card-background: var(--color-background-w20);
     --popover: var(--color-background-w10);
     --popover-foreground: var(--color-primary-text-wMain);
     --primary: var(--color-primary-wMain);
@@ -89,6 +91,7 @@
     --foreground: var(--color-primary-text-w10);
     --card: var(--color-background-wMain);
     --card-foreground: var(--color-primary-text-w10);
+    --card-background: var(--color-background-w100);
     --popover: var(--color-background-wMain);
     --popover-foreground: var(--color-primary-text-w10);
     --primary: var(--color-primary-w60);

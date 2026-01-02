@@ -1,24 +1,32 @@
 """
 API Router for providing frontend configuration.
 """
+from __future__ import annotations
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any
-
-from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
-from ..routers.dto.requests.project_requests import CreateProjectRequest, UpdateProjectRequest
 from typing import TYPE_CHECKING
 
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from ..routers.dto.requests.project_requests import CreateProjectRequest
+from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
+
 if TYPE_CHECKING:
-    from gateway.http_sse.component import WebUIBackendComponent
+    from ..component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-def _get_validation_limits() -> Dict[str, Any]:
+# Default max upload size (50MB) - matches gateway_max_upload_size_bytes default
+DEFAULT_MAX_UPLOAD_SIZE_BYTES = 52428800
+# Default max ZIP upload size (100MB) - for project import ZIP files
+DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 104857600
+
+
+def _get_validation_limits(component: "WebUIBackendComponent" = None) -> Dict[str, Any]:
     """
     Extract validation limits from Pydantic models to expose to frontend.
     This ensures frontend and backend validation limits stay in sync.
@@ -26,11 +34,67 @@ def _get_validation_limits() -> Dict[str, Any]:
     # Extract limits from CreateProjectRequest model
     create_fields = CreateProjectRequest.model_fields
     
+    # Get max upload size from component config, with fallback to default
+    max_upload_size_bytes = (
+        component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_UPLOAD_SIZE_BYTES)
+        if component else DEFAULT_MAX_UPLOAD_SIZE_BYTES
+    )
+    
+    # Get max ZIP upload size from component config, with fallback to default (100MB)
+    max_zip_upload_size_bytes = (
+        component.get_config("gateway_max_zip_upload_size_bytes", DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES)
+        if component else DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES
+    )
+    
     return {
         "projectNameMax": create_fields["name"].metadata[1].max_length if create_fields["name"].metadata else 255,
         "projectDescriptionMax": create_fields["description"].metadata[0].max_length if create_fields["description"].metadata else 1000,
         "projectInstructionsMax": create_fields["system_prompt"].metadata[0].max_length if create_fields["system_prompt"].metadata else 4000,
+        "maxUploadSizeBytes": max_upload_size_bytes,
+        "maxZipUploadSizeBytes": max_zip_upload_size_bytes,
     }
+
+
+def _get_background_tasks_config(
+    component: "WebUIBackendComponent",
+    log_prefix: str
+) -> Dict[str, Any]:
+    """
+    Extracts background tasks configuration for the frontend.
+    
+    Returns:
+        Dict with background tasks non-boolean settings:
+        - default_timeout_ms: Default timeout for background tasks
+        
+    Note: The 'enabled' flag is now in frontend_feature_enablement.background_tasks
+    """
+    background_config = component.get_config("background_tasks", {})
+    default_timeout_ms = background_config.get("default_timeout_ms", 3600000)  # 1 hour default
+    
+    return {
+        "default_timeout_ms": default_timeout_ms,
+    }
+
+
+def _determine_background_tasks_enabled(
+    component: "WebUIBackendComponent",
+    log_prefix: str
+) -> bool:
+    """
+    Determines if background tasks feature should be enabled.
+    
+    Returns:
+        bool: True if background tasks should be enabled
+    """
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    enabled = feature_flags.get("background_tasks", False)
+    
+    if enabled:
+        log.debug("%s Background tasks enabled globally for all agents", log_prefix)
+    else:
+        log.debug("%s Background tasks disabled", log_prefix)
+    
+    return enabled
 
 
 def _determine_projects_enabled(
@@ -195,6 +259,14 @@ async def get_app_config(
             log.debug("%s Projects feature flag is disabled.", log_prefix)
 
         
+        # Determine if background tasks should be enabled
+        background_tasks_enabled = _determine_background_tasks_enabled(component, log_prefix)
+        feature_enablement["background_tasks"] = background_tasks_enabled
+        if background_tasks_enabled:
+            log.debug("%s Background tasks feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Background tasks feature flag is disabled.", log_prefix)
+        
         # Check tool configuration status
         tool_config_status = {}
         
@@ -267,14 +339,16 @@ async def get_app_config(
             "ttsProvider": tts_provider,
         }
 
+        platform_config = component.get_config("platform_service", {})
+        platform_service_url = platform_config.get("url", "")
+
         config_data = {
-            "frontend_server_url": "",
+            "frontend_server_url": component.frontend_server_url,
+            "frontend_platform_server_url": platform_service_url,
             "frontend_auth_login_url": component.get_config(
                 "frontend_auth_login_url", ""
             ),
-            "frontend_use_authorization": component.get_config(
-                "frontend_use_authorization", False
-            ),
+            "frontend_use_authorization": component.get_config("frontend_use_authorization", False),
             "frontend_welcome_message": component.get_config(
                 "frontend_welcome_message", ""
             ),
@@ -284,9 +358,10 @@ async def get_app_config(
             "frontend_logo_url": component.get_config("frontend_logo_url", ""),
             "frontend_feature_enablement": feature_enablement,
             "persistence_enabled": api_config.get("persistence_enabled", False),
-            "validation_limits": _get_validation_limits(),
+            "validation_limits": _get_validation_limits(component),
             "tool_config_status": tool_config_status,
             "tts_settings": tts_settings,
+            "background_tasks_config": _get_background_tasks_config(component, log_prefix),
         }
         log.debug("%sReturning frontend configuration.", log_prefix)
         return config_data

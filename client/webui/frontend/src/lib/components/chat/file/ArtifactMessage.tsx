@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { FileAttachment } from "@/lib/types";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
 import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
 
@@ -16,20 +16,20 @@ import { Spinner } from "../../ui";
 
 type ArtifactMessageProps = (
     | {
-        status: "in-progress";
-        name: string;
-        bytesTransferred: number;
-    }
+          status: "in-progress";
+          name: string;
+          bytesTransferred: number;
+      }
     | {
-        status: "completed";
-        name: string;
-        fileAttachment: FileAttachment;
-    }
+          status: "completed";
+          name: string;
+          fileAttachment: FileAttachment;
+      }
     | {
-        status: "failed";
-        name: string;
-        error?: string;
-    }
+          status: "failed";
+          name: string;
+          error?: string;
+      }
 ) & {
     context?: "chat" | "list";
     uniqueKey?: string; // Optional unique key for expansion state (e.g., taskId-filename)
@@ -269,7 +269,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                     apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
                 }
 
-                const response = await authenticatedFetch(apiUrl);
+                const response = await api.webui.get(apiUrl, { fullResponse: true });
                 if (!response.ok) throw new Error(`Failed to fetch artifact content: ${response.statusText}`);
 
                 const blob = await response.blob();
@@ -355,8 +355,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 content: contentToRender,
                 // @ts-expect-error - Add flag to indicate if content is plain text from streaming
                 // Content is plain text if: (1) it's from accumulated content during streaming, OR (2) we're in progress state
-                isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) ||
-                    (props.status === "in-progress" && !!fetchedContent)
+                isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) || (props.status === "in-progress" && !!fetchedContent),
             });
 
             if (finalContent) {

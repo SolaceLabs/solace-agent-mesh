@@ -1,5 +1,5 @@
 export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
-  return `
+    return `
 	  break-words
     leading-[24px]
 
@@ -14,6 +14,7 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
     /* Paragraphs */
     [&_p]:leading-[24px] [&_p]:text-foreground [&_p]:whitespace-pre-wrap [&_p]:mb-6
     [&_p:last-child]:mb-0
+    [&_li>p]:mb-0
 
     /* Text formatting */
     [&_strong]:font-semibold [&_strong]:text-foreground
@@ -61,12 +62,12 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
 
     ${additionalClasses}
   `
-    .trim()
-    .replace(/\s+/g, " ");
+        .trim()
+        .replace(/\s+/g, " ");
 };
 
 export const getThemeButtonHtmlStyles = (additionalClasses: string = ""): string => {
-  return `
+    return `
     /* Buttons - "important" overrides for flow controls */
     [&>button]:bg-[var(--color-background-w10)]
     [&>button]:dark:!bg-[var(--color-background-w100)]
@@ -80,6 +81,6 @@ export const getThemeButtonHtmlStyles = (additionalClasses: string = ""): string
 
     ${additionalClasses}
   `
-    .trim()
-    .replace(/\s+/g, " ");
+        .trim()
+        .replace(/\s+/g, " ");
 };

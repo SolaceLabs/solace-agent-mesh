@@ -2,10 +2,11 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Loader2 } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
-import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { api } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils/api";
 import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
@@ -37,7 +38,7 @@ interface SessionListProps {
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError } = useChatContext();
-    const { configServerUrl, persistenceEnabled } = useConfigContext();
+    const { persistenceEnabled } = useConfigContext();
     const inputRef = useRef<HTMLInputElement>(null);
 
     const [sessions, setSessions] = useState<Session[]>([]);
@@ -55,31 +56,27 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         triggerOnce: false,
     });
 
-    const fetchSessions = useCallback(
-        async (pageNumber: number = 1, append: boolean = false) => {
-            setIsLoading(true);
-            const url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`;
+    const fetchSessions = useCallback(async (pageNumber: number = 1, append: boolean = false) => {
+        setIsLoading(true);
 
-            try {
-                const result: PaginatedSessionsResponse = await fetchJsonWithError(url);
+        try {
+            const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`);
 
-                if (append) {
-                    setSessions(prev => [...prev, ...result.data]);
-                } else {
-                    setSessions(result.data);
-                }
-
-                // Use metadata to determine if there are more pages
-                setHasMore(result.meta.pagination.nextPage !== null);
-                setCurrentPage(pageNumber);
-            } catch (error) {
-                console.error("An error occurred while fetching sessions:", error);
-            } finally {
-                setIsLoading(false);
+            if (append) {
+                setSessions(prev => [...prev, ...result.data]);
+            } else {
+                setSessions(result.data);
             }
-        },
-        [configServerUrl]
-    );
+
+            // Use metadata to determine if there are more pages
+            setHasMore(result.meta.pagination.nextPage !== null);
+            setCurrentPage(pageNumber);
+        } catch (error) {
+            console.error("An error occurred while fetching sessions:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         fetchSessions(1, false);
@@ -97,13 +94,37 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 return prevSessions;
             });
         };
+        const handleBackgroundTaskCompleted = () => {
+            // Refresh session list when background task completes to update indicators
+            fetchSessions(1, false);
+        };
         window.addEventListener("new-chat-session", handleNewSession);
         window.addEventListener("session-updated", handleSessionUpdated as EventListener);
+        window.addEventListener("background-task-completed", handleBackgroundTaskCompleted);
         return () => {
             window.removeEventListener("new-chat-session", handleNewSession);
             window.removeEventListener("session-updated", handleSessionUpdated as EventListener);
+            window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
         };
     }, [fetchSessions]);
+
+    // Periodic refresh when there are sessions with running background tasks
+    // This is necessary to detect task completion when user is on a different session
+    useEffect(() => {
+        const hasBackgroundTasks = sessions.some(s => s.hasRunningBackgroundTask);
+
+        if (!hasBackgroundTasks) {
+            return; // No background tasks, no need to poll
+        }
+
+        const intervalId = setInterval(() => {
+            fetchSessions(1, false);
+        }, 10000); // Check every 10 seconds
+
+        return () => {
+            clearInterval(intervalId);
+        };
+    }, [sessions, fetchSessions]);
 
     useEffect(() => {
         if (inView && hasMore && !isLoading) {
@@ -160,11 +181,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         if (!sessionToMove) return;
 
         try {
-            await fetchWithError(`${configServerUrl}/api/v1/sessions/${sessionToMove.id}/project`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ projectId: targetProjectId }),
-            });
+            await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
 
             // Update local state
             setSessions(prevSessions =>
@@ -312,7 +329,17 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                         <button onClick={() => handleSessionClick(session.id)} className="min-w-0 flex-1 cursor-pointer text-left">
                                             <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                                    <span className="truncate font-semibold">{getSessionDisplayName(session)}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="truncate font-semibold">{getSessionDisplayName(session)}</span>
+                                                        {session.hasRunningBackgroundTask && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Loader2 className="text-primary h-4 w-4 flex-shrink-0 animate-spin" />
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>Background task running</TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                    </div>
                                                     <span className="text-muted-foreground truncate text-xs">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
                                                 {session.projectName && (

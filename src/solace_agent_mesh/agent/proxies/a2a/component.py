@@ -28,6 +28,7 @@ from a2a.types import (
     Artifact,
     CancelTaskRequest,
     DataPart,
+    InternalError,
     Message,
     SendMessageRequest,
     SendStreamingMessageRequest,
@@ -45,6 +46,7 @@ from solace_ai_connector.common.log import log
 from datetime import datetime, timezone
 
 from ....common import a2a
+from ....common.oauth import OAuth2Client, validate_https_url
 from ....common.data_parts import AgentProgressUpdateData
 from ....agent.utils.artifact_helpers import format_artifact_uri
 from ..base.component import BaseProxyComponent
@@ -82,10 +84,28 @@ class A2AProxyComponent(BaseProxyComponent):
         # when multiple concurrent requests target the same agent
         self._oauth_token_cache: OAuth2TokenCache = OAuth2TokenCache()
 
+        # OAuth 2.0 client for protocol operations (no retry for A2A)
+        self._oauth_client = OAuth2Client()
+
         # Index agent configs by name for O(1) lookup (performance optimization)
         self._agent_config_by_name: Dict[str, Dict[str, Any]] = {
             agent["name"]: agent for agent in self.proxied_agents_config
         }
+
+        # NEW: OAuth 2.0 authorization code support (enterprise feature)
+        # Stores paused tasks waiting for user authorization
+        self._paused_a2a_oauth2_tasks: Dict[str, Dict[str, Any]] = {}
+        # Caches CredentialManagerWithDiscovery instances per agent
+        self._a2a_oauth2_credential_managers: Dict[str, Any] = {}
+
+        # NEW: Initialize enterprise features for OAuth2 support
+        try:
+            from solace_agent_mesh_enterprise.init_enterprise_component import (
+                init_enterprise_proxy_features
+            )
+            init_enterprise_proxy_features(self)
+        except ImportError:
+            pass  # Enterprise not installed
 
         # OAuth 2.0 configuration is now validated by Pydantic models at app initialization
         # No need for separate _validate_oauth_config() method
@@ -244,6 +264,9 @@ class A2AProxyComponent(BaseProxyComponent):
             f"{self.log_identifier}[ForwardRequest:{task_context.task_id}:{agent_name}]"
         )
 
+        # Store original request for potential resumption (OAuth2 authorization code flow)
+        task_context.original_request = request
+
         # Step 1: Initialize retry counter
         # Why only retry once: Prevents infinite loops on persistent auth failures.
         # First 401 may be due to token expiration between cache check and request;
@@ -251,7 +274,57 @@ class A2AProxyComponent(BaseProxyComponent):
         max_auth_retries: int = 1
         auth_retry_count: int = 0
 
-        # Step 2: Create while loop for retry logic
+        # Step 2: Check for OAuth2 authorization code flow
+        # This auth type requires user interaction and can pause the task,
+        # so we check it before attempting normal request flow
+        agent_config = self._get_agent_config(agent_name)
+        auth_config = agent_config.get("authentication") if agent_config else None
+        auth_type = auth_config.get("type") if auth_config else None
+
+        if auth_type == "oauth2_authorization_code":
+            try:
+                from solace_agent_mesh_enterprise.auth.a2a import (
+                    check_authorization_required,
+                    request_authorization,
+                )
+
+                # Check if user authorization is needed
+                needs_auth = await check_authorization_required(
+                    component=self,
+                    agent_name=agent_name,
+                    task_context=task_context,
+                )
+
+                if needs_auth:
+                    # Pause task and request authorization
+                    log.info(
+                        "%s User authorization required for agent '%s'. Pausing task.",
+                        log_identifier,
+                        agent_name,
+                    )
+                    await request_authorization(
+                        component=self,
+                        agent_name=agent_name,
+                        task_context=task_context,
+                    )
+                    return  # Exit - task paused, will resume after OAuth callback
+
+            except ImportError:
+                log.error(
+                    "%s Agent '%s' requires OAuth2 authorization code flow, "
+                    "but solace-agent-mesh-enterprise is not installed.",
+                    log_identifier,
+                    agent_name,
+                )
+                raise ValueError(
+                    f"Agent '{agent_name}' requires OAuth2 authorization code flow, "
+                    "but solace-agent-mesh-enterprise is not installed."
+                )
+
+        # Step 3: Normal request flow for all other auth types
+        # (static_bearer, static_apikey, oauth2_client_credentials, or authorized oauth2_authorization_code)
+        received_final_task = False
+
         while auth_retry_count <= max_auth_retries:
             try:
                 # Get or create A2AClient
@@ -312,6 +385,10 @@ class A2AProxyComponent(BaseProxyComponent):
                             await self._process_downstream_response(
                                 raw_event, task_context, client, agent_name
                             )
+                            # Check if this is a final task
+                            if isinstance(raw_event, Task) and raw_event.status:
+                                if raw_event.status.state in [TaskState.completed, TaskState.failed, TaskState.canceled]:
+                                    received_final_task = True
                     else:
                         # Non-streaming: use normal client method (works fine)
                         log.debug(
@@ -324,6 +401,12 @@ class A2AProxyComponent(BaseProxyComponent):
                             await self._process_downstream_response(
                                 event, task_context, client, agent_name
                             )
+                            # Check if this is a final task (event is tuple of (Task, Optional[UpdateEvent]))
+                            if isinstance(event, tuple) and len(event) > 0:
+                                task = event[0]
+                                if isinstance(task, Task) and task.status:
+                                    if task.status.state in [TaskState.completed, TaskState.failed, TaskState.canceled]:
+                                        received_final_task = True
                 elif isinstance(request, CancelTaskRequest):
                     # Forward cancel request to downstream agent using the downstream task ID
                     # The request.params.id contains SAM's task ID, but we need to send
@@ -485,6 +568,20 @@ class A2AProxyComponent(BaseProxyComponent):
                 # and publish an error response.
                 raise
 
+        # After retry loop completes - check if we received a final task
+        # This detects cases where the stream closes without error but also without final response
+        if not received_final_task and isinstance(request, (SendStreamingMessageRequest, SendMessageRequest)):
+            from ....common.a2a import create_error_response
+
+            error_msg = f"Remote agent '{agent_name}' disconnected without completing the task. Agent may have crashed."
+            log.error("%s %s", log_identifier, error_msg)
+
+            error = InternalError(message=error_msg, data={"agent_name": agent_name})
+            reply_topic = task_context.a2a_context.get("reply_to_topic")
+            if reply_topic:
+                response = create_error_response(error=error, request_id=task_context.a2a_context.get("jsonrpc_request_id"))
+                self._publish_a2a_message(response.model_dump(exclude_none=True), reply_topic)
+
     async def _handle_auth_error(
         self, agent_name: str, task_context: ProxyTaskContext
     ) -> bool:
@@ -636,18 +733,8 @@ class A2AProxyComponent(BaseProxyComponent):
                 "'token_url', 'client_id', and 'client_secret'."
             )
 
-        # SECURITY: Enforce HTTPS for token URL
-        parsed_url = urlparse(token_url)
-        if parsed_url.scheme != "https":
-            log.error(
-                "%s OAuth 2.0 token_url must use HTTPS for security. Got scheme: '%s'",
-                log_identifier,
-                parsed_url.scheme,
-            )
-            raise ValueError(
-                f"{log_identifier} OAuth 2.0 token_url must use HTTPS for security. "
-                f"Got: {parsed_url.scheme}://"
-            )
+        # SECURITY: Enforce HTTPS for token URL using common utility
+        validate_https_url(token_url)
 
         # Step 3: Extract optional parameters
         scope = auth_config.get("scope", "")
@@ -665,49 +752,32 @@ class A2AProxyComponent(BaseProxyComponent):
         )
 
         try:
-            # Step 5: Create temporary httpx client with 30-second timeout
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Step 6: Execute POST request
-                # SECURITY: client_secret is sent in POST body (not logged or in URL)
-                response = await client.post(
-                    token_url,
-                    data={
-                        "grant_type": "client_credentials",
-                        "client_id": client_id,
-                        "client_secret": client_secret,
-                        "scope": scope,
-                    },
-                    headers={
-                        "Content-Type": "application/x-www-form-urlencoded",
-                        "Accept": "application/json",
-                    },
-                )
-                response.raise_for_status()
+            # Step 5: Fetch token using common OAuth client (no retry for A2A)
+            token_data = await self._oauth_client.fetch_client_credentials_token(
+                token_url=token_url,
+                client_id=client_id,
+                client_secret=client_secret,
+                scope=scope,
+                verify=True,
+                timeout=30.0,
+            )
 
-                # Step 7: Parse response
-                token_response = response.json()
-                access_token = token_response.get("access_token")
+            access_token = token_data["access_token"]
 
-                if not access_token:
-                    raise ValueError(
-                        f"{log_identifier} Token response missing 'access_token' field. "
-                        f"Response keys: {list(token_response.keys())}"
-                    )
+            # Step 6: Cache the token
+            await self._oauth_token_cache.set(
+                agent_name, access_token, cache_duration
+            )
 
-                # Step 8: Cache the token
-                await self._oauth_token_cache.set(
-                    agent_name, access_token, cache_duration
-                )
+            # Step 7: Log success
+            log.info(
+                "%s Successfully obtained OAuth 2.0 token (cached for %ds)",
+                log_identifier,
+                cache_duration,
+            )
 
-                # Step 9: Log success
-                log.info(
-                    "%s Successfully obtained OAuth 2.0 token (cached for %ds)",
-                    log_identifier,
-                    cache_duration,
-                )
-
-                # Step 10: Return access token
-                return access_token
+            # Step 8: Return access token
+            return access_token
 
         except httpx.HTTPStatusError as e:
             log.error(
@@ -747,6 +817,7 @@ class A2AProxyComponent(BaseProxyComponent):
         - static_bearer: Static bearer token authentication
         - static_apikey: Static API key authentication
         - oauth2_client_credentials: OAuth 2.0 Client Credentials flow with automatic token refresh
+        - oauth2_authorization_code: OAuth 2.0 Authorization Code flow
 
         For backward compatibility, legacy configurations without a 'type' field
         will have their type inferred from the 'scheme' field.
@@ -896,10 +967,63 @@ class A2AProxyComponent(BaseProxyComponent):
                     )
                     raise
 
+            elif auth_type == "oauth2_authorization_code":
+                # NEW: OAuth 2.0 Authorization Code Flow (enterprise feature)
+                # At this point, user has already authorized (checked in _forward_request)
+                # We just need to get the access token from enterprise helpers
+                try:
+                    from solace_agent_mesh_enterprise.auth.a2a import get_access_token
+
+                    # Get access token (enterprise handles refresh if needed)
+                    access_token = await get_access_token(
+                        component=self,
+                        agent_name=agent_name,
+                        task_context=task_context,
+                    )
+
+                    if not access_token:
+                        raise ValueError(
+                            f"No OAuth2 credential found for agent '{agent_name}'. "
+                            "User authorization should have completed in _forward_request()."
+                        )
+
+                    # Find the OAuth2 authorization code scheme name from agent card
+                    oauth_scheme_name = None
+                    if agent_card and agent_card.security_schemes:
+                        for scheme_name, scheme_wrapper in agent_card.security_schemes.items():
+                            scheme = scheme_wrapper.root
+                            if (hasattr(scheme, 'type') and scheme.type.lower() == 'oauth2' and
+                                    hasattr(scheme, 'flows') and scheme.flows and
+                                    scheme.flows.authorization_code):
+                                oauth_scheme_name = scheme_name
+                                break
+
+                    # Fallback if not found
+                    if not oauth_scheme_name:
+                        oauth_scheme_name = "oauth2_authorization_code"
+                        log.warning(
+                            "%s No OAuth2 authorization code scheme found in agent card, using default name",
+                            self.log_identifier
+                        )
+
+                    # Store in credential store for AuthInterceptor
+                    await self._credential_store.set_credentials(
+                        session_id, oauth_scheme_name, access_token
+                    )
+
+                except ImportError:
+                    log.error(
+                        "%s OAuth2 authorization code requires solace-agent-mesh-enterprise package",
+                        self.log_identifier,
+                    )
+                    raise ValueError(
+                        "OAuth2 authorization code requires solace-agent-mesh-enterprise package"
+                    )
+
             else:
                 raise ValueError(
                     f"Unsupported authentication type '{auth_type}' for agent '{agent_name}'. "
-                    f"Supported types: static_bearer, static_apikey, oauth2_client_credentials."
+                    f"Supported types: static_bearer, static_apikey, oauth2_client_credentials, oauth2_authorization_code."
                 )
 
         # Create ClientConfig for the modern client

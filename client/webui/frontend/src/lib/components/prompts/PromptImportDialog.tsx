@@ -1,30 +1,35 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FileJson } from "lucide-react";
+import { z } from "zod";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components";
-import {
-    promptImportSchema,
-    promptImportCommandSchema,
-    PROMPT_FIELD_LIMITS,
-    formatZodErrors,
-    hasPathError,
-    getPathErrorMessage,
-    detectTruncationWarnings,
-    type PromptImportData,
-    type PromptImportCommandForm,
-    type TruncationWarning,
-} from "@/lib/schemas";
+import type { PromptGroup } from "@/lib/types/prompts";
+import { promptImportSchema, PROMPT_FIELD_LIMITS, formatZodErrors, hasPathError, getPathErrorMessage, detectTruncationWarnings, type PromptImportData, type TruncationWarning } from "@/lib/schemas";
+
+// Schema for the editable fields in the import dialog (name and command)
+const promptImportFormSchema = z.object({
+    name: z.string().min(1, "Name is required").max(PROMPT_FIELD_LIMITS.NAME_MAX, `Name must be ${PROMPT_FIELD_LIMITS.NAME_MAX} characters or less`),
+    command: z.string().max(PROMPT_FIELD_LIMITS.COMMAND_MAX, `Chat shortcut must be ${PROMPT_FIELD_LIMITS.COMMAND_MAX} characters or less`).optional().or(z.literal("")),
+});
+
+type PromptImportForm = z.infer<typeof promptImportFormSchema>;
+
+interface ConflictInfo {
+    hasNameConflict: boolean;
+    hasCommandConflict: boolean;
+}
 
 interface PromptImportDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onImport: (data: PromptImportData, options: { preserveCommand: boolean; preserveCategory: boolean }) => Promise<void>;
+    existingPrompts: PromptGroup[];
 }
 
-export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, onOpenChange, onImport }) => {
+export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, onOpenChange, onImport, existingPrompts }) => {
     const [importData, setImportData] = useState<PromptImportData | null>(null);
     const [fileError, setFileError] = useState<string | null>(null);
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -34,20 +39,69 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
     const [selectedFileName, setSelectedFileName] = useState<string>("");
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Form for the editable command field
+    const [initialNameConflict, setInitialNameConflict] = useState(false);
+    const [initialCommandConflict, setInitialCommandConflict] = useState(false);
+
+    // Form for the editable name and command fields
     const {
         register,
         handleSubmit,
         formState: { errors },
         reset: resetForm,
         setValue,
-    } = useForm<PromptImportCommandForm>({
-        resolver: zodResolver(promptImportCommandSchema),
+        watch,
+    } = useForm<PromptImportForm>({
+        resolver: zodResolver(promptImportFormSchema),
         defaultValues: {
+            name: "",
             command: "",
         },
         mode: "onChange",
     });
+
+    // Watch form values for conflict detection
+    const watchedName = watch("name");
+    const watchedCommand = watch("command");
+
+    // Helper function to detect conflicts with existing prompts
+    const detectConflicts = useCallback(
+        (name: string, command: string): ConflictInfo => {
+            const normalizedName = name.trim().toLowerCase();
+            const normalizedCommand = command.trim().toLowerCase();
+
+            let hasNameConflict = false;
+            let hasCommandConflict = false;
+
+            for (const prompt of existingPrompts) {
+                // Check name conflict
+                if (normalizedName && prompt.name?.toLowerCase() === normalizedName) {
+                    hasNameConflict = true;
+                }
+
+                // Check command conflict (only if command is provided)
+                if (normalizedCommand && prompt.command?.toLowerCase() === normalizedCommand) {
+                    hasCommandConflict = true;
+                }
+            }
+
+            return { hasNameConflict, hasCommandConflict };
+        },
+        [existingPrompts]
+    );
+
+    // Check for conflicts with existing prompts
+    const conflicts = useMemo((): ConflictInfo => {
+        if (!importData) {
+            return { hasNameConflict: false, hasCommandConflict: false };
+        }
+
+        const currentName = watchedName || "";
+        const currentCommand = watchedCommand || "";
+
+        return detectConflicts(currentName, currentCommand);
+    }, [importData, watchedName, watchedCommand, detectConflicts]);
+
+    const hasConflicts = conflicts.hasNameConflict || conflicts.hasCommandConflict;
 
     const validateAndParseFile = useCallback(async (file: File): Promise<PromptImportData | null> => {
         setFileError(null);
@@ -109,6 +163,20 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         }
     }, []);
 
+    // Check for initial conflicts when file is loaded
+    const checkInitialConflicts = useCallback(
+        (data: PromptImportData) => {
+            const importedName = data.prompt.name || "";
+            const importedCommand = data.prompt.command || "";
+
+            const conflictInfo = detectConflicts(importedName, importedCommand);
+
+            setInitialNameConflict(conflictInfo.hasNameConflict);
+            setInitialCommandConflict(conflictInfo.hasCommandConflict);
+        },
+        [detectConflicts]
+    );
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (!selectedFile) return;
@@ -118,8 +186,11 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         if (data) {
             setImportData(data);
             setSelectedFileName(selectedFile.name);
-            // Initialize the form with the imported command
+            // Initialize the form with the imported name and command
+            setValue("name", data.prompt.name || "");
             setValue("command", data.prompt.command || "");
+            // Check for initial conflicts
+            checkInitialConflicts(data);
         }
 
         // Reset file input
@@ -153,7 +224,10 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
             if (data) {
                 setImportData(data);
                 setSelectedFileName(file.name);
+                setValue("name", data.prompt.name || "");
                 setValue("command", data.prompt.command || "");
+                // Check for initial conflicts
+                checkInitialConflicts(data);
             }
         }
     };
@@ -162,10 +236,15 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         fileInputRef.current?.click();
     };
 
-    const onSubmit = async (formData: PromptImportCommandForm) => {
+    const onSubmit = async (formData: PromptImportForm) => {
         // Validate that a file has been selected
         if (!importData) {
             setFileError("Please select a JSON file to import");
+            return;
+        }
+
+        // Don't allow import if there are conflicts
+        if (hasConflicts) {
             return;
         }
 
@@ -173,11 +252,12 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         setFileError(null);
 
         try {
-            // Update the import data with the edited command
+            // Update the import data with the edited name and command
             const updatedImportData: PromptImportData = {
                 ...importData,
                 prompt: {
                     ...importData.prompt,
+                    name: formData.name,
                     command: formData.command || undefined,
                 },
             };
@@ -203,6 +283,8 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         setFileError(null);
         setValidationErrors([]);
         setTruncationWarnings([]);
+        setInitialNameConflict(false);
+        setInitialCommandConflict(false);
         resetForm();
     };
 
@@ -268,7 +350,30 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                     {/* Preview */}
                     {importData && !fileError && (
                         <div className="space-y-4">
-                            {truncationWarnings.length > 0 ? (
+                            {/* Conflict Error Banner */}
+                            {hasConflicts && (
+                                <MessageBanner
+                                    variant="error"
+                                    message={
+                                        <>
+                                            <span className="font-medium">Conflicts found: </span>
+                                            {conflicts.hasNameConflict && <span className="font-semibold">{watchedName}</span>}
+                                            {conflicts.hasNameConflict && conflicts.hasCommandConflict && " name and "}
+                                            {conflicts.hasCommandConflict && (
+                                                <>
+                                                    <span className="font-semibold">{watchedCommand}</span>
+                                                    {" chat shortcut"}
+                                                </>
+                                            )}
+                                            {conflicts.hasNameConflict && !conflicts.hasCommandConflict && " name"}
+                                            {conflicts.hasNameConflict && conflicts.hasCommandConflict ? " already exist." : " already exists."}
+                                        </>
+                                    }
+                                />
+                            )}
+
+                            {/* Truncation Warnings */}
+                            {truncationWarnings.length > 0 && !hasConflicts && (
                                 <MessageBanner
                                     variant="warning"
                                     message={
@@ -282,74 +387,81 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                         </div>
                                     }
                                 />
-                            ) : (
-                                <MessageBanner variant="success" message="File validated successfully. Review the details below:" />
                             )}
 
-                            <div className="space-y-3 overflow-hidden rounded-lg border p-4">
-                                <div>
-                                    <Label className="text-muted-foreground text-xs">Name</Label>
-                                    <p className="overflow-wrap-anywhere font-medium break-words">{importData.prompt.name}</p>
+                            {/* Review Prompt Section */}
+                            <div className="flex flex-col gap-4">
+                                <h3 className="text-sm font-semibold">Review Prompt</h3>
+
+                                {/* Name Field - Editable when there's a conflict or was initially in conflict */}
+                                <div className="space-y-1">
+                                    <Label htmlFor="import-name" className="text-muted-foreground text-xs">
+                                        Name{conflicts.hasNameConflict && <span className="text-destructive">*</span>}
+                                    </Label>
+                                    {initialNameConflict ? (
+                                        <div className="space-y-2">
+                                            <Input id="import-name" {...register("name")} className={`${errors.name || conflicts.hasNameConflict ? "border-red-500 focus-visible:ring-red-500" : ""}`} maxLength={PROMPT_FIELD_LIMITS.NAME_MAX} />
+                                            {conflicts.hasNameConflict && !errors.name && <MessageBanner variant="error" message="Already exists. Change name." />}
+                                            {errors.name && <p className="text-xs text-[#647481] dark:text-[#B1B9C0]">{errors.name.message}</p>}
+                                        </div>
+                                    ) : (
+                                        <p className="overflow-wrap-anywhere text-sm break-words">{watchedName}</p>
+                                    )}
                                 </div>
 
-                                {importData.prompt.description && (
-                                    <div>
-                                        <Label className="text-muted-foreground text-xs">Description</Label>
-                                        <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.description}</p>
-                                    </div>
-                                )}
+                                {/* Description - Always read-only */}
+                                <div className="space-y-1">
+                                    <Label className="text-muted-foreground text-xs">Description</Label>
+                                    {importData.prompt.description ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.description}</p> : <p className="text-muted-foreground text-sm italic">No description</p>}
+                                </div>
 
-                                {importData.prompt.category && (
-                                    <div>
-                                        <Label className="text-muted-foreground text-xs">Tag</Label>
-                                        <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.category}</p>
-                                    </div>
-                                )}
+                                {/* Tag - Always read-only */}
+                                <div className="space-y-1">
+                                    <Label className="text-muted-foreground text-xs">Tag</Label>
+                                    {importData.prompt.category ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.category}</p> : <p className="text-muted-foreground text-sm italic">No tag</p>}
+                                </div>
 
-                                {importData.prompt.command && (
-                                    <div>
-                                        <Label className="text-muted-foreground text-xs">Command</Label>
-                                        <p className="font-mono text-sm break-all">{importData.prompt.command}</p>
-                                    </div>
-                                )}
-
-                                {importData.prompt.metadata?.authorName && (
-                                    <div>
-                                        <Label className="text-muted-foreground text-xs">Original Author</Label>
-                                        <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.metadata.authorName}</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Import Options */}
-                            <div className="space-y-3 rounded-lg border p-4">
-                                <Label className="text-sm font-medium">Import Options</Label>
-
-                                {/* Editable Command Field */}
-                                {importData.prompt.command && (
-                                    <div className="space-y-2">
-                                        <Label htmlFor="import-command" className="text-sm">
-                                            Chat Shortcut
-                                        </Label>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-muted-foreground text-sm">/</span>
-                                            <Input id="import-command" {...register("command")} placeholder="e.g., code-review" className={`flex-1 ${errors.command ? "border-red-500" : ""}`} maxLength={PROMPT_FIELD_LIMITS.COMMAND_MAX} />
+                                {/* Chat Shortcut Field - Editable when there's a conflict or was initially in conflict */}
+                                <div className="space-y-1">
+                                    <Label htmlFor="import-command" className="text-muted-foreground text-xs">
+                                        Chat Shortcut{conflicts.hasCommandConflict && <span className="text-destructive">*</span>}
+                                    </Label>
+                                    {initialCommandConflict ? (
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-muted-foreground text-sm">/</span>
+                                                <Input
+                                                    id="import-command"
+                                                    {...register("command")}
+                                                    placeholder="e.g., code-review"
+                                                    className={`flex-1 ${errors.command || conflicts.hasCommandConflict ? "border-red-500 focus-visible:ring-red-500" : ""}`}
+                                                    maxLength={PROMPT_FIELD_LIMITS.COMMAND_MAX}
+                                                />
+                                            </div>
+                                            {conflicts.hasCommandConflict && !errors.command && <MessageBanner variant="error" message="Already exists. Change chat shortcut." />}
+                                            {errors.command && <p className="text-xs text-[#647481] dark:text-[#B1B9C0]">{errors.command.message}</p>}
                                         </div>
-                                        {errors.command && <p className="text-sm text-red-500">{errors.command.message}</p>}
-                                        <p className="text-muted-foreground text-xs">
-                                            You can modify the shortcut if needed (max {PROMPT_FIELD_LIMITS.COMMAND_MAX} characters). If it conflicts with an existing shortcut, a unique one will be generated automatically.
-                                        </p>
-                                    </div>
-                                )}
+                                    ) : watchedCommand ? (
+                                        <p className="font-mono text-sm break-all">{watchedCommand}</p>
+                                    ) : (
+                                        <p className="text-muted-foreground text-sm italic">No chat shortcut</p>
+                                    )}
+                                </div>
+
+                                {/* Original Author - Always read-only */}
+                                <div className="space-y-1">
+                                    <Label className="text-muted-foreground text-xs">Original Author</Label>
+                                    {importData.prompt.metadata?.authorName ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.metadata.authorName}</p> : <p className="text-muted-foreground text-sm italic">No author</p>}
+                                </div>
                             </div>
                         </div>
                     )}
 
                     <DialogFooter>
-                        <Button type="button" variant="outline" onClick={handleClose} disabled={isImporting}>
+                        <Button type="button" variant="ghost" onClick={handleClose} disabled={isImporting}>
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={isImporting || !importData}>
+                        <Button data-testid="importPromptButton" type="submit" disabled={isImporting || !importData || hasConflicts}>
                             {isImporting ? "Importing..." : "Import"}
                         </Button>
                     </DialogFooter>
