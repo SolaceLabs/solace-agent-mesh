@@ -928,3 +928,217 @@ class ProjectService:
             counter += 1
             if counter > 100:  # Safety limit
                 raise ValueError("Unable to resolve name conflict")
+
+    def _get_user_role(self, db, project_id: str, user_id: str) -> Optional[str]:
+        """
+        Get user's role on a project.
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            user_id: The user ID
+
+        Returns:
+            Optional[str]: "owner", "editor", "viewer", or None if no access
+        """
+        from ..repository.models import ProjectModel
+        from ..repository.project_user_repository import ProjectUserRepository
+
+        # Check if user is the owner
+        project = db.query(ProjectModel).filter_by(
+            id=project_id, user_id=user_id, deleted_at=None
+        ).first()
+        if project:
+            return "owner"
+
+        # Check if user has shared access
+        pu_repo = ProjectUserRepository(db)
+        access = pu_repo.get_user_project_access(project_id, user_id)
+        return access.role if access else None
+
+    async def share_project(
+        self, db, project_id: str, target_email: str, role: str, sharing_user_id: str
+    ) -> dict:
+        """
+        Share a project with another user by email.
+
+        Args:
+            db: Database session
+            project_id: The project ID to share
+            target_email: Email of user to share with
+            role: Role to assign ("editor" or "viewer")
+            sharing_user_id: User ID of person sharing the project
+
+        Returns:
+            dict: Success message with user_id
+
+        Raises:
+            ValueError: If user is not owner, role is invalid, user not found, or already has access
+            HTTPException: If identity service not configured (501)
+        """
+        from ..repository.project_user_repository import ProjectUserRepository
+        from fastapi import HTTPException
+
+        # Verify the sharing user is the owner
+        user_role = self._get_user_role(db, project_id, sharing_user_id)
+        if user_role != "owner":
+            raise ValueError("Only project owner can share")
+
+        # Validate role
+        if role not in ["editor", "viewer"]:
+            raise ValueError(f"Invalid role: {role}")
+
+        # Look up user by email using identity service
+        identity_service = self.component.identity_service
+        if not identity_service:
+            raise HTTPException(501, "Identity service not configured")
+
+        results = await identity_service.search_users(target_email, limit=1)
+        if not results or results[0].get("email", "").lower() != target_email.lower():
+            raise ValueError(f"User not found: {target_email}")
+
+        target_user_id = results[0]["id"]
+
+        # Check if user already has access
+        pu_repo = ProjectUserRepository(db)
+        existing_access = pu_repo.get_user_project_access(project_id, target_user_id)
+        if existing_access:
+            raise ValueError("User already has access to this project")
+
+        # Add the collaborator
+        pu_repo.add_user_to_project(project_id, target_user_id, role, sharing_user_id)
+
+        self.logger.info(
+            f"Shared project {project_id} with {target_email} as {role} by user {sharing_user_id}"
+        )
+        return {"message": "Project shared successfully", "user_id": target_user_id}
+
+    def get_collaborators(self, db, project_id: str, requesting_user_id: str) -> dict:
+        """
+        Get all collaborators for a project.
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            requesting_user_id: User ID of person requesting the list
+
+        Returns:
+            dict: Contains project_id, owner info, and list of collaborators
+
+        Raises:
+            ValueError: If user doesn't have access or project doesn't exist
+        """
+        from ..repository.project_user_repository import ProjectUserRepository
+        from ..repository.models import ProjectModel
+
+        # Verify user has access to this project
+        user_role = self._get_user_role(db, project_id, requesting_user_id)
+        if not user_role:
+            raise ValueError("Access denied")
+
+        # Get the project to find the owner
+        project = db.query(ProjectModel).filter_by(
+            id=project_id, deleted_at=None
+        ).first()
+        if not project:
+            raise ValueError("Project not found")
+
+        # Get all collaborators from project_users table
+        pu_repo = ProjectUserRepository(db)
+        collaborators = pu_repo.get_project_users(project_id)
+
+        return {
+            "project_id": project_id,
+            "owner": {
+                "user_id": project.user_id,
+                "role": "owner",
+                "added_at": project.created_at,
+                "added_by_user_id": project.user_id,
+            },
+            "collaborators": [
+                {
+                    "user_id": c.user_id,
+                    "role": c.role,
+                    "added_at": c.added_at,
+                    "added_by_user_id": c.added_by_user_id,
+                }
+                for c in collaborators
+            ],
+        }
+
+    def update_collaborator_role(
+        self, db, project_id: str, target_user_id: str, new_role: str, requesting_user_id: str
+    ) -> bool:
+        """
+        Update a collaborator's role (owner only).
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            target_user_id: User ID of collaborator to update
+            new_role: New role to assign ("editor" or "viewer")
+            requesting_user_id: User ID of person making the change
+
+        Returns:
+            bool: True if successful
+
+        Raises:
+            ValueError: If user is not owner, role is invalid, or collaborator not found
+        """
+        from ..repository.project_user_repository import ProjectUserRepository
+
+        # Verify requesting user is the owner
+        user_role = self._get_user_role(db, project_id, requesting_user_id)
+        if user_role != "owner":
+            raise ValueError("Only owner can update roles")
+
+        # Validate new role
+        if new_role not in ["editor", "viewer"]:
+            raise ValueError(f"Invalid role: {new_role}")
+
+        # Update the role
+        pu_repo = ProjectUserRepository(db)
+        result = pu_repo.update_user_role(project_id, target_user_id, new_role)
+        if not result:
+            raise ValueError("Collaborator not found")
+
+        self.logger.info(
+            f"Updated user {target_user_id} to {new_role} on project {project_id}"
+        )
+        return True
+
+    def remove_collaborator(
+        self, db, project_id: str, target_user_id: str, requesting_user_id: str
+    ) -> bool:
+        """
+        Remove a collaborator from a project (owner only).
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            target_user_id: User ID of collaborator to remove
+            requesting_user_id: User ID of person removing access
+
+        Returns:
+            bool: True if successful
+
+        Raises:
+            ValueError: If user is not owner or collaborator not found
+        """
+        from ..repository.project_user_repository import ProjectUserRepository
+
+        # Verify requesting user is the owner
+        user_role = self._get_user_role(db, project_id, requesting_user_id)
+        if user_role != "owner":
+            raise ValueError("Only owner can remove collaborators")
+
+        # Remove the collaborator
+        pu_repo = ProjectUserRepository(db)
+        result = pu_repo.remove_user_from_project(project_id, target_user_id)
+        if not result:
+            raise ValueError("Collaborator not found")
+
+        self.logger.info(
+            f"Removed user {target_user_id} from project {project_id}"
+        )
+        return True

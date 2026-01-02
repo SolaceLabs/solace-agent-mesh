@@ -112,14 +112,28 @@ class ProjectRepository(IProjectRepository):
 
     def update(self, project_id: str, user_id: str, update_data: dict) -> Optional[Project]:
         """Update a project with the given data, ensuring user access."""
+        # First, find the project
         model = self.db.query(ProjectModel).filter(
             ProjectModel.id == project_id,
-            ProjectModel.user_id == user_id,  # Only allow updates to user's own projects
             ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
         ).first()
-        
+
         if not model:
-            return None
+            return None  # Project doesn't exist
+
+        # Check if user is owner
+        if model.user_id == user_id:
+            # User is owner, proceed with update
+            pass
+        else:
+            # User is not owner - check if they have editor access
+            from .project_user_repository import ProjectUserRepository
+            pu_repo = ProjectUserRepository(self.db)
+            access = pu_repo.get_user_project_access(project_id, user_id)
+
+            # Verify user has editor or owner role
+            if not access or access.role not in ["editor", "owner"]:
+                return None  # No permission
         
         for field, value in update_data.items():
             if hasattr(model, field):

@@ -29,3 +29,26 @@ class ProjectListResponse(BaseModel):
 
     projects: list[ProjectResponse]
     total: int
+
+
+class CollaboratorInfo(BaseModel):
+    """Information about a project collaborator."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    user_id: str = Field(alias="userId")
+    user_email: Optional[str] = Field(default=None, alias="userEmail")
+    user_name: Optional[str] = Field(default=None, alias="userName")
+    role: str
+    added_at: int = Field(alias="addedAt")
+    added_by_user_id: str = Field(alias="addedByUserId")
+
+
+class ProjectCollaboratorsResponse(BaseModel):
+    """Response containing all collaborators for a project."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    project_id: str = Field(alias="projectId")
+    owner: CollaboratorInfo
+    collaborators: list[CollaboratorInfo]
