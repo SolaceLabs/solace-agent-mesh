@@ -1668,6 +1668,14 @@ If a plan is created:
             log_identifier,
         )
 
+    skill_instructions = callback_context.state.get("skill_instructions")
+    if skill_instructions and isinstance(skill_instructions, str):
+        injected_instructions.append(skill_instructions)
+        log.debug(
+            "%s Injected skill instructions from callback state.",
+            log_identifier,
+        )
+
     last_call_notification_message_added = False
     try:
         invocation_context = callback_context._invocation_context

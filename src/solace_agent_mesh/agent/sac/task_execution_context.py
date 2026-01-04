@@ -57,6 +57,10 @@ class TaskExecutionContext:
         self._first_text_seen_in_turn: bool = False
         self._need_spacing_before_next_text: bool = False
 
+        # Activated skills for this session
+        # Maps skill name to ActivatedSkill instance
+        self._activated_skills: Dict[str, Any] = {}
+
     def cancel(self) -> None:
         """Signals that the task should be cancelled."""
         self.cancellation_event.set()

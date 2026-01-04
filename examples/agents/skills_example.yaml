@@ -1,0 +1,106 @@
+# Solace Agent Mesh - Skills Example Agent
+#
+# This example demonstrates the skills feature, which allows agents to
+# dynamically load specialized context and tools on demand.
+#
+# Skills are activated when the LLM determines they are relevant to the
+# user's request. The agent sees a catalog of available skills in its
+# system prompt and can call `activate_skill` to load the full skill
+# content and any associated tools.
+#
+# To run this example:
+#   1. Ensure you have the shared_config.yaml configured with your broker
+#   2. Run: sam run examples/agents/skills_example.yaml
+#
+# Try these prompts to test skills:
+#   - "Review this Python code: def add(a, b): return a + b"
+#   - "Format this data as a table: [{\"name\": \"Alice\", \"age\": 30}, {\"name\": \"Bob\", \"age\": 25}]"
+#   - "Convert this to CSV: [{\"product\": \"Widget\", \"price\": 9.99, \"qty\": 100}]"
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: skills_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: skills_example_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "SkillsAgent"
+      display_name: "Skills Demo Agent"
+      model: *planning_model
+
+      instruction: |
+        You are a helpful assistant with access to specialized skills.
+
+        When a user's request matches a skill's description, activate that skill
+        using the activate_skill tool. Once activated, you'll receive detailed
+        instructions and possibly additional tools for that task.
+
+        Available skill categories:
+        - Code review and quality assessment
+        - Data formatting and transformation
+
+        Be proactive about activating relevant skills - they provide you with
+        expert knowledge and tools for specific tasks.
+
+      # Tools available to this agent
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      # Skills configuration - this is the new feature!
+      skills:
+        # Paths to scan for skill directories
+        # Each path is scanned for subdirectories containing SKILL.md files
+        paths:
+          - ./examples/skills
+        # Whether to recursively search for skills in nested directories
+        auto_discover: true
+
+      # Session and artifact configuration
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT"
+
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      # Agent card for discovery
+      agent_card:
+        description: |
+          A demonstration agent showcasing the skills feature. This agent can
+          dynamically load specialized skills for code review, data formatting,
+          and other tasks. Ask it to review code or format data to see skills
+          in action.
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: skills_demo
+            name: Skills Demo
+            description: "Demonstrates dynamic skill loading"
+            examples:
+              - "Review this code for issues"
+              - "Format this JSON as a table"
+              - "Convert this data to CSV"
+
+      # Discovery settings
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+      inter_agent_communication:
+        allow_list: ["*"]
+        request_timeout_seconds: 120

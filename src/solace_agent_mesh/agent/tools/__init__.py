@@ -14,3 +14,6 @@ from . import web_tools
 from . import time_tools
 from . import test_tools
 from . import dynamic_tool
+
+# Import skills module to register activate_skill tool
+from ..skills import activate_skill_tool  # noqa: F401

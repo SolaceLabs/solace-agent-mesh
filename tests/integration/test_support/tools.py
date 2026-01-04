@@ -34,6 +34,39 @@ async def get_weather_tool(
         }
 
 
+def echo_tool(message: str) -> Dict[str, Any]:
+    """
+    A simple echo tool for testing skill tools.
+
+    Args:
+        message: The message to echo back.
+
+    Returns:
+        Dict with the echoed message.
+    """
+    return {"status": "success", "echoed_message": message}
+
+
+async def async_echo_tool(
+    message: str,
+    tool_context: Optional[ToolContext] = None,
+) -> Dict[str, Any]:
+    """
+    An async echo tool for testing skill tools with tool_context injection.
+
+    Args:
+        message: The message to echo back.
+        tool_context: Optional tool context (will be injected by SkillTool).
+
+    Returns:
+        Dict with the echoed message and context info.
+    """
+    result = {"status": "success", "echoed_message": message}
+    if tool_context:
+        result["has_context"] = True
+    return result
+
+
 # Import hooks to make them available in this module's namespace for the framework
 from tests.integration.test_support.dynamic_tools.lifecycle_yaml_hooks import (
     yaml_init_hook,

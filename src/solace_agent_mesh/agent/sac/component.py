@@ -261,6 +261,7 @@ class SamAgentComponent(SamComponentBase):
         self.active_tasks: Dict[str, "TaskExecutionContext"] = {}
         self.active_tasks_lock = threading.Lock()
         self._tool_cleanup_hooks: List[Callable] = []
+        self._skill_catalog: Dict[str, Any] = {}  # Maps skill name to SkillCatalogEntry
         self._agent_system_instruction_string: Optional[str] = None
         self._agent_system_instruction_callback: Optional[
             Callable[[CallbackContext, LlmRequest], Optional[str]]
@@ -1049,6 +1050,116 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                     e,
                 )
+        return None
+
+    def _inject_skill_tools_callback(
+        self, callback_context: CallbackContext, llm_request: LlmRequest
+    ) -> Optional[LlmResponse]:
+        """
+        ADK before_model_callback to dynamically add activated skill tools
+        and generate skill context instructions.
+
+        This callback:
+        1. Generates skill catalog instructions (so agent knows what skills are available)
+        2. Checks for activated skills in the task context
+        3. Adds activated skill tools to the LLM request
+        4. Stores skill instructions in callback state for later injection
+        """
+        log.debug("%s Running _inject_skill_tools_callback...", self.log_identifier)
+
+        # Check if we have any skills configured
+        if not self._skill_catalog:
+            return None
+
+        # Generate skill catalog instructions first (always, so agent knows what's available)
+        from ...agent.skills import generate_skill_catalog_instructions
+
+        catalog_instructions = generate_skill_catalog_instructions(self._skill_catalog)
+        if catalog_instructions:
+            # Store for inject_dynamic_instructions_callback to pick up
+            existing_skill_instructions = callback_context.state.get("skill_instructions", "")
+            if existing_skill_instructions:
+                callback_context.state["skill_instructions"] = (
+                    existing_skill_instructions + "\n\n" + catalog_instructions
+                )
+            else:
+                callback_context.state["skill_instructions"] = catalog_instructions
+
+        # Now check for activated skills (requires task context)
+        a2a_context = callback_context.state.get("a2a_context", {})
+        logical_task_id = a2a_context.get("logical_task_id") if isinstance(a2a_context, dict) else None
+
+        if not logical_task_id:
+            return None
+
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+
+        if not task_context:
+            return None
+
+        # Check for activated skills
+        activated_skills = getattr(task_context, "_activated_skills", {})
+        if not activated_skills:
+            return None
+
+        # Build activated skill instructions and collect tools
+        skill_instructions = []
+        skill_tools_to_add = []
+
+        for skill_name, skill_data in sorted(activated_skills.items()):
+            # Add skill content to instructions
+            skill_instructions.append(
+                f"## Activated Skill: {skill_name}\n\n{skill_data.full_content}"
+            )
+
+            # Collect tools to inject
+            for tool in skill_data.tools:
+                if tool.name not in llm_request.tools_dict:
+                    skill_tools_to_add.append(tool)
+
+        # Append activated skill instructions
+        if skill_instructions:
+            activated_instructions = (
+                "# Activated Skills Context\n\n"
+                "The following skills have been activated and their context is available:\n\n"
+                + "\n\n---\n\n".join(skill_instructions)
+            )
+            existing = callback_context.state.get("skill_instructions", "")
+            callback_context.state["skill_instructions"] = (
+                existing + "\n\n" + activated_instructions if existing else activated_instructions
+            )
+
+        # Inject tools into LLM request
+        if skill_tools_to_add:
+            try:
+                if llm_request.config.tools is None:
+                    llm_request.config.tools = []
+
+                for tool in skill_tools_to_add:
+                    declaration = tool._get_declaration()
+                    if declaration:
+                        llm_request.tools_dict[tool.name] = tool
+                        if llm_request.config.tools:
+                            llm_request.config.tools[0].function_declarations.append(
+                                declaration
+                            )
+                        else:
+                            llm_request.append_tools([tool])
+
+                log.info(
+                    "%s Injected %d skill tools into LLM request: %s",
+                    self.log_identifier,
+                    len(skill_tools_to_add),
+                    [t.name for t in skill_tools_to_add],
+                )
+            except Exception as e:
+                log.error(
+                    "%s Failed to inject skill tools: %s",
+                    self.log_identifier,
+                    e,
+                )
+
         return None
 
     def _filter_tools_by_capability_callback(
@@ -3167,6 +3278,51 @@ class SamAgentComponent(SamComponentBase):
                 enabled_builtin_tools,
                 self._tool_cleanup_hooks,
             ) = await load_adk_tools(self)
+
+            # Load skill catalog if configured
+            skills_config = self.get_config("skills")
+            if skills_config:
+                from ...agent.skills import scan_skill_directories
+                from ...agent.skills.activate_skill_tool import activate_skill_tool_def
+                from ...agent.adk.tool_wrapper import ADKToolWrapper
+
+                skill_paths = skills_config.get("paths", [])
+                auto_discover = skills_config.get("auto_discover", True)
+                if skill_paths:
+                    # Get app_base_path from parent app's config
+                    app_base_path = None
+                    if self.get_app() and hasattr(self.get_app(), "app_info"):
+                        app_base_path = self.get_app().app_info.get("app_base_path")
+
+                    self._skill_catalog = scan_skill_directories(
+                        paths=skill_paths,
+                        base_path=app_base_path,
+                        auto_discover=auto_discover,
+                    )
+                    log.info(
+                        "%s Loaded skill catalog with %d skills: %s",
+                        self.log_identifier,
+                        len(self._skill_catalog),
+                        list(self._skill_catalog.keys()),
+                    )
+
+                    # Add activate_skill tool if skills were found
+                    if self._skill_catalog:
+                        tool_callable = ADKToolWrapper(
+                            activate_skill_tool_def.implementation,
+                            None,
+                            activate_skill_tool_def.name,
+                            origin="skills",
+                        )
+                        tool_callable.__doc__ = activate_skill_tool_def.description
+                        loaded_tools.append(tool_callable)
+                        enabled_builtin_tools.append(activate_skill_tool_def)
+                        log.info(
+                            "%s Added activate_skill tool for %d available skills",
+                            self.log_identifier,
+                            len(self._skill_catalog),
+                        )
+
             log.info(
                 "%s Initializing ADK Agent/Runner asynchronously in dedicated thread...",
                 self.log_identifier,

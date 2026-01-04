@@ -118,6 +118,19 @@ class InterAgentCommunicationConfig(SamConfigBase):
     )
 
 
+class SkillsConfig(SamConfigBase):
+    """Configuration for agent skills."""
+
+    paths: List[str] = Field(
+        default_factory=list,
+        description="Paths to scan for skill directories (relative or absolute).",
+    )
+    auto_discover: bool = Field(
+        default=True,
+        description="Whether to recursively scan subdirectories for skills.",
+    )
+
+
 class AgentInitCleanupConfig(SamConfigBase):
     """Configuration for custom agent initialization or cleanup functions."""
 
@@ -408,6 +421,10 @@ class SamAgentAppConfig(SamConfigBase):
     inter_agent_communication: InterAgentCommunicationConfig = Field(
         default_factory=InterAgentCommunicationConfig,
         description="Configuration for interacting with peer agents.",
+    )
+    skills: Optional[SkillsConfig] = Field(
+        default=None,
+        description="Configuration for loading agent skills.",
     )
     inject_system_purpose: bool = Field(
         default=False,

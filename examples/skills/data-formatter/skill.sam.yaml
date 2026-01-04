@@ -1,0 +1,54 @@
+# SAM Tools for the data-formatter skill
+# These tools provide data formatting capabilities
+
+tools:
+  - tool_type: python
+    component_module: examples.skills.data_formatter_tools
+    function_name: format_as_table
+    name: format_as_table
+    description: Formats structured data as an ASCII table for display
+    parameters:
+      properties:
+        data:
+          type: string
+          description: JSON string containing an array of objects to format as a table
+        title:
+          type: string
+          description: Optional title for the table
+          nullable: true
+      required:
+        - data
+
+  - tool_type: python
+    component_module: examples.skills.data_formatter_tools
+    function_name: format_as_json
+    name: format_as_json
+    description: Formats data as pretty-printed JSON with proper indentation
+    parameters:
+      properties:
+        data:
+          type: string
+          description: Data to format as JSON (can be JSON string or other structured text)
+        indent:
+          type: integer
+          description: Number of spaces for indentation (default 2)
+          nullable: true
+      required:
+        - data
+
+  - tool_type: python
+    component_module: examples.skills.data_formatter_tools
+    function_name: format_as_csv
+    name: format_as_csv
+    description: Converts structured data to CSV format
+    parameters:
+      properties:
+        data:
+          type: string
+          description: JSON string containing an array of objects to convert to CSV
+        include_header:
+          type: boolean
+          description: Whether to include column headers (default true)
+          nullable: true
+      required:
+        - data
