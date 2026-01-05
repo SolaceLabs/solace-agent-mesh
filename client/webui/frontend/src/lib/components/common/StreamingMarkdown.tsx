@@ -14,7 +14,7 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
     const state = useRef({
         cursor: isStreaming ? 0 : content.length,
         speed: 0.03, // Initial conservative speed (30 chars/sec)
-        lastArrivalTime: Date.now(),
+        lastArrivalTime: 0, // Initialize to 0 to detect first chunk
         avgInterval: 500, // Estimate 500ms between chunks initially
         lastLen: isStreaming ? 0 : content.length,
         // Performance metrics
@@ -41,12 +41,14 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
             if (s.stats.chunks > 0) {
                 const totalTime = s.stats.renderTime + s.stats.pauseTime;
                 const percentPaused = totalTime > 0 ? ((s.stats.pauseTime / totalTime) * 100).toFixed(1) : "0.0";
-                const avgArrival = (s.stats.totalInterval / s.stats.chunks).toFixed(0);
+                
+                const numIntervals = Math.max(0, s.stats.chunks - 1);
+                const avgArrival = numIntervals > 0 ? (s.stats.totalInterval / numIntervals).toFixed(0) : "0";
                 const avgChunkSize = (s.stats.totalChars / s.stats.chunks).toFixed(1);
                 
                 console.log(
                     `[StreamingMarkdown Stats] Chunks: ${s.stats.chunks}, ` +
-                    `Avg Interval: ${avgArrival}ms (Range: ${s.stats.minInterval.toFixed(0)}-${s.stats.maxInterval.toFixed(0)}ms), ` +
+                    `Avg Interval: ${avgArrival}ms (Range: ${s.stats.minInterval === Infinity ? 0 : s.stats.minInterval.toFixed(0)}-${s.stats.maxInterval.toFixed(0)}ms), ` +
                     `Avg Jitter: ${s.stats.avgJitter.toFixed(0)}ms, ` +
                     `Avg Chunk: ${avgChunkSize} chars, Max Backlog: ${s.stats.maxBacklog}, ` +
                     `Render Time: ${s.stats.renderTime.toFixed(0)}ms, ` +
@@ -66,39 +68,50 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
             const added = content.length - s.lastLen;
             
             if (added > 0) {
-                // Calculate time since last chunk
-                let dt = now - s.lastArrivalTime;
-                
-                // Update stats
+                // Update basic stats
                 s.stats.chunks++;
-                s.stats.totalInterval += dt;
                 s.stats.totalChars += added;
-                s.stats.minInterval = Math.min(s.stats.minInterval, dt);
-                s.stats.maxInterval = Math.max(s.stats.maxInterval, dt);
+                
+                if (s.lastArrivalTime === 0) {
+                    // First chunk received
+                    s.lastArrivalTime = now;
+                    // No interval to calculate yet
+                } else {
+                    // Calculate time since last chunk
+                    let dt = now - s.lastArrivalTime;
+                    
+                    // Update stats
+                    s.stats.totalInterval += dt;
+                    s.stats.minInterval = Math.min(s.stats.minInterval, dt);
+                    s.stats.maxInterval = Math.max(s.stats.maxInterval, dt);
 
-                const jitter = Math.abs(dt - s.avgInterval);
-                s.stats.avgJitter = s.stats.avgJitter * 0.8 + jitter * 0.2;
+                    const jitter = Math.abs(dt - s.avgInterval);
+                    s.stats.avgJitter = s.stats.avgJitter * 0.8 + jitter * 0.2;
 
-                // Safety: Clamp dt to avoid extreme spikes from jitter or initial mount
-                dt = Math.max(20, Math.min(5000, dt));
+                    // Safety: Clamp dt to avoid extreme spikes from jitter or initial mount
+                    dt = Math.max(20, Math.min(5000, dt));
 
-                // Update moving average of inter-arrival time
-                // Use a slower alpha for very fast chunks (likely bunched) to prevent speed spikes
-                const alpha = dt < 200 ? 0.05 : 0.2;
-                s.avgInterval = s.avgInterval * (1 - alpha) + dt * alpha;
+                    // Update moving average of inter-arrival time
+                    const alpha = dt < 200 ? 0.05 : 0.2;
+                    s.avgInterval = s.avgInterval * (1 - alpha) + dt * alpha;
+                    
+                    s.lastArrivalTime = now;
+                }
 
                 // Calculate target speed based on clearing the TOTAL backlog over the next interval (+50% buffer)
                 const backlog = content.length - s.cursor;
                 // Increased safety factor to 1.5 to better bridge jittery gaps
                 const targetSpeed = backlog / (s.avgInterval * 1.5);
 
-                // Update current speed with very high momentum for smooth transitions
-                s.speed = s.speed * 0.9 + targetSpeed * 0.1;
+                // Update current speed smoothly
+                // If we need to speed up, do it faster (react to burst). 
+                // If slowing down, do it gradually.
+                const momentum = targetSpeed > s.speed ? 0.5 : 0.8;
+                s.speed = s.speed * momentum + targetSpeed * (1 - momentum);
                 
                 // Hard clamps to keep it sane
                 s.speed = Math.max(0.005, Math.min(3.0, s.speed));
 
-                s.lastArrivalTime = now;
                 s.lastLen = content.length;
             }
         }
