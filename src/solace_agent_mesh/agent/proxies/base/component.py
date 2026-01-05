@@ -412,6 +412,13 @@ class BaseProxyComponent(ComponentBase, ABC):
             for agent_config in self.proxied_agents_config:
                 agent_alias = agent_config["name"]
                 agent_url = agent_config.get("url")
+                agent_card_path = agent_config.get("agent_card_path", "/.well-known/agent-card.json")
+                log.debug(
+                    "%s Agent '%s': agent_card_path from config = %s",
+                    self.log_identifier,
+                    agent_alias,
+                    agent_card_path,
+                )
                 if not agent_url:
                     log.error(
                         "%s Skipping agent '%s' in initial discovery: no URL configured.",
@@ -420,8 +427,58 @@ class BaseProxyComponent(ComponentBase, ABC):
                     )
                     continue
                 try:
+                    # Build headers for synchronous initial discovery
+                    # Note: OAuth2 is not supported in sync discovery, only static auth
+                    headers = {}
+                    use_auth = agent_config.get("use_auth_for_agent_card", False)
+
+                    if use_auth:
+                        auth_config = agent_config.get("authentication")
+                        if auth_config:
+                            auth_type = auth_config.get("type")
+                            if not auth_type:
+                                # Backward compatibility
+                                scheme = auth_config.get("scheme", "bearer")
+                                auth_type = "static_bearer" if scheme == "bearer" else "static_apikey"
+
+                            if auth_type == "static_bearer":
+                                token = auth_config.get("token")
+                                if token:
+                                    headers["Authorization"] = f"Bearer {token}"
+                            elif auth_type == "static_apikey":
+                                token = auth_config.get("token")
+                                if token:
+                                    headers["X-API-Key"] = token
+                            elif auth_type in ("oauth2_client_credentials", "oauth2_authorization_code"):
+                                log.warning(
+                                    "%s OAuth2 authentication is not supported during initial sync discovery. "
+                                    "Agent '%s' will be discovered during periodic async discovery.",
+                                    self.log_identifier,
+                                    agent_alias,
+                                )
+                                continue
+
+                    # Add custom headers (override auth headers)
+                    custom_headers = agent_config.get("agent_card_headers")
+                    if custom_headers:
+                        for header_config in custom_headers:
+                            header_name = header_config.get("name")
+                            header_value = header_config.get("value")
+                            if header_name and header_value:
+                                headers[header_name] = header_value
+
+                    if headers:
+                        log.debug(
+                            "%s Fetching agent card with %d custom header(s) (auth=%s)",
+                            self.log_identifier,
+                            len(headers),
+                            use_auth,
+                        )
+                    else:
+                        log.debug("%s Fetching agent card without authentication", self.log_identifier)
+
                     # Use a synchronous client for this initial blocking call
-                    response = client.get(f"{agent_url}/.well-known/agent-card.json")
+                    response = client.get(f"{agent_url}{agent_card_path}", headers=headers)
                     response.raise_for_status()
                     agent_card = AgentCard.model_validate(response.json())
 
