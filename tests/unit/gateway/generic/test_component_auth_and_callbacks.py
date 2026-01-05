@@ -39,50 +39,8 @@ def sample_agent_card():
         ],
     )
 
-
-class TestGenericGatewaySetupAuth:
-    """Test _setup_auth method in GenericGatewayComponent."""
-
-    def test_setup_auth_checks_adapter_config(self):
-        """Test that _setup_auth checks adapter_config for enable_auth."""
-        # This test verifies the logic path but cannot fully test
-        # GenericGatewayComponent without full initialization
-        pass  # Covered by integration tests
-
-    def test_setup_auth_without_adapter_config(self):
-        """Test _setup_auth when adapter_config is not yet set."""
-        # The method should exit early if adapter_config is not available
-        pass  # Covered by integration tests
-
-    def test_setup_auth_with_enable_auth_false(self):
-        """Test _setup_auth when enable_auth is False."""
-        # Should not initialize auth_handler
-        pass  # Covered by integration tests
-
-    def test_setup_auth_with_enable_auth_true_no_enterprise(self):
-        """Test _setup_auth when enable_auth is True but enterprise not available."""
-        # Should log warning and not set auth_handler
-        pass  # Covered by integration tests
-
-    @pytest.mark.skipif(not ENTERPRISE_AUTH_AVAILABLE, reason="Enterprise package not available")
-    def test_setup_auth_with_enable_auth_true_with_enterprise(self):
-        """Test _setup_auth when enable_auth is True and enterprise is available."""
-        # Should initialize SAMOAuth2Handler
-        pass  # Covered by integration tests with enterprise package
-
-
 class TestGenericGatewayAgentRegistryCallbacks:
     """Test agent registry callback wiring in GenericGatewayComponent."""
-
-    def test_on_agent_added_callback_registered(self):
-        """Test that _on_agent_added callback is registered with agent_registry."""
-        # Verify during component initialization
-        pass  # Covered by integration tests
-
-    def test_on_agent_removed_callback_registered(self):
-        """Test that _on_agent_removed callback is registered with agent_registry."""
-        # Verify during component initialization
-        pass  # Covered by integration tests
 
     def test_on_agent_added_calls_adapter_handler(self, sample_agent_card):
         """Test that _on_agent_added calls adapter.handle_agent_registered."""
@@ -235,60 +193,6 @@ class TestGenericGatewayListAgents:
         assert len(agents) == 0
 
 
-class TestGenericGatewayGetUserIdentity:
-    """Test get_user_identity method in GenericGatewayComponent."""
-
-    @pytest.mark.asyncio
-    async def test_get_user_identity_basic_flow(self):
-        """Test basic user identity extraction flow."""
-        # This is a complex integration test
-        # The method delegates to adapter and identity service
-        pass  # Covered by integration tests
-
-    @pytest.mark.asyncio
-    async def test_get_user_identity_with_enterprise_auth(self):
-        """Test get_user_identity when enterprise auth is available."""
-        # Should use enterprise authenticate_request
-        pass  # Covered by integration tests with enterprise package
-
-    @pytest.mark.asyncio
-    async def test_get_user_identity_fallback_to_adapter_auth(self):
-        """Test get_user_identity falls back to adapter auth when enterprise unavailable."""
-        # Should use adapter.extract_auth_claims
-        pass  # Covered by integration tests
-
-
-class TestGenericGatewaySessionBehavior:
-    """Test session_behavior handling in GenericGatewayComponent."""
-
-    @pytest.mark.asyncio
-    async def test_handle_external_input_passes_session_behavior(self):
-        """Test that session_behavior from SamTask is passed to external_request_context."""
-        # This tests the integration between adapter and component
-        pass  # Covered by integration tests
-
-    @pytest.mark.asyncio
-    async def test_session_behavior_in_a2a_metadata(self):
-        """Test that session_behavior is added to a2a_metadata."""
-        # Verify sessionBehavior is set in a2a metadata
-        pass  # Covered by integration tests
-
-
-class TestGenericGatewayListAgentsContext:
-    """Test list_agents as part of GatewayContext."""
-
-    def test_list_agents_available_in_gateway_context(self):
-        """Test that list_agents is available through GatewayContext."""
-        # GenericGatewayComponent implements GatewayContext
-        # list_agents should be callable from adapter
-        pass  # Covered by integration tests
-
-    def test_adapter_can_call_list_agents(self):
-        """Test that adapters can call context.list_agents()."""
-        # Verify adapters have access to list_agents via context
-        pass  # Covered by integration tests
-
-
 class TestEnterpriseAuthAvailability:
     """Test enterprise auth availability flag."""
 
@@ -308,26 +212,6 @@ class TestEnterpriseAuthAvailability:
         """Test that SAMOAuth2Handler is available when enterprise is installed."""
         from solace_agent_mesh.gateway.generic.component import SAMOAuth2Handler
         assert SAMOAuth2Handler is not None
-
-
-class TestAdapterConfigHandling:
-    """Test adapter_config handling in _setup_auth."""
-
-    def test_setup_auth_with_dict_adapter_config(self):
-        """Test _setup_auth when adapter_config is a dict."""
-        # Should use .get() to access enable_auth
-        pass  # Covered by integration tests
-
-    def test_setup_auth_with_pydantic_adapter_config(self):
-        """Test _setup_auth when adapter_config is a Pydantic model."""
-        # Should use getattr() to access enable_auth
-        pass  # Covered by integration tests
-
-    def test_setup_auth_constructs_callback_url(self):
-        """Test _setup_auth constructs callback_url from host/port."""
-        # When callback_url not provided, should construct from host and port
-        pass  # Covered by integration tests
-
 
 class TestAgentCallbackThreadSafety:
     """Test thread safety of agent registry callbacks."""

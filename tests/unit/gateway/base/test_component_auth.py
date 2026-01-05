@@ -46,24 +46,6 @@ def mock_config():
         }
     }
 
-
-class TestBaseGatewayComponentSetupAuth:
-    """Test _setup_auth method in BaseGatewayComponent."""
-
-    def test_setup_auth_default_implementation(self, mock_config):
-        """Test that default _setup_auth does nothing."""
-        # BaseGatewayComponent cannot be instantiated directly
-        # We test through subclass behavior
-        # The default implementation should not set auth_handler
-        pass  # Covered by integration with GenericGateway
-
-    def test_auth_handler_attribute_exists(self, mock_config):
-        """Test that auth_handler attribute is initialized."""
-        # This is tested through the initialization of BaseGatewayComponent
-        # auth_handler should be None by default
-        pass  # Covered by integration tests
-
-
 class TestInjectAuthHeaders:
     """Test _inject_auth_headers method."""
 
@@ -226,21 +208,6 @@ class TestInjectAuthHeaders:
         assert result["X-API-Key"] == "api-key-456"
         assert result["X-Client-ID"] == "client-789"
         assert result["Content-Type"] == "application/json"
-
-
-class TestSessionBehaviorInMetadata:
-    """Test that session_behavior is added to a2a_metadata."""
-
-    def test_session_behavior_added_to_metadata(self):
-        """Test that sessionBehavior is added to a2a_metadata when provided."""
-        # This would be tested in integration tests with actual component
-        # The logic is in BaseGatewayComponent's task submission
-        pass  # Covered by integration tests
-
-    def test_session_behavior_not_added_when_absent(self):
-        """Test that sessionBehavior is not added when not in request context."""
-        # This would be tested in integration tests
-        pass  # Covered by integration tests
 
 
 class TestAuthHandlerIntegration:
