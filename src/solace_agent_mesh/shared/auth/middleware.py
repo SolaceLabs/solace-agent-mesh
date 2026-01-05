@@ -221,6 +221,10 @@ def create_oauth_middleware(component):
             """
             Handle authentication for a request.
 
+            Supports both sam_access_token (new) and IdP access_token (existing)
+            for backwards compatibility. Tries sam_access_token validation first
+            (fast, local JWT verification), then falls back to IdP validation.
+
             Returns:
                 True if an error response was sent (caller should not continue),
                 False if authentication succeeded (caller should proceed with app).
@@ -239,6 +243,51 @@ def create_oauth_middleware(component):
                 await response(scope, receive, send)
                 return True
 
+            # Try sam_access_token validation first (fast, local JWT verification)
+            # This is an enterprise feature - trust_manager and authorization_service
+            # are set on the component by enterprise initialization code.
+            # If not present, we safely skip to IdP validation.
+            trust_manager = getattr(self.component, "trust_manager", None)
+            authorization_service = getattr(self.component, "authorization_service", None)
+
+            if trust_manager and getattr(trust_manager.config, "access_token_enabled", False):
+                try:
+                    # Validate as sam_access_token using trust_manager (no task_id binding)
+                    claims = trust_manager.verify_user_claims_without_task_binding(access_token)
+
+                    # Success! It's a valid sam_access_token
+                    # Extract roles from token, resolve scopes at request time
+                    roles = claims.get("roles", [])
+                    scopes = []
+                    if authorization_service:
+                        # Use existing get_scopes_for_user with roles param to skip role lookup
+                        scopes = await authorization_service.get_scopes_for_user(
+                            user_identity=claims["sub"],
+                            gateway_context={},
+                            roles=roles,
+                        )
+
+                    request.state.user = {
+                        "id": claims["sub"],
+                        "email": claims.get("email", claims["sub"]),
+                        "name": claims.get("name", claims["sub"]),
+                        "authenticated": True,
+                        "auth_method": "sam_access_token",
+                        "roles": roles,
+                        "scopes": scopes,
+                    }
+                    log.debug(
+                        f"AuthMiddleware: Validated sam_access_token for user '{claims['sub']}' "
+                        f"with roles={roles}, resolved scopes={len(scopes)}"
+                    )
+                    return False  # Success - continue to app
+
+                except Exception as e:
+                    # Not a sam_access_token or verification failed
+                    # Fall through to IdP token validation below
+                    log.debug(f"AuthMiddleware: Token is not a sam_access_token: {e}")
+
+            # EXISTING: Fall back to IdP token validation (unchanged logic)
             auth_service_url = getattr(self.component, "external_auth_service_url", None)
             auth_provider = getattr(self.component, "external_auth_provider", "generic")
 
