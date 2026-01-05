@@ -57,7 +57,7 @@ apps:
           group_name: "data_analysis"
         - tool_type: builtin
           tool_name: "get_current_time"
-      stream_batching_threshold_bytes: 50
+      stream_batching_threshold_bytes: 200
       inject_system_purpose: true
       inject_response_format: true
       max_llm_calls_per_task: 25 # Limit the number of LLM calls per task to prevent excessive usage

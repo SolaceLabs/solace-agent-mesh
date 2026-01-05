@@ -7,3 +7,4 @@ export { LoadingBlocker } from "./LoadingBlocker";
 export { MarkdownHTMLConverter } from "./MarkdownHTMLConverter";
 export { MessageBanner } from "./MessageBanner";
 export * from "./messageColourVariants";
+export { StreamingMarkdown } from "./StreamingMarkdown";

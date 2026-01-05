@@ -33,6 +33,7 @@ type ArtifactMessageProps = (
 ) & {
     context?: "chat" | "list";
     uniqueKey?: string; // Optional unique key for expansion state (e.g., taskId-filename)
+    isStreaming?: boolean;
 };
 
 export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
@@ -47,6 +48,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     const artifact = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
     const context = props.context || "chat";
+    const isStreaming = props.isStreaming;
 
     // Check if this artifact is from a project (should not be deletable)
     const isProjectArtifact = artifact?.source === "project";
@@ -398,7 +400,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                             }}
                             className={isImage ? "drop-shadow-md" : ""}
                         >
-                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment?.mime_type} setRenderError={setRenderError} />
+                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment?.mime_type} setRenderError={setRenderError} isStreaming={isStreaming} />
                         </div>
                         <ArtifactTransitionOverlay isVisible={isDownloading} message="Resolving embeds..." />
                     </div>

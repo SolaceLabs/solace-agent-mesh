@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { AlertCircle, ThumbsDown, ThumbsUp } from "lucide-react";
 
-import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } from "@/lib/components";
+import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner, StreamingMarkdown } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
@@ -82,7 +82,7 @@ const MessageActions: React.FC<{
     );
 };
 
-const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
+const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>(({ message, isStreaming }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
     const { sessionId } = useChatContext();
 
@@ -108,7 +108,7 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
 
         const embeddedContent = extractEmbeddedContent(displayText);
         if (embeddedContent.length === 0) {
-            return <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
+            return isStreaming ? <StreamingMarkdown content={displayText} isStreaming={true} /> : <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
         }
 
         let modifiedText = displayText;
@@ -142,7 +142,7 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
         return (
             <div>
                 {renderError && <MessageBanner variant="error" message="Error rendering preview" />}
-                <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>
+                {isStreaming ? <StreamingMarkdown content={modifiedText} isStreaming={true} /> : <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>}
                 {contentElements}
             </div>
         );
@@ -177,7 +177,7 @@ const getUploadedFiles = (message: MessageFE) => {
     return null;
 };
 
-const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
+const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean, isStreaming?: boolean) => {
     const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
 
     if (message.isStatusBubble) {
@@ -224,7 +224,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     };
 
     // Helper function to render artifact/file parts
-    const renderArtifactOrFilePart = (part: ArtifactPart | FilePart, index: number) => {
+    const renderArtifactOrFilePart = (part: ArtifactPart | FilePart, index: number, isStreamingPart?: boolean) => {
         // Create unique key for expansion state using taskId (or messageId) + filename
         const uniqueKey = message.taskId
             ? `${message.taskId}-${part.kind === "file" ? (part as FilePart).file.name : (part as ArtifactPart).name}`
@@ -252,7 +252,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                 case "completed":
                     return <ArtifactMessage key={`part-artifact-${index}`} status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} uniqueKey={uniqueKey} />;
                 case "in-progress":
-                    return <ArtifactMessage key={`part-artifact-${index}`} status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} uniqueKey={uniqueKey} />;
+                    return <ArtifactMessage key={`part-artifact-${index}`} status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} uniqueKey={uniqueKey} isStreaming={isStreamingPart} />;
                 case "failed":
                     return <ArtifactMessage key={`part-artifact-${index}`} status="failed" name={artifactPart.name} error={artifactPart.error} uniqueKey={uniqueKey} />;
                 default:
@@ -271,6 +271,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
             {/* Render parts in their original order to preserve interleaving */}
             {groupedParts.map((part, index) => {
                 const isLastPart = index === lastPartIndex;
+                const shouldStream = isStreaming && isLastPart;
 
                 if (part.kind === "text") {
                     // Skip rendering empty or whitespace-only text parts
@@ -290,14 +291,14 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                     return (
                         <ChatBubble key={`part-${index}`} variant={variant}>
                             <ChatBubbleMessage variant={variant}>
-                                <MessageContent message={{ ...message, parts: [{ kind: "text", text: textContent }] }} />
+                                <MessageContent message={{ ...message, parts: [{ kind: "text", text: textContent }] }} isStreaming={shouldStream} />
                                 {/* Show actions on the last part if it's text */}
                                 {isLastPart && <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />}
                             </ChatBubbleMessage>
                         </ChatBubble>
                     );
                 } else if (part.kind === "artifact" || part.kind === "file") {
-                    return renderArtifactOrFilePart(part, index);
+                    return renderArtifactOrFilePart(part, index, shouldStream);
                 }
                 return null;
             })}
@@ -318,7 +319,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
         </div>
     );
 };
-export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean }> = ({ message, isLastWithTaskId }) => {
+export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean; isStreaming?: boolean }> = ({ message, isLastWithTaskId, isStreaming }) => {
     const chatContext = useChatContext();
 
     if (!message) {
@@ -326,7 +327,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     }
     return (
         <>
-            {getChatBubble(message, chatContext, isLastWithTaskId)}
+            {getChatBubble(message, chatContext, isLastWithTaskId, isStreaming)}
             {getUploadedFiles(message)}
         </>
     );
