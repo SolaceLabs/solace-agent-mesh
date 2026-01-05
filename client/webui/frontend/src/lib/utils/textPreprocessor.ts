@@ -82,3 +82,20 @@ export function extractBase64Images(text: string): Array<{
 
     return images;
 }
+
+/**
+ * Escapes markdown special characters in text to prevent unintended formatting.
+ * This is useful when including user-selected text as context in messages,
+ * where characters like ~ (strikethrough), * (bold/italic), etc. should be literal.
+ * @param text - The text to escape
+ * @returns Text with markdown special characters escaped
+ */
+export function escapeMarkdown(text: string): string {
+    if (!text || typeof text !== "string") {
+        return text || "";
+    }
+
+    // Escape markdown special characters by prefixing with backslash
+    // Characters: \ ` * _ { } [ ] ( ) # + - . ! | ~
+    return text.replace(/([\\`*_{}[\]()#+\-.!|~])/g, "\\$1");
+}

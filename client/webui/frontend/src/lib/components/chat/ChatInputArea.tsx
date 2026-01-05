@@ -16,7 +16,7 @@ import { AudioRecorder } from "./AudioRecorder";
 import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
 import { VariableDialog } from "./VariableDialog";
 import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage, escapeMarkdown } from "@/lib/utils";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     switch (command) {
@@ -196,7 +196,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 if (autoSubmit) {
                     // Small delay to ensure state is updated
                     setTimeout(async () => {
-                        const fullMessage = `${prompt}\n\nContext: "${text}"`;
+                        const fullMessage = `${prompt}\n\nContext: "${escapeMarkdown(text)}"`;
                         const fakeEvent = new Event("submit") as unknown as FormEvent;
                         await handleSubmit(fakeEvent, [], fullMessage);
                         setContextText(null);
@@ -327,7 +327,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         if (isSubmittingEnabled) {
             let fullMessage = inputValue.trim();
             if (contextText && showContextBadge) {
-                fullMessage = `Context: "${contextText}"\n\n${fullMessage}`;
+                fullMessage = `Context: "${escapeMarkdown(contextText)}"\n\n${fullMessage}`;
             }
 
             // Upload all pending pasted text items as artifacts, then create references
@@ -567,10 +567,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             {/* Context Text Badge (from text selection) */}
             {showContextBadge && contextText && (
-                <div className="mb-2">
-                    <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                <div className="mb-2 overflow-hidden">
+                    <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm">
                         <MessageSquarePlus className="text-muted-foreground h-4 w-4 flex-shrink-0" />
-                        <span className="text-muted-foreground truncate italic">"{contextText}"</span>
+                        <span className="text-muted-foreground min-w-0 flex-1 truncate italic">"{contextText}"</span>
                         <Button
                             variant="ghost"
                             className="h-5 w-5 shrink-0"
