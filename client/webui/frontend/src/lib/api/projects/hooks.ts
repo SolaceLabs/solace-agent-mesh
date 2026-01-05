@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateProjectRequest, Project, UpdateProjectData } from "@/lib/types/projects";
 import { projectKeys } from "./keys";
 import * as projectService from "./service";
@@ -10,7 +10,6 @@ export function useProjects() {
     return useQuery({
         queryKey: projectKeys.lists(),
         queryFn: projectService.getProjects,
-        staleTime: 1000 * 60 * 5, // 5 minutes
     });
 }
 
@@ -19,10 +18,8 @@ export function useProjects() {
  */
 export function useProjectArtifacts(projectId: string | null) {
     return useQuery({
-        queryKey: projectId ? projectKeys.artifacts(projectId) : ["projects", "artifacts", "null"],
-        queryFn: () => (projectId ? projectService.getProjectArtifacts(projectId) : Promise.resolve([])),
-        enabled: !!projectId,
-        staleTime: 1000 * 60 * 2, // 2 minutes
+        queryKey: projectId ? projectKeys.artifacts(projectId) : ["projects", "artifacts", "empty"],
+        queryFn: projectId ? () => projectService.getProjectArtifacts(projectId) : skipToken,
     });
 }
 
