@@ -8,60 +8,99 @@ interface StreamingMarkdownProps {
 }
 
 export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, isStreaming, className }) => {
-    // If not streaming initially, just show content. If streaming, start empty (or handle resume if needed).
-    // We trust that if isStreaming is true, it's a new message or we want the effect.
-    // However, for existing messages that re-render, we don't want to restart animation.
-    // Since this component is likely remounted or reused, we need to be careful.
-    // But in the ChatPage list, keys are messageIds, so they are stable.
-    // A new message starts with content="", isStreaming=true.
-    
     const [displayedContent, setDisplayedContent] = useState(isStreaming ? "" : content);
+    
+    // Use refs for mutable state to avoid re-renders during calculations
+    const state = useRef({
+        cursor: isStreaming ? 0 : content.length, // Current float position in displayed text
+        speed: 0.05, // Initial speed: 0.05 chars/ms = 50 chars/sec (approx 20ms per char)
+        lastUpdate: Date.now(),
+        lastLen: isStreaming ? 0 : content.length,
+    });
+
     const contentRef = useRef(content);
 
     useEffect(() => {
         contentRef.current = content;
-    }, [content]);
+        
+        // Adaptive speed calculation
+        if (isStreaming) {
+            const now = Date.now();
+            const s = state.current;
+            const added = content.length - s.lastLen;
+            const dt = now - s.lastUpdate;
+
+            // Only update speed if we received data and some time has passed
+            if (added > 0 && dt > 0) {
+                const instantRate = added / dt;
+                // Smooth the speed update: 70% old, 30% new to reduce jitter
+                // We use a moving average to adapt to the stream rate
+                const newSpeed = s.speed * 0.7 + instantRate * 0.3;
+                
+                // Clamp speed to reasonable human-readable bounds
+                // Min: 0.02 (~20 chars/s) - prevents stalling on slow connections
+                // Max: 1.0 (~1000 chars/s) - prevents epilepsy on huge bursts
+                s.speed = Math.max(0.02, Math.min(1.0, newSpeed));
+            }
+
+            s.lastUpdate = now;
+            s.lastLen = content.length;
+        }
+    }, [content, isStreaming]);
 
     useEffect(() => {
         if (!isStreaming) {
             setDisplayedContent(content);
+            state.current.cursor = content.length;
+            state.current.lastLen = content.length;
             return;
         }
 
         let animationFrameId: number;
-        let lastTime = Date.now();
-        const interval = 20; // ms between updates, ~50fps effectively but controlled speed
+        let lastFrameTime = Date.now();
 
         const animate = () => {
             const now = Date.now();
-            if (now - lastTime >= interval) {
-                setDisplayedContent(prev => {
-                    const target = contentRef.current;
-                    
-                    // Case 1: Target is shorter or different (correction/reset)
-                    if (prev.length > target.length || !target.startsWith(prev)) {
-                        return target;
-                    }
+            const dt = now - lastFrameTime;
+            lastFrameTime = now;
 
-                    // Case 2: Caught up
-                    if (prev.length === target.length) {
-                        return prev;
-                    }
-
-                    // Case 3: Need to append
-                    const remaining = target.length - prev.length;
-                    // Dynamic chunk size: fast catchup if behind, slow typing if close
-                    // If we just got a huge chunk (e.g. 100 chars), we want to show it relatively quickly but smoothly.
-                    // Say we want to process 100 chars in 500ms? That's 0.2 chars/ms.
-                    // With 20ms interval, that's 4 chars per tick.
-                    // Let's use a smoother approach: always type at least 1 char.
-                    // If remaining is large, take a fraction.
-                    const chunkSize = Math.max(1, Math.min(10, Math.ceil(remaining / 5)));
-                    
-                    return target.slice(0, prev.length + chunkSize);
-                });
-                lastTime = now;
+            const s = state.current;
+            const target = contentRef.current;
+            
+            // Correction: If content shrank (reset?), reset cursor
+            if (target.length < s.cursor) {
+                s.cursor = target.length;
             }
+
+            const backlog = target.length - s.cursor;
+
+            if (backlog > 0) {
+                // Base speed from our adaptive rate
+                let currentSpeed = s.speed;
+
+                // Catch-up mechanism: If backlog is large, boost speed
+                // If we are 100 chars behind, we should hurry up.
+                // Boost factor increases linearly with backlog.
+                if (backlog > 50) {
+                    currentSpeed *= 1 + (backlog / 100); 
+                }
+
+                // Advance cursor
+                s.cursor += currentSpeed * dt;
+
+                // Clamp to actual content length
+                if (s.cursor > target.length) {
+                    s.cursor = target.length;
+                }
+
+                // Update display
+                const newLength = Math.floor(s.cursor);
+                setDisplayedContent(target.slice(0, newLength));
+            } else if (backlog <= 0 && target.length > 0 && displayedContent.length !== target.length) {
+                // Ensure we exactly match the end if we overshot or are close enough
+                setDisplayedContent(target);
+            }
+
             animationFrameId = requestAnimationFrame(animate);
         };
 
@@ -70,8 +109,7 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
         return () => {
             cancelAnimationFrame(animationFrameId);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isStreaming]); // Dependency on content removed to prevent restarting animation loop on every chunk
+    }, [isStreaming]); // content dependency removed from effect, accessed via ref
 
     return <MarkdownHTMLConverter className={className}>{displayedContent}</MarkdownHTMLConverter>;
 };
