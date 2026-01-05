@@ -17,47 +17,9 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
         lastArrivalTime: 0, // Initialize to 0 to detect first chunk
         avgInterval: 500, // Estimate 500ms between chunks initially
         lastLen: isStreaming ? 0 : content.length,
-        // Performance metrics
-        stats: {
-            chunks: 0,
-            totalInterval: 0,
-            renderTime: 0,
-            pauseTime: 0,
-            minInterval: Infinity,
-            maxInterval: 0,
-            bufferUnderruns: 0,
-            totalChars: 0,
-            maxBacklog: 0,
-            avgJitter: 0,
-        }
     });
 
     const contentRef = useRef(content);
-
-    // Logging effect: Log stats when the component unmounts (streaming ends)
-    useEffect(() => {
-        return () => {
-            const s = state.current;
-            if (s.stats.chunks > 0) {
-                const totalTime = s.stats.renderTime + s.stats.pauseTime;
-                const percentPaused = totalTime > 0 ? ((s.stats.pauseTime / totalTime) * 100).toFixed(1) : "0.0";
-                
-                const numIntervals = Math.max(0, s.stats.chunks - 1);
-                const avgArrival = numIntervals > 0 ? (s.stats.totalInterval / numIntervals).toFixed(0) : "0";
-                const avgChunkSize = (s.stats.totalChars / s.stats.chunks).toFixed(1);
-                
-                console.log(
-                    `[StreamingMarkdown Stats] Chunks: ${s.stats.chunks}, ` +
-                    `Avg Interval: ${avgArrival}ms (Range: ${s.stats.minInterval === Infinity ? 0 : s.stats.minInterval.toFixed(0)}-${s.stats.maxInterval.toFixed(0)}ms), ` +
-                    `Avg Jitter: ${s.stats.avgJitter.toFixed(0)}ms, ` +
-                    `Avg Chunk: ${avgChunkSize} chars, Max Backlog: ${s.stats.maxBacklog}, ` +
-                    `Render Time: ${s.stats.renderTime.toFixed(0)}ms, ` +
-                    `Pause Time: ${s.stats.pauseTime.toFixed(0)}ms ` +
-                    `(${percentPaused}% paused, ${s.stats.bufferUnderruns} underruns)`
-                );
-            }
-        };
-    }, []);
 
     useEffect(() => {
         contentRef.current = content;
@@ -68,10 +30,6 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
             const added = content.length - s.lastLen;
             
             if (added > 0) {
-                // Update basic stats
-                s.stats.chunks++;
-                s.stats.totalChars += added;
-                
                 if (s.lastArrivalTime === 0) {
                     // First chunk received
                     s.lastArrivalTime = now;
@@ -80,14 +38,6 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
                     // Calculate time since last chunk
                     let dt = now - s.lastArrivalTime;
                     
-                    // Update stats
-                    s.stats.totalInterval += dt;
-                    s.stats.minInterval = Math.min(s.stats.minInterval, dt);
-                    s.stats.maxInterval = Math.max(s.stats.maxInterval, dt);
-
-                    const jitter = Math.abs(dt - s.avgInterval);
-                    s.stats.avgJitter = s.stats.avgJitter * 0.8 + jitter * 0.2;
-
                     // Safety: Clamp dt to avoid extreme spikes from jitter or initial mount
                     dt = Math.max(20, Math.min(5000, dt));
 
@@ -104,8 +54,6 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
                 const targetSpeed = backlog / (s.avgInterval * 1.5);
 
                 // Update current speed smoothly
-                // If we need to speed up, do it faster (react to burst). 
-                // If slowing down, do it gradually.
                 const momentum = targetSpeed > s.speed ? 0.5 : 0.8;
                 s.speed = s.speed * momentum + targetSpeed * (1 - momentum);
                 
@@ -127,7 +75,6 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
 
         let animationFrameId: number;
         let lastFrameTime = Date.now();
-        let wasPaused = false;
 
         const animate = () => {
             const now = Date.now();
@@ -142,13 +89,8 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
             }
 
             const backlog = target.length - s.cursor;
-            s.stats.maxBacklog = Math.max(s.stats.maxBacklog, Math.floor(backlog));
 
             if (backlog > 0) {
-                wasPaused = false;
-                // Track render time
-                s.stats.renderTime += dt;
-
                 // Simple linear advance at the calculated speed
                 s.cursor += s.speed * dt;
 
@@ -157,17 +99,8 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
                 }
 
                 setDisplayedContent(target.slice(0, Math.floor(s.cursor)));
-            } else if (backlog <= 0) {
-                if (!wasPaused) {
-                    s.stats.bufferUnderruns++;
-                    wasPaused = true;
-                }
-                // Track pause time (waiting for chunks)
-                s.stats.pauseTime += dt;
-                
-                if (target.length > 0 && displayedContent.length !== target.length) {
-                    setDisplayedContent(target);
-                }
+            } else if (backlog <= 0 && target.length > 0 && displayedContent.length !== target.length) {
+                setDisplayedContent(target);
             }
 
             animationFrameId = requestAnimationFrame(animate);
