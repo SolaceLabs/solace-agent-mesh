@@ -28,9 +28,9 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
 
     const contentRef = useRef(content);
 
-    // Logging effect when streaming finishes
+    // Logging effect: Log stats when the component unmounts (streaming ends)
     useEffect(() => {
-        if (!isStreaming) {
+        return () => {
             const s = state.current;
             if (s.stats.chunks > 0) {
                 const totalTime = s.stats.renderTime + s.stats.pauseTime;
@@ -44,12 +44,9 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
                     `Pause Time: ${s.stats.pauseTime.toFixed(0)}ms ` +
                     `(${percentPaused}% paused)`
                 );
-                
-                // Reset stats
-                s.stats = { chunks: 0, totalInterval: 0, renderTime: 0, pauseTime: 0 };
             }
-        }
-    }, [isStreaming]);
+        };
+    }, []);
 
     useEffect(() => {
         contentRef.current = content;
