@@ -1,6 +1,6 @@
-# Prescriptive Workflows Configuration Guide
+# Workflows Configuration Guide
 
-This guide describes how to configure prescriptive workflows in Solace Agent Mesh. Prescriptive workflows enable deterministic, structured execution flows as an alternative to LLM-driven orchestration—ideal for repeatable business processes, compliance-sensitive workflows, and cost-sensitive batch operations.
+This guide describes how to configure workflows in Solace Agent Mesh. Workflows enable deterministic, structured execution flows as an alternative to LLM-driven orchestration—ideal for repeatable business processes, compliance-sensitive workflows, and cost-sensitive batch operations.
 
 For architecture details, see [workflows-component-overview.md](./workflows-component-overview.md).
 

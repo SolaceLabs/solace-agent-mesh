@@ -2,7 +2,7 @@
 
 ## Overview
 
-This PR introduces the foundational data models and utilities required by the Prescriptive Workflows feature. These are shared across all workflow components and define the contract for workflow-related A2A communication.
+This PR introduces the foundational data models and utilities required by the Workflows feature. These are shared across all workflow components and define the contract for workflow-related A2A communication.
 
 ## Branch Information
 

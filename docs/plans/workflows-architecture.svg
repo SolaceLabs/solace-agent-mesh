@@ -15,7 +15,7 @@
   </defs>
 
   <!-- Title -->
-  <text x="450" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">Prescriptive Workflows - High-Level Architecture</text>
+  <text x="450" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">Workflows - High-Level Architecture</text>
 
   <!-- Legend -->
   <g transform="translate(20, 50)">

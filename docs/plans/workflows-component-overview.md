@@ -1,6 +1,6 @@
-# Prescriptive Workflows - Component Architecture Overview
+# Workflows - Component Architecture Overview
 
-This document provides an architectural overview of the Prescriptive Workflows feature, explaining how each component fits into the bigger picture and how they interact with each other.
+This document provides an architectural overview of the Workflows feature, explaining how each component fits into the bigger picture and how they interact with each other.
 
 ## Table of Contents
 
@@ -14,13 +14,13 @@ This document provides an architectural overview of the Prescriptive Workflows f
 
 ## Introduction
 
-### What are Prescriptive Workflows?
+### What are Workflows?
 
-Prescriptive Workflows enable users to define deterministic, structured execution flows as an alternative to purely LLM-driven orchestration. Unlike traditional agent-to-agent orchestration where an orchestrator agent decides what to do next based on LLM reasoning, prescriptive workflows follow a predefined DAG (Directed Acyclic Graph) structure.
+Workflows enable users to define deterministic, structured execution flows as an alternative to purely LLM-driven orchestration. Unlike traditional agent-to-agent orchestration where an orchestrator agent decides what to do next based on LLM reasoning, workflows follow a predefined DAG (Directed Acyclic Graph) structure.
 
-### Why Prescriptive Workflows?
+### Why Workflows?
 
-| Aspect | Agent Orchestration | Prescriptive Workflows |
+| Aspect | Agent Orchestration | Workflows |
 |--------|--------------------|-----------------------|
 | Control Flow | LLM decides next steps | Predefined DAG structure |
 | Predictability | Variable (depends on LLM) | Deterministic |
@@ -28,7 +28,7 @@ Prescriptive Workflows enable users to define deterministic, structured executio
 | Flexibility | High (can adapt dynamically) | Moderate (fixed structure) |
 | Debugging | Harder (non-deterministic) | Easier (predictable flow) |
 
-Prescriptive workflows are ideal for:
+Workflows are ideal for:
 - Repeatable business processes
 - Compliance-sensitive workflows
 - Cost-sensitive batch operations
@@ -620,7 +620,7 @@ nodes:
 
 ## Summary
 
-The Prescriptive Workflows feature introduces a layered architecture:
+The Workflows feature introduces a layered architecture:
 
 1. **Foundation Layer** (data_parts, constants) - Shared contracts
 2. **Definition Layer** (app.py) - YAML schema and validation

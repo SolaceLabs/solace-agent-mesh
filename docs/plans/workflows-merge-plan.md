@@ -1,8 +1,8 @@
-# Prescriptive Workflows Feature - Incremental Merge Strategy
+# Workflows Feature - Incremental Merge Strategy
 
 ## Feature Overview
 
-The `ed/prescriptive-workflows` branch introduces a comprehensive "Prescriptive Workflows" feature that enables defining and executing structured, deterministic workflows as an alternative to purely agent-driven orchestration.
+The `ed/prescriptive-workflows` branch introduces a comprehensive "Workflows" feature that enables defining and executing structured, deterministic workflows as an alternative to purely agent-driven orchestration.
 
 **Stats:** 107 files changed, ~30,000 lines added
 

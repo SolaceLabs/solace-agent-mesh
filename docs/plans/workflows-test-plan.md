@@ -1,6 +1,6 @@
-# Prescriptive Workflows - Test Plan
+# Workflows - Test Plan
 
-This document outlines the test coverage for the Prescriptive Workflows feature.
+This document outlines the test coverage for the Workflows feature.
 
 ## Test Categories
 
