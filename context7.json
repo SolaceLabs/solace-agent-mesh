@@ -1,4 +1,6 @@
 {
+    "url": "https://context7.com/alimosaed/fork-solace-agent-mesh",
+    "public_key": "pk_1Wd8rzT3jlbGqv4EuFyTJ",
     "$schema": "https://context7.com/schema/context7.json",
     "projectTitle": "Solace Agent Mesh",
     "description": "An open-source framework for building event-driven multi-agent AI systems that leverage the Solace Platform for scalable and reliable communication between specialized AI agents.",
