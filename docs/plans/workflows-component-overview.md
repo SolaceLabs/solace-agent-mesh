@@ -6,8 +6,8 @@ This document provides an architectural overview of the Workflows feature, expla
 
 1. [Introduction](#introduction)
 2. [System Architecture](#system-architecture)
-3. [Component Deep Dives](#component-deep-dives)
-4. [Data Flow](#data-flow)
+3. [Data Flow](#data-flow)
+4. [Component Deep Dives](#component-deep-dives)
 5. [Integration Points](#integration-points)
 
 ---
@@ -96,6 +96,81 @@ All communication between components uses the **A2A (Agent-to-Agent) Protocol** 
 1. **Task Requests**: Client → Workflow → Agents
 2. **Status Updates**: Agents → Workflow → Client (via SSE)
 3. **Node Results**: Agents → Workflow (via correlation IDs)
+
+---
+
+## Data Flow
+
+### Complete Request Flow
+
+```
+1. USER REQUEST
+   Client sends A2A SendMessageRequest to workflow topic
+
+2. WORKFLOW RECEIVES
+   WorkflowExecutorComponent receives on sam/{namespace}/agent/{workflow_name}/request
+
+3. EXECUTION STARTS
+   - Parse input from message
+   - Create WorkflowExecutionContext
+   - Publish WorkflowExecutionStartData event
+
+4. DAG EXECUTION
+   For each ready node:
+   a. Publish WorkflowNodeExecutionStartData
+   b. For agent nodes: Call AgentCaller.call_agent()
+   c. Wait for response (via correlation ID)
+   d. On completion: Update state, check dependencies
+   e. Publish WorkflowNodeExecutionResultData
+
+5. AGENT EXECUTION (for each agent node)
+   a. Agent receives StructuredInvocationRequest in message
+   b. StructuredInvocationHandler.execute_structured_invocation()
+   c. Validate input, run agent, validate output
+   d. Return StructuredInvocationResult
+
+6. WORKFLOW COMPLETES
+   - Evaluate output_mapping
+   - Publish final result
+   - Run exit handlers if configured
+
+7. CLIENT RECEIVES
+   Via SSE: All status events in real-time
+   Final: Task completion with output
+```
+
+### Template Resolution Example
+
+```yaml
+# Workflow Definition
+nodes:
+  - id: fetch_data
+    type: agent
+    agent_name: DataFetcher
+    input:
+      query: "{{workflow.input.search_term}}"
+
+  - id: process
+    type: agent
+    agent_name: Processor
+    depends_on: [fetch_data]
+    input:
+      data: "{{fetch_data.output.results}}"
+      count: "{{fetch_data.output.total}}"
+```
+
+**At Runtime:**
+```python
+# workflow.input = {"search_term": "AI agents"}
+# After fetch_data completes:
+# fetch_data.output = {"results": [...], "total": 42}
+
+# process node input resolves to:
+{
+    "data": [...],   # from fetch_data.output.results
+    "count": 42      # from fetch_data.output.total
+}
+```
 
 ---
 
@@ -519,81 +594,6 @@ Sidebar component showing detailed information about selected node:
 **Location:** `src/solace_agent_mesh/gateway/http_sse/component.py`
 
 Minor modifications to forward workflow-specific events to clients via SSE.
-
----
-
-## Data Flow
-
-### Complete Request Flow
-
-```
-1. USER REQUEST
-   Client sends A2A SendMessageRequest to workflow topic
-
-2. WORKFLOW RECEIVES
-   WorkflowExecutorComponent receives on sam/{namespace}/agent/{workflow_name}/request
-
-3. EXECUTION STARTS
-   - Parse input from message
-   - Create WorkflowExecutionContext
-   - Publish WorkflowExecutionStartData event
-
-4. DAG EXECUTION
-   For each ready node:
-   a. Publish WorkflowNodeExecutionStartData
-   b. For agent nodes: Call AgentCaller.call_agent()
-   c. Wait for response (via correlation ID)
-   d. On completion: Update state, check dependencies
-   e. Publish WorkflowNodeExecutionResultData
-
-5. AGENT EXECUTION (for each agent node)
-   a. Agent receives StructuredInvocationRequest in message
-   b. StructuredInvocationHandler.execute_structured_invocation()
-   c. Validate input, run agent, validate output
-   d. Return StructuredInvocationResult
-
-6. WORKFLOW COMPLETES
-   - Evaluate output_mapping
-   - Publish final result
-   - Run exit handlers if configured
-
-7. CLIENT RECEIVES
-   Via SSE: All status events in real-time
-   Final: Task completion with output
-```
-
-### Template Resolution Example
-
-```yaml
-# Workflow Definition
-nodes:
-  - id: fetch_data
-    type: agent
-    agent_name: DataFetcher
-    input:
-      query: "{{workflow.input.search_term}}"
-
-  - id: process
-    type: agent
-    agent_name: Processor
-    depends_on: [fetch_data]
-    input:
-      data: "{{fetch_data.output.results}}"
-      count: "{{fetch_data.output.total}}"
-```
-
-**At Runtime:**
-```python
-# workflow.input = {"search_term": "AI agents"}
-# After fetch_data completes:
-# fetch_data.output = {"results": [...], "total": 42}
-
-# process node input resolves to:
-{
-    "data": [...],   # from fetch_data.output.results
-    "count": 42      # from fetch_data.output.total
-}
-```
 
 ---
 
