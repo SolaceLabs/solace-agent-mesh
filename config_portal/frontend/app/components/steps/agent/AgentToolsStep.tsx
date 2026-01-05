@@ -159,8 +159,6 @@ const AgentToolsStep: React.FC<StepProps> = ({
       }
     }
 
-
-
     const toolForEdit: Tool = {
       ...initialToolState,
       ...tool,
@@ -184,7 +182,7 @@ const AgentToolsStep: React.FC<StepProps> = ({
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     >
   ) => {
-    const { name, value } = e.target;
+    const { name, value }: { name: string; value: string } = e.target;
 
     // Handle number fields
     if (name === "mcp_timeout") {
@@ -424,8 +422,10 @@ const AgentToolsStep: React.FC<StepProps> = ({
     if (tool.tool_type === "builtin-group") {
       props.push(`Group: ${tool.group_name}`);
     } else if (tool.tool_type === "mcp") {
-      if (tool.transport_type) {
-        props.push(`Transport: ${tool.transport_type}`);
+      // Extract transport type from connection_params
+      const transportType = tool.connection_params?.type as string | undefined;
+      if (transportType) {
+        props.push(`Transport: ${transportType}`);
       }
     } else if (tool.tool_name) {
       props.push(`Name: ${tool.tool_name}`);
@@ -838,14 +838,14 @@ const AgentToolsStep: React.FC<StepProps> = ({
                       </>
                     )}
 
-                    {currentTool.transport_type && (
+                    {currentTool.transport_type === "stdio" && (
                       <KeyValueInput
                         id="environment_variables_ui"
                         label="Environment Variables (Optional)"
                         values={currentTool.environment_variables_ui || {}}
                         onChange={(values) => handleKeyValueInputChange("environment_variables_ui", values)}
                         error={formErrors.environment_variables_ui}
-                        helpText="Environment variables passed to the MCP server (e.g., API keys, URLs). Can use ${VAR} syntax."
+                        helpText="Environment variables passed to the MCP server process (e.g., API keys, paths). Can use ${VAR} syntax."
                         placeholder="No environment variables added"
                         keyPlaceholder="Variable name (e.g., CONFLUENCE_URL)"
                         valuePlaceholder="Variable value (e.g., ${CONFLUENCE_URL})"

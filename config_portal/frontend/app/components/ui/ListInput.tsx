@@ -26,7 +26,7 @@ const ListInput: React.FC<ListInputProps> = ({
   required,
   itemPlaceholder = "Enter value",
 }) => {
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState<string>("");
 
   const handleAddItem = () => {
     if (inputValue.trim() === "") {
@@ -95,9 +95,9 @@ const ListInput: React.FC<ListInputProps> = ({
         {/* Display existing items */}
         {values.length > 0 && (
           <div className="border border-gray-200 rounded-md divide-y divide-gray-200">
-            {values.map((item, index) => (
+            {values.map((item: string, index: number) => (
               <div
-                key={index}
+                key={`${id}-${index}-${item}`}
                 className="flex items-center space-x-2 p-2 hover:bg-gray-50"
               >
                 <div className="flex flex-col space-y-1">

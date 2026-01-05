@@ -41,7 +41,7 @@ const KeyValueInput: React.FC<KeyValueInputProps> = ({
 
     // Avoid silently overwriting an existing key; existing entries
     // should be updated via the inline edit path instead.
-    if (Object.prototype.hasOwnProperty.call(values, trimmedKey)) {
+    if (trimmedKey in values) {
       return;
     }
 
@@ -67,7 +67,7 @@ const KeyValueInput: React.FC<KeyValueInputProps> = ({
     }
   };
 
-  const entries = Object.entries(values);
+  const entries: [string, string][] = Object.entries(values);
 
   return (
     <FormField
@@ -106,7 +106,7 @@ const KeyValueInput: React.FC<KeyValueInputProps> = ({
         {/* Display existing key-value pairs */}
         {entries.length > 0 && (
           <div className="border border-gray-200 rounded-md divide-y divide-gray-200">
-            {entries.map(([key, value]) => (
+            {entries.map(([key, value]: [string, string]) => (
               <div
                 key={key}
                 className="flex items-center space-x-2 p-2 hover:bg-gray-50"
