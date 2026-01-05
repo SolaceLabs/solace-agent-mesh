@@ -23,6 +23,10 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
             totalInterval: 0,
             renderTime: 0,
             pauseTime: 0,
+            minInterval: Infinity,
+            maxInterval: 0,
+            bufferUnderruns: 0,
+            totalChars: 0,
         }
     });
 
@@ -36,13 +40,15 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
                 const totalTime = s.stats.renderTime + s.stats.pauseTime;
                 const percentPaused = totalTime > 0 ? ((s.stats.pauseTime / totalTime) * 100).toFixed(1) : "0.0";
                 const avgArrival = (s.stats.totalInterval / s.stats.chunks).toFixed(0);
+                const avgChunkSize = (s.stats.totalChars / s.stats.chunks).toFixed(1);
                 
                 console.log(
                     `[StreamingMarkdown Stats] Chunks: ${s.stats.chunks}, ` +
-                    `Avg Interval: ${avgArrival}ms, ` +
+                    `Avg Interval: ${avgArrival}ms (Range: ${s.stats.minInterval.toFixed(0)}-${s.stats.maxInterval.toFixed(0)}ms), ` +
+                    `Avg Chunk: ${avgChunkSize} chars, ` +
                     `Render Time: ${s.stats.renderTime.toFixed(0)}ms, ` +
                     `Pause Time: ${s.stats.pauseTime.toFixed(0)}ms ` +
-                    `(${percentPaused}% paused)`
+                    `(${percentPaused}% paused, ${s.stats.bufferUnderruns} underruns)`
                 );
             }
         };
@@ -63,6 +69,9 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
                 // Update stats
                 s.stats.chunks++;
                 s.stats.totalInterval += dt;
+                s.stats.totalChars += added;
+                s.stats.minInterval = Math.min(s.stats.minInterval, dt);
+                s.stats.maxInterval = Math.max(s.stats.maxInterval, dt);
 
                 // Safety: Clamp dt to avoid extreme spikes from jitter or initial mount
                 // Min 20ms (50fps) to prevent division by zero or massive rates on rapid-fire updates
@@ -103,6 +112,7 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
 
         let animationFrameId: number;
         let lastFrameTime = Date.now();
+        let wasPaused = false;
 
         const animate = () => {
             const now = Date.now();
@@ -119,6 +129,7 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
             const backlog = target.length - s.cursor;
 
             if (backlog > 0) {
+                wasPaused = false;
                 // Track render time
                 s.stats.renderTime += dt;
 
@@ -131,6 +142,10 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
 
                 setDisplayedContent(target.slice(0, Math.floor(s.cursor)));
             } else if (backlog <= 0) {
+                if (!wasPaused) {
+                    s.stats.bufferUnderruns++;
+                    wasPaused = true;
+                }
                 // Track pause time (waiting for chunks)
                 s.stats.pauseTime += dt;
                 
