@@ -6,7 +6,7 @@ import DOMPurify from "dompurify";
 import { marked } from "marked";
 import parse, { type HTMLReactParserOptions, type DOMNode, Element, Text as DomText } from "html-react-parser";
 import type { Citation as CitationType } from "@/lib/utils/citations";
-import { getCitationTooltip, CITATION_PATTERN } from "@/lib/utils/citations";
+import { getCitationTooltip, INDIVIDUAL_CITATION_PATTERN } from "@/lib/utils/citations";
 import { MarkdownHTMLConverter } from "@/lib/components";
 import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
 import { Popover, PopoverContent, PopoverTrigger } from "@/lib/components/ui/popover";
@@ -386,6 +386,32 @@ interface TextWithCitationsProps {
 }
 
 /**
+ * Parse individual citations from a comma-separated content string
+ */
+function parseMultiCitationIds(content: string): Array<{ type: "file" | "ref" | "search" | "research"; sourceId: number }> {
+    const results: Array<{ type: "file" | "ref" | "search" | "research"; sourceId: number }> = [];
+    let individualMatch;
+
+    INDIVIDUAL_CITATION_PATTERN.lastIndex = 0;
+    while ((individualMatch = INDIVIDUAL_CITATION_PATTERN.exec(content)) !== null) {
+        const [, type, sourceId] = individualMatch;
+        const citationType = (type || "search") as "file" | "ref" | "search" | "research";
+        results.push({
+            type: citationType,
+            sourceId: parseInt(sourceId, 10),
+        });
+    }
+
+    return results;
+}
+
+/**
+ * Combined pattern that matches both single and multi-citation formats
+ * This ensures we process them in order of appearance
+ */
+const COMBINED_CITATION_PATTERN = /\[?\[cite:((?:(?:file|ref|search|research)?\d+)(?:\s*,\s*(?:file|ref|search|research)?\d+)*)\]\]?/g;
+
+/**
  * Process text node content to replace citation markers with React components
  */
 function processTextWithCitations(textContent: string, citations: CitationType[], onCitationClick?: (citation: CitationType) => void): ReactNode[] {
@@ -395,9 +421,9 @@ function processTextWithCitations(textContent: string, citations: CitationType[]
     let pendingCitations: CitationType[] = [];
 
     // Reset regex
-    CITATION_PATTERN.lastIndex = 0;
+    COMBINED_CITATION_PATTERN.lastIndex = 0;
 
-    while ((match = CITATION_PATTERN.exec(textContent)) !== null) {
+    while ((match = COMBINED_CITATION_PATTERN.exec(textContent)) !== null) {
         // Add text before citation
         if (match.index > lastIndex) {
             // Flush pending citations before text
@@ -408,14 +434,17 @@ function processTextWithCitations(textContent: string, citations: CitationType[]
             result.push(textContent.substring(lastIndex, match.index));
         }
 
-        // Find the matching citation
-        const [, type, sourceId] = match;
-        const citationType = (type || "search") as "file" | "ref" | "search" | "research";
-        const citationId = `${citationType}${sourceId}`;
-        const citation = citations.find(c => `${c.type}${c.sourceId}` === citationId);
+        // Parse the citation content (could be single or comma-separated)
+        const [, content] = match;
+        const citationIds = parseMultiCitationIds(content);
 
-        if (citation) {
-            pendingCitations.push(citation);
+        for (const { type, sourceId } of citationIds) {
+            const citationId = `${type}${sourceId}`;
+            const citation = citations.find(c => `${c.type}${c.sourceId}` === citationId);
+
+            if (citation) {
+                pendingCitations.push(citation);
+            }
         }
 
         lastIndex = match.index + match[0].length;
@@ -446,10 +475,10 @@ export function TextWithCitations({ text, citations, onCitationClick }: TextWith
                 if (domNode.type === "text" && domNode instanceof DomText) {
                     const textContent = domNode.data;
 
-                    // Check if this text contains citation markers
-                    CITATION_PATTERN.lastIndex = 0;
-                    if (CITATION_PATTERN.test(textContent)) {
-                        CITATION_PATTERN.lastIndex = 0;
+                    // Check if this text contains citation markers (single or multi)
+                    COMBINED_CITATION_PATTERN.lastIndex = 0;
+                    if (COMBINED_CITATION_PATTERN.test(textContent)) {
+                        COMBINED_CITATION_PATTERN.lastIndex = 0;
                         const processed = processTextWithCitations(textContent, citations, onCitationClick);
                         if (processed.length > 0) {
                             return <>{processed}</>;

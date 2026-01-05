@@ -35,16 +35,80 @@ export interface Citation {
 export type { RAGSource, RAGSearchResult as RAGMetadata };
 
 /**
+ * Parse individual citations from a comma-separated list like "search3, search4, search5"
+ */
+function parseMultiCitationContent(content: string, position: number, fullMatch: string, ragMetadata?: RAGSearchResult): Citation[] {
+    const citations: Citation[] = [];
+    let individualMatch;
+
+    // Reset regex state
+    INDIVIDUAL_CITATION_PATTERN.lastIndex = 0;
+
+    while ((individualMatch = INDIVIDUAL_CITATION_PATTERN.exec(content)) !== null) {
+        const [, type, sourceId] = individualMatch;
+        // If no type prefix, default to 'search' for web search citations
+        const citationType = (type || "search") as "file" | "ref" | "search" | "research";
+        const citation: Citation = {
+            marker: fullMatch, // Use the full multi-citation marker
+            type: citationType,
+            sourceId: parseInt(sourceId, 10),
+            position: position,
+        };
+
+        // Match to source metadata if available
+        if (ragMetadata?.sources) {
+            const citationId = `${citationType}${sourceId}`;
+            citation.source = ragMetadata.sources.find((s: RAGSource) => s.citationId === citationId);
+        }
+
+        citations.push(citation);
+    }
+
+    return citations;
+}
+
+/**
  * Parse citation markers from text and match them to RAG metadata
  */
 export function parseCitations(text: string, ragMetadata?: RAGSearchResult): Citation[] {
     const citations: Citation[] = [];
+    const processedPositions = new Set<number>();
     let match;
 
-    // Reset regex state
+    // First, handle multi-citation patterns like [[cite:search3, search4]]
+    MULTI_CITATION_PATTERN.lastIndex = 0;
+    while ((match = MULTI_CITATION_PATTERN.exec(text)) !== null) {
+        const [fullMatch, content] = match;
+        const multiCitations = parseMultiCitationContent(content, match.index, fullMatch, ragMetadata);
+        citations.push(...multiCitations);
+        processedPositions.add(match.index);
+    }
+
+    // Then handle single citation patterns
     CITATION_PATTERN.lastIndex = 0;
 
     while ((match = CITATION_PATTERN.exec(text)) !== null) {
+        // Skip if this position was already processed as part of a multi-citation
+        if (processedPositions.has(match.index)) {
+            continue;
+        }
+
+        // Check if this single citation is part of a multi-citation pattern
+        // by looking for comma after it within brackets
+        const afterMatch = text.substring(match.index + match[0].length);
+        const beforeMatch = text.substring(0, match.index);
+
+        // If there's a comma immediately after (within the same bracket), skip it
+        // as it will be handled by the multi-citation pattern
+        if (afterMatch.match(/^\s*,\s*(?:file|ref|search|research)?\d+/)) {
+            continue;
+        }
+
+        // If there's a comma before and we're still inside brackets, skip
+        if (beforeMatch.match(/\[?\[cite:[^\]]*,\s*$/)) {
+            continue;
+        }
+
         const [fullMatch, type, sourceId] = match;
         // If no type prefix, default to 'search' for web search citations
         const citationType = (type || "search") as "file" | "ref" | "search" | "research";
@@ -71,6 +135,9 @@ export function parseCitations(text: string, ragMetadata?: RAGSearchResult): Cit
 
         citations.push(citation);
     }
+
+    // Sort by position to maintain order
+    citations.sort((a, b) => a.position - b.position);
 
     return citations;
 }
