@@ -307,17 +307,25 @@ def _setup_routers():
     """
     Mount community and enterprise routers to the FastAPI application.
 
-    Community routers: Loaded from .routers (empty in Phase 1)
+    All platform service routers (both community and enterprise) are mounted
+    under the PLATFORM_SERVICE_PREFIX. This ensures a consistent API structure
+    where /api/v1/platform/* contains all platform management endpoints.
+
+    Community routers: Loaded from .routers
     Enterprise routers: Dynamically loaded from enterprise package if available
     """
-    # Load community platform routers (empty in Phase 1)
+    # Define the platform service API prefix
+    # This is the single source of truth for all platform service endpoints
+    PLATFORM_SERVICE_PREFIX = "/api/v1/platform"
+
+    # Load community platform routers
     from .routers import get_community_platform_routers
 
     community_routers = get_community_platform_routers()
     for router_config in community_routers:
         app.include_router(
             router_config["router"],
-            prefix=router_config["prefix"],
+            prefix=PLATFORM_SERVICE_PREFIX,
             tags=router_config["tags"],
         )
     log.info(f"Mounted {len(community_routers)} community platform routers")
@@ -330,10 +338,10 @@ def _setup_routers():
         for router_config in enterprise_routers:
             app.include_router(
                 router_config["router"],
-                prefix=router_config["prefix"],
+                prefix=PLATFORM_SERVICE_PREFIX,
                 tags=router_config["tags"],
             )
-        log.info(f"Mounted {len(enterprise_routers)} enterprise platform routers")
+        log.info(f"Mounted {len(enterprise_routers)} enterprise platform routers under {PLATFORM_SERVICE_PREFIX}")
 
     except ImportError:
         log.info(
@@ -342,14 +350,6 @@ def _setup_routers():
     except Exception as e:
         log.warning(f"Failed to load enterprise platform routers: {e}")
 
-
-@app.get("/health", tags=["Health"])
-async def health_check():
-    """
-    Platform Service health check endpoint.
-
-    Returns:
-        Dictionary with status and service name.
-    """
-    log.debug("Health check endpoint '/health' called")
-    return {"status": "healthy", "service": "Platform Service"}
+    from solace_agent_mesh.shared.exceptions.exception_handlers import register_exception_handlers
+    register_exception_handlers(app)
+    log.info("Registered shared exception handlers")
