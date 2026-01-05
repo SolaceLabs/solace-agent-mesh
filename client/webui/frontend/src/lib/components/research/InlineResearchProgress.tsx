@@ -22,6 +22,12 @@ export interface ResearchProgressData {
     fetching_urls: Array<{ url: string; title: string; favicon: string; source_type?: string }>;
     elapsed_seconds: number;
     max_runtime_seconds: number;
+    // Query history for timeline display during research
+    query_history?: Array<{
+        query: string;
+        timestamp: string;
+        urls: Array<{ url: string; title: string; favicon: string; source_type?: string }>;
+    }>;
 }
 
 interface InlineResearchProgressProps {
@@ -113,8 +119,50 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
         setShowTopGradient(hasOverflow && !isAtTop);
     };
 
-    // Build timeline events from ragData - interleave queries with their sources
+    // Build timeline events - use query_history from progress during research, ragData when complete
     const timelineEvents = React.useMemo(() => {
+        const events: Array<{
+            type: "search" | "read";
+            timestamp: string;
+            content: string;
+            url?: string;
+            favicon?: string;
+            title?: string;
+        }> = [];
+
+        // DURING RESEARCH: Use query_history from progress data if available
+        // This maintains the query→URLs relationship as queries are executed
+        if (!isComplete && progress.query_history && progress.query_history.length > 0) {
+            console.log("[InlineResearchProgress] Using query_history from progress:", {
+                historyLength: progress.query_history.length,
+                queries: progress.query_history.map(q => q.query),
+            });
+
+            progress.query_history.forEach(queryEntry => {
+                // Add search event for this query
+                events.push({
+                    type: "search",
+                    timestamp: queryEntry.timestamp,
+                    content: queryEntry.query,
+                });
+
+                // Add read events for this query's URLs
+                queryEntry.urls.forEach(urlInfo => {
+                    events.push({
+                        type: "read",
+                        timestamp: queryEntry.timestamp,
+                        content: urlInfo.title || urlInfo.url || "Unknown",
+                        url: urlInfo.url,
+                        favicon: urlInfo.favicon || (urlInfo.url ? `https://www.google.com/s2/favicons?domain=${urlInfo.url}&sz=32` : ""),
+                        title: urlInfo.title,
+                    });
+                });
+            });
+
+            return events;
+        }
+
+        // COMPLETED or no query_history: Use ragData
         if (!ragData || ragData.length === 0) {
             console.log("[InlineResearchProgress] No ragData available");
             return [];
@@ -132,15 +180,6 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                 : null,
         });
 
-        const events: Array<{
-            type: "search" | "read";
-            timestamp: string;
-            content: string;
-            url?: string;
-            favicon?: string;
-            title?: string;
-        }> = [];
-
         // Check if we have query breakdown in metadata (new backend format)
         const firstSearch = ragData[0];
         type ExtendedRAGSearchResult = RAGSearchResult & {
@@ -155,7 +194,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
         const metadata = (firstSearch as ExtendedRAGSearchResult)?.metadata;
         const hasQueryBreakdown = metadata?.queries && Array.isArray(metadata.queries);
 
-        // Check if we have multiple ragData entries (old format after refresh)
+        // Check if we have multiple ragData entries (one per query)
         const hasMultipleEntries = ragData.length > 1;
 
         if (hasQueryBreakdown) {
@@ -203,10 +242,9 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                     }
                 });
             });
-        } else if (hasMultipleEntries && isComplete) {
-            // OLD FORMAT AFTER REFRESH: Multiple ragData entries (one per query)
-            // Reconstruct query→sources relationship from separate entries
-            console.log("[InlineResearchProgress] Using multiple entries format (post-refresh)", {
+        } else if (hasMultipleEntries) {
+            // Multiple ragData entries (one per query) - use this format
+            console.log("[InlineResearchProgress] Using multiple entries format", {
                 totalEntries: ragData.length,
                 sampleEntries: ragData.slice(0, 3).map((s, i) => ({
                     index: i,
@@ -231,20 +269,23 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                     content: search.query,
                 });
 
-                // Filter to only show fetched sources (not snippets)
-                const fetchedSources = search.sources.filter(source => {
-                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
-                    return wasFetched;
-                });
+                // For completed research: filter to only show fetched sources (not snippets)
+                // For in-progress: show all sources
+                const sourcesToShow = isComplete
+                    ? search.sources.filter(source => {
+                          const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
+                          return wasFetched;
+                      })
+                    : search.sources;
 
                 console.log(`[InlineResearchProgress] Search ${searchIdx} sources:`, {
                     query: search.query,
                     totalSources: search.sources.length,
-                    fetchedSources: fetchedSources.length,
+                    shownSources: sourcesToShow.length,
                 });
 
-                // Add fetched sources immediately after this query
-                fetchedSources.forEach(source => {
+                // Add sources immediately after this query
+                sourcesToShow.forEach(source => {
                     const title = source.title || source.metadata?.title;
                     if (source.url || title) {
                         events.push({
@@ -259,31 +300,28 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                 });
             });
         } else {
-            // DURING RESEARCH: Show all sources as they come in
-            console.log("[InlineResearchProgress] Using during-research format");
+            // Single ragData entry - show query and all its sources
+            console.log("[InlineResearchProgress] Using single entry format");
 
-            ragData.forEach(search => {
-                // Add search event
-                events.push({
-                    type: "search",
-                    timestamp: search.timestamp,
-                    content: search.query,
-                });
+            const search = ragData[0];
+            events.push({
+                type: "search",
+                timestamp: search.timestamp,
+                content: search.query,
+            });
 
-                // During research: show all sources (they're being added incrementally)
-                search.sources.forEach(source => {
-                    const title = source.title || source.metadata?.title;
-                    if (source.url || title) {
-                        events.push({
-                            type: "read",
-                            timestamp: source.retrievedAt || search.timestamp,
-                            content: title || source.url || "Unknown",
-                            url: source.url,
-                            favicon: source.metadata?.favicon || (source.url ? `https://www.google.com/s2/favicons?domain=${source.url}&sz=32` : ""),
-                            title: title,
-                        });
-                    }
-                });
+            search.sources.forEach(source => {
+                const title = source.title || source.metadata?.title;
+                if (source.url || title) {
+                    events.push({
+                        type: "read",
+                        timestamp: source.retrievedAt || search.timestamp,
+                        content: title || source.url || "Unknown",
+                        url: source.url,
+                        favicon: source.metadata?.favicon || (source.url ? `https://www.google.com/s2/favicons?domain=${source.url}&sz=32` : ""),
+                        title: title,
+                    });
+                }
             });
         }
 
@@ -294,7 +332,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
         });
 
         return events;
-    }, [ragData, isComplete]);
+    }, [ragData, isComplete, progress.query_history]);
 
     const hasTimeline = timelineEvents.length > 0;
 

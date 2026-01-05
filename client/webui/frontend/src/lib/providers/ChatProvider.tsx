@@ -89,6 +89,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
     const messagesRef = useRef<MessageFE[]>([]);
 
+    // Track query history for deep research progress timeline
+    // This accumulates queries and their URLs as they come in via deep_research_progress events
+    const deepResearchQueryHistoryRef = useRef<
+        Map<
+            string,
+            Array<{
+                query: string;
+                timestamp: string;
+                urls: Array<{ url: string; title: string; favicon: string; source_type?: string }>;
+            }>
+        >
+    >(new Map());
+
     // Agents State
     const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
 
@@ -838,6 +851,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 case "rag_info_update": {
                                     // Handle RAG info updates from deep research (title and sources)
                                     // This is sent early during research so UI can display title and sources
+                                    // Each rag_info_update represents a NEW query with its sources - we create separate entries
+                                    // to maintain the query→sources relationship for the timeline display
                                     const ragInfoData = data as {
                                         type: "rag_info_update";
                                         title: string;
@@ -855,9 +870,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                                     if (ragEnabled) {
                                         setRagData(prev => {
-                                            // Find existing entry for this task
-                                            const existingIndex = prev.findIndex(r => r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult);
-
                                             // Convert sources to RAGSearchResult format
                                             const formattedSources = (ragInfoData.sources || []).map((source, idx) => ({
                                                 citationId: `search${idx}`,
@@ -874,21 +886,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 },
                                             }));
 
-                                            const newEntry: RAGSearchResult = {
-                                                query: ragInfoData.query,
-                                                title: ragInfoData.title, // Use LLM-generated title
-                                                searchType: "deep_research" as const,
-                                                timestamp: ragInfoData.timestamp,
-                                                sources: formattedSources,
-                                                taskId: currentTaskIdFromResult,
-                                            };
+                                            // Find existing entry for this SPECIFIC query within this task
+                                            // This allows multiple queries per task, each with their own sources
+                                            const existingIndex = prev.findIndex(r => r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult && r.query === ragInfoData.query);
 
                                             if (existingIndex !== -1) {
-                                                // Update existing entry - merge sources and update title
+                                                // Update existing entry for this query - merge sources (avoid duplicates)
                                                 const updated = [...prev];
                                                 const existing = updated[existingIndex];
 
-                                                // Merge sources (avoid duplicates)
                                                 const existingUrls = new Set(existing.sources.map(s => s.sourceUrl || s.url));
                                                 const newSources = formattedSources.filter(s => !existingUrls.has(s.sourceUrl || s.url));
 
@@ -900,6 +906,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                                                 return updated;
                                             } else {
+                                                // Create a NEW entry for this query
+                                                // This maintains separate query→sources relationships for the timeline
+                                                const newEntry: RAGSearchResult = {
+                                                    query: ragInfoData.query,
+                                                    title: ragInfoData.title, // Use LLM-generated title
+                                                    searchType: "deep_research" as const,
+                                                    timestamp: ragInfoData.timestamp,
+                                                    sources: formattedSources,
+                                                    taskId: currentTaskIdFromResult,
+                                                };
                                                 return [...prev, newEntry];
                                             }
                                         });
@@ -910,6 +926,62 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     // Deep research progress tracking - keep the data part for ChatMessage to render
                                     // Clear latestStatusText so LoadingMessageRow doesn't show duplicate status
                                     latestStatusText.current = null;
+
+                                    // Extract progress data to build query history
+                                    const progressData = data as {
+                                        type: "deep_research_progress";
+                                        phase: string;
+                                        current_query: string;
+                                        fetching_urls: Array<{ url: string; title: string; favicon: string; source_type?: string }>;
+                                    };
+
+                                    if (currentTaskIdFromResult) {
+                                        const taskHistory = deepResearchQueryHistoryRef.current.get(currentTaskIdFromResult) || [];
+
+                                        if (progressData.current_query) {
+                                            // We have a query - either add it or update its URLs
+                                            const existingQueryIndex = taskHistory.findIndex(q => q.query === progressData.current_query);
+
+                                            if (existingQueryIndex === -1) {
+                                                // New query - add it (URLs may come later in analyzing phase)
+                                                taskHistory.push({
+                                                    query: progressData.current_query,
+                                                    timestamp: new Date().toISOString(),
+                                                    urls: progressData.fetching_urls || [],
+                                                });
+                                            } else if (progressData.fetching_urls && progressData.fetching_urls.length > 0) {
+                                                // Existing query AND we have URLs - update/merge URLs
+                                                const existingEntry = taskHistory[existingQueryIndex];
+                                                const existingUrls = new Set(existingEntry.urls.map(u => u.url));
+                                                const newUrls = progressData.fetching_urls.filter(u => !existingUrls.has(u.url));
+                                                if (newUrls.length > 0) {
+                                                    taskHistory[existingQueryIndex] = {
+                                                        ...existingEntry,
+                                                        urls: [...existingEntry.urls, ...newUrls],
+                                                    };
+                                                }
+                                            }
+                                        } else if (progressData.fetching_urls && progressData.fetching_urls.length > 0 && taskHistory.length > 0) {
+                                            // No current_query but we have URLs - update the LAST query's URLs
+                                            // This happens during "analyzing" phase when backend doesn't send current_query
+                                            const lastQueryIndex = taskHistory.length - 1;
+                                            const lastEntry = taskHistory[lastQueryIndex];
+                                            const existingUrls = new Set(lastEntry.urls.map(u => u.url));
+                                            const newUrls = progressData.fetching_urls.filter(u => !existingUrls.has(u.url));
+                                            if (newUrls.length > 0) {
+                                                taskHistory[lastQueryIndex] = {
+                                                    ...lastEntry,
+                                                    urls: [...lastEntry.urls, ...newUrls],
+                                                };
+                                            }
+                                        }
+
+                                        deepResearchQueryHistoryRef.current.set(currentTaskIdFromResult, taskHistory);
+
+                                        // ALWAYS inject query_history so the component can display accumulated progress
+                                        // Even if we didn't modify the history, we need to pass it to the component
+                                        (data as any).query_history = taskHistory;
+                                    }
 
                                     // Don't return early - let the data part flow through to the message
                                     break;
@@ -1220,6 +1292,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setCurrentTaskId(null);
                 isFinalizing.current = true;
                 void artifactsRefetch();
+
+                // Clean up query history for this completed task
+                if (currentTaskIdFromResult) {
+                    deepResearchQueryHistoryRef.current.delete(currentTaskIdFromResult);
+                }
+
                 setTimeout(() => {
                     isFinalizing.current = false;
                 }, 100);
@@ -1293,6 +1371,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             sseEventSequenceRef.current = 0;
             // Clear RAG data on new session
             setRagData([]);
+            // Clear deep research query history
+            deepResearchQueryHistoryRef.current.clear();
             // Artifacts will be automatically refreshed by useArtifacts hook when sessionId changes
 
             // Dispatch event to focus chat input
@@ -1414,6 +1494,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 sseEventSequenceRef.current = 0;
                 // Clear RAG data when switching sessions - will be repopulated by loadSessionTasks
                 setRagData([]);
+                // Clear deep research query history when switching sessions
+                deepResearchQueryHistoryRef.current.clear();
 
                 await loadSessionTasks(newSessionId);
 
