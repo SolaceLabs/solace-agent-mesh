@@ -13,6 +13,10 @@ import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+from litellm.exceptions import BadRequestError
+
+from ...common.error_handlers import get_error_message
+
 from a2a.types import (
     AgentCard,
     MessageSendParams,
@@ -74,7 +78,8 @@ from ...common.constants import (
     HEALTH_CHECK_INTERVAL_SECONDS,
     HEALTH_CHECK_TTL_SECONDS,
 )
-from ...common.data_parts import AgentProgressUpdateData
+from ...common.a2a.types import ArtifactInfo
+from ...common.data_parts import AgentProgressUpdateData, ArtifactSavedData
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
 from ...common.utils.rbac_utils import validate_agent_access
@@ -1526,6 +1531,68 @@ class SamAgentComponent(SamComponentBase):
             )
             return False
 
+    async def notify_artifact_saved(
+        self,
+        artifact_info: ArtifactInfo,
+        a2a_context: Dict[str, Any],
+        function_call_id: Optional[str] = None,
+    ) -> None:
+        """
+        Publishes an artifact saved notification signal.
+
+        This is a separate event from ArtifactCreationProgressData and does not
+        follow the start->updates->end protocol. It's a single notification that
+        an artifact has been successfully saved to storage.
+
+        Args:
+            artifact_info: Information about the saved artifact
+            a2a_context: The A2A context dictionary for the current task
+            function_call_id: Optional function call ID if artifact was created by a tool
+        """
+        log_identifier = f"{self.log_identifier}[ArtifactSaved:{artifact_info.filename}]"
+
+        try:
+            # Create artifact saved signal
+            artifact_signal = ArtifactSavedData(
+                type="artifact_saved",
+                filename=artifact_info.filename,
+                version=artifact_info.version,
+                mime_type=artifact_info.mime_type or "application/octet-stream",
+                size_bytes=artifact_info.size,
+                description=artifact_info.description,
+                function_call_id=function_call_id,
+            )
+
+            # Create and publish status update event
+            logical_task_id = a2a_context.get("logical_task_id")
+            context_id = a2a_context.get("contextId")
+
+            status_update_event = a2a.create_data_signal_event(
+                task_id=logical_task_id,
+                context_id=context_id,
+                signal_data=artifact_signal,
+                agent_name=self.agent_name,
+            )
+
+            await self._publish_status_update_with_buffer_flush(
+                status_update_event,
+                a2a_context,
+                skip_buffer_flush=False,
+            )
+
+            log.debug(
+                "%s Published artifact saved notification for '%s' v%s.",
+                log_identifier,
+                artifact_info.filename,
+                artifact_info.version,
+            )
+        except Exception as e:
+            log.error(
+                "%s Failed to publish artifact saved notification: %s",
+                log_identifier,
+                e,
+            )
+
     async def _publish_status_update_with_buffer_flush(
         self,
         status_update_event: TaskStatusUpdateEvent,
@@ -2646,10 +2713,25 @@ class SamAgentComponent(SamComponentBase):
             peer_reply_topic = a2a_context.get("replyToTopic")
             namespace = self.get_config("namespace")
 
+            # Detect context limit errors and provide user-friendly message
+            error_message = "An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
+            
+            if isinstance(exception, BadRequestError):
+                # Use centralized error handler
+                error_message, is_context_limit = get_error_message(exception)
+                
+                if is_context_limit:
+                    log.error(
+                        "%s Context limit exceeded for task %s. Error: %s",
+                        self.log_identifier,
+                        logical_task_id,
+                        exception,
+                    )
+
             failed_status = a2a.create_task_status(
                 state=TaskState.failed,
                 message=a2a.create_agent_text_message(
-                    text="An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
+                    text=error_message
                 ),
             )
 

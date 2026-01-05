@@ -1,0 +1,26 @@
+#Configuration used for fossa scan
+version: 3
+
+project:
+  locator: SolaceLabs_solace-agent-mesh
+  id: SolaceLabs_solace-agent-mesh
+  name: solace-agent-mesh
+  labels:
+    - solaceai
+    - solacelabs
+    - community
+    - repository
+
+vendoredDependencies:
+  forceRescans: false
+  scanMethod: CLILicenseScan
+  licenseScanPathFilters:
+    exclude:
+      - "./.github"
+
+paths:
+  exclude:
+    - ./.github
+
+telemetry:
+  scope: full

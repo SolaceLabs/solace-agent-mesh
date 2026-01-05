@@ -215,7 +215,7 @@ class WebUIBackendApp(BaseGatewayApp):
                     "default": "",
                     "description": (
                         "Platform Service URL for frontend API routing to enterprise endpoints. "
-                        "Frontend will call this URL for /api/v1/enterprise/* requests. "
+                        "Frontend will call this URL for /api/v1/platform/* requests. "
                         "Examples: "
                         "  - Docker: http://platform-service:8001 "
                         "  - K8s: http://platform-service:8001 "

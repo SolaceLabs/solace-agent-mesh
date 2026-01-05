@@ -114,10 +114,12 @@ jobs:
       whitesource_product_name: "solaceai"
       prisma_check: true
       sonarqube_hotspot_check: true
+      fossa_check: true
     secrets:
       PRISMA_DOCKER_IMAGE_TO_CHECK: ${{ secrets.DOCKER_IMAGE_TO_CHECK }}
       PRISMA_ACCESS_KEY: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
       PRISMA_ACCESS_KEY_SECRET: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
+      FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
       SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
       SONARQUBE_PROJECT_MAIN_BRANCH: "main"
       SONARQUBE_QUERY_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
