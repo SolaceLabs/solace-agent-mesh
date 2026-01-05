@@ -953,7 +953,7 @@ const AgentToolsStep: React.FC<StepProps> = ({
                   onChange={(newValues) =>
                     handleChipInputChange("required_scopes", newValues)
                   }
-                  helpText="Enter required OAuth scopes and press Add."
+                  helpText="Enter required authorization scopes and press Add."
                   placeholder="No scopes added yet."
                   inputPlaceholder="e.g., read:profile"
                 />
