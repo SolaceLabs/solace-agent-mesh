@@ -27,6 +27,8 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
             maxInterval: 0,
             bufferUnderruns: 0,
             totalChars: 0,
+            maxBacklog: 0,
+            avgJitter: 0,
         }
     });
 
@@ -45,7 +47,8 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
                 console.log(
                     `[StreamingMarkdown Stats] Chunks: ${s.stats.chunks}, ` +
                     `Avg Interval: ${avgArrival}ms (Range: ${s.stats.minInterval.toFixed(0)}-${s.stats.maxInterval.toFixed(0)}ms), ` +
-                    `Avg Chunk: ${avgChunkSize} chars, ` +
+                    `Avg Jitter: ${s.stats.avgJitter.toFixed(0)}ms, ` +
+                    `Avg Chunk: ${avgChunkSize} chars, Max Backlog: ${s.stats.maxBacklog}, ` +
                     `Render Time: ${s.stats.renderTime.toFixed(0)}ms, ` +
                     `Pause Time: ${s.stats.pauseTime.toFixed(0)}ms ` +
                     `(${percentPaused}% paused, ${s.stats.bufferUnderruns} underruns)`
@@ -73,25 +76,24 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
                 s.stats.minInterval = Math.min(s.stats.minInterval, dt);
                 s.stats.maxInterval = Math.max(s.stats.maxInterval, dt);
 
+                const jitter = Math.abs(dt - s.avgInterval);
+                s.stats.avgJitter = s.stats.avgJitter * 0.8 + jitter * 0.2;
+
                 // Safety: Clamp dt to avoid extreme spikes from jitter or initial mount
-                // Min 20ms (50fps) to prevent division by zero or massive rates on rapid-fire updates
-                // Max 5000ms to prevent one long pause from skewing the average forever
                 dt = Math.max(20, Math.min(5000, dt));
 
                 // Update moving average of inter-arrival time
-                // Slower adaptation (80/20) to filter out jitter
-                s.avgInterval = s.avgInterval * 0.8 + dt * 0.2;
+                // Use a slower alpha for very fast chunks (likely bunched) to prevent speed spikes
+                const alpha = dt < 200 ? 0.05 : 0.2;
+                s.avgInterval = s.avgInterval * (1 - alpha) + dt * alpha;
 
-                // Calculate target speed based on clearing the TOTAL backlog over the next interval (+20% buffer)
+                // Calculate target speed based on clearing the TOTAL backlog over the next interval (+50% buffer)
                 const backlog = content.length - s.cursor;
-                // We want to finish the current backlog roughly when the next chunk is expected, plus a bit.
-                const targetSpeed = backlog / (s.avgInterval * 1.2);
+                // Increased safety factor to 1.5 to better bridge jittery gaps
+                const targetSpeed = backlog / (s.avgInterval * 1.5);
 
-                // Update current speed smoothly
-                // If we need to speed up, do it faster (react to burst). 
-                // If slowing down, do it gradually.
-                const momentum = targetSpeed > s.speed ? 0.5 : 0.8;
-                s.speed = s.speed * momentum + targetSpeed * (1 - momentum);
+                // Update current speed with very high momentum for smooth transitions
+                s.speed = s.speed * 0.9 + targetSpeed * 0.1;
                 
                 // Hard clamps to keep it sane
                 s.speed = Math.max(0.005, Math.min(3.0, s.speed));
@@ -127,6 +129,7 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
             }
 
             const backlog = target.length - s.cursor;
+            s.stats.maxBacklog = Math.max(s.stats.maxBacklog, Math.floor(backlog));
 
             if (backlog > 0) {
                 wasPaused = false;
