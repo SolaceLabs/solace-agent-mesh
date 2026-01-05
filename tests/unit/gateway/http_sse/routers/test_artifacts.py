@@ -106,19 +106,23 @@ class TestUploadArtifactWithSession:
         mock_request = MagicMock()
         mock_request.headers = {}  # No Content-Length header
         
-        # Mock UploadFile with chunked reading simulation
+        # Mock UploadFile - use BytesIO for natural read/seek behavior
         mock_upload_file = MagicMock(spec=UploadFile)
         mock_upload_file.filename = "test.txt"
         mock_upload_file.content_type = "text/plain"
-        
-        # Simulate chunked reading: first chunk returns content, second returns empty (EOF)
-        async def mock_read_chunks(size=-1):
-            if not hasattr(mock_read_chunks, 'called'):
-                mock_read_chunks.called = True
-                return b"test content"
-            return b""  # EOF
-        
-        mock_upload_file.read = mock_read_chunks
+
+        # Use BytesIO to naturally handle read/seek (supports new validate-seek-read pattern)
+        test_content = b"test content"
+        file_buffer = io.BytesIO(test_content)
+
+        async def async_read(size=-1):
+            return file_buffer.read(size)
+
+        async def async_seek(offset):
+            return file_buffer.seek(offset)
+
+        mock_upload_file.read = async_read
+        mock_upload_file.seek = async_seek
         mock_upload_file.close = AsyncMock()
         
         # Mock artifact service
@@ -447,15 +451,18 @@ class TestUploadArtifactWithSession:
         # Setup
         deps = mock_dependencies
         large_content = b"x" * (9 * 1024 * 1024)  # 9MB file (well below 100MB limit to account for overhead)
-        
-        # Simulate chunked reading for large file
-        async def mock_read_large_chunks(size=-1):
-            if not hasattr(mock_read_large_chunks, 'called'):
-                mock_read_large_chunks.called = True
-                return large_content
-            return b""  # EOF
-        
-        deps['upload_file'].read = mock_read_large_chunks
+
+        # Use BytesIO for natural read/seek behavior
+        large_buffer = io.BytesIO(large_content)
+
+        async def async_read_large(size=-1):
+            return large_buffer.read(size)
+
+        async def async_seek_large(offset):
+            return large_buffer.seek(offset)
+
+        deps['upload_file'].read = async_read_large
+        deps['upload_file'].seek = async_seek_large
         
         # Mock successful upload result
         with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.process_artifact_upload') as mock_process:
@@ -503,15 +510,18 @@ class TestUploadArtifactWithSession:
         for filename, mime_type, content in file_types:
             deps['upload_file'].filename = filename
             deps['upload_file'].content_type = mime_type
-            
-            # Simulate chunked reading for each file type
-            async def mock_read_file_chunks(size=-1, file_content=content):
-                if not hasattr(mock_read_file_chunks, 'called'):
-                    mock_read_file_chunks.called = True
-                    return file_content
-                return b""  # EOF
-            
-            deps['upload_file'].read = mock_read_file_chunks
+
+            # Use BytesIO for each file type
+            file_buffer = io.BytesIO(content)
+
+            async def async_read_file(size=-1):
+                return file_buffer.read(size)
+
+            async def async_seek_file(offset):
+                return file_buffer.seek(offset)
+
+            deps['upload_file'].read = async_read_file
+            deps['upload_file'].seek = async_seek_file
             
             # Mock successful upload result
             with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.process_artifact_upload') as mock_process:

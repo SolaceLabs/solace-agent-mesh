@@ -42,24 +42,24 @@
             }
         },
         {
-            "name": "SAM (MCP gateway)",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "solace_agent_mesh.cli.main",
-            "console": "integratedTerminal",
-            "args": "run examples/gateways/mcp_gateway_example.yaml examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml",
-            "justMyCode": false,
-            "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
-            }
-        },
-        {
             "name": "SAM (preset)",
             "type": "debugpy",
             "request": "launch",
             "module": "solace_agent_mesh.cli.main",
             "console": "integratedTerminal",
             "args": "run preset/agents/basic/main_orchestrator.yaml preset/agents/basic/webui.yaml preset/agents/markitdown_agents.yaml preset/agents/mermaid_agents.yaml preset/agents/web_agents.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
+            }
+        },
+        {
+            "name": "SAM (MCP gateway)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_agent_mesh.cli.main",
+            "console": "integratedTerminal",
+            "args": "run examples/gateways/mcp_gateway_example.yaml examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
