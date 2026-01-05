@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { FileAttachment, MessageFE } from "@/lib/types";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
 import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
@@ -279,7 +279,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                     apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
                 }
 
-                const response = await authenticatedFetch(apiUrl);
+                const response = await api.webui.get(apiUrl, { fullResponse: true });
                 if (!response.ok) throw new Error(`Failed to fetch artifact content: ${response.statusText}`);
 
                 const blob = await response.blob();

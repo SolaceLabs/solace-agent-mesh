@@ -13,6 +13,14 @@ export { getCleanDomain } from "./url";
 // Also matches [[cite:0]] (treats as search citation when no type prefix)
 // Also matches single bracket [cite:xxx] in case LLM uses wrong format
 export const CITATION_PATTERN = /\[?\[cite:(?:(file|ref|search|research))?(\d+)\]\]?/g;
+
+// Pattern for comma-separated citations like [[cite:search3, search4]] or [[cite:search3, search4, search5]]
+// This matches the entire bracket group with comma-separated values
+export const MULTI_CITATION_PATTERN = /\[?\[cite:((?:(?:file|ref|search|research)?\d+)(?:\s*,\s*(?:file|ref|search|research)?\d+)+)\]\]?/g;
+
+// Pattern to extract individual citations from a comma-separated list
+export const INDIVIDUAL_CITATION_PATTERN = /(file|ref|search|research)?(\d+)/g;
+
 export const CLEANUP_REGEX = /\[?\[cite:[^\]]+\]\]?/g;
 
 export interface Citation {

@@ -116,13 +116,6 @@ export interface ArtifactPart {
 export type PartFE = Part | ArtifactPart;
 
 /**
- * State for managing artifact rendering preferences and expanded state
- */
-export interface ArtifactRenderingState {
-    expandedArtifacts: Set<string>;
-}
-
-/**
  * Represents a single message in the chat conversation.
  */
 export interface MessageFE {

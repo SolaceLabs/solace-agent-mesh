@@ -1,6 +1,7 @@
 """
 API Router for managing A2A message visualization streams.
 """
+from __future__ import annotations
 
 import logging
 import asyncio
@@ -47,7 +48,7 @@ class SubscriptionTarget(BaseModel):
             "my_a2a_messages",
             "current_namespace_a2a_messages",
             "namespace_a2a_messages",
-            "agent_a2a_messages",
+            "agent_a2a_messages"
         ],
     )
     identifier: Optional[str] = Field(

@@ -1,8 +1,6 @@
 import type { FileAttachment } from "@/lib/types";
-import { authenticatedFetch } from "./api";
+import { api } from "@/lib/api";
 
-// Helper function to parse the custom artifact URI
-// URI format: artifact://{sessionId}/{filename}?version={version}
 export const parseArtifactUri = (uri: string): { sessionId: string | null; filename: string; version: string | null } | null => {
     try {
         const url = new URL(uri);
@@ -32,15 +30,12 @@ export const parseArtifactUri = (uri: string): { sessionId: string | null; filen
 
 export const downloadBlob = (blob: Blob, filename?: string) => {
     try {
-        // Create download link
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = filename || "download"; // Use file name or default
+        a.download = filename || "download";
         document.body.appendChild(a);
         a.click();
-
-        // Clean up
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     } catch (error) {
@@ -54,7 +49,6 @@ export const downloadFile = async (file: FileAttachment, sessionId?: string, pro
         let filename = file.name;
 
         if (file.content) {
-            // Handle inline base64 content
             const byteCharacters = atob(file.content);
             const byteNumbers = new Array(byteCharacters.length);
             for (let i = 0; i < byteCharacters.length; i++) {
@@ -63,35 +57,25 @@ export const downloadFile = async (file: FileAttachment, sessionId?: string, pro
             const byteArray = new Uint8Array(byteNumbers);
             blob = new Blob([byteArray], { type: file.mime_type || "application/octet-stream" });
         } else if (file.uri) {
-            // Handle URI content by fetching it from the backend
             const parsedUri = parseArtifactUri(file.uri);
             if (!parsedUri) {
                 throw new Error(`Invalid or unhandled URI format: ${file.uri}`);
             }
 
-            const { sessionId: uriSessionId, filename: parsedFilename, version: parsedVersion } = parsedUri;
+            const { filename: parsedFilename, version: parsedVersion } = parsedUri;
             filename = parsedFilename;
             const version = parsedVersion || "latest";
 
-            // Construct the API URL to fetch the artifact content
-            // Priority 1: Session ID from URI (artifact was created in this session)
-            // Priority 2: Session context (active chat)
-            // Priority 3: Project context (pre-session, project artifacts)
-            let apiUrl: string;
-            const effectiveSessionId = uriSessionId || sessionId;
-            if (effectiveSessionId && effectiveSessionId.trim() && effectiveSessionId !== "null" && effectiveSessionId !== "undefined") {
-                apiUrl = `/api/v1/artifacts/${encodeURIComponent(effectiveSessionId)}/${encodeURIComponent(filename)}/versions/${version}`;
-            }
-            // Priority 3: Project context (pre-session, project artifacts)
-            else if (projectId) {
-                apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version}?project_id=${projectId}`;
-            }
-            // Fallback: no context (will likely fail but let backend handle it)
-            else {
-                apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version}`;
+            let endpoint: string;
+            if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
+                endpoint = `/api/v1/artifacts/${encodeURIComponent(sessionId)}/${encodeURIComponent(filename)}/versions/${version}`;
+            } else if (projectId) {
+                endpoint = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version}?project_id=${projectId}`;
+            } else {
+                endpoint = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version}`;
             }
 
-            const response = await authenticatedFetch(apiUrl, { credentials: "include" });
+            const response = await api.webui.get(endpoint, { fullResponse: true });
             if (!response.ok) {
                 throw new Error(`Failed to download file: ${response.statusText}`);
             }
@@ -103,6 +87,5 @@ export const downloadFile = async (file: FileAttachment, sessionId?: string, pro
         downloadBlob(blob, filename);
     } catch (error) {
         console.error("Error creating download link:", error);
-        // You could add a user-facing notification here if desired
     }
 };

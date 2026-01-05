@@ -171,7 +171,8 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
     }
 
     // Use cached content if available, otherwise fall back to previewFileContent
-    const contentSource = cachedContent || previewFileContent;
+    // But only if it matches the current artifact filename to avoid showing stale content
+    const contentSource = cachedContent || (previewFileContent?.name === artifact.filename ? previewFileContent : null);
     // Use MIME type from contentSource (version-specific) if available, otherwise fall back to artifact.mime_type
     // This ensures each version is rendered according to its own MIME type, not the latest version's
     const effectiveMimeType = contentSource?.mime_type || artifact.mime_type;

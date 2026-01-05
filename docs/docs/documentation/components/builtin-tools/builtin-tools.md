@@ -21,8 +21,6 @@ Tool configuration is managed within the `tools` list in an agent's `app_config`
 
 For efficient configuration, built-in tools are organized into logical groups. An entire group of related tools can be enabled with a single entry. This is the recommended approach for standard functionalities.
 
--   **`tool_type`**: `builtin-group`
--   **`group_name`**: The unique identifier for the tool category.
 
 **Example:**
 ```yaml
@@ -34,12 +32,17 @@ tools:
     group_name: "data_analysis"
 ```
 
+**Configuration:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tool_type` | string | Yes | Must be `builtin-group` |
+| `group_name` | string | Yes | Tool group identifier. Available groups: `artifact_management`, `data_analysis`, `web`, `audio`, `image`, `general`|
+| `tool_config` | object | No | Group-specific configuration parameters |
+
 ### Method 2: Enabling Individual Tools
 
 For more granular control over an agent's capabilities, specific tools can be enabled individually.
-
--   **`tool_type`**: `builtin`
--   **`tool_name`**: The unique, registered name of the tool.
 
 **Example:**
 ```yaml
@@ -50,6 +53,14 @@ tools:
   - tool_type: builtin
     tool_name: "time_delay"
 ```
+
+**Configuration:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tool_type` | string | Yes | Must be `builtin` |
+| `tool_name` | string | Yes | Specific tool name to enable |
+| `tool_config` | object | No | Tool-specific configuration parameters |
 
 :::info Note
 The Agent Mesh framework automatically handles duplicate tool registrations. If a tool group is enabled and a tool from that group is also listed individually, the tool is only loaded once.
@@ -182,9 +193,11 @@ app_config:
     - tool_type: builtin
       tool_name: "web_request"
 
-    # Enable a custom Python tool
-    - tool_type: python
-      component_module: "my_company.tools.custom_calculators"
-      function_name: "calculate_roi"
-
   # ... other service configurations (session_service, artifact_service, etc.)
+```
+
+## Additional Tool Types
+
+For extending agent capabilities beyond built-in tools:
+- **Custom Python Tools**: See [Creating Python Tools](../../developing/creating-python-tools.md) for creating custom tools with your own business logic
+- **MCP Integration**: See [MCP Integration Tutorial](../../developing/tutorials/mcp-integration.md) for connecting to Model Context Protocol servers

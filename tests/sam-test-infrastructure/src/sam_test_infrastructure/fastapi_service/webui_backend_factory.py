@@ -92,6 +92,37 @@ class WebUIBackendFactory:
         # Store the user info on the component for dependency overrides
         mock_component._factory_user = user
 
+        # Set frontend_server_url attribute - empty by default for relative URLs
+        mock_component.frontend_server_url = ""
+
+        # Mock get_config to return proper defaults instead of Mock objects
+        # Keep it as a Mock with side_effect so conftest.py can still access/modify side_effect
+        def default_get_config(key, default=None):
+            configs = {
+                "frontend_feature_enablement": {},
+                "task_logging": {"enabled": False},
+                "prompt_library": {"enabled": True},
+                "session_service": {"type": "sql"},
+                "frontend_collect_feedback": False,
+                "projects": {"enabled": True},
+                "background_tasks": {"default_timeout_ms": 3600000},
+                "speech": {},
+                "platform_service": {},
+                "frontend_auth_login_url": "",
+                "frontend_use_authorization": False,
+                "frontend_welcome_message": "",
+                "frontend_redirect_url": "",
+                "frontend_bot_name": "Test Bot",
+                "frontend_logo_url": "",
+                "gateway_max_upload_size_bytes": 52428800,
+                "gateway_max_zip_upload_size_bytes": 104857600,
+                "model": {},
+                "name": "A2A_WebUI_App",
+            }
+            return configs.get(key, default if default is not None else {})
+
+        mock_component.get_config = Mock(side_effect=default_get_config)
+
         # Mock the config resolver to handle async user config resolution
         mock_config_resolver = Mock()
         mock_config_resolver.resolve_user_config = AsyncMock(return_value={})
@@ -198,7 +229,6 @@ class WebUIBackendFactory:
             _create_api_config,
             _get_app_config,
             _run_community_migrations,
-            _run_enterprise_migrations,
             _setup_middleware,
             _setup_routers,
             generic_exception_handler,
@@ -213,7 +243,6 @@ class WebUIBackendFactory:
         log.info("[WebUIBackendFactory] Database initialized with shared engine")
         log.info("Running database migrations...")
         _run_community_migrations(database_url)
-        _run_enterprise_migrations(component, database_url)
 
         # Set up API config
         app_config = _get_app_config(component)
@@ -290,7 +319,7 @@ class WebUIBackendFactory:
             get_sac_component,
             get_user_id,
         )
-        from solace_agent_mesh.gateway.http_sse.shared.auth_utils import (
+        from solace_agent_mesh.shared.api.auth_utils import (
             get_current_user,
         )
 
@@ -333,7 +362,7 @@ class WebUIBackendFactory:
             get_task_logger_service,
             get_session_validator,
         )
-        from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+        from solace_agent_mesh.shared.api.auth_utils import get_current_user
         from solace_agent_mesh.gateway.http_sse.services.feedback_service import FeedbackService
         from solace_agent_mesh.gateway.http_sse.services.task_logger_service import TaskLoggerService
         from solace_agent_mesh.gateway.http_sse.repository import SessionRepository

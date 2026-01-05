@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 
 import { MarkdownRenderer } from "@/lib/components/chat/preview/Renderers";
 import { stripReportMetadataSections, isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 import { parseArtifactUri } from "@/lib/utils/download";
 import type { ArtifactInfo, RAGSearchResult } from "@/lib/types";
 
@@ -70,7 +70,7 @@ export const DeepResearchReportContent: React.FC<DeepResearchReportContentProps>
 
                 const apiUrl = `/api/v1/artifacts/${effectiveSessionId}/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
 
-                const response = await authenticatedFetch(apiUrl);
+                const response = await api.webui.get(apiUrl, { fullResponse: true });
                 if (!response.ok) {
                     throw new Error(`Failed to fetch artifact content: ${response.statusText}`);
                 }

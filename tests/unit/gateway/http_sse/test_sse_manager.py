@@ -34,17 +34,19 @@ class TestSSEManagerInitialization:
         # Setup
         max_queue_size = 100
         event_buffer = MagicMock(spec=SSEEventBuffer)
-        
+
         # Execute
         manager = SSEManager(max_queue_size, event_buffer)
-        
+
         # Verify
         assert manager._max_queue_size == max_queue_size
         assert manager._event_buffer == event_buffer
         assert manager._connections == {}
-        assert manager._locks == {}
         assert manager.log_identifier == "[SSEManager]"
-        assert hasattr(manager._locks_lock, 'acquire') and hasattr(manager._locks_lock, 'release')
+        # Verify the single threading lock exists
+        assert hasattr(manager._lock, 'acquire') and hasattr(manager._lock, 'release')
+        # Verify connection tracking set is initialized
+        assert manager._tasks_with_prior_connection == set()
 
     def test_init_with_zero_queue_size(self):
         """Test SSEManager initialization with zero queue size."""
@@ -71,87 +73,74 @@ class TestSSEManagerInitialization:
 
 
 class TestSSEManagerLockManagement:
-    """Test lock management functionality."""
+    """Test lock management functionality.
 
-    def test_get_lock_creates_new_lock_for_event_loop(self):
-        """Test that _get_lock creates a new lock for the current event loop."""
+    Note: SSEManager now uses a single threading.Lock for cross-event-loop
+    synchronization instead of per-event-loop asyncio.Lock. These tests verify
+    the new threading lock behavior.
+    """
+
+    def test_single_threading_lock_used(self):
+        """Test that SSEManager uses a single threading lock for synchronization."""
         # Setup
         event_buffer = MagicMock(spec=SSEEventBuffer)
         manager = SSEManager(100, event_buffer)
-        
+
+        # Verify - should have a single threading lock
+        assert hasattr(manager, '_lock')
+        assert isinstance(manager._lock, type(threading.Lock()))
+
+    def test_lock_is_shared_across_operations(self):
+        """Test that all operations share the same lock."""
+        # Setup
+        event_buffer = MagicMock(spec=SSEEventBuffer)
+        event_buffer.get_and_remove_buffer.return_value = None
+        manager = SSEManager(100, event_buffer)
+
+        # Get reference to the lock
+        lock = manager._lock
+
         async def test_async():
-            # Execute
-            lock1 = manager._get_lock()
-            lock2 = manager._get_lock()
-            
-            # Verify
-            assert isinstance(lock1, asyncio.Lock)
-            assert lock1 is lock2  # Same lock for same event loop
-            
-            current_loop = asyncio.get_running_loop()
-            assert current_loop in manager._locks
-            assert manager._locks[current_loop] is lock1
-        
-        # Run test
+            # Execute - create a connection (uses the lock internally)
+            await manager.create_sse_connection("test-task")
+
         asyncio.run(test_async())
 
-    def test_get_lock_not_in_async_context(self):
-        """Test _get_lock raises RuntimeError when not in async context."""
-        # Setup
-        event_buffer = MagicMock(spec=SSEEventBuffer)
-        manager = SSEManager(100, event_buffer)
-        
-        # Execute & Verify
-        with pytest.raises(RuntimeError, match="SSEManager methods must be called from within an async context"):
-            manager._get_lock()
+        # Verify - lock should still be the same object
+        assert manager._lock is lock
 
-    def test_cleanup_old_locks_removes_closed_loops(self):
-        """Test cleanup_old_locks removes locks for closed event loops."""
+    def test_cleanup_old_locks_is_noop(self):
+        """Test cleanup_old_locks is a no-op with single threading lock."""
         # Setup
         event_buffer = MagicMock(spec=SSEEventBuffer)
         manager = SSEManager(100, event_buffer)
-        
-        # Create mock closed loop
-        closed_loop = MagicMock()
-        closed_loop.is_closed.return_value = True
-        
-        # Create mock open loop
-        open_loop = MagicMock()
-        open_loop.is_closed.return_value = False
-        
-        # Add both to locks
-        manager._locks[closed_loop] = MagicMock()
-        manager._locks[open_loop] = MagicMock()
-        
+
+        # Get reference to the lock before cleanup
+        lock_before = manager._lock
+
         # Execute
         manager.cleanup_old_locks()
-        
-        # Verify
-        assert closed_loop not in manager._locks
-        assert open_loop in manager._locks
 
-    def test_cleanup_old_locks_with_no_closed_loops(self):
-        """Test cleanup_old_locks when no loops are closed."""
+        # Verify - lock should be unchanged
+        assert manager._lock is lock_before
+
+    def test_lock_provides_thread_safety(self):
+        """Test that the threading lock provides thread safety."""
         # Setup
         event_buffer = MagicMock(spec=SSEEventBuffer)
+        event_buffer.get_and_remove_buffer.return_value = None
         manager = SSEManager(100, event_buffer)
-        
-        # Create mock open loops
-        loop1 = MagicMock()
-        loop1.is_closed.return_value = False
-        loop2 = MagicMock()
-        loop2.is_closed.return_value = False
-        
-        manager._locks[loop1] = MagicMock()
-        manager._locks[loop2] = MagicMock()
-        
-        # Execute
-        manager.cleanup_old_locks()
-        
-        # Verify
-        assert len(manager._locks) == 2
-        assert loop1 in manager._locks
-        assert loop2 in manager._locks
+
+        # Verify lock can be acquired and released
+        acquired = manager._lock.acquire(blocking=False)
+        assert acquired is True
+        manager._lock.release()
+
+        # Verify lock blocks when already held
+        manager._lock.acquire()
+        second_acquire = manager._lock.acquire(blocking=False)
+        assert second_acquire is False
+        manager._lock.release()
 
 
 class TestSSEManagerConnectionManagement:
@@ -597,6 +586,115 @@ class TestSSEManagerEventDistribution:
         assert good_queue in manager._connections[task_id]
 
 
+class TestSSEManagerBackgroundTaskBuffering:
+    """Test background task buffering behavior."""
+
+    @pytest.mark.asyncio
+    async def test_background_task_buffers_before_first_connection(self):
+        """Test that background tasks buffer events before any connection is made."""
+        # Setup
+        event_buffer = MagicMock(spec=SSEEventBuffer)
+        manager = SSEManager(100, event_buffer)
+        task_id = "background-task-123"
+
+        # Mark task as background task
+        manager._background_task_cache[task_id] = True
+
+        event_data = {"message": "test event"}
+
+        # Execute - no connection made yet
+        await manager.send_event(task_id, event_data, "message")
+
+        # Verify - event should be buffered, not dropped
+        expected_payload = {
+            "event": "message",
+            "data": json.dumps(event_data, allow_nan=False)
+        }
+        event_buffer.buffer_event.assert_called_once_with(task_id, expected_payload)
+
+    @pytest.mark.asyncio
+    async def test_background_task_drops_after_disconnection(self):
+        """Test that background tasks drop events after client disconnects."""
+        # Setup
+        event_buffer = MagicMock(spec=SSEEventBuffer)
+        event_buffer.get_and_remove_buffer.return_value = None
+        manager = SSEManager(100, event_buffer)
+        task_id = "background-task-123"
+
+        # Mark task as background task
+        manager._background_task_cache[task_id] = True
+
+        # Create connection (simulates client connecting)
+        queue = await manager.create_sse_connection(task_id)
+
+        # Remove connection (simulates client disconnecting)
+        await manager.remove_sse_connection(task_id, queue)
+
+        event_data = {"message": "test event"}
+
+        # Execute - client has connected and disconnected
+        await manager.send_event(task_id, event_data, "message")
+
+        # Verify - event should be dropped, not buffered
+        event_buffer.buffer_event.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_connection_marks_task_as_having_prior_connection(self):
+        """Test that creating a connection marks the task in the tracking set."""
+        # Setup
+        event_buffer = MagicMock(spec=SSEEventBuffer)
+        event_buffer.get_and_remove_buffer.return_value = None
+        manager = SSEManager(100, event_buffer)
+        task_id = "test-task-123"
+
+        # Verify - task not in tracking set initially
+        assert task_id not in manager._tasks_with_prior_connection
+
+        # Execute
+        await manager.create_sse_connection(task_id)
+
+        # Verify - task is now in tracking set
+        assert task_id in manager._tasks_with_prior_connection
+
+    @pytest.mark.asyncio
+    async def test_close_all_for_task_clears_tracking(self):
+        """Test that close_all_for_task clears the connection tracking."""
+        # Setup
+        event_buffer = MagicMock(spec=SSEEventBuffer)
+        event_buffer.get_and_remove_buffer.return_value = None
+        manager = SSEManager(100, event_buffer)
+        task_id = "test-task-123"
+
+        await manager.create_sse_connection(task_id)
+        assert task_id in manager._tasks_with_prior_connection
+
+        # Execute
+        await manager.close_all_for_task(task_id)
+
+        # Verify - tracking is cleared
+        assert task_id not in manager._tasks_with_prior_connection
+
+    @pytest.mark.asyncio
+    async def test_close_all_clears_tracking(self):
+        """Test that close_all clears all connection tracking."""
+        # Setup
+        event_buffer = MagicMock(spec=SSEEventBuffer)
+        event_buffer.get_and_remove_buffer.return_value = None
+        manager = SSEManager(100, event_buffer)
+
+        # Create connections for multiple tasks
+        await manager.create_sse_connection("task-1")
+        await manager.create_sse_connection("task-2")
+
+        assert len(manager._tasks_with_prior_connection) == 2
+
+        # Execute
+        await manager.close_all()
+
+        # Verify - all tracking is cleared
+        assert len(manager._tasks_with_prior_connection) == 0
+
+
 class TestSSEManagerConnectionLifecycle:
     """Test connection lifecycle management."""
 
@@ -608,7 +706,7 @@ class TestSSEManagerConnectionLifecycle:
         event_buffer.get_and_remove_buffer.return_value = None
         manager = SSEManager(100, event_buffer)
         task_id = "test-task-123"
-        
+
         queue = await manager.create_sse_connection(task_id)
         
         # Execute

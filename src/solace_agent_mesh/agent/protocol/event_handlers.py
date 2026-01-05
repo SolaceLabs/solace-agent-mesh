@@ -8,6 +8,8 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Dict
 
+from litellm.exceptions import BadRequestError
+
 from a2a.types import (
     A2ARequest,
     AgentCapabilities,
@@ -31,6 +33,7 @@ from ...agent.adk.callbacks import _publish_data_part_status_update
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common import a2a
+from ...common.error_handlers import get_error_message
 from ...common.utils.embeds.constants import (
     EMBED_DELIMITER_OPEN,
     EMBED_DELIMITER_CLOSE,
@@ -969,6 +972,51 @@ async def handle_a2a_request(component, message: SolaceMessage):
         except Exception as nack_e:
             log.error(
                 "%s Failed to NACK message after pre-start error: %s",
+                component.log_identifier,
+                nack_e,
+            )
+
+        component.handle_error(e, Event(EventType.MESSAGE, message))
+        return None
+
+    except BadRequestError as e:
+        log.error(
+            "%s Bad Request error handling A2A request: %s", component.log_identifier, e
+        )
+        
+        # Use centralized error handler
+        error_message, is_context_limit = get_error_message(e)
+        
+        if is_context_limit:
+            log.error(
+                "%s Context limit exceeded for task %s",
+                component.log_identifier,
+                logical_task_id,
+            )
+        
+        error_response = a2a.create_invalid_request_error_response(
+            message=error_message,
+            request_id=jsonrpc_request_id,
+            data={"taskId": logical_task_id},
+        )
+        target_topic = reply_topic_from_peer or (
+            get_client_response_topic(namespace, client_id) if client_id else None
+        )
+        if target_topic:
+            component.publish_a2a_message(
+                error_response.model_dump(exclude_none=True),
+                target_topic,
+            )
+
+        try:
+            message.call_negative_acknowledgements()
+            log.warning(
+                "%s NACKed original A2A request due to bad request error.",
+                component.log_identifier,
+            )
+        except Exception as nack_e:
+            log.error(
+                "%s Failed to NACK message after bad request error: %s",
                 component.log_identifier,
                 nack_e,
             )

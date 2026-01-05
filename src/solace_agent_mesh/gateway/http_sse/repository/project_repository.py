@@ -11,7 +11,7 @@ from .interfaces import IProjectRepository
 from .models import ProjectModel, ProjectUserModel
 from .entities.project import Project
 from ..routers.dto.requests.project_requests import ProjectFilter
-from ..shared import now_epoch_ms
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 
 class ProjectRepository(IProjectRepository):

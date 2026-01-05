@@ -343,6 +343,7 @@ class EmbedResolvingMCPToolset(_BaseMcpToolsetClass):
         self,
         connection_params,
         tool_filter=None,
+        tool_name_prefix=None,
         auth_scheme=None,
         auth_credential=None,
         auth_discovery=None,
@@ -357,6 +358,7 @@ class EmbedResolvingMCPToolset(_BaseMcpToolsetClass):
             super().__init__(
                 connection_params=connection_params,
                 tool_filter=tool_filter,
+                tool_name_prefix=tool_name_prefix,
                 auth_scheme=auth_scheme,
                 auth_credential=auth_credential,
                 auth_discovery=auth_discovery,
@@ -367,6 +369,7 @@ class EmbedResolvingMCPToolset(_BaseMcpToolsetClass):
             super().__init__(
                 connection_params=connection_params,
                 tool_filter=tool_filter,
+                tool_name_prefix=tool_name_prefix,
                 auth_scheme=auth_scheme,
                 auth_credential=auth_credential,
             )

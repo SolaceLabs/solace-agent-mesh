@@ -2,6 +2,7 @@
 API Router for submitting and managing tasks to agents.
 Includes background task status endpoints.
 """
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -43,8 +44,8 @@ from ....gateway.http_sse.repository.task_repository import TaskRepository
 from ....gateway.http_sse.services.session_service import SessionService
 from ....gateway.http_sse.services.task_service import TaskService
 from ....gateway.http_sse.session_manager import SessionManager
-from ....gateway.http_sse.shared.pagination import PaginationParams
-from ....gateway.http_sse.shared.types import UserId
+from solace_agent_mesh.shared.api.pagination import PaginationParams
+from solace_agent_mesh.shared.utils.types import UserId
 from ..utils.stim_utils import create_stim_from_task_data
 
 if TYPE_CHECKING:
