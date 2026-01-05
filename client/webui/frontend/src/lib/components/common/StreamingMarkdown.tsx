@@ -17,9 +17,39 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
         lastArrivalTime: Date.now(),
         avgInterval: 500, // Estimate 500ms between chunks initially
         lastLen: isStreaming ? 0 : content.length,
+        // Performance metrics
+        stats: {
+            chunks: 0,
+            totalInterval: 0,
+            renderTime: 0,
+            pauseTime: 0,
+        }
     });
 
     const contentRef = useRef(content);
+
+    // Logging effect when streaming finishes
+    useEffect(() => {
+        if (!isStreaming) {
+            const s = state.current;
+            if (s.stats.chunks > 0) {
+                const totalTime = s.stats.renderTime + s.stats.pauseTime;
+                const percentPaused = totalTime > 0 ? ((s.stats.pauseTime / totalTime) * 100).toFixed(1) : "0.0";
+                const avgArrival = (s.stats.totalInterval / s.stats.chunks).toFixed(0);
+                
+                console.log(
+                    `[StreamingMarkdown Stats] Chunks: ${s.stats.chunks}, ` +
+                    `Avg Interval: ${avgArrival}ms, ` +
+                    `Render Time: ${s.stats.renderTime.toFixed(0)}ms, ` +
+                    `Pause Time: ${s.stats.pauseTime.toFixed(0)}ms ` +
+                    `(${percentPaused}% paused)`
+                );
+                
+                // Reset stats
+                s.stats = { chunks: 0, totalInterval: 0, renderTime: 0, pauseTime: 0 };
+            }
+        }
+    }, [isStreaming]);
 
     useEffect(() => {
         contentRef.current = content;
@@ -33,6 +63,10 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
                 // Calculate time since last chunk
                 let dt = now - s.lastArrivalTime;
                 
+                // Update stats
+                s.stats.chunks++;
+                s.stats.totalInterval += dt;
+
                 // Safety: Clamp dt to avoid extreme spikes from jitter or initial mount
                 // Min 20ms (50fps) to prevent division by zero or massive rates on rapid-fire updates
                 // Max 5000ms to prevent one long pause from skewing the average forever
@@ -88,6 +122,9 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
             const backlog = target.length - s.cursor;
 
             if (backlog > 0) {
+                // Track render time
+                s.stats.renderTime += dt;
+
                 // Simple linear advance at the calculated speed
                 s.cursor += s.speed * dt;
 
@@ -96,8 +133,13 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
                 }
 
                 setDisplayedContent(target.slice(0, Math.floor(s.cursor)));
-            } else if (backlog <= 0 && target.length > 0 && displayedContent.length !== target.length) {
-                setDisplayedContent(target);
+            } else if (backlog <= 0) {
+                // Track pause time (waiting for chunks)
+                s.stats.pauseTime += dt;
+                
+                if (target.length > 0 && displayedContent.length !== target.length) {
+                    setDisplayedContent(target);
+                }
             }
 
             animationFrameId = requestAnimationFrame(animate);
