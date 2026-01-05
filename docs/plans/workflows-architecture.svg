@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 700" font-family="Arial, sans-serif">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#666"/>
+    </marker>
+    <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#6c8ebf"/>
+    </marker>
+    <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#82b366"/>
+    </marker>
+    <marker id="arrowhead-yellow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#d6b656"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="450" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">Prescriptive Workflows - High-Level Architecture</text>
+
+  <!-- Legend -->
+  <g transform="translate(20, 50)">
+    <rect x="0" y="0" width="120" height="100" fill="#f9f9f9" stroke="#ccc" rx="5"/>
+    <text x="10" y="18" font-size="11" font-weight="bold">Legend</text>
+    <rect x="10" y="28" width="15" height="12" fill="#dae8fc" stroke="#6c8ebf" rx="2"/>
+    <text x="30" y="38" font-size="9">Client</text>
+    <rect x="10" y="45" width="15" height="12" fill="#fff2cc" stroke="#d6b656" rx="2"/>
+    <text x="30" y="55" font-size="9">Workflow Executor</text>
+    <rect x="10" y="62" width="15" height="12" fill="#d5e8d4" stroke="#82b366" rx="2"/>
+    <text x="30" y="72" font-size="9">Agents</text>
+    <rect x="10" y="79" width="15" height="12" fill="#f8cecc" stroke="#b85450" rx="2"/>
+    <text x="30" y="89" font-size="9">Frontend</text>
+  </g>
+
+  <!-- User/Client Box -->
+  <g transform="translate(300, 60)">
+    <rect x="0" y="0" width="300" height="45" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2" rx="8"/>
+    <text x="150" y="22" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">User/Client</text>
+    <text x="150" y="38" text-anchor="middle" font-size="10" fill="#666">WebUI, CLI, External Systems</text>
+  </g>
+
+  <!-- A2A Protocol Arrow (bidirectional) -->
+  <line x1="450" y1="105" x2="450" y2="145" stroke="#6c8ebf" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+  <text x="460" y="130" font-size="10" fill="#6c8ebf" font-weight="bold">A2A Protocol</text>
+  <text x="460" y="142" font-size="9" fill="#6c8ebf">(via Solace Broker)</text>
+
+  <!-- WorkflowExecutorComponent Container -->
+  <g transform="translate(100, 150)">
+    <rect x="0" y="0" width="700" height="170" fill="#fff2cc" stroke="#d6b656" stroke-width="2" rx="5"/>
+    <text x="350" y="20" text-anchor="middle" font-size="13" font-weight="bold" fill="#333">WorkflowExecutorComponent</text>
+
+    <!-- Event Handlers -->
+    <rect x="20" y="40" width="120" height="55" fill="#fff" stroke="#888" rx="5"/>
+    <text x="80" y="62" text-anchor="middle" font-size="11" fill="#333">Event Handlers</text>
+    <text x="80" y="78" text-anchor="middle" font-size="9" fill="#666">(Protocol)</text>
+
+    <!-- DAG Executor -->
+    <rect x="180" y="40" width="120" height="55" fill="#fff" stroke="#888" rx="5"/>
+    <text x="240" y="62" text-anchor="middle" font-size="11" fill="#333">DAG Executor</text>
+    <text x="240" y="78" text-anchor="middle" font-size="9" fill="#666">(Orchestration)</text>
+
+    <!-- Agent Caller -->
+    <rect x="340" y="40" width="120" height="55" fill="#fff" stroke="#888" rx="5"/>
+    <text x="400" y="62" text-anchor="middle" font-size="11" fill="#333">Agent Caller</text>
+    <text x="400" y="78" text-anchor="middle" font-size="9" fill="#666">(A2A Invocation)</text>
+
+    <!-- Status Event Publisher -->
+    <rect x="500" y="40" width="120" height="55" fill="#fff" stroke="#888" rx="5"/>
+    <text x="560" y="62" text-anchor="middle" font-size="11" fill="#333">Status Event</text>
+    <text x="560" y="78" text-anchor="middle" font-size="9" fill="#666">Publisher</text>
+
+    <!-- Execution Context -->
+    <rect x="180" y="115" width="120" height="45" fill="#e1d5e7" stroke="#9673a6" rx="5"/>
+    <text x="240" y="135" text-anchor="middle" font-size="10" fill="#333">Execution</text>
+    <text x="240" y="148" text-anchor="middle" font-size="10" fill="#333">Context/State</text>
+
+    <!-- Internal arrows -->
+    <line x1="140" y1="67" x2="175" y2="67" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+    <line x1="300" y1="67" x2="335" y2="67" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+    <line x1="460" y1="67" x2="495" y2="67" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+    <line x1="240" y1="95" x2="240" y2="110" stroke="#666" stroke-width="1" stroke-dasharray="4,2" marker-end="url(#arrowhead)"/>
+  </g>
+
+  <!-- Arrow from Agent Caller to Agents -->
+  <path d="M 500 320 L 500 360 L 450 360 L 450 395" stroke="#82b366" stroke-width="2" fill="none" marker-end="url(#arrowhead-green)"/>
+  <text x="510" y="355" font-size="10" fill="#82b366" font-weight="bold">A2A Messages</text>
+
+  <!-- Agents Container -->
+  <g transform="translate(250, 400)">
+    <rect x="0" y="0" width="400" height="120" fill="#d5e8d4" stroke="#82b366" stroke-width="2" rx="5"/>
+    <text x="200" y="20" text-anchor="middle" font-size="13" font-weight="bold" fill="#333">Agents</text>
+
+    <!-- Agent A -->
+    <rect x="20" y="35" width="110" height="70" fill="#fff" stroke="#888" rx="5"/>
+    <text x="75" y="55" text-anchor="middle" font-size="11" fill="#333">Agent A</text>
+    <text x="75" y="72" text-anchor="middle" font-size="8" fill="#666">Structured Invocation</text>
+    <text x="75" y="84" text-anchor="middle" font-size="8" fill="#666">Handler</text>
+
+    <!-- Agent B -->
+    <rect x="145" y="35" width="110" height="70" fill="#fff" stroke="#888" rx="5"/>
+    <text x="200" y="55" text-anchor="middle" font-size="11" fill="#333">Agent B</text>
+    <text x="200" y="72" text-anchor="middle" font-size="8" fill="#666">Structured Invocation</text>
+    <text x="200" y="84" text-anchor="middle" font-size="8" fill="#666">Handler</text>
+
+    <!-- Agent C -->
+    <rect x="270" y="35" width="110" height="70" fill="#fff" stroke="#888" rx="5"/>
+    <text x="325" y="55" text-anchor="middle" font-size="11" fill="#333">Agent C</text>
+    <text x="325" y="72" text-anchor="middle" font-size="8" fill="#666">Structured Invocation</text>
+    <text x="325" y="84" text-anchor="middle" font-size="8" fill="#666">Handler</text>
+  </g>
+
+  <!-- Arrow from Workflow Executor to Frontend (Status Events) -->
+  <line x1="700" y1="320" x2="700" y2="555" stroke="#d6b656" stroke-width="2" marker-end="url(#arrowhead-yellow)"/>
+  <text x="710" y="440" font-size="10" fill="#d6b656" font-weight="bold">A2A Status</text>
+  <text x="710" y="452" font-size="10" fill="#d6b656" font-weight="bold">Events</text>
+
+  <!-- Arrow from Agents to Frontend (Status Events) -->
+  <line x1="450" y1="520" x2="450" y2="555" stroke="#82b366" stroke-width="2" marker-end="url(#arrowhead-green)"/>
+  <text x="460" y="542" font-size="10" fill="#82b366" font-weight="bold">A2A Status Events</text>
+
+  <!-- Frontend Container -->
+  <g transform="translate(100, 560)">
+    <rect x="0" y="0" width="700" height="110" fill="#f8cecc" stroke="#b85450" stroke-width="2" rx="5"/>
+    <text x="350" y="20" text-anchor="middle" font-size="13" font-weight="bold" fill="#333">Frontend (WebUI)</text>
+
+    <!-- Task Visualizer Processor -->
+    <rect x="30" y="40" width="130" height="50" fill="#fff" stroke="#888" rx="5"/>
+    <text x="95" y="62" text-anchor="middle" font-size="10" fill="#333">Task Visualizer</text>
+    <text x="95" y="76" text-anchor="middle" font-size="10" fill="#333">Processor</text>
+
+    <!-- Layout Engine -->
+    <rect x="210" y="40" width="130" height="50" fill="#fff" stroke="#888" rx="5"/>
+    <text x="275" y="62" text-anchor="middle" font-size="10" fill="#333">Layout Engine</text>
+    <text x="275" y="76" text-anchor="middle" font-size="9" fill="#666">(layoutEngine.ts)</text>
+
+    <!-- FlowChart Components -->
+    <rect x="390" y="40" width="130" height="50" fill="#fff" stroke="#888" rx="5"/>
+    <text x="455" y="62" text-anchor="middle" font-size="10" fill="#333">FlowChart</text>
+    <text x="455" y="76" text-anchor="middle" font-size="10" fill="#333">Components</text>
+
+    <!-- Node Details Card -->
+    <rect x="560" y="40" width="110" height="50" fill="#fff" stroke="#888" rx="5"/>
+    <text x="615" y="62" text-anchor="middle" font-size="10" fill="#333">Node Details</text>
+    <text x="615" y="76" text-anchor="middle" font-size="10" fill="#333">Card</text>
+
+    <!-- Internal arrows -->
+    <line x1="160" y1="65" x2="205" y2="65" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+    <line x1="340" y1="65" x2="385" y2="65" stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  </g>
+
+</svg>

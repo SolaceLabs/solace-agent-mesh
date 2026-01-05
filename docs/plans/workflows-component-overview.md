@@ -40,6 +40,11 @@ Prescriptive workflows are ideal for:
 
 ### High-Level Architecture
 
+![High-Level Architecture](workflows-architecture.svg)
+
+<details>
+<summary>Text version</summary>
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              User/Client                                    │
@@ -81,6 +86,8 @@ Prescriptive workflows are ideal for:
 │  └─────────────────┘   └─────────────────┘   └─────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
+
+</details>
 
 ### Communication Patterns
 
