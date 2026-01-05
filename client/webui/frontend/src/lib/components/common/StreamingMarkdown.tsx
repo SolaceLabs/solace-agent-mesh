@@ -32,15 +32,16 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
 
             // Only update speed if we received data and some time has passed
             if (added > 0 && dt > 0) {
-                const instantRate = added / dt;
-                // Smooth the speed update: 70% old, 30% new to reduce jitter
-                // We use a moving average to adapt to the stream rate
-                const newSpeed = s.speed * 0.7 + instantRate * 0.3;
+                // User requirement: Target rendering time = 120% of chunk arrival period.
+                // This intentionally slows down rendering to build a buffer and bridge gaps.
+                const arrivalRate = added / dt;
+                const targetSpeed = arrivalRate / 1.2;
+
+                // Smooth the speed update: 70% old, 30% new
+                const newSpeed = s.speed * 0.7 + targetSpeed * 0.3;
                 
                 // Clamp speed to reasonable human-readable bounds
-                // Min: 0.02 (~20 chars/s) - prevents stalling on slow connections
-                // Max: 1.0 (~1000 chars/s) - prevents epilepsy on huge bursts
-                s.speed = Math.max(0.02, Math.min(1.0, newSpeed));
+                s.speed = Math.max(0.01, Math.min(1.5, newSpeed));
             }
 
             s.lastUpdate = now;
@@ -78,12 +79,12 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
                 // Base speed from our adaptive rate
                 let currentSpeed = s.speed;
 
-                // Catch-up mechanism: If backlog is large, boost speed
-                // If we are 100 chars behind, we should hurry up.
-                // Boost factor increases linearly with backlog.
-                if (backlog > 50) {
-                    currentSpeed *= 1 + (backlog / 100); 
-                }
+                // Catch-up mechanism: If backlog is large, boost speed gently.
+                // Start boosting when backlog > 30 chars.
+                // Formula ensures continuous acceleration rather than a hard step.
+                // e.g. backlog 30 -> 1.0x, backlog 80 -> 1.5x, backlog 130 -> 2.0x
+                const boost = 1 + Math.max(0, (backlog - 30) / 100);
+                currentSpeed *= boost;
 
                 // Advance cursor
                 s.cursor += currentSpeed * dt;
