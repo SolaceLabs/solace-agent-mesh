@@ -451,6 +451,89 @@ async def _send_rag_info_update(
         log.error("%s Error sending RAG info update: %s", log_identifier, str(e))
 
 
+async def _send_deep_research_report_signal(
+    artifact_filename: str,
+    artifact_version: int,
+    title: str,
+    sources_count: int,
+    tool_context: ToolContext
+) -> None:
+    """
+    Send DeepResearchReportData signal directly to frontend.
+    
+    This bypasses the LLM response entirely, ensuring the report is displayed
+    via the DeepResearchReportBubble component without duplication.
+    
+    The frontend will receive this signal and render the report using the
+    artifact viewer, suppressing any text content from the LLM response.
+    
+    Args:
+        artifact_filename: The filename of the research report artifact
+        artifact_version: The version number of the artifact
+        title: Human-readable title for the research
+        sources_count: Number of sources analyzed
+        tool_context: Tool context for accessing agent
+    """
+    log_identifier = "[DeepResearch:ReportSignal]"
+    
+    try:
+        # Get a2a context from tool context state
+        a2a_context = tool_context.state.get("a2a_context")
+        if not a2a_context:
+            log.warning("%s No a2a_context found, cannot send report signal", log_identifier)
+            return
+
+        # Get the host component from invocation context
+        invocation_context = getattr(tool_context, '_invocation_context', None)
+        if not invocation_context:
+            log.warning("%s No invocation context found", log_identifier)
+            return
+            
+        agent = getattr(invocation_context, 'agent', None)
+        if not agent:
+            log.warning("%s No agent found in invocation context", log_identifier)
+            return
+            
+        host_component = getattr(agent, 'host_component', None)
+        if not host_component:
+            log.warning("%s No host component found on agent", log_identifier)
+            return
+
+        # Build the artifact URI for the frontend
+        # Format: artifact://{session_id}/{filename}?version={version}
+        # This matches the format expected by parseArtifactUri in download.ts
+        from ..utils.context_helpers import get_original_session_id
+        session_id = get_original_session_id(invocation_context)
+        artifact_uri = f"artifact://{session_id}/{artifact_filename}?version={artifact_version}"
+        
+        log.info("%s Sending deep research report signal: filename='%s', version=%d, uri='%s'",
+                log_identifier, artifact_filename, artifact_version, artifact_uri)
+
+        # Import and create the DeepResearchReportData
+        from ...common.data_parts import DeepResearchReportData
+        
+        report_data = DeepResearchReportData(
+            filename=artifact_filename,
+            version=artifact_version,
+            uri=artifact_uri,
+            title=title,
+            sources_count=sources_count
+        )
+        
+        # Use the host component's helper method to publish the data signal
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=report_data,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
+        )
+        
+        log.info("%s Successfully sent deep research report signal", log_identifier)
+        
+    except Exception as e:
+        log.error("%s Error sending deep research report signal: %s", log_identifier, str(e))
+
+
 async def _search_web(
     query: str,
     max_results: int,
@@ -1367,8 +1450,24 @@ Write your research report now. Format in Markdown. Remember: NO word counts in 
             # IMPORTANT: Pass stream=True to enable streaming mode
             # Without this, the LLM call waits for the entire response before yielding,
             # which can cause timeouts with large prompts or slow models
+            #
+            # NOTE: LiteLlm streaming yields:
+            # 1. Multiple partial responses (is_partial=True) with delta text chunks
+            # 2. One final aggregated response (is_partial=False) with the FULL accumulated text
+            #
+            # We ONLY process partial responses to avoid duplication. The final aggregated
+            # response contains the same text we've already accumulated from the partials.
             async for response_event in llm.generate_content_async(llm_request, stream=True):
                 response_count += 1
+                
+                # Check if this is a partial (streaming chunk) or final (aggregated) response
+                # LiteLlm sets partial=True for streaming chunks, partial=False for final
+                is_partial = getattr(response_event, 'partial', None)
+                
+                # Skip non-partial (final aggregated) responses - they contain duplicate content
+                # The final response has the full accumulated text which we've already collected
+                if is_partial is False:
+                    continue
                 
                 # Try different extraction methods
                 extracted_text = ""
@@ -1381,6 +1480,7 @@ Write your research report now. Format in Markdown. Remember: NO word counts in 
                         extracted_text = "".join([part.text for part in response_event.content.parts if hasattr(part, 'text') and part.text])
                 
                 if extracted_text:
+                    # For partial responses, always append (they are delta chunks)
                     report_body += extracted_text
                     
                     # Send progress update every 500 characters to show activity and reset peer timeout
@@ -1848,6 +1948,21 @@ async def deep_research(
                 )
             except Exception as progress_error:
                 log.error("%s Error sending final progress update: %s", log_identifier, str(progress_error))
+            
+            # Emit DeepResearchReportData signal directly to frontend
+            # This bypasses the LLM response entirely, ensuring the report is displayed
+            # via the DeepResearchReportBubble component 
+            try:
+                await _send_deep_research_report_signal(
+                    artifact_filename=artifact_filename,
+                    artifact_version=artifact_version,
+                    title=citation_tracker.generated_title or research_question,
+                    sources_count=len(all_findings),
+                    tool_context=tool_context
+                )
+
+            except Exception as signal_error:
+                log.error("%s Error sending deep research report signal: %s", log_identifier, str(signal_error))
         
         # Send final RAG info update marking research as complete
         try:
@@ -1855,15 +1970,12 @@ async def deep_research(
         except Exception as rag_error:
             log.error("%s Error sending final RAG info update: %s", log_identifier, str(rag_error))
         
-        # Build the response artifact reference for the embed pattern
+        # Build the response - NO EMBED since we already sent the DeepResearchReportData signal
         artifact_save_success = artifact_result.get("status") in ["success", "partial_success"]
         artifact_version = artifact_result.get("data_version", 1) if artifact_save_success else None
         
-        # Create a structured response that the agent can use with artifact_content embed
-        # Only include artifact_filename if the save was successful
         result_dict = {
             "status": "success",
-            "message": f"Research complete: analyzed {len(all_findings)} sources.",
             "total_sources": len(all_findings),
             "iterations_completed": min(iteration, max_iterations),
             "rag_metadata": citation_tracker.get_rag_metadata(artifact_filename=artifact_filename if artifact_save_success else None),
@@ -1877,8 +1989,15 @@ async def deep_research(
                 "filename": artifact_filename,
                 "version": artifact_version
             }
+            result_dict["message"] = (
+                f"Deep research complete: analyzed {len(all_findings)} sources. "
+                f"The comprehensive report '{artifact_filename}' (version {artifact_version}) "
+                f"has been sent to the user and will be displayed automatically. "
+                f"Do NOT include any artifact embeds or summarize the report - it is already being displayed."
+            )
         else:
             result_dict["artifact_error"] = artifact_result.get("message", "Failed to save artifact")
+            result_dict["message"] = f"Research complete but failed to save artifact: {artifact_result.get('message', 'Unknown error')}. Analyzed {len(all_findings)} sources."
         
         return result_dict
         
@@ -1912,6 +2031,13 @@ Use this tool when you need to:
 
 The tool provides real-time progress updates and generates a detailed
 research report with proper citations for all sources.
+
+IMPORTANT - Returning Results:
+The tool automatically sends the research report directly to the user's interface
+via a special signal. The report will be displayed automatically in a dedicated
+component. Do NOT include any artifact embeds or summarize the report content -
+it is already being displayed to the user. Simply acknowledge that the research
+is complete and the report has been delivered.
 
 Configuration:
 - Can be configured via tool_config in agent YAML (max_iterations, max_runtime_seconds, sources)

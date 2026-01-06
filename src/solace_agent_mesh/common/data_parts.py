@@ -212,6 +212,27 @@ class RAGInfoUpdateData(BaseModel):
     timestamp: str = Field(..., description="ISO timestamp of this update")
 
 
+class DeepResearchReportData(BaseModel):
+    """
+    Data model for a deep research report completion signal.
+    This is sent when a deep research report artifact has been created and saved.
+    The frontend will use this to render the DeepResearchReportBubble component
+    instead of displaying the report content inline.
+    
+    This signal bypasses the LLM response entirely, ensuring the report is displayed
+    via the artifact viewer without duplication.
+    """
+
+    type: Literal["deep_research_report"] = Field(
+        "deep_research_report", description="The constant type for this data part."
+    )
+    filename: str = Field(..., description="The filename of the research report artifact.")
+    version: int = Field(..., description="The version number of the artifact.")
+    uri: str = Field(..., description="The artifact URI for fetching the report content.")
+    title: Optional[str] = Field(None, description="Human-readable title for the research.")
+    sources_count: int = Field(default=0, description="Number of sources analyzed.")
+
+
 SignalData = Union[
     ToolInvocationStartData,
     LlmInvocationData,
@@ -222,4 +243,5 @@ SignalData = Union[
     TemplateBlockData,
     DeepResearchProgressData,
     RAGInfoUpdateData,
+    DeepResearchReportData,
 ]
