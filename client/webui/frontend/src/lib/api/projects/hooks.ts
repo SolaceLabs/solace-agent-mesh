@@ -3,20 +3,13 @@ import type { CreateProjectRequest, Project, UpdateProjectData } from "@/lib/typ
 import { projectKeys } from "./keys";
 import * as projectService from "./service";
 
-/**
- * Query hook for fetching all projects
- */
 export function useProjects() {
-    console.log("useProjects called asdasd");
     return useQuery({
         queryKey: projectKeys.lists(),
         queryFn: projectService.getProjects,
     });
 }
 
-/**
- * Query hook for fetching project artifacts
- */
 export function useProjectArtifacts(projectId: string | null) {
     return useQuery({
         queryKey: projectId ? projectKeys.artifacts(projectId) : ["projects", "artifacts", "empty"],
@@ -24,9 +17,6 @@ export function useProjectArtifacts(projectId: string | null) {
     });
 }
 
-/**
- * Mutation hook for creating a new project
- */
 export function useCreateProject() {
     const queryClient = useQueryClient();
 
@@ -38,9 +28,6 @@ export function useCreateProject() {
     });
 }
 
-/**
- * Mutation hook for updating a project
- */
 export function useUpdateProject() {
     const queryClient = useQueryClient();
 
@@ -53,9 +40,6 @@ export function useUpdateProject() {
     });
 }
 
-/**
- * Mutation hook for deleting a project
- */
 export function useDeleteProject() {
     const queryClient = useQueryClient();
 
@@ -68,9 +52,6 @@ export function useDeleteProject() {
     });
 }
 
-/**
- * Mutation hook for adding files to a project
- */
 export function useAddFilesToProject() {
     const queryClient = useQueryClient();
 
@@ -83,9 +64,6 @@ export function useAddFilesToProject() {
     });
 }
 
-/**
- * Mutation hook for removing a file from a project
- */
 export function useRemoveFileFromProject() {
     const queryClient = useQueryClient();
 
@@ -98,9 +76,6 @@ export function useRemoveFileFromProject() {
     });
 }
 
-/**
- * Mutation hook for updating file metadata
- */
 export function useUpdateFileMetadata() {
     const queryClient = useQueryClient();
 
@@ -112,18 +87,12 @@ export function useUpdateFileMetadata() {
     });
 }
 
-/**
- * Mutation hook for exporting a project
- */
 export function useExportProject() {
     return useMutation({
         mutationFn: (projectId: string) => projectService.exportProject(projectId),
     });
 }
 
-/**
- * Mutation hook for importing a project
- */
 export function useImportProject() {
     const queryClient = useQueryClient();
 
