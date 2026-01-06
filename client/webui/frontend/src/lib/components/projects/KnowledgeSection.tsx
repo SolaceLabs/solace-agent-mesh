@@ -12,6 +12,7 @@ import { ConfirmationDialog, FileUpload, MessageBanner } from "../common";
 
 import { AddProjectFilesDialog } from "./AddProjectFilesDialog";
 import { EditFileDescriptionDialog } from "./EditFileDescriptionDialog";
+import { FileDetailsDialog } from "./FileDetailsDialog";
 
 interface KnowledgeSectionProps {
     project: Project;
@@ -29,6 +30,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const [filesToUpload, setFilesToUpload] = useState<FileList | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedArtifact, setSelectedArtifact] = useState<ArtifactInfo | null>(null);
+    const [showDetailsDialog, setShowDetailsDialog] = useState(false);
     const [expandedArtifact, setExpandedArtifact] = useState<string | null>(null);
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [isSavingMetadata, setIsSavingMetadata] = useState(false);
@@ -101,6 +103,11 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         setExpandedArtifact(expandedArtifact === filename ? null : filename);
     };
 
+    const handleFileClick = (artifact: ArtifactInfo) => {
+        setSelectedArtifact(artifact);
+        setShowDetailsDialog(true);
+    };
+
     const handleEditDescription = (artifact: ArtifactInfo) => {
         setSelectedArtifact(artifact);
         setShowEditDialog(true);
@@ -122,9 +129,21 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         }
     };
 
+    const handleCloseDetailsDialog = () => {
+        setShowDetailsDialog(false);
+        setSelectedArtifact(null);
+    };
+
     const handleCloseEditDialog = () => {
         setShowEditDialog(false);
-        setSelectedArtifact(null);
+        if (!showDetailsDialog) {
+            setSelectedArtifact(null);
+        }
+    };
+
+    const handleEditFromDetails = () => {
+        setShowDetailsDialog(false);
+        setShowEditDialog(true);
     };
 
     return (
@@ -150,12 +169,12 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                         <FileUpload name="project-files" accept="*" multiple value={filesToUpload} onChange={handleFileUploadChange} onValidate={handleValidateFileSizes} />
                         {artifacts.length > 0 && (
                             <div className="mt-4 min-h-0 flex-1 overflow-y-auto border-t">
-                                <div className="border-r border-l">
-                                    {sortedArtifacts.map(artifact => {
-                                        const isExpanded = expandedArtifact === artifact.filename;
-                                        const expandedContent = isExpanded ? <FileDetails description={artifact.description ?? undefined} size={artifact.size} lastModified={artifact.last_modified} mimeType={artifact.mime_type} /> : undefined;
+                                {sortedArtifacts.map(artifact => {
+                                    const isExpanded = expandedArtifact === artifact.filename;
+                                    const expandedContent = isExpanded ? <FileDetails description={artifact.description ?? undefined} size={artifact.size} lastModified={artifact.last_modified} mimeType={artifact.mime_type} /> : undefined;
 
-                                        return (
+                                    return (
+                                        <div key={artifact.filename} className="border-r border-l">
                                             <ArtifactBar
                                                 key={artifact.filename}
                                                 filename={artifact.filename}
@@ -167,17 +186,17 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                                                 expandable={true}
                                                 expanded={isExpanded}
                                                 expandedContent={expandedContent}
-                                                source="project"
                                                 actions={{
                                                     onInfo: () => handleToggleExpand(artifact.filename),
                                                     onEdit: () => handleEditDescription(artifact),
                                                     onDownload: () => onDownload(artifact),
                                                     onDelete: () => handleDeleteClick(artifact),
+                                                    onPreview: () => handleFileClick(artifact), // preview opens the details for projects instead of seeing the content
                                                 }}
                                             />
-                                        );
-                                    })}
-                                </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </>
@@ -185,7 +204,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
             </div>
 
             <AddProjectFilesDialog isOpen={!!filesToUpload} files={filesToUpload} onClose={handleCloseUploadDialog} onConfirm={handleConfirmUpload} isSubmitting={isSubmitting} error={uploadError} onClearError={handleClearUploadError} />
-
+            <FileDetailsDialog isOpen={showDetailsDialog} artifact={selectedArtifact} onClose={handleCloseDetailsDialog} onEdit={handleEditFromDetails} />
             <EditFileDescriptionDialog isOpen={showEditDialog} artifact={selectedArtifact} onClose={handleCloseEditDialog} onSave={handleSaveDescription} isSaving={isSavingMetadata} />
 
             <ConfirmationDialog
