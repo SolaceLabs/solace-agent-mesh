@@ -1,6 +1,25 @@
-# Tool Migration Guide
+---
+title: "Migration Guide: Upgrading to the New Tool Framework"
+sidebar_position: 10
+---
 
-This guide explains how to migrate existing tools to use the new patterns introduced in the tool refactoring:
+This guide is for developers who have built custom tools for Solace Agent Mesh. A recent architectural update introduces a new tool framework that significantly reduces boilerplate code and provides better patterns for artifact handling, context access, and return values.
+
+This document provides a comprehensive guide to migrating your existing tools to the new framework patterns.
+
+## Why the Change?
+
+The migration to the new tool framework provides several key benefits:
+
+* **Reduced Boilerplate:** Automatic artifact loading and saving eliminates 15+ lines of repetitive code per tool.
+* **Type Safety:** New type hints (`ArtifactContent`, `ToolResult`) provide better IDE support and catch errors earlier.
+* **Cleaner Context Access:** The `ToolContextFacade` provides a simple, read-only interface instead of accessing internal implementation details.
+* **Explicit Data Handling:** `DataDisposition` makes it clear how tool outputs should be handled (inline, artifact, or preview).
+* **Future-Proofing:** Insulates your tools from internal implementation changes in the framework.
+
+## New Framework Components
+
+The new tool framework introduces four key components:
 
 1. **ToolResult** - Structured return type with automatic artifact handling
 2. **ArtifactContent** - Type hint for automatic artifact pre-loading
@@ -346,10 +365,10 @@ tools:
 - No separate lists to maintain
 - Cleaner, more intuitive configuration
 
-## Complete Example: Before and After
+## Complete Examples
 
-See the example files in this directory:
-- `migrated_jmespath_tool.py` - Uses ArtifactContent type hint
-- `migrated_sql_tool.py` - Uses ctx.load_artifact() for multiple files
+For complete migration examples, see the example tool implementations in the source code:
+- `src/solace_agent_mesh/agent/tools/examples/migrated_jmespath_tool.py` - Uses ArtifactContent type hint
+- `src/solace_agent_mesh/agent/tools/examples/migrated_sql_tool.py` - Uses ctx.load_artifact() for multiple files
 
 Both demonstrate the full migration from old to new patterns.
