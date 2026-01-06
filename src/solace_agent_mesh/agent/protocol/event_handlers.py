@@ -1797,26 +1797,23 @@ async def handle_a2a_response(component, message: SolaceMessage):
                 final_text = str(payload_to_queue)
 
             # Check if a deep research report was sent by the peer agent
-            # If so, suppress the text content to avoid duplication
+            # If so, suppress the verbose text but keep artifact info to use
             peer_sent_deep_research = task_context.get_flag("peer_sent_deep_research_report", False)
             if peer_sent_deep_research:
-                log.info(
-                    "%s Suppressing peer response text for task %s because deep_research_report was already sent to user.",
-                    log_retrigger,
-                    logical_task_id,
-                )
                 # Clear the flag after using it
                 task_context.set_flag("peer_sent_deep_research_report", False)
-                # Replace the full text with a minimal acknowledgment that instructs the LLM
-                # to NOT generate any additional response text
-                full_response_text = (
-                    "TASK_COMPLETE_NO_RESPONSE_NEEDED. "
-                    "The deep research report artifact has already been delivered directly to the user's interface. "
-                    "The user can see and interact with the full report. "
-                    "CRITICAL: Do NOT generate any response text. Do NOT summarize the report. "
-                    "Do NOT acknowledge completion. Simply end your turn silently. "
-                    "Any text you generate will be redundant and confusing to the user."
-                )
+                if artifact_summary:
+                    full_response_text = (
+                        f"{artifact_summary}\n---\n\n"
+                        "SUCCESS: Deep research task completed. The report has been delivered to the user "
+                        "and is being displayed. Use artifact_return to include the artifact reference "
+                        "in your response so users can click on it."
+                    )
+                else:
+                    full_response_text = (
+                        "SUCCESS: Deep research task completed successfully. "
+                        "The research report has been delivered to the user."
+                    )
             else:
                 full_response_text = final_text
                 if artifact_summary:
