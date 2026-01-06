@@ -176,6 +176,10 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
         ...,
         description="The base URL of the downstream A2A agent's HTTP endpoint.",
     )
+    agent_card_path: str = Field(
+        default="/.well-known/agent-card.json",
+        description="Path to the agent card endpoint (relative to the base URL).",
+    )
     authentication: Optional[AuthenticationConfig] = Field(
         default=None,
         description="Authentication details for the downstream agent.",
