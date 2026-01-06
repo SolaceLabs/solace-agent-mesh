@@ -1,5 +1,8 @@
-name: Release (PyPI & Docker)
+name: Test Release Fix
 on:
+  push:
+    branches:
+      - test-skip-security-checks
   workflow_dispatch:
     inputs:
       version:
