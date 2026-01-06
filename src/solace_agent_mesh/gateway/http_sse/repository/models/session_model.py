@@ -6,7 +6,7 @@ from sqlalchemy import BigInteger, Column, String, ForeignKey
 from pydantic import BaseModel
 from sqlalchemy.orm import relationship
 
-from ...shared import now_epoch_ms
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from .base import Base
 
 

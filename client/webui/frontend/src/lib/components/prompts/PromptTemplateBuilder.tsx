@@ -23,7 +23,7 @@ interface PromptTemplateBuilderProps {
 export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ onBack, onSuccess, initialMessage, editingGroup, isEditing = false, initialMode }) => {
     const { config, updateConfig, saveTemplate, updateTemplate, resetConfig, validationErrors, isLoading } = usePromptTemplateBuilder(editingGroup);
 
-    const [builderMode, setBuilderMode] = useState<"manual" | "ai-assisted">(initialMode || (isEditing ? "manual" : "ai-assisted"));
+    const [builderMode, setBuilderMode] = useState<"manual" | "ai-assisted">(initialMode || "ai-assisted");
     const [isReadyToSave, setIsReadyToSave] = useState(false);
     const [highlightedFields, setHighlightedFields] = useState<string[]>([]);
 
@@ -208,7 +208,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
 
                     {/* Right Panel - Template Preview (only in AI mode) */}
                     {builderMode === "ai-assisted" && (
-                        <div className="bg-muted/30 w-[60%] overflow-hidden">
+                        <div className="w-[60%] overflow-hidden">
                             <TemplatePreviewPanel config={config} highlightedFields={highlightedFields} isReadyToSave={isReadyToSave} />
                         </div>
                     )}

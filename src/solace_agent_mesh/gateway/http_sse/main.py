@@ -1,17 +1,11 @@
+from __future__ import annotations
+
 import logging
 import os
 from pathlib import Path
 
 import httpx
 import sqlalchemy as sa
-from fastapi import FastAPI, HTTPException
-from fastapi import Request as FastAPIRequest
-from fastapi import status
-from typing import TYPE_CHECKING
-
-import sqlalchemy as sa
-from a2a.types import InternalError, JSONRPCError
-from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
 from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI, HTTPException
@@ -22,12 +16,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
+from typing import TYPE_CHECKING
 
-from .routers.sessions import router as session_router
-from .routers.tasks import router as task_router
-from .routers.users import router as user_router
+from a2a.types import InternalError, InvalidRequestError, JSONRPCError
+from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
+
 from ...common import a2a
 from ...gateway.http_sse import dependencies
+from ...shared.auth.middleware import create_oauth_middleware
 from .routers import (
     agent_cards,
     artifacts,
@@ -46,17 +42,9 @@ from .routers.sessions import router as session_router
 from .routers.tasks import router as task_router
 from .routers.users import router as user_router
 
-from alembic import command
-from alembic.config import Config
-
-from a2a.types import InternalError, InvalidRequestError, JSONRPCError
-from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
-from ...common import a2a
-from ...gateway.http_sse import dependencies
-
 
 if TYPE_CHECKING:
-    from gateway.http_sse.component import WebUIBackendComponent
+    from .component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
 
@@ -69,333 +57,6 @@ app = FastAPI(
 # Global flag to track if dependencies have been initialized
 _dependencies_initialized = False
 
-
-def _extract_access_token(request: FastAPIRequest) -> str:
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        return auth_header[7:]
-
-    try:
-        if "access_token" in request.session:
-            log.debug("AuthMiddleware: Found token in session.")
-            return request.session["access_token"]
-    except AssertionError:
-        log.debug("AuthMiddleware: Could not access request.session.")
-
-    if "token" in request.query_params:
-        return request.query_params["token"]
-
-    return None
-
-
-async def _validate_token(
-    auth_service_url: str, auth_provider: str, access_token: str
-) -> bool:
-    async with httpx.AsyncClient() as client:
-        validation_response = await client.post(
-            f"{auth_service_url}/is_token_valid",
-            json={"provider": auth_provider},
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-    return validation_response.status_code == 200
-
-
-async def _get_user_info(
-    auth_service_url: str, auth_provider: str, access_token: str
-) -> dict:
-    async with httpx.AsyncClient() as client:
-        userinfo_response = await client.get(
-            f"{auth_service_url}/user_info?provider={auth_provider}",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-
-    if userinfo_response.status_code != 200:
-        return None
-
-    return userinfo_response.json()
-
-
-def _extract_user_identifier(user_info: dict) -> str:
-    user_identifier = (
-        user_info.get("sub")
-        or user_info.get("client_id")
-        or user_info.get("username")
-        or user_info.get("oid")
-        or user_info.get("preferred_username")
-        or user_info.get("upn")
-        or user_info.get("unique_name")
-        or user_info.get("email")
-        or user_info.get("name")
-        or user_info.get("azp")
-        or user_info.get("user_id") # internal /user_info endpoint format maps identifier to user_id
-    )
-
-    if user_identifier and user_identifier.lower() == "unknown":
-        log.warning(
-            "AuthMiddleware: IDP returned 'Unknown' as user identifier. Using fallback."
-        )
-        return "sam_dev_user"
-
-    return user_identifier
-
-
-def _extract_user_details(user_info: dict, user_identifier: str) -> tuple:
-    email_from_auth = (
-        user_info.get("email")
-        or user_info.get("preferred_username")
-        or user_info.get("upn")
-        or user_identifier
-    )
-
-    display_name = (
-        user_info.get("name")
-        or user_info.get("given_name", "") + " " + user_info.get("family_name", "")
-        or user_info.get("preferred_username")
-        or user_identifier
-    ).strip()
-
-    return email_from_auth, display_name
-
-
-async def _create_user_state_without_identity_service(
-    user_identifier: str, email_from_auth: str, display_name: str
-) -> dict:
-    final_user_id = user_identifier or email_from_auth or "sam_dev_user"
-    if not final_user_id or final_user_id.lower() in ["unknown", "null", "none", ""]:
-        final_user_id = "sam_dev_user"
-        log.warning(
-            "AuthMiddleware: Had to use fallback user ID due to invalid identifier: %s",
-            user_identifier,
-        )
-
-    log.debug(
-        "AuthMiddleware: Internal IdentityService not configured on component. Using user ID: %s",
-        final_user_id,
-    )
-    return {
-        "id": final_user_id,
-        "email": email_from_auth or final_user_id,
-        "name": display_name or final_user_id,
-        "authenticated": True,
-        "auth_method": "oidc",
-    }
-
-
-async def _create_user_state_with_identity_service(
-    identity_service,
-    user_identifier: str,
-    email_from_auth: str,
-    display_name: str,
-    user_info: dict,
-) -> dict:
-    lookup_value = email_from_auth if "@" in email_from_auth else user_identifier
-    user_profile = await identity_service.get_user_profile(
-        {identity_service.lookup_key: lookup_value, "user_info": user_info}
-    )
-
-    if not user_profile:
-        return None
-
-    user_state = user_profile.copy()
-    if not user_state.get("id"):
-        user_state["id"] = user_identifier
-    if not user_state.get("email"):
-        user_state["email"] = email_from_auth
-    if not user_state.get("name"):
-        user_state["name"] = display_name
-    user_state["authenticated"] = True
-    user_state["auth_method"] = "oidc"
-
-    return user_state
-
-
-def _create_auth_middleware(component):
-    class AuthMiddleware:
-        def __init__(self, app, component):
-            self.app = app
-            self.component = component
-
-        async def __call__(self, scope, receive, send):
-            if scope["type"] != "http":
-                await self.app(scope, receive, send)
-                return
-
-            request = FastAPIRequest(scope, receive)
-
-            if not request.url.path.startswith("/api"):
-                await self.app(scope, receive, send)
-                return
-
-            skip_paths = [
-                "/api/v1/config",
-                "/api/v1/auth/callback",
-                "/api/v1/auth/tool/callback",
-                "/api/v1/auth/login",
-                "/api/v1/auth/refresh",
-                "/api/v1/csrf-token",
-                "/health",
-            ]
-
-            if any(request.url.path.startswith(path) for path in skip_paths):
-                await self.app(scope, receive, send)
-                return
-
-            use_auth = dependencies.api_config and dependencies.api_config.get(
-                "frontend_use_authorization"
-            )
-
-            if use_auth:
-                await self._handle_authenticated_request(request, scope, receive, send)
-            else:
-                request.state.user = {
-                    "id": "sam_dev_user",
-                    "name": "Sam Dev User",
-                    "email": "sam@dev.local",
-                    "authenticated": True,
-                    "auth_method": "development",
-                }
-                log.debug(
-                    "AuthMiddleware: Set development user state with id: sam_dev_user"
-                )
-
-            await self.app(scope, receive, send)
-
-        async def _handle_authenticated_request(self, request, scope, receive, send):
-            access_token = _extract_access_token(request)
-
-            if not access_token:
-                log.warning("AuthMiddleware: No access token found. Returning 401.")
-                response = JSONResponse(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    content={
-                        "detail": "Not authenticated",
-                        "error_type": "authentication_required",
-                    },
-                )
-                await response(scope, receive, send)
-                return
-
-            try:
-                auth_service_url = dependencies.api_config.get(
-                    "external_auth_service_url"
-                )
-                auth_provider = dependencies.api_config.get("external_auth_provider")
-
-                if not auth_service_url:
-                    log.error("Auth service URL not configured.")
-                    response = JSONResponse(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        content={"detail": "Auth service not configured"},
-                    )
-                    await response(scope, receive, send)
-                    return
-
-                if not await _validate_token(
-                    auth_service_url, auth_provider, access_token
-                ):
-                    log.warning("AuthMiddleware: Token validation failed")
-                    response = JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={
-                            "detail": "Invalid token",
-                            "error_type": "invalid_token",
-                        },
-                    )
-                    await response(scope, receive, send)
-                    return
-
-                user_info = await _get_user_info(
-                    auth_service_url, auth_provider, access_token
-                )
-                if not user_info:
-                    log.warning(
-                        "AuthMiddleware: Failed to get user info from external auth service"
-                    )
-                    response = JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={
-                            "detail": "Could not retrieve user info from auth provider",
-                            "error_type": "user_info_failed",
-                        },
-                    )
-                    await response(scope, receive, send)
-                    return
-
-                user_identifier = _extract_user_identifier(user_info)
-                if not user_identifier or user_identifier.lower() in [
-                    "null",
-                    "none",
-                    "",
-                ]:
-                    log.error(
-                        "AuthMiddleware: No valid user identifier from OAuth provider"
-                    )
-                    response = JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={
-                            "detail": "OAuth provider returned no valid user identifier",
-                            "error_type": "invalid_user_identifier_from_provider",
-                        },
-                    )
-                    await response(scope, receive, send)
-                    return
-
-                email_from_auth, display_name = _extract_user_details(
-                    user_info, user_identifier
-                )
-
-                identity_service = self.component.identity_service
-                if not identity_service:
-                    request.state.user = (
-                        await _create_user_state_without_identity_service(
-                            user_identifier, email_from_auth, display_name
-                        )
-                    )
-                else:
-                    user_state = await _create_user_state_with_identity_service(
-                        identity_service,
-                        user_identifier,
-                        email_from_auth,
-                        display_name,
-                        user_info,
-                    )
-                    if not user_state:
-                        log.error(
-                            "AuthMiddleware: User authenticated but not found in internal IdentityService"
-                        )
-                        response = JSONResponse(
-                            status_code=status.HTTP_403_FORBIDDEN,
-                            content={
-                                "detail": "User not authorized for this application",
-                                "error_type": "not_authorized",
-                            },
-                        )
-                        await response(scope, receive, send)
-                        return
-                    request.state.user = user_state
-
-            except httpx.RequestError as exc:
-                log.error("Error calling auth service: %s", exc)
-                response = JSONResponse(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    content={"detail": "Auth service is unavailable"},
-                )
-                await response(scope, receive, send)
-                return
-            except Exception as exc:
-                log.error(
-                    "An unexpected error occurred during token validation: %s", exc
-                )
-                response = JSONResponse(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    content={
-                        "detail": "An internal error occurred during authentication"
-                    },
-                )
-                await response(scope, receive, send)
-                return
-
-    return AuthMiddleware
 
 
 def _setup_alembic_config(database_url: str) -> Config:
@@ -448,57 +109,27 @@ def _run_community_migrations(database_url: str) -> None:
             ) from migration_error
 
 
-def _run_enterprise_migrations(
-    component: "WebUIBackendComponent", database_url: str
-) -> None:
-    """
-    Run migrations for enterprise features like advanced analytics, audit logs, etc.
-    This is optional and only runs if the enterprise package is available.
-    """
-    try:
-        from solace_agent_mesh_enterprise.webui_backend.migration_runner import (
-            run_migrations,
-        )
-
-        webui_app = component.get_app()
-        app_config = getattr(webui_app, "app_config", {}) if webui_app else {}
-        log.info("Starting enterprise migrations...")
-        run_migrations(database_url, app_config)
-        log.info("Enterprise migrations completed")
-    except (ImportError, ModuleNotFoundError):
-        log.debug("Enterprise module not found - skipping enterprise migrations")
-    except Exception as e:
-        log.error("Enterprise migration failed: %s", e)
-        log.error("Advanced features may be unavailable")
-        raise RuntimeError(f"Enterprise database migration failed: {e}") from e
 
 
 def _setup_database(
     component: "WebUIBackendComponent",
     database_url: str,
-    platform_database_url: str = None
 ) -> None:
     """
-    Initialize database connections and run all required migrations.
-    Sets up both runtime and platform database schemas.
+    Initialize database and run migrations for WebUI Gateway (chat only).
+
+    Platform database is no longer used by WebUI Gateway.
+    Platform migrations are handled by Platform Service.
 
     Args:
         component: WebUIBackendComponent instance
-        database_url: Runtime database URL (sessions, tasks, chat) - REQUIRED
-        platform_database_url: Platform database URL (agents, connectors, deployments).
-                                If None, platform features will be unavailable.
+        database_url: Chat database URL (sessions, tasks, feedback) - REQUIRED
     """
     dependencies.init_database(database_url)
     log.info("Persistence enabled - sessions will be stored in database")
     log.info("Running database migrations...")
 
     _run_community_migrations(database_url)
-
-    if platform_database_url:
-        log.info("Platform database configured - running migrations")
-        _run_enterprise_migrations(component, platform_database_url)
-    else:
-        log.info("No platform database configured - skipping platform migrations")
 
 
 def _get_app_config(component: "WebUIBackendComponent") -> dict:
@@ -536,17 +167,14 @@ def _create_api_config(app_config: dict, database_url: str) -> dict:
 def setup_dependencies(
     component: "WebUIBackendComponent",
     database_url: str = None,
-    platform_database_url: str = None
 ):
     """
-    Initialize dependencies for both runtime and platform databases.
+    Initialize dependencies for WebUI Gateway (chat only).
 
     Args:
         component: WebUIBackendComponent instance
-        database_url: Runtime database URL (sessions, tasks, chat).
+        database_url: Chat database URL (sessions, tasks, feedback).
                      If None, runs in compatibility mode with in-memory sessions.
-        platform_database_url: Platform database URL (agents, connectors, deployments).
-                                If None, platform features will be unavailable (returns 501).
 
     This function is idempotent and safe to call multiple times.
     """
@@ -559,7 +187,7 @@ def setup_dependencies(
     dependencies.set_component_instance(component)
 
     if database_url:
-        _setup_database(component, database_url, platform_database_url)
+        _setup_database(component, database_url)
     else:
         log.warning(
             "No database URL provided - using in-memory session storage (data not persisted across restarts)"
@@ -595,9 +223,15 @@ def _setup_middleware(component: "WebUIBackendComponent") -> None:
     app.add_middleware(SessionMiddleware, secret_key=session_manager.secret_key)
     log.info("SessionMiddleware added.")
 
-    auth_middleware_class = _create_auth_middleware(component)
+    auth_middleware_class = create_oauth_middleware(component)
     app.add_middleware(auth_middleware_class, component=component)
-    log.info("AuthMiddleware added.")
+
+    api_config = dependencies.get_api_config()
+    use_auth = api_config.get("frontend_use_authorization", False) if api_config else False
+    if use_auth:
+        log.info("OAuth middleware added (real token validation enabled)")
+    else:
+        log.info("OAuth middleware added (development mode - community/dev user)")
 
 
 def _setup_routers() -> None:
@@ -626,35 +260,11 @@ def _setup_routers() -> None:
     app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
-    # Register shared exception handlers from community repo
-    from .shared.exception_handlers import register_exception_handlers
+    # Register shared exception handlers
+    from solace_agent_mesh.shared.exceptions.exception_handlers import register_exception_handlers
 
     register_exception_handlers(app)
-    log.info("Registered shared exception handlers from community repo")
-
-    # Mount enterprise routers if available
-    try:
-        from solace_agent_mesh_enterprise.webui_backend.routers import (
-            get_enterprise_routers,
-        )
-
-        enterprise_routers = get_enterprise_routers()
-        for router_config in enterprise_routers:
-            app.include_router(
-                router_config["router"],
-                prefix=router_config["prefix"],
-                tags=router_config["tags"],
-            )
-        log.info("Mounted %d enterprise routers", len(enterprise_routers))
-
-    except ImportError:
-        log.debug("No enterprise package detected - skipping enterprise routers")
-    except ModuleNotFoundError:
-        log.debug(
-            "Enterprise module not found - skipping enterprise routers and exception handlers"
-        )
-    except Exception as e:
-        log.warning("Failed to load enterprise routers and exception handlers: %s", e)
+    log.info("Registered shared exception handlers")
 
 
 def _setup_static_files() -> None:

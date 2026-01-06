@@ -53,7 +53,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
     curl \
-    ffmpeg \
+    ffmpeg=7:7.1.3-0+deb13u1  \
     git && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
@@ -121,8 +121,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Install minimal runtime dependencies (no uv for licensing compliance)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    git \
-    ffmpeg && \
+    ffmpeg=7:7.1.3-0+deb13u1 \
+    git && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \

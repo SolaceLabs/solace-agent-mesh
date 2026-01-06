@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from ....shared import epoch_ms_to_iso8601
+from solace_agent_mesh.shared.utils.timestamp_utils import epoch_ms_to_iso8601
 
 
 class BaseTimestampResponse(BaseModel):

@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 
 from ..dependencies import get_session_business_service, get_db, get_title_generation_service
 from ..services.session_service import SessionService
-from ..shared.auth_utils import get_current_user
-from ..shared.pagination import DataResponse, PaginatedResponse, PaginationParams
-from ..shared.response_utils import create_data_response
+from solace_agent_mesh.shared.api.auth_utils import get_current_user
+from solace_agent_mesh.shared.api.pagination import DataResponse, PaginatedResponse, PaginationParams
+from solace_agent_mesh.shared.api.response_utils import create_data_response
 from .dto.requests.session_requests import (
     GetSessionRequest,
     UpdateSessionRequest,

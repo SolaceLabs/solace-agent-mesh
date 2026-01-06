@@ -2,6 +2,7 @@
 Defines FastAPI dependency injectors to access shared resources
 managed by the WebUIBackendComponent.
 """
+from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Generator
@@ -45,7 +46,7 @@ except ImportError:
 
 
 if TYPE_CHECKING:
-    from gateway.http_sse.component import WebUIBackendComponent
+    from .component import WebUIBackendComponent
 
 sac_component_instance: "WebUIBackendComponent" = None
 SessionLocal: sessionmaker = None
@@ -209,7 +210,7 @@ def get_user_id(
             )
 
     # If we reach here, AuthMiddleware didn't set user state properly
-    use_authorization = session_manager.use_authorization
+    use_authorization = api_config.get("frontend_use_authorization", False) if api_config else False
 
     if use_authorization:
         # When OAuth is enabled, we should never reach here - AuthMiddleware should have handled authentication
@@ -409,56 +410,13 @@ async def get_user_config(
     )
 
 
-class ValidatedUserConfig:
-    """
-    FastAPI dependency class for validating user scopes and returning user config.
+# DEPRECATED: Import from shared location
+# Re-export for backward compatibility
+from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig
 
-    This class creates a callable dependency that validates a user has the required
-    scopes before allowing access to protected endpoints.
-
-    Args:
-        required_scopes: List of scope strings required for authorization
-
-    Raises:
-        HTTPException: 403 if user lacks required scopes
-
-    Example:
-        @router.get("/artifacts")
-        async def list_artifacts(
-            user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
-        ):
-    """
-
-    def __init__(self, required_scopes: list[str]):
-        self.required_scopes = required_scopes
-
-    async def __call__(
-        self,
-        request: Request,
-        config_resolver: ConfigResolver = Depends(get_config_resolver),
-        user_config: dict[str, Any] = Depends(get_user_config),
-    ) -> dict[str, Any]:
-        user_id = user_config.get("user_profile", {}).get("id")
-
-        log.debug(
-            f"ValidatedUserConfig called for user_id: {user_id} with required scopes: {self.required_scopes}"
-        )
-
-        # Validate scopes
-        if not config_resolver.is_feature_enabled(
-            user_config,
-            {"tool_metadata": {"required_scopes": self.required_scopes}},
-            {},
-        ):
-            log.warning(
-                f"Authorization denied for user '{user_id}'. Required scopes: {self.required_scopes}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Not authorized. Required scopes: {self.required_scopes}",
-            )
-
-        return user_config
+# Note: ValidatedUserConfig implementation moved to:
+# src/solace_agent_mesh/shared/auth/dependencies.py
+# This re-export will be removed in v2.0.0
 
 
 def get_shared_artifact_service(

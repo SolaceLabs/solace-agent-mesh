@@ -5,7 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2 } from "lucide-react";
 
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
-import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
+import { api } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils/api";
 import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
@@ -88,7 +89,7 @@ interface SessionListProps {
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, isResponding } = useChatContext();
-    const { configServerUrl, persistenceEnabled } = useConfigContext();
+    const { persistenceEnabled } = useConfigContext();
     const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -108,31 +109,27 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         triggerOnce: false,
     });
 
-    const fetchSessions = useCallback(
-        async (pageNumber: number = 1, append: boolean = false) => {
-            setIsLoading(true);
-            const url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`;
+    const fetchSessions = useCallback(async (pageNumber: number = 1, append: boolean = false) => {
+        setIsLoading(true);
 
-            try {
-                const result: PaginatedSessionsResponse = await fetchJsonWithError(url);
+        try {
+            const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`);
 
-                if (append) {
-                    setSessions(prev => [...prev, ...result.data]);
-                } else {
-                    setSessions(result.data);
-                }
-
-                // Use metadata to determine if there are more pages
-                setHasMore(result.meta.pagination.nextPage !== null);
-                setCurrentPage(pageNumber);
-            } catch (error) {
-                console.error("An error occurred while fetching sessions:", error);
-            } finally {
-                setIsLoading(false);
+            if (append) {
+                setSessions(prev => [...prev, ...result.data]);
+            } else {
+                setSessions(result.data);
             }
-        },
-        [configServerUrl]
-    );
+
+            // Use metadata to determine if there are more pages
+            setHasMore(result.meta.pagination.nextPage !== null);
+            setCurrentPage(pageNumber);
+        } catch (error) {
+            console.error("An error occurred while fetching sessions:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         fetchSessions(1, false);
@@ -156,8 +153,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
             // Fetch the updated session from backend to get the new title
             try {
-                const url = `${configServerUrl}/api/v1/sessions/${updatedSessionId}`;
-                const sessionData = await fetchJsonWithError(url);
+                const sessionData = await api.webui.get(`/api/v1/sessions/${updatedSessionId}`);
                 const updatedSession = sessionData?.data;
 
                 if (updatedSession) {
@@ -185,7 +181,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             window.removeEventListener("session-title-updated", handleTitleUpdated);
             window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
         };
-    }, [fetchSessions, configServerUrl]);
+    }, [fetchSessions]);
 
     // Periodic refresh when there are sessions with running background tasks
     // This is necessary to detect task completion when user is on a different session
@@ -268,7 +264,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
             try {
                 // Fetch all tasks/messages for this session
-                const data = await fetchJsonWithError(`${configServerUrl}/api/v1/sessions/${session.id}/chat-tasks`);
+                const data = await api.webui.get(`/api/v1/sessions/${session.id}/chat-tasks`);
                 const tasks = data.tasks || [];
 
                 if (tasks.length === 0) {
@@ -317,18 +313,14 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 setRegeneratingTitleForSession(null);
             }
         },
-        [configServerUrl, generateTitle, addNotification, regeneratingTitleForSession]
+        [generateTitle, addNotification, regeneratingTitleForSession]
     );
 
     const handleMoveConfirm = async (targetProjectId: string | null) => {
         if (!sessionToMove) return;
 
         try {
-            await fetchWithError(`${configServerUrl}/api/v1/sessions/${sessionToMove.id}/project`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ projectId: targetProjectId }),
-            });
+            await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
 
             // Update local state
             setSessions(prevSessions =>

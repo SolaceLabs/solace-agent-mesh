@@ -1,0 +1,104 @@
+# Test Case: Parallel peer delegation - verifies that multiple peer tools can be called
+# in parallel and their responses are properly combined.
+#
+# This test validates:
+# 1. The preregister_long_running_tools_callback pre-registers all parallel calls before execution
+# 2. Both peer agents process their tasks independently
+# 3. The main agent receives and combines both responses
+#
+# Related to DATAGO-120188: Handle long-running tools better
+test_case_id: "parallel_peer_delegation_001"
+description: "Tests parallel delegation to two peer agents (A and B) in a single LLM turn."
+tags: ["all", "agent", "tools", "delegation"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "parallel_delegation_tester@example.com"
+  prompt:
+    parts:
+      - text: "Please ask TestPeerAgentA to say 'Hello from A' and TestPeerAgentB to say 'Hello from B' at the same time."
+
+llm_interactions:
+  # Turn 1: TestAgent receives the request and delegates to both peers in parallel
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'll ask both peer agents simultaneously."
+            tool_calls:
+              - id: "call_peer_a_parallel"
+                type: "function"
+                function:
+                  name: "peer_TestPeerAgentA"
+                  arguments: '{"task_description": "Please say Hello from A"}'
+              - id: "call_peer_b_parallel"
+                type: "function"
+                function:
+                  name: "peer_TestPeerAgentB"
+                  arguments: '{"task_description": "Please say Hello from B"}'
+    expected_request:
+      messages_contain:
+        - role: "user"
+          content_contains: "ask TestPeerAgentA"
+      tools_present:
+        - "peer_TestPeerAgentA"
+        - "peer_TestPeerAgentB"
+
+  # Turn 2: TestPeerAgentA receives its task and responds
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Hello from A"
+    expected_request:
+      messages_contain:
+        - role: "user"
+          content_contains: "say Hello from A"
+
+  # Turn 3: TestPeerAgentB receives its task and responds
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Hello from B"
+    expected_request:
+      messages_contain:
+        - role: "user"
+          content_contains: "say Hello from B"
+
+  # Turn 4: TestAgent receives both responses and formulates the final response
+  # Note: Since peer responses arrive asynchronously, we don't validate the exact order.
+  # We only verify that the messages contain the expected content from both peers.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Both peer agents responded: TestPeerAgentA said 'Hello from A' and TestPeerAgentB said 'Hello from B'."
+    expected_request:
+      # Validate that both peer responses are present (order may vary due to async)
+      messages_contain:
+        - role: "tool"
+          content_contains: "Hello from A"
+        - role: "tool"
+          content_contains: "Hello from B"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: session_parallel_peer_delegation_001
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "Both peer agents responded"
+              - "Hello from A"
+              - "Hello from B"
+
+expected_artifacts: []

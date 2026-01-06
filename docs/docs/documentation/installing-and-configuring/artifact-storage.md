@@ -42,6 +42,60 @@ Contrast with session storage:
 
 For session storage configuration, see [Session Storage](./session-storage.md).
 
+## Artifact Scoping
+
+Artifact scoping controls how artifacts are organized and isolated within your storage backend. This determines which components can access which artifacts.
+
+### Scope Types
+
+Agent Mesh supports three artifact scope types:
+
+| Scope Type | Description | Use Case |
+|------------|-------------|----------|
+| `namespace` | Artifacts scoped to namespace | Default; isolates artifacts by namespace |
+| `app` | Artifacts scoped to application instance | Isolates artifacts per agent/gateway |
+| `custom` | Custom scope identifier | Advanced use cases requiring custom isolation |
+
+### Namespace Scope (Default)
+
+Artifacts are organized by namespace, allowing all agents and gateways within the same namespace to share artifacts:
+
+```yaml
+artifact_service:
+  type: "filesystem"
+  base_path: "/tmp/artifacts"
+  artifact_scope: "namespace"  # Default
+```
+
+### App Scope
+
+Artifacts are isolated per application instance, preventing sharing between different agents or gateways:
+
+```yaml
+artifact_service:
+  type: "filesystem"
+  base_path: "/tmp/artifacts"
+  artifact_scope: "app"
+```
+
+### Custom Scope
+
+For advanced scenarios requiring custom isolation logic:
+
+```yaml
+artifact_service:
+  type: "filesystem"
+  base_path: "/tmp/artifacts"
+  artifact_scope: "custom"
+  artifact_scope_value: "my-custom-scope"
+```
+
+**Use Cases for Custom Scope:**
+- Multi-tenant deployments with custom tenant identifiers
+- Departmental isolation within an organization
+- Environment-specific artifact separation (dev/staging/prod)
+- Custom compliance or regulatory requirements
+
 ## Artifact Storage Backends
 
 Agent Mesh supports multiple storage backends for artifacts. Choose based on your deployment environment and requirements.

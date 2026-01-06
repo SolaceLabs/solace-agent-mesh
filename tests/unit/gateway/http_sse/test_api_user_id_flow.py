@@ -11,7 +11,7 @@ from unittest.mock import Mock
 
 from fastapi import Request
 
-from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+from solace_agent_mesh.shared.api.auth_utils import get_current_user
 
 
 class TestUserIDFlow:

@@ -213,6 +213,37 @@ If a requested page is not found, it will redirect to the main documentation pag
 
 
 
+### `tools` - Manage and Explore Built-in Tools
+
+The `tools` command allows you to explore and manage built-in tools available in Solace Agent Mesh.
+
+```sh
+sam tools [COMMAND] [OPTIONS]
+```
+
+#### `list` - List Built-in Tools
+
+Lists all built-in tools available in Solace Agent Mesh. By default, shows brief information with tool names and descriptions.
+
+```sh
+sam tools list [OPTIONS]
+```
+
+This command is useful for:
+- Discovering what built-in tools are available for your agents
+- Understanding tool capabilities and required parameters
+- Filtering tools by category
+- Exporting tool information in JSON format
+
+##### Options:
+
+- `-c, --category TEXT` – Filter tools by category (e.g., 'artifact_management', 'data_analysis', 'web').
+- `-d, --detailed` – Show detailed information including parameters and required scopes.
+- `--json` – Output in JSON format instead of pretty table.
+- `-h, --help` – Displays the help message.
+
+For more information about built-in tools, see [Built-in Tools](builtin-tools/)
+
 ### `plugin` - Manage Plugins
 
 The `plugin` command allows you to manage plugins for Agent Mesh application.
