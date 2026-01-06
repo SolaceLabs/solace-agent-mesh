@@ -4,6 +4,7 @@ import JSZip from "jszip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
 import { useConfigContext } from "@/lib/hooks";
+import { formatFileSize } from "@/lib/utils/file-validation";
 
 interface ProjectImportDialogProps {
     open: boolean;
@@ -262,7 +263,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                                     <p className="line-clamp-2 text-sm font-medium break-words" title={selectedFileName}>
                                         {selectedFileName}
                                     </p>
-                                    <p className="text-muted-foreground text-xs">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                                    <p className="text-muted-foreground text-xs">{formatFileSize(selectedFile.size)}</p>
                                 </div>
                                 <Button variant="ghost" size="sm" onClick={handleChangeFile} disabled={isImporting} className="flex-shrink-0">
                                     Change
@@ -308,7 +309,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                                             <div key={index} className={`flex items-center gap-1.5 text-xs ${artifact.isOversized ? "text-destructive" : ""}`}>
                                                 {artifact.isOversized ? <AlertTriangle className="text-destructive h-3 w-3 flex-shrink-0" /> : <FileJson className="text-muted-foreground h-3 w-3 flex-shrink-0" />}
                                                 <span className="truncate">{artifact.name}</span>
-                                                <span className="text-muted-foreground flex-shrink-0">({(artifact.size / (1024 * 1024)).toFixed(2)} MB)</span>
+                                                <span className="text-muted-foreground flex-shrink-0">({formatFileSize(artifact.size)})</span>
                                             </div>
                                         ))}
                                         {projectPreview.artifacts.length > 5 && <p className="text-muted-foreground text-xs italic">+ {projectPreview.artifacts.length - 5} more files</p>}
