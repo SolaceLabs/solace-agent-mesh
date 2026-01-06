@@ -7,6 +7,7 @@ import * as projectService from "./service";
  * Query hook for fetching all projects
  */
 export function useProjects() {
+    console.log("useProjects called asdasd");
     return useQuery({
         queryKey: projectKeys.lists(),
         queryFn: projectService.getProjects,
