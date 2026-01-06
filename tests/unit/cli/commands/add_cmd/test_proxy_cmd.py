@@ -75,7 +75,8 @@ apps:
   - name: "__PROXY_NAME____app"
     app_base_path: .
 """
-            raise FileNotFoundError(f"Template {name} not found")
+            else:
+                raise FileNotFoundError(f"Template {name} not found")
         
         return mocker.patch(
             "cli.commands.add_cmd.proxy_cmd.load_template",

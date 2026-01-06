@@ -3,8 +3,6 @@ from pathlib import Path
 
 import click
 
-from config_portal.backend.common import PROXY_DEFAULTS
-
 from ...utils import (
     get_formatted_names,
     load_template,
