@@ -9,6 +9,7 @@ import type { Citation as CitationType } from "@/lib/utils/citations";
 import { getCitationTooltip, INDIVIDUAL_CITATION_PATTERN } from "@/lib/utils/citations";
 import { MarkdownHTMLConverter } from "@/lib/components";
 import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
+import { getSourceUrl } from "@/lib/utils/sourceUrlHelpers";
 import { Popover, PopoverContent, PopoverTrigger } from "@/lib/components/ui/popover";
 import { ExternalLink } from "lucide-react";
 
@@ -131,9 +132,9 @@ export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
     const tooltip = getCitationTooltip(citation);
 
     // Check if this is a web search or deep research citation with a URL
-    const isWebSearch = citation.source?.metadata?.type === "web_search" || citation.type === "search";
-    const isDeepResearch = citation.source?.metadata?.type === "deep_research" || citation.type === "research";
-    const sourceUrl = citation.source?.sourceUrl || citation.source?.url || citation.source?.metadata?.link;
+    const { url: sourceUrl, sourceType } = getSourceUrl(citation.source);
+    const isWebSearch = sourceType === "web_search" || citation.type === "search";
+    const isDeepResearch = sourceType === "deep_research" || citation.type === "research";
     const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
     const handleClick = (e: React.MouseEvent) => {
@@ -260,9 +261,9 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
     const tooltip = getCitationTooltip(firstCitation);
 
     // Check if this is a web search or deep research citation
-    const isWebSearch = firstCitation.source?.metadata?.type === "web_search" || firstCitation.type === "search";
-    const isDeepResearch = firstCitation.source?.metadata?.type === "deep_research" || firstCitation.type === "research";
-    const sourceUrl = firstCitation.source?.sourceUrl || firstCitation.source?.url || firstCitation.source?.metadata?.link;
+    const { url: sourceUrl, sourceType } = getSourceUrl(firstCitation.source);
+    const isWebSearch = sourceType === "web_search" || firstCitation.type === "search";
+    const isDeepResearch = sourceType === "deep_research" || firstCitation.type === "research";
     const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
     const handleFirstCitationClick = (e: React.MouseEvent) => {
@@ -315,9 +316,9 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                     </div>
                     {uniqueCitations.map((citation, index) => {
                         const displayText = getCitationDisplayText(citation, 50);
-                        const isWebSearch = citation.source?.metadata?.type === "web_search" || citation.type === "search";
-                        const isDeepResearch = citation.source?.metadata?.type === "deep_research" || citation.type === "research";
-                        const sourceUrl = citation.source?.sourceUrl || citation.source?.url || citation.source?.metadata?.link;
+                        const { url: sourceUrl, sourceType } = getSourceUrl(citation.source);
+                        const isWebSearch = sourceType === "web_search" || citation.type === "search";
+                        const isDeepResearch = sourceType === "deep_research" || citation.type === "research";
                         const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
                         // Get favicon for web sources (both web search and deep research)
