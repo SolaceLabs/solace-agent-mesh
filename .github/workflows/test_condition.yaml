@@ -1,8 +1,5 @@
 name: Test Release Fix
 on:
-  push:
-    branches:
-      - test-skip-security-checks
   workflow_dispatch:
     inputs:
       version:
@@ -87,6 +84,7 @@ jobs:
   build_and_push_docker:
     name: Build and Push to DockerHub
     needs: release
+    if: always() && (needs.release.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Build and Push Docker Image
