@@ -2,7 +2,7 @@
  * Displays a popover with searchable people list when "@" is typed
  */
 
-import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Search, User, Clock } from "lucide-react";
 import type { Person, PeopleSearchResponse } from "@/lib/types";
 import { api } from "@/lib/api";
@@ -25,7 +25,6 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
     const [showingRecent, setShowingRecent] = useState(false);
     const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null);
 
-    const inputRef = useRef<HTMLInputElement>(null);
     const popoverRef = useRef<HTMLDivElement>(null);
     const backdropRef = useRef<HTMLDivElement>(null);
     const prevPeopleCountRef = useRef<number>(0);
@@ -133,9 +132,6 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
         },
         [onPersonSelect, onClose]
     );
-
-    // Determine which list to show for navigation
-    const displayedPeople = showingRecent ? recentMentions : people;
 
     // Keyboard navigation - handle at window level so textarea stays focused
     useEffect(() => {

@@ -36,11 +36,11 @@ export function formatMentionDisplay(person: Person): string {
 }
 
 /**
- * Formats a person as the backend expects: "name <id:id>"
- * Example: "Edward Funnekotter <id:edward.funnekotter@solace.com>"
+ * Formats a person as the backend expects: "name <user_id:id>"
+ * Example: "Edward Funnekotter <user_id:edward.funnekotter@solace.com>"
  */
 export function formatMentionForBackend(person: Person): string {
-    return `${person.name} <id:${person.id}>`;
+    return `${person.name} <user_id:${person.id}>`;
 }
 
 /**
@@ -228,8 +228,8 @@ export function buildMessageFromDOM(element: HTMLElement): string {
                 const personName = el.getAttribute('data-person-name');
 
                 if (personId && personName) {
-                    // Convert to backend format: "Name <id:email>"
-                    parts.push(`${personName} <id:${personId}>`);
+                    // Convert to backend format: "Name <user_id:id>"
+                    parts.push(`${personName} <user_id:${personId}>`);
                 } else {
                     // Fallback: just use the mention text as-is
                     parts.push(el.getAttribute('data-mention') || el.textContent || "");

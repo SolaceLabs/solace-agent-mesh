@@ -342,14 +342,9 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
         const handlePaste = React.useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
             // First, call the parent's onPaste handler if provided
             // This handles file pastes and large text detection
+            // Pass the original event so preventDefault() works correctly
             if (onPaste) {
-                // Create a textarea event to pass to onPaste
-                const textareaEvent = {
-                    ...e,
-                    target: editableRef.current,
-                    currentTarget: editableRef.current,
-                } as any;
-                onPaste(textareaEvent);
+                onPaste(e);
             }
 
             // If the parent didn't prevent default, handle paste

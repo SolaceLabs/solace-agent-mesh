@@ -258,7 +258,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }, 100);
     };
 
-    const handlePaste = async (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const handlePaste = async (event: ClipboardEvent<Element>) => {
         if (isResponding) return;
 
         const clipboardData = event.clipboardData;
