@@ -10,7 +10,7 @@ import base64
 import functools
 import json
 import logging
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 from google.adk.tools import ToolContext
 
@@ -69,16 +69,8 @@ def _serialize_args_for_lambda(args: Dict[str, Any]) -> Dict[str, Any]:
     return serialized
 
 
-# Try to import boto3, but don't fail if not available
-try:
-    import boto3
-    from botocore.exceptions import ClientError, BotoCoreError
-    BOTO3_AVAILABLE = True
-except ImportError:
-    BOTO3_AVAILABLE = False
-    boto3 = None
-    ClientError = Exception
-    BotoCoreError = Exception
+import boto3
+from botocore.exceptions import ClientError, BotoCoreError
 
 
 @register_executor("lambda")
@@ -103,7 +95,6 @@ class LambdaExecutor(ToolExecutor):
             "context": {
                 "session_id": "...",
                 "user_id": "...",
-                "app_name": "..."
             },
             "tool_config": { ... }
         }
@@ -154,11 +145,6 @@ class LambdaExecutor(ToolExecutor):
         """Initialize the Lambda client."""
         log_id = f"[LambdaExecutor:{self._function_arn}]"
 
-        if not BOTO3_AVAILABLE:
-            raise ImportError(
-                "boto3 is required for Lambda executor. Install with: pip install boto3"
-            )
-
         try:
             # Create Lambda client
             client_kwargs = {}
@@ -206,11 +192,11 @@ class LambdaExecutor(ToolExecutor):
         if self._include_context:
             try:
                 from ...utils.context_helpers import get_original_session_id
+
                 inv_context = tool_context._invocation_context
                 payload["context"] = {
                     "session_id": get_original_session_id(inv_context),
                     "user_id": inv_context.user_id,
-                    "app_name": inv_context.app_name,
                 }
             except Exception as ctx_err:
                 log.warning(
@@ -274,7 +260,9 @@ class LambdaExecutor(ToolExecutor):
                         )
                     else:
                         return ToolExecutionResult.fail(
-                            error=response_payload.get("error", "Lambda returned failure"),
+                            error=response_payload.get(
+                                "error", "Lambda returned failure"
+                            ),
                             error_code=response_payload.get("error_code"),
                             metadata=response_payload.get("metadata", {}),
                         )
