@@ -13,6 +13,7 @@ from ...sac.sam_component_base import SamComponentBase
 
 log = logging.getLogger(__name__)
 
+
 class LocalFileIdentityService(BaseIdentityService):
     """
     Identity service that sources user data from a local JSON file.
@@ -31,7 +32,9 @@ class LocalFileIdentityService(BaseIdentityService):
     ]
     """
 
-    def __init__(self, config: Dict[str, Any], component: Optional[SamComponentBase] = None):
+    def __init__(
+        self, config: Dict[str, Any], component: Optional[SamComponentBase] = None
+    ):
         super().__init__(config, component)
         self.file_path = self.config.get("file_path")
         if not self.file_path:
@@ -111,9 +114,9 @@ class LocalFileIdentityService(BaseIdentityService):
         Performs a case-insensitive search matching the start of first or last names, or email prefix.
 
         Examples:
-        - "ed" matches "Edward Funnekotter" (first name starts with "ed")
-        - "fun" matches "Edward Funnekotter" (last name starts with "fun")
-        - "edward.f" matches "edward.funnekotter@example.com" (email starts with "edward.f")
+        - "ed" matches "Edward Smith" (first name starts with "ed")
+        - "smi" matches "Edward Smith" (last name starts with "smi")
+        - "edward.s" matches "edward.smith@example.com" (email starts with "edward.s")
         """
         if not query:
             return []
