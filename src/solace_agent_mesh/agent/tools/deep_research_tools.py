@@ -13,9 +13,10 @@ This module implements:
 
 import asyncio
 import json
+import re
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from dataclasses import dataclass, field
 
 from google.adk.tools import ToolContext
@@ -34,6 +35,118 @@ from ...common.rag_dto import create_rag_source, create_rag_search_result
 # Category information
 CATEGORY_NAME = "Research & Analysis"
 CATEGORY_DESCRIPTION = "Advanced research tools for comprehensive information gathering"
+
+
+def _extract_text_from_llm_response(response: Any, log_identifier: str = "[LLM]") -> str:
+    """
+    Extract text from various LLM response formats.
+    
+    Handles multiple response structures:
+    - Direct text attribute (response.text)
+    - Parts attribute for streaming responses (response.parts)
+    - Content attribute with parts for LlmResponse objects (response.content.parts)
+    
+    Args:
+        response: The LLM response object
+        log_identifier: Identifier for logging
+    
+    Returns:
+        Extracted text string, or empty string if extraction fails
+    """
+    response_text = ""
+    
+    # Method 1: Direct text attribute
+    if hasattr(response, 'text') and response.text:
+        response_text = response.text
+    # Method 2: Parts attribute (for streaming responses)
+    elif hasattr(response, 'parts') and response.parts:
+        response_text = "".join([part.text for part in response.parts if hasattr(part, 'text') and part.text])
+    # Method 3: Content attribute with parts (for LlmResponse objects from Gemini 2.5 Pro)
+    elif hasattr(response, 'content') and response.content:
+        content = response.content
+        if hasattr(content, 'parts') and content.parts:
+            response_text = "".join([part.text for part in content.parts if hasattr(part, 'text') and part.text])
+        elif hasattr(content, 'text') and content.text:
+            response_text = content.text
+        elif isinstance(content, str):
+            response_text = content
+    
+    if not response_text or not response_text.strip():
+        log.warning("%s Could not extract text from LLM response. Response type: %s",
+                   log_identifier, type(response).__name__)
+        if response:
+            log.debug("%s Response attributes: text=%s, parts=%s, content=%s",
+                     log_identifier,
+                     hasattr(response, 'text'),
+                     hasattr(response, 'parts'),
+                     hasattr(response, 'content'))
+    
+    return response_text
+
+
+def _parse_json_from_llm_response(
+    response_text: str,
+    log_identifier: str = "[LLM]",
+    fallback_key: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Parse JSON from LLM response text, handling markdown code blocks.
+    
+    Gemini 2.5 Pro and other models often wrap JSON in markdown code blocks
+    (```json ... ```) even when response_mime_type="application/json" is set.
+    This function handles that case.
+    
+    Args:
+        response_text: The raw response text from the LLM
+        log_identifier: Identifier for logging
+        fallback_key: Optional key to search for in regex fallback (e.g., "queries", "selected_sources")
+    
+    Returns:
+        Parsed JSON dict, or None if parsing fails
+    """
+    if not response_text or not response_text.strip():
+        log.warning("%s Empty response text, cannot parse JSON", log_identifier)
+        return None
+    
+    # Strip markdown code block wrapper if present (common with Gemini 2.5 Pro)
+    clean_text = response_text.strip()
+    if clean_text.startswith('```'):
+        # Remove opening ```json or ``` and closing ```
+        clean_text = re.sub(r'^```(?:json)?\s*', '', clean_text)
+        clean_text = re.sub(r'\s*```\s*$', '', clean_text)
+        log.debug("%s Stripped markdown code block wrapper", log_identifier)
+    
+    # Try to parse JSON directly
+    try:
+        return json.loads(clean_text)
+    except json.JSONDecodeError as je:
+        log.warning("%s Failed to parse LLM JSON response: %s. Response text: %s",
+                   log_identifier, str(je), clean_text[:200])
+    
+    # Fallback: Try to extract JSON from markdown code blocks (in case stripping didn't work)
+    json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+    if json_match:
+        try:
+            result = json.loads(json_match.group(1))
+            log.info("%s Extracted JSON from markdown code block", log_identifier)
+            return result
+        except json.JSONDecodeError:
+            log.warning("%s Failed to parse extracted JSON from code block", log_identifier)
+    
+    # Fallback: Try to find any JSON object with the specified key
+    if fallback_key:
+        # Build a regex pattern to find JSON with the specified key
+        json_match = re.search(rf'\{{[^{{}}]*"{fallback_key}"[^{{}}]*\}}', response_text, re.DOTALL)
+        if json_match:
+            try:
+                result = json.loads(json_match.group(0))
+                log.info("%s Extracted JSON object with key '%s' from response", log_identifier, fallback_key)
+                return result
+            except json.JSONDecodeError:
+                log.warning("%s Failed to parse extracted JSON object with key '%s'", log_identifier, fallback_key)
+    
+    log.warning("%s No valid JSON found in response", log_identifier)
+    return None
 
 
 @dataclass
@@ -668,15 +781,14 @@ Respond in JSON format:
         log.info("%s Calling LLM for query generation", log_identifier)
         
         # Create LLM request
-        # Note: max_output_tokens=2048 to ensure complete JSON responses with "thinking" models
-        # like Gemini 2.5 Pro that use reasoning tokens (which count against max_output_tokens).
+        # Note: max_output_tokens=8192 to ensure complete JSON responses with "thinking" models
         llm_request = LlmRequest(
             model=llm.model,
             contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=query_prompt)])],
             config=adk_types.GenerateContentConfig(
                 response_mime_type="application/json",
                 temperature=0.7,
-                max_output_tokens=2048
+                max_output_tokens=8192
             )
         )
         
@@ -688,37 +800,25 @@ Respond in JSON format:
         else:
             response = llm.generate_content(request=llm_request)
         
-        # Extract text from response - try multiple extraction methods
-        response_text = ""
-        
-        # Method 1: Direct text attribute
-        if hasattr(response, 'text') and response.text:
-            response_text = response.text
-        # Method 2: Parts attribute (for streaming responses)
-        elif hasattr(response, 'parts') and response.parts:
-            response_text = "".join([part.text for part in response.parts if hasattr(part, 'text') and part.text])
-        # Method 3: Content attribute with parts (for LlmResponse objects from Gemini 2.5 Pro)
-        elif hasattr(response, 'content') and response.content:
-            content = response.content
-            if hasattr(content, 'parts') and content.parts:
-                response_text = "".join([part.text for part in content.parts if hasattr(part, 'text') and part.text])
-            elif hasattr(content, 'text') and content.text:
-                response_text = content.text
-            elif isinstance(content, str):
-                response_text = content
-        
-        if not response_text:
-            log.warning("%s Could not extract text from LLM response", log_identifier)
+        # Extract text from response using helper function
+        response_text = _extract_text_from_llm_response(response, log_identifier)
+        if not response_text or not response_text.strip():
             return [research_question]
         
-        query_data = json.loads(response_text)
+        log.debug("%s LLM response text (first 200 chars): %s", log_identifier, response_text[:200])
+        
+        # Parse JSON using helper function with fallback key
+        query_data = _parse_json_from_llm_response(response_text, log_identifier, fallback_key="queries")
+        if query_data is None:
+            return [research_question]
+        
         queries = query_data.get("queries", [research_question])[:5]
         
         log.info("%s Generated %d queries via LLM", log_identifier, len(queries))
         return queries
         
     except Exception as e:
-        log.error("%s LLM query generation failed: %s, using fallback", log_identifier, str(e))
+        log.error("%s LLM query generation failed: %s, using fallback", log_identifier, str(e), exc_info=True)
         return [research_question]
 
 
@@ -760,12 +860,13 @@ Requirements:
 
 Respond with ONLY the title, nothing else."""
 
+        # Note: max_output_tokens=2048 to ensure complete responses with "thinking" models
         llm_request = LlmRequest(
             model=llm.model,
             contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=title_prompt)])],
             config=adk_types.GenerateContentConfig(
                 temperature=0.3,
-                max_output_tokens=1024
+                max_output_tokens=2048
             )
         )
         
@@ -778,27 +879,8 @@ Respond with ONLY the title, nothing else."""
         else:
             response = llm.generate_content(request=llm_request)
         
-        # Extract text from response - try multiple extraction methods
-        response_text = ""
-        
-        # Method 1: Direct text attribute
-        if hasattr(response, 'text') and response.text:
-            response_text = response.text
-        # Method 2: Parts attribute (for streaming responses)
-        elif hasattr(response, 'parts') and response.parts:
-            response_text = "".join([part.text for part in response.parts if hasattr(part, 'text') and part.text])
-        # Method 3: Content attribute with parts (for LlmResponse objects)
-        elif hasattr(response, 'content') and response.content:
-            content = response.content
-            if hasattr(content, 'parts') and content.parts:
-                response_text = "".join([part.text for part in content.parts if hasattr(part, 'text') and part.text])
-            elif hasattr(content, 'text') and content.text:
-                response_text = content.text
-            elif isinstance(content, str):
-                response_text = content
-        
-        if not response_text:
-            log.warning("%s Could not extract text from LLM response", log_identifier)
+        # Extract text from response using helper function
+        response_text = _extract_text_from_llm_response(response, log_identifier)
         
         # Clean up the title
         title = response_text.strip().strip('"').strip("'")
@@ -916,13 +998,14 @@ Respond in JSON format:
         log.info("%s Calling LLM for reflection analysis", log_identifier)
         
         # Create LLM request
+        # Note: max_output_tokens=8192 to ensure complete JSON responses with "thinking" models
         llm_request = LlmRequest(
             model=llm.model,
             contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=reflection_prompt)])],
             config=adk_types.GenerateContentConfig(
                 response_mime_type="application/json",
                 temperature=0.3,
-                max_output_tokens=2048
+                max_output_tokens=8192
             )
         )
         
@@ -934,15 +1017,8 @@ Respond in JSON format:
         else:
             response = llm.generate_content(request=llm_request)
         
-        # Extract text from response
-        response_text = ""
-        if hasattr(response, 'text') and response.text:
-            response_text = response.text
-        elif hasattr(response, 'parts') and response.parts:
-            response_text = "".join([part.text for part in response.parts if hasattr(part, 'text') and part.text])
-        elif hasattr(response, 'content') and hasattr(response.content, 'parts'):
-            response_text = "".join([part.text for part in response.content.parts if hasattr(part, 'text') and part.text])
-        
+        # Extract text from response using helper function
+        response_text = _extract_text_from_llm_response(response, log_identifier)
         if not response_text or not response_text.strip():
             log.warning("%s LLM returned empty response for reflection", log_identifier)
             # Continue research if we have few findings
@@ -955,37 +1031,17 @@ Respond in JSON format:
                 reasoning="LLM returned empty response, using fallback logic"
             )
         
-        # Try to parse JSON response
-        try:
-            reflection_data = json.loads(response_text)
-        except json.JSONDecodeError as je:
-            log.warning("%s Failed to parse LLM JSON response: %s. Response text: %s",
-                       log_identifier, str(je), response_text[:200])
-            # Try to extract JSON from markdown code blocks
-            import re
-            json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-            if json_match:
-                try:
-                    reflection_data = json.loads(json_match.group(1))
-                except:
-                    # Continue with fallback
-                    should_continue = len(findings) < 15 and iteration < 3
-                    return ReflectionResult(
-                        quality_score=0.6,
-                        gaps=["Need more sources"],
-                        should_continue=should_continue,
-                        suggested_queries=[f"{research_question} in depth", f"{research_question} latest"],
-                        reasoning="Could not parse LLM response, using fallback"
-                    )
-            else:
-                should_continue = len(findings) < 15 and iteration < 3
-                return ReflectionResult(
-                    quality_score=0.6,
-                    gaps=["Need more sources"],
-                    should_continue=should_continue,
-                    suggested_queries=[f"{research_question} comprehensive", f"{research_question} detailed"],
-                    reasoning="Could not parse LLM response, using fallback"
-                )
+        # Parse JSON using helper function
+        reflection_data = _parse_json_from_llm_response(response_text, log_identifier, fallback_key="quality_score")
+        if reflection_data is None:
+            should_continue = len(findings) < 15 and iteration < 3
+            return ReflectionResult(
+                quality_score=0.6,
+                gaps=["Need more sources"],
+                should_continue=should_continue,
+                suggested_queries=[f"{research_question} comprehensive", f"{research_question} detailed"],
+                reasoning="Could not parse LLM response, using fallback"
+            )
         
         quality_score = float(reflection_data.get("quality_score", 0.5))
         gaps = reflection_data.get("gaps", [])
@@ -1070,13 +1126,14 @@ You MUST respond with ONLY valid JSON in this exact format:
 
 Do not include any other text, markdown formatting, or explanations outside the JSON."""
 
+        # Note: max_output_tokens=8192 to ensure complete JSON responses with "thinking" models
         llm_request = LlmRequest(
             model=llm.model,
             contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=selection_prompt)])],
             config=adk_types.GenerateContentConfig(
                 response_mime_type="application/json",
                 temperature=0.3,
-                max_output_tokens=2048
+                max_output_tokens=8192
             )
         )
         
@@ -1087,15 +1144,8 @@ Do not include any other text, markdown formatting, or explanations outside the 
         else:
             response = llm.generate_content(request=llm_request)
         
-        # Extract text from response with better error handling
-        response_text = ""
-        if hasattr(response, 'text') and response.text:
-            response_text = response.text
-        elif hasattr(response, 'parts') and response.parts:
-            response_text = "".join([part.text for part in response.parts if hasattr(part, 'text') and part.text])
-        elif hasattr(response, 'content') and hasattr(response.content, 'parts'):
-            response_text = "".join([part.text for part in response.content.parts if hasattr(part, 'text') and part.text])
-        
+        # Extract text from response using helper function
+        response_text = _extract_text_from_llm_response(response, log_identifier)
         if not response_text or not response_text.strip():
             log.warning("%s LLM returned empty response, using fallback selection", log_identifier)
             web_findings = [f for f in findings if f.source_type == "web" and f.url]
@@ -1103,31 +1153,12 @@ Do not include any other text, markdown formatting, or explanations outside the 
         
         log.debug("%s LLM response text: %s", log_identifier, response_text[:200])
         
-        # Try to parse JSON, with fallback for markdown-wrapped JSON
-        try:
-            selection_data = json.loads(response_text)
-        except json.JSONDecodeError:
-            # Try to extract JSON from markdown code blocks
-            import re
-            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-            if json_match:
-                try:
-                    selection_data = json.loads(json_match.group(1))
-                    log.info("%s Extracted JSON from markdown code block", log_identifier)
-                except json.JSONDecodeError as je2:
-                    log.warning("%s Failed to parse extracted JSON: %s", log_identifier, str(je2))
-                    raise
-            else:
-                # Try to find any JSON object in the response
-                json_match = re.search(r'\{[^{}]*"selected_sources"[^{}]*\}', response_text, re.DOTALL)
-                if json_match:
-                    try:
-                        selection_data = json.loads(json_match.group(0))
-                        log.info("%s Extracted JSON object from response", log_identifier)
-                    except json.JSONDecodeError:
-                        raise
-                else:
-                    raise
+        # Parse JSON using helper function
+        selection_data = _parse_json_from_llm_response(response_text, log_identifier, fallback_key="selected_sources")
+        if selection_data is None:
+            log.warning("%s Failed to parse JSON, using fallback selection", log_identifier)
+            web_findings = [f for f in findings if f.source_type == "web" and f.url]
+            return sorted(web_findings, key=lambda x: x.relevance_score, reverse=True)[:max_to_fetch]
         
         selected_indices = selection_data.get("selected_sources", [])
         reasoning = selection_data.get("reasoning", "")
