@@ -2,7 +2,7 @@
 Base classes for tool executors.
 
 Tool executors provide an abstraction layer that allows tools to run on different
-backends (local Python, AWS Lambda, HTTP endpoints) through configuration.
+backends (local Python, AWS Lambda) through configuration.
 """
 
 import logging
@@ -77,7 +77,6 @@ class ToolExecutor(ABC):
     Executors handle the actual execution of tool logic on various backends:
     - LocalPythonExecutor: Runs Python functions locally
     - LambdaExecutor: Invokes AWS Lambda functions
-    - HTTPExecutor: Makes HTTP requests to external services
 
     Subclasses must implement:
     - executor_type: Property returning the executor type name
@@ -92,7 +91,7 @@ class ToolExecutor(ABC):
         """
         Return the executor type identifier.
 
-        Examples: "python", "lambda", "http"
+        Examples: "python", "lambda"
         """
         pass
 
@@ -178,7 +177,7 @@ def get_executor_class(executor_type: str) -> Optional[type]:
     Get the executor class for a given type.
 
     Args:
-        executor_type: The executor type identifier (e.g., "python", "lambda", "http")
+        executor_type: The executor type identifier (e.g., "python", "lambda")
 
     Returns:
         The executor class, or None if not found

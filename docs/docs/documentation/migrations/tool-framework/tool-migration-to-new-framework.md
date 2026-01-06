@@ -324,9 +324,9 @@ async def merge_files(
 - You want explicit control over data disposition
 - You need to include metadata with the artifact
 
-## Executor Tools (Lambda/HTTP): Using `type: artifact`
+## Executor Tools (Lambda): Using `type: artifact`
 
-For executor-based tools (Lambda, HTTP), use `type: artifact` directly in the parameters schema:
+For executor-based tools (Lambda), use `type: artifact` directly in the parameters schema:
 
 ```yaml
 tools:

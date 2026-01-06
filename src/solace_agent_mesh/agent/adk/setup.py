@@ -786,7 +786,7 @@ async def _load_executor_tool(
     """
     Load an executor-based tool from configuration.
 
-    Executor tools run on different backends (Python, Lambda, HTTP) through
+    Executor tools run on different backends (Python, Lambda) through
     a unified configuration interface.
     """
     from google.genai import types as adk_types
@@ -817,18 +817,6 @@ async def _load_executor_tool(
             "invocation_type": tool_config_model.invocation_type,
             "include_context": tool_config_model.include_context,
             "timeout_seconds": tool_config_model.timeout_seconds,
-        }
-    elif tool_config_model.executor == "http":
-        executor_kwargs = {
-            "endpoint": tool_config_model.endpoint,
-            "method": tool_config_model.method,
-            "auth_type": tool_config_model.auth_type,
-            "auth_token": tool_config_model.auth_token,
-            "api_key_header": tool_config_model.api_key_header,
-            "timeout_seconds": tool_config_model.timeout_seconds,
-            "include_context": tool_config_model.include_context,
-            "args_location": tool_config_model.args_location,
-            "headers": tool_config_model.headers,
         }
 
     # Create executor

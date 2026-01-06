@@ -7,7 +7,7 @@ When a tool parameter is annotated with `Artifact`, the framework will:
 3. Pass an Artifact object containing content and all metadata to the tool
 
 This allows tools to work directly with artifact data without needing to
-manually load artifacts, and is especially useful for Lambda/HTTP executors
+manually load artifacts, and is especially useful for Lambda executors
 that cannot access the artifact store directly.
 
 Supported type annotations:

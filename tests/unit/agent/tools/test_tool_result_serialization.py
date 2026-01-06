@@ -2,7 +2,7 @@
 Unit tests for ToolResult serialization/deserialization.
 
 Tests the round-trip behavior of serializing ToolResult and DataObject
-for transmission over remote executors (Lambda, HTTP).
+for transmission over remote executors (Lambda).
 """
 
 import pytest

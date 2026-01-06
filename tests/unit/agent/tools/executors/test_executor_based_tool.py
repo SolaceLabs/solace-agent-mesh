@@ -215,26 +215,6 @@ class TestCreateExecutorToolFromConfig:
         assert tool.tool_name == "lambda_tool"
         assert tool._executor.executor_type == "lambda"
 
-    def test_creates_tool_with_http_executor(self):
-        """Factory creates tool with HTTP executor."""
-        config = {
-            "name": "http_tool",
-            "description": "An HTTP-based tool",
-            "executor": "http",
-            "endpoint": "https://api.example.com/tool",
-            "method": "POST",
-            "parameters": {
-                "properties": {
-                    "query": {"type": "string"},
-                },
-            },
-        }
-
-        tool = create_executor_tool_from_config(config)
-
-        assert tool.tool_name == "http_tool"
-        assert tool._executor.executor_type == "http"
-
     def test_raises_on_missing_required_fields(self):
         """Factory raises ValueError for missing required fields."""
         # Missing 'name'
@@ -281,14 +261,6 @@ class TestCreateExecutorToolFromConfig:
                 "name": "test",
                 "description": "A tool",
                 "executor": "lambda",
-            })
-
-        # HTTP executor missing 'endpoint'
-        with pytest.raises(ValueError, match="Missing required fields.*endpoint"):
-            create_executor_tool_from_config({
-                "name": "test",
-                "description": "A tool",
-                "executor": "http",
             })
 
     def test_raises_on_unknown_executor_type(self):

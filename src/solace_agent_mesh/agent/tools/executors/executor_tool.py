@@ -232,7 +232,7 @@ def create_executor_tool_from_config(
         config: Tool configuration dictionary with keys:
             - name: Tool name
             - description: Tool description
-            - executor: Executor type ("python", "lambda", "http")
+            - executor: Executor type ("python", "lambda")
             - parameters: Parameter schema definition
             - artifact_content_args: List of single-value params to pre-load artifacts
             - artifact_content_list_args: List of list-value params to pre-load artifacts
@@ -258,7 +258,6 @@ def create_executor_tool_from_config(
     executor_required_fields = {
         "python": ["module", "function"],
         "lambda": ["function_arn"],
-        "http": ["endpoint"],
     }
 
     # Validate executor type
@@ -292,18 +291,6 @@ def create_executor_tool_from_config(
             "invocation_type": config.get("invocation_type", "RequestResponse"),
             "include_context": config.get("include_context", True),
             "timeout_seconds": config.get("timeout_seconds", 60),
-        }
-    elif executor_type == "http":
-        executor_kwargs = {
-            "endpoint": config["endpoint"],
-            "method": config.get("method", "POST"),
-            "auth_type": config.get("auth_type", "none"),
-            "auth_token": config.get("auth_token"),
-            "api_key_header": config.get("api_key_header", "X-API-Key"),
-            "timeout_seconds": config.get("timeout_seconds", 60),
-            "include_context": config.get("include_context", False),
-            "args_location": config.get("args_location", "body"),
-            "headers": config.get("headers"),
         }
 
     # Create executor
