@@ -668,12 +668,15 @@ Respond in JSON format:
         log.info("%s Calling LLM for query generation", log_identifier)
         
         # Create LLM request
+        # Note: max_output_tokens=2048 to ensure complete JSON responses with "thinking" models
+        # like Gemini 2.5 Pro that use reasoning tokens (which count against max_output_tokens).
         llm_request = LlmRequest(
             model=llm.model,
             contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=query_prompt)])],
             config=adk_types.GenerateContentConfig(
                 response_mime_type="application/json",
-                temperature=0.7
+                temperature=0.7,
+                max_output_tokens=2048
             )
         )
         
@@ -685,12 +688,28 @@ Respond in JSON format:
         else:
             response = llm.generate_content(request=llm_request)
         
-        # Extract text from response
+        # Extract text from response - try multiple extraction methods
         response_text = ""
+        
+        # Method 1: Direct text attribute
         if hasattr(response, 'text') and response.text:
             response_text = response.text
+        # Method 2: Parts attribute (for streaming responses)
         elif hasattr(response, 'parts') and response.parts:
             response_text = "".join([part.text for part in response.parts if hasattr(part, 'text') and part.text])
+        # Method 3: Content attribute with parts (for LlmResponse objects from Gemini 2.5 Pro)
+        elif hasattr(response, 'content') and response.content:
+            content = response.content
+            if hasattr(content, 'parts') and content.parts:
+                response_text = "".join([part.text for part in content.parts if hasattr(part, 'text') and part.text])
+            elif hasattr(content, 'text') and content.text:
+                response_text = content.text
+            elif isinstance(content, str):
+                response_text = content
+        
+        if not response_text:
+            log.warning("%s Could not extract text from LLM response", log_identifier)
+            return [research_question]
         
         query_data = json.loads(response_text)
         queries = query_data.get("queries", [research_question])[:5]
@@ -741,13 +760,12 @@ Requirements:
 
 Respond with ONLY the title, nothing else."""
 
-        # Create LLM request
         llm_request = LlmRequest(
             model=llm.model,
             contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=title_prompt)])],
             config=adk_types.GenerateContentConfig(
                 temperature=0.3,
-                max_output_tokens=50
+                max_output_tokens=1024
             )
         )
         
@@ -903,7 +921,8 @@ Respond in JSON format:
             contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=reflection_prompt)])],
             config=adk_types.GenerateContentConfig(
                 response_mime_type="application/json",
-                temperature=0.3
+                temperature=0.3,
+                max_output_tokens=2048
             )
         )
         
@@ -1051,14 +1070,13 @@ You MUST respond with ONLY valid JSON in this exact format:
 
 Do not include any other text, markdown formatting, or explanations outside the JSON."""
 
-        log.info("%s Calling LLM for source selection", log_identifier)
-        
         llm_request = LlmRequest(
             model=llm.model,
             contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=selection_prompt)])],
             config=adk_types.GenerateContentConfig(
                 response_mime_type="application/json",
-                temperature=0.3
+                temperature=0.3,
+                max_output_tokens=2048
             )
         )
         
