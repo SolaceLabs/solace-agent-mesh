@@ -1,0 +1,91 @@
+name: Release (PyPI & Docker)
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: choice
+        required: true
+        description: "Version bump type for PyPI package & Git tag"
+        options:
+          - patch
+          - minor
+          - major
+      skip_security_checks:
+        type: boolean
+        required: false
+        description: "Skip security checks"
+        default: false
+      skip_rc_check:
+        type: boolean
+        required: false
+        description: "Skip RC verification (emergency releases only)"
+        default: false
+
+permissions:
+  id-token: write
+  checks: write
+  contents: write
+  packages: write
+  pull-requests: read
+
+jobs:
+  # Verify the current version has passed RC testing
+  verify-rc:
+    name: Verify RC Status
+    if: ${{ github.event.inputs.skip_rc_check != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify RC SHA
+        run: |
+
+          echo "✅ RC verification passed - SHA matches: $RC_SHA"
+
+  # Run security checks first via reusable workflow (conditionally)
+  security-checks:
+    needs: verify-rc
+    if: |
+      always() &&
+      (needs.verify-rc.result == 'success' || needs.verify-rc.result == 'skipped') &&
+      github.event.inputs.skip_security_checks != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Security Checks
+        run: |
+          echo "Running security checks..."
+          # Placeholder for actual security check commands
+          echo "Security checks completed successfully."
+
+  # Release to PyPI using Trusted Publishing
+  release:
+    name: Release to PyPI
+    # We need always() here because when security-checks or verify-rc is skipped,
+    # GitHub Actions would by default skip ALL dependent jobs. The always() forces evaluation of our
+    # condition, allowing the release to proceed when checks were either successful OR skipped.
+    # This enables emergency releases when checks need to be bypassed.
+    needs: [verify-rc, security-checks]
+    if: |
+      always() && 
+      (needs.verify-rc.result == 'success' || needs.verify-rc.result == 'skipped') &&
+      (needs.security-checks.result == 'success' || needs.security-checks.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      new_version: ${{ steps.prep.outputs.new_version }}
+      commit_hash: ${{ steps.prep.outputs.commit_hash }}
+    steps:
+      - name: Output Values
+        id: prep
+        run: |
+          # Placeholder for actual release logic
+          echo "Preparing release..."
+          echo "new_version=1.12.0" >> $GITHUB_OUTPUT
+          echo "commit_hash=abc123def456" >> $GITHUB_OUTPUT
+
+  build_and_push_docker:
+    name: Build and Push to DockerHub
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build and Push Docker Image
+        run: |
+          echo "Building and pushing Docker image with version ${{ needs.release.outputs.new_version }} and
