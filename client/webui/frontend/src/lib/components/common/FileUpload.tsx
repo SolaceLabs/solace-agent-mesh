@@ -124,6 +124,11 @@ function FileUpload({ name, accept, multiple = false, disabled = false, testid =
         const newFiles = removeAtIndex(uploadedFiles, index);
         setUploadedFiles(newFiles);
         onChange(newFiles);
+
+        // Clear the input so the same file can be re-selected
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
     };
 
     return (

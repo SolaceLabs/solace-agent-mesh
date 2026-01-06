@@ -193,7 +193,7 @@ export function ChatPage() {
                                     <p>{pageTitle}</p>
                                 </TooltipContent>
                             </Tooltip>
-                            {activeProject && <ProjectBadge text={activeProject.name} />}
+                            {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[200px]" />}
                         </div>
                     }
                     breadcrumbs={breadcrumbs}
