@@ -1,4 +1,6 @@
 {
+    "url": "https://github.com/solacelabs/solace-agent-mesh",
+    "public_key": "pk_1Wd8rzT3jlbGqv4EuFyTJ",
     "$schema": "https://context7.com/schema/context7.json",
     "projectTitle": "Solace Agent Mesh",
     "description": "An open-source framework for building event-driven multi-agent AI systems that leverage the Solace Platform for scalable and reliable communication between specialized AI agents.",
@@ -53,15 +55,25 @@
         ".gitignore"
     ],
     "rules": [
-        "find valid templates of plugins, gateways and agents in 'templates' folder and 'examples' folder and use them as references to create new ones",
-        "find the main concepts, architecture and instructions in the 'docs' folder",
-        "double check the value of configurations with templates, examples and configurations reference page in docs folder",
-        "add simplest configuration for new agents, plugins or gateways based on the existing ones that do not need extra dependencies",
-        "self-criticise the code and configurations to ensure that they are accurately address the requirements.",
-        "always use CLI commands for creating an agent, plugin and gateway and then refine the agent/gateway/plugin instruction and develop codes",
-        "do not use Union types like Union[str, int] for tools",
-        "before implementing tools, review the available tools such as built-in tools and reuse them.",
-        "always use CLI to create and initiate a new sam project",
-        "find frontend related code in client folder"
+        "Always use `pip3 install solace-agent-mesh` for installing SAM",
+        "Always use `sam init` for creating a new SAM",
+        "Always use `sam add agent <agent-name>` for creating a new agent for SAM",
+        "Always use `sam plugin create <plugin-name>` for creating a new plugin for SAM",
+        "Always use `sam plugin build` for Building the plugin into a Python wheel package",
+        "Always use `sam plugin install <plugin-name-or-path>` for installing a plugin",
+        "Always use `sam plugin add <component-type> <component-name>` for adding a new component (agent/gateway) to an existing plugin.",
+        "Always use `sam add gateway <gateway-name>` for creating a new gateway",
+        "Always use `sam run` for running a SAM application",
+        "Always use `sam tools list --json` to get list of available built-in tools.",
+        "Find the main concepts, architecture and instructions in the 'docs' folder",
+        "Find valid templates of agent, plugins and gateways in 'templates' folder and 'examples' folder and use them as references to verify new ones",
+        "For implementing a tool, always review available tools in the library, understand their implementation pattern such as input parameters and output format and use a similar pattern.",
+        "Tools always get files as an artifact through input parameters such as tool_context.",
+        "Always implement unit tests to evaluate new tools functionality with upper than 90% coverage.",
+        "Ensure that tests are passed successfully",
+        "When asked for agent, plugin or gateway creation, first recognize the required tools, second always use CLI commands for creating an agent, plugin and gateway template, third refine the agent, plugin or gateway instruction carefully, fourth reuse the available built-in tools or develop new tools carefully.",
+        "Always use the minimal, mandatory and simplest configurations and suggest more options",
+        "Do not use Union typing at all. For example, Union[int, float] is not supported.",
+        "Before implementing a tool, think accurately and ask yourself if there is any available built-in tool or service for this purpose. Always reuse the available services and tools such as artifact service instead of reimplementing them if it is possible."
     ]
 }

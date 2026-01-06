@@ -196,6 +196,10 @@ def create_oauth_middleware(component):
                 await self.app(scope, receive, send)
                 return
 
+            if request.method == "OPTIONS":
+                await self.app(scope, receive, send)
+                return
+
             use_auth = self.component.get_config("frontend_use_authorization", False)
 
             if use_auth:
