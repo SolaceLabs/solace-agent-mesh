@@ -150,32 +150,34 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                         <FileUpload name="project-files" accept="*" multiple value={filesToUpload} onChange={handleFileUploadChange} onValidate={handleValidateFileSizes} />
                         {artifacts.length > 0 && (
                             <div className="mt-4 min-h-0 flex-1 overflow-y-auto border-t">
-                                {sortedArtifacts.map(artifact => {
-                                    const isExpanded = expandedArtifact === artifact.filename;
-                                    const expandedContent = isExpanded ? <FileDetails description={artifact.description ?? undefined} size={artifact.size} lastModified={artifact.last_modified} mimeType={artifact.mime_type} /> : undefined;
+                                <div className="border-r border-l">
+                                    {sortedArtifacts.map(artifact => {
+                                        const isExpanded = expandedArtifact === artifact.filename;
+                                        const expandedContent = isExpanded ? <FileDetails description={artifact.description ?? undefined} size={artifact.size} lastModified={artifact.last_modified} mimeType={artifact.mime_type} /> : undefined;
 
-                                    return (
-                                        <ArtifactBar
-                                            key={artifact.filename}
-                                            filename={artifact.filename}
-                                            description={artifact.description || formatRelativeTime(artifact.last_modified)}
-                                            mimeType={artifact.mime_type}
-                                            size={artifact.size}
-                                            status="completed"
-                                            context="list"
-                                            expandable={true}
-                                            expanded={isExpanded}
-                                            expandedContent={expandedContent}
-                                            source="project"
-                                            actions={{
-                                                onInfo: () => handleToggleExpand(artifact.filename),
-                                                onEdit: () => handleEditDescription(artifact),
-                                                onDownload: () => onDownload(artifact),
-                                                onDelete: () => handleDeleteClick(artifact),
-                                            }}
-                                        />
-                                    );
-                                })}
+                                        return (
+                                            <ArtifactBar
+                                                key={artifact.filename}
+                                                filename={artifact.filename}
+                                                description={artifact.description || formatRelativeTime(artifact.last_modified)}
+                                                mimeType={artifact.mime_type}
+                                                size={artifact.size}
+                                                status="completed"
+                                                context="list"
+                                                expandable={true}
+                                                expanded={isExpanded}
+                                                expandedContent={expandedContent}
+                                                source="project"
+                                                actions={{
+                                                    onInfo: () => handleToggleExpand(artifact.filename),
+                                                    onEdit: () => handleEditDescription(artifact),
+                                                    onDownload: () => onDownload(artifact),
+                                                    onDelete: () => handleDeleteClick(artifact),
+                                                }}
+                                            />
+                                        );
+                                    })}
+                                </div>
                             </div>
                         )}
                     </>
