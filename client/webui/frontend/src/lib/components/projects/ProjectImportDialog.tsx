@@ -1,8 +1,8 @@
-import React, { useState, useRef } from "react";
-import { FileJson, Upload as UploadIcon, AlertTriangle } from "lucide-react";
+import React, { useState } from "react";
+import { FileJson, AlertTriangle } from "lucide-react";
 import JSZip from "jszip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
-import { MessageBanner } from "@/lib/components/common";
+import { MessageBanner, FileUpload } from "@/lib/components/common";
 import { useConfigContext } from "@/lib/hooks";
 
 interface ProjectImportDialogProps {
@@ -36,19 +36,17 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
     const maxUploadSizeBytes = validationLimits?.maxUploadSizeBytes;
     const maxZipUploadSizeBytes = validationLimits?.maxZipUploadSizeBytes ?? DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES;
 
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [selectedFileName, setSelectedFileName] = useState<string>("");
+    const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
     const [projectPreview, setProjectPreview] = useState<ProjectPreview | null>(null);
     const [customName, setCustomName] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [isImporting, setIsImporting] = useState(false);
-    const [isDragging, setIsDragging] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const selectedFile = selectedFiles?.[0] || null;
 
     const handleClose = () => {
         if (!isImporting) {
-            setSelectedFile(null);
-            setSelectedFileName("");
+            setSelectedFiles(null);
             setProjectPreview(null);
             setCustomName("");
             setError(null);
@@ -163,37 +161,31 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
         }
     };
 
-    const handleFileSelect = async (file: File) => {
-        setSelectedFile(file);
-        setSelectedFileName(file.name);
-        await validateAndPreviewFile(file);
-    };
-
-    const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            await handleFileSelect(file);
+    const handleFileChange = async (files: FileList | null) => {
+        setSelectedFiles(files);
+        if (files && files[0]) {
+            await validateAndPreviewFile(files[0]);
+        } else {
+            setProjectPreview(null);
+            setCustomName("");
         }
     };
 
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(true);
-    };
+    const handleFileValidation = (files: FileList): { valid: boolean; error?: string } => {
+        const file = files[0];
 
-    const handleDragLeave = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-    };
-
-    const handleDrop = async (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-
-        const file = e.dataTransfer.files[0];
-        if (file) {
-            await handleFileSelect(file);
+        // Validate file type
+        if (!file.name.endsWith(".zip")) {
+            return { valid: false, error: "Please select a ZIP file" };
         }
+
+        // Validate ZIP file size against configurable limit
+        if (file.size > maxZipUploadSizeBytes) {
+            const maxSizeMB = (maxZipUploadSizeBytes / (1024 * 1024)).toFixed(0);
+            return { valid: false, error: `ZIP file size exceeds ${maxSizeMB}MB limit` };
+        }
+
+        return { valid: true };
     };
 
     const handleImport = async () => {
@@ -219,58 +211,18 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
         }
     };
 
-    const handleChangeFile = () => {
-        setSelectedFile(null);
-        setSelectedFileName("");
-        setProjectPreview(null);
-        setCustomName("");
-        setError(null);
-        fileInputRef.current?.click();
-    };
-
     return (
         <Dialog open={open} onOpenChange={handleClose}>
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>Import Project</DialogTitle>
-                    <DialogDescription>Import a project from a ZIP export file</DialogDescription>
+                    <DialogDescription>Import a project from an exported project ZIP file.</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
                     {/* File Upload */}
                     <div className="space-y-2">
-                        <Label>Project File</Label>
-
-                        {!selectedFile ? (
-                            <div
-                                className={`cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
-                                    isDragging ? "border-primary bg-primary/5 scale-105" : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
-                                }`}
-                                onDragOver={handleDragOver}
-                                onDragLeave={handleDragLeave}
-                                onDrop={handleDrop}
-                                onClick={() => fileInputRef.current?.click()}
-                            >
-                                <UploadIcon className="text-muted-foreground mx-auto mb-4 h-12 w-12" />
-                                <p className="mb-1 text-sm font-medium">Drag and drop ZIP file here</p>
-                                <p className="text-muted-foreground text-xs">or click to browse</p>
-                            </div>
-                        ) : (
-                            <div className="bg-muted/50 flex items-center gap-3 rounded-lg border p-3">
-                                <FileJson className="text-primary h-5 w-5 flex-shrink-0" />
-                                <div className="min-w-0 flex-1">
-                                    <p className="line-clamp-2 text-sm font-medium break-words" title={selectedFileName}>
-                                        {selectedFileName}
-                                    </p>
-                                    <p className="text-muted-foreground text-xs">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                                </div>
-                                <Button variant="ghost" size="sm" onClick={handleChangeFile} disabled={isImporting} className="flex-shrink-0">
-                                    Change
-                                </Button>
-                            </div>
-                        )}
-
-                        <input ref={fileInputRef} type="file" accept=".zip" onChange={handleFileInputChange} className="hidden" />
+                        <FileUpload name="projectFile" accept=".zip" multiple={false} disabled={isImporting} value={selectedFiles} onChange={handleFileChange} onValidate={handleFileValidation} />
                     </div>
 
                     {/* Project Preview */}

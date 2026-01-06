@@ -4,19 +4,28 @@ import { useNavigate } from "react-router-dom";
 
 import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Loader2 } from "lucide-react";
 
-import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { api } from "@/lib/api";
-import { getErrorMessage } from "@/lib/utils/api";
-import { formatTimestamp } from "@/lib/utils/format";
-import { Button } from "@/lib/components/ui/button";
-import { Badge } from "@/lib/components/ui/badge";
-import { Spinner } from "@/lib/components/ui/spinner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
-import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
-import { SessionSearch } from "@/lib/components/chat/SessionSearch";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/lib/components/ui/dropdown-menu";
+import { useChatContext, useConfigContext } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
+import { formatTimestamp, getErrorMessage } from "@/lib/utils";
+import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    Spinner,
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from "@/lib/components/ui";
 
 interface PaginatedSessionsResponse {
     data: Session[];
@@ -342,16 +351,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     </div>
                                                     <span className="text-muted-foreground truncate text-xs">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
-                                                {session.projectName && (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary max-w-[120px] flex-shrink-0 justify-start px-2 py-0.5 text-xs font-semibold shadow-sm">
-                                                                <span className="block truncate">{session.projectName}</span>
-                                                            </Badge>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>{session.projectName}</TooltipContent>
-                                                    </Tooltip>
-                                                )}
+                                                {session.projectName && <ProjectBadge text={session.projectName} />}
                                             </div>
                                         </button>
                                     )}
