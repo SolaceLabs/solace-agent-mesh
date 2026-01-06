@@ -1,18 +1,17 @@
 import React, { useState, useCallback } from "react";
 
 import { Spinner } from "@/lib/components/ui/spinner";
-import { useProjectArtifacts } from "@/lib/hooks/useProjectArtifacts";
+import { useConfigContext, useDownload, useProjectArtifacts } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
-import { useDownload } from "@/lib/hooks/useDownload";
-import { useConfigContext } from "@/lib/hooks";
-import { validateFileSizes } from "@/lib/utils/file-validation";
-import { formatRelativeTime, formatBytes } from "@/lib/utils/format";
 import type { ArtifactInfo, Project } from "@/lib/types";
+import { formatRelativeTime, validateFileSizes } from "@/lib/utils";
+
+import { ArtifactBar } from "../chat/artifact";
+import { FileDetails } from "../chat/file";
+import { ConfirmationDialog, FileUpload, MessageBanner } from "../common";
+
 import { AddProjectFilesDialog } from "./AddProjectFilesDialog";
 import { EditFileDescriptionDialog } from "./EditFileDescriptionDialog";
-import { FileUpload } from "../common/FileUpload";
-import { ArtifactBar } from "../chat/artifact/ArtifactBar";
-import { ConfirmationDialog } from "../common";
 
 interface KnowledgeSectionProps {
     project: Project;
@@ -129,7 +128,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     };
 
     return (
-        <div className="mb-6">
+        <div className="flex min-h-0 flex-1 flex-col">
             <div className="mb-3 flex items-center justify-between px-4">
                 <div className="flex items-center gap-2">
                     <h3 className="text-foreground text-sm font-semibold">Knowledge</h3>
@@ -137,49 +136,23 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                 </div>
             </div>
 
-            <div className="px-4 pb-3">
+            <div className="flex min-h-0 flex-1 flex-col px-4 pb-3">
                 {isLoading && (
                     <div className="flex items-center justify-center p-4">
-                        <Spinner size="small" />
+                        <Spinner />
                     </div>
                 )}
 
-                {error && <div className="text-destructive border-destructive/50 rounded-md border p-3 text-sm">Error loading files: {error}</div>}
+                {error && <MessageBanner variant="error" message={`Error loading files: ${error}`} />}
 
                 {!isLoading && !error && (
                     <>
                         <FileUpload name="project-files" accept="*" multiple value={filesToUpload} onChange={handleFileUploadChange} onValidate={handleValidateFileSizes} />
-
                         {artifacts.length > 0 && (
-                            <div className="mt-4 max-h-[400px] overflow-y-auto border-t border-r border-l">
+                            <div className="mt-4 min-h-0 flex-1 overflow-y-auto border-t">
                                 {sortedArtifacts.map(artifact => {
                                     const isExpanded = expandedArtifact === artifact.filename;
-                                    const expandedContent = isExpanded ? (
-                                        <div className="space-y-2 text-sm">
-                                            {artifact.description && (
-                                                <div>
-                                                    <span className="text-secondary-foreground">Description:</span>
-                                                    <div className="mt-1">{artifact.description}</div>
-                                                </div>
-                                            )}
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div>
-                                                    <span className="text-secondary-foreground">Size:</span>
-                                                    <div>{formatBytes(artifact.size)}</div>
-                                                </div>
-                                                <div>
-                                                    <span className="text-secondary-foreground">Modified:</span>
-                                                    <div>{formatRelativeTime(artifact.last_modified)}</div>
-                                                </div>
-                                            </div>
-                                            {artifact.mime_type && (
-                                                <div>
-                                                    <span className="text-secondary-foreground">Type:</span>
-                                                    <div>{artifact.mime_type}</div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ) : undefined;
+                                    const expandedContent = isExpanded ? <FileDetails description={artifact.description ?? undefined} size={artifact.size} lastModified={artifact.last_modified} mimeType={artifact.mime_type} /> : undefined;
 
                                     return (
                                         <ArtifactBar

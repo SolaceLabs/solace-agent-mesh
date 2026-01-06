@@ -5,14 +5,14 @@ import { useProjectContext } from "@/lib/providers";
 import type { FileAttachment } from "@/lib/types";
 import { api } from "@/lib/api";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
-import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
+import { Spinner } from "@/lib/components/ui/spinner";
 
 import { MessageBanner } from "../../common";
 import { ContentRenderer } from "../preview/ContentRenderer";
 import { getFileContent, getRenderType } from "../preview/previewUtils";
 import { ArtifactBar } from "../artifact/ArtifactBar";
 import { ArtifactTransitionOverlay } from "../artifact/ArtifactTransitionOverlay";
-import { Spinner } from "../../ui";
+import { FileDetails } from "./FileDetails";
 
 type ArtifactMessageProps = (
     | {
@@ -417,32 +417,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const infoContent = useMemo(() => {
         if (!isInfoExpanded || !artifact) return null;
 
-        return (
-            <div className="space-y-2 text-sm">
-                {artifact.description && (
-                    <div>
-                        <span className="text-secondary-foreground">Description:</span>
-                        <div className="mt-1">{artifact.description}</div>
-                    </div>
-                )}
-                <div className="grid grid-cols-2 gap-2">
-                    <div>
-                        <span className="text-secondary-foreground">Size:</span>
-                        <div>{formatBytes(artifact.size)}</div>
-                    </div>
-                    <div>
-                        <span className="text-secondary-foreground">Modified:</span>
-                        <div>{formatRelativeTime(artifact.last_modified)}</div>
-                    </div>
-                </div>
-                {artifact.mime_type && (
-                    <div>
-                        <span className="text-secondary-foreground">Type:</span>
-                        <div>{artifact.mime_type}</div>
-                    </div>
-                )}
-            </div>
-        );
+        return <FileDetails description={artifact.description ?? undefined} size={artifact.size} lastModified={artifact.last_modified} mimeType={artifact.mime_type} />;
     }, [isInfoExpanded, artifact]);
 
     // Determine what content to show in expanded area - can show both info and content

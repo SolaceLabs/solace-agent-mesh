@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Download, ChevronDown, Trash, Info, ChevronUp, CircleAlert, Pencil } from "lucide-react";
 
 import { Button, Spinner } from "@/lib/components/ui";
-import { FileIcon, ProjectBadge } from "../file";
 import { cn } from "@/lib/utils";
+
+import { FileIcon, ProjectBadge } from "../file";
 
 const ErrorState: React.FC<{ message: string }> = ({ message }) => (
     <div className="w-full rounded-lg border border-[var(--color-error-w100)] bg-[var(--color-error-wMain-50)] p-3">

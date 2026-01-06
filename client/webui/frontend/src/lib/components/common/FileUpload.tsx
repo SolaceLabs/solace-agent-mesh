@@ -1,4 +1,4 @@
-import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
+import { useState, useRef, useEffect, type DragEvent, type ChangeEvent } from "react";
 import { X } from "lucide-react";
 
 import { Button } from "@/lib/components";
@@ -38,6 +38,11 @@ function FileUpload({ name, accept, multiple = false, disabled = false, testid =
     const [isDragging, setIsDragging] = useState(false);
     const [validationError, setValidationError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Sync internal state with value prop to handle external clearing
+    useEffect(() => {
+        setUploadedFiles(value);
+    }, [value]);
 
     const setSelectedFiles = (files: FileList | null) => {
         if (files && files.length > 0) {
