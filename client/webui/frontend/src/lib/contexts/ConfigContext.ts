@@ -58,15 +58,6 @@ export interface ConfigContextValue {
      * When false, platform-dependent features (agent builder, connectors, etc.) are unavailable.
      */
     platformConfigured: boolean;
-
-    /**
-     * Tool configuration status from backend.
-     * Indicates which tools are properly configured with required API keys.
-     */
-    toolConfigStatus?: {
-        web_search?: boolean;
-        deep_research?: boolean;
-    };
 }
 
 export const ConfigContext = createContext<ConfigContextValue | null>(null);

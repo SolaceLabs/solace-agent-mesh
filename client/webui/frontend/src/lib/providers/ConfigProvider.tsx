@@ -24,10 +24,6 @@ interface BackendConfig {
     background_tasks_config?: {
         default_timeout_ms?: number;
     };
-    tool_config_status?: {
-        web_search?: boolean;
-        deep_research?: boolean;
-    };
 }
 
 interface ConfigProviderProps {
@@ -132,7 +128,6 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     backgroundTasksEnabled,
                     backgroundTasksDefaultTimeoutMs,
                     platformConfigured,
-                    toolConfigStatus: data.tool_config_status,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;
