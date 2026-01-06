@@ -37,10 +37,10 @@ If you are unsure whether the storage bucket is configured, contact your platfor
 
 Depending on the API's authentication requirements, you may need:
 
-- API keys for APIs using API key authentication.
-- Username and password for APIs using basic authentication.
-- Bearer tokens for APIs using token-based authentication.
-- No credentials for public APIs without authentication.
+- API keys for APIs using API key authentication
+- Username and password for APIs using basic authentication
+- Bearer tokens for APIs using token-based authentication
+- No credentials for public APIs without authentication
 
 ### Network Access
 
@@ -68,9 +68,9 @@ Upload your OpenAPI specification file using the file picker or drag and drop. T
 
 Select the authentication method that matches your API requirements. The available options are:
 
-- None: The API does not require authentication.
-- API Key: The API requires an API key sent in a header or query parameter.
-- HTTP: The API uses HTTP authentication (Basic Auth or Bearer Token).
+- None: The API does not require authentication
+- API Key: The API requires an API key sent in a header or query parameter
+- HTTP: The API uses HTTP authentication (Basic Auth or Bearer Token)
 
 The authentication configuration fields that appear depend on the type you select.
 
@@ -85,8 +85,8 @@ Select this option for public APIs that do not require authentication. No additi
 Configure API key authentication by providing:
 
 **Location:** Select where the connector should send the API key:
-- Header: Send the API key in an HTTP header.
-- Query Parameter: Send the API key as a URL query parameter.
+- Header: Send the API key in an HTTP header
+- Query Parameter: Send the API key as a URL query parameter
 
 **Parameter Name:** Enter the name of the header or query parameter that should contain the API key. Common examples include `X-API-Key`, `api_key`, or `apikey`.
 
@@ -107,8 +107,8 @@ Configure API key authentication by providing:
 Configure HTTP authentication by providing:
 
 **HTTP Authentication Type:** Select the specific HTTP authentication method:
-- Basic: Uses HTTP Basic Authentication with username and password.
-- Bearer: Uses Bearer token authentication.
+- Basic: Uses HTTP Basic Authentication with username and password
+- Bearer: Uses Bearer token authentication
 
 **For Basic Authentication:**
 
@@ -148,26 +148,26 @@ Users can potentially invoke any API operation the connector allows by phrasing 
 
 If the connector fails to load the OpenAPI specification:
 
-1. Ensure the specification file uses valid JSON or YAML format.
-2. Validate the specification using an online tool such as Swagger Editor or the OpenAPI CLI.
-3. Check that the file upload completed successfully.
-4. Verify the specification conforms to OpenAPI 3.0 or later schema requirements.
+1. Ensure the specification file uses valid JSON or YAML format
+2. Validate the specification using an online tool such as Swagger Editor or the OpenAPI CLI
+3. Check that the file upload completed successfully
+4. Verify the specification conforms to OpenAPI 3.0 or later schema requirements
 
 ### Authentication Failures
 
 If API calls fail with 401 or 403 errors:
 
-1. Verify the API credentials are correct by testing them directly with curl or Postman.
-2. Check that credentials have not expired.
-3. Confirm the authentication type matches what the API expects (API Key vs HTTP Basic vs Bearer).
-4. Verify the parameter name or header name is correct.
-5. Ensure credentials have sufficient permissions for the operations agents attempt to invoke.
+1. Verify the API credentials are correct by testing them directly with curl or Postman
+2. Check that credentials have not expired
+3. Confirm the authentication type matches what the API expects (API Key vs HTTP Basic vs Bearer)
+4. Verify the parameter name or header name is correct
+5. Ensure credentials have sufficient permissions for the operations agents attempt to invoke
 
 ### Operations Not Available
 
 If agents report that operations are not available:
 
-1. Verify the specification contains paths with operations defined.
-2. Check that operations have operationId fields. Operations without operationId are skipped and will not be available as tools.
-3. Review connector logs for tool loading messages.
-4. Confirm the specification was successfully uploaded and processed.
+1. Verify the specification contains paths with operations defined
+2. Check that operations have operationId fields. Operations without operationId are skipped and will not be available as tools
+3. Review connector logs for tool loading messages
+4. Confirm the specification was successfully uploaded and processed

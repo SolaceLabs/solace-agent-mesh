@@ -17,9 +17,9 @@ The connector supports common relational database systems and handles the specif
 
 Agent Mesh Enterprise supports three database types for SQL connectors:
 
-- MySQL.
-- PostgreSQL.
-- MariaDB.
+- MySQL
+- PostgreSQL
+- MariaDB
 
 Each database type uses the same configuration interface but requires connection parameters appropriate for that database system.
 
@@ -154,11 +154,11 @@ Users can potentially request any data the connector can access by phrasing ques
 
 If the database connection fails:
 
-1. Verify network connectivity to the database host and port.
-2. Ensure firewall rules allow traffic from Agent Mesh Enterprise.
-3. Check that the username and password are correct.
-4. Confirm the database name exists.
-5. Verify the database type selection matches your server.
+1. Verify network connectivity to the database host and port
+2. Ensure firewall rules allow traffic from Agent Mesh Enterprise
+3. Check that the username and password are correct
+4. Confirm the database name exists
+5. Verify the database type selection matches your server
 
 ### Supabase PostgreSQL Connectivity
 
@@ -176,6 +176,6 @@ In your Supabase project settings, navigate to Database then Connection Pooling 
 
 If agents experience slow query responses:
 
-1. Ensure frequently queried columns have appropriate indexes.
-2. Optimize database views if you use them for access control.
-3. Review query patterns in database logs to identify inefficient queries that agents generate.
+1. Ensure frequently queried columns have appropriate indexes
+2. Optimize database views if you use them for access control
+3. Review query patterns in database logs to identify inefficient queries that agents generate
