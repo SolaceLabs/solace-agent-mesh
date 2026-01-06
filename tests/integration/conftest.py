@@ -1592,16 +1592,20 @@ def test_gateway_app_instance(
 
 @pytest.fixture(autouse=True, scope="function")
 def clear_test_gateway_state_between_tests(
-    test_gateway_app_instance: TestGatewayComponent,
+    request,
 ):
     """
     Clears state from the session-scoped TestGatewayComponent after each test.
+    Only runs if the test uses shared_solace_connector (directly or indirectly).
     """
     yield
-    test_gateway_app_instance.clear_captured_outputs()
-    test_gateway_app_instance.clear_all_captured_cancel_calls()
-    if test_gateway_app_instance.task_context_manager:
-        test_gateway_app_instance.task_context_manager.clear_all_contexts_for_testing()
+    # Only clear state if the shared connector was actually used by this test
+    if "shared_solace_connector" in request.fixturenames:
+        test_gateway_app_instance = request.getfixturevalue("test_gateway_app_instance")
+        test_gateway_app_instance.clear_captured_outputs()
+        test_gateway_app_instance.clear_all_captured_cancel_calls()
+        if test_gateway_app_instance.task_context_manager:
+            test_gateway_app_instance.task_context_manager.clear_all_contexts_for_testing()
 
 
 def _clear_agent_component_state(agent_app: SamAgentApp):
@@ -1624,45 +1628,50 @@ def _clear_agent_component_state(agent_app: SamAgentApp):
 
 @pytest.fixture(autouse=True, scope="function")
 def clear_all_agent_states_between_tests(
-    sam_app_under_test: SamAgentApp,
-    peer_agent_a_app_under_test: SamAgentApp,
-    peer_agent_b_app_under_test: SamAgentApp,
-    peer_agent_c_app_under_test: SamAgentApp,
-    peer_agent_d_app_under_test: SamAgentApp,
-    combined_dynamic_agent_app_under_test: SamAgentApp,
-    empty_provider_agent_app_under_test: SamAgentApp,
-    docstringless_agent_app_under_test: SamAgentApp,
-    mixed_discovery_agent_app_under_test: SamAgentApp,
-    complex_signatures_agent_app_under_test: SamAgentApp,
-    config_context_agent_app_under_test: SamAgentApp,
-    a2a_proxy_component: "BaseProxyComponent",
-    test_a2a_agent_server_harness: TestA2AAgentServer,
+    request,
 ):
-    """Clears state from all agent components after each test."""
+    """
+    Clears state from all agent components after each test.
+    Only cleans up fixtures that the test actually used to avoid
+    creating session-scoped fixtures during teardown.
+    """
     yield
-    _clear_agent_component_state(sam_app_under_test)
-    _clear_agent_component_state(peer_agent_a_app_under_test)
-    _clear_agent_component_state(peer_agent_b_app_under_test)
-    _clear_agent_component_state(peer_agent_c_app_under_test)
-    _clear_agent_component_state(peer_agent_d_app_under_test)
-    _clear_agent_component_state(combined_dynamic_agent_app_under_test)
-    _clear_agent_component_state(empty_provider_agent_app_under_test)
-    _clear_agent_component_state(docstringless_agent_app_under_test)
-    _clear_agent_component_state(mixed_discovery_agent_app_under_test)
-    _clear_agent_component_state(complex_signatures_agent_app_under_test)
-    _clear_agent_component_state(config_context_agent_app_under_test)
+    # Only clear state if the shared connector was actually used by this test
+    if "shared_solace_connector" not in request.fixturenames:
+        return
 
-    # Clear proxy client cache to ensure fresh clients with updated auth config
-    a2a_proxy_component.clear_client_cache()
+    # Only get and clear fixtures that were actually used by this test
+    # to avoid creating session-scoped fixtures during teardown
+    agent_app_fixtures = [
+        "sam_app_under_test",
+        "peer_agent_a_app_under_test",
+        "peer_agent_b_app_under_test",
+        "peer_agent_c_app_under_test",
+        "peer_agent_d_app_under_test",
+        "combined_dynamic_agent_app_under_test",
+        "empty_provider_agent_app_under_test",
+        "docstringless_agent_app_under_test",
+        "mixed_discovery_agent_app_under_test",
+        "complex_signatures_agent_app_under_test",
+        "config_context_agent_app_under_test",
+    ]
 
-    # Clear captured auth headers from downstream agent server
-    test_a2a_agent_server_harness.clear_captured_auth_headers()
+    for fixture_name in agent_app_fixtures:
+        if fixture_name in request.fixturenames:
+            app = request.getfixturevalue(fixture_name)
+            _clear_agent_component_state(app)
 
-    # Clear captured A2A requests from downstream agent server
-    test_a2a_agent_server_harness.clear_captured_requests()
+    # Clear proxy client cache only if it was used
+    if "a2a_proxy_component" in request.fixturenames:
+        a2a_proxy_component = request.getfixturevalue("a2a_proxy_component")
+        a2a_proxy_component.clear_client_cache()
 
-    # Clear auth validation state from downstream agent server
-    test_a2a_agent_server_harness.clear_auth_state()
+    # Clear A2A server state only if it was used
+    if "test_a2a_agent_server_harness" in request.fixturenames:
+        test_a2a_agent_server_harness = request.getfixturevalue("test_a2a_agent_server_harness")
+        test_a2a_agent_server_harness.clear_captured_auth_headers()
+        test_a2a_agent_server_harness.clear_captured_requests()
+        test_a2a_agent_server_harness.clear_auth_state()
 
 
 @pytest.fixture(scope="function")
