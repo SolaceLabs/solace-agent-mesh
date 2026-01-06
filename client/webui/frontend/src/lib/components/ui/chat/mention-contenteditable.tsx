@@ -152,20 +152,15 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
 
         // Handle input changes
         const handleInput = React.useCallback(() => {
-            console.log("handleInput called, isUpdatingRef.current:", isUpdatingRef.current);
             if (isUpdatingRef.current || !editableRef.current) return;
 
             const plainText = extractPlainText(editableRef.current);
-            console.log("handleInput extracting plainText:", plainText);
             onChange(plainText);
         }, [onChange, extractPlainText]);
 
         // Helper to set cursor position by character offset
         const setCursorPosition = React.useCallback((offset: number) => {
-            console.log("=== setCursorPosition called with offset:", offset);
             if (!editableRef.current) return;
-
-            console.log("editableRef.current.innerHTML:", editableRef.current.innerHTML);
 
             const selection = window.getSelection();
             if (!selection) return;
@@ -194,15 +189,11 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
 
             let node: Node | null;
             while ((node = walker.nextNode())) {
-                console.log("Walking node:", node.nodeType, node.nodeType === Node.TEXT_NODE ? `TEXT: "${node.textContent}"` : node.nodeType === Node.ELEMENT_NODE ? `ELEMENT: ${(node as HTMLElement).tagName}` : "OTHER");
-
                 if (node.nodeType === Node.TEXT_NODE) {
                     const nodeLength = node.textContent?.length || 0;
-                    console.log(`  Text node length: ${nodeLength}, currentOffset: ${currentOffset}, checking if ${currentOffset + nodeLength} >= ${offset}`);
                     if (currentOffset + nodeLength >= offset) {
                         targetNode = node;
                         targetOffset = offset - currentOffset;
-                        console.log(`  ✓ MATCH! Setting target to text node, targetOffset: ${targetOffset}`);
                         break;
                     }
                     currentOffset += nodeLength;
@@ -211,63 +202,43 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                     if (el.classList.contains("mention-chip")) {
                         const mentionText = el.getAttribute("data-mention") || el.textContent || "";
                         const mentionLength = mentionText.length;
-                        console.log(`  Mention chip found: "${mentionText}", length: ${mentionLength}, currentOffset: ${currentOffset}`);
 
                         if (currentOffset + mentionLength > offset) {
-                            console.log(`  ✓ MATCH! Cursor is within mention, positioning after chip`);
                             // Cursor is within this mention (not at the end)
                             // Position after the mention span
                             targetNode = el.nextSibling || el.parentNode;
                             targetOffset = el.nextSibling?.nodeType === Node.TEXT_NODE ? 0 : 0;
-                            console.log(`  nextSibling:`, el.nextSibling, `targetOffset: ${targetOffset}`);
 
                             // If no next sibling, we need to position after this element
                             if (!el.nextSibling) {
                                 targetNode = el.parentNode;
                                 targetOffset = Array.from(el.parentNode?.childNodes || []).indexOf(el) + 1;
-                                console.log(`  No next sibling, using parent with offset: ${targetOffset}`);
                             }
                             break;
                         }
                         currentOffset += mentionLength;
-                        console.log(`  Skipping mention, new currentOffset: ${currentOffset}`);
                     } else if (el.tagName === "BR") {
-                        console.log(`  BR element found, currentOffset: ${currentOffset}`);
                         // BR represents a newline
                         if (currentOffset + 1 > offset) {
                             // Position before the BR
                             targetNode = el.parentNode;
                             targetOffset = Array.from(el.parentNode?.childNodes || []).indexOf(el);
-                            console.log(`  ✓ MATCH! Positioning before BR, targetOffset: ${targetOffset}`);
                             break;
                         }
                         currentOffset += 1;
-                        console.log(`  Skipping BR, new currentOffset: ${currentOffset}`);
                     }
                 }
             }
 
-            console.log("Final targetNode:", targetNode, "targetOffset:", targetOffset);
-
             // Set the cursor
             try {
                 if (targetNode) {
-                    console.log("Setting cursor - targetNode type:", targetNode.nodeType, "targetOffset:", targetOffset);
                     const range = document.createRange();
-                    if (targetNode.nodeType === Node.TEXT_NODE) {
-                        console.log("Setting range on TEXT_NODE");
-                        range.setStart(targetNode, targetOffset);
-                    } else {
-                        console.log("Setting range on ELEMENT_NODE");
-                        range.setStart(targetNode, targetOffset);
-                    }
+                    range.setStart(targetNode, targetOffset);
                     range.collapse(true);
                     selection.removeAllRanges();
                     selection.addRange(range);
-                    console.log("Cursor set successfully");
-                    console.log("Current selection:", selection.anchorNode, "offset:", selection.anchorOffset);
                 } else {
-                    console.log("No target node found, positioning at end");
                     // Fallback: position at the end
                     const range = document.createRange();
                     range.selectNodeContents(editableRef.current);
@@ -275,8 +246,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                     selection.removeAllRanges();
                     selection.addRange(range);
                 }
-            } catch (e) {
-                console.error("Failed to set cursor position:", e);
+            } catch {
                 // Final fallback: just focus the element
                 editableRef.current?.focus();
             }
@@ -284,18 +254,14 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
 
         // Update content when value prop changes (from parent)
         React.useEffect(() => {
-            console.log("useEffect triggered - value:", value, "cursorPosition:", cursorPosition);
             if (!editableRef.current || isUpdatingRef.current) {
-                console.log("  Skipping - editableRef or isUpdating");
                 return;
             }
 
             const currentPlainText = extractPlainText(editableRef.current);
-            console.log("  currentPlainText:", currentPlainText);
 
             // Only update if content actually changed
             if (currentPlainText !== value) {
-                console.log("  Content changed, updating innerHTML");
                 isUpdatingRef.current = true;
 
                 // Update content
@@ -303,16 +269,11 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
 
                 // Set cursor position after update
                 setTimeout(() => {
-                    console.log("  setTimeout callback - setting cursor position");
                     if (cursorPosition !== undefined) {
-                        console.log("  Calling setCursorPosition with:", cursorPosition);
                         setCursorPosition(cursorPosition);
                     }
                     isUpdatingRef.current = false;
-                    console.log("  isUpdatingRef set to false");
                 }, 0);
-            } else {
-                console.log("  Content unchanged, skipping update");
             }
         }, [value, renderContent, extractPlainText, setCursorPosition, cursorPosition]);
 

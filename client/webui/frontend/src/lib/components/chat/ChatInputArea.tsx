@@ -296,13 +296,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             prev.map(item =>
                 item.id === selectedPendingPasteId
                     ? {
-                          ...item,
-                          content: metadata.content,
-                          filename: metadata.filename,
-                          mimeType: metadata.mimeType,
-                          description: metadata.description,
-                          isConfigured: true,
-                      }
+                        ...item,
+                        content: metadata.content,
+                        filename: metadata.filename,
+                        mimeType: metadata.mimeType,
+                        description: metadata.description,
+                        isConfigured: true,
+                    }
                     : item
             )
         );
@@ -340,10 +340,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             // Capture the display HTML for showing in user's message bubble
             const displayHtml = chatInputRef.current?.innerHTML || null;
-
-            console.log("=== SUBMIT DEBUG ===");
-            console.log("fullMessage from DOM:", fullMessage);
-            console.log("displayHtml:", displayHtml);
 
             if (contextText && showContextBadge) {
                 fullMessage = `Context: "${contextText}"\n\n${fullMessage}`;
@@ -540,20 +536,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     // Handle person selection for mentions
     const handlePersonSelect = (person: Person) => {
         const cursorPosition = getCursorPosition();
-        console.log("=== handlePersonSelect ===");
-        console.log("Current cursor position:", cursorPosition);
-        console.log("Current inputValue:", inputValue);
-        console.log("Person:", person);
 
         const { newText, newCursorPosition } = insertMention(
             inputValue,
             cursorPosition,
             person
         );
-
-        console.log("After insertMention:");
-        console.log("  newText:", newText);
-        console.log("  newCursorPosition:", newCursorPosition);
 
         // Store person for later parsing
         setMentionMap(prev => {
@@ -573,7 +561,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         // Clear cursor position state after it's been applied
         // Note: We don't need to call focus() because the element stays focused
         setTimeout(() => {
-            console.log("Clearing desiredCursorPosition");
             setDesiredCursorPosition(undefined); // Clear after setting
         }, 10);
     };
