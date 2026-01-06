@@ -175,13 +175,27 @@ class PlatformServiceComponent(SamComponentBase):
         self.background_scheduler = None
         self.background_tasks_thread = None
 
-        # Direct message publisher for deployer commands
         self.direct_publisher = None
+
+        log.info("%s Running database migrations...", self.log_identifier)
+        self._run_database_migrations()
+        log.info("%s Database migrations completed", self.log_identifier)
 
         log.info("%s Platform Service Component initialized.", self.log_identifier)
 
-        # Note: FastAPI server, direct publisher, and background tasks are started
-        # in _late_init() after SamComponentBase.run() is called and broker is ready
+    def _run_database_migrations(self):
+        """Run database migrations synchronously during __init__."""
+        try:
+            from .api.main import _setup_database
+            _setup_database(self.database_url)
+        except Exception as e:
+            log.error(
+                "%s Failed to run database migrations: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
+            raise RuntimeError(f"Database migration failed during component initialization: {e}") from e
 
     def _late_init(self):
         """
@@ -234,8 +248,7 @@ class PlatformServiceComponent(SamComponentBase):
 
             self.fastapi_app = fastapi_app_instance
 
-            # Setup dependencies (idempotent - safe to call multiple times)
-            setup_dependencies(self, self.database_url)
+            setup_dependencies(self)
 
             # Register startup event for background tasks
             @self.fastapi_app.on_event("startup")
