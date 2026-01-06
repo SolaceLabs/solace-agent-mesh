@@ -19,6 +19,7 @@ from solace_ai_connector.common.message import Message as SolaceMessage
 from solace_ai_connector.components.component_base import ComponentBase
 
 from ....common.agent_registry import AgentRegistry
+from ....common.auth_headers import build_static_auth_headers
 from pydantic import TypeAdapter, ValidationError
 
 from ....common import a2a
@@ -427,45 +428,36 @@ class BaseProxyComponent(ComponentBase, ABC):
                     )
                     continue
                 try:
-                    # Build headers for synchronous initial discovery
-                    # Note: OAuth2 is not supported in sync discovery, only static auth
-                    headers = {}
+                    # Build headers using common utility (sync context - OAuth2 not supported)
                     use_auth = agent_config.get("use_auth_for_agent_card", False)
+                    headers = build_static_auth_headers(
+                        agent_name=agent_alias,
+                        agent_config=agent_config,
+                        custom_headers_key="agent_card_headers",
+                        use_auth=use_auth,
+                        log_identifier=self.log_identifier,
+                    )
 
+                    # Skip OAuth2-configured agents in sync discovery
+                    # They will be discovered during periodic async discovery
                     if use_auth:
                         auth_config = agent_config.get("authentication")
                         if auth_config:
                             auth_type = auth_config.get("type")
                             if not auth_type:
-                                # Backward compatibility
+                                # Backward compatibility: infer from scheme
                                 scheme = auth_config.get("scheme", "bearer")
                                 auth_type = "static_bearer" if scheme == "bearer" else "static_apikey"
 
-                            if auth_type == "static_bearer":
-                                token = auth_config.get("token")
-                                if token:
-                                    headers["Authorization"] = f"Bearer {token}"
-                            elif auth_type == "static_apikey":
-                                token = auth_config.get("token")
-                                if token:
-                                    headers["X-API-Key"] = token
-                            elif auth_type in ("oauth2_client_credentials", "oauth2_authorization_code"):
-                                log.warning(
-                                    "%s OAuth2 authentication is not supported during initial sync discovery. "
-                                    "Agent '%s' will be discovered during periodic async discovery.",
+                            if auth_type in ("oauth2_client_credentials", "oauth2_authorization_code"):
+                                # Skip this agent - OAuth2 not supported in sync context
+                                log.info(
+                                    "%s Skipping agent '%s' in synchronous discovery (OAuth2 configured). "
+                                    "Will be discovered during periodic async discovery.",
                                     self.log_identifier,
                                     agent_alias,
                                 )
                                 continue
-
-                    # Add custom headers (override auth headers)
-                    custom_headers = agent_config.get("agent_card_headers")
-                    if custom_headers:
-                        for header_config in custom_headers:
-                            header_name = header_config.get("name")
-                            header_value = header_config.get("value")
-                            if header_name and header_value:
-                                headers[header_name] = header_value
 
                     if headers:
                         log.debug(
