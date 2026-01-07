@@ -4,7 +4,7 @@ export const ProjectBadge = ({ text = "Project", className = "" }: { text?: stri
     return (
         <Tooltip>
             <TooltipTrigger asChild>
-                <Badge variant="outline" className={`max-w-[120px] ${className}`}>
+                <Badge variant="default" className={`max-w-[120px] ${className}`}>
                     <span className="block truncate font-semibold">{text}</span>
                 </Badge>
             </TooltipTrigger>
