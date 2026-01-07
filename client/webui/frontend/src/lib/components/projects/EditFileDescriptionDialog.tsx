@@ -47,7 +47,7 @@ export const EditFileDescriptionDialog: React.FC<EditFileDescriptionDialogProps>
         <ConfirmationDialog
             open={isOpen}
             onOpenChange={open => !open && onClose()}
-            title="Edit File Description"
+            title="Edit Project File Description"
             description="Update the description to help Solace Agent Mesh understand its purpose."
             content={dialogContent}
             actionLabels={{
