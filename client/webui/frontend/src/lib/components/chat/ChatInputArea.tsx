@@ -337,8 +337,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
         if (isSubmittingEnabled) {
-            // Build message directly from DOM instead of using regex parsing
-            // This is more reliable because it uses the actual mention-chip spans
             let fullMessage = chatInputRef.current ? buildMessageFromDOM(chatInputRef.current).trim() : inputValue.trim();
 
             // Capture the display HTML for showing in user's message bubble
@@ -470,7 +468,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         disabled: isResponding,
     });
 
-    // Get cursor position for ContentEditable
     // Get cursor position in terms of internal format length
     // This accounts for mention chips which have different display vs internal lengths
     const getCursorPosition = (): number => {
@@ -536,7 +533,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const handleInputChange = (value: string) => {
         setInputValue(value);
 
-        // Get cursor position
         const cursorPosition = getCursorPosition();
         const textBeforeCursor = value.substring(0, cursorPosition);
         const lastChar = textBeforeCursor[textBeforeCursor.length - 1];
@@ -633,7 +629,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setShowMentionsCommand(false);
         setMentionSearchQuery("");
 
-        // Clear cursor position state after it's been applied
+        // Clear cursor position state after it's been applied - bit of a hack, but really struggled to make this work
         setTimeout(() => {
             setDesiredCursorPosition(undefined);
         }, 10);
