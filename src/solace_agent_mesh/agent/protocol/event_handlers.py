@@ -1400,6 +1400,8 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                         peer_agent_name=peer_agent_name,
                                         message=message,
                                     )
+                                    # Reset the timeout since we received a status update
+                                    await component.reset_peer_timeout(sub_task_id)
                                     return
 
                                 # Filter out artifact creation progress from peer agents.
@@ -1479,6 +1481,8 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                             peer_agent_name=peer_agent_name,
                                             message=message,
                                         )
+                                    # Reset the timeout since we received a status update
+                                    await component.reset_peer_timeout(sub_task_id)
                                     return
                                 else:
                                     log.debug(
