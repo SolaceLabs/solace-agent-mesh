@@ -101,6 +101,30 @@ For a more in-depth guide on using artifact management tools, refer to the [Arti
 For a more in-depth guide on using Data Analysis tools, refer to the [Data Analysis Tools](./data-analysis-tools.md) documentation.
 :::
 
+### Web Search
+**Group Name**: `web_search`
+
+**Description**: Tools for searching the web and retrieving current information.
+
+**Individual Tools**:
+- `web_search_google`
+
+:::info
+For a more in-depth guide on using web search tools, refer to the [Research Tools](./research-tools.md) documentation.
+:::
+
+### Research
+**Group Name**: `research`
+
+**Description**: Advanced research tools for comprehensive information gathering.
+
+**Individual Tools**:
+- `deep_research`
+
+:::info
+For a more in-depth guide on using the deep research tool, refer to the [Research Tools](./research-tools.md) documentation.
+:::
+
 ### Web
 **Group Name**: `web`
 
@@ -118,6 +142,10 @@ For a more in-depth guide on using Data Analysis tools, refer to the [Data Analy
 - `text_to_speech`
 - `multi_speaker_text_to_speech`
 - `transcribe_audio`
+
+:::info
+For a more in-depth guide on using audio tools, refer to the [Audio Tools](./audio-tools.md) documentation.
+:::
 
 ### Image
 **Group Name**: `image`

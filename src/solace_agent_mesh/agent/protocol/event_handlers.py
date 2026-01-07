@@ -761,6 +761,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 "system_purpose": system_purpose,
                 "response_format": response_format,
                 "host_agent_name": agent_name,
+                "original_message_metadata": task_metadata,  # Store original message metadata for tools
             }
 
             # Store verified user identity claims in a2a_context (not the raw token)
@@ -1406,15 +1407,41 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                 # agent boundaries. Artifacts are properly bubbled up in the
                                 # final Task response metadata.
                                 filtered_data_parts = []
+                                has_deep_research_report = False
                                 for data_part in data_parts:
-                                    if isinstance(data_part.data, dict) and data_part.data.get("type") == "artifact_creation_progress":
-                                        log.debug(
-                                            "%s Filtered out artifact_creation_progress DataPart from peer sub-task %s. Not forwarding to user.",
-                                            component.log_identifier,
-                                            sub_task_id,
-                                        )
-                                        continue
+                                    if isinstance(data_part.data, dict):
+                                        data_type = data_part.data.get("type")
+                                        if data_type == "artifact_creation_progress":
+                                            log.debug(
+                                                "%s Filtered out artifact_creation_progress DataPart from peer sub-task %s. Not forwarding to user.",
+                                                component.log_identifier,
+                                                sub_task_id,
+                                            )
+                                            continue
+                                        if data_type == "deep_research_report":
+                                            # Track that we've seen a deep research report
+                                            # This will be used to suppress text content in the final response
+                                            has_deep_research_report = True
+                                            log.info(
+                                                "%s Detected deep_research_report DataPart from peer sub-task %s. Will suppress text in final response.",
+                                                component.log_identifier,
+                                                sub_task_id,
+                                            )
                                     filtered_data_parts.append(data_part)
+                                
+                                # Store the deep research report flag in correlation data for later use
+                                if has_deep_research_report:
+                                    main_logical_task_id_for_flag = original_task_context.get("logical_task_id")
+                                    with component.active_tasks_lock:
+                                        task_context_for_flag = component.active_tasks.get(main_logical_task_id_for_flag)
+                                        if task_context_for_flag:
+                                            # Store flag in task context to suppress text in final response
+                                            task_context_for_flag.set_flag("peer_sent_deep_research_report", True)
+                                            log.info(
+                                                "%s Set peer_sent_deep_research_report flag for task %s",
+                                                component.log_identifier,
+                                                main_logical_task_id_for_flag,
+                                            )
 
                                 # Only forward if there are non-filtered data parts
                                 if filtered_data_parts:
@@ -1769,9 +1796,28 @@ async def handle_a2a_response(component, message: SolaceMessage):
             else:
                 final_text = str(payload_to_queue)
 
-            full_response_text = final_text
-            if artifact_summary:
-                full_response_text = f"{artifact_summary}\n---\n\nPeer Agent Response:\n\n{full_response_text}"
+            # Check if a deep research report was sent by the peer agent
+            # If so, suppress the verbose text but keep artifact info to use
+            peer_sent_deep_research = task_context.get_flag("peer_sent_deep_research_report", False)
+            if peer_sent_deep_research:
+                # Clear the flag after using it
+                task_context.set_flag("peer_sent_deep_research_report", False)
+                if artifact_summary:
+                    full_response_text = (
+                        f"{artifact_summary}\n---\n\n"
+                        "SUCCESS: Deep research task completed. The report has been delivered to the user "
+                        "and is being displayed. Use artifact_return to include the artifact reference "
+                        "in your response so users can click on it."
+                    )
+                else:
+                    full_response_text = (
+                        "SUCCESS: Deep research task completed successfully. "
+                        "The research report has been delivered to the user."
+                    )
+            else:
+                full_response_text = final_text
+                if artifact_summary:
+                    full_response_text = f"{artifact_summary}\n---\n\nPeer Agent Response:\n\n{full_response_text}"
 
             await _publish_peer_tool_result_notification(
                 component=component,
