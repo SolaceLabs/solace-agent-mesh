@@ -1,7 +1,8 @@
 import * as React from "react";
+import DOMPurify from "dompurify";
 import { cn } from "@/lib/utils";
 import type { Person } from "@/lib/types/people";
-import { getDisplayText } from "@/lib/utils/mentionUtils";
+import { getDisplayText, INTERNAL_MENTION_REGEX } from "@/lib/utils/mentionUtils";
 
 interface MentionContentEditableProps {
     value: string; // Internal format with @[Name](id)
@@ -15,9 +16,6 @@ interface MentionContentEditableProps {
     mentionMap?: Map<string, Person>; // Map of person ID to Person object
     disambiguatedIds?: Set<string>; // IDs that need disambiguation display
 }
-
-/** Regex to match internal mention format: @[Name](id) */
-const INTERNAL_MENTION_REGEX = /@\[([^\]]+)\]\(([^)]+)\)/g;
 
 /**
  * ContentEditable input with visual mention chips.
@@ -102,7 +100,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                     `data-person-id="${escapeHtml(id)}" ` +
                     `data-person-name="${escapeHtml(name)}" ` +
                     `data-display="${escapeHtml(displayText)}"` +
-                    `>${displayText}</span>`
+                    `>${escapeHtml(displayText)}</span>`
                 );
 
                 lastIndex = matchEnd;
@@ -358,8 +356,15 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                         })
                         .join("");
 
-                    // Insert the HTML using execCommand
-                    document.execCommand("insertHTML", false, processedContent);
+                    // Sanitize the HTML to prevent XSS attacks
+                    // Only allow mention chip spans with specific data attributes
+                    const sanitizedContent = DOMPurify.sanitize(processedContent, {
+                        ALLOWED_TAGS: ['span', 'br'],
+                        ALLOWED_ATTR: ['class', 'contenteditable', 'data-internal', 'data-person-id', 'data-person-name', 'data-display']
+                    });
+
+                    // Insert the sanitized HTML using execCommand
+                    document.execCommand("insertHTML", false, sanitizedContent);
                 } else {
                     // No mention chips, just insert plain text
                     document.execCommand("insertText", false, text);

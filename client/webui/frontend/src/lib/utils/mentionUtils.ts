@@ -10,7 +10,7 @@ import type { Person, Mention } from "@/lib/types/people";
  */
 
 /** Regex to match internal mention format: @[Name](id) */
-const INTERNAL_MENTION_REGEX = /@\[([^\]]+)\]\(([^)]+)\)/g;
+export const INTERNAL_MENTION_REGEX = /@\[([^\]]+)\]\(([^)]+)\)/g;
 
 /**
  * Parses a single internal mention format and returns name and id

@@ -10,6 +10,7 @@ import { useChatContext } from "@/lib/hooks";
 import type { ArtifactPart, FileAttachment, FilePart, MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 
+import DOMPurify from "dompurify";
 import { ArtifactMessage, FileMessage } from "./file";
 import { FeedbackModal } from "./FeedbackModal";
 import { ContentRenderer } from "./preview/ContentRenderer";
@@ -98,10 +99,17 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
 
     // If user message has displayHtml (with mention chips), render that instead
     if (message.isUser && message.displayHtml) {
+        // Sanitize the HTML to prevent XSS
+        // Allow mention chips and their data attributes
+        const cleanHtml = DOMPurify.sanitize(message.displayHtml, {
+            ALLOWED_TAGS: ['span', 'br'],
+            ALLOWED_ATTR: ['class', 'contenteditable', 'data-internal', 'data-person-id', 'data-person-name', 'data-display']
+        });
+
         return (
             <div
                 className="message-with-mentions whitespace-pre-wrap break-words"
-                dangerouslySetInnerHTML={{ __html: message.displayHtml }}
+                dangerouslySetInnerHTML={{ __html: cleanHtml }}
             />
         );
     }
