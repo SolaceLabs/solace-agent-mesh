@@ -117,10 +117,11 @@ class TaskLoggerService:
                         
                         if message.metadata:
                             parent_task_id = message.metadata.get("parentTaskId")
-                            # Background tasks are disabled - always set to False
-                            # TODO: Re-enable when background task feature is fully tested
-                            background_execution_enabled = False
-                            max_execution_time_ms = None
+                            background_execution_enabled = message.metadata.get("backgroundExecutionEnabled", False)
+                            # Default to 1 hour (3600000ms) if background execution is enabled but no timeout specified
+                            max_execution_time_ms = message.metadata.get("maxExecutionTimeMs")
+                            if background_execution_enabled and max_execution_time_ms is None:
+                                max_execution_time_ms = 3600000  # 1 hour default
                         else:
                             log.warning(
                                 f"{self.log_identifier} Message has no metadata for task {task_id}"

@@ -1553,8 +1553,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 if (enableBackgroundExecution) {
-                    messageMetadata.background_execution = true;
-                    messageMetadata.max_execution_time_ms = backgroundTasksDefaultTimeoutMs ?? 3600000; // Default 1 hour
+                    messageMetadata.backgroundExecutionEnabled = true;
+                    messageMetadata.maxExecutionTimeMs = backgroundTasksDefaultTimeoutMs ?? 3600000; // Default 1 hour
                     console.log(`[ChatProvider] Enabling background execution for ${selectedAgentName}`);
                     console.log(`[ChatProvider] Metadata object:`, messageMetadata);
                 }
