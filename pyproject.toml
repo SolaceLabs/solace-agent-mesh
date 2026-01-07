@@ -63,6 +63,7 @@ dependencies = [
     "SQLAlchemy==2.0.40",
     "alembic==1.16.5",
     "openai==1.99.9",
+    "rich==13.9.4",
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
     "azure-cognitiveservices-speech==1.41.1",
