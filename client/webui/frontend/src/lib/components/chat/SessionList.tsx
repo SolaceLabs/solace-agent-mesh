@@ -319,7 +319,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     <ul>
                         {filteredSessions.map(session => (
                             <li key={session.id} className="group my-2 pr-4">
-                                <div className={`flex items-center gap-2 rounded px-2 py-2 ${session.id === sessionId ? "bg-muted" : ""}`}>
+                                <div className={`flex items-center gap-2 rounded-sm px-2 py-2 ${session.id === sessionId ? "bg-muted dark:bg-muted/50" : ""}`}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}
