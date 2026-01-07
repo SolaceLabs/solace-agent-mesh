@@ -300,8 +300,8 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                     <Button variant="outline" onClick={handleClose} disabled={isImporting}>
                         Cancel
                     </Button>
-                    <Button onClick={handleImport} disabled={isImporting}>
-                        {isImporting ? "Importing..." : "Import"}
+                    <Button onClick={handleImport} disabled={isImporting || !projectPreview}>
+                        Import
                     </Button>
                 </DialogFooter>
             </DialogContent>
