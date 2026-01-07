@@ -48,6 +48,8 @@ export interface ChatState {
     previewArtifact: ArtifactInfo | null;
     previewedArtifactAvailableVersions: number[] | null;
     currentPreviewedVersionNumber: number | null;
+    /** Version-specific description (may differ from previewArtifact.description which is always latest) */
+    currentPreviewedDescription: string | null;
     previewFileContent: FileAttachment | null;
     submittedFeedback: Record<string, { type: "up" | "down"; text: string }>;
     // Pending prompt for starting new chat

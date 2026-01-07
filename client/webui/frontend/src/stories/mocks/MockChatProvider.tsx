@@ -49,6 +49,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     previewArtifact: null,
     previewedArtifactAvailableVersions: null,
     currentPreviewedVersionNumber: null,
+    currentPreviewedDescription: null,
     previewFileContent: null,
     sessionName: null,
     sessionToDelete: null,

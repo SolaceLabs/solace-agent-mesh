@@ -815,7 +815,7 @@ async def get_specific_artifact_version(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
-        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s", 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
                 log_prefix, context_type, storage_user_id, storage_session_id)
 
         load_result = await load_artifact_content_or_metadata(
@@ -829,6 +829,22 @@ async def get_specific_artifact_version(
             return_raw_bytes=True,
             log_identifier_prefix="[ArtifactRouter:GetVersion]",
         )
+
+        # Also load metadata for this specific version to get the description
+        metadata_result = await load_artifact_content_or_metadata(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=storage_user_id,
+            session_id=storage_session_id,
+            filename=filename,
+            version=version,
+            load_metadata_only=True,
+            log_identifier_prefix="[ArtifactRouter:GetVersion:Metadata]",
+        )
+        version_description = None
+        if metadata_result.get("status") == "success":
+            metadata = metadata_result.get("metadata", {})
+            version_description = metadata.get("description")
 
         if load_result.get("status") != "success":
             error_message = load_result.get(
@@ -943,12 +959,17 @@ async def get_specific_artifact_version(
             )
 
         filename_encoded = quote(filename)
+        response_headers = {
+            "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"
+        }
+        # Include version-specific description in header if available
+        if version_description:
+            # URL-encode the description to handle special characters in headers
+            response_headers["X-Artifact-Description"] = quote(version_description)
         return StreamingResponse(
             io.BytesIO(data_bytes),
             media_type=mime_type,
-            headers={
-                "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"
-            },
+            headers=response_headers,
         )
 
     except FileNotFoundError:

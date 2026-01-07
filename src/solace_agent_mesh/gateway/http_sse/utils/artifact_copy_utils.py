@@ -318,8 +318,11 @@ async def copy_project_artifacts_to_session(
                         else {}
                     )
 
-                    # This flag will be checked on the next user message to inject full context
-                    full_metadata["project_context_pending"] = True
+                    # Note: We no longer set project_context_pending flag here.
+                    # The flag was causing a double-save issue: first when copying the artifact,
+                    # then again when clearing the flag. Instead, we track new artifacts via
+                    # the new_artifact_names return value, which the caller can use to determine
+                    # if full context injection is needed.
 
                     await save_artifact_with_metadata(
                         artifact_service=artifact_service,

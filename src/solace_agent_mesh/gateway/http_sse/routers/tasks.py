@@ -192,8 +192,6 @@ async def _inject_project_context(
         return message_text
 
     db = SessionLocal()
-    artifact_service = None
-    should_clear_pending_flags = False
 
     try:
         project = project_service.get_project(db, project_id, user_id)
@@ -231,10 +229,6 @@ async def _inject_project_context(
                     db=db,
                     log_prefix=log_prefix,
                 )
-
-                if inject_full_context and artifacts_copied > 0:
-                    # need to clear the pending flags even if injection fails
-                    should_clear_pending_flags = True
 
                 # Get artifact descriptions for context injection
                 if artifacts_copied > 0 or inject_full_context:
@@ -303,22 +297,6 @@ async def _inject_project_context(
         # Continue without injection - don't fail the request
         return message_text
     finally:
-        # Clear the pending project context flags from all artifacts
-        if should_clear_pending_flags and artifact_service:
-            from ..utils.artifact_copy_utils import clear_pending_project_context
-            try:
-                await clear_pending_project_context(
-                    user_id=user_id,
-                    session_id=session_id,
-                    artifact_service=artifact_service,
-                    app_name=project_service.app_name,
-                    db=db,
-                    log_prefix=log_prefix,
-                )
-                log.debug("%sCleared pending project context flags", log_prefix)
-            except Exception as e:
-                log.warning("%sFailed to clear pending project context flags: %s", log_prefix, e)
-
         db.close()
 
 
@@ -462,33 +440,9 @@ async def _submit_task(
         modified_message = payload.params.message
         if project_service and project_id and message_text:
             # Determine if we should inject full context:
+            # - New sessions (no frontend_session_id) get full context
+            # - Existing sessions only get new artifacts copied without full context re-injection
             should_inject_full_context = not frontend_session_id
-
-            # Check if there are artifacts with pending project context
-            if frontend_session_id and not should_inject_full_context:
-                from ..utils.artifact_copy_utils import has_pending_project_context
-                from ....gateway.http_sse.dependencies import SessionLocal
-
-                artifact_service = component.get_shared_artifact_service()
-                if artifact_service and SessionLocal:
-                    db = SessionLocal()
-                    try:
-                        has_pending = await has_pending_project_context(
-                            user_id=client_id,
-                            session_id=session_id,
-                            artifact_service=artifact_service,
-                            app_name=component.gateway_id,
-                            db=db,
-                        )
-                        if has_pending:
-                            should_inject_full_context = True
-                            log.info(
-                                "%sDetected pending project context for session %s, will inject full context",
-                                log_prefix,
-                                session_id,
-                            )
-                    finally:
-                        db.close()
 
             modified_message_text = await _inject_project_context(
                 project_id=project_id,

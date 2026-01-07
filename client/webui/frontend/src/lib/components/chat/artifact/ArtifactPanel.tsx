@@ -23,7 +23,7 @@ const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo)
 };
 
 export const ArtifactPanel: React.FC = () => {
-    const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact, artifactsRefetch, openDeleteModal } = useChatContext();
+    const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact, artifactsRefetch, openDeleteModal, currentPreviewedDescription } = useChatContext();
     const { onDownload } = useDownload();
 
     const [sortOption, setSortOption] = useState<SortOptionType>(SortOption.DateDesc);
@@ -113,10 +113,11 @@ export const ArtifactPanel: React.FC = () => {
                         {isPreviewInfoExpanded && (
                             <div className="border-b px-4 py-3">
                                 <div className="space-y-2 text-sm">
-                                    {previewArtifact.description && (
+                                    {/* Use version-specific description if available, otherwise fall back to latest */}
+                                    {(currentPreviewedDescription || previewArtifact.description) && (
                                         <div>
                                             <span className="text-secondary-foreground">Description:</span>
-                                            <div className="mt-1">{previewArtifact.description}</div>
+                                            <div className="mt-1">{currentPreviewedDescription || previewArtifact.description}</div>
                                         </div>
                                     )}
                                     <div className="grid grid-cols-2 gap-2">
@@ -126,7 +127,7 @@ export const ArtifactPanel: React.FC = () => {
                                         </div>
                                         <div>
                                             <span className="text-secondary-foreground">Type:</span>
-                                            <div>{previewArtifact.mime_type || 'Unknown'}</div>
+                                            <div>{previewArtifact.mime_type || "Unknown"}</div>
                                         </div>
                                     </div>
                                 </div>

@@ -1130,11 +1130,16 @@ async def load_artifact_content_or_metadata(
             )
             try:
                 list_versions_method = getattr(artifact_service, "list_versions")
+                # Use metadata file versions when loading metadata (metadata updates
+                # may create new versions independently of data file versions)
+                version_lookup_filename = (
+                    f"{filename}{METADATA_SUFFIX}" if load_metadata_only else filename
+                )
                 available_versions = await list_versions_method(
                     app_name=app_name,
                     user_id=user_id,
                     session_id=session_id,
-                    filename=filename,
+                    filename=version_lookup_filename,
                 )
                 if not available_versions:
                     raise FileNotFoundError(
