@@ -191,6 +191,7 @@ jobs:
   build_and_push_docker:
     name: Build and Push to DockerHub
     needs: release
+    if: always() && (needs.release.result == 'success')
     uses: SolaceLabs/solace-agent-mesh/.github/workflows/build-push-dockerhub.yml@main
     with:
       version: ${{ needs.release.outputs.new_version }}

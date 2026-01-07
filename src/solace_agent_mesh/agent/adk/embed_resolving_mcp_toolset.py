@@ -76,6 +76,18 @@ def _get_base_mcp_tool_class() -> tuple[type[MCPTool], bool]:
 _BaseMcpToolClass, _base_supports_tool_config = _get_base_mcp_tool_class()
 
 
+def _log_mcp_tool_call(userId, agentId, tool_name, session_id):
+    """ A short log message so that customers can track tool usage per user/agent """
+    log.info(
+        "MCP Tool Call - UserID: %s, AgentID: %s, ToolName: %s, SessionID: %s",
+        userId,
+        agentId,
+        tool_name,
+        session_id,
+        extra={"user_id": userId, "agent_id": agentId, "tool_name": tool_name, "session_id": session_id },
+    )
+
+
 class EmbedResolvingMCPTool(_BaseMcpToolClass):
     """
     Custom MCPTool that resolves embeds in parameters before calling the actual MCP tool.
@@ -285,6 +297,7 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
 
         # Get context for embed resolution - pass the tool_context object directly
         context_for_embeds = tool_context
+        _log_mcp_tool_call(tool_context.session.user_id, tool_context.agent_name, self.name, tool_context.session.id)
 
         if context_for_embeds:
             log.debug(

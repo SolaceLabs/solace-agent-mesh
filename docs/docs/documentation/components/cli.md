@@ -89,10 +89,10 @@ Use the `--skip` option and provide the necessary options to run the command in 
 
 ### `add` - Create a New Component
 
-To add a new component, such as an agent or gateway, use the `add` command with the appropriate options.
+To add a new component, such as an agent, gateway, or proxy, use the `add` command with the appropriate options.
 
 ```sh
-sam add [agent|gateway] [OPTIONS] NAME
+sam add [agent|gateway|proxy] [OPTIONS] NAME
 ```
 
 #### Add `agent`
@@ -155,6 +155,29 @@ sam add gateway [OPTIONS] [NAME]
 - `-h, --help` – Displays the help message and exits.
 
 For more information, see [Gateways](gateways.md).
+
+#### Add `proxy`
+
+Use `proxy` to add an A2A proxy component that bridges external HTTP-based agents to the Solace Agent Mesh.
+
+```sh
+sam add proxy [OPTIONS] [NAME]
+```
+
+The proxy command creates a configuration file in `configs/agents/` that you can customize to connect external agents to the mesh.
+
+##### Options:
+
+- `--skip` – Skip interactive prompts and create the proxy with default template.
+- `-h, --help` – Displays the help message and exits.
+
+##### Example:
+
+```sh
+sam add proxy myProxy --skip
+```
+
+This creates `configs/agents/my_proxy_proxy.yaml` with the default proxy configuration template.
 
 
 
