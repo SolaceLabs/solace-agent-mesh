@@ -1,8 +1,10 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import type { Person } from "@/lib/types/people";
+import { getDisplayText } from "@/lib/utils/mentionUtils";
 
 interface MentionContentEditableProps {
-    value: string;
+    value: string; // Internal format with @[Name](id)
     onChange: (value: string) => void;
     onKeyDown?: (event: React.KeyboardEvent) => void;
     placeholder?: string;
@@ -10,13 +12,17 @@ interface MentionContentEditableProps {
     className?: string;
     onPaste?: (event: React.ClipboardEvent) => void;
     cursorPosition?: number; // Optional cursor position to set after update
-    mentionMap?: Map<string, any>; // Map of mention names to person objects
+    mentionMap?: Map<string, Person>; // Map of person ID to Person object
+    disambiguatedIds?: Set<string>; // IDs that need disambiguation display
 }
+
+/** Regex to match internal mention format: @[Name](id) */
+const INTERNAL_MENTION_REGEX = /@\[([^\]]+)\]\(([^)]+)\)/g;
 
 /**
  * ContentEditable input with visual mention chips.
- * Mentions are rendered as styled spans, while regular text is plain text nodes.
- * This avoids cursor alignment issues of overlay techniques.
+ * Internal format: @[Name](id) - stores person ID for unique identification
+ * Display format: @Name or @Name [email] (when disambiguated)
  */
 const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEditableProps>(
     (
@@ -30,6 +36,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
             onPaste,
             cursorPosition,
             mentionMap,
+            disambiguatedIds,
         },
         ref
     ) => {
@@ -39,70 +46,67 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
         // Combine refs
         React.useImperativeHandle(ref, () => editableRef.current!);
 
-        // Parse text and render with mention spans
+        // Helper to escape HTML
+        const escapeHtml = React.useCallback((str: string) => {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;')
+                .replace(/\n/g, '<br>'); // Preserve newlines as <br>
+        }, []);
+
+        // Parse internal format @[Name](id) and render with mention spans
         const renderContent = React.useCallback((text: string) => {
             if (!text) return "";
-
-            // Helper to escape HTML
-            const escapeHtml = (str: string) => {
-                return str
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&#039;')
-                    .replace(/\n/g, '<br>'); // Preserve newlines as <br>
-            };
-
-            // Only render mentions that exist in mentionMap
-            if (!mentionMap || mentionMap.size === 0) {
-                return escapeHtml(text); // No mentions to render, but escape HTML
-            }
 
             const parts: string[] = [];
             let lastIndex = 0;
 
-            // Build a regex that matches exact mention names from the map
-            // Sort by length (longest first) to match longer names before shorter ones
-            const mentionNames = Array.from(mentionMap.keys()).sort((a, b) => b.length - a.length);
+            // Match internal mention format: @[Name](id)
+            const regex = new RegExp(INTERNAL_MENTION_REGEX.source, 'g');
+            let match;
 
-            // Escape special regex characters in names
-            const escapedNames = mentionNames.map(name =>
-                name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-            );
-
-            // Match @Name where Name is one of our known mentions
-            // Must be followed by space, newline, or end of string
-            const mentionRegex = new RegExp(`@(${escapedNames.join('|')})(?=\\s|$)`, 'g');
-
-            const matches = Array.from(text.matchAll(mentionRegex));
-
-            matches.forEach(match => {
-                const matchStart = match.index!;
+            while ((match = regex.exec(text)) !== null) {
+                const matchStart = match.index;
                 const matchEnd = matchStart + match[0].length;
+                const name = match[1];
+                const id = match[2];
 
                 // Add text before mention (escaped)
                 if (matchStart > lastIndex) {
                     parts.push(escapeHtml(text.substring(lastIndex, matchStart)));
                 }
 
-                // Get person data for this mention
-                const mentionName = match[1]; // Name without @
-                const person = mentionMap.get(mentionName);
+                // Get person data from mentionMap (keyed by ID)
+                const person = mentionMap?.get(id);
 
-                // Add mention as a span with person data
+                // Check if this person needs disambiguation
+                const needsDisambiguation = disambiguatedIds?.has(id) ?? false;
+
+                // Determine display text
+                let displayText: string;
                 if (person) {
-                    parts.push(
-                        `<span class="mention-chip" contenteditable="false" data-mention="${match[0]}" data-person-id="${person.id}" data-person-name="${person.name}">${match[0]}</span>`
-                    );
+                    displayText = getDisplayText(person, needsDisambiguation);
                 } else {
-                    parts.push(
-                        `<span class="mention-chip" contenteditable="false" data-mention="${match[0]}">${match[0]}</span>`
-                    );
+                    // Fallback if person not in map
+                    displayText = `@${name}`;
                 }
 
+                // Create mention chip with data attributes
+                // data-internal stores the internal format for extraction
+                parts.push(
+                    `<span class="mention-chip" contenteditable="false" ` +
+                    `data-internal="${escapeHtml(match[0])}" ` +
+                    `data-person-id="${escapeHtml(id)}" ` +
+                    `data-person-name="${escapeHtml(name)}" ` +
+                    `data-display="${escapeHtml(displayText)}"` +
+                    `>${displayText}</span>`
+                );
+
                 lastIndex = matchEnd;
-            });
+            }
 
             // Add remaining text (escaped)
             if (lastIndex < text.length) {
@@ -110,9 +114,9 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
             }
 
             return parts.join("");
-        }, [mentionMap]);
+        }, [mentionMap, disambiguatedIds, escapeHtml]);
 
-        // Extract plain text from contenteditable (convert spans back to @mentions)
+        // Extract internal format from contenteditable (convert spans back to @[Name](id))
         const extractPlainText = React.useCallback((element: HTMLElement): string => {
             const walker = document.createTreeWalker(
                 element,
@@ -140,7 +144,21 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                 } else if (node.nodeType === Node.ELEMENT_NODE) {
                     const el = node as HTMLElement;
                     if (el.classList.contains("mention-chip")) {
-                        parts.push(el.getAttribute("data-mention") || el.textContent || "");
+                        // Use the internal format stored in data-internal
+                        const internal = el.getAttribute("data-internal");
+                        if (internal) {
+                            parts.push(internal);
+                        } else {
+                            // Fallback: reconstruct from data attributes
+                            const personId = el.getAttribute("data-person-id");
+                            const personName = el.getAttribute("data-person-name");
+                            if (personId && personName) {
+                                parts.push(`@[${personName}](${personId})`);
+                            } else {
+                                // Last resort: just use display text
+                                parts.push(el.textContent || "");
+                            }
+                        }
                     } else if (el.tagName === "BR") {
                         parts.push("\n");
                     }
@@ -158,7 +176,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
             onChange(plainText);
         }, [onChange, extractPlainText]);
 
-        // Helper to set cursor position by character offset
+        // Helper to set cursor position by character offset (in internal format)
         const setCursorPosition = React.useCallback((offset: number) => {
             if (!editableRef.current) return;
 
@@ -200,8 +218,9 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                 } else if (node.nodeType === Node.ELEMENT_NODE) {
                     const el = node as HTMLElement;
                     if (el.classList.contains("mention-chip")) {
-                        const mentionText = el.getAttribute("data-mention") || el.textContent || "";
-                        const mentionLength = mentionText.length;
+                        // Use internal format length for cursor positioning
+                        const internal = el.getAttribute("data-internal") || "";
+                        const mentionLength = internal.length;
 
                         if (currentOffset + mentionLength > offset) {
                             // Cursor is within this mention (not at the end)
@@ -290,11 +309,14 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
             const div = document.createElement("div");
             div.appendChild(fragment);
 
-            // Get plain text version (for cross-app compatibility)
-            const plainText = extractPlainText(div);
+            // Get internal format for our own paste handling
+            const internalText = extractPlainText(div);
+
+            // Get display text for cross-app compatibility (convert @[Name](id) to @Name)
+            const displayText = internalText.replace(INTERNAL_MENTION_REGEX, '@$1');
 
             // Set both plain text and HTML to clipboard
-            e.clipboardData?.setData("text/plain", plainText);
+            e.clipboardData?.setData("text/plain", displayText);
             e.clipboardData?.setData("text/html", div.innerHTML);
             e.preventDefault();
         }, [extractPlainText]);
@@ -343,7 +365,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                     document.execCommand("insertText", false, text);
                 }
             }
-        }, [onPaste, extractPlainText]);
+        }, [onPaste]);
 
         return (
             <div className="relative">

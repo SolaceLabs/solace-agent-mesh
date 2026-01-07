@@ -84,7 +84,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const [showPromptsCommand, setShowPromptsCommand] = useState(false);
     const [showMentionsCommand, setShowMentionsCommand] = useState(false);
     const [mentionSearchQuery, setMentionSearchQuery] = useState("");
+    // mentionMap is keyed by person.id for unique identification
     const [mentionMap, setMentionMap] = useState<Map<string, Person>>(new Map());
+    // Track which person IDs need disambiguation (when multiple people share the same name)
+    const [disambiguatedIds, setDisambiguatedIds] = useState<Set<string>>(new Set());
 
     const [showVariableDialog, setShowVariableDialog] = useState(false);
     const [pendingPromptGroup, setPendingPromptGroup] = useState<PromptGroup | null>(null);
@@ -468,17 +471,65 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     });
 
     // Get cursor position for ContentEditable
+    // Get cursor position in terms of internal format length
+    // This accounts for mention chips which have different display vs internal lengths
     const getCursorPosition = (): number => {
         const selection = window.getSelection();
         if (!selection || selection.rangeCount === 0) return 0;
-
-        const range = selection.getRangeAt(0);
-        const preCaretRange = range.cloneRange();
         if (!chatInputRef.current) return 0;
 
-        preCaretRange.selectNodeContents(chatInputRef.current);
-        preCaretRange.setEnd(range.endContainer, range.endOffset);
-        return preCaretRange.toString().length;
+        const range = selection.getRangeAt(0);
+        let position = 0;
+        let found = false;
+
+        // Walk through all nodes to calculate position in internal format
+        const walker = document.createTreeWalker(
+            chatInputRef.current,
+            NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+            {
+                acceptNode: (node: Node) => {
+                    // Skip text nodes inside mention chips (we handle the chip as a whole)
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        const parent = node.parentElement;
+                        if (parent && parent.classList.contains("mention-chip")) {
+                            return NodeFilter.FILTER_REJECT;
+                        }
+                    }
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            }
+        );
+
+        let node: Node | null;
+        while ((node = walker.nextNode()) && !found) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                if (node === range.startContainer) {
+                    position += range.startOffset;
+                    found = true;
+                } else {
+                    position += node.textContent?.length || 0;
+                }
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                const el = node as HTMLElement;
+                if (el.classList.contains("mention-chip")) {
+                    // Check if cursor is inside or after this chip
+                    if (range.startContainer === el || el.contains(range.startContainer)) {
+                        // Cursor is inside the chip - position at end of internal format
+                        const internal = el.getAttribute("data-internal") || "";
+                        position += internal.length;
+                        found = true;
+                    } else {
+                        // Add full internal format length
+                        const internal = el.getAttribute("data-internal") || "";
+                        position += internal.length;
+                    }
+                } else if (el.tagName === "BR") {
+                    position += 1; // Newline
+                }
+            }
+        }
+
+        return position;
     };
 
     // Handle input change with "/" and "@" detection
@@ -537,18 +588,42 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const handlePersonSelect = (person: Person) => {
         const cursorPosition = getCursorPosition();
 
+        // Insert the mention using internal format @[Name](id)
         const { newText, newCursorPosition } = insertMention(
             inputValue,
             cursorPosition,
             person
         );
 
-        // Store person for later parsing
+        // Check if there's already a person with the same name but different ID
+        // If so, both need disambiguation
+        let needsDisambiguation = false;
+        let existingPersonId: string | undefined;
+
+        for (const [id, existingPerson] of mentionMap.entries()) {
+            if (existingPerson.name === person.name && id !== person.id) {
+                needsDisambiguation = true;
+                existingPersonId = id;
+                break;
+            }
+        }
+
+        // Update mentionMap (keyed by ID)
         setMentionMap(prev => {
             const updated = new Map(prev);
-            updated.set(person.name, person);
+            updated.set(person.id, person);
             return updated;
         });
+
+        // Update disambiguation tracking
+        if (needsDisambiguation && existingPersonId) {
+            setDisambiguatedIds(prev => {
+                const updated = new Set(prev);
+                updated.add(existingPersonId!);
+                updated.add(person.id);
+                return updated;
+            });
+        }
 
         // Add to recent mentions
         addRecentMention(person);
@@ -559,9 +634,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setMentionSearchQuery("");
 
         // Clear cursor position state after it's been applied
-        // Note: We don't need to call focus() because the element stays focused
         setTimeout(() => {
-            setDesiredCursorPosition(undefined); // Clear after setting
+            setDesiredCursorPosition(undefined);
         }, 10);
     };
 
@@ -880,6 +954,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 onChange={handleInputChange}
                 cursorPosition={desiredCursorPosition}
                 mentionMap={mentionMap}
+                disambiguatedIds={disambiguatedIds}
                 placeholder={
                     isRecording
                         ? "Recording..."

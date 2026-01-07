@@ -1,8 +1,38 @@
 import type { Person, Mention } from "@/lib/types/people";
 
 /**
+ * Internal mention format: @[Name](id)
+ * This embeds the person ID in the text so we can uniquely identify each mention
+ * even when multiple people have the same name.
+ *
+ * Display format (normal): @Name
+ * Display format (disambiguated): @Name [email]
+ */
+
+/** Regex to match internal mention format: @[Name](id) */
+const INTERNAL_MENTION_REGEX = /@\[([^\]]+)\]\(([^)]+)\)/g;
+
+/**
+ * Parses a single internal mention format and returns name and id
+ * Returns null if not a valid internal mention format
+ */
+export function parseInternalMention(text: string): { name: string; id: string } | null {
+    const match = /@\[([^\]]+)\]\(([^)]+)\)/.exec(text);
+    if (!match) return null;
+    return { name: match[1], id: match[2] };
+}
+
+/**
+ * Formats a person as internal mention format: @[Name](id)
+ */
+export function formatInternalMention(person: Person): string {
+    return `@[${person.name}](${person.id})`;
+}
+
+/**
  * Detects if cursor is in a mention trigger position
  * Returns the query string after "@" or null if not in mention mode
+ * Updated to handle internal format - doesn't trigger inside @[...](...)
  */
 export function detectMentionTrigger(
     text: string,
@@ -18,6 +48,11 @@ export function detectMentionTrigger(
     const charBeforeAt = lastAtIndex > 0 ? textBeforeCursor[lastAtIndex - 1] : " ";
     if (charBeforeAt !== " " && charBeforeAt !== "\n") return null;
 
+    // Check if this @ is part of an internal mention format @[...](...)
+    // If the character after @ is '[', it's an existing mention, not a trigger
+    const charAfterAt = lastAtIndex < text.length - 1 ? text[lastAtIndex + 1] : "";
+    if (charAfterAt === "[") return null;
+
     // Extract query after "@"
     const query = textBeforeCursor.substring(lastAtIndex + 1);
 
@@ -28,11 +63,34 @@ export function detectMentionTrigger(
 }
 
 /**
- * Formats a person as a mention display string
+ * Formats a person as a mention display string (for UI display)
  * Example: "@Edward Funnekotter"
  */
 export function formatMentionDisplay(person: Person): string {
     return `@${person.name}`;
+}
+
+/**
+ * Formats a person as a disambiguated mention display string
+ * Used when multiple people have the same name
+ * Example: "@John Smith [john.smith@example.com]"
+ */
+export function formatDisambiguatedMentionDisplay(person: Person): string {
+    const disambiguator = person.email || person.id;
+    return `@${person.name} [${disambiguator}]`;
+}
+
+/**
+ * Gets the display name for rendering, with optional disambiguation
+ * @param person The person to display
+ * @param disambiguate Whether to show disambiguation (email/id)
+ * @returns Display string like "@John Doe" or "@John Doe [email]"
+ */
+export function getDisplayText(person: Person, disambiguate: boolean): string {
+    if (disambiguate) {
+        return formatDisambiguatedMentionDisplay(person);
+    }
+    return formatMentionDisplay(person);
 }
 
 /**
@@ -44,7 +102,8 @@ export function formatMentionForBackend(person: Person): string {
 }
 
 /**
- * Replaces a mention trigger in text with the selected person
+ * Replaces a mention trigger (@query) in text with the selected person
+ * Uses internal format: @[Name](id)
  * Returns new text and new cursor position
  */
 export function insertMention(
@@ -58,60 +117,55 @@ export function insertMention(
     // Find the "@" that triggered this mention
     const lastAtIndex = textBeforeCursor.lastIndexOf("@");
 
-    const mentionDisplay = formatMentionDisplay(person);
+    // Use internal format with embedded ID
+    const mentionInternal = formatInternalMention(person);
     const beforeMention = text.substring(0, lastAtIndex);
-    const newText = beforeMention + mentionDisplay + " " + textAfterCursor;
-    const newCursorPosition = (beforeMention + mentionDisplay + " ").length;
+    const newText = beforeMention + mentionInternal + " " + textAfterCursor;
+    const newCursorPosition = (beforeMention + mentionInternal + " ").length;
 
     return { newText, newCursorPosition };
 }
 
 /**
- * Parses mentions from input text and converts to backend format
- * Converts "@Name" to "Name <id:email>" using a map of known mentions
+ * Extracts all internal mentions from text
+ * Returns array of {name, id, startIndex, endIndex}
  */
-export function parseMentionsForSubmit(
-    text: string,
-    mentionMap: Map<string, Person>
-): string {
-    let result = text;
+export function extractInternalMentions(text: string): Array<{
+    name: string;
+    id: string;
+    startIndex: number;
+    endIndex: number;
+    fullMatch: string;
+}> {
+    const mentions: Array<{
+        name: string;
+        id: string;
+        startIndex: number;
+        endIndex: number;
+        fullMatch: string;
+    }> = [];
 
-    if (mentionMap.size === 0) {
-        return result; // No mentions to process
+    const regex = new RegExp(INTERNAL_MENTION_REGEX.source, 'g');
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        mentions.push({
+            name: match[1],
+            id: match[2],
+            startIndex: match.index,
+            endIndex: match.index + match[0].length,
+            fullMatch: match[0]
+        });
     }
 
-    // Build a regex that matches exact mention names from the map
-    // Sort by length (longest first) to match longer names before shorter ones
-    const mentionNames = Array.from(mentionMap.keys()).sort((a, b) => b.length - a.length);
+    return mentions;
+}
 
-    // Escape special regex characters in names
-    const escapedNames = mentionNames.map(name =>
-        name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    );
-
-    // Match @Name where Name is one of our known mentions
-    // Must be followed by space, newline, or end of string
-    const mentionRegex = new RegExp(`@(${escapedNames.join('|')})(?=\\s|$)`, 'g');
-    const matches = Array.from(text.matchAll(mentionRegex));
-
-    // Process in reverse order to maintain string indices
-    for (let i = matches.length - 1; i >= 0; i--) {
-        const match = matches[i];
-        const displayName = match[1];
-        const fullMatch = match[0]; // "@Name"
-        const startIndex = match.index!;
-
-        // Look up person by display name
-        const person = mentionMap.get(displayName);
-        if (person) {
-            const backendFormat = formatMentionForBackend(person);
-            result = result.substring(0, startIndex) +
-                     backendFormat +
-                     result.substring(startIndex + fullMatch.length);
-        }
-    }
-
-    return result;
+/**
+ * Converts internal mention format to plain text for display/copying
+ * @[Name](id) -> @Name
+ */
+export function internalToDisplayText(text: string): string {
+    return text.replace(INTERNAL_MENTION_REGEX, '@$1');
 }
 
 /**
@@ -150,8 +204,8 @@ export function extractDisplayTextFromHTML(html: string): string {
         } else if (node.nodeType === Node.ELEMENT_NODE) {
             const el = node as HTMLElement;
             if (el.classList.contains("mention-chip")) {
-                // Use the data-mention attribute which has the @Name format
-                parts.push(el.getAttribute('data-mention') || el.textContent || "");
+                // Use the data-display attribute which has the @Name format
+                parts.push(el.getAttribute('data-display') || el.textContent || "");
             } else if (el.tagName === "BR") {
                 parts.push("\n");
             }
@@ -163,8 +217,7 @@ export function extractDisplayTextFromHTML(html: string): string {
 
 /**
  * Extracts mentions from a contenteditable element's DOM
- * This handles mentions that were pasted (and have data-person-id attributes)
- * Returns a map of mention names to person objects
+ * Returns a map of person ID to Person object
  */
 export function extractMentionsFromDOM(element: HTMLElement): Map<string, Person> {
     const mentionMap = new Map<string, Person>();
@@ -175,17 +228,13 @@ export function extractMentionsFromDOM(element: HTMLElement): Map<string, Person
     mentionChips.forEach(chip => {
         const personId = chip.getAttribute('data-person-id');
         const personName = chip.getAttribute('data-person-name');
-        const mention = chip.getAttribute('data-mention');
 
-        if (personId && personName && mention) {
-            // Extract the name without @ symbol
-            const displayName = mention.startsWith('@') ? mention.substring(1) : mention;
-
-            // Create a minimal Person object
-            mentionMap.set(displayName, {
+        if (personId && personName) {
+            // Key by ID for uniqueness
+            mentionMap.set(personId, {
                 id: personId,
                 name: personName,
-                email: personId, // Assuming ID is email, adjust if needed
+                email: personId, // Assuming ID is email
             });
         }
     });
@@ -231,8 +280,8 @@ export function buildMessageFromDOM(element: HTMLElement): string {
                     // Convert to backend format: "Name <user_id:id>"
                     parts.push(`${personName} <user_id:${personId}>`);
                 } else {
-                    // Fallback: just use the mention text as-is
-                    parts.push(el.getAttribute('data-mention') || el.textContent || "");
+                    // Fallback: just use the display text
+                    parts.push(el.getAttribute('data-display') || el.textContent || "");
                 }
             } else if (el.tagName === "BR") {
                 parts.push("\n");
@@ -248,15 +297,14 @@ export function buildMessageFromDOM(element: HTMLElement): string {
  */
 export function extractMentions(text: string): Mention[] {
     const mentions: Mention[] = [];
-    const mentionRegex = /@([^\s@]+(?:\s+[^\s@]+)*)/g;
+    const internalMentions = extractInternalMentions(text);
 
-    let match;
-    while ((match = mentionRegex.exec(text)) !== null) {
+    for (const m of internalMentions) {
         mentions.push({
-            id: "", // Will be filled when person is selected
-            name: match[1],
-            startIndex: match.index,
-            endIndex: match.index + match[0].length
+            id: m.id,
+            name: m.name,
+            startIndex: m.startIndex,
+            endIndex: m.endIndex
         });
     }
 

@@ -6,6 +6,12 @@
     "title": "Product Manager"
   },
   {
+    "id": "john.doe2@solace.com",
+    "email": "john.doe2@solace.com",
+    "name": "John Doe",
+    "title": "Software Engineer"
+  },
+  {
     "id": "jane.smith@solace.com",
     "email": "jane.smith@solace.com",
     "name": "Jane Smith",
