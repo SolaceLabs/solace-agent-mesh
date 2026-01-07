@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Textarea } from "@/lib/components/ui";
+import { Textarea } from "@/lib/components/ui";
+import { ConfirmationDialog } from "@/lib/components/common";
 import type { ArtifactInfo } from "@/lib/types";
 
 import { FileLabel } from "../chat/file/FileLabel";
@@ -33,26 +34,29 @@ export const EditFileDescriptionDialog: React.FC<EditFileDescriptionDialogProps>
 
     if (!artifact) return null;
 
+    const dialogContent = (
+        <div className="my-5 flex flex-col gap-4">
+            <FileLabel fileName={artifact.filename} fileSize={artifact.size} />
+            <div>
+                <Textarea className="mt-1" rows={2} disabled={isSaving} value={description} onChange={e => setDescription(e.target.value)} />
+            </div>
+        </div>
+    );
+
     return (
-        <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
-            <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                    <DialogTitle>Edit File Description</DialogTitle>
-                    <DialogDescription>Update the description for this file to help Solace Agent Mesh understand its purpose.</DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                    <FileLabel fileName={artifact.filename} fileSize={artifact.size} />
-                    <Textarea className="mt-2" rows={2} disabled={isSaving} value={description} onChange={e => setDescription(e.target.value)} />
-                </div>
-                <DialogFooter>
-                    <Button variant="ghost" onClick={handleCancel} disabled={isSaving}>
-                        Discard Changes
-                    </Button>
-                    <Button onClick={handleSave} disabled={isSaving}>
-                        {isSaving ? "Saving..." : "Save"}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <ConfirmationDialog
+            open={isOpen}
+            onOpenChange={open => !open && onClose()}
+            title="Edit File Description"
+            description="Update the description to help Solace Agent Mesh understand its purpose."
+            content={dialogContent}
+            actionLabels={{
+                cancel: "Discard Changes",
+                confirm: "Save",
+            }}
+            isLoading={isSaving}
+            onConfirm={handleSave}
+            onCancel={handleCancel}
+        />
     );
 };

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Textarea } from "@/lib/components/ui";
-import { MessageBanner } from "@/lib/components/common";
+import { Textarea } from "@/lib/components/ui";
+import { MessageBanner, ConfirmationDialog } from "@/lib/components/common";
 import { FileLabel } from "../chat/file/FileLabel";
 
 interface AddProjectFilesDialogProps {
@@ -58,37 +58,38 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({ is
 
     const fileList = files ? Array.from(files) : [];
 
-    return (
-        <Dialog open={isOpen} onOpenChange={open => !open && handleClose()}>
-            <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                    <DialogTitle>Upload Files to Project</DialogTitle>
-                    <DialogDescription>Add descriptions to help Solace Agent Mesh understand each file's purpose.</DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                    {error && <MessageBanner variant="error" message={error} dismissible onDismiss={onClearError} />}
-                    {fileList.length > 0 ? (
-                        <div className="flex max-h-[50vh] flex-col gap-4 overflow-y-auto p-1">
-                            {fileList.map((file, index) => (
-                                <div key={file.name + index}>
-                                    <FileLabel fileName={file.name} fileSize={file.size} />
-                                    <Textarea className="mt-2" rows={2} disabled={isSubmitting} value={fileDescriptions[file.name] || ""} onChange={e => handleFileDescriptionChange(file.name, e.target.value)} />
-                                </div>
-                            ))}
+    const dialogContent = (
+        <>
+            {error && <MessageBanner variant="error" message={error} dismissible onDismiss={onClearError} />}
+            {fileList.length > 0 ? (
+                <div className="mt-4 flex max-h-[50vh] flex-col gap-4 overflow-y-auto p-1">
+                    {fileList.map((file, index) => (
+                        <div key={file.name + index}>
+                            <FileLabel fileName={file.name} fileSize={file.size} />
+                            <Textarea className="mt-2" rows={2} disabled={isSubmitting} value={fileDescriptions[file.name] || ""} onChange={e => handleFileDescriptionChange(file.name, e.target.value)} />
                         </div>
-                    ) : (
-                        <p className="text-muted-foreground">No files selected.</p>
-                    )}
+                    ))}
                 </div>
-                <DialogFooter>
-                    <Button variant="ghost" onClick={handleClose} disabled={isSubmitting}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleConfirmClick} disabled={isSubmitting || fileList.length === 0}>
-                        {`Upload ${fileList.length} File(s)`}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            ) : (
+                <p className="text-muted-foreground">No files selected.</p>
+            )}
+        </>
+    );
+
+    return (
+        <ConfirmationDialog
+            open={isOpen}
+            onOpenChange={open => !open && handleClose()}
+            title="Upload Files to Project"
+            description="Add descriptions to help Solace Agent Mesh understand each file's purpose."
+            content={dialogContent}
+            actionLabels={{
+                cancel: "Cancel",
+                confirm: `Upload ${fileList.length} File(s)`,
+            }}
+            isLoading={isSubmitting}
+            onConfirm={handleConfirmClick}
+            onCancel={handleClose}
+        />
     );
 };
