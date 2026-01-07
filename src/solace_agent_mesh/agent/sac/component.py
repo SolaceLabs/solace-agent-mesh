@@ -783,7 +783,9 @@ class SamAgentComponent(SamComponentBase):
                 log_retrigger,
                 len(new_response_parts),
             )
-            new_tool_response_content = adk_types.Content(role="tool", parts=new_response_parts)
+            new_tool_response_content = adk_types.Content(
+                role="tool", parts=new_response_parts
+            )
 
             # Always use SSE streaming mode for the ADK runner, even on re-trigger.
             # This ensures that real-time callbacks for status updates and artifact
@@ -801,7 +803,12 @@ class SamAgentComponent(SamComponentBase):
             )
             try:
                 await run_adk_async_task_thread_wrapper(
-                    self, session, new_tool_response_content, run_config, original_task_context, append_context_event=False
+                    self,
+                    session,
+                    new_tool_response_content,
+                    run_config,
+                    original_task_context,
+                    append_context_event=False,
                 )
             finally:
                 log.info(
@@ -1549,7 +1556,9 @@ class SamAgentComponent(SamComponentBase):
             a2a_context: The A2A context dictionary for the current task
             function_call_id: Optional function call ID if artifact was created by a tool
         """
-        log_identifier = f"{self.log_identifier}[ArtifactSaved:{artifact_info.filename}]"
+        log_identifier = (
+            f"{self.log_identifier}[ArtifactSaved:{artifact_info.filename}]"
+        )
 
         try:
             # Create artifact saved signal
@@ -2276,6 +2285,19 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                     len(task_context.produced_artifacts),
                 )
+            else:
+                if not task_context:
+                    log.warning(
+                        "%s TaskExecutionContext not found for task %s during finalization, cannot attach produced artifacts.",
+                        self.log_identifier,
+                        logical_task_id,
+                    )
+                else:
+                    log.debug(
+                        "%s No produced artifacts to attach for task %s.",
+                        self.log_identifier,
+                        logical_task_id,
+                    )
 
             # Add token usage summary
             if task_context:
@@ -2715,11 +2737,11 @@ class SamAgentComponent(SamComponentBase):
 
             # Detect context limit errors and provide user-friendly message
             error_message = "An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
-            
+
             if isinstance(exception, BadRequestError):
                 # Use centralized error handler
                 error_message, is_context_limit = get_error_message(exception)
-                
+
                 if is_context_limit:
                     log.error(
                         "%s Context limit exceeded for task %s. Error: %s",
@@ -2730,9 +2752,7 @@ class SamAgentComponent(SamComponentBase):
 
             failed_status = a2a.create_task_status(
                 state=TaskState.failed,
-                message=a2a.create_agent_text_message(
-                    text=error_message
-                ),
+                message=a2a.create_agent_text_message(text=error_message),
             )
 
             final_task = a2a.create_final_task(
