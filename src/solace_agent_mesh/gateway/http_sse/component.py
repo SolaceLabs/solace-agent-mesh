@@ -1880,6 +1880,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def get_agent_registry(self) -> AgentRegistry:
         return self.agent_registry
 
+    def get_gateway_registry(self):
+        return self.gateway_registry
+
     def _check_agent_health(self):
         """
         Checks the health of peer agents and de-registers unresponsive ones.

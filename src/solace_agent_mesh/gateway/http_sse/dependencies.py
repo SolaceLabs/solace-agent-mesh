@@ -15,6 +15,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from ...common.agent_registry import AgentRegistry
+from ...common.gateway_registry import GatewayRegistry
 from ...common.middleware.config_resolver import ConfigResolver
 from ...common.services.identity_service import BaseIdentityService
 from ...core_a2a.service import CoreA2AService
@@ -152,6 +153,14 @@ def get_agent_registry(
     """FastAPI dependency to get the AgentRegistry."""
     log.debug("get_agent_registry called")
     return component.get_agent_registry()
+
+
+def get_gateway_registry(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> GatewayRegistry:
+    """FastAPI dependency to get the GatewayRegistry."""
+    log.debug("get_gateway_registry called")
+    return component.get_gateway_registry()
 
 
 def get_sse_manager(
