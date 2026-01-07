@@ -8,11 +8,12 @@ import { formatRelativeTime, validateFileSizes } from "@/lib/utils";
 
 import { ArtifactBar } from "../chat/artifact";
 import { FileDetails } from "../chat/file";
-import { ConfirmationDialog, FileUpload, MessageBanner } from "../common";
+import { FileUpload, MessageBanner } from "../common";
 
 import { AddProjectFilesDialog } from "./AddProjectFilesDialog";
 import { EditFileDescriptionDialog } from "./EditFileDescriptionDialog";
 import { FileDetailsDialog } from "./FileDetailsDialog";
+import { DeleteProjectFileDialog } from "./DeleteProjectFileDialog";
 
 interface KnowledgeSectionProps {
     project: Project;
@@ -206,21 +207,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
             <AddProjectFilesDialog isOpen={!!filesToUpload} files={filesToUpload} onClose={handleCloseUploadDialog} onConfirm={handleConfirmUpload} isSubmitting={isSubmitting} error={uploadError} onClearError={handleClearUploadError} />
             <FileDetailsDialog isOpen={showDetailsDialog} artifact={selectedArtifact} onClose={handleCloseDetailsDialog} onEdit={handleEditFromDetails} />
             <EditFileDescriptionDialog isOpen={showEditDialog} artifact={selectedArtifact} onClose={handleCloseEditDialog} onSave={handleSaveDescription} isSaving={isSavingMetadata} />
-
-            <ConfirmationDialog
-                title="Delete Project File"
-                content={
-                    fileToDelete ? (
-                        <>
-                            This action cannot be undone. This file will be permanently removed from the project: <strong>{fileToDelete.filename}</strong>
-                        </>
-                    ) : null
-                }
-                actionLabels={{ confirm: "Delete" }}
-                open={!!fileToDelete}
-                onConfirm={handleConfirmDelete}
-                onOpenChange={open => !open && setFileToDelete(null)}
-            />
+            <DeleteProjectFileDialog isOpen={!!fileToDelete} fileToDelete={fileToDelete} handleConfirmDelete={handleConfirmDelete} setFileToDelete={setFileToDelete} />
         </div>
     );
 };
