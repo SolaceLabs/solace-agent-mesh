@@ -26,7 +26,6 @@ from ...gateway.http_sse import dependencies
 from ...shared.auth.middleware import create_oauth_middleware
 from .routers import (
     agent_cards,
-    gateway_cards,
     artifacts,
     auth,
     config,
@@ -243,7 +242,6 @@ def _setup_routers() -> None:
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(version.router, prefix=api_prefix, tags=["Version"])
     app.include_router(agent_cards.router, prefix=api_prefix, tags=["Agent Cards"])
-    app.include_router(gateway_cards.router, prefix=api_prefix, tags=["Gateway Cards"])
     app.include_router(task_router, prefix=api_prefix, tags=["Tasks"])
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
     app.include_router(

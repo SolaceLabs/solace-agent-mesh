@@ -1,5 +1,5 @@
 """
-Unit tests for gateway_cards router.
+Unit tests for platform service gateway router.
 Tests the gateway discovery and health monitoring API endpoints.
 """
 
@@ -56,28 +56,27 @@ def create_test_gateway_card(
     )
 
 
-class TestGetGatewayCardsEndpoint:
-    """Test GET /gatewayCards endpoint."""
+class TestListGatewaysEndpoint:
+    """Test GET /api/v1/platform/gateways endpoint."""
 
     @pytest.mark.asyncio
     async def test_returns_empty_list_when_no_gateways(self):
         """Test endpoint returns empty list when no gateways discovered."""
-        from solace_agent_mesh.gateway.http_sse.routers.gateway_cards import (
-            get_discovered_gateway_cards
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import (
+            list_gateways
         )
 
         registry = GatewayRegistry()
-        user_config = {}
 
-        result = await get_discovered_gateway_cards(registry, user_config)
+        result = await list_gateways(registry)
 
         assert result == []
 
     @pytest.mark.asyncio
     async def test_returns_discovered_gateways(self):
         """Test endpoint returns list of discovered gateways."""
-        from solace_agent_mesh.gateway.http_sse.routers.gateway_cards import (
-            get_discovered_gateway_cards
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import (
+            list_gateways
         )
 
         registry = GatewayRegistry()
@@ -87,19 +86,17 @@ class TestGetGatewayCardsEndpoint:
         registry.add_or_update_gateway(gw1)
         registry.add_or_update_gateway(gw2)
 
-        user_config = {}
-
-        result = await get_discovered_gateway_cards(registry, user_config)
+        result = await list_gateways(registry)
 
         assert len(result) == 2
         assert result[0].name == "gw-1"
         assert result[1].name == "gw-2"
 
     @pytest.mark.asyncio
-    async def test_returns_gateway_cards_in_order(self):
+    async def test_returns_gateways_in_sorted_order(self):
         """Test endpoint returns gateways in sorted order."""
-        from solace_agent_mesh.gateway.http_sse.routers.gateway_cards import (
-            get_discovered_gateway_cards
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import (
+            list_gateways
         )
 
         registry = GatewayRegistry()
@@ -107,22 +104,34 @@ class TestGetGatewayCardsEndpoint:
             card = create_test_gateway_card(name, "http_sse")
             registry.add_or_update_gateway(card)
 
-        user_config = {}
-
-        result = await get_discovered_gateway_cards(registry, user_config)
+        result = await list_gateways(registry)
 
         assert len(result) == 3
         assert [g.name for g in result] == ["alpha", "mike", "zebra"]
 
+    @pytest.mark.asyncio
+    async def test_handles_none_registry(self):
+        """Test endpoint handles None registry gracefully."""
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import (
+            list_gateways
+        )
+        from fastapi import HTTPException
 
-class TestGetAllGatewaysHealthEndpoint:
-    """Test GET /gateways/health endpoint."""
+        with pytest.raises(HTTPException) as exc_info:
+            await list_gateways(None)
+
+        assert exc_info.value.status_code == 503
+        assert "not initialized" in exc_info.value.detail.lower()
+
+
+class TestGetGatewaysHealthEndpoint:
+    """Test GET /api/v1/platform/gateways/health endpoint."""
 
     @pytest.mark.asyncio
     async def test_returns_health_for_all_gateways(self):
         """Test endpoint returns health status for all gateways."""
-        from solace_agent_mesh.gateway.http_sse.routers.gateway_cards import (
-            get_all_gateways_health
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import (
+            get_gateways_health
         )
         import time
 
@@ -135,7 +144,7 @@ class TestGetAllGatewaysHealthEndpoint:
 
         registry._last_seen["stale-gw"] = time.time() - 120
 
-        result = await get_all_gateways_health(registry, ttl_seconds=90)
+        result = await get_gateways_health(registry, ttl_seconds=90)
 
         assert result["total_gateways"] == 2
         assert result["healthy_count"] == 1
@@ -157,8 +166,8 @@ class TestGetAllGatewaysHealthEndpoint:
     @pytest.mark.asyncio
     async def test_includes_gateway_metadata(self):
         """Test endpoint includes gateway type, namespace, deployment_id."""
-        from solace_agent_mesh.gateway.http_sse.routers.gateway_cards import (
-            get_all_gateways_health
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import (
+            get_gateways_health
         )
 
         registry = GatewayRegistry()
@@ -170,7 +179,7 @@ class TestGetAllGatewaysHealthEndpoint:
         )
         registry.add_or_update_gateway(gw)
 
-        result = await get_all_gateways_health(registry)
+        result = await get_gateways_health(registry)
 
         assert len(result["gateways"]) == 1
         gateway_info = result["gateways"][0]
@@ -182,14 +191,27 @@ class TestGetAllGatewaysHealthEndpoint:
         assert "health_status" in gateway_info
         assert "last_seen" in gateway_info
 
+    @pytest.mark.asyncio
+    async def test_handles_none_registry(self):
+        """Test endpoint handles None registry gracefully."""
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import (
+            get_gateways_health
+        )
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_gateways_health(None)
+
+        assert exc_info.value.status_code == 503
+
 
 class TestGetGatewayHealthEndpoint:
-    """Test GET /gateways/{gateway_id}/health endpoint."""
+    """Test GET /api/v1/platform/gateways/{gateway_id}/health endpoint."""
 
     @pytest.mark.asyncio
     async def test_returns_health_for_specific_gateway(self):
         """Test endpoint returns health for specific gateway."""
-        from solace_agent_mesh.gateway.http_sse.routers.gateway_cards import (
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import (
             get_gateway_health
         )
 
@@ -207,7 +229,7 @@ class TestGetGatewayHealthEndpoint:
     @pytest.mark.asyncio
     async def test_returns_404_for_nonexistent_gateway(self):
         """Test endpoint returns 404 when gateway not found."""
-        from solace_agent_mesh.gateway.http_sse.routers.gateway_cards import (
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import (
             get_gateway_health
         )
         from fastapi import HTTPException
@@ -223,7 +245,7 @@ class TestGetGatewayHealthEndpoint:
     @pytest.mark.asyncio
     async def test_respects_custom_ttl(self):
         """Test endpoint respects custom TTL parameter."""
-        from solace_agent_mesh.gateway.http_sse.routers.gateway_cards import (
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import (
             get_gateway_health
         )
         import time
@@ -239,3 +261,16 @@ class TestGetGatewayHealthEndpoint:
 
         result_short_ttl = await get_gateway_health("gw-1", registry, ttl_seconds=30)
         assert result_short_ttl["health_status"] == "unhealthy"
+
+    @pytest.mark.asyncio
+    async def test_handles_none_registry(self):
+        """Test endpoint handles None registry gracefully."""
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import (
+            get_gateway_health
+        )
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_gateway_health("gw-1", None)
+
+        assert exc_info.value.status_code == 503

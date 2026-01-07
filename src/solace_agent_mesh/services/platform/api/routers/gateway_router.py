@@ -1,75 +1,97 @@
 """
-API Router for gateway discovery and health monitoring.
-Provides endpoints to query discovered gateways and their health status.
+Platform Service gateway monitoring router.
+
+Provides endpoints for gateway discovery and health monitoring.
+This is the control plane API for monitoring gateway fleet status.
 """
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Path
-from typing import Any, Dict, List, Optional
+from typing import List
 
-from ....common.gateway_registry import GatewayRegistry
 from a2a.types import AgentCard
-from ..dependencies import get_gateway_registry, get_user_config
+from solace_agent_mesh.common.gateway_registry import GatewayRegistry
+from ..dependencies import get_gateway_registry
 
 log = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-@router.get("/gatewayCards", response_model=List[AgentCard])
-async def get_discovered_gateway_cards(
+@router.get("/gateways", response_model=List[AgentCard], tags=["Gateways"])
+async def list_gateways(
     gateway_registry: GatewayRegistry = Depends(get_gateway_registry),
-    user_config: Dict[str, Any] = Depends(get_user_config),
 ):
     """
-    Retrieves a list of discovered A2A gateways.
+    List all discovered gateways.
 
     Returns gateway discovery cards for all gateways publishing heartbeats
-    to the discovery topic. This enables monitoring of the gateway fleet.
+    to the discovery topic. Used for monitoring the gateway fleet.
 
     Returns:
-        List of AgentCard objects representing discovered gateways
+        List of AgentCard objects representing discovered gateways.
     """
-    log_prefix = "[GET /api/v1/gatewayCards] "
-    log.info("%sRequest received.", log_prefix)
+    log_prefix = "[GET /api/v1/platform/gateways] "
+    log.info("%sRequest received", log_prefix)
+
+    if not gateway_registry:
+        log.error("%sGatewayRegistry not available", log_prefix)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Gateway registry not initialized"
+        )
+
     try:
         gateway_ids = gateway_registry.get_gateway_ids()
-        all_gateways = [
+        gateways = [
             gateway_registry.get_gateway(gid)
             for gid in gateway_ids
             if gateway_registry.get_gateway(gid)
         ]
 
-        log.debug(
-            "%sReturning %d discovered gateways.",
-            log_prefix,
-            len(all_gateways),
-        )
-        return all_gateways
+        log.info("%sReturning %d discovered gateways", log_prefix, len(gateways))
+        return gateways
+
     except Exception as e:
-        log.exception("%sError retrieving discovered gateway cards: %s", log_prefix, e)
+        log.exception("%sError retrieving gateways: %s", log_prefix, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error retrieving gateway list.",
+            detail="Internal server error retrieving gateway list"
         )
 
 
-@router.get("/gateways/health")
-async def get_all_gateways_health(
+@router.get("/gateways/health", tags=["Gateways"])
+async def get_gateways_health(
     gateway_registry: GatewayRegistry = Depends(get_gateway_registry),
     ttl_seconds: int = 90,
 ):
     """
     Get health status for all discovered gateways.
 
+    Platform monitoring endpoint for gateway fleet health. Returns health
+    status based on heartbeat TTL threshold.
+
     Args:
-        ttl_seconds: Time-to-live threshold in seconds (default: 90)
+        ttl_seconds: Time-to-live threshold in seconds (default: 90).
+                     Gateways with heartbeats older than this are marked unhealthy.
 
     Returns:
-        Dict with lists of healthy and unhealthy gateway IDs
+        dict: Health status summary with gateway details
+            - total_gateways (int): Total number of gateways
+            - healthy_count (int): Count of healthy gateways
+            - unhealthy_count (int): Count of unhealthy gateways
+            - ttl_seconds (int): TTL threshold used
+            - gateways (list): Detailed health info for each gateway
     """
-    log_prefix = "[GET /api/v1/gateways/health] "
-    log.info("%sRequest received (TTL: %ds).", log_prefix, ttl_seconds)
+    log_prefix = "[GET /api/v1/platform/gateways/health] "
+    log.info("%sRequest received (TTL: %ds)", log_prefix, ttl_seconds)
+
+    if not gateway_registry:
+        log.error("%sGatewayRegistry not available", log_prefix)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Gateway registry not initialized"
+        )
 
     try:
         gateway_ids = gateway_registry.get_gateway_ids()
@@ -95,8 +117,8 @@ async def get_all_gateways_health(
         healthy_count = sum(1 for g in health_info if g["health_status"] == "healthy")
         unhealthy_count = len(health_info) - healthy_count
 
-        log.debug(
-            "%sReturning health for %d gateways (healthy: %d, unhealthy: %d).",
+        log.info(
+            "%sReturning health for %d gateways (healthy: %d, unhealthy: %d)",
             log_prefix,
             len(health_info),
             healthy_count,
@@ -110,15 +132,16 @@ async def get_all_gateways_health(
             "ttl_seconds": ttl_seconds,
             "gateways": health_info,
         }
+
     except Exception as e:
         log.exception("%sError retrieving gateway health: %s", log_prefix, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error retrieving gateway health.",
+            detail="Internal server error retrieving gateway health"
         )
 
 
-@router.get("/gateways/{gateway_id}/health")
+@router.get("/gateways/{gateway_id}/health", tags=["Gateways"])
 async def get_gateway_health(
     gateway_id: str = Path(..., description="The gateway ID to check"),
     gateway_registry: GatewayRegistry = Depends(get_gateway_registry),
@@ -127,15 +150,35 @@ async def get_gateway_health(
     """
     Get health status for a specific gateway.
 
+    Platform monitoring endpoint for individual gateway health status.
+
     Args:
-        gateway_id: The gateway ID to check
-        ttl_seconds: Time-to-live threshold in seconds (default: 90)
+        gateway_id: The gateway ID to check.
+        ttl_seconds: Time-to-live threshold in seconds (default: 90).
 
     Returns:
-        Health status information for the gateway
+        dict: Gateway health details
+            - gateway_id (str): Gateway identifier
+            - gateway_type (str): Gateway type (http_sse, slack, rest, teams)
+            - namespace (str): A2A namespace
+            - deployment_id (str|None): Deployment identifier if available
+            - health_status (str): "healthy" or "unhealthy"
+            - last_seen (float): Unix timestamp of last heartbeat
+            - seconds_since_last_seen (int): Seconds since last heartbeat
+            - ttl_seconds (int): TTL threshold used
+
+    Raises:
+        HTTPException: 404 if gateway not found in registry.
     """
-    log_prefix = f"[GET /api/v1/gateways/{gateway_id}/health] "
-    log.info("%sRequest received.", log_prefix)
+    log_prefix = f"[GET /api/v1/platform/gateways/{gateway_id}/health] "
+    log.info("%sRequest received", log_prefix)
+
+    if not gateway_registry:
+        log.error("%sGatewayRegistry not available", log_prefix)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Gateway registry not initialized"
+        )
 
     try:
         gateway_card = gateway_registry.get_gateway(gateway_id)
@@ -143,7 +186,7 @@ async def get_gateway_health(
             log.warning("%sGateway not found: %s", log_prefix, gateway_id)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Gateway '{gateway_id}' not found in registry.",
+                detail=f"Gateway '{gateway_id}' not found in registry"
             )
 
         is_expired, seconds_since = gateway_registry.check_ttl_expired(gateway_id, ttl_seconds)
@@ -154,7 +197,7 @@ async def get_gateway_health(
 
         health_status = "unhealthy" if is_expired else "healthy"
 
-        log.debug(
+        log.info(
             "%sGateway health: %s (last seen: %ds ago)",
             log_prefix,
             health_status,
@@ -171,11 +214,12 @@ async def get_gateway_health(
             "seconds_since_last_seen": seconds_since,
             "ttl_seconds": ttl_seconds,
         }
+
     except HTTPException:
         raise
     except Exception as e:
         log.exception("%sError retrieving gateway health: %s", log_prefix, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error retrieving gateway health.",
+            detail="Internal server error retrieving gateway health"
         )

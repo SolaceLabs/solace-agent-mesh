@@ -24,10 +24,15 @@ def get_community_platform_routers() -> list:
         Community platform routers list.
     """
     from .health_router import router as health_router
+    from .gateway_router import router as gateway_router
 
     return [
         {
             "router": health_router,
             "tags": ["Health"],
+        },
+        {
+            "router": gateway_router,
+            "tags": ["Gateways"],
         }
     ]

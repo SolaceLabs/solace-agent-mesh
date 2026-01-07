@@ -157,16 +157,18 @@ class PlatformServiceComponent(SamComponentBase):
         # but now work with Platform Service via dependency abstraction
         self.session_manager = _StubSessionManager()
 
-        # Agent discovery (like BaseGatewayComponent)
+        # Agent and gateway discovery (like BaseGatewayComponent)
         # Initialize here so CoreA2AService can use it
         from solace_agent_mesh.common.agent_registry import AgentRegistry
+        from solace_agent_mesh.common.gateway_registry import GatewayRegistry
         self.agent_registry = AgentRegistry()
+        self.gateway_registry = GatewayRegistry()
         self.core_a2a_service = CoreA2AService(
             agent_registry=self.agent_registry,
             namespace=self.namespace,
             component_id="Platform"
         )
-        log.info("%s Agent discovery service initialized", self.log_identifier)
+        log.info("%s Agent and gateway discovery services initialized", self.log_identifier)
 
         # Background task state (for heartbeat monitoring and deployment status checking)
         # Note: agent_registry already initialized above
@@ -427,9 +429,11 @@ class PlatformServiceComponent(SamComponentBase):
 
     def _handle_discovery_message(self, payload: Dict) -> bool:
         """
-        Handle incoming agent discovery messages.
+        Handle incoming agent and gateway discovery messages.
 
-        Follows the same pattern as BaseGatewayComponent for consistency.
+        Routes discovery cards to appropriate registries:
+        - Gateway cards (with gateway-role extension) -> GatewayRegistry
+        - Agent cards -> AgentRegistry
 
         Args:
             payload: The message payload dictionary
@@ -438,13 +442,37 @@ class PlatformServiceComponent(SamComponentBase):
             True if processed successfully, False otherwise
         """
         try:
+            from solace_agent_mesh.common.a2a.utils import is_gateway_card
+
             agent_card = AgentCard(**payload)
-            self.core_a2a_service.process_discovery_message(agent_card)
-            log.debug(
-                "%s Processed agent discovery: %s",
-                self.log_identifier,
-                agent_card.name
-            )
+
+            # Route to appropriate registry based on card type
+            if is_gateway_card(agent_card):
+                # This is a gateway card - track in gateway registry
+                is_new = self.gateway_registry.add_or_update_gateway(agent_card)
+                if is_new:
+                    gateway_type = self.gateway_registry.get_gateway_type(agent_card.name)
+                    log.info(
+                        "%s New gateway discovered: %s (type: %s)",
+                        self.log_identifier,
+                        agent_card.name,
+                        gateway_type or "unknown"
+                    )
+                else:
+                    log.debug(
+                        "%s Gateway heartbeat received: %s",
+                        self.log_identifier,
+                        agent_card.name
+                    )
+            else:
+                # This is an agent card - use existing logic
+                self.core_a2a_service.process_discovery_message(agent_card)
+                log.debug(
+                    "%s Processed agent discovery: %s",
+                    self.log_identifier,
+                    agent_card.name
+                )
+
             return True
         except Exception as e:
             log.error(
@@ -620,6 +648,17 @@ class PlatformServiceComponent(SamComponentBase):
             AgentRegistry instance if initialized, None otherwise.
         """
         return self.agent_registry
+
+    def get_gateway_registry(self):
+        """
+        Return the gateway registry instance.
+
+        Used for gateway fleet health monitoring.
+
+        Returns:
+            GatewayRegistry instance if initialized, None otherwise.
+        """
+        return self.gateway_registry
 
     def _schedule_agent_health_check(self):
         """
