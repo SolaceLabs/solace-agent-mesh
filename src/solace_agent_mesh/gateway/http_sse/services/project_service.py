@@ -5,8 +5,13 @@ Business service for project-related operations.
 from typing import List, Optional, TYPE_CHECKING
 import logging
 import json
+import os
+import asyncio
 import zipfile
+import tempfile
+import shutil
 from io import BytesIO
+from pathlib import Path
 from fastapi import UploadFile
 from datetime import datetime, timezone
 
@@ -319,13 +324,16 @@ class ProjectService:
         """
         Get a list of artifacts for a given project.
         
+        Filters out BM25 index artifacts (files ending with .bm25_index) as these
+        are internal indexing artifacts not meant for direct user interaction.
+        
         Args:
             db: The database session
             project_id: The project ID
             user_id: The requesting user ID
             
         Returns:
-            List[ArtifactInfo]: A list of artifacts
+            List[ArtifactInfo]: A list of user-facing artifacts (excludes BM25 indexes)
             
         Raises:
             ValueError: If project not found or access denied
@@ -349,7 +357,20 @@ class ProjectService:
             user_id=storage_user_id,
             session_id=storage_session_id,
         )
-        return artifacts
+        
+        # Filter out BM25 index artifacts - these are internal and not user-facing
+        user_artifacts = [
+            artifact for artifact in artifacts 
+            if not artifact.filename.endswith('.bm25_index')
+        ]
+        
+        self.logger.debug(
+            f"Filtered artifacts for project {project.id}: "
+            f"{len(artifacts)} total, {len(user_artifacts)} user-facing, "
+            f"{len(artifacts) - len(user_artifacts)} BM25 indexes hidden"
+        )
+        
+        return user_artifacts
 
     async def add_artifacts_to_project(
         self,
@@ -737,7 +758,7 @@ class ProjectService:
     async def import_project_from_zip(
         self, db, zip_file: UploadFile, user_id: str,
         preserve_name: bool = False, custom_name: Optional[str] = None
-    ) -> tuple[Project, int, List[str]]:
+    ) -> tuple[Project, int, List[str], List]:
         """
         Import project from ZIP file.
         
@@ -831,6 +852,9 @@ class ProjectService:
                 
                 # Import artifacts
                 artifacts_imported = 0
+                ### zhenyu add####
+                results = []
+                ##################
                 if self.artifact_service:
                     storage_session_id = f"project-{project.id}"
                     artifact_files = [
@@ -864,10 +888,12 @@ class ProjectService:
                             
                             metadata = artifact_meta.get('metadata', {}) if artifact_meta else {}
                             mime_type = artifact_meta.get('mimeType', 'application/octet-stream') if artifact_meta else 'application/octet-stream'
+                            description = metadata.get('description', "") if metadata else "" #zhenyu add
                             
                             # Save artifact
                             from ....agent.utils.artifact_helpers import save_artifact_with_metadata
-                            await save_artifact_with_metadata(
+                            ## zhenyu add results to collect the save results
+                            result = await save_artifact_with_metadata(
                                 artifact_service=self.artifact_service,
                                 app_name=self.app_name,
                                 user_id=project.user_id,
@@ -878,6 +904,8 @@ class ProjectService:
                                 metadata_dict=metadata,
                                 timestamp=datetime.now(timezone.utc),
                             )
+                            result['description'] = description # zhenyu add
+                            results.append(result)
                             artifacts_imported += 1
                         except Exception as e:
                             self.logger.warning(
@@ -888,7 +916,7 @@ class ProjectService:
                 self.logger.info(
                     f"Successfully imported project {project.id} with {artifacts_imported} artifacts"
                 )
-                return project, artifacts_imported, warnings
+                return project, artifacts_imported, warnings, results #zhenyu modify add return results
                 
         except zipfile.BadZipFile:
             raise ValueError("Invalid ZIP file")
@@ -928,3 +956,257 @@ class ProjectService:
             counter += 1
             if counter > 100:  # Safety limit
                 raise ValueError("Unable to resolve name conflict")
+
+    async def _create_versioned_bm25_index(
+        self,
+        source_filename: str,
+        source_version: int,
+        source_mime_type: str,
+        description: str,
+        user_id: str,
+        project_id: str,
+    ) -> Optional[int]:
+        """
+        Create a versioned BM25 index with folder-based structure.
+        
+        Storage structure:
+        Filesystem:
+          {base_path}/{app_name}/{user_id}/project-{project_id}/{filename}.bm25_index/
+            ├── 0/                    # Version 0 folder
+            │   ├── bm25_index.pkl
+            │   ├── metadata.json
+            │   └── corpus.pkl
+            ├── 0.meta                # Metadata for version 0
+        
+        S3:
+          {app_name}/{user_id}/project-{project_id}/{filename}.bm25_index/0/bm25_index.pkl
+          {app_name}/{user_id}/project-{project_id}/{filename}.bm25_index/0/metadata.json
+          {app_name}/{user_id}/project-{project_id}/{filename}.bm25_index/0.meta
+        
+        Args:
+            source_filename: Name of the source file (e.g., "kendra-dg.pdf")
+            source_version: Version of the source document
+            source_mime_type: MIME type of source document
+            description: Description from file metadata
+            user_id: User ID
+            project_id: Project ID (used to create session_id)
+        
+        Returns:
+            The version number of the created index, or None if failed
+        """
+        if not self.artifact_service:
+            self.logger.warning("Cannot create BM25 index: artifact service not configured")
+            return None
+        
+        session_id = f"project-{project_id}"
+        index_artifact_name = f"{source_filename}.bm25_index"
+        
+        self.logger.info(f"Creating versioned BM25 index for {source_filename} v{source_version}")
+        
+        # Create temporary directory for index creation
+        temp_index_dir = Path(tempfile.mkdtemp())
+        
+        try:
+            # First, retrieve the source artifact to create the index
+            artifact_part = await self.artifact_service.load_artifact(
+                app_name=self.app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=source_filename,
+                version=source_version,
+            )
+            
+            if not artifact_part or not artifact_part.inline_data:
+                self.logger.warning(f"Source artifact {source_filename} v{source_version} not found")
+                return None
+            
+            # Write source file to temporary location for indexing
+            temp_source_file = temp_index_dir / source_filename
+            with open(temp_source_file, 'wb') as f:
+                f.write(artifact_part.inline_data.data)
+            
+            # Create the BM25 index using BM25DocumentIndexer
+            from .bm25_indexer import BM25DocumentIndexer
+            indexer = BM25DocumentIndexer(chunk_size=1024, chunk_overlap=128)
+            
+            index_metadata = indexer.create_document_index(
+                file_path=temp_source_file,
+                index_dir=temp_index_dir,
+                description=description,
+                mime_type=source_mime_type
+            )
+            
+            if not index_metadata:
+                self.logger.warning(f"Failed to create BM25 index for {source_filename}")
+                return None
+            
+            # Collect index files created by bm25s.save()
+            index_files = {}
+            for file in temp_index_dir.iterdir():
+                if file.is_file() and file.name != source_filename:
+                    index_files[file.name] = file
+            
+            self.logger.info(f"Found {len(index_files)} index files to save: {list(index_files.keys())}")
+            
+            # Prepare metadata
+            metadata = {
+                "mime_type": "application/x-bm25-index",
+                "source_artifact": source_filename,
+                "source_version": source_version,
+                "index_type": "bm25",
+                "format": "folder",
+                "num_chunks": index_metadata.get("num_chunks"),
+                "total_chars": index_metadata.get("total_chars"),
+                "description": description,
+            }
+            
+            # Save using storage-specific helper
+            from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService
+            from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService
+            from solace_agent_mesh.agent.adk.services import ScopedArtifactServiceWrapper
+            from .bm25_index_storage import save_bm25_index_filesystem, save_bm25_index_s3
+            
+            # Unwrap the artifact service if it's wrapped and get the scoped app_name
+            actual_service = self.artifact_service
+            scoped_app_name = self.app_name
+            
+            if isinstance(self.artifact_service, ScopedArtifactServiceWrapper):
+                actual_service = self.artifact_service.wrapped_service
+                # Apply the same scoping logic that the wrapper would apply
+                scoped_app_name = self.artifact_service._get_scoped_app_name(self.app_name)
+                self.logger.debug(
+                    f"Unwrapped ScopedArtifactServiceWrapper: {type(actual_service).__name__}, "
+                    f"scoped app_name: '{scoped_app_name}'"
+                )
+            
+            if isinstance(actual_service, FilesystemArtifactService):
+                version = await save_bm25_index_filesystem(
+                    artifact_service=actual_service,
+                    app_name=scoped_app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    index_name=index_artifact_name,
+                    index_files=index_files,
+                    metadata=metadata,
+                )
+            elif isinstance(actual_service, S3ArtifactService):
+                version = await save_bm25_index_s3(
+                    artifact_service=actual_service,
+                    app_name=scoped_app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    index_name=index_artifact_name,
+                    index_files=index_files,
+                    metadata=metadata,
+                )
+            else:
+                self.logger.warning(
+                    f"Unsupported artifact service type for folder-based BM25 indexing: "
+                    f"{type(actual_service).__name__}"
+                )
+                return None
+            
+            if version is not None:
+                self.logger.info(
+                    f"✓ Created versioned BM25 index: {index_artifact_name} v{version} "
+                    f"({index_metadata.get('num_chunks')} chunks)"
+                )
+            
+            return version
+            
+        except Exception as e:
+            self.logger.error(f"Error creating versioned BM25 index for {source_filename}: {e}", exc_info=True)
+            return None
+        finally:
+            # Clean up temporary directory
+            if temp_index_dir.exists():
+                shutil.rmtree(temp_index_dir, ignore_errors=True)
+
+    async def _delete_versioned_bm25_index(
+        self,
+        source_filename: str,
+        user_id: str,
+        project_id: str,
+    ) -> bool:
+        """
+        Delete all versions of a BM25 index directory.
+        
+        This removes the entire index directory including:
+        - All version folders (0_data/, 1_data/, etc.)
+        - All version marker files (0, 1, etc.)
+        - All metadata files (0.meta, 1.meta, etc.)
+        
+        For filesystem: Deletes the entire directory
+        For S3: Deletes all objects with the index prefix
+        
+        Args:
+            source_filename: Name of the source file (e.g., "kendra-dg.pdf")
+            user_id: User ID
+            project_id: Project ID (used to create session_id)
+        
+        Returns:
+            bool: True if deletion was successful, False otherwise
+        """
+        if not self.artifact_service:
+            self.logger.warning("Cannot delete BM25 index: artifact service not configured")
+            return False
+        
+        session_id = f"project-{project_id}"
+        index_artifact_name = f"{source_filename}.bm25_index"
+        
+        self.logger.info(f"Deleting versioned BM25 index for {source_filename}")
+        
+        try:
+            # Import storage helpers and service types
+            from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService
+            from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService
+            from solace_agent_mesh.agent.adk.services import ScopedArtifactServiceWrapper
+            from .bm25_index_storage import delete_bm25_index_filesystem, delete_bm25_index_s3
+            
+            # Unwrap the artifact service if it's wrapped and get the scoped app_name
+            actual_service = self.artifact_service
+            scoped_app_name = self.app_name
+            
+            if isinstance(self.artifact_service, ScopedArtifactServiceWrapper):
+                actual_service = self.artifact_service.wrapped_service
+                # Apply the same scoping logic that the wrapper would apply
+                scoped_app_name = self.artifact_service._get_scoped_app_name(self.app_name)
+                self.logger.debug(
+                    f"Unwrapped ScopedArtifactServiceWrapper: {type(actual_service).__name__}, "
+                    f"scoped app_name: '{scoped_app_name}'"
+                )
+            
+            # Call appropriate deletion helper based on service type
+            if isinstance(actual_service, FilesystemArtifactService):
+                success = await delete_bm25_index_filesystem(
+                    artifact_service=actual_service,
+                    app_name=scoped_app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    index_name=index_artifact_name,
+                )
+            elif isinstance(actual_service, S3ArtifactService):
+                success = await delete_bm25_index_s3(
+                    artifact_service=actual_service,
+                    app_name=scoped_app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    index_name=index_artifact_name,
+                )
+            else:
+                self.logger.warning(
+                    f"Unsupported artifact service type for BM25 index deletion: "
+                    f"{type(actual_service).__name__}"
+                )
+                return False
+            
+            if success:
+                self.logger.info(f"✓ Deleted versioned BM25 index: {index_artifact_name}")
+            else:
+                self.logger.warning(f"⚠ Failed to delete BM25 index: {index_artifact_name}")
+            
+            return success
+            
+        except Exception as e:
+            self.logger.error(f"Error deleting versioned BM25 index for {source_filename}: {e}", exc_info=True)
+            return False

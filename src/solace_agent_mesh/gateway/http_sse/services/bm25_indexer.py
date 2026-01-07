@@ -6,14 +6,17 @@ This module demonstrates how to:
 2. Chunk documents properly for indexing
 3. Create separate BM25 indexes for each document
 4. Store metadata for retrieval and citation
+5. Support storage-agnostic backends (filesystem, S3, etc.)
 """
 
 import os
 import logging
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
+from abc import ABC, abstractmethod
 import json
 import pickle
+import io
 import bm25s
 import Stemmer
 from markitdown import MarkItDown
@@ -21,11 +24,8 @@ from markitdown import MarkItDown
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextContainer
 
-PDF_SUPPORT = 'pdfminer'
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 class DocumentChunker:
     """
@@ -238,86 +238,39 @@ class BM25DocumentIndexer:
             - page_map: List of (page_num, char_start, char_end) tuples
             - total_pages: Total number of pages in the PDF
         """
-        if not PDF_SUPPORT:
-            logger.warning("No PDF library available for page tracking.")
-            return "", [], 0
-        
-        try:
-            if PDF_SUPPORT == 'pdfminer':
                 # Use pdfminer.six for page-by-page extraction
-                full_text = ""
-                page_map = []
-                page_num = 0
+        try:    
+            full_text = ""
+            page_map = []
+            page_num = 0
+            
+            def extract_text_from_element(element):
+                """Recursively extract text from layout elements."""
+                text = ""
+                if isinstance(element, LTTextContainer):
+                    text += element.get_text()
+                elif hasattr(element, '__iter__'):
+                    for child in element:
+                        text += extract_text_from_element(child)
+                return text
+            
+            for page_layout in extract_pages(str(file_path)):
+                page_num += 1
+                page_text = extract_text_from_element(page_layout)
                 
-                def extract_text_from_element(element):
-                    """Recursively extract text from layout elements."""
-                    text = ""
-                    if isinstance(element, LTTextContainer):
-                        text += element.get_text()
-                    elif hasattr(element, '__iter__'):
-                        for child in element:
-                            text += extract_text_from_element(child)
-                    return text
+                char_start = len(full_text)
+                full_text += page_text
+                char_end = len(full_text)
                 
-                for page_layout in extract_pages(str(file_path)):
-                    page_num += 1
-                    page_text = extract_text_from_element(page_layout)
-                    
-                    char_start = len(full_text)
-                    full_text += page_text
-                    char_end = len(full_text)
-                    
-                    # Add page mapping (page_num, char_start, char_end)
-                    page_map.append((page_num, char_start, char_end))
-                    
-                    # Add separator between pages
-                    full_text += "\n\n"
+                # Add page mapping (page_num, char_start, char_end)
+                page_map.append((page_num, char_start, char_end))
                 
-                logger.info(f"Extracted {page_num} pages from {file_path.name} with page tracking")
-                return full_text, page_map, page_num
+                # Add separator between pages
+                full_text += "\n\n"
+            
+            logger.info(f"Extracted {page_num} pages from {file_path.name} with page tracking")
+            return full_text, page_map, page_num
                 
-            elif PDF_SUPPORT == 'PyPDF2':
-                reader = PyPDF2.PdfReader(str(file_path))
-                full_text = ""
-                page_map = []
-                total_pages = len(reader.pages)
-                
-                for page_num, page in enumerate(reader.pages, start=1):
-                    page_text = page.extract_text()
-                    char_start = len(full_text)
-                    full_text += page_text
-                    char_end = len(full_text)
-                    
-                    # Add page mapping (page_num, char_start, char_end)
-                    page_map.append((page_num, char_start, char_end))
-                    
-                    # Add separator between pages
-                    full_text += "\n\n"
-                
-                logger.info(f"Extracted {total_pages} pages from {file_path.name}")
-                return full_text, page_map, total_pages
-                
-            else:  # pypdf
-                import pypdf
-                reader = pypdf.PdfReader(str(file_path))
-                full_text = ""
-                page_map = []
-                total_pages = len(reader.pages)
-                
-                for page_num, page in enumerate(reader.pages, start=1):
-                    page_text = page.extract_text()
-                    char_start = len(full_text)
-                    full_text += page_text
-                    char_end = len(full_text)
-                    
-                    # Add page mapping (page_num, char_start, char_end)
-                    page_map.append((page_num, char_start, char_end))
-                    
-                    # Add separator between pages
-                    full_text += "\n\n"
-                
-                logger.info(f"Extracted {total_pages} pages from {file_path.name}")
-                return full_text, page_map, total_pages
             
         except Exception as e:
             logger.error(f"Error extracting PDF pages from {file_path.name}: {e}")
@@ -354,7 +307,7 @@ class BM25DocumentIndexer:
                 return f.read(), file_ext or mime_type, None, None
         
         # For PDFs, try to extract with page information
-        if is_pdf and PDF_SUPPORT:
+        if is_pdf:
             text_content, page_map, total_pages = self.extract_pdf_with_pages(file_path)
             if text_content:
                 return text_content, file_ext or mime_type, page_map, total_pages

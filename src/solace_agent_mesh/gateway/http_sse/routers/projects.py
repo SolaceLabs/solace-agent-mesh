@@ -375,7 +375,7 @@ async def add_project_artifacts(
                 log.warning(f"Could not parse file_metadata for project {project_id}, ignoring.")
                 pass
         
-        log.info(f"parsed_file_metadata: {parsed_file_metadata}") # parsed_file_metadata: {'kendra-dg.pdf': 'It is a aws document for kendra index'}
+        log.info(f"parsed_file_metadata: {parsed_file_metadata}") # sample parsed_file_metadata: {'kendra-dg.pdf': 'It is a aws document for kendra index'}
 
         results = await project_service.add_artifacts_to_project(
             db=db,
@@ -385,74 +385,39 @@ async def add_project_artifacts(
             file_metadata=parsed_file_metadata
         )
 
-        # ===== NEW CODE: Print absolute paths for all uploaded artifacts =====
-        if project_service.artifact_service:
-            storage_session_id = f"project-{project_id}"
-            
-            log.info(f"\\n{'='*60}")
-            log.info(f"Absolute paths for uploaded artifacts in project {project_id}:")
-            log.info(f"{'='*60}")
+        # Create versioned BM25 indexes for uploaded artifacts
+        if project_service.artifact_service and results:
+            log.info(f"Creating versioned BM25 indexes for {len(results)} artifacts in project {project_id}")
             
             for result in results:
                 filename = result.get("data_filename")
                 version = result.get("data_version")
-                description = parsed_file_metadata.get(filename, "")
+                mime_type = result.get("mime_type")
+                description = parsed_file_metadata.get(filename, "") if parsed_file_metadata else ""
                 
                 if filename and version is not None:
-                    # Get absolute path transparently (works for both Filesystem and S3)
-                    artifact_version = await project_service.artifact_service.get_artifact_version(
-                        app_name=project_service.app_name,
-                        user_id=user_id,
-                        session_id=storage_session_id,
-                        filename=filename,
-                        version=version,
-                    )
-                    
-                    if artifact_version:
-                        log.info(f"  📄 {filename} (version {version})")
-                        log.info(f"     Absolute path: {artifact_version.canonical_uri}")
-                        log.info(f"     MIME type: {artifact_version.mime_type}")
-                        log.info(f"     Created: {artifact_version.create_time}")
-                        
-                        # Extract project root from canonical_uri
-                        from urllib.parse import urlparse
-                        from ..services.bm25_indexer import BM25DocumentIndexer
-                        
-                        # Parse the canonical URI to get the file path
-                        parsed_uri = urlparse(artifact_version.canonical_uri)
-                        doc_path = parsed_uri.path
-                        
-                        # Extract project root directory from the document path
-                        # The path structure is: .../app_name/user_id/project-{project_id}/filename
-                        doc_path_obj = Path(doc_path)
-                        project_root_obj = doc_path_obj.parent.parent  # This gives us the project directory
-                        
-                        log.info(f"\\nProject root information:")
-                        log.info(f"-----------------------")
-                        log.info(f"Document path: {doc_path_obj}")
-                        log.info(f"Project root directory: {project_root_obj}")
-                        log.info(f"Project root URI: file://{project_root_obj}")
-                        log.info(f"-----------------------")
-                        
-                        # Create BM25 index
-                        bm25_indexer = BM25DocumentIndexer()
-                        index_dir_obj = project_root_obj / "bm25_index" / f"{filename}" # we can match the index with the file description
-                        
-                        log.info(f"Creating BM25 index at: {index_dir_obj}")
-                        # Pass MIME type to help identify file type when extension is missing
-                        meta_data = bm25_indexer.create_document_index(
-                            doc_path_obj, 
-                            index_dir_obj, 
+                    try:
+                        # Create versioned BM25 index using artifact service abstraction
+                        index_version = await project_service._create_versioned_bm25_index(
+                            source_filename=filename,
+                            source_version=version,
+                            source_mime_type=mime_type or "application/octet-stream",
                             description=description,
-                            mime_type=artifact_version.mime_type
+                            user_id=user_id,
+                            project_id=project_id,
                         )
-                        #log.info(f"BM25 index created: {meta_data}")
-                    else:
-                        log.warning(f"  ❌ Could not retrieve path for {filename}")
-            
-            log.info(f"{'='*60}\\n")
-        # ===== END NEW CODE =====
-        
+                        
+                        if index_version is not None:
+                            log.info(
+                                f"✓ Created BM25 index for '{filename}' v{version} "
+                                f"(index v{index_version})"
+                            )
+                        else:
+                            log.warning(f"⚠ Failed to create BM25 index for '{filename}' v{version}")
+                    except Exception as e:
+                        log.error(f"✗ Error creating BM25 index for '{filename}': {e}", exc_info=True)
+                        # Don't fail the entire request if index creation fails
+                        continue
 
         return results
     except ValueError as e:
@@ -506,8 +471,48 @@ async def update_project_artifact_metadata(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project or artifact not found, or access denied."
             )
-        
+
+        # Get the latest version and mime-type of the artifact to create BM25 index
+        if project_service.artifact_service:
+            try:
+                # Get artifact metadata
+                artifact_version_info = await project_service.artifact_service.get_artifact_version(
+                    app_name=project_service.app_name,
+                    user_id=user_id,
+                    session_id=f"project-{project_id}",
+                    filename=filename,
+                    version=None,  # Get latest version
+                )
+                
+                if artifact_version_info:
+                    version = artifact_version_info.version
+                    mime_type = artifact_version_info.mime_type
+                    
+                    # Create versioned BM25 index using artifact service abstraction
+                    index_version = await project_service._create_versioned_bm25_index(
+                        source_filename=filename,
+                        source_version=version,
+                        source_mime_type=mime_type or "application/octet-stream",
+                        description=description or "",
+                        user_id=user_id,
+                        project_id=project_id,
+                    )
+                    
+                    if index_version is not None:
+                        log.info(
+                            f"✓ Created BM25 index for '{filename}' v{version} "
+                            f"(index v{index_version})"
+                        )
+                    else:
+                        log.warning(f"⚠ Failed to create BM25 index for '{filename}' v{version}")
+                else:
+                    log.warning(f"Could not get artifact version info for '{filename}'")
+            except Exception as e:
+                log.error(f"✗ Error creating BM25 index for '{filename}': {e}", exc_info=True)
+                # Don't fail the entire request if index creation fails
+
         return {"message": "Artifact metadata updated successfully"}
+    
     except ValueError as e:
         log.warning(f"Validation error updating artifact metadata in project {project_id}: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -538,11 +543,30 @@ async def delete_project_artifact(
 ):
     """
     Delete an artifact from a project.
+    Also deletes the associated BM25 index if it exists.
     """
     user_id = user.get("id")
     log.info(f"User {user_id} attempting to delete artifact '{filename}' from project {project_id}")
 
     try:
+        # Delete the BM25 index first (if it exists)
+        if project_service.artifact_service:
+            try:
+                index_deleted = await project_service._delete_versioned_bm25_index(
+                    source_filename=filename,
+                    user_id=user_id,
+                    project_id=project_id,
+                )
+                
+                if index_deleted:
+                    log.info(f"✓ Deleted BM25 index for '{filename}'")
+                else:
+                    log.debug(f"No BM25 index found for '{filename}' (or deletion failed)")
+            except Exception as e:
+                log.error(f"✗ Error deleting BM25 index for '{filename}': {e}", exc_info=True)
+                # Don't fail the entire request if index deletion fails
+        
+        # Now delete the artifact itself
         success = await project_service.delete_artifact_from_project(
             db=db,
             project_id=project_id,
@@ -801,13 +825,47 @@ async def import_project(
                 log.warning(f"Invalid import options: {e}")
         
         # Import project
-        project, artifacts_count, warnings = await project_service.import_project_from_zip(
+        project, artifacts_count, warnings, results = await project_service.import_project_from_zip(
             db=db,
             zip_file=file,
             user_id=user_id,
             preserve_name=import_options.preserve_name,
             custom_name=import_options.custom_name,
         )
+
+        # Create versioned BM25 indexes for imported artifacts
+        if project_service.artifact_service and results:
+            log.info(f"Creating versioned BM25 indexes for {len(results)} artifacts in project {project.id}")
+            
+            for result in results:
+                filename = result.get("data_filename")
+                version = result.get("data_version")
+                mime_type = result.get("mime_type")
+                description = result.get("description", "")
+                
+                if filename and version is not None:
+                    try:
+                        # Create versioned BM25 index using artifact service abstraction
+                        index_version = await project_service._create_versioned_bm25_index(
+                            source_filename=filename,
+                            source_version=version,
+                            source_mime_type=mime_type or "application/octet-stream",
+                            description=description,
+                            user_id=user_id,
+                            project_id=project.id,
+                        )
+                        
+                        if index_version is not None:
+                            log.info(
+                                f"✓ Created BM25 index for '{filename}' v{version} "
+                                f"(index v{index_version})"
+                            )
+                        else:
+                            log.warning(f"⚠ Failed to create BM25 index for '{filename}' v{version}")
+                    except Exception as e:
+                        log.error(f"✗ Error creating BM25 index for '{filename}': {e}", exc_info=True)
+                        # Don't fail the entire request if index creation fails
+                        continue
         
         log.info(
             f"Project imported successfully: {project.id} with {artifacts_count} artifacts"
