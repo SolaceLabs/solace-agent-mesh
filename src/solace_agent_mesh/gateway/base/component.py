@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional, List, Tuple, Union
 from google.adk.artifacts import BaseArtifactService
 
 from ...common.agent_registry import AgentRegistry
+from ...common.gateway_registry import GatewayRegistry
 from ...common.sac.sam_component_base import SamComponentBase
 from ...core_a2a.service import CoreA2AService
 from ...agent.adk.services import initialize_artifact_service
@@ -40,6 +41,7 @@ from a2a.types import (
     Artifact as A2AArtifact,
 )
 from ...common import a2a
+from ...common.a2a.utils import is_gateway_card
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
     evaluate_embed,
@@ -169,6 +171,7 @@ class BaseGatewayComponent(SamComponentBase):
             raise ValueError(f"Configuration retrieval error: {e}") from e
 
         self.agent_registry: AgentRegistry = AgentRegistry()
+        self.gateway_registry: GatewayRegistry = GatewayRegistry()
         self.core_a2a_service: CoreA2AService = CoreA2AService(
             agent_registry=self.agent_registry,
             namespace=self.namespace,
@@ -1054,10 +1057,32 @@ class BaseGatewayComponent(SamComponentBase):
             )
 
     async def _handle_discovery_message(self, payload: Dict) -> bool:
-        """Handles incoming agent discovery messages."""
+        """Handles incoming agent and gateway discovery messages."""
         try:
             agent_card = AgentCard(**payload)
-            self.core_a2a_service.process_discovery_message(agent_card)
+
+            # Route to appropriate registry based on card type
+            if is_gateway_card(agent_card):
+                # This is a gateway card - track in gateway registry
+                is_new = self.gateway_registry.add_or_update_gateway(agent_card)
+                if is_new:
+                    gateway_type = self.gateway_registry.get_gateway_type(agent_card.name)
+                    log.info(
+                        "%s New gateway discovered: %s (type: %s)",
+                        self.log_identifier,
+                        agent_card.name,
+                        gateway_type or "unknown"
+                    )
+                else:
+                    log.debug(
+                        "%s Gateway heartbeat received: %s",
+                        self.log_identifier,
+                        agent_card.name
+                    )
+            else:
+                # This is an agent card - use existing logic
+                self.core_a2a_service.process_discovery_message(agent_card)
+
             return True
         except Exception as e:
             log.error(
