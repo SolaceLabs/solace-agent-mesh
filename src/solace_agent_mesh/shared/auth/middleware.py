@@ -189,6 +189,7 @@ def create_oauth_middleware(component):
                 "/api/v1/auth/login",
                 "/api/v1/auth/refresh",
                 "/api/v1/csrf-token",
+                "/api/v1/platform/mcp/oauth/callback",
                 "/health",
             ]
 
