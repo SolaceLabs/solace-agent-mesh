@@ -18,6 +18,7 @@ import GenericToolNode from "./FlowChart/customNodes/GenericToolNode";
 import LLMNode from "./FlowChart/customNodes/LLMNode";
 import OrchestratorAgentNode from "./FlowChart/customNodes/OrchestratorAgentNode";
 import UserNode from "./FlowChart/customNodes/UserNode";
+import ArtifactNode from "./FlowChart/customNodes/GenericArtifactNode";
 import { VisualizerStepCard } from "./VisualizerStepCard";
 
 const nodeTypes = {
@@ -26,6 +27,7 @@ const nodeTypes = {
     llmNode: LLMNode,
     orchestratorNode: OrchestratorAgentNode,
     genericToolNode: GenericToolNode,
+    artifactNode: ArtifactNode,
 };
 
 const edgeTypes = {
@@ -260,6 +262,11 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                 if (userData?.isBottomNode) {
                     targetEdge = edges.find(edge => edge.target === node.id) || null;
                 }
+            }
+
+            if (!targetEdge && node.type === "artifactNode") {
+                // For artifact nodes, find the tool that created it
+                targetEdge = edges.find(edge => edge.target === node.id) || null;
             }
 
             if (targetEdge) {

@@ -124,6 +124,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
             self.model_config = self.get_config("model", None)
 
+            # OAuth2 configuration (enterprise feature - defaults to community mode)
+            self.external_auth_service_url = self.get_config("external_auth_service_url", "")
+            self.external_auth_provider = self.get_config("external_auth_provider", "generic")
+
+            # frontend_server_url is optional - empty string means frontend uses relative URLs
+            self.frontend_server_url = self.get_config("frontend_server_url", "")
+
             log.info(
                 "%s WebUI-specific configuration retrieved (Host: %s, Port: %d).",
                 self.log_identifier,
@@ -211,7 +218,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 )
 
         platform_config = self.get_config("platform_service", {})
-        self.platform_database_url = platform_config.get("database_url")
+        self.platform_service_url = platform_config.get("url", "")
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
 
@@ -301,7 +308,26 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Data retention is disabled via configuration.", self.log_identifier
             )
 
+        if self.database_url:
+            log.info("%s Running database migrations...", self.log_identifier)
+            self._run_database_migrations()
+            log.info("%s Database migrations completed", self.log_identifier)
+
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
+
+    def _run_database_migrations(self):
+        """Run database migrations synchronously during __init__."""
+        try:
+            from ...gateway.http_sse.main import _setup_database
+            _setup_database(self.database_url)
+        except Exception as e:
+            log.error(
+                "%s Failed to run database migrations: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
+            raise RuntimeError(f"Database migration failed during component initialization: {e}") from e
 
     def process_event(self, event: Event):
         if event.event_type == EventType.TIMER:
@@ -1276,7 +1302,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             self.fastapi_app = fastapi_app_instance
 
-            setup_dependencies(self, self.database_url, self.platform_database_url)
+            setup_dependencies(self)
 
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.
@@ -1453,71 +1479,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     )
                     self.stop_signal.set()
 
-                try:
-                    from solace_agent_mesh_enterprise.init_enterprise import (
-                        start_enterprise_background_tasks,
-                    )
-
-                    log.info(
-                        "%s Starting enterprise background tasks...",
-                        self.log_identifier,
-                    )
-                    await start_enterprise_background_tasks(self)
-                    log.info(
-                        "%s Enterprise background tasks started successfully",
-                        self.log_identifier,
-                    )
-                except ImportError:
-                    log.debug(
-                        "%s Enterprise package not available - skipping background tasks",
-                        self.log_identifier,
-                    )
-                except RuntimeError as enterprise_err:
-                    log.warning(
-                        "%s Enterprise background tasks disabled: %s - Community features will continue normally",
-                        self.log_identifier,
-                        enterprise_err,
-                    )
-                except Exception as enterprise_err:
-                    log.error(
-                        "%s Failed to start enterprise background tasks: %s - Community features will continue normally",
-                        self.log_identifier,
-                        enterprise_err,
-                        exc_info=True,
-                    )
-
             @self.fastapi_app.on_event("shutdown")
             async def shutdown_event():
                 log.info(
                     "%s [_start_listener] FastAPI shutdown event triggered.",
                     self.log_identifier,
                 )
-
-                try:
-                    from solace_agent_mesh_enterprise.init_enterprise import (
-                        stop_enterprise_background_tasks,
-                    )
-
-                    log.info(
-                        "%s Stopping enterprise background tasks...",
-                        self.log_identifier,
-                    )
-                    await stop_enterprise_background_tasks()
-                    log.info(
-                        "%s Enterprise background tasks stopped", self.log_identifier
-                    )
-                except ImportError:
-                    log.debug(
-                        "%s Enterprise package not available - no background tasks to stop",
-                        self.log_identifier,
-                    )
-                except Exception as enterprise_err:
-                    log.error(
-                        "%s Failed to stop enterprise background tasks: %s",
-                        self.log_identifier,
-                        enterprise_err,
-                        exc_info=True,
-                    )
 
             self.fastapi_thread = threading.Thread(
                 target=self.uvicorn_server.run, daemon=True, name="FastAPI_Thread"

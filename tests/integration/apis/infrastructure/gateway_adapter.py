@@ -13,7 +13,7 @@ from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.session_respon
 from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.task_responses import (
     TaskResponse,
 )
-from src.solace_agent_mesh.gateway.http_sse.shared.timestamp_utils import now_epoch_ms
+from src.solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 from .database_manager import DatabaseManager
 
