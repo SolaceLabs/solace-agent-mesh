@@ -219,7 +219,67 @@ Note: `StructuredInvocationRequest/Result` are generic types usable by any progr
 
 ---
 
-### 2. Workflow Definition Models
+### 2. Structured Invocation Support
+
+**Location:** `src/solace_agent_mesh/agent/sac/structured_invocation/`
+
+#### Purpose
+Enable agents to be invoked with schema-validated input/output, functioning as a "structured function call" pattern. Used by workflows and other programmatic callers that need predictable, validated responses.
+
+#### 2.1 StructuredInvocationHandler (`handler.py`)
+
+**Responsibilities:**
+- Detect structured invocation context in incoming messages
+- Validate input against schema
+- Execute agent with structured prompts
+- Validate output against schema (with retry logic)
+- Format result as `StructuredInvocationResult`
+
+**Execution Flow:**
+```
+Incoming A2A Message
+        │
+        ▼
+┌───────────────────────┐
+│ Extract Structured    │  ← Is this a structured invocation?
+│ Invocation Context    │     (check for StructuredInvocationRequest)
+└───────────────────────┘
+        │ Yes
+        ▼
+┌───────────────────────┐
+│ Validate Input        │  ← Against input_schema
+└───────────────────────┘
+        │
+        ▼
+┌───────────────────────┐
+│ Execute ADK Agent     │  ← With structured prompt
+└───────────────────────┘
+        │
+        ▼
+┌───────────────────────┐
+│ Extract & Validate    │  ← Parse result embed, validate output
+│ Output                │
+└───────────────────────┘
+        │
+        ▼
+┌───────────────────────┐
+│ Send Result           │  ← StructuredInvocationResult
+└───────────────────────┘
+```
+
+**Result Embed Pattern:**
+Agents signal completion using a special embed in their output:
+```
+«result:artifact=output.json status=success»
+```
+
+#### 2.2 Schema Validator (`validator.py`)
+
+Simple JSON Schema validation using `jsonschema` library.
+
+---
+
+### 3. Workflow Definition Models
 
 **Location:** `src/solace_agent_mesh/workflow/app.py`
 
@@ -274,11 +334,11 @@ The models serve as the **configuration layer** - they're parsed at startup and 
 
 ---
 
-### 3. Workflow Runtime Components
+### 4. Workflow Runtime Components
 
 **Location:** `src/solace_agent_mesh/workflow/`
 
-#### 3.1 WorkflowExecutorComponent (`component.py`)
+#### 4.1 WorkflowExecutorComponent (`component.py`)
 
 **Purpose:** Main orchestrator component that coordinates workflow execution.
 
@@ -312,7 +372,7 @@ Incoming A2A Request
 A2A Message to Agent
 ```
 
-#### 3.2 DAGExecutor (`dag_executor.py`)
+#### 4.2 DAGExecutor (`dag_executor.py`)
 
 **Purpose:** Execute the workflow DAG by managing node dependencies and execution order.
 
@@ -354,7 +414,7 @@ PENDING → RUNNING → COMPLETED
                  ↘ SKIPPED (for unexecuted branches)
 ```
 
-#### 3.3 AgentCaller (`agent_caller.py`)
+#### 4.3 AgentCaller (`agent_caller.py`)
 
 **Purpose:** Handle A2A communication with agents.
 
@@ -377,7 +437,7 @@ input:
   previous: {"status": "processed"}
 ```
 
-#### 3.4 WorkflowExecutionContext (`workflow_execution_context.py`)
+#### 4.4 WorkflowExecutionContext (`workflow_execution_context.py`)
 
 **Purpose:** Track state for a single workflow execution.
 
@@ -388,7 +448,7 @@ input:
 - Sub-task correlations (which agent call maps to which node)
 - Inherited branch info (for conditional nodes)
 
-#### 3.5 Conditional Evaluator (`flow_control/conditional.py`)
+#### 4.5 Conditional Evaluator (`flow_control/conditional.py`)
 
 **Purpose:** Safely evaluate condition expressions.
 
@@ -400,66 +460,6 @@ input:
 "{{node.output.count}} > 10"
 "'error' in '{{node.output.message}}'"
 ```
-
----
-
-### 4. Structured Invocation Support
-
-**Location:** `src/solace_agent_mesh/agent/sac/structured_invocation/`
-
-#### Purpose
-Enable agents to be invoked with schema-validated input/output, functioning as a "structured function call" pattern. Used by workflows and other programmatic callers that need predictable, validated responses.
-
-#### 4.1 StructuredInvocationHandler (`handler.py`)
-
-**Responsibilities:**
-- Detect structured invocation context in incoming messages
-- Validate input against schema
-- Execute agent with structured prompts
-- Validate output against schema (with retry logic)
-- Format result as `StructuredInvocationResult`
-
-**Execution Flow:**
-```
-Incoming A2A Message
-        │
-        ▼
-┌───────────────────────┐
-│ Extract Structured    │  ← Is this a structured invocation?
-│ Invocation Context    │     (check for StructuredInvocationRequest)
-└───────────────────────┘
-        │ Yes
-        ▼
-┌───────────────────────┐
-│ Validate Input        │  ← Against input_schema
-└───────────────────────┘
-        │
-        ▼
-┌───────────────────────┐
-│ Execute ADK Agent     │  ← With structured prompt
-└───────────────────────┘
-        │
-        ▼
-┌───────────────────────┐
-│ Extract & Validate    │  ← Parse result embed, validate output
-│ Output                │
-└───────────────────────┘
-        │
-        ▼
-┌───────────────────────┐
-│ Send Result           │  ← StructuredInvocationResult
-└───────────────────────┘
-```
-
-**Result Embed Pattern:**
-Agents signal completion using a special embed in their output:
-```
-«result:artifact=output.json status=success»
-```
-
-#### 4.2 Schema Validator (`validator.py`)
-
-Simple JSON Schema validation using `jsonschema` library.
 
 ---
 
