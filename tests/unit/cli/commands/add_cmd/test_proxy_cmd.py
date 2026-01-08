@@ -123,17 +123,17 @@ apps:
     def test_add_proxy_file_naming(self, runner, project_dir, mock_template, mocker):
         """Test that proxy file uses snake_case naming"""
         mocker.patch("cli.commands.add_cmd.proxy_cmd.Path.cwd", return_value=project_dir)
-        
+
         test_cases = [
             ("SimpleProxy", "simple_proxy_proxy.yaml"),
             ("my-proxy", "my_proxy_proxy.yaml"),
-            ("ProxyAgent123", "proxy_agent_123_proxy.yaml"),
+            ("ProxyAgent123", "proxy_agent123_proxy.yaml"),
         ]
-        
+
         for input_name, expected_filename in test_cases:
             result = runner.invoke(add_proxy, [input_name, "--skip"])
             assert result.exit_code == 0
-            
+
             proxy_file = project_dir / "configs" / "agents" / expected_filename
             assert proxy_file.exists(), f"Expected file {expected_filename} not found for input {input_name}"
 
