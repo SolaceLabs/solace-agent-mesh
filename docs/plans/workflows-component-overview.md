@@ -434,13 +434,6 @@ A2A Message to Agent
        case "map":        await _execute_map_node(...)
    ```
 
-**State Machine:**
-```
-PENDING → RUNNING → COMPLETED
-                 ↘ FAILED
-                 ↘ SKIPPED (for unexecuted branches)
-```
-
 #### 4.3 AgentCaller (`agent_caller.py`)
 
 **Purpose:** Handle A2A communication with agents.
