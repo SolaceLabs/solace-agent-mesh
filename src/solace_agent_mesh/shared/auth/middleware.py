@@ -252,7 +252,7 @@ def create_oauth_middleware(component):
             trust_manager = getattr(self.component, "trust_manager", None)
             authorization_service = getattr(self.component, "authorization_service", None)
 
-            if trust_manager and getattr(trust_manager.config, "access_token_enabled", False):
+            if trust_manager and getattr(trust_manager, "access_token_enabled", False):
                 try:
                     # Validate as sam_access_token using trust_manager (no task_id binding)
                     claims = trust_manager.verify_user_claims_without_task_binding(access_token)
