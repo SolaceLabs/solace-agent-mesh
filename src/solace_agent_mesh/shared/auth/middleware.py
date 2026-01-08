@@ -268,6 +268,11 @@ def create_oauth_middleware(component):
                             gateway_context={},
                             roles=roles,
                         )
+                    else:
+                        log.warning(
+                            "AuthMiddleware: Access token is enabled and provided but authorization service not available. "
+                            "Cannot resolve scopes for sam_access_token."
+                        )
 
                     request.state.user = {
                         "id": claims["sub"],
