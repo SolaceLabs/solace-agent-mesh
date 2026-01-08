@@ -226,6 +226,33 @@ Note: `StructuredInvocationRequest/Result` are generic types usable by any progr
 #### Purpose
 Enable agents to be invoked with schema-validated input/output, functioning as a "structured function call" pattern. Used by workflows and other programmatic callers that need predictable, validated responses.
 
+#### Data Models
+
+**StructuredInvocationRequest** (defined in `common/data_parts.py`)
+
+Sent by the caller to invoke an agent with schema validation:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workflow_name` | `str` | Name of the workflow or caller context |
+| `node_id` | `str` | ID of the invocation (workflow node ID or caller-defined) |
+| `input_schema` | `Dict` (optional) | JSON Schema for input validation (overrides agent card) |
+| `output_schema` | `Dict` (optional) | JSON Schema for output validation (overrides agent card) |
+| `suggested_output_filename` | `str` (optional) | Suggested unique filename for the output artifact |
+
+**StructuredInvocationResult** (defined in `common/data_parts.py`)
+
+Returned by the agent after structured invocation:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `"success"` \| `"failure"` | Execution result status |
+| `artifact_name` | `str` (optional) | Name of result artifact if success |
+| `artifact_version` | `int` (optional) | Version of result artifact |
+| `error_message` | `str` (optional) | Error message if failure |
+| `validation_errors` | `List[str]` (optional) | Schema validation errors if any |
+| `retry_count` | `int` | Number of retries attempted |
+
 #### 2.1 StructuredInvocationHandler (`handler.py`)
 
 **Responsibilities:**
