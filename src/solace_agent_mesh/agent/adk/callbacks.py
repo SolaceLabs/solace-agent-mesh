@@ -4,6 +4,10 @@ Includes dynamic instruction injection, artifact metadata injection,
 embed resolution, and logging.
 """
 
+import sys
+print("🔥 LOADED CUSTOM SOLACE-AGENT-MESH CALLBACKS FROM LOCAL SOURCE!")
+sys.stdout.flush()
+
 import logging
 import json
 import asyncio
