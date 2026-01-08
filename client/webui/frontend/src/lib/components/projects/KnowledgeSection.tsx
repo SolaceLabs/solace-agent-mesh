@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from "react";
 
 import { Spinner } from "@/lib/components/ui/spinner";
-import { useConfigContext, useDownload, useProjectArtifacts } from "@/lib/hooks";
+import { useConfigContext, useDownload } from "@/lib/hooks";
+import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
 import { formatRelativeTime, validateFileSizes } from "@/lib/utils";
@@ -20,7 +21,7 @@ interface KnowledgeSectionProps {
 }
 
 export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) => {
-    const { artifacts, isLoading, error, refetch } = useProjectArtifacts(project.id);
+    const { data: artifacts = [], isLoading, error, refetch } = useProjectArtifacts(project.id);
     const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
     const { onDownload } = useDownload(project.id);
     const { validationLimits } = useConfigContext();
@@ -163,7 +164,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                     </div>
                 )}
 
-                {error && <MessageBanner variant="error" message={`Error loading files: ${error}`} />}
+                {error && <MessageBanner variant="error" message={`Error loading files: ${error.message}`} />}
 
                 {!isLoading && !error && (
                     <>
