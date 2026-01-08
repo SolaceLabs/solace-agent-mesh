@@ -10,7 +10,7 @@ export function useProjects() {
     });
 }
 
-export function useProjectArtifacts(projectId: string | null) {
+export function useProjectArtifactsNew(projectId: string | null) {
     return useQuery({
         queryKey: projectId ? projectKeys.artifacts(projectId) : ["projects", "artifacts", "empty"],
         queryFn: projectId ? () => projectService.getProjectArtifacts(projectId) : skipToken,
