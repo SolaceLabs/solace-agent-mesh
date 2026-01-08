@@ -746,6 +746,7 @@ def shared_solace_connector(
                 "max_result_preview_rows": 5,
                 "max_result_preview_bytes": 2048,
             },
+            "stream_batching_threshold_bytes": 0,
             "tools": tools,
         }
 
