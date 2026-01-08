@@ -640,8 +640,8 @@ class TestS3ArtifactServiceDeleteArtifact:
                 filename="test.txt"
             )
         
-        # Should delete all versions
-        assert mock_s3_client.delete_object.call_count == 3
+        # Should delete all artifact versions (3) and metadata versions (3)
+        assert mock_s3_client.delete_object.call_count == 6
         
         # Verify correct keys were deleted
         expected_calls = [
