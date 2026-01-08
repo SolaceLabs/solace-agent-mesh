@@ -112,8 +112,17 @@ def _parse_json_from_llm_response(
     clean_text = response_text.strip()
     if clean_text.startswith('```'):
         # Remove opening ```json or ``` and closing ```
-        clean_text = re.sub(r'^```(?:json)?\s*', '', clean_text)
-        clean_text = re.sub(r'\s*```\s*$', '', clean_text)
+        if clean_text.startswith('```json'):
+            clean_text = clean_text[7:]  # len('```json') = 7
+        else:
+            clean_text = clean_text[3:]  # len('```') = 3
+        clean_text = clean_text.lstrip() 
+        
+        # Remove closing ``` and trailing whitespace
+        clean_text = clean_text.rstrip()
+        if clean_text.endswith('```'):
+            clean_text = clean_text[:-3]  # Remove trailing ```
+            clean_text = clean_text.rstrip()  # Remove any whitespace before closing ```
         log.debug("%s Stripped markdown code block wrapper", log_identifier)
     
     # Try to parse JSON directly
