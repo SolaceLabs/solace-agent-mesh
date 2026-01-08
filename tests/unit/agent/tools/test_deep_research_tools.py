@@ -11,6 +11,9 @@ from solace_agent_mesh.agent.tools.deep_research_tools import (
     _prepare_findings_for_report,
     _generate_sources_section,
     _generate_methodology_section,
+    _get_model_for_phase,
+    _send_research_progress,
+    _send_rag_info_update,
     SearchResult,
     ReflectionResult,
     ResearchCitationTracker,
@@ -439,3 +442,612 @@ class TestGenerateMethodologySection:
         assert "2 additional sources" in result
         assert "2 web" in result
         assert "1 knowledge base" in result
+
+
+class TestGetModelForPhase:
+    """Tests for _get_model_for_phase helper function."""
+    
+    def _create_mock_tool_context(self, agent=None, canonical_model=None, host_component=None):
+        """Helper to create a mock tool context with configurable agent and model."""
+        mock_context = MagicMock()
+        mock_inv_context = MagicMock()
+        
+        if agent is None:
+            agent = MagicMock()
+            agent.canonical_model = canonical_model
+            agent.host_component = host_component
+        
+        mock_inv_context.agent = agent
+        mock_context._invocation_context = mock_inv_context
+        
+        return mock_context
+    
+    def test_returns_canonical_model_when_available(self):
+        """Test that canonical_model is returned when available."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        result = _get_model_for_phase("query_generation", tool_context, None)
+        
+        assert result == mock_model
+    
+    def test_fallback_to_host_component_string_model(self):
+        """Test fallback to host_component model config when canonical_model is None (string config)."""
+        mock_host_component = MagicMock()
+        mock_host_component.get_config.return_value = "gpt-4-turbo"
+        
+        mock_agent = MagicMock()
+        mock_agent.canonical_model = None
+        mock_agent.host_component = mock_host_component
+        
+        tool_context = self._create_mock_tool_context(agent=mock_agent)
+        
+        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+            mock_lite_llm.return_value = MagicMock()
+            result = _get_model_for_phase("query_generation", tool_context, None)
+            
+            mock_lite_llm.assert_called_once_with(model="gpt-4-turbo")
+    
+    def test_fallback_to_host_component_dict_model(self):
+        """Test fallback to host_component model config when canonical_model is None (dict config)."""
+        mock_host_component = MagicMock()
+        mock_host_component.get_config.return_value = {"model": "gpt-4-turbo", "temperature": 0.5}
+        
+        mock_agent = MagicMock()
+        mock_agent.canonical_model = None
+        mock_agent.host_component = mock_host_component
+        
+        tool_context = self._create_mock_tool_context(agent=mock_agent)
+        
+        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+            mock_lite_llm.return_value = MagicMock()
+            result = _get_model_for_phase("query_generation", tool_context, None)
+            
+            mock_lite_llm.assert_called_once_with(model="gpt-4-turbo", temperature=0.5)
+    
+    def test_raises_value_error_when_no_model_available(self):
+        """Test that ValueError is raised when no default model is available."""
+        mock_agent = MagicMock()
+        mock_agent.canonical_model = None
+        mock_agent.host_component = None
+        
+        tool_context = self._create_mock_tool_context(agent=mock_agent)
+        
+        with pytest.raises(ValueError, match="No default model available"):
+            _get_model_for_phase("query_generation", tool_context, None)
+    
+    def test_raises_value_error_when_no_agent(self):
+        """Test that ValueError is raised when no agent is available."""
+        mock_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_inv_context.agent = None
+        mock_context._invocation_context = mock_inv_context
+        
+        with pytest.raises(ValueError, match="No default model available"):
+            _get_model_for_phase("query_generation", mock_context, None)
+    
+    def test_returns_default_model_when_no_tool_config(self):
+        """Test that default model is returned when tool_config is None."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        result = _get_model_for_phase("query_generation", tool_context, None)
+        
+        assert result == mock_model
+    
+    def test_uses_phase_specific_model_from_models_config(self):
+        """Test using phase-specific model from 'models' config (simple string)."""
+        mock_default_model = MagicMock()
+        mock_default_model.model = "gpt-4"
+        mock_default_model._additional_args = {"api_key": "test-key", "api_base": "https://api.example.com"}
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_default_model)
+        
+        tool_config = {
+            "models": {
+                "query_generation": "gpt-4o-mini"
+            }
+        }
+        
+        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+            mock_lite_llm.return_value = MagicMock()
+            result = _get_model_for_phase("query_generation", tool_context, tool_config)
+            
+            # Should be called with the phase-specific model and inherited base config
+            mock_lite_llm.assert_called_once()
+            call_kwargs = mock_lite_llm.call_args[1]
+            assert call_kwargs.get("model") == "gpt-4o-mini"
+            assert call_kwargs.get("api_key") == "test-key"
+            assert call_kwargs.get("api_base") == "https://api.example.com"
+    
+    def test_uses_phase_specific_model_from_model_configs(self):
+        """Test using phase-specific model from 'model_configs' config (full dict)."""
+        mock_default_model = MagicMock()
+        mock_default_model.model = "gpt-4"
+        mock_default_model._additional_args = {"api_key": "test-key"}
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_default_model)
+        
+        tool_config = {
+            "model_configs": {
+                "report_generation": {
+                    "model": "claude-3-5-sonnet",
+                    "temperature": 0.7,
+                    "max_tokens": 16000
+                }
+            }
+        }
+        
+        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+            mock_lite_llm.return_value = MagicMock()
+            result = _get_model_for_phase("report_generation", tool_context, tool_config)
+            
+            mock_lite_llm.assert_called_once()
+            call_kwargs = mock_lite_llm.call_args[1]
+            assert call_kwargs.get("model") == "claude-3-5-sonnet"
+            assert call_kwargs.get("temperature") == 0.7
+            assert call_kwargs.get("max_tokens") == 16000
+            assert call_kwargs.get("api_key") == "test-key"
+    
+    def test_model_configs_removes_max_completion_tokens_conflict(self):
+        """Test that max_completion_tokens is removed when max_tokens is specified."""
+        mock_default_model = MagicMock()
+        mock_default_model.model = "gpt-4"
+        mock_default_model._additional_args = {"api_key": "test-key", "max_completion_tokens": 4096}
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_default_model)
+        
+        tool_config = {
+            "model_configs": {
+                "report_generation": {
+                    "model": "claude-3-5-sonnet",
+                    "max_tokens": 16000
+                }
+            }
+        }
+        
+        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+            mock_lite_llm.return_value = MagicMock()
+            result = _get_model_for_phase("report_generation", tool_context, tool_config)
+            
+            mock_lite_llm.assert_called_once()
+            call_kwargs = mock_lite_llm.call_args[1]
+            # max_completion_tokens should be removed to avoid conflict
+            assert "max_completion_tokens" not in call_kwargs
+            assert call_kwargs.get("max_tokens") == 16000
+    
+    def test_fallback_to_default_when_phase_not_in_config(self):
+        """Test fallback to default model when phase is not in config."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        mock_model._additional_args = {}
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        tool_config = {
+            "models": {
+                "query_generation": "gpt-4o-mini"  # Different phase
+            }
+        }
+        
+        result = _get_model_for_phase("report_generation", tool_context, tool_config)
+        
+        # Should return the default model since report_generation is not configured
+        assert result == mock_model
+    
+    def test_base_config_excludes_model_specific_params(self):
+        """Test that base config excludes model-specific parameters."""
+        mock_default_model = MagicMock()
+        mock_default_model.model = "gpt-4"
+        mock_default_model._additional_args = {
+            "api_key": "test-key",
+            "api_base": "https://api.example.com",
+            "model": "should-be-excluded",
+            "messages": "should-be-excluded",
+            "tools": "should-be-excluded",
+            "stream": True,
+            "temperature": 0.5,
+            "max_tokens": 1000,
+            "max_output_tokens": 2000,
+            "max_completion_tokens": 3000,
+            "top_p": 0.9,
+            "top_k": 40,
+            "custom_param": "should-be-included"
+        }
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_default_model)
+        
+        tool_config = {
+            "models": {
+                "query_generation": "gpt-4o-mini"
+            }
+        }
+        
+        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+            mock_lite_llm.return_value = MagicMock()
+            result = _get_model_for_phase("query_generation", tool_context, tool_config)
+            
+            mock_lite_llm.assert_called_once()
+            call_kwargs = mock_lite_llm.call_args[1]
+            
+            # Should include api_key, api_base, and custom_param
+            assert call_kwargs.get("api_key") == "test-key"
+            assert call_kwargs.get("api_base") == "https://api.example.com"
+            assert call_kwargs.get("custom_param") == "should-be-included"
+            
+            # Should exclude model-specific params
+            assert "messages" not in call_kwargs or call_kwargs.get("messages") != "should-be-excluded"
+            assert "tools" not in call_kwargs or call_kwargs.get("tools") != "should-be-excluded"
+            assert "stream" not in call_kwargs
+            assert "temperature" not in call_kwargs
+            assert "max_tokens" not in call_kwargs
+            assert "max_output_tokens" not in call_kwargs
+            assert "max_completion_tokens" not in call_kwargs
+            assert "top_p" not in call_kwargs
+            assert "top_k" not in call_kwargs
+    
+    def test_no_additional_args_on_default_model(self):
+        """Test handling when default model has no _additional_args."""
+        mock_default_model = MagicMock()
+        mock_default_model.model = "gpt-4"
+        # No _additional_args attribute
+        del mock_default_model._additional_args
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_default_model)
+        
+        tool_config = {
+            "models": {
+                "query_generation": "gpt-4o-mini"
+            }
+        }
+        
+        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+            mock_lite_llm.return_value = MagicMock()
+            result = _get_model_for_phase("query_generation", tool_context, tool_config)
+            
+            # Should still work, just without inherited config
+            mock_lite_llm.assert_called_once_with(model="gpt-4o-mini")
+    
+    def test_empty_additional_args_on_default_model(self):
+        """Test handling when default model has empty _additional_args."""
+        mock_default_model = MagicMock()
+        mock_default_model.model = "gpt-4"
+        mock_default_model._additional_args = {}
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_default_model)
+        
+        tool_config = {
+            "models": {
+                "query_generation": "gpt-4o-mini"
+            }
+        }
+        
+        with patch('solace_agent_mesh.agent.adk.models.lite_llm.LiteLlm') as mock_lite_llm:
+            mock_lite_llm.return_value = MagicMock()
+            result = _get_model_for_phase("query_generation", tool_context, tool_config)
+            
+            # Should still work with empty base config
+            mock_lite_llm.assert_called_once_with(model="gpt-4o-mini")
+
+
+@pytest.mark.asyncio
+class TestSendResearchProgress:
+    """Tests for _send_research_progress async helper function."""
+    
+    def _create_mock_tool_context(self, a2a_context=None, invocation_context=None, agent=None, host_component=None):
+        """Helper to create a mock tool context."""
+        mock_context = MagicMock()
+        mock_context.state = MagicMock()
+        mock_context.state.get = MagicMock(return_value=a2a_context)
+        
+        if invocation_context is None:
+            invocation_context = MagicMock()
+            if agent is None:
+                agent = MagicMock()
+                agent.host_component = host_component
+            invocation_context.agent = agent
+        
+        mock_context._invocation_context = invocation_context
+        
+        return mock_context
+    
+    async def test_returns_early_when_no_a2a_context(self):
+        """Test that function returns early when no a2a_context is found."""
+        tool_context = self._create_mock_tool_context(a2a_context=None)
+        
+        # Should not raise, just return early
+        await _send_research_progress("Test message", tool_context)
+        
+        # Verify state.get was called
+        tool_context.state.get.assert_called_once_with("a2a_context")
+    
+    async def test_returns_early_when_no_invocation_context(self):
+        """Test that function returns early when no invocation context is found."""
+        mock_context = MagicMock()
+        mock_context.state = MagicMock()
+        mock_context.state.get = MagicMock(return_value={"task_id": "test"})
+        mock_context._invocation_context = None
+        
+        # Should not raise, just return early
+        await _send_research_progress("Test message", mock_context)
+    
+    async def test_returns_early_when_no_agent(self):
+        """Test that function returns early when no agent is found."""
+        mock_inv_context = MagicMock()
+        mock_inv_context.agent = None
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            invocation_context=mock_inv_context
+        )
+        
+        # Should not raise, just return early
+        await _send_research_progress("Test message", tool_context)
+    
+    async def test_returns_early_when_no_host_component(self):
+        """Test that function returns early when no host component is found."""
+        mock_agent = MagicMock()
+        mock_agent.host_component = None
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            agent=mock_agent
+        )
+        
+        # Should not raise, just return early
+        await _send_research_progress("Test message", tool_context)
+    
+    async def test_sends_structured_progress_when_phase_provided(self):
+        """Test that structured DeepResearchProgressData is sent when phase is provided."""
+        mock_host_component = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.host_component = mock_host_component
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            agent=mock_agent,
+            host_component=mock_host_component
+        )
+        
+        with patch('solace_agent_mesh.common.data_parts.DeepResearchProgressData') as mock_progress_data:
+            mock_progress_data.return_value = MagicMock()
+            
+            await _send_research_progress(
+                "Searching...",
+                tool_context,
+                phase="searching",
+                progress_percentage=50,
+                current_iteration=2,
+                total_iterations=5,
+                sources_found=10,
+                current_query="test query",
+                fetching_urls=[{"url": "https://example.com"}],
+                elapsed_seconds=30,
+                max_runtime_seconds=300
+            )
+            
+            # Verify DeepResearchProgressData was created with correct params
+            mock_progress_data.assert_called_once()
+            call_kwargs = mock_progress_data.call_args[1]
+            assert call_kwargs["phase"] == "searching"
+            assert call_kwargs["status_text"] == "Searching..."
+            assert call_kwargs["progress_percentage"] == 50
+            assert call_kwargs["current_iteration"] == 2
+            assert call_kwargs["total_iterations"] == 5
+            assert call_kwargs["sources_found"] == 10
+            assert call_kwargs["current_query"] == "test query"
+            assert call_kwargs["elapsed_seconds"] == 30
+            assert call_kwargs["max_runtime_seconds"] == 300
+    
+    async def test_sends_simple_progress_when_no_phase(self):
+        """Test that simple AgentProgressUpdateData is sent when no phase is provided."""
+        mock_host_component = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.host_component = mock_host_component
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            agent=mock_agent,
+            host_component=mock_host_component
+        )
+        
+        with patch('solace_agent_mesh.common.data_parts.AgentProgressUpdateData') as mock_progress_data:
+            mock_progress_data.return_value = MagicMock()
+            
+            await _send_research_progress("Simple message", tool_context)
+            
+            # Verify AgentProgressUpdateData was created
+            mock_progress_data.assert_called_once_with(status_text="Simple message")
+    
+    async def test_handles_exception_gracefully(self):
+        """Test that exceptions are caught and logged."""
+        mock_host_component = MagicMock()
+        mock_host_component.publish_data_signal_from_thread.side_effect = Exception("Test error")
+        mock_agent = MagicMock()
+        mock_agent.host_component = mock_host_component
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            agent=mock_agent,
+            host_component=mock_host_component
+        )
+        
+        # Should not raise, just log the error
+        await _send_research_progress("Test message", tool_context, phase="searching")
+
+
+@pytest.mark.asyncio
+class TestSendRagInfoUpdate:
+    """Tests for _send_rag_info_update async helper function."""
+    
+    def _create_mock_tool_context(self, a2a_context=None, invocation_context=None, agent=None, host_component=None):
+        """Helper to create a mock tool context."""
+        mock_context = MagicMock()
+        mock_context.state = MagicMock()
+        mock_context.state.get = MagicMock(return_value=a2a_context)
+        
+        if invocation_context is None:
+            invocation_context = MagicMock()
+            if agent is None:
+                agent = MagicMock()
+                agent.host_component = host_component
+            invocation_context.agent = agent
+        
+        mock_context._invocation_context = invocation_context
+        
+        return mock_context
+    
+    async def test_returns_early_when_no_a2a_context(self):
+        """Test that function returns early when no a2a_context is found."""
+        tool_context = self._create_mock_tool_context(a2a_context=None)
+        tracker = ResearchCitationTracker("Test question")
+        
+        # Should not raise, just return early
+        await _send_rag_info_update(tracker, tool_context)
+        
+        # Verify state.get was called
+        tool_context.state.get.assert_called_once_with("a2a_context")
+    
+    async def test_returns_early_when_no_invocation_context(self):
+        """Test that function returns early when no invocation context is found."""
+        mock_context = MagicMock()
+        mock_context.state = MagicMock()
+        mock_context.state.get = MagicMock(return_value={"task_id": "test"})
+        mock_context._invocation_context = None
+        
+        tracker = ResearchCitationTracker("Test question")
+        
+        # Should not raise, just return early
+        await _send_rag_info_update(tracker, mock_context)
+    
+    async def test_returns_early_when_no_agent(self):
+        """Test that function returns early when no agent is found."""
+        mock_inv_context = MagicMock()
+        mock_inv_context.agent = None
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            invocation_context=mock_inv_context
+        )
+        
+        tracker = ResearchCitationTracker("Test question")
+        
+        # Should not raise, just return early
+        await _send_rag_info_update(tracker, tool_context)
+    
+    async def test_returns_early_when_no_host_component(self):
+        """Test that function returns early when no host component is found."""
+        mock_agent = MagicMock()
+        mock_agent.host_component = None
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            agent=mock_agent
+        )
+        
+        tracker = ResearchCitationTracker("Test question")
+        
+        # Should not raise, just return early
+        await _send_rag_info_update(tracker, tool_context)
+    
+    async def test_sends_rag_info_with_generated_title(self):
+        """Test that RAG info is sent with generated title."""
+        mock_host_component = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.host_component = mock_host_component
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            agent=mock_agent,
+            host_component=mock_host_component
+        )
+        
+        tracker = ResearchCitationTracker("What is AI?")
+        tracker.set_title("Artificial Intelligence Overview")
+        
+        with patch('solace_agent_mesh.common.data_parts.RAGInfoUpdateData') as mock_rag_data:
+            mock_rag_data.return_value = MagicMock()
+            
+            await _send_rag_info_update(tracker, tool_context, is_complete=True)
+            
+            # Verify RAGInfoUpdateData was created with correct params
+            mock_rag_data.assert_called_once()
+            call_kwargs = mock_rag_data.call_args[1]
+            assert call_kwargs["title"] == "Artificial Intelligence Overview"
+            assert call_kwargs["query"] == "What is AI?"
+            assert call_kwargs["search_type"] == "deep_research"
+            assert call_kwargs["is_complete"] is True
+    
+    async def test_uses_research_question_as_fallback_title(self):
+        """Test that research question is used as fallback when no title is set."""
+        mock_host_component = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.host_component = mock_host_component
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            agent=mock_agent,
+            host_component=mock_host_component
+        )
+        
+        tracker = ResearchCitationTracker("What is machine learning?")
+        # Don't set a title
+        
+        with patch('solace_agent_mesh.common.data_parts.RAGInfoUpdateData') as mock_rag_data:
+            mock_rag_data.return_value = MagicMock()
+            
+            await _send_rag_info_update(tracker, tool_context, is_complete=False)
+            
+            # Verify title falls back to research question
+            call_kwargs = mock_rag_data.call_args[1]
+            assert call_kwargs["title"] == "What is machine learning?"
+    
+    async def test_includes_sources_from_tracker(self):
+        """Test that sources from citation tracker are included."""
+        mock_host_component = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.host_component = mock_host_component
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            agent=mock_agent,
+            host_component=mock_host_component
+        )
+        
+        tracker = ResearchCitationTracker("Test question")
+        # Add some citations
+        result1 = SearchResult(source_type="web", title="Source 1", content="Content 1", url="https://example1.com")
+        result2 = SearchResult(source_type="web", title="Source 2", content="Content 2", url="https://example2.com")
+        tracker.add_citation(result1)
+        tracker.add_citation(result2)
+        
+        with patch('solace_agent_mesh.common.data_parts.RAGInfoUpdateData') as mock_rag_data:
+            mock_rag_data.return_value = MagicMock()
+            
+            await _send_rag_info_update(tracker, tool_context)
+            
+            # Verify sources are included
+            call_kwargs = mock_rag_data.call_args[1]
+            assert len(call_kwargs["sources"]) == 2
+    
+    async def test_handles_exception_gracefully(self):
+        """Test that exceptions are caught and logged."""
+        mock_host_component = MagicMock()
+        mock_host_component.publish_data_signal_from_thread.side_effect = Exception("Test error")
+        mock_agent = MagicMock()
+        mock_agent.host_component = mock_host_component
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            agent=mock_agent,
+            host_component=mock_host_component
+        )
+        
+        tracker = ResearchCitationTracker("Test question")
+        
+        # Should not raise, just log the error
+        await _send_rag_info_update(tracker, tool_context)
