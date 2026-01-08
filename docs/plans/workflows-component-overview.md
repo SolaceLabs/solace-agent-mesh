@@ -104,8 +104,12 @@ All communication between components uses the **A2A (Agent-to-Agent) Protocol** 
 ### Complete Request Flow
 
 ```
-1. USER REQUEST
-   Client sends A2A SendMessageRequest to workflow topic
+1. INPUT EVENT
+   Workflow receives an A2A SendMessageRequest on its topic.
+   This can originate from:
+   - An event-based gateway (e.g., event-mesh-gateway)
+   - An agent invoking the workflow as a tool
+   - Another workflow calling this workflow as a nested step
 
 2. WORKFLOW RECEIVES
    WorkflowExecutorComponent receives on sam/{namespace}/agent/{workflow_name}/request
