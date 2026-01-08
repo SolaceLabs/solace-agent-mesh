@@ -12,9 +12,9 @@ export const TextRenderer: React.FC<TextRendererProps> = ({ content, className =
     if (isStreaming) {
         // Use StreamingMarkdown for smooth rendering effect, even though it might interpret markdown.
         return (
-             <div className={`overflow-auto p-4 ${className}`}>
+            <div className={`overflow-auto p-4 ${className}`}>
                 <div ref={ref as unknown as React.RefObject<HTMLDivElement>} className="whitespace-pre-wrap select-text focus-visible:outline-none" tabIndex={0} onKeyDown={handleKeyDown}>
-                    <StreamingMarkdown content={content} isStreaming={true} />
+                    <StreamingMarkdown content={content} />
                 </div>
             </div>
         );

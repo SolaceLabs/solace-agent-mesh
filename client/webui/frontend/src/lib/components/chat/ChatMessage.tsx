@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { AlertCircle, ThumbsDown, ThumbsUp } from "lucide-react";
 
-import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner, StreamingMarkdown } from "@/lib/components";
+import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MarkdownWrapper, MessageBanner } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
@@ -108,7 +108,7 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>
 
         const embeddedContent = extractEmbeddedContent(displayText);
         if (embeddedContent.length === 0) {
-            return isStreaming ? <StreamingMarkdown content={displayText} isStreaming={true} /> : <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
+            return <MarkdownWrapper content={displayText} isStreaming={isStreaming} />;
         }
 
         let modifiedText = displayText;
@@ -142,7 +142,7 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>
         return (
             <div>
                 {renderError && <MessageBanner variant="error" message="Error rendering preview" />}
-                {isStreaming ? <StreamingMarkdown content={modifiedText} isStreaming={true} /> : <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>}
+                <MarkdownWrapper content={modifiedText} isStreaming={isStreaming} />
                 {contentElements}
             </div>
         );

@@ -5,6 +5,7 @@ export { Footer } from "./Footer";
 export { GridCard } from "./GridCard";
 export { LoadingBlocker } from "./LoadingBlocker";
 export { MarkdownHTMLConverter } from "./MarkdownHTMLConverter";
+export * from "./MarkdownWrapper";
 export { MessageBanner } from "./MessageBanner";
 export * from "./messageColourVariants";
-export { StreamingMarkdown } from "./StreamingMarkdown";
+export * from "./StreamingMarkdown";

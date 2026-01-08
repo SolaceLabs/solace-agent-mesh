@@ -1,78 +1,68 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MarkdownHTMLConverter } from "./MarkdownHTMLConverter";
+import * as StreamingConfig from "@/lib/constants/streaming";
 
 interface StreamingMarkdownProps {
     content: string;
-    isStreaming?: boolean;
     className?: string;
 }
 
-export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, isStreaming, className }) => {
-    const [displayedContent, setDisplayedContent] = useState(isStreaming ? "" : content);
-    
+const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, className }) => {
+    const [displayedContent, setDisplayedContent] = useState("");
+
     // Use refs for mutable state to avoid re-renders during calculations
     const state = useRef({
-        cursor: isStreaming ? 0 : content.length,
-        speed: 0.03, // Initial conservative speed (30 chars/sec)
+        cursor: 0,
+        speed: StreamingConfig.STREAMING_INITIAL_SPEED,
         lastArrivalTime: 0, // Initialize to 0 to detect first chunk
-        avgInterval: 500, // Estimate 500ms between chunks initially
-        lastLen: isStreaming ? 0 : content.length,
+        avgInterval: StreamingConfig.STREAMING_INITIAL_AVG_INTERVAL,
+        lastLen: 0,
     });
 
     const contentRef = useRef(content);
 
     useEffect(() => {
         contentRef.current = content;
-        
-        if (isStreaming) {
-            const now = Date.now();
-            const s = state.current;
-            const added = content.length - s.lastLen;
-            
-            if (added > 0) {
-                if (s.lastArrivalTime === 0) {
-                    // First chunk received
-                    s.lastArrivalTime = now;
-                    // No interval to calculate yet
-                } else {
-                    // Calculate time since last chunk
-                    let dt = now - s.lastArrivalTime;
-                    
-                    // Safety: Clamp dt to avoid extreme spikes from jitter or initial mount
-                    dt = Math.max(20, Math.min(5000, dt));
 
-                    // Update moving average of inter-arrival time
-                    const alpha = dt < 200 ? 0.05 : 0.2;
-                    s.avgInterval = s.avgInterval * (1 - alpha) + dt * alpha;
-                    
-                    s.lastArrivalTime = now;
-                }
+        const now = Date.now();
+        const s = state.current;
+        const added = content.length - s.lastLen;
 
-                // Calculate target speed based on clearing the TOTAL backlog over the next interval (+50% buffer)
-                const backlog = content.length - s.cursor;
-                // Increased safety factor to 1.5 to better bridge jittery gaps
-                const targetSpeed = backlog / (s.avgInterval * 1.5);
+        if (added > 0) {
+            if (s.lastArrivalTime === 0) {
+                // First chunk received
+                s.lastArrivalTime = now;
+                // No interval to calculate yet
+            } else {
+                // Calculate time since last chunk
+                let dt = now - s.lastArrivalTime;
 
-                // Update current speed smoothly
-                const momentum = targetSpeed > s.speed ? 0.5 : 0.8;
-                s.speed = s.speed * momentum + targetSpeed * (1 - momentum);
-                
-                // Hard clamps to keep it sane
-                s.speed = Math.max(0.005, Math.min(3.0, s.speed));
+                // Safety: Clamp dt to avoid extreme spikes from jitter or initial mount
+                dt = Math.max(StreamingConfig.STREAMING_DT_MIN_MS, Math.min(StreamingConfig.STREAMING_DT_MAX_MS, dt));
 
-                s.lastLen = content.length;
+                // Update moving average of inter-arrival time
+                const alpha = dt < StreamingConfig.STREAMING_ALPHA_THRESHOLD_MS ? StreamingConfig.STREAMING_ALPHA_FAST : StreamingConfig.STREAMING_ALPHA_SLOW;
+                s.avgInterval = s.avgInterval * (1 - alpha) + dt * alpha;
+
+                s.lastArrivalTime = now;
             }
+
+            // Calculate target speed based on clearing the TOTAL backlog over the next interval (+buffer)
+            const backlog = content.length - s.cursor;
+            const targetSpeed = backlog / (s.avgInterval * StreamingConfig.STREAMING_SAFETY_FACTOR);
+
+            // Update current speed smoothly
+            const momentum = targetSpeed > s.speed ? StreamingConfig.STREAMING_MOMENTUM_INCREASE : StreamingConfig.STREAMING_MOMENTUM_DECREASE;
+            s.speed = s.speed * momentum + targetSpeed * (1 - momentum);
+
+            // Hard clamps to keep it sane
+            s.speed = Math.max(StreamingConfig.STREAMING_SPEED_MIN, Math.min(StreamingConfig.STREAMING_SPEED_MAX, s.speed));
+
+            s.lastLen = content.length;
         }
-    }, [content, isStreaming]);
+    }, [content]);
 
     useEffect(() => {
-        if (!isStreaming) {
-            setDisplayedContent(content);
-            state.current.cursor = content.length;
-            state.current.lastLen = content.length;
-            return;
-        }
-
         let animationFrameId: number;
         let lastFrameTime = Date.now();
 
@@ -83,7 +73,7 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
 
             const s = state.current;
             const target = contentRef.current;
-            
+
             if (target.length < s.cursor) {
                 s.cursor = target.length;
             }
@@ -111,7 +101,9 @@ export const StreamingMarkdown: React.FC<StreamingMarkdownProps> = ({ content, i
         return () => {
             cancelAnimationFrame(animationFrameId);
         };
-    }, [isStreaming]); // content dependency removed from effect, accessed via ref
+    }, []); // Run animation loop once on mount
 
     return <MarkdownHTMLConverter className={className}>{displayedContent}</MarkdownHTMLConverter>;
 };
+
+export { StreamingMarkdown };
