@@ -138,9 +138,11 @@ All communication between components uses the **A2A (Agent-to-Agent) Protocol** 
    - Publish final result
    - Run exit handlers if configured
 
-7. CLIENT RECEIVES
-   Via SSE: All status events in real-time
-   Final: Task completion with output
+7. OUTPUT EVENTS
+   Results are delivered back to the caller:
+   - Gateway clients receive status events in real-time (e.g., via SSE)
+   - Calling agents receive the workflow result as a tool response
+   - Parent workflows receive the result for template resolution
 ```
 
 ### Template Resolution Example
