@@ -1,0 +1,230 @@
+# DEVELOPER GUIDE: artifact
+
+## Quick Summary
+The artifact directory contains React components for managing and displaying file artifacts in a chat interface. It provides functionality for viewing, downloading, deleting, sorting, and previewing various file types with version control support.
+
+## Files Overview
+- `ArtifactCard.tsx` - Main card component displaying artifact information with expand/collapse functionality
+- `ArtifactDeleteAllDialog.tsx` - Modal dialog for batch deletion of all artifacts
+- `ArtifactDeleteDialog.tsx` - Modal dialog for deleting individual artifacts
+- `ArtifactDetails.tsx` - Component showing artifact metadata and action buttons
+- `ArtifactMorePopover.tsx` - Popover menu with additional artifact actions (refresh, delete all)
+- `ArtifactPanel.tsx` - Main panel container managing artifact list and preview views
+- `ArtifactPreviewContent.tsx` - Component for rendering artifact content previews
+- `ArtifactPreviewDownload.tsx` - Fallback component when preview is not available
+- `ArtifactSortPopover.tsx` - Popover menu for sorting artifacts by name or date
+- `ArtifactVersionNavigation.tsx` - Component for navigating between artifact versions
+
+## Developer API Reference
+
+### ArtifactCard.tsx
+**Purpose:** Displays individual artifact information in a card format with expandable details
+**Import:** `import { ArtifactCard } from "@/lib/components/chat/artifact/ArtifactCard"`
+
+**Components:**
+- `ArtifactCard(artifact: ArtifactInfo, isPreview?: boolean)` - Main artifact card component
+  - Renders artifact icon, name, and metadata
+  - Supports expand/collapse for detailed view
+  - Shows schema information for structured data
+  - Handles click events to open preview
+
+**Usage Examples:**
+```tsx
+import { ArtifactCard } from "@/lib/components/chat/artifact/ArtifactCard";
+
+// Basic usage
+<ArtifactCard artifact={artifactInfo} />
+
+// Preview mode
+<ArtifactCard artifact={artifactInfo} isPreview={true} />
+```
+
+### ArtifactDeleteAllDialog.tsx
+**Purpose:** Modal dialog for confirming batch deletion of all artifacts
+**Import:** `import { ArtifactDeleteAllDialog } from "@/lib/components/chat/artifact/ArtifactDeleteAllDialog"`
+
+**Components:**
+- `ArtifactDeleteAllDialog()` - Batch delete confirmation dialog
+  - Automatically selects all artifacts for deletion
+  - Shows count of files to be deleted
+  - Integrates with chat context for state management
+
+**Usage Examples:**
+```tsx
+import { ArtifactDeleteAllDialog } from "@/lib/components/chat/artifact/ArtifactDeleteAllDialog";
+
+// Include in your component tree
+<ArtifactDeleteAllDialog />
+```
+
+### ArtifactDeleteDialog.tsx
+**Purpose:** Modal dialog for confirming deletion of individual artifacts
+**Import:** `import { ArtifactDeleteDialog } from "@/lib/components/chat/artifact/ArtifactDeleteDialog"`
+
+**Components:**
+- `ArtifactDeleteDialog()` - Single artifact delete confirmation dialog
+  - Shows filename of artifact to be deleted
+  - Provides cancel and confirm actions
+  - Integrates with chat context state
+
+**Usage Examples:**
+```tsx
+import { ArtifactDeleteDialog } from "@/lib/components/chat/artifact/ArtifactDeleteDialog";
+
+// Include in your component tree
+<ArtifactDeleteDialog />
+```
+
+### ArtifactDetails.tsx
+**Purpose:** Displays artifact metadata and action buttons (download, delete, expand)
+**Import:** `import { ArtifactDetails } from "@/lib/components/chat/artifact/ArtifactDetails"`
+
+**Components:**
+- `ArtifactDetails(artifactInfo: ArtifactInfo, isPreview?: boolean, isExpanded?: boolean, onDelete?: (artifact: ArtifactInfo) => void, onDownload?: (artifact: ArtifactInfo) => void, setIsExpanded?: (expanded: boolean) => void)` - Artifact details and actions component
+  - Shows filename and last modified time
+  - Provides version navigation for multi-version artifacts
+  - Renders action buttons with hover effects
+
+**Usage Examples:**
+```tsx
+import { ArtifactDetails } from "@/lib/components/chat/artifact/ArtifactDetails";
+
+<ArtifactDetails 
+  artifactInfo={artifact}
+  isExpanded={expanded}
+  onDelete={handleDelete}
+  onDownload={handleDownload}
+  setIsExpanded={setExpanded}
+/>
+```
+
+### ArtifactMorePopover.tsx
+**Purpose:** Popover menu with additional artifact management actions
+**Import:** `import { MorePopover } from "@/lib/components/chat/artifact/ArtifactMorePopover"`
+
+**Components:**
+- `MorePopover(children: React.ReactNode)` - Popover with refresh and delete all actions
+  - Provides refresh functionality for artifact list
+  - Opens batch delete modal
+  - Uses trigger children for activation
+
+**Usage Examples:**
+```tsx
+import { MorePopover } from "@/lib/components/chat/artifact/ArtifactMorePopover";
+
+<MorePopover>
+  <Button variant="ghost">
+    <Ellipsis className="h-5 w-5" />
+  </Button>
+</MorePopover>
+```
+
+### ArtifactPanel.tsx
+**Purpose:** Main container component managing artifact list view and preview mode
+**Import:** `import { ArtifactPanel } from "@/lib/components/chat/artifact/ArtifactPanel"`
+
+**Components:**
+- `ArtifactPanel()` - Main artifact management panel
+  - Handles sorting and filtering of artifacts
+  - Manages preview mode switching
+  - Renders artifact list or preview content
+  - Includes all dialog components
+
+**Constants/Variables:**
+- `sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo) => number>` - Sorting functions for different criteria
+
+**Usage Examples:**
+```tsx
+import { ArtifactPanel } from "@/lib/components/chat/artifact/ArtifactPanel";
+
+// Use as main artifact interface
+<ArtifactPanel />
+```
+
+### ArtifactPreviewContent.tsx
+**Purpose:** Renders preview content for artifacts or shows download option
+**Import:** `import { ArtifactPreviewContent } from "@/lib/components/chat/artifact/ArtifactPreviewContent"`
+
+**Components:**
+- `ArtifactPreviewContent(artifact: ArtifactInfo)` - Preview content renderer
+  - Determines if artifact can be previewed
+  - Fetches and displays content using ContentRenderer
+  - Shows loading states and error handling
+  - Falls back to download option when preview unavailable
+
+**Usage Examples:**
+```tsx
+import { ArtifactPreviewContent } from "@/lib/components/chat/artifact/ArtifactPreviewContent";
+
+<ArtifactPreviewContent artifact={selectedArtifact} />
+```
+
+### ArtifactPreviewDownload.tsx
+**Purpose:** Fallback component when artifact preview is not available
+**Import:** `import { ArtifactPreviewDownload } from "@/lib/components/chat/artifact/ArtifactPreviewDownload"`
+
+**Components:**
+- `ArtifactPreviewDownload(artifact: ArtifactInfo, message: string)` - Download fallback component
+  - Shows informational message about preview availability
+  - Provides download button for the artifact
+  - Used when file type cannot be previewed
+
+**Usage Examples:**
+```tsx
+import { ArtifactPreviewDownload } from "@/lib/components/chat/artifact/ArtifactPreviewDownload";
+
+<ArtifactPreviewDownload 
+  artifact={artifact} 
+  message="Preview not available for this file type" 
+/>
+```
+
+### ArtifactSortPopover.tsx
+**Purpose:** Popover menu for sorting artifacts by different criteria
+**Import:** `import { SortPopover, SortOption, type SortOptionType } from "@/lib/components/chat/artifact/ArtifactSortPopover"`
+
+**Components:**
+- `SortPopover(currentSortOption: SortOptionType, onSortChange: (option: SortOptionType) => void, children: React.ReactNode)` - Sort options popover
+  - Provides name and date sorting options
+  - Shows current selection with checkmark
+  - Triggers callback on option change
+
+**Constants/Variables:**
+- `SortOption: { NameAsc: "name_asc", NameDesc: "name_desc", DateAsc: "date_asc", DateDesc: "date_desc" }` - Available sort options
+- `SortOptionType` - Type definition for sort options
+
+**Functions:**
+- `getSortOptionLabel(option: SortOptionType) -> string` - Returns human-readable label for sort option
+
+**Usage Examples:**
+```tsx
+import { SortPopover, SortOption, type SortOptionType } from "@/lib/components/chat/artifact/ArtifactSortPopover";
+
+const [sortOption, setSortOption] = useState<SortOptionType>(SortOption.DateDesc);
+
+<SortPopover 
+  currentSortOption={sortOption} 
+  onSortChange={setSortOption}
+>
+  <Button variant="ghost">Sort By</Button>
+</SortPopover>
+```
+
+### ArtifactVersionNavigation.tsx
+**Purpose:** Component for navigating between different versions of an artifact
+**Import:** `import { ArtifactVersionNavigation } from "@/lib/components/chat/artifact/ArtifactVersionNavigation"`
+
+**Components:**
+- `ArtifactVersionNavigation(artifactInfo: ArtifactInfo)` - Version navigation dropdown
+  - Shows version selector when multiple versions exist
+  - Integrates with chat context for version management
+  - Renders nothing when only one version available
+
+**Usage Examples:**
+```tsx
+import { ArtifactVersionNavigation } from "@/lib/components/chat/artifact/ArtifactVersionNavigation";
+
+<ArtifactVersionNavigation artifactInfo={artifact} />
+```
+
+# content_hash: f5d67954c848ecd6fdebe5c7ab5ca2cd5f40c69043ee56df1af97178e198299b

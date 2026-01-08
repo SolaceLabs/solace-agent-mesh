@@ -1,39 +1,34 @@
 import React from "react";
 
-import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/lib/components/ui";
+import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 import { useChatContext } from "@/lib/hooks";
 
 export const ArtifactDeleteDialog: React.FC = () => {
     const { isDeleteModalOpen, artifactToDelete, closeDeleteModal, confirmDelete } = useChatContext();
 
-    if (!isDeleteModalOpen || !artifactToDelete) {
+    if (!artifactToDelete) {
         return null;
     }
 
     return (
-        <Dialog open={isDeleteModalOpen} onOpenChange={closeDeleteModal}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle className="flex flex-row gap-1 max-w-[400px]">
-                        Delete
-                        <span className="inline-block truncate" title={artifactToDelete.filename}>
-                            <code>{artifactToDelete.filename}</code>
-                        </span>
-                        ?
-                    </DialogTitle>
-                    <DialogDescription className="flex flex-col gap-2">
-                        <div>This file will be permanently deleted. </div>
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={closeDeleteModal}>
-                        Cancel
-                    </Button>
-                    <Button variant="default" onClick={() => confirmDelete()}>
-                        Delete
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
+        <ConfirmationDialog
+            open={isDeleteModalOpen}
+            onOpenChange={open => !open && closeDeleteModal()}
+            title="Delete File"
+            content={
+                artifactToDelete.source === "project" ? (
+                    `This action will remove the file, "${artifactToDelete.filename}", from this chat session. This file will remain in the project.`
+                ) : (
+                    <>
+                        This action cannot be undone. This file will be permanently deleted: <strong>{artifactToDelete.filename}</strong>.
+                    </>
+                )
+            }
+            actionLabels={{
+                confirm: "Delete",
+            }}
+            onConfirm={confirmDelete}
+            onCancel={closeDeleteModal}
+        />
     );
 };

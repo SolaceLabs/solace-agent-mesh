@@ -2,9 +2,11 @@
 Parses and validates configuration for the SamAgentComponent and its App.
 """
 
+import logging
 from typing import Any, Union, Callable
-from solace_ai_connector.common.log import log
 from google.adk.agents.readonly_context import ReadonlyContext
+
+log = logging.getLogger(__name__)
 
 InstructionProvider = Callable[[ReadonlyContext], str]
 

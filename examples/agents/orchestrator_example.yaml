@@ -1,0 +1,89 @@
+# A2A ADK Orchestrator Component Configurations
+#
+# This file demonstrates how to configure the A2A_ADK_HostComponent as an orchestrator.
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG # Changed from INFO to DEBUG to capture ADK INFO logs
+  log_file: orchestrator_example.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  # Example 1: Custom OpenAI-Compatible LLM Agent
+  - name: orchestrator-agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app # Use the custom App class in its new location
+    broker:
+      <<: *broker_connection # Points to shared_config.yaml
+
+    # App Level Config
+    app_config:
+      namespace: ${NAMESPACE} # Your A2A topic namespace
+      supports_streaming: true # Host capability flag
+      agent_name: "OrchestratorAgent"
+      display_name: "Orchestrator"
+
+      model: *planning_model # Points to shared_config.yaml
+
+      instruction: | 
+        You are the Orchestrator Agent within an AI agentic system. Your primary responsibilities are to:
+        1. Process tasks received from external sources via the system Gateway.
+        2. Analyze each task to determine the optimal execution strategy:
+           a. Single Agent Delegation: If the task can be fully addressed by a single peer agent (based on their declared capabilities/description), delegate the task to that agent.
+           b. Multi-Agent Coordination: If task completion requires a coordinated effort from multiple peer agents: first, devise a logical execution plan (detailing the sequence of agent invocations and any necessary data handoffs). Then, manage the execution of this plan, invoking each agent in the defined order.
+           c. Direct Execution: If the task is not suitable for delegation (neither to a single agent nor a multi-agent sequence) and falls within your own capabilities, execute the task yourself.
+
+        Artifact Management Guidelines:
+        - If an artifact was created during the task (either by yourself or a delegated agent), you must use the `list_artifacts` tool to get the details of the created artifacts.
+        - You must then review the list of artifacts and return the ones that are important for the user by using the `signal_artifact_for_return` tool.
+        - Provide regular progress updates using `status_update` embed directives, especially before initiating any tool call.
+
+      # session_service: *default_session_service # Points to shared_config.yaml
+      session_service:
+        type: "sql"
+        database_url: "${ORCHESTRATOR_DATABASE_URL, sqlite:///orchestrator-agent.db}"
+        default_behavior: "PERSISTENT"    
+      artifact_service: *default_artifact_service # Points to shared_config.yaml
+      artifact_handling_mode: "reference" # Embed artifacts created by *this* agent
+      enable_embed_resolution: true # Enable embed feature and instruction injection
+      enable_artifact_content_instruction: true # Enable instruction for late-stage embed
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+        - tool_type: builtin-group
+          group_name: "data_analysis"
+        - tool_type: builtin
+          tool_name: "get_current_time"
+      stream_batching_threshold_bytes: 50
+      inject_system_purpose: true
+      inject_response_format: true
+      max_llm_calls_per_task: 25 # Limit the number of LLM calls per task to prevent excessive usage
+
+      # Agent Card Definition (Simplified)
+      agent_card:
+        description: "The Orchestrator component. It manages tasks and coordinates multi-agent workflows."
+        defaultInputModes: ["text"] # Optional, Defaults to ["text"] if omitted
+        defaultOutputModes: ["text", "file"] # Indicate potential file output
+        skills:
+        - id: strategic_planning
+          name: Strategic Planning
+          description: Analyzes complex requests and creates structured execution plans, breaking down multi-step goals into logical sequences with clear checkpoints and progress tracking.
+
+        - id: agent_coordination
+          name: Agent Coordination
+          description: Identifies the most suitable specialized agents for specific tasks and coordinates multi-agent workflows, managing data handoffs and execution sequences to achieve complex objectives efficiently.
+
+        - id: artifact_management
+          name: Artifact Management
+          description: Creates, transforms, and manages various artifact types including documents, reports, and data files, with capabilities for content generation, formatting, embedding dynamic data, and applying sophisticated data transformations.
+        # documentationUrl: Optional
+        # provider: Optional
+      # Discovery & Communication
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true } # Enable discovery and peer delegation instruction injection
+      inter_agent_communication:
+        allow_list: ["*"]
+        request_timeout_seconds: 2000

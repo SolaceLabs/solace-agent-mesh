@@ -4,7 +4,8 @@ import webbrowser
 import os
 import time
 from pathlib import Path
-from cli.utils import error_exit
+from cli.utils import error_exit, wait_for_server
+
 
 config_portal_host = "CONFIG_PORTAL_HOST"
 
@@ -43,6 +44,7 @@ def run_flask_plugin_catalog(host, port, shared_data):
 
 @click.command("catalog", help="Launch the SAM Plugin catalog web interface.")
 @click.option(
+    "-p",
     "--port",
     default=5003,
     type=int,
@@ -108,7 +110,10 @@ def catalog(port: int, installer_command: str):
         click.echo(f"Opening Plugin Catalog at: {portal_url}")
 
         try:
-            webbrowser.open(portal_url)
+            if wait_for_server(portal_url):
+                webbrowser.open(portal_url)
+            else:
+                raise TimeoutError("Server did not start in time.")
         except Exception:
             click.echo(
                 click.style(

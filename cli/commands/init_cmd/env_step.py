@@ -8,7 +8,7 @@ ENV_DEFAULTS = {
     "LLM_SERVICE_PLANNING_MODEL_NAME": "YOUR_LLM_SERVICE_PLANNING_MODEL_NAME_HERE",
     "LLM_SERVICE_GENERAL_MODEL_NAME": "YOUR_LLM_SERVICE_GENERAL_MODEL_NAME_HERE",
     "NAMESPACE": "my_project_namespace/",
-    "SOLACE_BROKER_URL": "ws://localhost:8080",
+    "SOLACE_BROKER_URL": "ws://localhost:8008",
     "SOLACE_BROKER_VPN": "default",
     "SOLACE_BROKER_USERNAME": "default",
     "SOLACE_BROKER_PASSWORD": "default",
@@ -21,7 +21,19 @@ ENV_DEFAULTS = {
     "SSL_KEYFILE": "",
     "SSL_CERTFILE": "",
     "SSL_KEYFILE_PASSWORD": "",
-    "LOGGING_CONFIG_PATH": "configs/logging_config.ini"
+    "LOGGING_CONFIG_PATH": "configs/logging_config.yaml",
+    "S3_BUCKET_NAME": "",
+    "S3_ENDPOINT_URL": "",
+    "S3_REGION": "us-east-1",
+    "LLM_SERVICE_OAUTH_TOKEN_URL": "YOUR_LLM_SERVICE_OAUTH_TOKEN_URL_HERE",
+    "LLM_SERVICE_OAUTH_CLIENT_ID": "YOUR_LLM_SERVICE_OAUTH_CLIENT_ID_HERE",
+    "LLM_SERVICE_OAUTH_CLIENT_SECRET": "YOUR_LLM_SERVICE_OAUTH_CLIENT_SECRET_HERE",
+    "LLM_SERVICE_OAUTH_SCOPE": "",
+    "LLM_SERVICE_OAUTH_CA_CERT_PATH": "",
+    "LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS": "300",
+    "LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME": "YOUR_LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME_HERE",
+    "LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME": "YOUR_LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME_HERE",
+    "LLM_SERVICE_OAUTH_ENDPOINT": "YOUR_LLM_SERVICE_OAUTH_ENDPOINT_HERE"
 }
 
 
@@ -36,28 +48,28 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
 
     env_params_config = [
         (
-            "llm_endpoint_url",
+            "llm_service_endpoint",
             "LLM_SERVICE_ENDPOINT",
             "Enter LLM Service Endpoint URL",
             False,
             "LLM_SERVICE_ENDPOINT",
         ),
         (
-            "llm_api_key",
+            "llm_service_api_key",
             "LLM_SERVICE_API_KEY",
             "Enter LLM Service API Key",
             True,
             "LLM_SERVICE_API_KEY",
         ),
         (
-            "llm_planning_model_name",
+            "llm_service_planning_model_name",
             "LLM_SERVICE_PLANNING_MODEL_NAME",
             "Enter LLM Planning Model Name (e.g., openai/gpt-4o)",
             False,
             "LLM_SERVICE_PLANNING_MODEL_NAME",
         ),
         (
-            "llm_general_model_name",
+            "llm_service_general_model_name",
             "LLM_SERVICE_GENERAL_MODEL_NAME",
             "Enter LLM General Model Name (e.g., openai/gpt-3.5-turbo)",
             False,
@@ -131,28 +143,28 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             "FASTAPI_HTTPS_PORT",
             "Enter Web UI FastAPI HTTPS Port",
             False,
-            "FASTAPI_HTTPS_PORT"
+            "FASTAPI_HTTPS_PORT",
         ),
         (
             "webui_ssl_keyfile",
             "SSL_KEYFILE",
             "Enter SSL Key File Path",
             False,
-            "SSL_KEYFILE"
+            "SSL_KEYFILE",
         ),
         (
             "webui_ssl_certfile",
             "SSL_CERTFILE",
             "Enter SSL Certificate File Path",
             False,
-            "SSL_CERTFILE"
+            "SSL_CERTFILE",
         ),
         (
             "webui_ssl_keyfile_password",
             "SSL_KEYFILE_PASSWORD",
             "Enter SSL Key File Passphrase",
             True,
-            "SSL_KEYFILE_PASSWORD"
+            "SSL_KEYFILE_PASSWORD",
         ),
         (
             "webui_enable_embed_resolution",
@@ -167,6 +179,27 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             "Enter Logging Config Path",
             False,
             "LOGGING_CONFIG_PATH",
+        ),
+        (
+            "s3_bucket_name",
+            "S3_BUCKET_NAME",
+            "Enter S3 Bucket Name (for S3 artifact service)",
+            False,
+            "S3_BUCKET_NAME",
+        ),
+        (
+            "s3_endpoint_url",
+            "S3_ENDPOINT_URL",
+            "Enter S3 Endpoint URL (for S3-compatible services, leave empty for AWS S3)",
+            False,
+            "S3_ENDPOINT_URL",
+        ),
+        (
+            "s3_region",
+            "S3_REGION",
+            "Enter S3 Region (for S3 artifact service)",
+            False,
+            "S3_REGION",
         ),
     ]
 

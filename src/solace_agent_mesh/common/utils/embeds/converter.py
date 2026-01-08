@@ -2,22 +2,19 @@
 Contains the Central Data Converter and Serializer functions.
 """
 
+import logging
 import json
 import csv
 import io
 import base64
 from typing import Any, Tuple, Optional, List, Dict
-from solace_ai_connector.common.log import log
 
 from .types import DataFormat
 from ..mime_helpers import is_text_based_mime_type
 
-try:
-    import yaml
+log = logging.getLogger(__name__)
 
-    PYYAML_AVAILABLE = True
-except ImportError:
-    PYYAML_AVAILABLE = False
+import yaml
 
 
 def _parse_string_to_list_of_dicts(
@@ -61,8 +58,6 @@ def _parse_string_to_list_of_dicts(
             reader = csv.DictReader(string_io)
             return list(reader), None
         elif "yaml" in normalized_mime_type or "yml" in normalized_mime_type:
-            if not PYYAML_AVAILABLE:
-                return None, "YAML parsing skipped: 'PyYAML' not installed."
             parsed_yaml = yaml.safe_load(data_string)
             if isinstance(parsed_yaml, list) and all(
                 isinstance(item, dict) for item in parsed_yaml

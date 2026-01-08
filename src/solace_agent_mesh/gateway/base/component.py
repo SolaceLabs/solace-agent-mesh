@@ -2,21 +2,19 @@
 Base Component class for Gateway implementations in the Solace AI Connector.
 """
 
+import logging
 import asyncio
+import base64
 import queue
 import re
-import threading
-import base64
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List, Tuple, Union
-from urllib.parse import urlparse, parse_qs
 
-from solace_ai_connector.components.component_base import ComponentBase
-from solace_ai_connector.common.log import log
 from google.adk.artifacts import BaseArtifactService
 
 from ...common.agent_registry import AgentRegistry
+from ...common.sac.sam_component_base import SamComponentBase
 from ...core_a2a.service import CoreA2AService
 from ...agent.adk.services import initialize_artifact_service
 from ...common.services.identity_service import (
@@ -24,8 +22,9 @@ from ...common.services.identity_service import (
     create_identity_service,
 )
 from .task_context import TaskContextManager
-from ...common.types import (
-    Part as A2APart,
+from ...common.a2a.types import ContentPart
+from ...common.utils.rbac_utils import validate_agent_access
+from a2a.types import (
     Message as A2AMessage,
     AgentCard,
     JSONRPCResponse,
@@ -34,30 +33,25 @@ from ...common.types import (
     TaskArtifactUpdateEvent,
     JSONRPCError,
     TextPart,
-    TaskStatus,
-    TaskState,
-    FilePart,
     DataPart,
+    FilePart,
+    FileWithBytes,
     Artifact as A2AArtifact,
 )
-from ...common.a2a_protocol import (
-    get_gateway_response_topic,
-    get_gateway_response_subscription_topic,
-    get_gateway_status_topic,
-    get_gateway_status_subscription_topic,
-    get_discovery_topic,
-    _topic_matches_subscription,
-    _subscription_to_regex,
-)
-from ...common.utils import is_text_based_mime_type
+from ...common import a2a
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
-    resolve_embeds_recursively_in_string,
     evaluate_embed,
     LATE_EMBED_TYPES,
     EARLY_EMBED_TYPES,
-    EMBED_DELIMITER_OPEN,
+    resolve_embeds_recursively_in_string,
 )
+from ...common.utils.embeds.types import ResolutionMode
+from ...agent.utils.artifact_helpers import (
+    load_artifact_content_or_metadata,
+    format_artifact_uri,
+)
+from ...common.utils.mime_helpers import is_text_based_mime_type
 from solace_ai_connector.common.message import (
     Message as SolaceMessage,
 )
@@ -65,7 +59,8 @@ from solace_ai_connector.common.event import Event, EventType
 from abc import abstractmethod
 
 from ...common.middleware.registry import MiddlewareRegistry
-from ...agent.utils.artifact_helpers import load_artifact_content_or_metadata
+
+log = logging.getLogger(__name__)
 
 info = {
     "class_name": "BaseGatewayComponent",
@@ -86,7 +81,7 @@ info = {
 }
 
 
-class BaseGatewayComponent(ComponentBase):
+class BaseGatewayComponent(SamComponentBase):
     """
     Abstract base class for Gateway components.
 
@@ -109,17 +104,39 @@ class BaseGatewayComponent(ComponentBase):
 
         return super().get_config(key, default)
 
-    def __init__(self, **kwargs: Any):
+    def __init__(
+        self,
+        resolve_artifact_uris_in_gateway: bool = True,
+        supports_inline_artifact_resolution: bool = False,
+        filter_tool_data_parts: bool = True,
+        **kwargs: Any
+    ):
+        """
+        Initialize the BaseGatewayComponent.
+
+        Args:
+            resolve_artifact_uris_in_gateway: If True, resolves artifact URIs before sending to external.
+            supports_inline_artifact_resolution: If True, SIGNAL_ARTIFACT_RETURN embeds are converted
+                to FileParts during embed resolution. If False (default), signals are passed through
+                for the gateway to handle manually. Use False for legacy gateways (e.g., Slack),
+                True for modern gateways that support inline artifact rendering (e.g., HTTP SSE).
+            filter_tool_data_parts: If True (default), filters out tool-related DataParts (tool_call,
+                tool_result, etc.) from final Task messages before sending to gateway. Use True for
+                gateways that don't want to display internal tool execution details (e.g., Slack),
+                False for gateways that display all parts (e.g., HTTP SSE Web UI).
+            **kwargs: Additional arguments passed to parent class.
+        """
         super().__init__(info, **kwargs)
+        self.resolve_artifact_uris_in_gateway = resolve_artifact_uris_in_gateway
+        self.supports_inline_artifact_resolution = supports_inline_artifact_resolution
+        self.filter_tool_data_parts = filter_tool_data_parts
         log.info("%s Initializing Base Gateway Component...", self.log_identifier)
 
         try:
-            self.namespace: str = self.get_config("namespace")
+            # Note: self.namespace and self.max_message_size_bytes are initialized in SamComponentBase
             self.gateway_id: str = self.get_config("gateway_id")
-            if not self.namespace or not self.gateway_id:
-                raise ValueError(
-                    "Namespace and Gateway ID must be configured in the app_config."
-                )
+            if not self.gateway_id:
+                raise ValueError("Gateway ID must be configured in the app_config.")
 
             self.enable_embed_resolution: bool = self.get_config(
                 "enable_embed_resolution", True
@@ -130,8 +147,8 @@ class BaseGatewayComponent(ComponentBase):
             self.gateway_recursive_embed_depth: int = self.get_config(
                 "gateway_recursive_embed_depth"
             )
-            self.gateway_artifact_content_limit_bytes: int = self.get_config(
-                "gateway_artifact_content_limit_bytes"
+            self.artifact_handling_mode: str = self.get_config(
+                "artifact_handling_mode", "embed"
             )
             _ = self.get_config("artifact_service")
 
@@ -157,15 +174,13 @@ class BaseGatewayComponent(ComponentBase):
         self.shared_artifact_service: Optional[BaseArtifactService] = (
             initialize_artifact_service(self)
         )
+
         self.task_context_manager: TaskContextManager = TaskContextManager()
         self.internal_event_queue: queue.Queue = queue.Queue()
-        self.message_processor_thread: Optional[threading.Thread] = None
-        self.async_loop: Optional[asyncio.AbstractEventLoop] = None
-        self.async_thread: Optional[threading.Thread] = None
 
         identity_service_config = self.get_config("identity_service")
         self.identity_service: Optional[BaseIdentityService] = create_identity_service(
-            identity_service_config
+            identity_service_config, self
         )
 
         self._config_resolver = MiddlewareRegistry.get_config_resolver()
@@ -175,42 +190,8 @@ class BaseGatewayComponent(ComponentBase):
         )
 
         log.info(
-            "%s Base Gateway Component initialized successfully.", self.log_identifier
+            "%s Initialized Base Gateway Component.", self.log_identifier
         )
-
-    def publish_a2a_message(
-        self, topic: str, payload: Dict, user_properties: Optional[Dict] = None
-    ) -> None:
-        log.debug(
-            "%s Publishing A2A message to topic: %s via App", self.log_identifier, topic
-        )
-        try:
-            app = self.get_app()
-            if app:
-                app.send_message(
-                    payload=payload, topic=topic, user_properties=user_properties
-                )
-                log.debug(
-                    "%s Successfully published message to %s via App",
-                    self.log_identifier,
-                    topic,
-                )
-            else:
-                log.error(
-                    "%s Cannot publish message: Not running within a SAC App context.",
-                    self.log_identifier,
-                )
-                raise RuntimeError(
-                    "Cannot publish message: Not running within a SAC App context."
-                )
-        except Exception as e:
-            log.exception(
-                "%s Failed to publish A2A message to topic %s via App: %s",
-                self.log_identifier,
-                topic,
-                e,
-            )
-            raise
 
     async def authenticate_and_enrich_user(
         self, external_event_data: Any
@@ -252,11 +233,13 @@ class BaseGatewayComponent(ComponentBase):
     async def submit_a2a_task(
         self,
         target_agent_name: str,
-        a2a_parts: List[A2APart],
+        a2a_parts: List[ContentPart],
         external_request_context: Dict[str, Any],
         user_identity: Any,
         is_streaming: bool = True,
         api_version: str = "v2",
+        task_id_override: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         log_id_prefix = f"{self.log_identifier}[SubmitA2ATask]"
         log.info(
@@ -290,7 +273,7 @@ class BaseGatewayComponent(ComponentBase):
             user_config = await config_resolver.resolve_user_config(
                 user_identity, gateway_context, {}
             )
-            log.info(
+            log.debug(
                 "%s Resolved user configuration for user_identity '%s': %s",
                 log_id_prefix,
                 user_identity.get("id"),
@@ -307,13 +290,26 @@ class BaseGatewayComponent(ComponentBase):
 
         user_config["user_profile"] = user_identity
 
+        # Validate user has permission to access this target agent
+        validate_agent_access(
+            user_config=user_config,
+            target_agent_name=target_agent_name,
+            validation_context={
+                "gateway_id": self.gateway_id,
+                "source": "gateway_request",
+            },
+            log_identifier=log_id_prefix,
+        )
+
         external_request_context["user_identity"] = user_identity
         external_request_context["a2a_user_config"] = user_config
         external_request_context["api_version"] = api_version
+        external_request_context["is_streaming"] = is_streaming
         log.debug(
-            "%s Stored user_identity, configuration, and api_version (%s) in external_request_context.",
+            "%s Stored user_identity, configuration, api_version (%s), and is_streaming (%s) in external_request_context.",
             log_id_prefix,
             api_version,
+            is_streaming,
         )
 
         now = datetime.now(timezone.utc)
@@ -331,6 +327,9 @@ class BaseGatewayComponent(ComponentBase):
             "user_id_for_a2a", user_identity.get("id")
         )
 
+        system_purpose = self.get_config("system_purpose", "")
+        response_format = self.get_config("response_format", "")
+
         if not a2a_session_id:
             a2a_session_id = f"gdk-session-{uuid.uuid4().hex}"
             log.warning(
@@ -340,67 +339,97 @@ class BaseGatewayComponent(ComponentBase):
             )
             external_request_context["a2a_session_id"] = a2a_session_id
 
-        a2a_message = A2AMessage(role="user", parts=a2a_parts)
-        reply_topic_pattern = get_gateway_response_topic(
-            self.namespace, self.gateway_id, "{task_id}"
-        )
-        status_topic_pattern = get_gateway_status_topic(
-            self.namespace, self.gateway_id, "{task_id}"
+        a2a_metadata = {
+            "agent_name": target_agent_name,
+            "system_purpose": system_purpose,
+            "response_format": response_format,
+        }
+        invoked_artifacts = external_request_context.get("invoked_with_artifacts")
+        if invoked_artifacts:
+            a2a_metadata["invoked_with_artifacts"] = invoked_artifacts
+            log.debug(
+                "%s Found %d artifact identifiers in external context to pass to agent.",
+                log_id_prefix,
+                len(invoked_artifacts),
+            )
+        
+        if metadata:
+            a2a_metadata.update(metadata)
+
+        # This correlation ID is used by the gateway to track the task
+        if task_id_override:
+            task_id = task_id_override
+        else:
+            task_id = f"gdk-task-{uuid.uuid4().hex}"
+
+        prepared_a2a_parts = await self._prepare_parts_for_publishing(
+            parts=a2a_parts,
+            user_id=user_id_for_a2a,
+            session_id=a2a_session_id,
+            target_agent_name=target_agent_name,
         )
 
-        task_metadata_override: Dict[str, Any] = {}
-        system_purpose = self.get_config("system_purpose", "")
-        response_format = self.get_config("response_format", "")
-
-        if system_purpose:
-            task_metadata_override["system_purpose"] = system_purpose
-            log.debug("%s Adding system_purpose to task metadata.", log_id_prefix)
-        if response_format:
-            task_metadata_override["response_format"] = response_format
-            log.debug("%s Adding response_format to task metadata.", log_id_prefix)
+        a2a_message = a2a.create_user_message(
+            parts=prepared_a2a_parts,
+            metadata=a2a_metadata,
+            context_id=a2a_session_id,
+        )
 
         if is_streaming:
-            target_topic, payload, user_properties = (
-                self.core_a2a_service.submit_streaming_task(
-                    agent_name=target_agent_name,
-                    a2a_message=a2a_message,
-                    session_id=a2a_session_id,
-                    client_id=self.gateway_id,
-                    reply_to_topic=reply_topic_pattern,
-                    status_to_topic=status_topic_pattern,
-                    user_id=user_id_for_a2a,
-                    a2a_user_config=user_config,
-                    metadata_override=task_metadata_override,
-                )
+            a2a_request = a2a.create_send_streaming_message_request(
+                message=a2a_message, task_id=task_id
             )
         else:
-            target_topic, payload, user_properties = self.core_a2a_service.submit_task(
-                agent_name=target_agent_name,
-                a2a_message=a2a_message,
-                session_id=a2a_session_id,
-                client_id=self.gateway_id,
-                reply_to_topic=reply_topic_pattern,
-                user_id=user_id_for_a2a,
-                a2a_user_config=user_config,
-                metadata_override=task_metadata_override,
+            a2a_request = a2a.create_send_message_request(
+                message=a2a_message, task_id=task_id
             )
 
-        task_id = payload.get("params", {}).get("id")
-        if not task_id:
-            log.error(
-                "%s CoreA2AService did not return a task ID in the payload.",
+        payload = a2a_request.model_dump(by_alias=True, exclude_none=True)
+        target_topic = a2a.get_agent_request_topic(self.namespace, target_agent_name)
+
+        user_properties = {
+            "clientId": self.gateway_id,
+            "userId": user_id_for_a2a,
+        }
+        if user_config:
+            user_properties["a2aUserConfig"] = user_config
+
+        # Enterprise feature: Add signed user claims if trust manager available
+        if hasattr(self, "trust_manager") and self.trust_manager:
+            log.debug(
+                "%s Attempting to sign user claims for task %s",
+                log_id_prefix,
+                task_id,
+            )
+            try:
+                auth_token = self.trust_manager.sign_user_claims(
+                    user_info=user_identity, task_id=task_id
+                )
+                user_properties["authToken"] = auth_token
+                log.debug(
+                    "%s Successfully signed user claims for task %s",
+                    log_id_prefix,
+                    task_id,
+                )
+            except Exception as e:
+                log.error(
+                    "%s Failed to sign user claims for task %s: %s",
+                    log_id_prefix,
+                    task_id,
+                    e,
+                )
+                # Continue without token - enterprise feature is optional
+        else:
+            log.debug(
+                "%s Trust Manager not available, proceeding without authentication token",
                 log_id_prefix,
             )
-            raise ValueError("CoreA2AService did not return a task ID in the payload.")
 
-        if user_properties is None:
-            user_properties = {}
-
-        user_properties["replyTo"] = get_gateway_response_topic(
+        user_properties["replyTo"] = a2a.get_gateway_response_topic(
             self.namespace, self.gateway_id, task_id
         )
         if is_streaming:
-            user_properties["a2aStatusTopic"] = get_gateway_status_topic(
+            user_properties["a2aStatusTopic"] = a2a.get_gateway_status_topic(
                 self.namespace, self.gateway_id, task_id
             )
 
@@ -408,7 +437,7 @@ class BaseGatewayComponent(ComponentBase):
         log.info("%s Stored external context for task_id: %s", log_id_prefix, task_id)
 
         self.publish_a2a_message(
-            topic=target_topic, payload=payload, user_properties=user_properties
+            payload=payload, topic=target_topic, user_properties=user_properties
         )
         log.info(
             "%s Submitted A2A task %s to agent %s. Streaming: %s",
@@ -419,54 +448,60 @@ class BaseGatewayComponent(ComponentBase):
         )
         return task_id
 
-    def process_event(self, event: Event):
-        if event.event_type == EventType.MESSAGE:
-            original_broker_message: Optional[SolaceMessage] = event.data
-            if not original_broker_message:
-                log.warning(
-                    "%s Received MESSAGE event with no data. Ignoring.",
-                    self.log_identifier,
-                )
-                return
+    def _handle_message(self, message: SolaceMessage, topic: str) -> None:
+        """
+        Override to use queue-based pattern instead of direct async.
 
-            log.debug(
-                "%s Received SolaceMessage on topic: %s. Bridging to internal queue.",
+        Gateway uses an internal queue for message processing to ensure
+        strict ordering and backpressure handling.
+
+        Args:
+            message: The Solace message
+            topic: The topic the message was received on
+        """
+        log.debug(
+            "%s Received SolaceMessage on topic: %s. Bridging to internal queue.",
+            self.log_identifier,
+            topic,
+        )
+
+        try:
+            msg_data_for_processor = {
+                "topic": topic,
+                "payload": message.get_payload(),
+                "user_properties": message.get_user_properties(),
+                "_original_broker_message": message,
+            }
+            self.internal_event_queue.put_nowait(msg_data_for_processor)
+        except queue.Full:
+            log.error(
+                "%s Internal event queue full. Cannot bridge message.",
                 self.log_identifier,
-                original_broker_message.get_topic(),
             )
-            try:
-                msg_data_for_processor = {
-                    "topic": original_broker_message.get_topic(),
-                    "payload": original_broker_message.get_payload(),
-                    "user_properties": original_broker_message.get_user_properties(),
-                    "_original_broker_message": original_broker_message,
-                }
-                self.internal_event_queue.put_nowait(msg_data_for_processor)
-            except queue.Full:
-                log.error(
-                    "%s Internal event queue full. Cannot bridge message. NACKing.",
-                    self.log_identifier,
-                )
-                original_broker_message.call_negative_acknowledgements()
-            except Exception as e:
-                log.exception(
-                    "%s Error bridging message to internal queue: %s. NACKing.",
-                    self.log_identifier,
-                    e,
-                )
-                original_broker_message.call_negative_acknowledgements()
-        else:
-            log.debug(
-                "%s Received non-MESSAGE event type: %s. Passing to super.",
+            raise
+        except Exception as e:
+            log.exception(
+                "%s Error bridging message to internal queue: %s",
                 self.log_identifier,
-                event.event_type,
+                e,
             )
-            super().process_event(event)
+            raise
+
+    async def _handle_message_async(self, message, topic: str) -> None:
+        """
+        Not used by gateway - we override _handle_message() instead.
+
+        This is here to satisfy the abstract method requirement, but the
+        gateway uses the queue-based pattern via _handle_message() override.
+        """
+        raise NotImplementedError(
+            "Gateway uses queue-based message handling via _handle_message() override"
+        )
 
     async def _handle_resolved_signals(
         self,
         external_request_context: Dict,
-        signals: List[Tuple[int, Any]],
+        signals: List[Tuple[None, str, Any]],
         original_rpc_id: Optional[str],
         is_finalizing_context: bool = False,
     ):
@@ -474,7 +509,7 @@ class BaseGatewayComponent(ComponentBase):
         if not signals:
             return
 
-        for _, signal_tuple in signals:
+        for signal_tuple in signals:
             if (
                 isinstance(signal_tuple, tuple)
                 and len(signal_tuple) == 3
@@ -498,15 +533,12 @@ class BaseGatewayComponent(ComponentBase):
                         )
                         continue
                     try:
-                        signal_data_part = DataPart(
-                            data={"type": "agent_status", "text": status_text},
-                            metadata={"source": "agent_progress_update"},
-                        )
-                        signal_a2a_message = A2AMessage(
-                            role="agent", parts=[signal_data_part]
-                        )
-                        signal_task_status = TaskStatus(
-                            state=TaskState.WORKING, message=signal_a2a_message
+                        signal_a2a_message = a2a.create_agent_data_message(
+                            data={
+                                "type": "agent_progress_update",
+                                "status_text": status_text,
+                            },
+                            part_metadata={"source": "gateway_signal"},
                         )
                         a2a_task_id_for_signal = external_request_context.get(
                             "a2a_task_id_for_event", original_rpc_id
@@ -518,10 +550,11 @@ class BaseGatewayComponent(ComponentBase):
                             )
                             continue
 
-                        signal_event = TaskStatusUpdateEvent(
-                            id=a2a_task_id_for_signal,
-                            status=signal_task_status,
-                            final=False,
+                        signal_event = a2a.create_status_update(
+                            task_id=a2a_task_id_for_signal,
+                            context_id=external_request_context.get("a2a_session_id"),
+                            message=signal_a2a_message,
+                            is_final=False,
                         )
                         await self._send_update_to_external(
                             external_request_context=external_request_context,
@@ -536,6 +569,258 @@ class BaseGatewayComponent(ComponentBase):
                         log.exception(
                             "%s Error sending status signal: %s", log_id_prefix, e
                         )
+                elif signal_type == "SIGNAL_ARTIFACT_RETURN":
+                    # Handle artifact return signal for legacy gateways
+                    # During finalizing context (final Task), suppress this to avoid duplicates
+                    # since the same signal might appear in both streaming and final responses
+                    if is_finalizing_context:
+                        log.debug(
+                            "%s Suppressing SIGNAL_ARTIFACT_RETURN during finalizing context to avoid duplicate: %s",
+                            log_id_prefix,
+                            signal_data,
+                        )
+                        continue
+
+                    log.info(
+                        "%s Handling SIGNAL_ARTIFACT_RETURN for legacy gateway: %s",
+                        log_id_prefix,
+                        signal_data,
+                    )
+                    try:
+                        filename = signal_data.get("filename")
+                        version = signal_data.get("version")
+
+                        if not filename:
+                            log.error(
+                                "%s SIGNAL_ARTIFACT_RETURN missing filename. Skipping.",
+                                log_id_prefix,
+                            )
+                            continue
+
+                        # Load artifact content (not just metadata) for legacy gateways
+                        # Legacy gateways like Slack need the actual bytes to upload files
+                        artifact_data = await load_artifact_content_or_metadata(
+                            self.shared_artifact_service,
+                            app_name=external_request_context.get(
+                                "app_name_for_artifacts", self.gateway_id
+                            ),
+                            user_id=external_request_context.get("user_id_for_artifacts"),
+                            session_id=external_request_context.get("a2a_session_id"),
+                            filename=filename,
+                            version=version,
+                            load_metadata_only=False,  # Load full content for legacy gateways
+                        )
+
+                        if artifact_data.get("status") != "success":
+                            log.error(
+                                "%s Failed to load artifact content for %s v%s",
+                                log_id_prefix,
+                                filename,
+                                version,
+                            )
+                            continue
+
+                        # Get content and ensure it's bytes
+                        content = artifact_data.get("content")
+                        if not content:
+                            log.error(
+                                "%s No content found in artifact %s v%s",
+                                log_id_prefix,
+                                filename,
+                                version,
+                            )
+                            continue
+
+                        # Convert to bytes if it's a string (text-based artifacts)
+                        if isinstance(content, str):
+                            content_bytes = content.encode("utf-8")
+                        elif isinstance(content, bytes):
+                            content_bytes = content
+                        else:
+                            log.error(
+                                "%s Artifact content is neither string nor bytes: %s",
+                                log_id_prefix,
+                                type(content),
+                            )
+                            continue
+
+                        # Resolve any late embeds inside the artifact content before returning.
+                        content_bytes = await self._resolve_embeds_in_artifact_content(
+                            content_bytes=content_bytes,
+                            mime_type=artifact_data.get("metadata", {}).get(
+                                "mime_type"
+                            ),
+                            filename=filename,
+                            external_request_context=external_request_context,
+                            log_id_prefix=log_id_prefix,
+                        )
+
+                        # Create FilePart with bytes for legacy gateway to upload
+                        file_part = a2a.create_file_part_from_bytes(
+                            content_bytes=content_bytes,
+                            name=filename,
+                            mime_type=artifact_data.get("metadata", {}).get(
+                                "mime_type"
+                            ),
+                        )
+
+                        # Create artifact with the file part
+                        # Import Part type for wrapping
+                        from a2a.types import Artifact, Part
+                        artifact = Artifact(
+                            artifact_id=str(uuid.uuid4().hex),
+                            parts=[Part(root=file_part)],
+                            name=filename,
+                            description=f"Artifact: {filename}",
+                        )
+
+                        # Send as TaskArtifactUpdateEvent
+                        a2a_task_id_for_signal = external_request_context.get(
+                            "a2a_task_id_for_event", original_rpc_id
+                        )
+
+                        if not a2a_task_id_for_signal:
+                            log.error(
+                                "%s Cannot determine A2A task ID for artifact signal. Skipping.",
+                                log_id_prefix,
+                            )
+                            continue
+
+                        artifact_event = a2a.create_artifact_update(
+                            task_id=a2a_task_id_for_signal,
+                            context_id=external_request_context.get("a2a_session_id"),
+                            artifact=artifact,
+                        )
+
+                        await self._send_update_to_external(
+                            external_request_context=external_request_context,
+                            event_data=artifact_event,
+                            is_final_chunk_of_update=False,
+                        )
+                        log.info(
+                            "%s Sent artifact signal as TaskArtifactUpdateEvent for %s",
+                            log_id_prefix,
+                            filename,
+                        )
+                    except Exception as e:
+                        log.exception(
+                            "%s Error sending artifact signal: %s", log_id_prefix, e
+                        )
+                elif signal_type == "SIGNAL_ARTIFACT_CREATION_COMPLETE":
+                    # Handle artifact creation completion for legacy gateways
+                    # This is similar to SIGNAL_ARTIFACT_RETURN but for newly created artifacts
+                    log.info(
+                        "%s Handling SIGNAL_ARTIFACT_CREATION_COMPLETE for legacy gateway: %s",
+                        log_id_prefix,
+                        signal_data,
+                    )
+                    try:
+                        filename = signal_data.get("filename")
+                        version = signal_data.get("version")
+
+                        if not filename:
+                            log.error(
+                                "%s SIGNAL_ARTIFACT_CREATION_COMPLETE missing filename. Skipping.",
+                                log_id_prefix,
+                            )
+                            continue
+
+                        # Load artifact content (not just metadata) for legacy gateways
+                        # Legacy gateways like Slack need the actual bytes to upload files
+                        artifact_data = await load_artifact_content_or_metadata(
+                            self.shared_artifact_service,
+                            app_name=external_request_context.get(
+                                "app_name_for_artifacts", self.gateway_id
+                            ),
+                            user_id=external_request_context.get("user_id_for_artifacts"),
+                            session_id=external_request_context.get("a2a_session_id"),
+                            filename=filename,
+                            version=version,
+                            load_metadata_only=False,  # Load full content for legacy gateways
+                        )
+
+                        if artifact_data.get("status") != "success":
+                            log.error(
+                                "%s Failed to load artifact content for %s v%s",
+                                log_id_prefix,
+                                filename,
+                                version,
+                            )
+                            continue
+
+                        # Get content and ensure it's bytes
+                        content = artifact_data.get("content")
+                        if not content:
+                            log.error(
+                                "%s No content found in artifact %s v%s",
+                                log_id_prefix,
+                                filename,
+                                version,
+                            )
+                            continue
+
+                        # Convert to bytes if it's a string (text-based artifacts)
+                        if isinstance(content, str):
+                            content_bytes = content.encode("utf-8")
+                        elif isinstance(content, bytes):
+                            content_bytes = content
+                        else:
+                            log.error(
+                                "%s Artifact content is neither string nor bytes: %s",
+                                log_id_prefix,
+                                type(content),
+                            )
+                            continue
+
+                        # Create FilePart with bytes for legacy gateway to upload
+                        file_part = a2a.create_file_part_from_bytes(
+                            content_bytes=content_bytes,
+                            name=filename,
+                            mime_type=signal_data.get("mime_type") or artifact_data.get("metadata", {}).get("mime_type"),
+                        )
+
+                        # Create artifact with the file part
+                        # Import Part type for wrapping
+                        from a2a.types import Artifact, Part
+                        artifact = Artifact(
+                            artifact_id=str(uuid.uuid4().hex),
+                            parts=[Part(root=file_part)],
+                            name=filename,
+                            description=f"Artifact: {filename}",
+                        )
+
+                        # Send as TaskArtifactUpdateEvent
+                        a2a_task_id_for_signal = external_request_context.get(
+                            "a2a_task_id_for_event", original_rpc_id
+                        )
+
+                        if not a2a_task_id_for_signal:
+                            log.error(
+                                "%s Cannot determine A2A task ID for artifact creation signal. Skipping.",
+                                log_id_prefix,
+                            )
+                            continue
+
+                        artifact_event = a2a.create_artifact_update(
+                            task_id=a2a_task_id_for_signal,
+                            context_id=external_request_context.get("a2a_session_id"),
+                            artifact=artifact,
+                        )
+
+                        await self._send_update_to_external(
+                            external_request_context=external_request_context,
+                            event_data=artifact_event,
+                            is_final_chunk_of_update=False,
+                        )
+                        log.info(
+                            "%s Sent artifact creation completion as TaskArtifactUpdateEvent for %s",
+                            log_id_prefix,
+                            filename,
+                        )
+                    except Exception as e:
+                        log.exception(
+                            "%s Error sending artifact creation completion signal: %s", log_id_prefix, e
+                        )
                 else:
                     log.warning(
                         "%s Received unhandled signal type during embed resolution: %s",
@@ -543,104 +828,153 @@ class BaseGatewayComponent(ComponentBase):
                         signal_type,
                     )
 
-    async def _resolve_uri_in_file_part(self, part: A2APart):
+    async def _resolve_embeds_in_artifact_content(
+        self,
+        content_bytes: bytes,
+        mime_type: Optional[str],
+        filename: str,
+        external_request_context: Dict[str, Any],
+        log_id_prefix: str,
+    ) -> bytes:
         """
-        Checks if a part is a FilePart with a resolvable URI and, if so,
-        resolves it and mutates the part in-place.
+        Checks if content is text-based and, if so, resolves late embeds within it.
+        Returns the (potentially modified) content as bytes.
         """
-        if not (
-            isinstance(part, FilePart)
-            and part.file
-            and part.file.uri
-            and part.file.uri.startswith("artifact://")
-        ):
-            return
-
-        if not self.shared_artifact_service:
-            log.warning(
-                "%s Cannot resolve artifact URI, shared_artifact_service is not configured.",
-                self.log_identifier,
+        if is_text_based_mime_type(mime_type):
+            log.info(
+                "%s Artifact '%s' is text-based (%s). Resolving late embeds.",
+                log_id_prefix,
+                filename,
+                mime_type,
             )
-            return
+            try:
+                decoded_content = content_bytes.decode("utf-8")
 
-        uri = part.file.uri
-        log_id_prefix = f"{self.log_identifier}[ResolveURI]"
-        try:
-            log.info("%s Found artifact URI to resolve: %s", log_id_prefix, uri)
-            parsed_uri = urlparse(uri)
-            app_name = parsed_uri.netloc
-            path_parts = parsed_uri.path.strip("/").split("/")
+                # Construct context and config for the resolver
+                embed_eval_context = {
+                    "artifact_service": self.shared_artifact_service,
+                    "session_context": {
+                        "app_name": external_request_context.get(
+                            "app_name_for_artifacts", self.gateway_id
+                        ),
+                        "user_id": external_request_context.get(
+                            "user_id_for_artifacts"
+                        ),
+                        "session_id": external_request_context.get("a2a_session_id"),
+                    },
+                }
+                embed_eval_config = {
+                    "gateway_max_artifact_resolve_size_bytes": self.gateway_max_artifact_resolve_size_bytes,
+                    "gateway_recursive_embed_depth": self.gateway_recursive_embed_depth,
+                }
 
-            if not app_name or len(path_parts) != 3:
-                raise ValueError(
-                    "Invalid URI structure. Expected artifact://app_name/user_id/session_id/filename"
+                resolved_string = await resolve_embeds_recursively_in_string(
+                    text=decoded_content,
+                    context=embed_eval_context,
+                    resolver_func=evaluate_embed,
+                    types_to_resolve=LATE_EMBED_TYPES,
+                    resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
+                    log_identifier=f"{log_id_prefix}[RecursiveResolve]",
+                    config=embed_eval_config,
+                    max_depth=self.gateway_recursive_embed_depth,
                 )
-
-            user_id, session_id, filename = path_parts
-            version = int(parse_qs(parsed_uri.query).get("version", [None])[0])
-
-            loaded_artifact = await load_artifact_content_or_metadata(
-                artifact_service=self.shared_artifact_service,
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename,
-                version=version,
-                return_raw_bytes=True,
-            )
-
-            if loaded_artifact.get("status") == "success":
-                content_bytes = loaded_artifact.get("raw_bytes")
-                part.file.bytes = base64.b64encode(content_bytes).decode("utf-8")
-                part.file.uri = None
+                resolved_bytes = resolved_string.encode("utf-8")
                 log.info(
-                    "%s Successfully resolved and embedded artifact: %s",
+                    "%s Successfully resolved embeds in '%s'. New size: %d bytes.",
                     log_id_prefix,
-                    uri,
+                    filename,
+                    len(resolved_bytes),
                 )
-            else:
+                return resolved_bytes
+            except Exception as resolve_err:
                 log.error(
-                    "%s Failed to resolve artifact URI '%s': %s",
+                    "%s Failed to resolve embeds within artifact '%s': %s. Returning raw content.",
                     log_id_prefix,
-                    uri,
-                    loaded_artifact.get("message"),
+                    filename,
+                    resolve_err,
                 )
-        except Exception as e:
-            log.exception(
-                "%s Error resolving artifact URI '%s': %s", log_id_prefix, uri, e
-            )
+        return content_bytes
 
-    async def _resolve_uris_in_parts_list(self, parts: List[A2APart]):
-        """Iterates over a list of A2APart objects and resolves any FilePart URIs."""
+    async def _resolve_uri_in_file_part(
+        self, file_part: FilePart, external_request_context: Dict[str, Any]
+    ):
+        """
+        Checks if a FilePart has a resolvable URI and, if so,
+        resolves it and mutates the part in-place by calling the common utility.
+        After resolving the URI, it also resolves any late embeds within the content.
+        """
+        await a2a.resolve_file_part_uri(
+            part=file_part,
+            artifact_service=self.shared_artifact_service,
+            log_identifier=self.log_identifier,
+        )
+
+        # After resolving the URI to get the content, resolve any late embeds inside it.
+        if file_part.file and isinstance(file_part.file, FileWithBytes):
+            # The content is a base64 encoded string in the `bytes` attribute.
+            # We need to decode it to raw bytes for processing.
+            try:
+                content_bytes = base64.b64decode(file_part.file.bytes)
+            except Exception as e:
+                log.error(
+                    "%s Failed to base64 decode file content for embed resolution: %s",
+                    f"{self.log_identifier}[UriResolve]",
+                    e,
+                )
+                return
+
+            resolved_bytes = await self._resolve_embeds_in_artifact_content(
+                content_bytes=content_bytes,
+                mime_type=file_part.file.mime_type,
+                filename=file_part.file.name,
+                external_request_context=external_request_context,
+                log_id_prefix=f"{self.log_identifier}[UriResolve]",
+            )
+            # Re-encode the resolved content back to a base64 string for the FileWithBytes model.
+            file_part.file.bytes = base64.b64encode(resolved_bytes).decode("utf-8")
+
+    async def _resolve_uris_in_parts_list(
+        self, parts: List[ContentPart], external_request_context: Dict[str, Any]
+    ):
+        """Iterates over a list of part objects and resolves any FilePart URIs."""
         if not parts:
             return
         for part in parts:
-            await self._resolve_uri_in_file_part(part)
+            if isinstance(part, FilePart):
+                await self._resolve_uri_in_file_part(part, external_request_context)
 
-    async def _resolve_uris_in_payload(self, parsed_event: Any):
+    async def _resolve_uris_in_payload(
+        self, parsed_event: Any, external_request_context: Dict[str, Any]
+    ):
         """
         Dispatcher that calls the appropriate targeted URI resolver based on the
         Pydantic model type of the event.
         """
+        parts_to_resolve: List[ContentPart] = []
         if isinstance(parsed_event, TaskStatusUpdateEvent):
-            if parsed_event.status and parsed_event.status.message:
-                await self._resolve_uris_in_parts_list(
-                    parsed_event.status.message.parts
-                )
+            message = a2a.get_message_from_status_update(parsed_event)
+            if message:
+                parts_to_resolve.extend(a2a.get_parts_from_message(message))
         elif isinstance(parsed_event, TaskArtifactUpdateEvent):
-            if parsed_event.artifact:
-                await self._resolve_uris_in_parts_list(parsed_event.artifact.parts)
+            artifact = a2a.get_artifact_from_artifact_update(parsed_event)
+            if artifact:
+                parts_to_resolve.extend(a2a.get_parts_from_artifact(artifact))
         elif isinstance(parsed_event, Task):
             if parsed_event.status and parsed_event.status.message:
-                await self._resolve_uris_in_parts_list(
-                    parsed_event.status.message.parts
+                parts_to_resolve.extend(
+                    a2a.get_parts_from_message(parsed_event.status.message)
                 )
             if parsed_event.artifacts:
                 for artifact in parsed_event.artifacts:
-                    await self._resolve_uris_in_parts_list(artifact.parts)
+                    parts_to_resolve.extend(a2a.get_parts_from_artifact(artifact))
+
+        if parts_to_resolve:
+            await self._resolve_uris_in_parts_list(
+                parts_to_resolve, external_request_context
+            )
         else:
             log.debug(
-                "%s Payload type '%s' does not support targeted URI resolution. Skipping.",
+                "%s Payload type '%s' did not yield any parts for URI resolution. Skipping.",
                 self.log_identifier,
                 type(parsed_event).__name__,
             )
@@ -660,78 +994,92 @@ class BaseGatewayComponent(ComponentBase):
             )
             return False
 
-    def _extract_task_id_from_topic(
-        self, topic: str, subscription_pattern: str
-    ) -> Optional[str]:
-        """Extracts the task ID from the end of a topic string based on the subscription."""
-        base_regex_str = _subscription_to_regex(subscription_pattern).replace(r".*", "")
-        match = re.match(base_regex_str, topic)
-        if match:
-            task_id_part = topic[match.end() :]
-            task_id = task_id_part.lstrip("/")
-            if task_id:
-                log.debug(
-                    "%s Extracted Task ID '%s' from topic '%s'",
-                    self.log_identifier,
-                    task_id,
-                    topic,
+    async def _prepare_parts_for_publishing(
+        self,
+        parts: List[ContentPart],
+        user_id: str,
+        session_id: str,
+        target_agent_name: str,
+    ) -> List[ContentPart]:
+        """
+        Prepares message parts for publishing according to the configured artifact_handling_mode
+        by calling the common utility function.
+        """
+        processed_parts: List[ContentPart] = []
+        for part in parts:
+            if isinstance(part, FilePart):
+                processed_part = await a2a.prepare_file_part_for_publishing(
+                    part=part,
+                    mode=self.artifact_handling_mode,
+                    artifact_service=self.shared_artifact_service,
+                    user_id=user_id,
+                    session_id=session_id,
+                    target_agent_name=target_agent_name,
+                    log_identifier=self.log_identifier,
                 )
-                return task_id
-        log.warning(
-            "%s Could not extract Task ID from topic '%s' using pattern '%s'",
-            self.log_identifier,
-            topic,
-            subscription_pattern,
-        )
-        return None
-
-    def _parse_a2a_event_from_rpc_result(
-        self, rpc_result: Dict, expected_task_id: Optional[str]
-    ) -> Optional[Union[Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent]]:
-        """
-        Parses the result field of a JSONRPCResponse into a specific A2A Pydantic model.
-        Verifies task ID if expected_task_id is provided.
-        """
-        if not isinstance(rpc_result, dict):
-            log.error(
-                "%s RPC result is not a dictionary. Cannot parse.", self.log_identifier
-            )
-            return None
-
-        actual_task_id = rpc_result.get("id")
-        if expected_task_id and actual_task_id != expected_task_id:
-            log.error(
-                "%s Task ID mismatch! Expected: %s, Got from payload: %s.",
-                self.log_identifier,
-                expected_task_id,
-                actual_task_id,
-            )
-            return None
-
-        try:
-            if "status" in rpc_result and "final" in rpc_result:
-                return TaskStatusUpdateEvent(**rpc_result)
-            elif "artifact" in rpc_result:
-                return TaskArtifactUpdateEvent(**rpc_result)
-            elif "status" in rpc_result and "sessionId" in rpc_result:
-                return Task(**rpc_result)
+                if processed_part:
+                    processed_parts.append(processed_part)
             else:
-                log.warning(
-                    "%s Unknown result structure in RPC response for task %s: %s",
-                    self.log_identifier,
-                    actual_task_id or "unknown",
-                    rpc_result,
-                )
-                return None
-        except Exception as e:
-            log.error(
-                "%s Failed to parse RPC result into A2A Pydantic model for task %s: %s. Result: %s",
-                self.log_identifier,
-                actual_task_id or "unknown",
-                e,
-                rpc_result,
-            )
-            return None
+                processed_parts.append(part)
+        return processed_parts
+
+    def _should_include_data_part_in_final_output(self, part: Any) -> bool:
+        """
+        Determines if a DataPart should be included in the final output sent to the gateway.
+
+        This filters out internal/tool-related DataParts that shouldn't be shown to end users.
+        Gateways can override this method for custom filtering logic.
+
+        Args:
+            part: The part to check (expected to be a DataPart)
+
+        Returns:
+            True if the part should be included, False if it should be filtered out
+        """
+        from a2a.types import DataPart
+
+        if not isinstance(part, DataPart):
+            return True
+
+        # Check if this is a tool result by looking at metadata
+        # Tool results have metadata.tool_name set
+        if part.metadata and part.metadata.get("tool_name"):
+            # This is a tool result - filter it out
+            return False
+
+        # Get the type of the data part
+        data_type = part.data.get("type") if part.data else None
+
+        # Filter out tool-related data parts that are internal
+        tool_related_types = {
+            "tool_call",
+            "tool_result",
+            "tool_error",
+            "tool_execution",
+        }
+
+        if data_type in tool_related_types:
+            return False
+
+        # Handle artifact_creation_progress based on gateway capabilities
+        if data_type == "artifact_creation_progress":
+            # For modern gateways (HTTP SSE), keep these to display progress bubbles
+            # For legacy gateways (Slack), filter them out as they'll be converted to FileParts
+            if self.supports_inline_artifact_resolution:
+                return True  # Keep for HTTP SSE
+            else:
+                return False  # Filter for Slack (will be converted to FileParts instead)
+
+        # Keep user-facing data parts like general progress updates
+        user_facing_types = {
+            "agent_progress_update",
+        }
+
+        if data_type in user_facing_types:
+            return True
+
+        # Default: include unknown types (to avoid hiding potentially useful info)
+        return True
 
     async def _resolve_embeds_and_handle_signals(
         self,
@@ -741,17 +1089,11 @@ class BaseGatewayComponent(ComponentBase):
         original_rpc_id: Optional[str],
         is_finalizing_context: bool = False,
     ) -> bool:
-        """
-        Resolves embeds and handles signals for an event containing parts.
-        Modifies event_with_parts in place if text content changes.
-        Manages stream buffer for TaskStatusUpdateEvent.
-        Returns True if the event content was modified or signals were handled, False otherwise.
-        """
         if not self.enable_embed_resolution:
             return False
 
         log_id_prefix = f"{self.log_identifier}[EmbedResolve:{a2a_task_id}]"
-        content_modified_or_signal_handled = False
+        content_modified = False
 
         embed_eval_context = {
             "artifact_service": self.shared_artifact_service,
@@ -769,8 +1111,6 @@ class BaseGatewayComponent(ComponentBase):
         }
 
         parts_owner: Optional[Union[A2AMessage, A2AArtifact]] = None
-        is_streaming_status_update = isinstance(event_with_parts, TaskStatusUpdateEvent)
-
         if isinstance(event_with_parts, (TaskStatusUpdateEvent, Task)):
             if event_with_parts.status and event_with_parts.status.message:
                 parts_owner = event_with_parts.status.message
@@ -778,128 +1118,296 @@ class BaseGatewayComponent(ComponentBase):
             if event_with_parts.artifact:
                 parts_owner = event_with_parts.artifact
 
-        if parts_owner and parts_owner.parts:
-            new_parts_for_owner: List[A2APart] = []
-            stream_buffer_key = f"{a2a_task_id}_stream_buffer"
-            current_buffer = ""
+        if not (parts_owner and parts_owner.parts):
+            return False
 
-            if is_streaming_status_update:
-                current_buffer = (
-                    self.task_context_manager.get_context(stream_buffer_key) or ""
+        is_streaming_status_update = isinstance(event_with_parts, TaskStatusUpdateEvent)
+        stream_buffer_key = f"{a2a_task_id}_stream_buffer"
+        current_buffer = ""
+        if is_streaming_status_update:
+            current_buffer = (
+                self.task_context_manager.get_context(stream_buffer_key) or ""
+            )
+
+        original_parts: List[ContentPart] = (
+            a2a.get_parts_from_message(parts_owner)
+            if isinstance(parts_owner, A2AMessage)
+            else a2a.get_parts_from_artifact(parts_owner)
+        )
+
+        new_parts: List[ContentPart] = []
+        other_signals = []
+
+        for part in original_parts:
+            if isinstance(part, TextPart) and part.text:
+                text_to_resolve = current_buffer + part.text
+                current_buffer = ""  # Buffer is now being processed
+
+                (
+                    resolved_text,
+                    processed_idx,
+                    signals_with_placeholders,
+                ) = await resolve_embeds_in_string(
+                    text=text_to_resolve,
+                    context=embed_eval_context,
+                    resolver_func=evaluate_embed,
+                    types_to_resolve=LATE_EMBED_TYPES.union({"status_update"}),
+                    resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
+                    log_identifier=log_id_prefix,
+                    config=embed_eval_config,
                 )
 
-            for part_obj in parts_owner.parts:
-                if isinstance(part_obj, TextPart) and part_obj.text is not None:
-                    text_to_resolve = part_obj.text
-                    original_part_text = part_obj.text
-
-                    if is_streaming_status_update:
-                        current_buffer += part_obj.text
-                        text_to_resolve = current_buffer
-
-                    resolved_text, processed_idx, signals = (
-                        await resolve_embeds_in_string(
-                            text=text_to_resolve,
-                            context=embed_eval_context,
-                            resolver_func=evaluate_embed,
-                            types_to_resolve=LATE_EMBED_TYPES.copy(),
-                            log_identifier=log_id_prefix,
-                            config=embed_eval_config,
-                        )
+                if not signals_with_placeholders:
+                    new_parts.append(a2a.create_text_part(text=resolved_text))
+                else:
+                    placeholder_map = {p: s for _, s, p in signals_with_placeholders}
+                    split_pattern = (
+                        f"({'|'.join(re.escape(p) for p in placeholder_map.keys())})"
                     )
+                    text_fragments = re.split(split_pattern, resolved_text)
 
-                    if signals:
-                        await self._handle_resolved_signals(
-                            external_request_context,
-                            signals,
-                            original_rpc_id,
-                            is_finalizing_context,
-                        )
-                        content_modified_or_signal_handled = True
+                    for i, fragment in enumerate(text_fragments):
+                        if not fragment:
+                            continue
+                        if fragment in placeholder_map:
+                            signal_tuple = placeholder_map[fragment]
+                            signal_type, signal_data = signal_tuple[1], signal_tuple[2]
+                            if signal_type == "SIGNAL_ARTIFACT_RETURN":
+                                # Only convert to FilePart if gateway supports inline artifact resolution
+                                if self.supports_inline_artifact_resolution:
+                                    try:
+                                        filename, version = (
+                                            signal_data["filename"],
+                                            signal_data["version"],
+                                        )
+                                        artifact_data = (
+                                            await load_artifact_content_or_metadata(
+                                                self.shared_artifact_service,
+                                                **embed_eval_context["session_context"],
+                                                filename=filename,
+                                                version=version,
+                                                load_metadata_only=True,
+                                            )
+                                        )
+                                        if artifact_data.get("status") == "success":
+                                            uri = format_artifact_uri(
+                                                **embed_eval_context["session_context"],
+                                                filename=filename,
+                                                version=artifact_data.get("version"),
+                                            )
+                                            new_parts.append(
+                                                a2a.create_file_part_from_uri(
+                                                    uri,
+                                                    filename,
+                                                    artifact_data.get("metadata", {}).get(
+                                                        "mime_type"
+                                                    ),
+                                                )
+                                            )
+                                        else:
+                                            new_parts.append(
+                                                a2a.create_text_part(
+                                                    f"[Error: Artifact '{filename}' v{version} not found.]"
+                                                )
+                                            )
+                                    except Exception as e:
+                                        log.exception(
+                                            "%s Error handling SIGNAL_ARTIFACT_RETURN: %s",
+                                            log_id_prefix,
+                                            e,
+                                        )
+                                        new_parts.append(
+                                            a2a.create_text_part(
+                                                f"[Error: Could not retrieve artifact '{signal_data.get('filename')}'.]"
+                                            )
+                                        )
+                                else:
+                                    # Legacy gateway mode: pass signal through for gateway to handle
+                                    other_signals.append(signal_tuple)
+                            elif signal_type == "SIGNAL_INLINE_BINARY_CONTENT":
+                                signal_data["content_bytes"] = signal_data.get("bytes")
+                                del signal_data["bytes"]
+                                new_parts.append(
+                                    a2a.create_file_part_from_bytes(**signal_data)
+                                )
+                            else:
+                                other_signals.append(signal_tuple)
+                        else:
+                            # Check if the non-placeholder fragment is just whitespace
+                            # and is between two placeholders. If so, drop it.
+                            is_just_whitespace = not fragment.strip()
+                            prev_fragment_was_placeholder = (
+                                i > 0 and text_fragments[i - 1] in placeholder_map
+                            )
+                            next_fragment_is_placeholder = (
+                                i < len(text_fragments) - 1
+                                and text_fragments[i + 1] in placeholder_map
+                            )
 
-                    if resolved_text is not None:
-                        new_parts_for_owner.append(TextPart(text=resolved_text))
-                        if is_streaming_status_update:
-                            if resolved_text != text_to_resolve[:processed_idx]:
-                                content_modified_or_signal_handled = True
-                        elif resolved_text != original_part_text:
-                            content_modified_or_signal_handled = True
+                            if (
+                                is_just_whitespace
+                                and prev_fragment_was_placeholder
+                                and next_fragment_is_placeholder
+                            ):
+                                log.debug(
+                                    "%s Dropping whitespace fragment between two file signals.",
+                                    log_id_prefix,
+                                )
+                                continue
 
-                    if is_streaming_status_update:
-                        current_buffer = text_to_resolve[processed_idx:]
-                    elif (
-                        processed_idx < len(text_to_resolve)
-                        and not content_modified_or_signal_handled
-                    ):
-                        log.warning(
-                            "%s Unclosed embed in non-streaming TextPart. Remainder: '%s'",
+                            new_parts.append(a2a.create_text_part(text=fragment))
+
+                if is_streaming_status_update:
+                    current_buffer = text_to_resolve[processed_idx:]
+
+            elif isinstance(part, FilePart) and part.file:
+                # Handle recursive embeds in text-based FileParts
+                new_parts.append(part)  # Placeholder for now
+            elif isinstance(part, DataPart):
+                # Handle special DataPart types
+                data_type = part.data.get("type") if part.data else None
+
+                if data_type == "template_block":
+                    # Resolve template block and replace with resolved text
+                    try:
+                        from ...common.utils.templates import resolve_template_blocks_in_string
+
+                        # Reconstruct the template block syntax
+                        data_artifact = part.data.get("data_artifact", "")
+                        jsonpath = part.data.get("jsonpath")
+                        limit = part.data.get("limit")
+                        template_content = part.data.get("template_content", "")
+
+                        # Build params string
+                        params_parts = [f'data="{data_artifact}"']
+                        if jsonpath:
+                            params_parts.append(f'jsonpath="{jsonpath}"')
+                        if limit is not None:
+                            params_parts.append(f'limit="{limit}"')
+                        params_str = " ".join(params_parts)
+
+                        # Reconstruct full template block
+                        template_block = f"«««template: {params_str}\n{template_content}\n»»»"
+
+                        log.debug(
+                            "%s Resolving template block inline: data=%s",
                             log_id_prefix,
-                            text_to_resolve[processed_idx:],
+                            data_artifact,
                         )
-                        content_modified_or_signal_handled = True
+
+                        # Resolve the template
+                        resolved_text = await resolve_template_blocks_in_string(
+                            text=template_block,
+                            artifact_service=self.shared_artifact_service,
+                            session_context={
+                                "app_name": external_request_context.get(
+                                    "app_name_for_artifacts", self.gateway_id
+                                ),
+                                "user_id": external_request_context.get("user_id_for_artifacts"),
+                                "session_id": external_request_context.get("a2a_session_id"),
+                            },
+                            log_identifier=f"{log_id_prefix}[TemplateResolve]",
+                        )
+
+                        log.info(
+                            "%s Template resolved successfully. Output length: %d",
+                            log_id_prefix,
+                            len(resolved_text),
+                        )
+
+                        # Replace the DataPart with a TextPart containing the resolved content
+                        new_parts.append(a2a.create_text_part(text=resolved_text))
+
+                    except Exception as e:
+                        log.error(
+                            "%s Failed to resolve template block: %s",
+                            log_id_prefix,
+                            e,
+                            exc_info=True,
+                        )
+                        # Send error message as TextPart
+                        error_text = f"[Template rendering error: {str(e)}]"
+                        new_parts.append(a2a.create_text_part(text=error_text))
 
                 elif (
-                    isinstance(part_obj, FilePart)
-                    and part_obj.file
-                    and part_obj.file.bytes
+                    data_type == "artifact_creation_progress"
+                    and not self.supports_inline_artifact_resolution
                 ):
-                    mime_type = part_obj.file.mimeType or ""
-                    is_container = is_text_based_mime_type(mime_type)
-                    try:
-                        decoded_content_for_check = base64.b64decode(
-                            part_obj.file.bytes
-                        ).decode("utf-8", errors="ignore")
-                        if (
-                            is_container
-                            and EMBED_DELIMITER_OPEN in decoded_content_for_check
-                        ):
-                            original_content = decoded_content_for_check
-                            resolved_content = (
-                                await resolve_embeds_recursively_in_string(
-                                    text=original_content,
-                                    context=embed_eval_context,
-                                    resolver_func=evaluate_embed,
-                                    types_to_resolve=LATE_EMBED_TYPES,
-                                    log_identifier=log_id_prefix,
-                                    config=embed_eval_config,
-                                    max_depth=self.gateway_recursive_embed_depth,
-                                )
+                    # Legacy gateway mode: convert completed artifact creation to FilePart
+                    status = part.data.get("status")
+                    if status == "completed" and not is_finalizing_context:
+                        # Extract artifact info from the DataPart
+                        filename = part.data.get("filename")
+                        version = part.data.get("version")
+                        mime_type = part.data.get("mime_type")
+
+                        if filename and version is not None:
+                            log.info(
+                                "%s Converting artifact creation completion to FilePart for legacy gateway: %s v%s",
+                                log_id_prefix,
+                                filename,
+                                version,
                             )
-                            if resolved_content != original_content:
-                                new_file_content = part_obj.file.model_copy()
-                                new_file_content.bytes = base64.b64encode(
-                                    resolved_content.encode("utf-8")
-                                ).decode("utf-8")
-                                new_parts_for_owner.append(
-                                    FilePart(
-                                        file=new_file_content,
-                                        metadata=part_obj.metadata,
-                                    )
-                                )
-                                content_modified_or_signal_handled = True
-                            else:
-                                new_parts_for_owner.append(part_obj)
+                            # This will be sent as an artifact signal, so don't add to new_parts
+                            # Instead, add to other_signals for processing
+                            signal_tuple = (
+                                None,
+                                "SIGNAL_ARTIFACT_CREATION_COMPLETE",
+                                {
+                                    "filename": filename,
+                                    "version": version,
+                                    "mime_type": mime_type,
+                                },
+                            )
+                            other_signals.append(signal_tuple)
                         else:
-                            new_parts_for_owner.append(part_obj)
-                    except Exception as e:
-                        log.warning(
-                            "%s Error during recursive FilePart resolution for %s: %s. Using original.",
+                            # Missing required info, keep the DataPart as-is
+                            new_parts.append(part)
+                    elif status == "completed" and is_finalizing_context:
+                        # Suppress during finalizing to avoid duplicates
+                        log.debug(
+                            "%s Suppressing artifact creation completion during finalizing context for %s",
                             log_id_prefix,
-                            part_obj.file.name,
-                            e,
+                            part.data.get("filename"),
                         )
-                        new_parts_for_owner.append(part_obj)
+                        continue
+                    else:
+                        # Keep in-progress or failed status DataParts
+                        new_parts.append(part)
                 else:
-                    new_parts_for_owner.append(part_obj)
+                    # Not an artifact creation DataPart, or modern gateway - keep as-is
+                    new_parts.append(part)
+            else:
+                new_parts.append(part)
 
-            parts_owner.parts = new_parts_for_owner
+        if other_signals:
+            await self._handle_resolved_signals(
+                external_request_context,
+                other_signals,
+                original_rpc_id,
+                is_finalizing_context,
+            )
 
-            if is_streaming_status_update:
-                self.task_context_manager.store_context(
-                    stream_buffer_key, current_buffer
+        if new_parts != original_parts:
+            content_modified = True
+            if isinstance(parts_owner, A2AMessage):
+                if isinstance(event_with_parts, TaskStatusUpdateEvent):
+                    event_with_parts.status.message = a2a.update_message_parts(
+                        parts_owner, new_parts
+                    )
+                elif isinstance(event_with_parts, Task):
+                    event_with_parts.status.message = a2a.update_message_parts(
+                        parts_owner, new_parts
+                    )
+            elif isinstance(parts_owner, A2AArtifact):
+                event_with_parts.artifact = a2a.update_artifact_parts(
+                    parts_owner, new_parts
                 )
 
-        return content_modified_or_signal_handled
+        if is_streaming_status_update:
+            self.task_context_manager.store_context(stream_buffer_key, current_buffer)
+
+        return content_modified or bool(other_signals)
 
     async def _process_parsed_a2a_event(
         self,
@@ -932,13 +1440,6 @@ class BaseGatewayComponent(ComponentBase):
             elif isinstance(parsed_event, Task):
                 is_finalizing_context_for_embeds = True
 
-            if self.get_config("resolve_artifact_uris_in_gateway", False):
-                log.debug(
-                    "%s Resolving artifact URIs before sending to external...",
-                    log_id_prefix,
-                )
-                await self._resolve_uris_in_payload(parsed_event)
-
             if not isinstance(parsed_event, JSONRPCError):
                 content_was_modified_or_signals_handled = (
                     await self._resolve_embeds_and_handle_signals(
@@ -948,6 +1449,15 @@ class BaseGatewayComponent(ComponentBase):
                         original_rpc_id,
                         is_finalizing_context=is_finalizing_context_for_embeds,
                     )
+                )
+
+            if self.resolve_artifact_uris_in_gateway:
+                log.debug(
+                    "%s Resolving artifact URIs before sending to external...",
+                    log_id_prefix,
+                )
+                await self._resolve_uris_in_payload(
+                    parsed_event, external_request_context
                 )
 
             send_this_event_to_external = True
@@ -989,13 +1499,11 @@ class BaseGatewayComponent(ComponentBase):
                     log.debug(
                         "%s Resolving embeds in final task response...", log_id_prefix
                     )
-                    combined_text = ""
-                    non_text_parts = []
-                    for part in parsed_event.status.message.parts:
-                        if isinstance(part, TextPart) and part.text:
-                            combined_text += part.text
-                        else:
-                            non_text_parts.append(part)
+                    message = parsed_event.status.message
+                    combined_text = a2a.get_text_from_message(message)
+                    data_parts = a2a.get_data_parts_from_message(message)
+                    file_parts = a2a.get_file_parts_from_message(message)
+                    non_text_parts = data_parts + file_parts
 
                     if combined_text:
                         embed_eval_context = {
@@ -1022,6 +1530,7 @@ class BaseGatewayComponent(ComponentBase):
                             context=embed_eval_context,
                             resolver_func=evaluate_embed,
                             types_to_resolve=all_embed_types,
+                            resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
                             log_identifier=log_id_prefix,
                             config=embed_eval_config,
                         )
@@ -1039,10 +1548,15 @@ class BaseGatewayComponent(ComponentBase):
                             )
 
                         new_parts = (
-                            [TextPart(text=resolved_text)] if resolved_text else []
+                            [a2a.create_text_part(text=resolved_text)]
+                            if resolved_text
+                            else []
                         )
                         new_parts.extend(non_text_parts)
-                        parsed_event.status.message.parts = new_parts
+                        parsed_event.status.message = a2a.update_message_parts(
+                            message=parsed_event.status.message,
+                            new_parts=new_parts,
+                        )
                         log.info(
                             "%s Final response text updated with resolved embeds.",
                             log_id_prefix,
@@ -1073,17 +1587,18 @@ class BaseGatewayComponent(ComponentBase):
                         },
                     }
                     embed_eval_config = {
-                        "gateway_artifact_content_limit_bytes": self.gateway_artifact_content_limit_bytes,
+                        "gateway_max_artifact_resolve_size_bytes": self.gateway_max_artifact_resolve_size_bytes,
                         "gateway_recursive_embed_depth": self.gateway_recursive_embed_depth,
                     }
                     resolved_remaining_text, _, signals = (
                         await resolve_embeds_in_string(
-                            remaining_buffer,
-                            embed_eval_context,
-                            evaluate_embed,
-                            LATE_EMBED_TYPES.copy(),
-                            log_id_prefix,
-                            embed_eval_config,
+                            text=remaining_buffer,
+                            context=embed_eval_context,
+                            resolver_func=evaluate_embed,
+                            types_to_resolve=LATE_EMBED_TYPES.copy(),
+                            resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
+                            log_identifier=log_id_prefix,
+                            config=embed_eval_config,
                         )
                     )
                     await self._handle_resolved_signals(
@@ -1093,17 +1608,14 @@ class BaseGatewayComponent(ComponentBase):
                         is_finalizing_context=True,
                     )
                     if resolved_remaining_text:
-                        flush_status = TaskStatus(
-                            state=TaskState.WORKING,
-                            message=A2AMessage(
-                                role="agent",
-                                parts=[TextPart(text=resolved_remaining_text)],
-                            ),
+                        flush_message = a2a.create_agent_text_message(
+                            text=resolved_remaining_text
                         )
-                        flush_event = TaskStatusUpdateEvent(
-                            id=a2a_task_id,
-                            status=flush_status,
-                            final=False,
+                        flush_event = a2a.create_status_update(
+                            task_id=a2a_task_id,
+                            context_id=external_request_context.get("a2a_session_id"),
+                            message=flush_message,
+                            is_final=False,
                         )
                         await self._send_update_to_external(
                             external_request_context, flush_event, True
@@ -1112,6 +1624,32 @@ class BaseGatewayComponent(ComponentBase):
 
             if send_this_event_to_external:
                 if isinstance(parsed_event, Task):
+                    # Filter DataParts from final Task if gateway has filtering enabled
+                    # This prevents tool results and other internal data from appearing in user-facing output
+                    if (
+                        self.filter_tool_data_parts
+                        and parsed_event.status
+                        and parsed_event.status.message
+                        and parsed_event.status.message.parts
+                    ):
+                        original_parts = a2a.get_parts_from_message(
+                            parsed_event.status.message
+                        )
+                        filtered_parts = [
+                            part
+                            for part in original_parts
+                            if self._should_include_data_part_in_final_output(part)
+                        ]
+                        if len(filtered_parts) != len(original_parts):
+                            log.debug(
+                                "%s Filtered %d DataParts from final Task message",
+                                log_id_prefix,
+                                len(original_parts) - len(filtered_parts),
+                            )
+                            parsed_event.status.message = a2a.update_message_parts(
+                                parsed_event.status.message, filtered_parts
+                            )
+
                     await self._send_final_response_to_external(
                         external_request_context, parsed_event
                     )
@@ -1144,7 +1682,7 @@ class BaseGatewayComponent(ComponentBase):
         Parses the payload, retrieves context using task_id_from_topic, and dispatches for processing.
         """
         try:
-            rpc_response = JSONRPCResponse(**payload)
+            rpc_response = JSONRPCResponse.model_validate(payload)
         except Exception as e:
             log.error(
                 "%s Failed to parse payload as JSONRPCResponse for topic %s (Task ID from topic: %s): %s. Payload: %s",
@@ -1156,7 +1694,7 @@ class BaseGatewayComponent(ComponentBase):
             )
             return False
 
-        original_rpc_id = str(rpc_response.id)
+        original_rpc_id = str(a2a.get_response_id(rpc_response))
 
         external_request_context = self.task_context_manager.get_context(
             task_id_from_topic
@@ -1177,19 +1715,43 @@ class BaseGatewayComponent(ComponentBase):
         parsed_event_obj: Union[
             Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent, JSONRPCError, None
         ] = None
-        if rpc_response.error:
-            parsed_event_obj = rpc_response.error
-        elif rpc_response.result:
-            parsed_event_obj = self._parse_a2a_event_from_rpc_result(
-                rpc_response.result, task_id_from_topic
-            )
+        error = a2a.get_response_error(rpc_response)
+        if error:
+            parsed_event_obj = error
+        else:
+            result = a2a.get_response_result(rpc_response)
+            if result:
+                # The result is already a parsed Pydantic model.
+                parsed_event_obj = result
+
+            # Validate task ID match
+            actual_task_id = None
+            if isinstance(parsed_event_obj, Task):
+                actual_task_id = parsed_event_obj.id
+            elif isinstance(
+                parsed_event_obj, (TaskStatusUpdateEvent, TaskArtifactUpdateEvent)
+            ):
+                actual_task_id = parsed_event_obj.task_id
+
+            if (
+                task_id_from_topic
+                and actual_task_id
+                and actual_task_id != task_id_from_topic
+            ):
+                log.error(
+                    "%s Task ID mismatch! Expected: %s, Got from payload: %s.",
+                    self.log_identifier,
+                    task_id_from_topic,
+                    actual_task_id,
+                )
+                parsed_event_obj = None
 
         if not parsed_event_obj:
             log.error(
                 "%s Failed to parse or validate A2A event from RPC result for task %s. Result: %s",
                 self.log_identifier,
                 task_id_from_topic,
-                rpc_response.result,
+                a2a.get_response_result(rpc_response) or "N/A",
             )
             generic_error = JSONRPCError(
                 code=-32000, message="Invalid event structure received from agent."
@@ -1226,9 +1788,46 @@ class BaseGatewayComponent(ComponentBase):
             )
             return False
 
+    async def _async_setup_and_run(self) -> None:
+        """Main async logic for the gateway component."""
+        # Call base class to initialize Trust Manager
+        await super()._async_setup_and_run()
+
+        log.info(
+            "%s Starting _start_listener() to initiate external platform connection.",
+            self.log_identifier,
+        )
+        self._start_listener()
+
+        await self._message_processor_loop()
+
+    def _pre_async_cleanup(self) -> None:
+        """Pre-cleanup actions for the gateway component."""
+        # Cleanup Trust Manager if present (ENTERPRISE FEATURE)
+        if self.trust_manager:
+            try:
+                log.info("%s Cleaning up Trust Manager...", self.log_identifier)
+                self.trust_manager.cleanup(self.cancel_timer)
+                log.info("%s Trust Manager cleanup complete", self.log_identifier)
+            except Exception as e:
+                log.error(
+                    "%s Error during Trust Manager cleanup: %s", self.log_identifier, e
+                )
+
+        log.info("%s Calling _stop_listener()...", self.log_identifier)
+        self._stop_listener()
+
+        if self.internal_event_queue:
+            log.info(
+                "%s Signaling _message_processor_loop to stop by putting sentinel on queue...",
+                self.log_identifier,
+            )
+            # This unblocks the `self.internal_event_queue.get()` call in the loop
+            self.internal_event_queue.put(None)
+
     async def _message_processor_loop(self):
-        log.info("%s Starting message processor loop...", self.log_identifier)
-        loop = asyncio.get_running_loop()
+        log.debug("%s Starting message processor loop as an asyncio task...", self.log_identifier)
+        loop = self.get_async_loop()
 
         while not self.stop_signal.is_set():
             original_broker_message: Optional[SolaceMessage] = None
@@ -1259,38 +1858,45 @@ class BaseGatewayComponent(ComponentBase):
                     processed_successfully = False
                     continue
 
-                if _topic_matches_subscription(
-                    topic, get_discovery_topic(self.namespace)
+                if a2a.topic_matches_subscription(
+                    topic, a2a.get_discovery_topic(self.namespace)
                 ):
                     processed_successfully = await self._handle_discovery_message(
                         payload
                     )
-                elif _topic_matches_subscription(
+                elif (
+                    hasattr(self, "trust_manager")
+                    and self.trust_manager
+                    and self.trust_manager.is_trust_card_topic(topic)
+                ):
+                    await self.trust_manager.handle_trust_card_message(payload, topic)
+                    processed_successfully = True
+                elif a2a.topic_matches_subscription(
                     topic,
-                    get_gateway_response_subscription_topic(
+                    a2a.get_gateway_response_subscription_topic(
                         self.namespace, self.gateway_id
                     ),
-                ) or _topic_matches_subscription(
+                ) or a2a.topic_matches_subscription(
                     topic,
-                    get_gateway_status_subscription_topic(
+                    a2a.get_gateway_status_subscription_topic(
                         self.namespace, self.gateway_id
                     ),
                 ):
                     task_id_from_topic: Optional[str] = None
-                    response_sub = get_gateway_response_subscription_topic(
+                    response_sub = a2a.get_gateway_response_subscription_topic(
                         self.namespace, self.gateway_id
                     )
-                    status_sub = get_gateway_status_subscription_topic(
+                    status_sub = a2a.get_gateway_status_subscription_topic(
                         self.namespace, self.gateway_id
                     )
 
-                    if _topic_matches_subscription(topic, response_sub):
-                        task_id_from_topic = self._extract_task_id_from_topic(
-                            topic, response_sub
+                    if a2a.topic_matches_subscription(topic, response_sub):
+                        task_id_from_topic = a2a.extract_task_id_from_topic(
+                            topic, response_sub, self.log_identifier
                         )
-                    elif _topic_matches_subscription(topic, status_sub):
-                        task_id_from_topic = self._extract_task_id_from_topic(
-                            topic, status_sub
+                    elif a2a.topic_matches_subscription(topic, status_sub):
+                        task_id_from_topic = a2a.extract_task_id_from_topic(
+                            topic, status_sub, self.log_identifier
                         )
 
                     if task_id_from_topic:
@@ -1342,145 +1948,6 @@ class BaseGatewayComponent(ComponentBase):
 
         log.info("%s Message processor loop finished.", self.log_identifier)
 
-    def _run_async_operations(self):
-        log.info(
-            "%s Initializing asyncio event loop in dedicated thread...",
-            self.log_identifier,
-        )
-        self.async_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.async_loop)
-
-        processor_task = None
-        try:
-            log.info(
-                "%s Starting _message_processor_loop as an asyncio task.",
-                self.log_identifier,
-            )
-            processor_task = self.async_loop.create_task(self._message_processor_loop())
-
-            log.info(
-                "%s Calling _start_listener() to initiate external platform connection.",
-                self.log_identifier,
-            )
-            self._start_listener()
-
-            log.info(
-                "%s Running asyncio event loop forever (or until stop_signal).",
-                self.log_identifier,
-            )
-            self.async_loop.run_forever()
-
-        except Exception as e:
-            log.exception(
-                "%s Unhandled exception in _run_async_operations: %s",
-                self.log_identifier,
-                e,
-            )
-            self.stop_signal.set()
-        finally:
-            if processor_task and not processor_task.done():
-                log.info(
-                    "%s Cancelling _message_processor_loop task.", self.log_identifier
-                )
-                processor_task.cancel()
-                try:
-                    self.async_loop.run_until_complete(
-                        asyncio.gather(processor_task, return_exceptions=True)
-                    )
-                except RuntimeError as loop_err:
-                    log.warning(
-                        "%s Error awaiting processor task during cleanup (loop closed?): %s",
-                        self.log_identifier,
-                        loop_err,
-                    )
-
-            if self.async_loop.is_running():
-                log.info(
-                    "%s Stopping asyncio event loop from _run_async_operations finally block.",
-                    self.log_identifier,
-                )
-                self.async_loop.stop()
-            log.info(
-                "%s Async operations loop finished in dedicated thread.",
-                self.log_identifier,
-            )
-
-    def run(self):
-        log.info("%s Starting BaseGatewayComponent run method.", self.log_identifier)
-        if not self.async_thread or not self.async_thread.is_alive():
-            self.async_thread = threading.Thread(
-                target=self._run_async_operations,
-                name=f"{self.name}_AsyncOpsThread",
-                daemon=True,
-            )
-            self.async_thread.start()
-            log.info("%s Async operations thread started.", self.log_identifier)
-        else:
-            log.warning(
-                "%s Async operations thread already running.", self.log_identifier
-            )
-
-        super().run()
-        log.info("%s BaseGatewayComponent run method finished.", self.log_identifier)
-
-    def cleanup(self):
-        log.info("%s Starting cleanup for BaseGatewayComponent...", self.log_identifier)
-
-        log.info("%s Calling _stop_listener()...", self.log_identifier)
-        try:
-            if (
-                self.async_loop
-                and not self.async_loop.is_running()
-                and self.async_thread
-                and self.async_thread.is_alive()
-            ):
-                log.warning(
-                    "%s Async loop not running during cleanup, _stop_listener might face issues if it needs the loop.",
-                    self.log_identifier,
-                )
-            self._stop_listener()
-        except Exception as e:
-            log.exception(
-                "%s Error during _stop_listener(): %s", self.log_identifier, e
-            )
-
-        if self.internal_event_queue:
-            log.info(
-                "%s Signaling _message_processor_loop to stop...", self.log_identifier
-            )
-            self.internal_event_queue.put(None)
-
-        if self.async_loop and self.async_loop.is_running():
-            log.info("%s Requesting asyncio loop to stop...", self.log_identifier)
-            self.async_loop.call_soon_threadsafe(self.async_loop.stop)
-
-        if self.async_thread and self.async_thread.is_alive():
-            log.info(
-                "%s Joining async operations thread (timeout 10s)...",
-                self.log_identifier,
-            )
-            self.async_thread.join(timeout=10)
-            if self.async_thread.is_alive():
-                log.warning(
-                    "%s Async operations thread did not join cleanly.",
-                    self.log_identifier,
-                )
-
-        if self.async_loop and not self.async_loop.is_closed():
-            if self.async_loop.is_running():
-                self.async_loop.call_soon_threadsafe(self.async_loop.stop)
-            log.info(
-                "%s Closing asyncio event loop (if not already closed by its thread).",
-                self.log_identifier,
-            )
-            if not self.async_loop.is_running():
-                self.async_loop.close()
-            else:
-                self.async_loop.call_soon_threadsafe(self.async_loop.close)
-
-        super().cleanup()
-        log.info("%s BaseGatewayComponent cleanup finished.", self.log_identifier)
-
     @abstractmethod
     async def _extract_initial_claims(
         self, external_event_data: Any
@@ -1501,17 +1968,30 @@ class BaseGatewayComponent(ComponentBase):
         pass
 
     @abstractmethod
+    async def _translate_external_input(
+        self, external_event: Any
+    ) -> Tuple[str, List[ContentPart], Dict[str, Any]]:
+        """
+        Translates raw platform-specific event data into A2A task parameters.
+
+        Args:
+            external_event: Raw event data from the external platform
+                            (e.g., FastAPIRequest, Slack event dictionary).
+
+        Returns:
+            A tuple containing:
+            - target_agent_name (str): The name of the A2A agent to target.
+            - a2a_parts (List[ContentPart]): A list of A2A Part objects.
+            - external_request_context (Dict[str, Any]): Context for TaskContextManager.
+        """
+        pass
+
+    @abstractmethod
     def _start_listener(self) -> None:
         pass
 
     @abstractmethod
     def _stop_listener(self) -> None:
-        pass
-
-    @abstractmethod
-    def _translate_external_input(
-        self, external_event: Any
-    ) -> Tuple[str, List[A2APart], Dict[str, Any]]:
         pass
 
     @abstractmethod
@@ -1534,6 +2014,14 @@ class BaseGatewayComponent(ComponentBase):
         self, external_request_context: Dict[str, Any], error_data: JSONRPCError
     ) -> None:
         pass
+
+    def _get_component_id(self) -> str:
+        """Returns the gateway ID as the component identifier."""
+        return self.gateway_id
+
+    def _get_component_type(self) -> str:
+        """Returns 'gateway' as the component type."""
+        return "gateway"
 
     def invoke(self, message, data):
         if isinstance(message, SolaceMessage):

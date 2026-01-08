@@ -1,0 +1,65 @@
+test_case_id: "mcp_trigger_below_thresholds_001"
+description: "Verifies that a small text response from an MCP tool, below all thresholds,
+  is not saved as an artifact and is returned to the LLM in full."
+tags: ["all", "agent", "mcp"]
+skip_intermediate_events: true
+
+# No config overrides, so default thresholds (2KB save, 4KB return) are used.
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "mcp_threshold_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Get a small amount of text data from the test server."
+  external_context:
+    a2a_session_id: "session_mcp_trigger_below_thresholds_001"
+
+llm_interactions:
+  # 1. LLM calls the MCP tool
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mcp_tool_123"
+                type: "function"
+                function:
+                  name: "get_data_stdio"
+                  arguments: '{"response_to_return": {"content": [{"type": "text",
+                    "text": "This is a small response, well below any thresholds."}]}}'
+
+  # 2. LLM gets the tool response and generates the final answer
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_data_stdio"
+          response_json_matches:
+            status: "processed"
+            message_to_llm: "Response from tool 'get_data_stdio' processed."
+            mcp_tool_output:
+              content:
+                - type: "text"
+                  text: "This is a small response, well below any thresholds."
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have retrieved the small text response. It was not saved as
+              an artifact."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_mcp_trigger_below_thresholds_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have retrieved the small text response. It was not saved
+              as an artifact."
+    # No assert_artifact_state, as no artifact should be created.

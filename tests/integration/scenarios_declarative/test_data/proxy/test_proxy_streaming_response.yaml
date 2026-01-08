@@ -1,0 +1,101 @@
+test_case_id: "proxy_streaming_response_001"
+description: "Tests that the proxy correctly handles a full streaming response with intermediate events."
+tags: ["all", "proxy", "streaming"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "proxy_stream_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Stream me a response."
+  external_context:
+    a2a_session_id: "session_proxy_streaming_001"
+
+# This section primes the TestA2AAgentServer's DeclarativeAgentExecutor.
+# The test server will return these events in order. The executor will overwrite
+# the taskId and contextId with the actual values from the request.
+# This test follows the modern A2A streaming pattern:
+# 1. Task(submitted) - ignored by gateway in streaming mode
+# 2. TaskStatusUpdateEvent(working, final=false) - intermediate updates
+# 3. TaskStatusUpdateEvent(completed, final=true) - gateway constructs Task from this
+downstream_a2a_agent_responses:
+  # 1. Initial Task(submitted) - gateway ignores this in streaming mode
+  - id: "downstream-task-id"
+    contextId: "session_proxy_streaming_001"
+    kind: "task"
+    status:
+      state: "submitted"
+      message:
+        role: "agent"
+        messageId: "msg-0"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Task submitted"
+  # 2. First status update - intermediate progress
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_streaming_001"
+    final: false
+    status:
+      state: "working"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Working on it... "
+  # 3. Second status update - more progress
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_streaming_001"
+    final: false
+    status:
+      state: "working"
+      message:
+        role: "agent"
+        messageId: "msg-2"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "here is some more text."
+  # 4. Final status update - gateway constructs Task(completed) from this
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_streaming_001"
+    final: true
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-final"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "All done."
+
+# This section asserts what the TestGatewayComponent receives
+# With convert_progress_updates=true (default), status updates have data parts
+# Final Task response keeps text parts (not converted)
+expected_gateway_output:
+  - type: "status_update"
+    final_flag: false
+    content_parts:
+      - type: "data"
+        data_contains:
+          type: "agent_progress_update"
+          status_text: "Working on it... "
+  - type: "status_update"
+    final_flag: false
+    content_parts:
+      - type: "data"
+        data_contains:
+          type: "agent_progress_update"
+          status_text: "here is some more text."
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "All done."

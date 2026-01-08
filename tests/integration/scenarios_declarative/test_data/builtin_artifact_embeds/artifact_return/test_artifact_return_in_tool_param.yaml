@@ -1,0 +1,83 @@
+test_case_id: "builtin_artifact_return_embed_in_tool_param_001"
+description: |
+  Tests that an 'artifact_return' embed is NOT resolved when used as a
+  parameter in a tool call. This validates that the embed resolution is
+  context-aware and does not trigger in the TOOL_PARAMETER resolution mode.
+tags: ["all","agent","embeds","builtin_artifact_embeds"]
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "some_other_file.txt"
+    content: "This content should not appear anywhere."
+    mime_type: "text/plain"
+  - filename: "output.txt"
+    content: ""
+    mime_type: "text/plain"
+    metadata:
+      description: "An empty file to be appended to."
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_artifact_return_tool_param_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Append the literal string '«artifact_return:some_other_file.txt:0»' to a new file named 'output.txt'."
+  external_context:
+    a2a_session_id: "session_artifact_return_tool_param_001"
+
+llm_interactions:
+  - step_id: "llm_tool_call_with_embed_in_param"
+    static_response:
+      id: "chatcmpl-tool-call-with-embed-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_append_with_embed"
+                type: "function"
+                function:
+                  name: "append_to_artifact"
+                  arguments: '{"filename": "output.txt", "content_chunk": "«artifact_return:some_other_file.txt:0»", "mime_type": "text/plain"}'
+          finish_reason: "tool_calls"
+
+  - step_id: "llm_final_response"
+    tool_responses:
+      - tool_call_id: "call_append_with_embed"
+        tool_name: "append_to_artifact"
+        tool_result:
+          status: "success"
+          filename: "output.txt"
+          new_version": 1
+          message: "Chunk appended to 'output.txt'. New version is 1."
+    static_response:
+      id: "chatcmpl-tool-call-with-embed-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have appended the literal string to 'output.txt' as requested."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "session_artifact_return_tool_param_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "I have appended the literal string to 'output.txt' as requested."
+    assert_artifact_state:
+      - filename: "output.txt"
+        user_id: "declarative_artifact_return_tool_param_tester@example.com"
+        session_id: "session_artifact_return_tool_param_001"
+        version: 1
+        expected_content: "«artifact_return:some_other_file.txt:0»"

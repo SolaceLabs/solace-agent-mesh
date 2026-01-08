@@ -1,12 +1,16 @@
 import React, { useState } from "react";
 
-import { Button } from "@/lib/components/ui";
-import type { AgentCard } from "@/lib/types";
+import type { AgentCardInfo } from "@/lib/types";
 
 import { AgentDisplayCard } from "./AgentDisplayCard";
+import { EmptyState } from "../common";
+import { SearchInput } from "@/lib/components/ui";
+import { Bot } from "lucide-react";
+
+const AgentImage = <Bot className="text-muted-foreground" size={64} />;
 
 interface AgentMeshCardsProps {
-    agents: AgentCard[];
+    agents: AgentCardInfo[];
 }
 
 export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
@@ -17,30 +21,18 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
         setExpandedAgentName(prev => (prev === agentName ? null : agentName));
     };
 
-    const filteredAgents = agents.filter(agent => (agent?.display_name || agent.name)?.toLowerCase().includes(searchQuery.toLowerCase()));
+    const filteredAgents = agents.filter(agent => (agent.displayName || agent.name)?.toLowerCase().includes(searchQuery.toLowerCase()));
 
     return (
-        <div>
+        <>
             {agents.length === 0 ? (
-                <div className="flex h-[calc(100vh-250px)] items-center justify-center">No agents discovered in the current namespace.</div>
+                <EmptyState image={AgentImage} title="No agents found" subtitle="No agents discovered in the current namespace." />
             ) : (
-                <div className="mx-auto mt-[50px] ml-[50px]">
-                    <div className="my-4">
-                        <input 
-                            type="text" 
-                            placeholder="Search..." 
-                            value={searchQuery} 
-                            onChange={e => setSearchQuery(e.target.value)} 
-                            className="bg-background rounded-md border px-3 py-2" 
-                        />
-                    </div>
+                <div className="h-full w-full pt-2 pl-2">
+                    <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="agentSearchInput" className="mb-4 w-xs" />
+
                     {filteredAgents.length === 0 && searchQuery ? (
-                        <div className="flex h-[calc(100vh-250px)] flex-col items-center justify-center gap-6">
-                            No agents match your search.
-                            <Button variant="outline" onClick={() => setSearchQuery("")}>
-                                Clear Search
-                            </Button>
-                        </div>
+                        <EmptyState variant="notFound" title="No Agents Match Your Filter" subtitle="Try adjusting your filter terms." buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchQuery("") }]} />
                     ) : (
                         <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
                             <div className="flex flex-wrap gap-10">
@@ -52,6 +44,6 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
                     )}
                 </div>
             )}
-        </div>
+        </>
     );
 };

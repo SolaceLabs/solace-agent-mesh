@@ -1,0 +1,445 @@
+# DEVELOPER GUIDE: a2a_spec
+
+## Quick Summary
+The `a2a_spec` directory contains the complete Agent-to-Agent (A2A) communication specification for the Solace Agent Mesh. It includes the main JSON schema definition (`a2a.json`) that defines all data structures, request/response types, and error codes for agent communication, plus a `schemas/` subdirectory containing specialized validation schemas for various agent signals and progress updates. Together, these provide a comprehensive framework for validating and implementing compliant agent-to-agent communication.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `a2a.json` - Complete JSON Schema specification for A2A protocol including all data types, requests, responses, and error definitions
+  - `a2a_spec_llm.txt` - Developer guide documentation for the A2A specification
+  - `a2a_spec_llm_detail.txt` - Concatenated detailed documentation from all subdirectories
+- **Subdirectories:**
+  - `schemas/` - JSON Schema definitions for agent communication signals (progress updates, tool invocations, LLM calls, artifact creation)
+
+## Developer API Reference
+
+### Direct Files
+
+#### a2a.json
+**Purpose:** Complete JSON Schema specification defining the Agent-to-Agent communication protocol
+**Import:** This is a JSON Schema file, typically loaded for validation purposes
+
+**Key Schema Definitions:**
+- **AgentCard** - Self-describing manifest for agents with capabilities, skills, and endpoints
+- **Message** - Individual messages in agent conversations with parts (text, files, data)
+- **Task** - Stateful operations/conversations between clients and agents
+- **A2ARequest/A2AResponse** - All supported JSON-RPC request and response types
+- **Security Schemes** - OAuth2, API Key, mTLS, and other authentication methods
+- **Error Types** - Standard JSON-RPC and A2A-specific error definitions
+
+**Core Data Structures:**
+```typescript
+// Agent Card - describes agent capabilities
+AgentCard {
+  name: string
+  description: string
+  url: string
+  skills: AgentSkill[]
+  capabilities: AgentCapabilities
+  security: SecurityRequirement[]
+  // ... additional fields
+}
+
+// Message - conversation content
+Message {
+  messageId: string
+  role: "user" | "agent"
+  parts: Part[] // TextPart | FilePart | DataPart
+  taskId?: string
+  contextId?: string
+}
+
+// Task - stateful operation
+Task {
+  id: string
+  contextId: string
+  status: TaskStatus
+  history?: Message[]
+  artifacts?: Artifact[]
+}
+```
+
+#### a2a_spec_llm.txt
+**Purpose:** Developer documentation and usage guide for the A2A specification
+**Import:** Documentation file for reference
+
+#### a2a_spec_llm_detail.txt
+**Purpose:** Comprehensive documentation combining all subdirectory guides
+**Import:** Documentation file for reference
+
+### Subdirectory APIs
+
+#### schemas/
+**Purpose:** Provides JSON Schema definitions for agent communication signals and progress updates
+**Key Exports:** Schema definitions for progress tracking, tool invocations, LLM calls, and artifact creation
+**Import Examples:**
+```python
+import json
+from jsonschema import validate
+
+# Load and use schemas for validation
+with open('solace_agent_mesh/common/a2a_spec/schemas/agent_progress_update.json') as f:
+    progress_schema = json.load(f)
+```
+
+**Available Schemas:**
+- `agent_progress_update.json` - General progress status messages
+- `artifact_creation_progress.json` - File/artifact creation tracking with chunked data and status
+- `llm_invocation.json` - LLM model invocation signals with usage tracking
+- `tool_invocation_start.json` - Tool execution start notifications
+- `tool_result.json` - Tool execution completion results with optional LLM usage
+
+## Complete Usage Guide
+
+### 1. Loading and Using the A2A Schema
+
+```python
+import json
+from jsonschema import validate, Draft7Validator
+
+# Load the main A2A schema
+with open('solace_agent_mesh/common/a2a_spec/a2a.json') as f:
+    a2a_schema = json.load(f)
+
+# Create validator for specific types
+def validate_agent_card(card_data):
+    """Validate an AgentCard against the schema"""
+    card_schema = a2a_schema['definitions']['AgentCard']
+    validate(instance=card_data, schema=card_schema)
+
+def validate_message(message_data):
+    """Validate a Message against the schema"""
+    message_schema = a2a_schema['definitions']['Message']
+    validate(instance=message_data, schema=message_schema)
+
+def validate_request(request_data):
+    """Validate an A2A request"""
+    request_schema = a2a_schema['definitions']['A2ARequest']
+    validate(instance=request_data, schema=request_schema)
+```
+
+### 2. Creating Valid A2A Data Structures
+
+```python
+# Create a valid Message
+message = {
+    "kind": "message",
+    "messageId": "msg-123",
+    "role": "user",
+    "parts": [
+        {
+            "kind": "text",
+            "text": "Hello, can you help me with a task?"
+        }
+    ]
+}
+
+# Create a SendMessage request
+send_request = {
+    "jsonrpc": "2.0",
+    "id": "req-456",
+    "method": "message/send",
+    "params": {
+        "message": message
+    }
+}
+
+# Validate the request
+validate_request(send_request)
+```
+
+### 3. Using Agent Communication Schemas
+
+```python
+import json
+from jsonschema import validate
+
+# Load and validate progress update
+with open('solace_agent_mesh/common/a2a_spec/schemas/agent_progress_update.json') as f:
+    progress_schema = json.load(f)
+
+progress_update = {
+    "type": "agent_progress_update",
+    "status_text": "Processing your request..."
+}
+validate(instance=progress_update, schema=progress_schema)
+
+# Load and validate tool invocation
+with open('solace_agent_mesh/common/a2a_spec/schemas/tool_invocation_start.json') as f:
+    tool_schema = json.load(f)
+
+tool_invocation = {
+    "type": "tool_invocation_start",
+    "tool_name": "file_reader",
+    "tool_args": {"filepath": "/data/file.txt"},
+    "function_call_id": "call_123"
+}
+validate(instance=tool_invocation, schema=tool_schema)
+
+# Load and validate tool result
+with open('solace_agent_mesh/common/a2a_spec/schemas/tool_result.json') as f:
+    result_schema = json.load(f)
+
+tool_result = {
+    "type": "tool_result",
+    "tool_name": "file_reader",
+    "result_data": {"content": "File contents...", "size": 1024},
+    "function_call_id": "call_123"
+}
+validate(instance=tool_result, schema=result_schema)
+```
+
+### 4. Working with Agent Cards
+
+```python
+# Create a complete AgentCard
+agent_card = {
+    "name": "Document Processor",
+    "description": "Agent that processes and analyzes documents",
+    "url": "https://api.example.com/agent",
+    "version": "1.0.0",
+    "protocolVersion": "0.3.0",
+    "capabilities": {
+        "streaming": True,
+        "pushNotifications": False,
+        "stateTransitionHistory": True
+    },
+    "defaultInputModes": ["text/plain", "application/pdf"],
+    "defaultOutputModes": ["text/plain", "application/json"],
+    "skills": [
+        {
+            "id": "document-analysis",
+            "name": "Document Analysis",
+            "description": "Analyze and extract information from documents",
+            "tags": ["document", "analysis", "extraction"]
+        }
+    ]
+}
+
+# Validate the agent card
+validate_agent_card(agent_card)
+```
+
+### 5. Enhanced Artifact Creation Progress Tracking
+
+```python
+# Load artifact creation schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/artifact_creation_progress.json') as f:
+    artifact_schema = json.load(f)
+
+# Track artifact creation in progress with chunked data
+artifact_progress = {
+    "type": "artifact_creation_progress",
+    "filename": "report.pdf",
+    "description": "Monthly sales report",
+    "status": "in-progress",
+    "bytes_transferred": 1024,
+    "artifact_chunk": "JVBERi0xLjQKJcOkw7zDtsO..."  # Base64 encoded chunk
+}
+validate(instance=artifact_progress, schema=artifact_schema)
+
+# Track artifact completion
+artifact_completed = {
+    "type": "artifact_creation_progress",
+    "filename": "report.pdf",
+    "status": "completed",
+    "bytes_transferred": 5120,
+    "mime_type": "application/pdf"
+}
+validate(instance=artifact_completed, schema=artifact_schema)
+```
+
+### 6. LLM Invocation Tracking
+
+```python
+# Load LLM invocation schema
+with open('solace_agent_mesh/common/a2a_spec/schemas/llm_invocation.json') as f:
+    llm_schema = json.load(f)
+
+# Track LLM calls with usage information
+llm_invocation = {
+    "type": "llm_invocation",
+    "request": {
+        "model": "gpt-4",
+        "messages": [{"role": "user", "content": "Analyze this data"}],
+        "temperature": 0.7
+    },
+    "usage": {
+        "input_tokens": 150,
+        "output_tokens": 75,
+        "cached_input_tokens": 50,
+        "model": "gpt-4"
+    }
+}
+validate(instance=llm_invocation, schema=llm_schema)
+```
+
+### 7. Complete Request/Response Flow with Progress Tracking
+
+```python
+# 1. Create and send a message
+message = {
+    "kind": "message",
+    "messageId": "msg-001",
+    "role": "user",
+    "parts": [{"kind": "text", "text": "Analyze this document"}]
+}
+
+request = {
+    "jsonrpc": "2.0",
+    "id": "req-001",
+    "method": "message/send",
+    "params": {
+        "message": message,
+        "configuration": {
+            "blocking": False,
+            "acceptedOutputModes": ["text/plain", "application/json"]
+        }
+    }
+}
+
+# 2. Send progress updates during processing
+def send_progress_update(status_text):
+    progress = {
+        "type": "agent_progress_update",
+        "status_text": status_text
+    }
+    # Validate and send progress update
+    validate(instance=progress, schema=progress_schema)
+    return progress
+
+# 3. Track tool invocations
+def track_tool_invocation(tool_name, args, call_id):
+    invocation = {
+        "type": "tool_invocation_start",
+        "tool_name": tool_name,
+        "tool_args": args,
+        "function_call_id": call_id
+    }
+    validate(instance=invocation, schema=tool_schema)
+    return invocation
+
+# 4. Track tool results with LLM usage
+def track_tool_result(tool_name, result_data, call_id, llm_usage=None):
+    result = {
+        "type": "tool_result",
+        "tool_name": tool_name,
+        "result_data": result_data,
+        "function_call_id": call_id
+    }
+    if llm_usage:
+        result["llm_usage"] = llm_usage
+    validate(instance=result, schema=result_schema)
+    return result
+```
+
+### 8. Comprehensive Schema Validation Utilities
+
+```python
+class A2AValidator:
+    """Utility class for A2A schema validation"""
+    
+    def __init__(self, schema_dir='solace_agent_mesh/common/a2a_spec'):
+        self.schema_dir = schema_dir
+        self.main_schema = self._load_main_schema()
+        self.signal_schemas = self._load_signal_schemas()
+    
+    def _load_main_schema(self):
+        with open(f'{self.schema_dir}/a2a.json') as f:
+            return json.load(f)
+    
+    def _load_signal_schemas(self):
+        schemas = {}
+        schema_files = [
+            'agent_progress_update.json',
+            'artifact_creation_progress.json',
+            'llm_invocation.json',
+            'tool_invocation_start.json',
+            'tool_result.json'
+        ]
+        for filename in schema_files:
+            with open(f'{self.schema_dir}/schemas/{filename}') as f:
+                schema_name = filename.replace('.json', '')
+                schemas[schema_name] = json.load(f)
+        return schemas
+    
+    def validate_definition(self, data, definition_name):
+        """Validate data against a specific A2A definition"""
+        schema = self.main_schema['definitions'][definition_name]
+        validate(instance=data, schema=schema)
+    
+    def validate_signal(self, data, signal_type):
+        """Validate agent communication signal"""
+        schema = self.signal_schemas[signal_type]
+        validate(instance=data, schema=schema)
+    
+    def validate_a2a_message(self, message_data):
+        """Validate a complete A2A message"""
+        self.validate_definition(message_data, 'Message')
+    
+    def validate_agent_card(self, card_data):
+        """Validate an agent card"""
+        self.validate_definition(card_data, 'AgentCard')
+    
+    def validate_task(self, task_data):
+        """Validate a task object"""
+        self.validate_definition(task_data, 'Task')
+
+# Usage example
+validator = A2AValidator()
+
+# Validate main A2A objects
+validator.validate_agent_card(agent_card)
+validator.validate_a2a_message(message)
+
+# Validate communication signals
+validator.validate_signal(progress_update, 'agent_progress_update')
+validator.validate_signal(tool_invocation, 'tool_invocation_start')
+validator.validate_signal(tool_result, 'tool_result')
+validator.validate_signal(artifact_progress, 'artifact_creation_progress')
+validator.validate_signal(llm_invocation, 'llm_invocation')
+```
+
+### 9. Error Handling with A2A Error Types
+
+```python
+# Create A2A-specific errors using the schema definitions
+task_not_found_error = {
+    "code": -32001,
+    "message": "Task not found",
+    "data": {"taskId": "task-123"}
+}
+
+content_type_error = {
+    "code": -32005,
+    "message": "Incompatible content types",
+    "data": {"requested": "image/png", "supported": ["text/plain", "application/json"]}
+}
+
+# Create error response
+error_response = {
+    "jsonrpc": "2.0",
+    "id": "req-456",
+    "error": task_not_found_error
+}
+
+# Validate error response
+validator.validate_definition(error_response, 'JSONRPCErrorResponse')
+```
+
+### 10. Working with Different Transport Protocols
+
+```python
+# Create agent card with multiple transport interfaces
+agent_card_multi_transport = {
+    "name": "Multi-Transport Agent",
+    "description": "Agent supporting multiple transport protocols",
+    "url": "https://api.example.com/jsonrpc",
+    "preferredTransport": "JSONRPC",
+    "additionalInterfaces": [
+        {
+            "url": "https://api.example.com/jsonrpc",
+            "transport": "JSONRPC"
+        },
+
+# content_hash: b8b4bc87e9300c50f2500efdd840bb765e107bfbc1de283800934528e8092614

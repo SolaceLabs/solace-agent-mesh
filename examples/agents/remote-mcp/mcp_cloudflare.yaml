@@ -1,0 +1,366 @@
+# Agent Configuration File: A2A ADK Agents Configurations
+#
+# This file has the configuration for the A2A ADK agents.
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: a2a_cloudflare.log
+
+# Shared SAM config
+!include shared_config.yaml
+
+apps:
+# --- Cloudflare MCP Agent ---
+  - name: Cloudflare_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+  
+    # --- App Level Config ---
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "CloudflareAgent"
+      model: *general_model
+      instruction: |
+        An agent that handles cloudflare operations.
+        Do NOT use parallel tool calls.
+      
+      # --- Tools Definition (including MCP) ---
+      tools:
+        - tool_type: mcp
+          connection_params:
+            type: sse
+            url: "https://graphql.mcp.cloudflare.com/sse"
+          auth:
+            type: oauth2
+          manifest:
+          - name: accounts_list
+            description: List all accounts in your Cloudflare account
+            inputSchema:
+              type: object
+              properties: {}
+              additionalProperties: false
+              $schema: "http://json-schema.org/draft-07/schema#"
+            id: accounts_list
+
+          - name: set_active_account
+            description: Set active account to be used for tool calls that require accountId
+            inputSchema:
+              type: object
+              properties:
+                activeAccountIdParam:
+                  type: string
+                  description: The accountId present in the user's Cloudflare account that should be the active accountId
+              required: [activeAccountIdParam]
+              additionalProperties: false
+              $schema: "http://json-schema.org/draft-07/schema#"
+            id: set_active_account
+
+          - name: zones_list
+            description: List all zones under a Cloudflare account
+            inputSchema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Filter zones by name
+                status:
+                  type: string
+                  description: Filter zones by status (active, pending, initializing, moved, deleted, deactivated, read only)
+                page:
+                  type: number
+                  minimum: 1
+                  default: 1
+                  description: Page number for pagination
+                perPage:
+                  type: number
+                  minimum: 5
+                  maximum: 1000
+                  default: 50
+                  description: Number of zones per page
+                order:
+                  type: string
+                  default: name
+                  description: Field to order results by (name, status, account_name)
+                direction:
+                  type: string
+                  enum: [asc, desc]
+                  default: desc
+                  description: Direction to order results (asc, desc)
+              additionalProperties: false
+              $schema: "http://json-schema.org/draft-07/schema#"
+            id: zones_list
+
+          - name: zone_details
+            description: Get details for a specific Cloudflare zone
+            inputSchema:
+              type: object
+              properties:
+                zoneId:
+                  type: string
+                  description: The ID of the zone to get details for
+              required: [zoneId]
+              additionalProperties: false
+              $schema: "http://json-schema.org/draft-07/schema#"
+            id: zone_details
+
+          - name: graphql_schema_search
+            description: |
+              Search the Cloudflare GraphQL API schema for types, fields, and enum values matching a keyword
+
+              Use this tool when:
+
+                - You are unsure which dataset to use for your query.
+                - A user is looking for specific types, fields, or enum values in the Cloudflare GraphQL API schema.
+
+              IMPORTANT GUIDELINES:
+                - DO NOT query for dimensions unless the user explicitly asked to group by or show dimensions.
+                - Only include fields that the user specifically requested in their query.
+                - Keep queries as simple as possible while fulfilling the user's request.
+
+              Workflow:
+                1. Use this tool to search for dataset types by keyword.
+                2. When a relevant dataset type is found, immediately use graphql_schema_details to get the complete structure of that dataset.
+                3. After understanding the schema structure, proceed directly to constructing and executing queries using the graphql_query tool.
+                4. Do not use graphql_schema_overview or graphql_complete_schema after finding the relevant dataset - these are redundant steps.
+
+              This tool searches the Cloudflare GraphQL API schema for any schema elements (such as object types, field names, or enum options) that match a given keyword. It returns schema fragments and definitions to assist in constructing valid and precise GraphQL queries.
+            inputSchema:
+              type: object
+              properties:
+                keyword:
+                  type: string
+                  description: The keyword to search for in the schema
+                maxDetailsToFetch:
+                  type: number
+                  minimum: 1
+                  maximum: 50
+                  default: 10
+                  description: Maximum number of types to fetch details for
+                includeInternalTypes:
+                  type: boolean
+                  default: false
+                  description: Whether to include internal types (those starting with __) in the search results
+                onlyObjectTypes:
+                  type: boolean
+                  default: true
+                  description: Whether to only include OBJECT kind types in the search results with descriptions
+              required: [keyword]
+              additionalProperties: false
+              $schema: "http://json-schema.org/draft-07/schema#"
+            id: graphql_schema_search
+
+          - name: graphql_schema_overview
+            description: |
+              Fetch the high-level overview of the Cloudflare GraphQL API schema
+
+              Use this tool when:
+
+                - A user requests insights into the structure or capabilities of Cloudflare’s GraphQL API.
+                - You need to explore available types, queries, mutations, or schema relationships exposed by Cloudflare’s GraphQL interface.
+                - You're generating or validating GraphQL queries against Cloudflare’s schema.
+                - You are troubleshooting or developing integrations with Cloudflare’s API and require up-to-date schema information.
+
+              This tool returns a high-level summary of the Cloudflare GraphQL API schema. It provides a structured outline of API entry points, data models, and relationships to help guide query construction or system integration.
+            inputSchema:
+              type: object
+              properties:
+                pageSize:
+                  type: number
+                  minimum: 10
+                  maximum: 1000
+                  default: 100
+                  description: Number of types to return per page
+                page:
+                  type: number
+                  minimum: 1
+                  default: 1
+                  description: Page number to fetch
+              additionalProperties: false
+              $schema: "http://json-schema.org/draft-07/schema#"
+            id: graphql_schema_overview
+
+          - name: graphql_type_details
+            description: |
+              Fetch detailed information about a specific GraphQL type (dataset)
+
+              IMPORTANT: After exploring the schema, DO NOT generate overly complicated GraphQL queries that the user didn't explicitly ask for. Only include fields that were specifically requested.
+
+              Use this tool when:
+
+                - You need to explore the fields by the type name (dataset) for detailed information
+                - You're building or debugging GraphQL queries and want to ensure the correct usage of schema components
+                - You need contextual information about how a certain concept or object is represented in Cloudflare's GraphQL API.
+
+              Guidelines for query construction:
+                - Keep queries as simple as possible while fulfilling the user's request
+                - Only include fields that the user specifically asked for
+                - Do not add dimensions or additional fields unless explicitly requested
+                - When in doubt, ask the user for clarification rather than creating a complex query
+            inputSchema:
+              type: object
+              properties:
+                typeName:
+                  type: string
+                  description: The type name (dataset) of the GraphQL type to fetch details for
+                fieldsPageSize:
+                  type: number
+                  minimum: 5
+                  maximum: 500
+                  default: 50
+                  description: Number of fields to return per page
+                fieldsPage:
+                  type: number
+                  minimum: 1
+                  default: 1
+                  description: Page number for fields to fetch
+                enumValuesPageSize:
+                  type: number
+                  minimum: 5
+                  maximum: 500
+                  default: 50
+                  description: Number of enum values to return per page
+                enumValuesPage:
+                  type: number
+                  minimum: 1
+                  default: 1
+                  description: Page number for enum values to fetch
+              required: [typeName]
+              additionalProperties: false
+              $schema: "http://json-schema.org/draft-07/schema#"
+            id: graphql_type_details
+
+          - name: graphql_complete_schema
+            description: |
+              Fetch the complete Cloudflare GraphQL API schema (combines overview and important type details)
+            inputSchema:
+              type: object
+              properties:
+                typesPageSize:
+                  type: number
+                  minimum: 10
+                  maximum: 500
+                  default: 100
+                  description: Number of types to return per page
+                typesPage:
+                  type: number
+                  minimum: 1
+                  default: 1
+                  description: Page number for types to fetch
+                includeRootTypeDetails:
+                  type: boolean
+                  default: true
+                  description: Whether to include detailed information about root types
+                maxTypeDetailsToFetch:
+                  type: number
+                  minimum: 0
+                  maximum: 10
+                  default: 3
+                  description: Maximum number of important types to fetch details for
+              additionalProperties: false
+              $schema: "http://json-schema.org/draft-07/schema#"
+            id: graphql_complete_schema
+
+          - name: graphql_query
+            description: |
+              Execute a GraphQL query against the Cloudflare API
+
+              IMPORTANT: ONLY execute the EXACT GraphQL query provided by the user. DO NOT generate complicated queries that the user didn't explicitly ask for.
+
+              CRITICAL: When querying, make sure to set a LIMIT (e.g., first: 10, limit: 20) otherwise the response may be too large for the MCP server to process.
+
+              Use this tool when:
+
+                - A user provides a GraphQL query and expects real-time data from Cloudflare's API.
+                - You need to retrieve live information from Cloudflare, such as analytics, logs, account data, or configuration details.
+                - You want to validate the behavior of a GraphQL query or inspect its runtime results.
+
+              This tool sends a user-defined GraphQL query to the Cloudflare API and returns the raw response exactly as received. When filtering or querying by time, use ISO 8601 datetime format (e.g., "2020-08-03T02:07:05Z").
+
+              For each query execution, a clickable GraphQL API Explorer link will be provided in the response. Users can click this link to open the query in Cloudflare's GraphQL Explorer interface where they can further modify and experiment with the query.
+
+              Guidelines:
+                - Only use the exact query provided by the user. Do not modify or expand it unless explicitly requested.
+                - Always suggest including limits in queries (e.g., first: 10, limit: 20) to prevent response size issues.
+                - If a query fails due to size limits, advise the user to add or reduce limits in their query.
+            inputSchema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: The GraphQL query to execute
+                variables:
+                  type: object
+                  additionalProperties: {}
+                  description: Variables for the query
+              required: [query]
+              additionalProperties: false
+              $schema: "http://json-schema.org/draft-07/schema#"
+            id: graphql_query
+
+          - name: graphql_api_explorer
+            description: |
+              Generate a Cloudflare GraphQL API Explorer link
+
+              Use this tool when:
+
+                - A user asks for any GraphQL queries and wants to explore them in the Cloudflare GraphQL API Explorer.
+                - You want to provide a shareable link to a specific GraphQL query for the user to explore and modify.
+                - You need to help the user visualize or interact with GraphQL queries in a user-friendly interface.
+
+              This tool generates a direct link to the Cloudflare GraphQL API Explorer with a pre-populated query and variables.
+              The response includes a clickable Markdown link that users can click to open the query in Cloudflare's interactive GraphQL playground.
+              The original query and variables are also displayed for reference.
+            inputSchema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: The GraphQL query to include in the explorer link
+                variables:
+                  type: object
+                  additionalProperties: {}
+                  description: Variables for the query in JSON format
+              required: [query]
+              additionalProperties: false
+              $schema: "http://json-schema.org/draft-07/schema#"
+            id: graphql_api_explorer
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "sql"
+        database_url: "${CLOUDFLARE_DATABASE_URL, sqlite:///cloudflare-agent.db}"
+        default_behavior: "PERSISTENT"        
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      trust_manager:
+        enabled: ${TRUST_MANAGER_ENABLED, false}  # Enable or disable the trust manager
+        card_publish_interval_seconds: 10  # Publish every 10 seconds for testing
+        card_expiration_days: 7  # 1 week for development
+        verification_mode: "permissive"  # Log warnings, don't fail during initial testing
+        clock_skew_tolerance_seconds: 300  # 5 minutes tolerance
+        enable_time_validation: true
+        # JWT Configuration (Phase 2)
+        jwt_default_ttl_seconds: 3600  # 1 hour default JWT lifetime
+        jwt_max_ttl_seconds: 86400     # 24 hours maximum JWT lifetime
+  
+      # --- Agent Card Definition ---
+      agent_card:
+        description: "An agent that handles cloudflare operations."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"] 
+        skills: []
+  
+      # --- Discovery & Communication ---
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 60

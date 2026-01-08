@@ -2,9 +2,20 @@
 export { Button } from "./button";
 export { ViewWorkflowButton } from "./ViewWorkflowButton";
 export { Textarea } from "./textarea";
+export { HighlightedTextarea } from "./highlighted-textarea";
+export { Input } from "./input";
+export { SearchInput } from "./search-input";
+export { Label } from "./label";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
-export { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./dialog";
+export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent } from "./card";
+export { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "./form";
+export { Spinner } from "./spinner";
+export * from "./dialog";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
+export { Switch } from "./switch";
+export { Progress } from "./progress";
+export { Checkbox } from "./checkbox";
+export { Pagination, PaginationContent, PaginationLink, PaginationItem, PaginationPrevious, PaginationNext, PaginationEllipsis } from "./pagination";
 
 // Layout Components
 export { SidePanel, type SidePanelProps } from "./side-panel";

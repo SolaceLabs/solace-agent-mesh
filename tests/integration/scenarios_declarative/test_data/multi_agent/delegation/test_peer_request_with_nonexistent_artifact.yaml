@@ -1,0 +1,71 @@
+# Test Case 4: Verify graceful handling when referencing a non-existent artifact.
+test_case_id: "peer_request_with_nonexistent_artifact_001"
+description: "Verify graceful handling of non-existent artifact references in peer calls."
+tags: ["all", "agent", "tools", "delegation"]
+skip_intermediate_events: true
+
+test_runner_config_overrides:
+  agent_config:
+    artifact_scope: "namespace"
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "artifact_tester@example.com"
+  prompt:
+    parts:
+      - text: "Please ask TestPeerAgentA to process ghost_file.txt"
+  invoked_with_artifacts:
+    - filename: "ghost_file.txt"
+
+llm_interactions:
+  # 1. TestAgent delegates to TestPeerAgentA
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_peer_a_with_ghost"
+                type: "function"
+                function:
+                  name: "peer_TestPeerAgentA"
+                  arguments: '{"task_description": "Process ghost_file.txt", "artifacts": [{"filename": "ghost_file.txt"}]}'
+    expected_request:
+      tools_present: ["peer_TestPeerAgentA"]
+
+  # 2. TestPeerAgentA's prompt should contain an error message about the missing artifact.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'm sorry, but I cannot find the artifact 'ghost_file.txt'."
+    expected_request:
+      messages_contain:
+        - role: "user"
+          content_contains: "Artifact: 'ghost_file.txt' (version: latest)\nError: Could not load metadata. Artifact 'ghost_file.txt' has no versions available to determine 'latest'."
+
+  # 3. TestAgent receives the error response from A.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "It seems there was an issue. TestPeerAgentA reported: I'm sorry, but I cannot find the artifact 'ghost_file.txt'."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_contains: "cannot find the artifact 'ghost_file.txt'"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: session_peer_request_with_nonexistent_artifact_001
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "cannot find the artifact 'ghost_file.txt'"

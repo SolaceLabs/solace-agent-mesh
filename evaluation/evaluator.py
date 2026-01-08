@@ -5,27 +5,25 @@ This module evaluates AI model performance against test cases using multiple eva
 
 import concurrent.futures
 import json
-import os
+import logging
 import re
-import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
-import logging
+from pathlib import Path
 
+import litellm
 import numpy as np
 from rouge import Rouge
-import litellm
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from evaluation.config_loader import ConfigLoader
-from evaluation.test_case_loader import load_test_case
+from .shared import (
+    EvaluationConfigLoader,
+    EvaluationOptions,
+    TestSuiteConfiguration,
+    load_test_case,
+)
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -35,14 +33,14 @@ class EvaluationResult:
     run_number: int
     test_case_id: str
     test_case_path: str
-    tool_match_score: Optional[float] = None
-    response_match_score: Optional[float] = None
-    llm_eval_score: Optional[float] = None
-    llm_eval_reasoning: Optional[str] = None
-    duration_seconds: Optional[float] = None
-    errors: List[str] = field(default_factory=list)
+    tool_match_score: float | None = None
+    response_match_score: float | None = None
+    llm_eval_score: float | None = None
+    llm_eval_reasoning: str | None = None
+    duration_seconds: float | None = None
+    errors: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, any]:
         """Convert to dictionary format for JSON serialization."""
         result = {
             "run": self.run_number,
@@ -74,10 +72,10 @@ class ScoreStatistics:
     """Statistical summary of evaluation scores."""
 
     average: float
-    distribution: Dict[str, float]
+    distribution: dict[str, float]
 
     @classmethod
-    def from_scores(cls, scores: List[float]) -> "ScoreStatistics":
+    def from_scores(cls, scores: list[float]) -> "ScoreStatistics":
         """Create statistics from a list of scores."""
         if not scores:
             return cls(
@@ -103,13 +101,13 @@ class TestCaseResults:
 
     test_case_id: str
     category: str
-    runs: List[EvaluationResult]
+    runs: list[EvaluationResult]
     average_duration: float
     tool_match_scores: ScoreStatistics
     response_match_scores: ScoreStatistics
     llm_eval_scores: ScoreStatistics
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, any]:
         """Convert to dictionary format for JSON serialization."""
         return {
             "test_case_id": self.test_case_id,
@@ -136,10 +134,10 @@ class ModelResults:
     """Complete evaluation results for a model."""
 
     model_name: str
-    total_execution_time: Optional[float]
-    test_cases: List[TestCaseResults]
+    total_execution_time: float | None
+    test_cases: list[TestCaseResults]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, any]:
         """Convert to dictionary format for JSON serialization."""
         return {
             "model_name": self.model_name,
@@ -152,71 +150,63 @@ class ConfigurationService:
     """Handles configuration loading and validation."""
 
     def __init__(self, config_path: str):
-        self.config_loader = ConfigLoader(config_path)
+        self.config_loader = EvaluationConfigLoader(config_path)
         self._config_cache = None
         self._evaluation_settings_cache = None
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self) -> TestSuiteConfiguration:
         """Get the main configuration."""
         if self._config_cache is None:
-            self._config_cache = self.config_loader.load_config()
+            self._config_cache = self.config_loader.load_configuration()
         return self._config_cache
 
-    def get_evaluation_settings(self) -> Dict[str, Any]:
+    def get_evaluation_settings(self) -> EvaluationOptions:
         """Get evaluation settings."""
         if self._evaluation_settings_cache is None:
-            self._evaluation_settings_cache = (
-                self.config_loader.get_evaluation_settings()
-            )
+            self._evaluation_settings_cache = self.config_loader.get_evaluation_options()
         return self._evaluation_settings_cache
-
-    def get_results_path(self) -> str:
-        """Get the base results path."""
-        config = self.get_config()
-        results_dir_name = config["results_dir_name"]
-        return os.path.join(SCRIPT_DIR, "results", results_dir_name)
 
 
 class FileService:
     """Handles file I/O operations."""
 
     @staticmethod
-    def load_json(filepath: str) -> Any:
+    def load_json(filepath: Path) -> any:
         """Load JSON data from file."""
         try:
-            with open(filepath, "r") as f:
+            with filepath.open() as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            logger.error(f"Failed to load JSON from {filepath}: {e}")
+            log.error(f"Failed to load JSON from {filepath}: {e}")
             raise
 
     @staticmethod
-    def save_json(data: Any, filepath: str):
+    def save_json(data: any, filepath: Path):
         """Save data as JSON to file."""
         try:
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
-            with open(filepath, "w") as f:
+            filepath.parent.mkdir(parents=True, exist_ok=True)
+            with filepath.open("w") as f:
                 json.dump(data, f, indent=4)
         except Exception as e:
-            logger.error(f"Failed to save JSON to {filepath}: {e}")
+            log.error(f"Failed to save JSON to {filepath}: {e}")
             raise
 
     @staticmethod
-    def file_exists(filepath: str) -> bool:
+    def file_exists(filepath: Path) -> bool:
         """Check if file exists."""
-        return os.path.exists(filepath)
+        return filepath.exists()
 
 
 class StatisticsService:
     """Handles statistical calculations and aggregations."""
 
     @staticmethod
-    def calculate_score_statistics(scores: List[float]) -> ScoreStatistics:
+    def calculate_score_statistics(scores: list[float]) -> ScoreStatistics:
         """Calculate statistical summary for a list of scores."""
         return ScoreStatistics.from_scores(scores)
 
     @staticmethod
-    def calculate_average_duration(durations: List[float]) -> float:
+    def calculate_average_duration(durations: list[float]) -> float:
         """Calculate average duration from a list of durations."""
         if not durations:
             return 0.0
@@ -228,8 +218,8 @@ class EvaluationStrategy(ABC):
 
     @abstractmethod
     def evaluate(
-        self, test_case: Dict[str, Any], summary_data: Dict[str, Any]
-    ) -> Optional[float]:
+        self, test_case: dict[str, any], summary_data: dict[str, any]
+    ) -> float | None:
         """Evaluate a test case run and return a score."""
         pass
 
@@ -238,8 +228,8 @@ class ToolMatchEvaluator(EvaluationStrategy):
     """Evaluates tool usage against expected tools."""
 
     def evaluate(
-        self, test_case: Dict[str, Any], summary_data: Dict[str, Any]
-    ) -> Optional[float]:
+        self, test_case: dict[str, any], summary_data: dict[str, any]
+    ) -> float | None:
         """Evaluate tool matching score."""
         try:
             expected_tools = test_case["evaluation"]["expected_tools"]
@@ -257,7 +247,7 @@ class ToolMatchEvaluator(EvaluationStrategy):
             return len(found_tools) / len(expected_set)
 
         except (KeyError, TypeError) as e:
-            logger.warning(f"Error in tool match evaluation: {e}")
+            log.warning(f"Error in tool match evaluation: {e}")
             return None
 
 
@@ -268,8 +258,8 @@ class ResponseMatchEvaluator(EvaluationStrategy):
         self.rouge = Rouge()
 
     def evaluate(
-        self, test_case: Dict[str, Any], summary_data: Dict[str, Any]
-    ) -> Optional[float]:
+        self, test_case: dict[str, any], summary_data: dict[str, any]
+    ) -> float | None:
         """Evaluate response matching score using a weighted ROUGE average."""
         try:
             expected_response = test_case["evaluation"]["expected_response"]
@@ -290,14 +280,14 @@ class ResponseMatchEvaluator(EvaluationStrategy):
             return weighted_score
 
         except (ValueError, KeyError, TypeError) as e:
-            logger.warning(f"Error in response match evaluation: {e}")
+            log.warning(f"Error in response match evaluation: {e}")
             return 0.0
 
 
 class LLMEvaluator(EvaluationStrategy):
     """Evaluates responses using an LLM judge."""
 
-    def __init__(self, llm_config: Dict[str, Any]):
+    def __init__(self, llm_config: dict[str, any]):
         self.model = llm_config.get("LLM_SERVICE_PLANNING_MODEL_NAME")
         self.api_key = llm_config.get("LLM_SERVICE_API_KEY")
         self.api_base = llm_config.get("LLM_SERVICE_ENDPOINT")
@@ -308,8 +298,8 @@ class LLMEvaluator(EvaluationStrategy):
             )
 
     def evaluate(
-        self, test_case: Dict[str, Any], summary_data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        self, test_case: dict[str, any], summary_data: dict[str, any]
+    ) -> dict[str, any] | None:
         """Evaluate response using LLM and return score with reasoning."""
         try:
             query = test_case["query"]
@@ -342,7 +332,7 @@ class LLMEvaluator(EvaluationStrategy):
             return {"score": score, "reasoning": reasoning}
 
         except Exception as e:
-            logger.error(f"Error in LLM evaluation: {e}")
+            log.error(f"Error in LLM evaluation: {e}")
             return None
 
     def _build_evaluation_prompt(
@@ -351,8 +341,8 @@ class LLMEvaluator(EvaluationStrategy):
         expected_response: str,
         actual_response: str,
         criterion: str,
-        input_artifacts: List[Dict],
-        output_artifacts: List[Dict],
+        input_artifacts: list[dict],
+        output_artifacts: list[dict],
     ) -> str:
         """Build the evaluation prompt for the LLM."""
         return f"""
@@ -367,7 +357,7 @@ class LLMEvaluator(EvaluationStrategy):
         Format your response exactly as:
         Score: [0.0-1.0]
         Reasoning: [Your detailed explanation of why you gave this score, considering both the response and any artifacts created]
-        
+
         Provide a score from 0.0 to 1.0 where:
         - 1.0 = Excellent: Fully meets the criterion and expectations
         - 0.8-0.9 = Good: Mostly meets the criterion with minor issues
@@ -415,7 +405,7 @@ class LLMEvaluator(EvaluationStrategy):
 class RunEvaluator:
     """Evaluates individual test runs."""
 
-    def __init__(self, evaluation_settings: Dict[str, Any]):
+    def __init__(self, evaluation_settings: dict[str, any]):
         self.evaluation_settings = evaluation_settings
         self.file_service = FileService()
 
@@ -437,24 +427,25 @@ class RunEvaluator:
                 llm_config = evaluation_settings["llm_evaluator"]["env"]
                 self.llm_evaluator = LLMEvaluator(llm_config)
             except Exception as e:
-                logger.error(f"Failed to initialize LLM evaluator: {e}")
+                log.error(f"Failed to initialize LLM evaluator: {e}")
 
     def evaluate_run(
         self,
         run_number: int,
-        run_path: str,
-        test_case: Dict[str, Any],
+        run_path: Path,
+        test_case: dict[str, any],
         test_case_path: str,
-    ) -> Optional[EvaluationResult]:
+    ) -> EvaluationResult | None:
         """Evaluate a single test run."""
-        logger.info(
+        log.info(
             f"    - Evaluating run {run_number} for test case {test_case['test_case_id']}"
         )
 
         # Load summary data
-        summary_path = os.path.join(run_path, "summary.json")
+        summary_path = run_path / "summary.json"
+        log.info(f"Summary file path: {summary_path}")
         if not self.file_service.file_exists(summary_path):
-            logger.warning(
+            log.warning(
                 f"      Summary file not found for run {run_number}, skipping."
             )
             return None
@@ -462,7 +453,7 @@ class RunEvaluator:
         try:
             summary_data = self.file_service.load_json(summary_path)
         except Exception as e:
-            logger.error(f"      Error loading summary.json for run {run_number}: {e}")
+            log.error(f"      Error loading summary.json for run {run_number}: {e}")
             return None
 
         # Create evaluation result
@@ -496,7 +487,7 @@ class RunEvaluator:
 class ModelEvaluator:
     """Evaluates all runs for a single model."""
 
-    def __init__(self, config: Dict[str, Any], evaluation_settings: Dict[str, Any]):
+    def __init__(self, config: dict[str, any], evaluation_settings: dict[str, any]):
         self.config = config
         self.evaluation_settings = evaluation_settings
         self.run_evaluator = RunEvaluator(evaluation_settings)
@@ -504,9 +495,9 @@ class ModelEvaluator:
 
     def evaluate_model(self, model_name: str, base_results_path: str) -> ModelResults:
         """Evaluate all test cases for a model."""
-        logger.info(f"Evaluating model: {model_name}")
+        log.info(f"Evaluating model: {model_name}")
 
-        model_results_path = os.path.join(base_results_path, model_name)
+        model_results_path = Path(base_results_path) / model_name
 
         # Collect all evaluation tasks
         tasks = self._collect_evaluation_tasks(model_results_path)
@@ -525,7 +516,7 @@ class ModelEvaluator:
                     if result:
                         model_results_data[result.test_case_id].append(result)
                 except Exception as e:
-                    logger.error(f"An error occurred during evaluation: {e}")
+                    log.error(f"An error occurred during evaluation: {e}")
 
         # Aggregate results by test case
         test_case_results = []
@@ -541,24 +532,24 @@ class ModelEvaluator:
         )
 
     def _collect_evaluation_tasks(
-        self, model_results_path: str
-    ) -> List[Tuple[int, str, Dict[str, Any], str]]:
+        self, model_results_path: Path
+    ) -> list[tuple[int, Path, dict[str, any], str]]:
         """Collect all evaluation tasks for the model."""
         tasks = []
 
         for test_case_path in self.config["test_cases"]:
             test_case = load_test_case(test_case_path)
-            test_case_id = test_case["test_case_id"]
-            test_case_results_path = os.path.join(model_results_path, test_case_id)
+            test_case_name = Path(test_case_path).stem.replace(".test", "")
+            test_case_results_path = model_results_path / test_case_name
 
             for i in range(1, self.config["runs"] + 1):
-                run_path = os.path.join(test_case_results_path, f"run_{i}")
+                run_path = test_case_results_path / f"run_{i}"
                 tasks.append((i, run_path, test_case, test_case_path))
 
         return tasks
 
     def _aggregate_test_case_results(
-        self, test_case_id: str, runs: List[EvaluationResult]
+        self, test_case_id: str, runs: list[EvaluationResult]
     ) -> TestCaseResults:
         """Aggregate results for a test case across multiple runs."""
         # Load test case to get category
@@ -604,11 +595,11 @@ class ResultsWriter:
 
     def write_model_results(self, model_results: ModelResults, base_results_path: str):
         """Write model results to file."""
-        results_path = os.path.join(
-            base_results_path, model_results.model_name, "results.json"
+        results_path = (
+            Path(base_results_path) / model_results.model_name / "results.json"
         )
         self.file_service.save_json(model_results.to_dict(), results_path)
-        logger.info(
+        log.info(
             f"Results for model {model_results.model_name} written to {results_path}"
         )
 
@@ -623,10 +614,13 @@ class EvaluationOrchestrator:
     def run_evaluation(
         self,
         base_results_path: str,
-        model_execution_times: Optional[Dict[str, float]] = None,
+        model_execution_times: dict[str, float] | None = None,
     ):
         """Main entry point for the evaluation process."""
-        logger.info("--- Starting evaluation ---")
+        log.info("Starting evaluation")
+
+        # Resolve to an absolute path to ensure consistency
+        base_results_path = str(Path(base_results_path).resolve())
 
         if model_execution_times is None:
             model_execution_times = {}
@@ -634,32 +628,62 @@ class EvaluationOrchestrator:
         config = self.config_service.get_config()
         evaluation_settings = self.config_service.get_evaluation_settings()
 
-        model_evaluator = ModelEvaluator(config, evaluation_settings)
+        # Convert evaluation settings to dict format for backwards compatibility
+        settings_dict = {
+            "tool_match": {"enabled": evaluation_settings.tool_matching_enabled},
+            "response_match": {"enabled": evaluation_settings.response_matching_enabled},
+            "llm_evaluator": {
+                "enabled": evaluation_settings.llm_evaluation_enabled,
+                "env": evaluation_settings.llm_evaluator_environment.variables if evaluation_settings.llm_evaluator_environment else {}
+            }
+        }
 
-        for model_config in config["llm_models"]:
-            model_name = model_config["name"]
+        # Convert config to dict format for backwards compatibility
+        config_dict = {
+            "test_cases": config.test_case_files,
+            "runs": config.run_count
+        }
 
-            # Evaluate the model
-            model_results = model_evaluator.evaluate_model(
-                model_name, base_results_path
-            )
+        model_evaluator = ModelEvaluator(config_dict, settings_dict)
 
-            # Add execution time if available
+        if config.remote:
+            # Handle remote evaluation
+            model_name = "remote"
+            model_results = model_evaluator.evaluate_model(model_name, base_results_path)
             execution_time = model_execution_times.get(model_name)
             if execution_time is not None:
                 model_results.total_execution_time = execution_time
-
-            # Write results to file
             self.results_writer.write_model_results(model_results, base_results_path)
+        else:
+            # Handle local evaluation
+            for model_config in config.model_configurations:
+                model_name = model_config.name
 
-        logger.info("--- Evaluation finished ---")
+                # Evaluate the model
+                model_results = model_evaluator.evaluate_model(
+                    model_name, base_results_path
+                )
+
+                # Add execution time if available
+                execution_time = model_execution_times.get(model_name)
+                if execution_time is not None:
+                    model_results.total_execution_time = execution_time
+
+                # Write results to file
+                self.results_writer.write_model_results(model_results, base_results_path)
+
+        log.info("--- Evaluation finished ---")
 
 
-def main(config_path: str = "evaluation/test_suite_config.json"):
+def main(config_path: str):
     """Main entry point for command-line usage."""
     orchestrator = EvaluationOrchestrator(config_path)
-    results_path = orchestrator.config_service.get_results_path()
-    orchestrator.run_evaluation(results_path)
+    # Results path should be based on the current working directory, not the package location.
+    # This main function is for standalone testing.
+    config = orchestrator.config_service.get_config()
+    results_path = Path.cwd() / "results" / config.results_directory
+    results_path.mkdir(parents=True, exist_ok=True)
+    orchestrator.run_evaluation(str(results_path))
 
 
 if __name__ == "__main__":

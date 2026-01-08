@@ -5,27 +5,23 @@ This module extracts and processes evaluation data for HTML report generation.
 
 import json
 import logging
-from datetime import datetime
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set, Tuple
-from pathlib import Path
-from collections import defaultdict, Counter
 import random
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 
-# Import test case loader
-from .test_case_loader import load_test_case
+from .shared import load_test_case
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 @dataclass
 class EvaluationMetrics:
     """Core evaluation data structure."""
 
-    models: List[str] = field(default_factory=list)
-    total_execution_time: Optional[float] = None
+    models: list[str] = field(default_factory=list)
+    total_execution_time: float | None = None
     total_execution_time_formatted: str = "Not available"
     generation_time: str = field(
         default_factory=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -36,7 +32,7 @@ class EvaluationMetrics:
     runs: str = "Not available"
     total_tests: int = 0
     duration: str = "Not available"
-    test_case_names: List[str] = field(default_factory=list)
+    test_case_names: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -48,7 +44,7 @@ class ModelPerformance:
     success_rate: float = 0.0
     test_count: int = 0
     estimated_cost: float = 0.0
-    scores: List[float] = field(default_factory=list)
+    scores: list[float] = field(default_factory=list)
 
 
 @dataclass
@@ -58,7 +54,7 @@ class TestCaseResult:
     test_case_id: str
     category: str
     description: str = ""
-    model_results: Dict[str, Any] = field(default_factory=dict)
+    model_results: dict[str, any] = field(default_factory=dict)
     average_score: float = 0.0
 
 
@@ -66,9 +62,9 @@ class TestCaseResult:
 class ChartConfiguration:
     """Chart and visualization data."""
 
-    categories: List[str] = field(default_factory=list)
-    datasets: List[Dict[str, Any]] = field(default_factory=list)
-    category_scores: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    categories: list[str] = field(default_factory=list)
+    datasets: list[dict[str, any]] = field(default_factory=list)
+    category_scores: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 @dataclass
@@ -76,27 +72,27 @@ class CategoryStatistics:
     """Category-based statistics."""
 
     category_name: str
-    test_cases: List[str] = field(default_factory=list)
-    model_scores: Dict[str, float] = field(default_factory=dict)
+    test_cases: list[str] = field(default_factory=list)
+    model_scores: dict[str, float] = field(default_factory=dict)
 
 
 class FileService:
     """Handles file I/O operations with proper error handling."""
 
     @staticmethod
-    def load_json(filepath: Path) -> Any:
+    def load_json(filepath: Path) -> any:
         """Load JSON data from file."""
         try:
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 return json.load(f)
         except FileNotFoundError:
-            logger.warning(f"File not found: {filepath}")
+            log.warning(f"File not found: {filepath}")
             return None
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in file {filepath}: {e}")
+            log.error(f"Invalid JSON in file {filepath}: {e}")
             return None
         except Exception as e:
-            logger.error(f"Error reading file {filepath}: {e}")
+            log.error(f"Error reading file {filepath}: {e}")
             return None
 
     @staticmethod
@@ -105,7 +101,7 @@ class FileService:
         return filepath.exists() and filepath.is_file()
 
     @staticmethod
-    def list_directories(path: Path) -> List[str]:
+    def list_directories(path: Path) -> list[str]:
         """List directories in the given path."""
         try:
             return [
@@ -114,7 +110,7 @@ class FileService:
                 if item.is_dir() and not item.name.startswith(".")
             ]
         except Exception as e:
-            logger.error(f"Error listing directories in {path}: {e}")
+            log.error(f"Error listing directories in {path}: {e}")
             return []
 
 
@@ -124,7 +120,7 @@ class ResultsExtractionService:
     def __init__(self, file_service: FileService):
         self.file_service = file_service
 
-    def extract_model_results(self, results_dir: Path) -> Dict[str, Any]:
+    def extract_model_results(self, results_dir: Path) -> dict[str, any]:
         """Extract results for all models."""
         model_results = {}
 
@@ -136,22 +132,22 @@ class ResultsExtractionService:
                 results_data = self.file_service.load_json(results_file)
                 if results_data:
                     model_results[model_name] = results_data
-                    logger.debug(f"Loaded results for model: {model_name}")
+                    log.debug(f"Loaded results for model: {model_name}")
 
-        logger.info(f"Extracted results for {len(model_results)} models")
+        log.info(f"Extracted results for {len(model_results)} models")
         return model_results
 
-    def extract_execution_stats(self, results_dir: Path) -> Optional[Dict[str, Any]]:
+    def extract_execution_stats(self, results_dir: Path) -> dict[str, any] | None:
         """Extract execution statistics."""
         stats_file = results_dir / "stats.json"
 
         if self.file_service.file_exists(stats_file):
             stats_data = self.file_service.load_json(stats_file)
             if stats_data:
-                logger.debug("Loaded execution statistics")
+                log.debug("Loaded execution statistics")
                 return stats_data
 
-        logger.warning("No execution statistics found")
+        log.warning("No execution statistics found")
         return None
 
 
@@ -160,7 +156,7 @@ class MetricsCalculationService:
 
     @staticmethod
     def calculate_model_performance(
-        model_name: str, results_data: Dict[str, Any]
+        model_name: str, results_data: dict[str, any]
     ) -> ModelPerformance:
         """Calculate performance metrics for a single model."""
         performance = ModelPerformance(model_name=model_name)
@@ -199,7 +195,7 @@ class MetricsCalculationService:
         return performance
 
     @staticmethod
-    def format_execution_time(total_time: float) -> Tuple[str, str]:
+    def format_execution_time(total_time: float) -> tuple[str, str]:
         """Format execution time into readable strings."""
         minutes = int(total_time // 60)
         seconds = int(total_time % 60)
@@ -208,12 +204,12 @@ class MetricsCalculationService:
         return formatted, duration
 
     @staticmethod
-    def calculate_run_statistics(model_results: Dict[str, Any]) -> Tuple[int, str]:
+    def calculate_run_statistics(model_results: dict[str, any]) -> tuple[int, str]:
         """Calculate run statistics from model results."""
         test_cases = set()
         all_run_counts = []
 
-        for model_name, results in model_results.items():
+        for _model_name, results in model_results.items():
             if "test_cases" in results:
                 for test_case in results["test_cases"]:
                     test_case_id = test_case.get("test_case_id")
@@ -248,7 +244,7 @@ class ChartDataService:
         self.file_service = file_service
 
     def generate_chart_configuration(
-        self, model_results: Dict[str, Any], test_cases: Dict[str, Dict[str, Any]]
+        self, model_results: dict[str, any], test_cases: dict[str, dict[str, any]]
     ) -> ChartConfiguration:
         """Generate chart configuration data."""
         chart_config = ChartConfiguration()
@@ -263,7 +259,7 @@ class ChartDataService:
 
         # Prepare chart data
         if category_scores:
-            chart_config.categories = sorted(list(category_scores.keys()))
+            chart_config.categories = sorted(category_scores.keys())
             chart_config.category_scores = category_scores
             chart_config.datasets = self._generate_chart_datasets(
                 category_scores, model_results
@@ -272,12 +268,12 @@ class ChartDataService:
         return chart_config
 
     def _extract_category_mapping(
-        self, model_results: Dict[str, Any]
-    ) -> Dict[str, Set[str]]:
+        self, model_results: dict[str, any]
+    ) -> dict[str, set[str]]:
         """Extract category to test case mapping."""
         category_test_mapping = defaultdict(set)
 
-        for model_name, results in model_results.items():
+        for _model_name, results in model_results.items():
             if "test_cases" in results:
                 for test_case in results["test_cases"]:
                     test_id = test_case.get("test_case_id")
@@ -287,22 +283,22 @@ class ChartDataService:
 
         # Convert sets to sorted lists
         return {
-            cat: sorted(list(tests)) for cat, tests in category_test_mapping.items()
+            cat: sorted(tests) for cat, tests in category_test_mapping.items()
         }
 
     def _calculate_category_scores(
         self,
-        category_test_mapping: Dict[str, List[str]],
-        test_cases: Dict[str, Dict[str, Any]],
-        model_results: Dict[str, Any],
-    ) -> Dict[str, Dict[str, float]]:
+        category_test_mapping: dict[str, list[str]],
+        test_cases: dict[str, dict[str, any]],
+        model_results: dict[str, any],
+    ) -> dict[str, dict[str, float]]:
         """Calculate average scores by category for each model."""
         category_scores = {}
 
         for category, test_names in category_test_mapping.items():
             category_scores[category] = {}
 
-            for model_name in model_results.keys():
+            for model_name in model_results:
                 scores = []
 
                 # Collect scores for this category and model
@@ -334,9 +330,9 @@ class ChartDataService:
 
     def _generate_chart_datasets(
         self,
-        category_scores: Dict[str, Dict[str, float]],
-        model_results: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
+        category_scores: dict[str, dict[str, float]],
+        model_results: dict[str, any],
+    ) -> list[dict[str, any]]:
         """Generate chart datasets for visualization."""
         # Enhanced model colors with better contrast
         model_colors = {
@@ -352,7 +348,7 @@ class ChartDataService:
         }
 
         chart_datasets = []
-        categories = sorted(list(category_scores.keys()))
+        categories = sorted(category_scores.keys())
 
         for model_name in sorted(model_results.keys()):
             model_data = []
@@ -363,8 +359,10 @@ class ChartDataService:
             color = model_colors.get(model_name)
             if color is None:
                 # Generate a random color if not in the predefined list
-                r = lambda: random.randint(0, 255)
-                color = f"#{r():02x}{r():02x}{r():02x}"
+                def generate_random_component():
+                    return random.randint(0, 255)
+
+                color = f"#{generate_random_component():02x}{generate_random_component():02x}{generate_random_component():02x}"
 
             chart_datasets.append(
                 {
@@ -388,8 +386,8 @@ class ModalDataService:
         self.file_service = file_service
 
     def generate_modal_test_data(
-        self, test_case_id: str, model_results: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, test_case_id: str, model_results: dict[str, any]
+    ) -> dict[str, any]:
         """Generate test data for modal JavaScript consumption."""
         modal_data = {"model_scores": {}, "tool_scores": {}, "individual_runs": {}}
 
@@ -464,7 +462,7 @@ class TemplateDataService:
         self.modal_service = ModalDataService(file_service)
 
     def generate_performance_metrics_table(
-        self, model_performances: Dict[str, ModelPerformance]
+        self, model_performances: dict[str, ModelPerformance]
     ) -> str:
         """Generate HTML table rows for performance metrics."""
         metrics_rows = []
@@ -489,9 +487,9 @@ class TemplateDataService:
 
     def generate_breakdown_content(
         self,
-        test_case_results: List[TestCaseResult],
-        model_performances: Dict[str, ModelPerformance],
-        model_results: Dict[str, Any] = None,
+        test_case_results: list[TestCaseResult],
+        model_performances: dict[str, ModelPerformance],
+        model_results: dict[str, any] = None,
     ) -> str:
         """Generate detailed breakdown content by category with modal support."""
         # Group test cases by category
@@ -507,7 +505,7 @@ class TemplateDataService:
             for test_result in test_results:
                 test_scores = []
 
-                for model_name, performance in model_performances.items():
+                for model_name, _performance in model_performances.items():
                     if test_result.test_case_id in test_result.model_results:
                         model_data = test_result.model_results[
                             test_result.test_case_id
@@ -576,7 +574,7 @@ class TemplateDataService:
 
                     category_tests.append(
                         f"""
-                        <div class="test-item" 
+                        <div class="test-item"
                              data-test-name="{test_result.test_case_id}"
                              data-test-description="{test_result.description}"
                              data-test-data="{modal_data_json}">
@@ -609,7 +607,7 @@ class TemplateDataService:
 
         return "".join(breakdown_sections)
 
-    def generate_model_execution_times(self, model_results: Dict[str, Any]) -> str:
+    def generate_model_execution_times(self, model_results: dict[str, any]) -> str:
         """Generate model execution times HTML."""
         execution_times_html = []
 
@@ -649,8 +647,8 @@ class TemplateDataService:
         return "".join(execution_times_html)
 
     def calculate_best_worst_tests(
-        self, test_case_results: List[TestCaseResult]
-    ) -> Tuple[str, str]:
+        self, test_case_results: list[TestCaseResult]
+    ) -> tuple[str, str]:
         """Calculate best and worst performing tests."""
         test_averages = {}
 
@@ -670,7 +668,7 @@ class TemplateDataService:
         return "Not available", "Not available"
 
     def calculate_average_time(
-        self, model_performances: Dict[str, ModelPerformance]
+        self, model_performances: dict[str, ModelPerformance]
     ) -> str:
         """Calculate overall average time."""
         all_durations = []
@@ -703,8 +701,8 @@ class ModelResultsProcessor:
         self.file_service = file_service
 
     def organize_test_cases(
-        self, model_results: Dict[str, Any]
-    ) -> Dict[str, Dict[str, Any]]:
+        self, model_results: dict[str, any]
+    ) -> dict[str, dict[str, any]]:
         """Organize test cases by test case ID and model."""
         test_cases = {}
 
@@ -720,8 +718,8 @@ class ModelResultsProcessor:
         return test_cases
 
     def create_test_case_results(
-        self, test_cases: Dict[str, Dict[str, Any]]
-    ) -> List[TestCaseResult]:
+        self, test_cases: dict[str, dict[str, any]]
+    ) -> list[TestCaseResult]:
         """Create TestCaseResult objects from organized test cases."""
         test_case_results = []
 
@@ -778,9 +776,9 @@ class ReportDataProcessor:
         self.template_service = TemplateDataService(self.file_service)
         self.processor = ModelResultsProcessor(self.file_service)
 
-    def get_evaluation_data(self, results_dir: Path) -> Dict[str, Any]:
+    def get_evaluation_data(self, results_dir: Path) -> dict[str, any]:
         """Extract and process basic evaluation data."""
-        logger.info("Processing evaluation data...")
+        log.info("Processing evaluation data...")
 
         # Initialize metrics
         metrics = EvaluationMetrics()
@@ -788,7 +786,7 @@ class ReportDataProcessor:
         # Extract model results
         model_results = self.extraction_service.extract_model_results(results_dir)
         if not model_results:
-            logger.warning("No model results found")
+            log.warning("No model results found")
             return self._metrics_to_dict(metrics)
 
         # Set basic model information
@@ -813,17 +811,17 @@ class ReportDataProcessor:
             metrics.total_execution_time_formatted = formatted_time
             metrics.duration = duration
 
-        logger.info(f"Processed evaluation data for {len(metrics.models)} models")
+        log.info(f"Processed evaluation data for {len(metrics.models)} models")
         return self._metrics_to_dict(metrics)
 
-    def get_detailed_evaluation_data(self, results_dir: Path) -> Dict[str, Any]:
+    def get_detailed_evaluation_data(self, results_dir: Path) -> dict[str, any]:
         """Extract and process detailed evaluation data for charts and breakdowns."""
-        logger.info("Processing detailed evaluation data...")
+        log.info("Processing detailed evaluation data...")
 
         # Extract model results
         model_results = self.extraction_service.extract_model_results(results_dir)
         if not model_results:
-            logger.warning("No model results found for detailed data")
+            log.warning("No model results found for detailed data")
             return self._empty_detailed_data()
 
         # Calculate model performances
@@ -875,10 +873,10 @@ class ReportDataProcessor:
             "model_execution_times": model_execution_times,
         }
 
-        logger.info("Processed detailed evaluation data successfully")
+        log.info("Processed detailed evaluation data successfully")
         return detailed_data
 
-    def _extract_test_case_names(self, model_results: Dict[str, Any]) -> List[str]:
+    def _extract_test_case_names(self, model_results: dict[str, any]) -> list[str]:
         """Extract unique test case names from model results."""
         test_case_names = set()
 
@@ -889,9 +887,9 @@ class ReportDataProcessor:
                     if test_case_id:
                         test_case_names.add(test_case_id)
 
-        return sorted(list(test_case_names))
+        return sorted(test_case_names)
 
-    def _metrics_to_dict(self, metrics: EvaluationMetrics) -> Dict[str, Any]:
+    def _metrics_to_dict(self, metrics: EvaluationMetrics) -> dict[str, any]:
         """Convert EvaluationMetrics to dictionary."""
         # Generate model tags HTML
         model_tags = ""
@@ -928,7 +926,7 @@ class ReportDataProcessor:
             "test_cases_list": test_cases_list,
         }
 
-    def _empty_detailed_data(self) -> Dict[str, Any]:
+    def _empty_detailed_data(self) -> dict[str, any]:
         """Return empty detailed data structure."""
         return {
             "performance_metrics_rows": "",
@@ -957,15 +955,15 @@ def main():
 
     processor = ReportDataProcessor()
 
-    print("Testing evaluation data extraction...")
+    log.info("Testing evaluation data extraction...")
     eval_data = processor.get_evaluation_data(results_dir)
-    print(f"Found {len(eval_data.get('models', []))} models")
+    log.info(f"Found {len(eval_data.get('models', []))} models")
 
-    print("Testing detailed evaluation data extraction...")
+    log.info("Testing detailed evaluation data extraction...")
     detailed_data = processor.get_detailed_evaluation_data(results_dir)
-    print(f"Total evaluations: {detailed_data.get('total_evaluations', 0)}")
+    log.info(f"Total evaluations: {detailed_data.get('total_evaluations', 0)}")
 
-    print("Report data processing completed successfully!")
+    log.info("Report data processing completed successfully!")
 
 
 if __name__ == "__main__":

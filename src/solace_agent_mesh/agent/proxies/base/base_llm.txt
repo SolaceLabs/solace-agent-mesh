@@ -1,0 +1,148 @@
+# DEVELOPER GUIDE: base
+
+## Quick Summary
+The `base` directory contains protocol-agnostic abstract base classes for implementing proxy applications in the Solace Agent Mesh. These classes handle common functionality like A2A message routing, agent discovery, task lifecycle management, and artifact resolution, allowing concrete proxy implementations to focus on protocol-specific details.
+
+## Files Overview
+- `__init__.py` - Package initialization for base proxy classes
+- `app.py` - Abstract base class for proxy applications with configuration validation and component setup
+- `component.py` - Abstract base class for proxy components handling Solace interaction and task management
+- `config.py` - Pydantic configuration models for proxy applications
+- `proxy_task_context.py` - Runtime state container for individual proxied agent tasks
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Package initialization file for base proxy classes
+**Import:** `from solace_agent_mesh.agent.proxies.base import *`
+
+This file contains only package documentation and no public API.
+
+### app.py
+**Purpose:** Abstract base class for proxy applications that handles configuration validation and automatic component setup
+**Import:** `from solace_agent_mesh.agent.proxies.base.app import BaseProxyApp`
+
+**Classes:**
+- `BaseProxyApp(app_info: Dict[str, Any], **kwargs)` - Abstract base for proxy apps that automatically configures subscriptions and components
+  - `_get_component_class() -> Type[BaseProxyComponent]` - Abstract method to return the specific proxy component class
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.proxies.base.app import BaseProxyApp
+from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
+
+class MyProxyApp(BaseProxyApp):
+    def _get_component_class(self):
+        return MyProxyComponent
+
+# App will automatically:
+# - Validate configuration against BaseProxyAppConfig
+# - Generate Solace subscriptions for all proxied agents
+# - Create component instance with proper broker settings
+```
+
+### component.py
+**Purpose:** Abstract base class for proxy components that handles Solace interaction, discovery, and task lifecycle
+**Import:** `from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent`
+
+**Classes:**
+- `BaseProxyComponent(**kwargs: Any)` - Abstract base for proxy components with async event processing
+  - `process_event(event: Event) -> None` - Processes incoming Solace events
+  - `invoke(message: SolaceMessage, data: dict) -> dict` - Placeholder invoke method (not used)
+  - `run() -> None` - Starts component operations and discovery timers
+  - `cleanup() -> None` - Cleans up resources on shutdown
+  - `clear_client_cache() -> None` - Clears cached clients (override in subclasses)
+  - `_fetch_agent_card(agent_config: dict) -> Optional[AgentCard]` - Abstract method to fetch agent cards
+  - `_forward_request(task_context: ProxyTaskContext, request: A2ARequest, agent_name: str) -> None` - Abstract method to forward requests
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
+from a2a.types import AgentCard, A2ARequest
+
+class MyProxyComponent(BaseProxyComponent):
+    async def _fetch_agent_card(self, agent_config: dict) -> Optional[AgentCard]:
+        # Implement protocol-specific agent discovery
+        url = agent_config.get("url")
+        # ... fetch and return AgentCard
+        
+    async def _forward_request(self, task_context, request: A2ARequest, agent_name: str):
+        # Implement protocol-specific request forwarding
+        # ... forward request to downstream agent
+        # ... handle responses and publish back to Solace
+```
+
+### config.py
+**Purpose:** Pydantic configuration models for proxy applications
+**Import:** `from solace_agent_mesh.agent.proxies.base.config import BaseProxyAppConfig, ProxiedAgentConfig, ArtifactServiceConfig`
+
+**Classes:**
+- `ArtifactServiceConfig()` - Configuration for artifact service
+  - `type: str` - Service type ('memory', 'gcs', 'filesystem')
+  - `base_path: Optional[str]` - Base directory for filesystem type
+  - `bucket_name: Optional[str]` - GCS bucket name
+  - `artifact_scope: Literal["namespace", "app", "custom"]` - Scope for artifacts
+  - `artifact_scope_value: Optional[str]` - Custom scope identifier
+
+- `ProxiedAgentConfig()` - Configuration for individual proxied agents
+  - `name: str` - Agent name on Solace mesh
+  - `request_timeout_seconds: Optional[int]` - Timeout override for this agent
+
+- `BaseProxyAppConfig()` - Base configuration for proxy applications
+  - `namespace: str` - Topic prefix for A2A communication
+  - `proxied_agents: List[ProxiedAgentConfig]` - List of agents to proxy
+  - `artifact_service: ArtifactServiceConfig` - Artifact service configuration
+  - `discovery_interval_seconds: int` - Agent discovery interval (default: 60)
+  - `default_request_timeout_seconds: int` - Default request timeout (default: 300)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.proxies.base.config import BaseProxyAppConfig
+
+# Configuration validation
+config_dict = {
+    "namespace": "myorg/dev",
+    "proxied_agents": [
+        {"name": "my-agent", "request_timeout_seconds": 120}
+    ],
+    "artifact_service": {"type": "memory"},
+    "discovery_interval_seconds": 30
+}
+
+config = BaseProxyAppConfig.model_validate(config_dict)
+```
+
+### proxy_task_context.py
+**Purpose:** Runtime state container for individual proxied agent tasks
+**Import:** `from solace_agent_mesh.agent.proxies.base.proxy_task_context import ProxyTaskContext`
+
+**Classes:**
+- `ProxyTaskContext(task_id: str, a2a_context: Dict[str, Any])` - Runtime state for a proxied task
+  - `task_id: str` - Unique identifier for the task
+  - `a2a_context: Dict[str, Any]` - A2A protocol context information
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.proxies.base.proxy_task_context import ProxyTaskContext
+
+# Create task context when handling new request
+a2a_context = {
+    "jsonrpc_request_id": "req-123",
+    "logical_task_id": "task-456", 
+    "session_id": "session-789",
+    "user_id": "user123",
+    "status_topic": "status/topic",
+    "reply_to_topic": "reply/topic",
+    "is_streaming": False
+}
+
+task_context = ProxyTaskContext(
+    task_id="task-456",
+    a2a_context=a2a_context
+)
+
+# Store in active tasks for lifecycle management
+self.active_tasks[task_context.task_id] = task_context
+```
+
+# content_hash: 40cb6427440b8b946d69d0d721d47ca5994dd19621e6e631544e8e39b7a96624

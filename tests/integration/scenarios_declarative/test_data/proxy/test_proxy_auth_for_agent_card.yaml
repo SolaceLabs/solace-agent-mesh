@@ -1,0 +1,54 @@
+test_case_id: "proxy_auth_for_agent_card_001"
+description: "Tests that the proxy applies authentication to agent card fetching when use_auth_for_agent_card is true"
+tags: ["all", "proxy", "auth", "agent_card"]
+skip_intermediate_events: true
+
+# Configure downstream agent to expect bearer token for agent card fetch
+downstream_agent_auth:
+  enabled: true
+  type: "bearer"
+  expected_value: "test_agent_card_auth_token"
+
+# Configure proxy authentication with use_auth_for_agent_card enabled
+proxy_auth_config:
+  agent_name: "TestAgent_Proxied"
+  authentication:
+    type: "static_bearer"
+    token: "test_agent_card_auth_token"
+  use_auth_for_agent_card: true
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "agent_card_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Test request with authenticated agent card fetch"
+  external_context:
+    a2a_session_id: "session_agent_card_auth_001"
+
+downstream_a2a_agent_responses:
+  - id: "task-agent-card-auth"
+    contextId: "session_agent_card_auth_001"
+    kind: "task"
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Request with authenticated agent card processed successfully."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "Request with authenticated agent card processed successfully."
+
+# Assert that the correct auth header was sent for task invocation
+assert_downstream_auth:
+  - request_index: 0
+    authorization_header:
+      exact: "Bearer test_agent_card_auth_token"

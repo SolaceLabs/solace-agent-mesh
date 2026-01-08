@@ -2,6 +2,11 @@ import type { Node, Edge } from "@xyflow/react";
 import type { VisualizerStep } from "@/lib/types";
 import { EdgeAnimationService } from "./edgeAnimationService";
 
+// Helper function to resolve agent name to display name
+export function resolveAgentDisplayName(agentName: string, agentNameMap?: Record<string, string>): string {
+    return agentNameMap?.[agentName] || agentName;
+}
+
 export interface NodeUpdateData {
     label?: string;
     status?: string;
@@ -111,6 +116,9 @@ export interface TimelineLayoutManager {
     // Indentation tracking for agent delegation visualization
     indentationLevel: number; // Current indentation level
     indentationStep: number; // Pixels to indent per level
+
+    // Agent name to display name mapping
+    agentNameMap?: Record<string, string>;
 }
 
 // Layout Constants
@@ -193,19 +201,34 @@ export function findSubflowBySubTaskId(context: TimelineLayoutManager, subTaskId
 
 // Enhanced context resolution with multiple fallback strategies
 export function resolveSubflowContext(manager: TimelineLayoutManager, step: VisualizerStep): SubflowContext | null {
-    const currentSubflow = getCurrentSubflow(manager);
+    const currentPhase = getCurrentPhase(manager);
+    if (!currentPhase) return null;
 
-    if (step.owningTaskId && step.isSubTaskStep) {
-        const taskMatch = findSubflowBySubTaskId(manager, step.owningTaskId);
-        const subflows = getCurrentPhase(manager)?.subflows || [];
-        const subflowIdHasDuplicate = new Set(subflows.map(sf => sf.id)).size !== subflows.length;
-        if (taskMatch && !subflowIdHasDuplicate) {
-            return taskMatch;
+    // 1. The most reliable match is the functionCallId that initiated the subflow.
+    if (step.functionCallId) {
+        const directMatch = findSubflowByFunctionCallId(manager, step.functionCallId);
+        if (directMatch) {
+            return directMatch;
         }
     }
 
+    // 2. The next best match is the sub-task's own task ID.
+    if (step.owningTaskId && step.isSubTaskStep) {
+        const taskMatch = findSubflowBySubTaskId(manager, step.owningTaskId);
+        if (taskMatch) {
+            // This check is a safeguard against race conditions where two subflows might get the same ID, which shouldn't happen.
+            const subflows = currentPhase.subflows || [];
+            const subflowIdHasDuplicate = new Set(subflows.map(sf => sf.id)).size !== subflows.length;
+            if (!subflowIdHasDuplicate) {
+                return taskMatch;
+            }
+        }
+    }
+
+    // 3. As a fallback, check if the event source matches the agent of the "current" subflow.
+    // This is less reliable in parallel scenarios but can help with event ordering issues.
+    const currentSubflow = getCurrentSubflow(manager);
     if (currentSubflow && step.source) {
-        // Check if the current subflow's peer agent name matches the step source
         const normalizedStepSource = step.source.replace(/[^a-zA-Z0-9_]/g, "_");
         const normalizedStepTarget = step.target?.replace(/[^a-zA-Z0-9_]/g, "_");
         const peerAgentId = currentSubflow.peerAgent.id;
@@ -214,16 +237,11 @@ export function resolveSubflowContext(manager: TimelineLayoutManager, step: Visu
         }
     }
 
-    if (step.functionCallId) {
-        const directMatch = findSubflowByFunctionCallId(manager, step.functionCallId);
-        if (directMatch) {
-            return directMatch;
-        }
-    }
-
+    // 4. Final fallback to the current subflow context.
     if (currentSubflow) {
         return currentSubflow;
     }
+
     return null;
 }
 
@@ -336,16 +354,19 @@ function findParentParallelSubflowRecursive(currentPhase: PhaseContext, subflow:
     return null;
 }
 
-export function createNewMainPhase(manager: TimelineLayoutManager, orchestratorName: string, step: VisualizerStep, nodes: Node[]): PhaseContext {
+export function createNewMainPhase(manager: TimelineLayoutManager, agentName: string, step: VisualizerStep, nodes: Node[]): PhaseContext {
     const phaseId = `phase_${manager.phases.length}`;
-    const orchestratorNodeId = generateNodeId(manager, `${orchestratorName}_${phaseId}`);
+    const orchestratorNodeId = generateNodeId(manager, `${agentName}_${phaseId}`);
     const yPos = manager.nextAvailableGlobalY;
+
+    // Use display name for the node label, fall back to agentName if not found
+    const displayName = resolveAgentDisplayName(agentName, manager.agentNameMap);
 
     const orchestratorNode: Node = {
         id: orchestratorNodeId,
         type: "orchestratorNode",
         position: { x: LANE_X_POSITIONS.MAIN_FLOW, y: yPos },
-        data: { label: orchestratorName, visualizerStepId: step.id },
+        data: { label: displayName, visualizerStepId: step.id },
     };
     addNode(nodes, manager.allCreatedNodeIds, orchestratorNode);
     manager.nodePositions.set(orchestratorNodeId, orchestratorNode.position);
@@ -355,7 +376,7 @@ export function createNewMainPhase(manager: TimelineLayoutManager, orchestratorN
     // Register the orchestrator agent in the registry
     const agentInfo: AgentNodeInfo = {
         id: orchestratorNodeId,
-        name: orchestratorName,
+        name: agentName,
         type: "orchestrator",
         phaseId: phaseId,
         context: "main",
@@ -432,6 +453,9 @@ export function startNewSubflow(manager: TimelineLayoutManager, peerAgentName: s
         groupNodeY = peerAgentY - GROUP_PADDING_Y;
     }
 
+    // Use display name for the peer agent node label, fall back to peerAgentName if not found
+    const displayName = resolveAgentDisplayName(peerAgentName, manager.agentNameMap);
+
     const peerAgentNode: Node = {
         id: peerAgentNodeId,
         type: "genericAgentNode",
@@ -439,7 +463,7 @@ export function startNewSubflow(manager: TimelineLayoutManager, peerAgentName: s
             x: 50,
             y: GROUP_PADDING_Y,
         },
-        data: { label: peerAgentName, visualizerStepId: step.id },
+        data: { label: displayName, visualizerStepId: step.id },
         parentId: groupNodeId,
     };
 
@@ -447,7 +471,7 @@ export function startNewSubflow(manager: TimelineLayoutManager, peerAgentName: s
         id: groupNodeId,
         type: "group",
         position: { x: groupNodeX, y: groupNodeY },
-        data: { label: `${peerAgentName} Sub-flow` },
+        data: { label: `${displayName} Sub-flow` },
         style: {
             backgroundColor: "rgba(220, 220, 255, 0.1)",
             border: "1px solid #aac",

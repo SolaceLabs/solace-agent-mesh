@@ -1,0 +1,106 @@
+# Test Case 3: End-to-end flow of passing an artifact to a peer and receiving one back.
+test_case_id: "peer_e2e_artifact_passing_001"
+description: "End-to-end test combining request and response artifact passing."
+tags: ["all", "agent", "tools", "delegation"]
+skip_intermediate_events: true
+
+test_runner_config_overrides:
+  agent_config:
+    artifact_scope: "namespace"
+
+setup_artifacts:
+  - filename: "source_document.txt"
+    content: "This is the source document for summarization."
+    mime_type: "text/plain"
+    metadata:
+      author: "e2e_tester"
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "artifact_tester@example.com"
+  external_context:
+    a2a_session_id: "e2e_artifact_passing_session"
+  prompt:
+    parts:
+      - text: "Please ask TestPeerAgentA to summarize the source document."
+  invoked_with_artifacts:
+    - filename: "source_document.txt"
+      version: 0
+
+llm_interactions:
+  # 1. TestAgent receives the request and delegates to TestPeerAgentA, explicitly passing the artifact reference.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_peer_a_for_e2e"
+                type: "function"
+                function:
+                  name: "peer_TestPeerAgentA"
+                  arguments: '{"task_description": "Summarize the provided document.", "artifacts": [{"filename": "source_document.txt", "version": 0}]}'
+    expected_request:
+      tools_present: ["peer_TestPeerAgentA"]
+
+  # 2. TestPeerAgentA receives the task, its prompt is enriched with source_document.txt metadata.
+  #    It responds with the summary inside a `save_artifact` fenced block.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              «««save_artifact: filename="summary.md" mime_type="text/markdown" description="A summary of the source document."
+              This is the summary.
+              »»»
+    expected_request:
+      prompt_contains_artifact_summary_for:
+        - filename: "source_document.txt"
+          version: 0
+
+  # 3. The system processes the fenced block and injects a `_notify_artifact_save` tool call.
+  #    TestPeerAgentA confirms the save.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The summary has been created and saved as summary.md."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_notify_artifact_save"
+          response_json_matches:
+            filename: "summary.md"
+            status: "success"
+
+  # 4. TestAgent receives the final response from TestPeerAgentA, which should contain the new summary.md artifact metadata.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The summary has been created by TestPeerAgentA and is available as an artifact."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_contains_artifact_summary_for:
+            - filename: "summary.md"
+              version: 0
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "e2e_artifact_passing_session"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+
+              - "summary has been created"
+expected_artifacts:
+  - filename: "summary.md"
+    version: 0
+    content_contains: "This is the summary."

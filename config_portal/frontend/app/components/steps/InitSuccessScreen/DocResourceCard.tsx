@@ -16,9 +16,9 @@ const DocResourceCard = ({
       href={link}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex p-4 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors group"
+      className="flex p-4 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors group items-center"
     >
-      <div className="mr-4 bg-solace-blue bg-opacity-10 p-3 rounded-lg text-solace-blue group-hover:bg-opacity-20">
+      <div className="mr-4 flex-shrink-0 bg-solace-blue bg-opacity-10 p-3 rounded-lg text-solace-blue group-hover:bg-opacity-20">
         {icon}
       </div>
       <div>

@@ -1,0 +1,430 @@
+# DEVELOPER GUIDE: chat
+
+## Quick Summary
+The chat directory provides a comprehensive React-based chat interface system with support for real-time messaging, file attachments, workflow visualization, and artifact management. The architecture consists of core chat components for input/output, session management, side panels for artifacts and workflows, and specialized subdirectories for file handling, content preview, and artifact management. Components integrate through React context for state management and provide a complete chat experience with drag-and-drop file support, content rendering, and workflow monitoring.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `ChatInputArea.tsx` - Input component with file upload, agent selection, and message submission
+  - `ChatMessage.tsx` - Message display component with content rendering and workflow integration
+  - `ChatSessionDialog.tsx` - Modal dialog for creating new chat sessions
+  - `ChatSessions.tsx` - Session list component (placeholder for multi-session support)
+  - `ChatSidePanel.tsx` - Right side panel with files and workflow tabs
+  - `LoadingMessageRow.tsx` - Loading indicator component for pending messages
+  - `SessionSidePanel.tsx` - Left side panel for session management
+
+- **Subdirectories:**
+  - `artifact/` - Artifact management components for file viewing and organization
+  - `file/` - File attachment display and utility components
+  - `preview/` - Content rendering system for various file types and formats
+
+## Developer API Reference
+
+### Direct Files
+
+#### ChatInputArea.tsx
+**Purpose:** Main chat input component with file upload, agent selection, and message submission
+**Import:** `import { ChatInputArea } from "@/lib/components/chat/ChatInputArea"`
+
+**Components:**
+- `ChatInputArea({ agents, scrollToBottom })` - Complete chat input interface
+  - Handles text input with debouncing
+  - Supports file drag-and-drop and paste
+  - Provides agent selection dropdown
+  - Manages submit/cancel states
+
+#### ChatMessage.tsx
+**Purpose:** Renders individual chat messages with content, files, and tool events
+**Import:** `import { ChatMessage } from "@/lib/components/chat/ChatMessage"`
+
+**Components:**
+- `ChatMessage({ message, isLastWithTaskId })` - Complete message renderer
+  - Displays text content with markdown support
+  - Shows file attachments and uploads
+  - Renders tool events and workflow buttons
+  - Handles error states and embedded content
+
+#### ChatSessionDialog.tsx
+**Purpose:** Modal dialog for confirming new chat session creation
+**Import:** `import { ChatSessionDialog } from "@/lib/components/chat/ChatSessionDialog"`
+
+**Components:**
+- `ChatSessionDialog({ isOpen, onClose })` - New session confirmation dialog
+  - Warns about clearing current chat history
+  - Integrates with chat context for session management
+
+#### ChatSessions.tsx
+**Purpose:** Displays current session with placeholder for future multi-session support
+**Import:** `import { ChatSessions } from "@/lib/components/chat/ChatSessions"`
+
+**Components:**
+- `ChatSessions()` - Session list component
+  - Shows current session preview
+  - Placeholder for future multi-session functionality
+
+#### ChatSidePanel.tsx
+**Purpose:** Right side panel with tabs for files and workflow visualization
+**Import:** `import { ChatSidePanel } from "@/lib/components/chat/ChatSidePanel"`
+
+**Components:**
+- `ChatSidePanel({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning })` - Tabbed side panel
+  - Files tab with artifact management
+  - Workflow tab with task visualization
+  - Collapsible with icon-only mode
+
+#### LoadingMessageRow.tsx
+**Purpose:** Loading indicator for pending chat messages
+**Import:** `import { LoadingMessageRow } from "@/lib/components/chat/LoadingMessageRow"`
+
+**Components:**
+- `LoadingMessageRow({ statusText, onViewWorkflow })` - Loading message display
+  - Shows animated loading indicator
+  - Optional status text display
+  - Optional workflow button
+
+#### SessionSidePanel.tsx
+**Purpose:** Left side panel for session management and navigation
+**Import:** `import { SessionSidePanel } from "@/lib/components/chat/SessionSidePanel"`
+
+**Components:**
+- `SessionSidePanel({ onToggle })` - Session management panel
+  - New chat session button
+  - Session list display
+  - Collapsible panel functionality
+
+### Subdirectory APIs
+
+#### artifact/
+**Purpose:** Comprehensive artifact management system for file viewing, organization, and version control
+**Key Exports:** ArtifactPanel, ArtifactCard, ArtifactPreviewContent, ArtifactDeleteDialog, ArtifactSortPopover
+**Import Examples:**
+```tsx
+import { ArtifactPanel } from "@/lib/components/chat/artifact/ArtifactPanel"
+import { ArtifactCard } from "@/lib/components/chat/artifact/ArtifactCard"
+```
+
+#### file/
+**Purpose:** File attachment display components and file type utilities
+**Key Exports:** FileBadge, FileMessage, FileAttachmentMessage, getFileIcon
+**Import Examples:**
+```tsx
+import { FileBadge, FileMessage } from "@/lib/components/chat/file/FileMessage"
+import { getFileIcon } from "@/lib/components/chat/file/fileUtils"
+```
+
+#### preview/
+**Purpose:** Content rendering system supporting multiple formats (markdown, HTML, images, CSV, etc.)
+**Key Exports:** ContentRenderer, various specialized renderers
+**Import Examples:**
+```tsx
+import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer"
+import { MarkdownRenderer, CsvRenderer } from "@/lib/components/chat/preview/Renderers"
+```
+
+## Complete Usage Guide
+
+### 1. Basic Chat Interface Setup
+
+```tsx
+import React, { useState } from 'react';
+import { 
+  ChatInputArea, 
+  ChatMessage, 
+  ChatSidePanel, 
+  SessionSidePanel 
+} from '@/lib/components/chat';
+import { useChatContext } from '@/lib/hooks';
+
+function ChatInterface() {
+  const { messages, agents } = useChatContext();
+  const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState(false);
+  const [isSessionPanelVisible, setIsSessionPanelVisible] = useState(true);
+
+  const scrollToBottom = () => {
+    // Implement scroll logic
+  };
+
+  return (
+    <div className="flex h-screen">
+      {/* Session Panel */}
+      {isSessionPanelVisible && (
+        <SessionSidePanel onToggle={() => setIsSessionPanelVisible(false)} />
+      )}
+      
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {messages.map((message, index) => (
+            <ChatMessage 
+              key={message.metadata?.messageId || index}
+              message={message}
+              isLastWithTaskId={/* logic to determine */}
+            />
+          ))}
+        </div>
+        
+        {/* Input Area */}
+        <div className="p-4">
+          <ChatInputArea 
+            agents={agents}
+            scrollToBottom={scrollToBottom}
+          />
+        </div>
+      </div>
+      
+      {/* Side Panel */}
+      <ChatSidePanel
+        isSidePanelCollapsed={isSidePanelCollapsed}
+        setIsSidePanelCollapsed={setIsSidePanelCollapsed}
+        onCollapsedToggle={setIsSidePanelCollapsed}
+        isSidePanelTransitioning={false}
+      />
+    </div>
+  );
+}
+```
+
+### 2. File Upload and Management
+
+```tsx
+import React from 'react';
+import { ChatInputArea } from '@/lib/components/chat/ChatInputArea';
+import { FileBadge } from '@/lib/components/chat/file/FileMessage';
+import { ArtifactPanel } from '@/lib/components/chat/artifact/ArtifactPanel';
+
+function FileManagementExample() {
+  const agents = [
+    { name: 'assistant', display_name: 'AI Assistant' }
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* File upload via chat input */}
+      <ChatInputArea agents={agents} />
+      
+      {/* File badges for selected files */}
+      <div className="flex gap-2">
+        <FileBadge 
+          fileName="document.pdf" 
+          onRemove={() => console.log('Remove file')}
+        />
+        <FileBadge fileName="image.jpg" />
+      </div>
+      
+      {/* Artifact management panel */}
+      <div className="h-96 border rounded">
+        <ArtifactPanel />
+      </div>
+    </div>
+  );
+}
+```
+
+### 3. Content Preview and Rendering
+
+```tsx
+import React, { useState } from 'react';
+import { ChatMessage } from '@/lib/components/chat/ChatMessage';
+import { ContentRenderer } from '@/lib/components/chat/preview/ContentRenderer';
+import type { MessageFE } from '@/lib/types';
+
+function ContentPreviewExample() {
+  const [renderError, setRenderError] = useState<string | null>(null);
+
+  const sampleMessage: MessageFE = {
+    isUser: false,
+    isError: false,
+    isComplete: true,
+    isStatusBubble: false,
+    parts: [
+      {
+        kind: 'text',
+        text: '# Analysis Results\n\nHere are the findings:\n\n```csv\nname,score\nAlice,95\nBob,87\n```'
+      }
+    ],
+    metadata: { messageId: '1' }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Message with embedded content */}
+      <ChatMessage message={sampleMessage} />
+      
+      {/* Direct content rendering */}
+      <div className="border p-4 rounded">
+        <h3>CSV Data Preview</h3>
+        <ContentRenderer
+          content="name,score,grade\nAlice,95,A\nBob,87,B"
+          rendererType="csv"
+          setRenderError={setRenderError}
+        />
+        {renderError && <div className="text-red-500">{renderError}</div>}
+      </div>
+    </div>
+  );
+}
+```
+
+### 4. Session Management
+
+```tsx
+import React, { useState } from 'react';
+import { 
+  ChatSessions, 
+  ChatSessionDialog, 
+  SessionSidePanel 
+} from '@/lib/components/chat';
+import { useChatContext } from '@/lib/hooks';
+
+function SessionManagementExample() {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPanelVisible, setIsPanelVisible] = useState(true);
+  const { handleNewSession } = useChatContext();
+
+  return (
+    <div className="flex h-screen">
+      {/* Session side panel */}
+      {isPanelVisible && (
+        <SessionSidePanel onToggle={() => setIsPanelVisible(false)} />
+      )}
+      
+      {/* Main content */}
+      <div className="flex-1 p-4">
+        <button 
+          onClick={() => setIsDialogOpen(true)}
+          className="mb-4 px-4 py-2 bg-blue-500 text-white rounded"
+        >
+          New Session
+        </button>
+        
+        {/* Current sessions */}
+        <ChatSessions />
+      </div>
+      
+      {/* New session dialog */}
+      <ChatSessionDialog
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+      />
+    </div>
+  );
+}
+```
+
+### 5. Workflow Integration
+
+```tsx
+import React from 'react';
+import { ChatSidePanel, LoadingMessageRow } from '@/lib/components/chat';
+import { useChatContext, useTaskContext } from '@/lib/hooks';
+
+function WorkflowIntegrationExample() {
+  const { setTaskIdInSidePanel, openSidePanelTab } = useChatContext();
+  const { monitoredTasks } = useTaskContext();
+  const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState(false);
+
+  const handleViewWorkflow = (taskId: string) => {
+    setTaskIdInSidePanel(taskId);
+    openSidePanelTab('workflow');
+  };
+
+  return (
+    <div className="flex h-screen">
+      {/* Main chat area */}
+      <div className="flex-1 p-4">
+        {/* Loading message with workflow button */}
+        <LoadingMessageRow
+          statusText="Processing your request..."
+          onViewWorkflow={() => handleViewWorkflow('task-123')}
+        />
+        
+        {/* Task status */}
+        <div className="mt-4">
+          <h3>Active Tasks:</h3>
+          {Object.entries(monitoredTasks).map(([taskId, task]) => (
+            <div key={taskId} className="p-2 border rounded mb-2">
+              <span>Task: {taskId}</span>
+              <button 
+                onClick={() => handleViewWorkflow(taskId)}
+                className="ml-2 text-blue-500"
+              >
+                View Workflow
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      {/* Side panel with workflow visualization */}
+      <ChatSidePanel
+        isSidePanelCollapsed={isSidePanelCollapsed}
+        setIsSidePanelCollapsed={setIsSidePanelCollapsed}
+        onCollapsedToggle={setIsSidePanelCollapsed}
+        isSidePanelTransitioning={false}
+      />
+    </div>
+  );
+}
+```
+
+### 6. Complete Chat Application
+
+```tsx
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  ChatInputArea,
+  ChatMessage,
+  ChatSidePanel,
+  SessionSidePanel,
+  LoadingMessageRow
+} from '@/lib/components/chat';
+import { useChatContext, useTaskContext } from '@/lib/hooks';
+
+function CompleteChatApp() {
+  const {
+    messages,
+    agents,
+    isResponding,
+    activeSidePanelTab,
+    setActiveSidePanelTab
+  } = useChatContext();
+  
+  const { monitoredTasks } = useTaskContext();
+  
+  const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState(false);
+  const [isSessionPanelVisible, setIsSessionPanelVisible] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Session Management Panel */}
+      {isSessionPanelVisible && (
+        <div className="w-80 border-r bg-white">
+          <SessionSidePanel 
+            onToggle={() => setIsSessionPanelVisible(false)} 
+          />
+        </div>
+      )}
+
+      {/* Main Chat Interface */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Chat Header */}
+        <div className="border-b bg-white p-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-semibold">Chat Assistant</h1>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setActiveSidePanelTab('files')}
+                className={`px-3 py-1 rounded ${
+                  activeSidePanelTab === 'files' ? 'bg-blue-100' : 'bg-gray
+
+# content_hash: 73d2ebe86c557acec59484f1152df17adc166e235abba69778fa369531b27943

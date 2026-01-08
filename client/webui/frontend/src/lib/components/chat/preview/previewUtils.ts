@@ -5,7 +5,8 @@ import { formatBytes } from "@/lib/utils/format";
 /**
  * Checks if a filename indicates a text file.
  * @param fileName The name of the file.
- * @returns True if the file extension is .text or .txt (case-insensitive).
+ * @param mimeType The MIME type of the file.
+ * @returns True if the file is a text-based file (case-insensitive).
  */
 function isTextFile(fileName?: string, mimeType?: string): boolean {
     if (mimeType) {
@@ -15,7 +16,54 @@ function isTextFile(fileName?: string, mimeType?: string): boolean {
         }
     }
     if (!fileName) return false;
-    return fileName.toLowerCase().endsWith(".txt") || fileName.toLowerCase().endsWith(".text");
+
+    const lowerFileName = fileName.toLowerCase();
+
+    // Basic text files
+    if (lowerFileName.endsWith(".txt") || lowerFileName.endsWith(".text")) return true;
+
+    // Database/Query
+    if (lowerFileName.endsWith(".sql")) return true;
+
+    // Markup/Data
+    if (lowerFileName.endsWith(".xml")) return true;
+    if (lowerFileName.endsWith(".toml")) return true;
+    if (lowerFileName.endsWith(".ini")) return true;
+    if (lowerFileName.endsWith(".conf") || lowerFileName.endsWith(".config")) return true;
+    if (lowerFileName.endsWith(".properties")) return true;
+
+    // Programming Languages
+    if (lowerFileName.endsWith(".py")) return true;
+    if (lowerFileName.endsWith(".js") || lowerFileName.endsWith(".ts") || lowerFileName.endsWith(".jsx") || lowerFileName.endsWith(".tsx")) return true;
+    if (lowerFileName.endsWith(".java")) return true;
+    if (lowerFileName.endsWith(".c") || lowerFileName.endsWith(".cpp") || lowerFileName.endsWith(".h") || lowerFileName.endsWith(".hpp")) return true;
+    if (lowerFileName.endsWith(".cs")) return true;
+    if (lowerFileName.endsWith(".go")) return true;
+    if (lowerFileName.endsWith(".rs")) return true;
+    if (lowerFileName.endsWith(".rb")) return true;
+    if (lowerFileName.endsWith(".php")) return true;
+    if (lowerFileName.endsWith(".swift")) return true;
+    if (lowerFileName.endsWith(".kt")) return true;
+    if (lowerFileName.endsWith(".scala")) return true;
+
+    // Shell/Scripts
+    if (lowerFileName.endsWith(".sh")) return true;
+    if (lowerFileName.endsWith(".bash")) return true;
+    if (lowerFileName.endsWith(".zsh")) return true;
+    if (lowerFileName.endsWith(".bat") || lowerFileName.endsWith(".cmd")) return true;
+    if (lowerFileName.endsWith(".ps1")) return true;
+
+    // Web
+    if (lowerFileName.endsWith(".css")) return true;
+    if (lowerFileName.endsWith(".scss") || lowerFileName.endsWith(".sass") || lowerFileName.endsWith(".less")) return true;
+
+    // Documentation/Text
+    if (lowerFileName.endsWith(".log")) return true;
+    if (lowerFileName.endsWith(".env")) return true;
+    if (lowerFileName.endsWith(".gitignore") || lowerFileName.endsWith(".dockerignore")) return true;
+    if (lowerFileName.endsWith(".editorconfig")) return true;
+
+    return false;
 }
 
 /**
@@ -74,7 +122,16 @@ function isCsvFile(fileName?: string, mimeType?: string): boolean {
  * @param fileName The name of the file.
  * @returns True if the file extension is a common image format (case-insensitive).
  */
-function isImageFile(fileName?: string): boolean {
+function isImageFile(fileName?: string, mimeType?: string): boolean {
+    if (mimeType) {
+        const lowerMime = mimeType.toLowerCase();
+        if (lowerMime.startsWith("image/")) {
+            return true;
+        }
+        if (lowerMime.startsWith("text/") || lowerMime.startsWith("application/")) {
+            return false;
+        }
+    }
     if (!fileName) return false;
     const lowerCaseFileName = fileName.toLowerCase();
     return (
@@ -131,7 +188,7 @@ function isYamlFile(fileName?: string, mimeType?: string): boolean {
 function isMarkdownFile(fileName?: string, mimeType?: string): boolean {
     if (mimeType) {
         const lowerMime = mimeType.toLowerCase();
-        if (lowerMime === "text/markdown" || lowerMime === "application/markdown") {
+        if (lowerMime === "text/markdown" || lowerMime === "application/markdown" || lowerMime === "text/x-markdown") {
             return true;
         }
     }
@@ -151,6 +208,10 @@ function isAudioFile(fileName?: string, mimeType?: string): boolean {
         const lowerMime = mimeType.toLowerCase();
         if (lowerMime.startsWith("audio/")) {
             return true;
+        }
+
+        if (lowerMime.startsWith("text/") || lowerMime.startsWith("application/") || lowerMime.startsWith("image/")) {
+            return false;
         }
     }
     if (!fileName) return false;
@@ -174,7 +235,7 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
         return "mermaid";
     }
 
-    if (isImageFile(fileName)) {
+    if (isImageFile(fileName, mimeType)) {
         return "image";
     }
 
@@ -193,7 +254,6 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
     if (isYamlFile(fileName, mimeType)) {
         return "yaml";
     }
-
 
     if (isCsvFile(fileName, mimeType)) {
         return "csv";
@@ -216,9 +276,8 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
  * @returns The decoded string.
  * @throws Error if base64 decoding itself fails.
  */
-function decodeBase64Content(content: string): string {
+export function decodeBase64Content(content: string): string {
     try {
-
         const bytes = Uint8Array.from(atob(content), c => c.charCodeAt(0));
         return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
     } catch (error) {
@@ -228,7 +287,7 @@ function decodeBase64Content(content: string): string {
             return atob(content);
         } catch (atobError) {
             console.error("Failed to decode base64 content with atob fallback:", atobError);
-            throw new Error("Invalid base64 string");
+            return content;
         }
     }
 }
@@ -252,6 +311,14 @@ export const getFileContent = (file: FileAttachment | null) => {
         return file.content;
     }
 
+    // Check if content is already plain text (from streaming)
+    // @ts-expect-error - Custom property added during streaming
+    if (file.isPlainText) {
+        console.log("Content is plain text from streaming, returning as-is");
+        return file.content;
+    }
+
+    // Otherwise, decode as base64 (from backend API)
     try {
         return decodeBase64Content(file.content);
     } catch (e) {

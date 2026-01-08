@@ -2,20 +2,20 @@
 
 ## Local Run
 
-To run the Solace Agent Mesh locally, follow these steps:
+To run Solace Agent Mesh locally, follow these steps:
 
 ```sh
 cd docs
-npm install
+npm ci
 npm start
 ```
 
 ## Build Pages
 
-To build the Solace Agent Mesh documentation pages, follow these steps:
+To build Solace Agent Mesh documentation pages, follow these steps:
 
 ```sh
 cd docs
-npm install
+npm ci
 npm run build
 ```

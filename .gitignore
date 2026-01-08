@@ -7,6 +7,7 @@ __pycache__/
 *.aider
 *.a2a*
 *.jsonl
+.claude/
 
 
 # C extensions
@@ -32,6 +33,10 @@ share/python-wheels/
 *.egg
 MANIFEST
 .DS_Store
+SolaceLabs-solace-agent-mesh-ui-*
+
+# logs
+sam.log.*
 
 *.manifest
 *.spec
@@ -62,6 +67,7 @@ cover/
 
 # Django stuff:
 *.log
+*.log.*
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -141,16 +147,24 @@ cython_debug/
 .pypirc
 tmp
 .sam 
+playground.py
 
 # VS Code
 .history
 evaluation/results/
 tests/integration/reports/
 
+#  JetBrains
+.idea/
+
 # Node
 node_modules/
 my-dev-project
 .roo
 
+# Build-generated UI metadata
+client/webui/frontend/static/ui-version.json
+
 # workaround requirements.txt not working in ci
 requirements.txt
+data/artifacts/

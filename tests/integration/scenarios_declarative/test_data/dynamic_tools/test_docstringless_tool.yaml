@@ -1,0 +1,59 @@
+test_case_id: "dynamic_tool_docstringless_tool_001"
+description: |
+  Verifies that a tool decorated with @register_tool but missing a docstring
+  is still loaded correctly and declared to the LLM with an empty description.
+tags: ["all", "agent", "tools", "dynamic_tools"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "DocstringlessAgent"
+  user_identity: "docstringless_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please call the tool with no docstring."
+
+llm_interactions:
+  - step_id: "llm_sees_docstringless_tool"
+    expected_request:
+      expected_tool_declarations_contain:
+        - name: "tool_with_no_docstring"
+          description_contains: "" # It should have an empty description
+    static_response:
+      id: "chatcmpl-docstringless-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_1"
+                type: "function"
+                function:
+                  name: "tool_with_no_docstring"
+                  arguments: '{"some_arg": "test value"}'
+          finish_reason: "tool_calls"
+
+  - step_id: "llm_final_response"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            result: "You passed: test value"
+    static_response:
+      id: "chatcmpl-docstringless-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I called the tool and it worked."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    status:
+      state: "completed"
+      message:
+        parts:
+          - type: "text"
+            text_exact: "I called the tool and it worked."

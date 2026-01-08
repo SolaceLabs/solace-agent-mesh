@@ -4,7 +4,10 @@ Encapsulates the runtime state for a single, in-flight agent task.
 
 import asyncio
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from solace_ai_connector.common.message import Message as SolaceMessage
 
 
 class TaskExecutionContext:
@@ -33,6 +36,26 @@ class TaskExecutionContext:
         self.artifact_signals_to_return: List[Dict[str, Any]] = []
         self.event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.lock: threading.Lock = threading.Lock()
+        self.is_paused: bool = False  # Track if task is paused waiting for peer/auth
+
+        # Token usage tracking
+        self.total_input_tokens: int = 0
+        self.total_output_tokens: int = 0
+        self.total_cached_input_tokens: int = 0
+        self.token_usage_by_model: Dict[str, Dict[str, int]] = {}
+        self.token_usage_by_source: Dict[str, Dict[str, int]] = {}
+
+        # Generic security storage (enterprise use only)
+        self._security_context: Dict[str, Any] = {}
+
+        # Original Solace message for ACK/NACK operations
+        # Stored here instead of a2a_context to avoid serialization issues
+        self._original_solace_message: Optional["SolaceMessage"] = None
+
+        # Turn tracking for proper spacing between LLM turns
+        self._current_invocation_id: Optional[str] = None
+        self._first_text_seen_in_turn: bool = False
+        self._need_spacing_before_next_text: bool = False
 
     def cancel(self) -> None:
         """Signals that the task should be cancelled."""
@@ -41,6 +64,26 @@ class TaskExecutionContext:
     def is_cancelled(self) -> bool:
         """Checks if the cancellation event has been set."""
         return self.cancellation_event.is_set()
+
+    def set_paused(self, paused: bool) -> None:
+        """
+        Marks the task as paused (waiting for peer response or user input).
+
+        Args:
+            paused: True if task is paused, False if resuming.
+        """
+        with self.lock:
+            self.is_paused = paused
+
+    def get_is_paused(self) -> bool:
+        """
+        Checks if the task is currently paused.
+
+        Returns:
+            True if task is paused (waiting for peer/auth), False otherwise.
+        """
+        with self.lock:
+            return self.is_paused
 
     def append_to_streaming_buffer(self, text: str) -> None:
         """Appends a chunk of text to the main streaming buffer."""
@@ -183,3 +226,190 @@ class TaskExecutionContext:
         """Retrieves the stored event loop."""
         with self.lock:
             return self.event_loop
+
+    def record_token_usage(
+        self,
+        input_tokens: int,
+        output_tokens: int,
+        model: str,
+        source: str = "agent",
+        tool_name: Optional[str] = None,
+        cached_input_tokens: int = 0,
+    ) -> None:
+        """
+        Records token usage for an LLM call.
+        
+        Args:
+            input_tokens: Number of input/prompt tokens.
+            output_tokens: Number of output/completion tokens.
+            model: Model identifier used for this call.
+            source: Source of the LLM call ("agent" or "tool").
+            tool_name: Tool name if source is "tool".
+            cached_input_tokens: Number of cached input tokens (optional).
+        """
+        with self.lock:
+            # Update totals
+            self.total_input_tokens += input_tokens
+            self.total_output_tokens += output_tokens
+            self.total_cached_input_tokens += cached_input_tokens
+            
+            # Track by model
+            if model not in self.token_usage_by_model:
+                self.token_usage_by_model[model] = {
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cached_input_tokens": 0,
+                }
+            self.token_usage_by_model[model]["input_tokens"] += input_tokens
+            self.token_usage_by_model[model]["output_tokens"] += output_tokens
+            self.token_usage_by_model[model]["cached_input_tokens"] += cached_input_tokens
+            
+            # Track by source
+            source_key = f"{source}:{tool_name}" if tool_name else source
+            if source_key not in self.token_usage_by_source:
+                self.token_usage_by_source[source_key] = {
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cached_input_tokens": 0,
+                }
+            self.token_usage_by_source[source_key]["input_tokens"] += input_tokens
+            self.token_usage_by_source[source_key]["output_tokens"] += output_tokens
+            self.token_usage_by_source[source_key]["cached_input_tokens"] += cached_input_tokens
+
+    def get_token_usage_summary(self) -> Dict[str, Any]:
+        """
+        Returns a summary of all token usage for this task.
+        
+        Returns:
+            Dictionary containing total token counts and breakdowns by model and source.
+        """
+        with self.lock:
+            return {
+                "total_input_tokens": self.total_input_tokens,
+                "total_output_tokens": self.total_output_tokens,
+                "total_cached_input_tokens": self.total_cached_input_tokens,
+                "total_tokens": self.total_input_tokens + self.total_output_tokens,
+                "by_model": dict(self.token_usage_by_model),
+                "by_source": dict(self.token_usage_by_source),
+            }
+    
+    def set_security_data(self, key: str, value: Any) -> None:
+        """
+        Store opaque security data (enterprise use only).
+        
+        This method provides a secure storage mechanism for enterprise security features
+        such as authentication tokens. The stored data is isolated per task and
+        automatically cleaned up when the task completes.
+        
+        Args:
+            key: Storage key for the security data
+            value: Security data to store (opaque to open source code)
+        """
+        with self.lock:
+            self._security_context[key] = value
+    
+    def get_security_data(self, key: str, default: Any = None) -> Any:
+        """
+        Retrieve opaque security data (enterprise use only).
+        
+        This method retrieves security data that was previously stored using
+        set_security_data(). The data is opaque to open source code.
+        
+        Args:
+            key: Storage key for the security data
+            default: Default value to return if key not found
+            
+        Returns:
+            The stored security data, or default if not found
+        """
+        with self.lock:
+            return self._security_context.get(key, default)
+    
+    def clear_security_data(self) -> None:
+        """
+        Clear all security data.
+
+        This method is provided for completeness but is not explicitly called.
+        Security data is automatically cleaned up when the TaskExecutionContext
+        is removed from active_tasks and garbage collected.
+        """
+        with self.lock:
+            self._security_context.clear()
+
+    def set_original_solace_message(self, message: Optional["SolaceMessage"]) -> None:
+        """
+        Store the original Solace message for this task.
+
+        This message is used for ACK/NACK operations when the task completes.
+        Stored separately from a2a_context to avoid serialization issues when
+        the context is persisted to the ADK session state.
+
+        Args:
+            message: The Solace message that initiated this task, or None
+        """
+        with self.lock:
+            self._original_solace_message = message
+
+    def get_original_solace_message(self) -> Optional["SolaceMessage"]:
+        """
+        Retrieve the original Solace message for this task.
+
+        Returns:
+            The Solace message that initiated this task, or None if not available
+        """
+        with self.lock:
+            return self._original_solace_message
+
+    def check_and_update_invocation(self, new_invocation_id: str) -> bool:
+        """
+        Check if this is a new turn (different invocation_id) and update tracking.
+
+        Args:
+            new_invocation_id: The invocation_id from the current ADK event
+
+        Returns:
+            True if this is a new turn (invocation_id changed), False otherwise
+        """
+        with self.lock:
+            is_new_turn = (
+                self._current_invocation_id is not None
+                and self._current_invocation_id != new_invocation_id
+            )
+
+            if is_new_turn:
+                # Mark that we need spacing before the next text
+                self._need_spacing_before_next_text = True
+
+            if is_new_turn or self._current_invocation_id is None:
+                self._current_invocation_id = new_invocation_id
+                self._first_text_seen_in_turn = False
+
+            return is_new_turn
+
+    def is_first_text_in_turn(self) -> bool:
+        """
+        Check if this is the first text we're seeing in the current turn,
+        and mark it as seen.
+
+        Returns:
+            True if this is the first text in the turn, False otherwise
+        """
+        with self.lock:
+            if not self._first_text_seen_in_turn:
+                self._first_text_seen_in_turn = True
+                return True
+            return False
+
+    def should_add_turn_spacing(self) -> bool:
+        """
+        Check if we need to add spacing before the next text (because it's a new turn).
+        This flag is set when a new invocation starts and cleared after spacing is added.
+
+        Returns:
+            True if spacing should be added, False otherwise
+        """
+        with self.lock:
+            if self._need_spacing_before_next_text:
+                self._need_spacing_before_next_text = False
+                return True
+            return False

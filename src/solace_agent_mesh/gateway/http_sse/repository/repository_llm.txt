@@ -1,0 +1,308 @@
+# DEVELOPER GUIDE: repository
+
+## Quick Summary
+
+The repository directory implements the data access layer for the HTTP SSE gateway using the Repository pattern with SQLAlchemy ORM. It provides a clean separation between domain entities (business logic) and database persistence through abstract interfaces and concrete implementations. The architecture consists of repository interfaces defining contracts, SQLAlchemy implementations, domain entities with validation, and ORM models for database schema. The entities/ subdirectory contains business objects while models/ contains database persistence logic, working together to provide comprehensive data management for chat sessions, tasks, feedback, and events.
+
+## Files and Subdirectories Overview
+
+**Direct files:**
+- `__init__.py` - Main package exports for repository interfaces, implementations, entities, and models
+- `interfaces.py` - Abstract repository interfaces defining data access contracts
+- `session_repository.py` - SQLAlchemy implementation of session data access operations
+- `chat_task_repository.py` - SQLAlchemy implementation of chat task data access operations  
+- `feedback_repository.py` - SQLAlchemy implementation of feedback data access operations
+- `task_repository.py` - SQLAlchemy implementation of task data access operations
+
+**Subdirectories:**
+- `entities/` - Domain entities with business logic for sessions, tasks, feedback, and events
+- `models/` - SQLAlchemy ORM models for database persistence and schema definition
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Central package exports for all repository components
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository import ISessionRepository, SessionRepository, Session, Base, SessionModel`
+
+**Exports:**
+- `ISessionRepository` - Session repository interface
+- `SessionRepository` - Session repository implementation
+- `Session` - Session domain entity
+- `Base` - SQLAlchemy declarative base
+- `SessionModel` - SQLAlchemy session model
+
+#### interfaces.py
+**Purpose:** Defines abstract repository interfaces for data access contracts
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.interfaces import ISessionRepository, ITaskRepository, IFeedbackRepository, IChatTaskRepository`
+
+**Classes:**
+- `ISessionRepository(ABC)` - Abstract interface for session data operations
+  - `find_by_user(session: DBSession, user_id: UserId, pagination: PaginationParams | None = None) -> list[Session]` - Find all sessions for a user
+  - `count_by_user(session: DBSession, user_id: UserId) -> int` - Count total sessions for a user
+  - `find_user_session(session: DBSession, session_id: SessionId, user_id: UserId) -> Session | None` - Find specific user session
+  - `save(session: DBSession, session_obj: Session) -> Session` - Save or update a session
+  - `delete(session: DBSession, session_id: SessionId, user_id: UserId) -> bool` - Delete user session
+
+- `ITaskRepository(ABC)` - Abstract interface for task data operations
+  - `save_task(session: DBSession, task: Task) -> Task` - Create or update a task
+  - `save_event(session: DBSession, event: TaskEvent) -> TaskEvent` - Save a task event
+  - `find_by_id(session: DBSession, task_id: str) -> Task | None` - Find a task by its ID
+  - `find_by_id_with_events(session: DBSession, task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
+  - `search(session: DBSession, user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationParams | None = None) -> list[Task]` - Search for tasks with filters
+  - `delete_tasks_older_than(session: DBSession, cutoff_time_ms: int, batch_size: int) -> int` - Delete tasks older than cutoff time
+
+- `IFeedbackRepository(ABC)` - Abstract interface for feedback data operations
+  - `save(session: DBSession, feedback: Feedback) -> Feedback` - Save feedback
+  - `delete_feedback_older_than(session: DBSession, cutoff_time_ms: int, batch_size: int) -> int` - Delete feedback older than cutoff time
+
+- `IChatTaskRepository(ABC)` - Abstract interface for chat task data operations
+  - `save(session: DBSession, task: ChatTask) -> ChatTask` - Save or update a chat task (upsert)
+  - `find_by_session(session: DBSession, session_id: SessionId, user_id: UserId) -> list[ChatTask]` - Find all tasks for a session
+  - `find_by_id(session: DBSession, task_id: str, user_id: UserId) -> Optional[ChatTask]` - Find a specific task
+  - `delete_by_session(session: DBSession, session_id: SessionId) -> bool` - Delete all tasks for a session
+
+#### session_repository.py
+**Purpose:** SQLAlchemy implementation of session repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.session_repository import SessionRepository`
+
+**Classes:**
+- `SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepository)` - SQLAlchemy session repository implementation
+  - `find_by_user(session: DBSession, user_id: UserId, pagination: PaginationParams | None = None) -> list[Session]` - Find user sessions with pagination
+  - `count_by_user(session: DBSession, user_id: UserId) -> int` - Count total sessions for a user
+  - `find_user_session(session: DBSession, session_id: SessionId, user_id: UserId) -> Session | None` - Find specific user session
+  - `save(db_session: DBSession, session: Session) -> Session` - Save or update session in database
+  - `delete(db_session: DBSession, session_id: SessionId, user_id: UserId) -> bool` - Delete user session
+
+#### chat_task_repository.py
+**Purpose:** SQLAlchemy implementation of chat task repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.chat_task_repository import ChatTaskRepository`
+
+**Classes:**
+- `ChatTaskRepository(IChatTaskRepository)` - SQLAlchemy chat task repository implementation
+  - `save(session: DBSession, task: ChatTask) -> ChatTask` - Save or update a chat task (upsert)
+  - `find_by_session(session: DBSession, session_id: SessionId, user_id: UserId) -> List[ChatTask]` - Find all tasks for a session
+  - `find_by_id(session: DBSession, task_id: str, user_id: UserId) -> Optional[ChatTask]` - Find a specific task
+  - `delete_by_session(session: DBSession, session_id: SessionId) -> bool` - Delete all tasks for a session
+  - `_model_to_entity(model: ChatTaskModel) -> ChatTask` - Convert SQLAlchemy model to domain entity
+
+#### feedback_repository.py
+**Purpose:** SQLAlchemy implementation of feedback repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.feedback_repository import FeedbackRepository`
+
+**Classes:**
+- `FeedbackRepository(IFeedbackRepository)` - SQLAlchemy feedback repository implementation
+  - `save(session: DBSession, feedback: Feedback) -> Feedback` - Save feedback to database
+  - `delete_feedback_older_than(session: DBSession, cutoff_time_ms: int, batch_size: int) -> int` - Delete feedback older than cutoff time using batch deletion
+  - `_model_to_entity(model: FeedbackModel) -> Feedback` - Convert SQLAlchemy model to domain entity
+
+#### task_repository.py
+**Purpose:** SQLAlchemy implementation of task repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.task_repository import TaskRepository`
+
+**Classes:**
+- `TaskRepository(ITaskRepository)` - SQLAlchemy task repository implementation
+  - `save_task(session: DBSession, task: Task) -> Task` - Create or update a task
+  - `save_event(session: DBSession, event: TaskEvent) -> TaskEvent` - Save a task event
+  - `find_by_id(session: DBSession, task_id: str) -> Task | None` - Find a task by its ID
+  - `find_by_id_with_events(session: DBSession, task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
+  - `search(session: DBSession, user_id: UserId, start_date: int | None = None, end_date: int | None = None, pagination: PaginationParams | None = None) -> list[Task]` - Search for tasks with filters
+  - `delete_tasks_older_than(session: DBSession, cutoff_time_ms: int, batch_size: int) -> int` - Delete tasks older than cutoff time using batch deletion
+  - `_task_model_to_entity(model: TaskModel) -> Task` - Convert SQLAlchemy task model to domain entity
+  - `_event_model_to_entity(model: TaskEventModel) -> TaskEvent` - Convert SQLAlchemy event model to domain entity
+
+### Subdirectory APIs
+
+#### entities/
+**Purpose:** Provides domain entities with business logic for sessions, tasks, feedback, and events
+**Key Exports:** ChatTask, Feedback, Session, Task, TaskEvent
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import ChatTask, Feedback, Session, Task, TaskEvent
+```
+
+#### models/
+**Purpose:** Provides SQLAlchemy ORM models for database persistence and schema definition
+**Key Exports:** Base, ChatTaskModel, FeedbackModel, SessionModel, TaskModel, TaskEventModel, CreateSessionModel, UpdateSessionModel
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models import Base, SessionModel, ChatTaskModel, TaskModel, FeedbackModel
+```
+
+## Complete Usage Guide
+
+### 1. Setting Up the Repository Layer
+
+```python
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from solace_agent_mesh.gateway.http_sse.repository import (
+    Base, SessionRepository, ChatTaskRepository, TaskRepository, FeedbackRepository
+)
+
+# Create database engine and session
+engine = create_engine("sqlite:///chat.db")
+Base.metadata.create_all(engine)
+SessionMaker = sessionmaker(bind=engine)
+db_session = SessionMaker()
+
+# Initialize repositories
+session_repo = SessionRepository()
+chat_task_repo = ChatTaskRepository()
+task_repo = TaskRepository()
+feedback_repo = FeedbackRepository()
+```
+
+### 2. Working with Sessions
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Session
+from solace_agent_mesh.gateway.http_sse.shared.pagination import PaginationParams
+import time
+
+# Create a new session
+session = Session(
+    id="session_123",
+    user_id="user_456",
+    name="Customer Support Chat",
+    agent_id="agent_789",
+    created_time=int(time.time() * 1000)
+)
+
+# Save session
+saved_session = session_repo.save(db_session, session)
+
+# Find user sessions with pagination
+pagination = PaginationParams(page=1, page_size=10)
+user_sessions = session_repo.find_by_user(db_session, "user_456", pagination)
+
+# Count total sessions for user
+total_sessions = session_repo.count_by_user(db_session, "user_456")
+
+# Find specific session
+found_session = session_repo.find_user_session(db_session, "session_123", "user_456")
+
+# Update session
+if found_session:
+    found_session.update_name("Updated Chat Name")
+    session_repo.save(db_session, found_session)
+
+# Delete session
+deleted = session_repo.delete(db_session, "session_123", "user_456")
+db_session.commit()
+```
+
+### 3. Working with Chat Tasks
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import ChatTask
+import json
+
+# Create a chat task with message bubbles
+message_bubbles = json.dumps([
+    {"type": "user", "content": "Hello, I need help"},
+    {"type": "agent", "content": "Hi! How can I assist you today?"}
+])
+
+chat_task = ChatTask(
+    id="chat_task_123",
+    session_id="session_123",
+    user_id="user_456",
+    user_message="Hello, I need help",
+    message_bubbles=message_bubbles,
+    created_time=int(time.time() * 1000)
+)
+
+# Save chat task
+saved_task = chat_task_repo.save(db_session, chat_task)
+
+# Find all tasks for a session
+session_tasks = chat_task_repo.find_by_session(db_session, "session_123", "user_456")
+
+# Find specific task
+found_task = chat_task_repo.find_by_id(db_session, "chat_task_123", "user_456")
+
+# Add feedback to task
+if found_task:
+    found_task.add_feedback("positive", "Great response!")
+    chat_task_repo.save(db_session, found_task)
+
+# Delete all tasks for a session
+deleted = chat_task_repo.delete_by_session(db_session, "session_123")
+db_session.commit()
+```
+
+### 4. Working with Tasks and Events
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Task, TaskEvent
+
+# Create a new task
+task = Task(
+    id="task_123",
+    user_id="user_456",
+    start_time=int(time.time() * 1000),
+    status="in_progress",
+    initial_request_text="Help me with my order",
+    total_input_tokens=150,
+    total_output_tokens=300
+)
+
+# Save task
+saved_task = task_repo.save_task(db_session, task)
+
+# Create task event
+event = TaskEvent(
+    id="event_123",
+    task_id="task_123",
+    user_id="user_456",
+    created_time=int(time.time() * 1000),
+    topic="task.status.changed",
+    direction="outbound",
+    payload={"status": "completed", "result": "success"}
+)
+
+# Save event
+saved_event = task_repo.save_event(db_session, event)
+
+# Find task with events
+result = task_repo.find_by_id_with_events(db_session, "task_123")
+if result:
+    task, events = result
+    print(f"Task {task.id} has {len(events)} events")
+
+# Search tasks with filters
+from solace_agent_mesh.gateway.http_sse.shared.pagination import PaginationParams
+pagination_params = PaginationParams(page=1, page_size=10)
+start_date = int((time.time() - 86400) * 1000)  # 24 hours ago
+end_date = int(time.time() * 1000)
+
+tasks = task_repo.search(
+    db_session,
+    user_id="user_456",
+    start_date=start_date,
+    end_date=end_date,
+    pagination=pagination_params
+)
+
+# Batch delete old tasks
+cutoff_time = int((time.time() - 7 * 86400) * 1000)  # 7 days ago
+deleted_count = task_repo.delete_tasks_older_than(db_session, cutoff_time, batch_size=100)
+print(f"Deleted {deleted_count} old tasks")
+```
+
+### 5. Working with Feedback
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback
+
+# Create feedback
+feedback = Feedback(
+    id="feedback_123",
+    session_id="session_123",
+    task_id="task_123",
+    user_id="user_456",
+    rating="up",
+
+# content_hash: 9dc7b1b626d834a08c7dad6774af9b5c2190e1e635d0be92c54121eed438521f

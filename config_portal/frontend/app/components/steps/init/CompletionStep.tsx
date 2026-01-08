@@ -2,15 +2,9 @@ import { useState } from "react";
 import Button from "../../ui/Button";
 import {
   PROVIDER_PREFIX_MAP,
-  LLM_PROVIDER_OPTIONS,
   formatModelName,
 } from "../../../common/providerModels";
-
-type CompletionStepProps = {
-  data: Record<string, any>;
-  updateData: (data: Record<string, any>) => void;
-  onPrevious: () => void;
-};
+import { StepComponentProps } from "../../InitializationFlow";
 
 const CAPITALIZED_WORDS = ["llm", "ai", "api", "url", "vpn"];
 
@@ -67,11 +61,11 @@ export default function CompletionStep({
   data,
   updateData,
   onPrevious,
-}: Readonly<CompletionStepProps>) {
+}: StepComponentProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const isValueEmpty = (value: any) => {
+  const isValueEmpty = (value: unknown) => {
     return (
       value === undefined ||
       value === "" ||
@@ -91,12 +85,12 @@ export default function CompletionStep({
       .join(" ");
   };
 
-  const formatValue = (key: string, value: any): string => {
+  const formatValue = (key: string, value: unknown): string => {
     if (
       SENSITIVE_FIELDS.includes(key) ||
       key.toUpperCase().includes("API_KEY")
     ) {
-      return value && value.length > 0 ? "••••••••" : "Not provided";
+      return value ? "••••••••" : "Not provided";
     }
     if (typeof value === "boolean") {
       return value ? "Yes" : "No";
@@ -104,9 +98,7 @@ export default function CompletionStep({
     if (Array.isArray(value)) {
       return value.join(", ");
     }
-    return value && value.toString().length > 0
-      ? value.toString()
-      : "Not provided";
+    return value ? String(value) : "Not provided";
   };
 
   const getBrokerTypeText = (type: string) => {
@@ -123,8 +115,19 @@ export default function CompletionStep({
   };
 
   const renderBrokerDetails = () => {
-    const type = data.dev_mode;
-    if (type !== undefined) return null;
+    const type = data.broker_type as string;
+    if (data.dev_mode) {
+      return (
+        <div>
+          <div className="mb-1">
+            <span className="text-gray-600">Type:</span>
+            <span className="font-medium text-gray-900 ml-2">
+              {getBrokerTypeText("dev_mode")}
+            </span>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div>
@@ -140,7 +143,7 @@ export default function CompletionStep({
             <div className="flex mb-1">
               <span className="text-gray-600">Container Engine:</span>
               <span className="font-medium text-gray-900 ml-2">
-                {data.container_engine ?? "Docker"}
+                {String(data.container_engine) ?? "Docker"}
               </span>
             </div>
           </div>
@@ -151,19 +154,19 @@ export default function CompletionStep({
             <div className="flex mb-1">
               <span className="text-gray-600">Broker URL:</span>
               <span className="font-medium text-gray-900 ml-2">
-                {data.broker_url}
+                {String(data.broker_url)}
               </span>
             </div>
             <div className="flex mb-1">
               <span className="text-gray-600">Broker VPN:</span>
               <span className="font-medium text-gray-900 ml-2">
-                {data.broker_vpn}
+                {String(data.broker_vpn)}
               </span>
             </div>
             <div className="flex mb-1">
               <span className="text-gray-600">Username:</span>
               <span className="font-medium text-gray-900 ml-2">
-                {data.broker_username}
+                {String(data.broker_username)}
               </span>
             </div>
             <div className="flex mb-1">
@@ -212,38 +215,40 @@ export default function CompletionStep({
     );
   };
 
-  const cleanDataBeforeSubmit = (data: Record<string, any>) => {
-    if (data.namespace && !data.namespace.endsWith("/")) {
-      data.namespace += "/";
+  const cleanDataBeforeSubmit = (dataToClean: Record<string, unknown>) => {
+    const cleanedData = { ...dataToClean };
+    if (cleanedData.namespace && !String(cleanedData.namespace).endsWith("/")) {
+      cleanedData.namespace += "/";
     }
-    if (data.container_started) {
-      delete data.container_started;
+    if (cleanedData.container_started) {
+      delete cleanedData.container_started;
     }
-    if (data.llm_provider) {
-      data.llm_provider = PROVIDER_PREFIX_MAP[data.llm_provider];
+    if (cleanedData.llm_provider) {
+      cleanedData.llm_provider = PROVIDER_PREFIX_MAP[cleanedData.llm_provider as keyof typeof PROVIDER_PREFIX_MAP];
     }
 
-    if (data.llm_model_name && data.llm_provider) {
-      data.llm_model_name = formatModelName(
-        data.llm_model_name,
-        data.llm_provider
+    if (cleanedData.llm_model_name && cleanedData.llm_provider) {
+      cleanedData.llm_model_name = formatModelName(
+        String(cleanedData.llm_model_name),
+        String(cleanedData.llm_provider)
       );
-      delete data.llm_provider;
+      delete cleanedData.llm_provider;
     }
     if (data.broker_type === "container") {
-      // Broker is already created, so we can just connect to it
+      
       data.broker_type = "solace";
     }
+    return cleanedData;
   };
 
   const submitConfiguration = async (force = true) => {
-    cleanDataBeforeSubmit(data);
-    console.log("Submitting configuration:", data);
+    const cleanedData = cleanDataBeforeSubmit(data);
+    console.log("Submitting configuration:", cleanedData);
     try {
       const response = await fetch("api/save_config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(force ? { ...data, force: true } : data),
+        body: JSON.stringify(force ? { ...cleanedData, force: true } : cleanedData),
       });
 
       const result = await response.json();
@@ -299,7 +304,7 @@ export default function CompletionStep({
     <div className="space-y-6">
       <form onSubmit={onSubmit}>
         <div className="bg-gray-100 border border-gray-300 rounded-md p-5 space-y-4">
-          {data.setupPath === "quick"
+          {(data.setupPath === "quick")
             ? renderGroup("AI Provider", CONFIG_GROUPS["AI Provider"])
             : Object.entries(CONFIG_GROUPS).map(([groupName, keys]) =>
                 renderGroup(groupName, keys)

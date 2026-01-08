@@ -2,10 +2,11 @@
 Manages context for tasks being processed by a gateway.
 """
 
+import logging
 import threading
 from typing import Dict, Optional, Any
 
-from solace_ai_connector.common.log import log
+log = logging.getLogger(__name__)
 
 
 class TaskContextManager:

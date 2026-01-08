@@ -1,0 +1,3278 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'http_sse' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/gateway/http_sse/alembic/alembic_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/alembic/alembic_llm.txt`
+
+# DEVELOPER GUIDE: alembic
+
+## Quick Summary
+This directory contains Alembic database migration configuration and version files for the HTTP SSE gateway. It provides database schema management capabilities, including initial table creation, performance optimization through indexing, timestamp format standardization, and task management features with token usage tracking. The directory consists of the main Alembic environment configuration (`env.py`) and a versions subdirectory containing sequential migration files that handle schema evolution over time.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `env.py` - Alembic environment configuration for running migrations in offline/online modes
+
+- **Subdirectories:**
+  - `versions/` - Contains sequential database migration files for schema evolution and task management
+
+## Developer API Reference
+
+### Direct Files
+
+#### env.py
+**Purpose:** Alembic environment configuration that handles migration execution in both offline and online modes with proper model registration
+**Import:** This is an Alembic configuration file - not directly imported by application code
+
+**Functions:**
+- `run_migrations_offline() -> None` - Executes migrations without database connection (generates SQL scripts)
+- `run_migrations_online() -> None` - Executes migrations with live database connection and proper URL handling
+
+**Constants/Variables:**
+- `config` - Alembic Config object providing access to .ini file values
+- `target_metadata` - SQLAlchemy metadata from repository Base class for autogenerate support
+
+### Subdirectory APIs
+
+#### versions/
+**Purpose:** Contains sequential Alembic migration files that define database schema changes including core tables, indexes, timestamp modernization, task management, and token usage tracking
+**Key Exports:** Migration functions for complete schema evolution (upgrade/downgrade operations)
+**Import Examples:**
+```python
+# These are migration files executed by Alembic CLI, not directly imported
+# Access via Alembic commands:
+# alembic upgrade head
+# alembic downgrade base
+```
+
+**Available Migrations:**
+- `d5b3f8f2e9a0` - Initial database schema (sessions and chat_messages tables)
+- `b1c2d3e4f5g6` - Performance indexes for query optimization
+- `f6e7d8c9b0a1` - Timestamp conversion to epoch milliseconds
+- `079e06e9b448` - Task management tables (tasks, task_events, feedback)
+- `20250930_token_usage` - Token usage tracking columns for AI model consumption monitoring
+
+## Complete Usage Guide
+
+### 1. Setting Up Alembic Environment
+
+```python
+# The env.py automatically imports all repository models for metadata
+from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
+from solace_agent_mesh.gateway.http_sse.repository.models.session_model import SessionModel
+from solace_agent_mesh.gateway.http_sse.repository.models.message_model import MessageModel
+from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
+from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model import TaskEventModel
+from solace_agent_mesh.gateway.http_sse.repository.models.feedback_model import FeedbackModel
+
+target_metadata = Base.metadata
+```
+
+### 2. Running Migrations
+
+```bash
+# Check current migration status
+alembic current
+
+# Run all pending migrations to latest
+alembic upgrade head
+
+# Run specific migration
+alembic upgrade d5b3f8f2e9a0
+
+# Rollback to previous migration
+alembic downgrade -1
+
+# Rollback to specific migration
+alembic downgrade b1c2d3e4f5g6
+
+# Rollback all migrations
+alembic downgrade base
+
+# View migration history
+alembic history
+```
+
+### 3. Complete Migration Sequence and Schema Evolution
+
+```bash
+# Step 1: Create initial database schema
+alembic upgrade d5b3f8f2e9a0
+# Creates: sessions table, chat_messages table with relationships
+
+# Step 2: Add performance indexes
+alembic upgrade b1c2d3e4f5g6
+# Adds: indexes on user_id, timestamps, composite fields
+
+# Step 3: Modernize timestamp format
+alembic upgrade f6e7d8c9b0a1
+# Converts: datetime columns to epoch milliseconds
+# Renames: columns for consistency (created_at → created_time)
+
+# Step 4: Add task management features
+alembic upgrade 079e06e9b448
+# Creates: tasks, task_events, feedback tables with proper relationships
+
+# Step 5: Add token usage tracking
+alembic upgrade 20250930_token_usage
+# Adds: token usage columns for AI model consumption monitoring
+```
+
+### 4. Working with Different Database Engines
+
+```python
+# The env.py handles multiple database types automatically
+# Configure database URL in alembic.ini or environment:
+
+# PostgreSQL
+# sqlalchemy.url = postgresql://user:pass@localhost/dbname
+
+# SQLite
+# sqlalchemy.url = sqlite:///./database.db
+
+# MySQL
+# sqlalchemy.url = mysql://user:pass@localhost/dbname
+```
+
+### 5. Integration with Repository Layer
+
+```python
+# The migrations work with the repository models
+from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
+from solace_agent_mesh.gateway.http_sse.repository.models.session_model import SessionModel
+from solace_agent_mesh.gateway.http_sse.repository.models.message_model import MessageModel
+from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
+from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model import TaskEventModel
+from solace_agent_mesh.gateway.http_sse.repository.models.feedback_model import FeedbackModel
+
+# After running all migrations, your models will have the updated schema:
+# - All timestamp fields use epoch milliseconds
+# - Proper indexes for performance
+# - Standardized column names
+# - Complete task management functionality
+# - Token usage tracking for AI model consumption
+```
+
+### 6. Offline Migration Generation
+
+```bash
+# Generate SQL scripts without executing (useful for production deployments)
+# This uses run_migrations_offline() function from env.py
+
+# Generate SQL for specific migration
+alembic upgrade d5b3f8f2e9a0 --sql
+
+# Generate SQL for all pending migrations
+alembic upgrade head --sql
+
+# Generate SQL for token usage migration
+alembic upgrade 20250930_token_usage --sql
+```
+
+### 7. Common Development Patterns
+
+```bash
+# Development workflow:
+# 1. Make model changes in repository
+# 2. Generate new migration
+alembic revision --autogenerate -m "description of changes"
+
+# 3. Review generated migration file
+# 4. Test migration
+alembic upgrade head
+
+# 5. Test rollback
+alembic downgrade -1
+
+# Production deployment:
+# 1. Generate SQL scripts
+alembic upgrade head --sql > migration.sql
+
+# 2. Review and execute SQL manually in production
+```
+
+### 8. Database Schema After All Migrations
+
+```sql
+-- Final schema structure after all migrations:
+
+-- Core tables:
+-- sessions table:
+--   id (String, Primary Key)
+--   name (String)
+--   user_id (String, Indexed)
+--   agent_id (String)
+--   created_time (BigInteger, epoch ms)
+--   updated_time (BigInteger, epoch ms)
+
+-- chat_messages table:
+--   id (String, Primary Key)
+--   session_id (String, Foreign Key to sessions.id)
+--   message (Text)
+--   sender_type (String)
+--   sender_name (String)
+--   created_time (BigInteger, epoch ms, Indexed)
+
+-- Task management tables:
+-- tasks table:
+--   id (String, Primary Key)
+--   user_id (String, Indexed)
+--   start_time (BigInteger, epoch ms)
+--   end_time (BigInteger, epoch ms)
+--   status (String)
+--   initial_request_text (Text)
+--   total_input_tokens (Integer)
+--   total_output_tokens (Integer)
+--   total_cached_input_tokens (Integer)
+--   token_usage_details (Text, JSON)
+
+-- task_events table:
+--   id (String, Primary Key)
+--   task_id (String, Foreign Key to tasks.id)
+--   user_id (String)
+--   created_time (BigInteger, epoch ms)
+--   topic (String)
+--   direction (String)
+--   payload (Text)
+
+-- feedback table:
+--   id (String, Primary Key)
+--   session_id (String, Foreign Key to sessions.id)
+--   task_id (String, Foreign Key to tasks.id)
+--   user_id (String)
+--   rating (Integer)
+--   comment (Text)
+--   created_time (BigInteger, epoch ms)
+
+-- Performance indexes:
+--   idx_sessions_user_id
+--   idx_sessions_created_time
+--   idx_sessions_updated_time
+--   idx_chat_messages_session_id
+--   idx_chat_messages_created_time
+--   idx_chat_messages_session_created (composite)
+--   idx_tasks_user_id
+--   idx_task_events_task_id
+--   idx_task_events_created_time
+--   idx_feedback_session_id
+--   idx_feedback_task_id
+```
+
+### 9. Cross-Platform Timestamp Handling
+
+```python
+# The f6e7d8c9b0a1 migration handles database-specific timestamp conversion:
+
+# SQLite: Uses table recreation approach
+# - Creates new tables with epoch millisecond columns
+# - Migrates data with timestamp conversion
+# - Drops old tables and renames new ones
+
+# PostgreSQL/MySQL: Uses ALTER COLUMN approach
+# - Directly modifies column types
+# - Converts existing data in place
+# - More efficient for large datasets
+```
+
+### 10. Token Usage Tracking
+
+```python
+# The 20250930_token_usage migration adds AI model consumption tracking:
+
+# Token usage columns added to tasks table:
+# - total_input_tokens: Total input tokens consumed
+# - total_output_tokens: Total output tokens generated
+# - total_cached_input_tokens: Cached input tokens used
+# - token_usage_details: JSON field for detailed token usage breakdown
+
+# Usage example after migration:
+from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
+
+# Query tasks with token usage
+task = session.query(TaskModel).filter_by(id="task_id").first()
+print(f"Input tokens: {task.total_input_tokens}")
+print(f"Output tokens: {task.total_output_tokens}")
+print(f"Cached tokens: {task.total_cached_input_tokens}")
+print(f"Details: {task.token_usage_details}")
+```
+
+This Alembic configuration provides a comprehensive database migration system that handles schema evolution, performance optimization, cross-database compatibility, complete task management functionality, and AI model token usage tracking for the HTTP SSE gateway component.
+
+================================================================================
+
+## Section 2: solace_agent_mesh/gateway/http_sse/alembic/versions/versions_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/alembic/versions/versions_llm.txt`
+
+# DEVELOPER GUIDE: versions
+
+## Quick Summary
+This directory contains Alembic database migration files for the HTTP SSE gateway. These migrations handle the evolution of the database schema, including initial table creation, performance optimization through indexing, timestamp format standardization, and task management features with token usage tracking.
+
+## Files Overview
+- `20250910_d5b3f8f2e9a0_create_initial_database.py` - Creates the initial database schema with sessions and chat_messages tables
+- `20250911_b1c2d3e4f5g6_add_database_indexes.py` - Adds performance indexes for common query patterns
+- `20250916_f6e7d8c9b0a1_convert_timestamps_to_epoch_and_align_columns.py` - Converts datetime columns to epoch milliseconds and standardizes column names
+- `20250928_079e06e9b448_add_tasks_task_events_and_feedback_.py` - Adds task management tables (tasks, task_events, feedback)
+- `20250930_add_token_usage_to_tasks.py` - Adds token usage tracking columns to tasks table
+- `versions_llm.txt` - LLM-generated documentation for the versions directory
+
+## Developer API Reference
+
+### 20250910_d5b3f8f2e9a0_create_initial_database.py
+**Purpose:** Initial database migration that creates the core tables for session and message management
+**Import:** This is an Alembic migration file - not directly imported
+
+**Functions:**
+- `upgrade() -> None` - Creates sessions and chat_messages tables with proper relationships and foreign key constraints
+- `downgrade() -> None` - Drops all created tables (chat_messages first, then sessions)
+
+**Constants/Variables:**
+- `revision: str` - Migration identifier "d5b3f8f2e9a0"
+- `down_revision: Union[str, None]` - Previous migration (None for initial migration)
+- `branch_labels: Union[str, Sequence[str], None]` - Branch labels (None)
+- `depends_on: Union[str, Sequence[str], None]` - Dependencies (None)
+
+**Usage Examples:**
+```bash
+# Run this migration
+alembic upgrade d5b3f8f2e9a0
+
+# Rollback this migration
+alembic downgrade base
+```
+
+### 20250911_b1c2d3e4f5g6_add_database_indexes.py
+**Purpose:** Performance optimization migration that adds indexes for efficient querying
+**Import:** This is an Alembic migration file - not directly imported
+
+**Functions:**
+- `upgrade() -> None` - Creates indexes on user_id, timestamps, agent_id, and composite fields for optimal query performance
+- `downgrade() -> None` - Removes all created indexes in reverse order
+
+**Constants/Variables:**
+- `revision: str` - Migration identifier "b1c2d3e4f5g6"
+- `down_revision: Union[str, None]` - Previous migration "d5b3f8f2e9a0"
+
+**Usage Examples:**
+```bash
+# Run this migration
+alembic upgrade b1c2d3e4f5g6
+
+# Rollback this migration
+alembic downgrade d5b3f8f2e9a0
+```
+
+### 20250916_f6e7d8c9b0a1_convert_timestamps_to_epoch_and_align_columns.py
+**Purpose:** Schema modernization migration that converts datetime columns to epoch milliseconds for cross-platform compatibility
+**Import:** This is an Alembic migration file - not directly imported
+
+**Functions:**
+- `upgrade() -> None` - Converts datetime columns to epoch milliseconds and renames columns (created_at → created_time, updated_at → updated_time)
+- `downgrade() -> None` - Reverts back to datetime columns with original names
+- `_upgrade_sqlite(current_time_ms: int) -> None` - SQLite-specific upgrade logic using table recreation
+- `_upgrade_standard_sql(current_time_ms: int) -> None` - PostgreSQL/MySQL upgrade logic using ALTER COLUMN
+- `_downgrade_sqlite() -> None` - SQLite-specific downgrade logic
+- `_downgrade_standard_sql() -> None` - PostgreSQL/MySQL downgrade logic
+- `_create_updated_indexes() -> None` - Creates indexes on new timestamp columns
+- `_create_indexes_safe(index_name: str, table_name: str, columns: list) -> None` - Safely creates indexes (ignores if exists)
+- `_drop_index_safe(index_name: str, table_name: str) -> None` - Safely drops indexes (ignores if not exists)
+
+**Constants/Variables:**
+- `revision: str` - Migration identifier "f6e7d8c9b0a1"
+- `down_revision: str | None` - Previous migration "b1c2d3e4f5g6"
+
+**Usage Examples:**
+```bash
+# Run this migration
+alembic upgrade f6e7d8c9b0a1
+
+# Rollback this migration
+alembic downgrade b1c2d3e4f5g6
+```
+
+### 20250928_079e06e9b448_add_tasks_task_events_and_feedback_.py
+**Purpose:** Adds task management functionality with tables for tracking tasks, events, and user feedback
+**Import:** This is an Alembic migration file - not directly imported
+
+**Functions:**
+- `upgrade() -> None` - Creates tasks, task_events, and feedback tables with appropriate indexes and foreign key relationships
+- `downgrade() -> None` - Drops all task-related tables and recreates original session/message indexes
+
+**Constants/Variables:**
+- `revision: str` - Migration identifier "079e06e9b448"
+- `down_revision: Union[str, Sequence[str], None]` - Previous migration "f6e7d8c9b0a1"
+
+**Usage Examples:**
+```bash
+# Run this migration
+alembic upgrade 079e06e9b448
+
+# Rollback this migration
+alembic downgrade f6e7d8c9b0a1
+```
+
+### 20250930_add_token_usage_to_tasks.py
+**Purpose:** Adds token usage tracking columns to the tasks table for monitoring AI model consumption
+**Import:** This is an Alembic migration file - not directly imported
+
+**Functions:**
+- `upgrade() -> None` - Adds token usage columns (total_input_tokens, total_output_tokens, total_cached_input_tokens, token_usage_details) to tasks table
+- `downgrade() -> None` - Removes all token usage columns from tasks table
+
+**Constants/Variables:**
+- `revision: str` - Migration identifier "20250930_token_usage"
+- `down_revision: Union[str, None]` - Previous migration "079e06e9b448"
+
+**Usage Examples:**
+```bash
+# Run this migration
+alembic upgrade 20250930_token_usage
+
+# Rollback this migration
+alembic downgrade 079e06e9b448
+
+# Run all migrations to latest
+alembic upgrade head
+
+# Check current migration status
+alembic current
+
+# View migration history
+alembic history
+
+# Generate new migration
+alembic revision --autogenerate -m "description"
+```
+
+**Database Schema After All Migrations:**
+```sql
+-- Core tables with epoch millisecond timestamps:
+-- sessions: id, name, user_id, agent_id, created_time, updated_time
+-- chat_messages: id, session_id, message, sender_type, sender_name, created_time
+
+-- Task management tables:
+-- tasks: id, user_id, start_time, end_time, status, initial_request_text,
+--        total_input_tokens, total_output_tokens, total_cached_input_tokens, token_usage_details
+-- task_events: id, task_id, user_id, created_time, topic, direction, payload
+-- feedback: id, session_id, task_id, user_id, rating, comment, created_time
+```
+
+================================================================================
+
+## Section 3: solace_agent_mesh/gateway/http_sse/components/components_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/components/components_llm.txt`
+
+# DEVELOPER GUIDE: components
+
+## Quick Summary
+This directory contains SAC (Solace AI Connector) components for the HTTP SSE (Server-Sent Events) gateway. These components forward messages from Solace broker inputs to internal Python queues, enabling real-time visualization and task logging in web-based user interfaces.
+
+## Files Overview
+- `__init__.py` - Makes the `VisualizationForwarderComponent` class directly importable from the components package
+- `components_llm.txt` - Developer guide documentation for this directory
+- `task_logger_forwarder.py` - SAC component that forwards messages to a task logging queue
+- `visualization_forwarder_component.py` - SAC component that forwards messages to a visualization queue
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Exposes the public components of this directory for easy importing
+**Import:** `from solace_agent_mesh.gateway.http_sse.components import VisualizationForwarderComponent`
+
+**Exports:**
+- `VisualizationForwarderComponent` - The main component class for forwarding messages to a visualization queue
+
+### task_logger_forwarder.py
+**Purpose:** A SAC component that forwards messages from a BrokerInput to a target queue for task logging
+**Import:** `from solace_agent_mesh.gateway.http_sse.components.task_logger_forwarder import TaskLoggerForwarderComponent`
+
+**Classes:**
+- `TaskLoggerForwarderComponent(**kwargs: Any)` - A component that forwards messages to a task logging queue, initialized with configuration parameters including `target_queue_ref`
+  - `invoke(message: SolaceMessage, data: Dict[str, Any]) -> None` - Core method called by SAC framework for each incoming message; formats data and places it onto the target queue
+  - `target_queue: queue.Queue` - The queue instance where messages are forwarded
+
+**Constants/Variables:**
+- `info: Dict` - Metadata dictionary required by SAC framework describing component configuration, input schema, and purpose
+
+**Usage Examples:**
+```python
+import queue
+from solace_agent_mesh.gateway.http_sse.components.task_logger_forwarder import TaskLoggerForwarderComponent
+from solace_ai_connector.common.message import Message as SolaceMessage
+
+# 1. Create a target queue for task logging
+task_logging_queue = queue.Queue()
+
+# 2. Instantiate the component with target queue reference
+task_forwarder = TaskLoggerForwarderComponent(
+    name="task_logger",
+    target_queue_ref=task_logging_queue
+)
+
+# 3. The invoke method is called automatically by SAC framework
+# when messages arrive from connected BrokerInput component
+
+# 4. Consume forwarded messages from the queue
+if not task_logging_queue.empty():
+    forwarded_data = task_logging_queue.get()
+    print(f"Task Topic: {forwarded_data['topic']}")
+    print(f"Task Payload: {forwarded_data['payload']}")
+    print(f"User Properties: {forwarded_data['user_properties']}")
+```
+
+### visualization_forwarder_component.py
+**Purpose:** A SAC component that forwards messages from a BrokerInput to a target queue for visualization
+**Import:** `from solace_agent_mesh.gateway.http_sse.components.visualization_forwarder_component import VisualizationForwarderComponent`
+
+**Classes:**
+- `VisualizationForwarderComponent(**kwargs: Any)` - A component that forwards messages to a visualization queue, initialized with configuration parameters including `target_queue_ref`
+  - `invoke(message: SolaceMessage, data: Dict[str, Any]) -> None` - Core method called by SAC framework for each incoming message; formats data and places it onto the target queue
+  - `target_queue: queue.Queue` - The queue instance where messages are forwarded
+
+**Constants/Variables:**
+- `info: Dict` - Metadata dictionary required by SAC framework describing component configuration, input schema, and purpose
+
+**Usage Examples:**
+```python
+import queue
+from solace_agent_mesh.gateway.http_sse.components import VisualizationForwarderComponent
+from solace_ai_connector.common.message import Message as SolaceMessage
+
+# 1. Create a target queue that will receive the forwarded messages
+visualization_queue = queue.Queue()
+
+# 2. Instantiate the component with target queue reference
+forwarder = VisualizationForwarderComponent(
+    name="my_forwarder",
+    target_queue_ref=visualization_queue
+)
+
+# 3. The invoke method is called automatically by SAC framework
+# when messages arrive from connected BrokerInput component
+
+# 4. Consume forwarded messages from the queue
+if not visualization_queue.empty():
+    forwarded_data = visualization_queue.get()
+    print(f"Topic: {forwarded_data['topic']}")
+    print(f"Payload: {forwarded_data['payload']}")
+    print(f"User Properties: {forwarded_data['user_properties']}")
+    
+# Expected structure of forwarded_data:
+# {
+#     "topic": "some/broker/topic",
+#     "payload": {"key": "value"},
+#     "user_properties": {"prop1": "value1"},
+#     "_original_broker_message": <SolaceMessage object>
+# }
+```
+
+================================================================================
+
+## Section 4: solace_agent_mesh/gateway/http_sse/http_sse_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/http_sse_llm.txt`
+
+# DEVELOPER GUIDE: http_sse
+
+## Quick Summary
+The `http_sse` directory implements a complete HTTP/SSE (Server-Sent Events) gateway for the A2A (Agent-to-Agent) system. It serves as a bridge between web-based user interfaces and the backend A2A messaging fabric, providing real-time communication capabilities through HTTP REST APIs and Server-Sent Events streaming.
+
+The architecture centers around the `WebUIBackendComponent`, a custom Solace AI Connector (SAC) component that hosts an embedded FastAPI web server. This component manages shared resources including the `SSEManager` for real-time updates, `SessionManager` for user sessions, and `AgentRegistry` for agent discovery. The system provides comprehensive functionality including session management, task logging, data retention, feedback collection, and A2A message visualization.
+
+Subdirectories organize functionality by layer: `routers/` defines REST API endpoints, `services/` contains business logic, `repository/` handles data persistence, `components/` provides specialized SAC components, and `shared/` contains common utilities. The `dependencies.py` file uses FastAPI's dependency injection to provide clean separation between the web layer and core messaging components.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `__init__.py`: Standard Python package initializer
+  - `alembic.ini`: Alembic database migration configuration
+  - `app.py`: Main SAC `WebUIBackendApp` class defining configuration schema and component creation
+  - `component.py`: Core SAC component hosting FastAPI server and managing shared resources
+  - `dependencies.py`: FastAPI dependency injectors for accessing shared resources
+  - `main.py`: FastAPI application instance with middleware, routing, and exception handling
+  - `session_manager.py`: Web user session management and A2A identity mapping
+  - `sse_manager.py`: Server-Sent Event connection management for real-time streaming
+  - `sse_event_buffer.py`: Thread-safe buffer for early SSE events before client connection
+- **Subdirectories:**
+  - `alembic/`: Database migration configuration and version files
+  - `components/`: Specialized SAC components for message forwarding and visualization
+  - `repository/`: Data access layer with Repository pattern and SQLAlchemy ORM models
+  - `routers/`: FastAPI router modules defining REST API endpoints
+  - `services/`: Business logic layer for domain-specific operations
+  - `shared/`: Common utilities, constants, enums, and exception handling
+  - `utils/`: Utility functions for creating .stim file structures from task data
+
+## Developer API Reference
+
+### Direct Files
+
+#### app.py
+**Purpose:** Defines the main SAC application class with configuration schema for the HTTP/SSE gateway
+**Import:** `from solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp`
+
+**Classes/Functions/Constants:**
+- **`WebUIBackendApp(BaseGatewayApp)`**: Main application class extending BaseGatewayApp with WebUI-specific configuration
+  - `get_component() -> WebUIBackendComponent | None`: Retrieves the running component instance
+  - `_get_gateway_component_class() -> type[BaseGatewayComponent]`: Returns WebUIBackendComponent class
+- **`SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]]`**: Configuration parameters including session_secret_key, FastAPI settings, frontend configuration, database settings, and feature flags
+
+#### component.py
+**Purpose:** Core SAC component hosting FastAPI server and managing all shared resources and A2A logic
+**Import:** `from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent`
+
+**Classes/Functions/Constants:**
+- **`WebUIBackendComponent(BaseGatewayComponent)`**: Main component class implementing the gateway functionality
+  - **Public Accessor Methods:**
+    - `get_sse_manager() -> SSEManager`: Returns SSE manager for real-time updates
+    - `get_session_manager() -> SessionManager`: Returns session manager
+    - `get_agent_registry() -> AgentRegistry`: Returns agent registry
+    - `get_core_a2a_service() -> CoreA2AService`: Returns core A2A service
+    - `get_shared_artifact_service() -> BaseArtifactService | None`: Returns artifact service
+    - `get_namespace() -> str`: Returns A2A namespace
+    - `get_gateway_id() -> str`: Returns unique gateway identifier
+  - **Core Methods:**
+    - `publish_a2a(topic: str, payload: dict, user_properties: dict | None = None)`: Publishes A2A messages
+  - **GDK Implementation Methods:**
+    - `_start_listener()`: Starts FastAPI server
+    - `_stop_listener()`: Stops FastAPI server
+    - `_translate_external_input(...)`: Converts HTTP requests to A2A messages
+    - `_send_update_to_external(...)`: Sends intermediate updates via SSE
+    - `_send_final_response_to_external(...)`: Sends final responses via SSE
+    - `_send_error_to_external(...)`: Sends error notifications via SSE
+
+#### dependencies.py
+**Purpose:** FastAPI dependency injectors providing access to shared resources
+**Import:** `from solace_agent_mesh.gateway.http_sse.dependencies import get_sac_component, get_agent_registry, get_sse_manager, get_user_id`
+
+**Functions:**
+- `get_sac_component() -> WebUIBackendComponent`: Returns main component instance
+- `get_agent_registry() -> AgentRegistry`: Returns agent registry
+- `get_sse_manager() -> SSEManager`: Returns SSE manager
+- `get_session_manager() -> SessionManager`: Returns session manager
+- `get_user_id(request: Request) -> str`: Returns current user identity
+- `get_publish_a2a_func() -> PublishFunc`: Returns A2A publishing function
+- `get_core_a2a_service() -> CoreA2AService`: Returns core A2A service
+- `get_shared_artifact_service() -> BaseArtifactService | None`: Returns artifact service
+- `get_db() -> Generator[Session, None, None]`: Returns database session
+- `ValidatedUserConfig(required_scopes: list[str])`: Dependency class for scope validation
+
+#### main.py
+**Purpose:** FastAPI application instance with middleware, routing, and exception handling
+**Import:** `from solace_agent_mesh.gateway.http_sse.main import app, setup_dependencies`
+
+**Classes/Functions/Constants:**
+- **`app: FastAPI`**: Main FastAPI application instance
+- **`setup_dependencies(component: WebUIBackendComponent, database_url: str = None)`**: Configures middleware, routers, and dependency injection
+- **Exception Handlers:**
+  - `http_exception_handler()`: Handles HTTP exceptions with format detection
+  - `validation_exception_handler()`: Handles Pydantic validation errors
+  - `generic_exception_handler()`: Handles unexpected exceptions
+
+#### session_manager.py
+**Purpose:** Manages web user sessions and mapping to A2A Client IDs
+**Import:** `from solace_agent_mesh.gateway.http_sse.session_manager import SessionManager`
+
+**Classes/Functions/Constants:**
+- **`SessionManager(secret_key: str, app_config: Dict[str, Any])`**: Session management class
+  - `get_a2a_client_id(request: Request) -> str | None`: Returns A2A client ID
+  - `start_new_a2a_session(request: Request) -> str`: Creates new A2A session
+  - `ensure_a2a_session(request: Request) -> str`: Ensures session exists
+  - `store_auth_tokens(request: Request, access_token: str, refresh_token: str | None)`: Stores auth tokens
+  - `get_access_token(request: Request) -> str | None`: Retrieves access token
+  - `dep_get_client_id() -> Callable`: Returns FastAPI dependency callable
+
+#### sse_manager.py
+**Purpose:** Manages Server-Sent Event connections for streaming task updates
+**Import:** `from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager`
+
+**Classes/Functions/Constants:**
+- **`SSEManager(max_queue_size: int, event_buffer: SSEEventBuffer)`**: SSE connection manager
+  - `create_sse_connection(task_id: str) -> asyncio.Queue`: Creates SSE connection queue
+  - `send_event(task_id: str, event_data: Dict[str, Any], event_type: str)`: Sends event to connections
+  - `close_all_for_task(task_id: str)`: Closes connections for specific task
+  - `close_all()`: Closes all active connections
+
+#### sse_event_buffer.py
+**Purpose:** Thread-safe buffer for holding early SSE events before client connection
+**Import:** `from solace_agent_mesh.gateway.http_sse.sse_event_buffer import SSEEventBuffer`
+
+**Classes/Functions/Constants:**
+- **`SSEEventBuffer(max_queue_size: int, max_age_seconds: int)`**: Event buffering system
+  - `buffer_event(task_id: str, event: Dict[str, Any])`: Buffers event for task
+  - `get_and_remove_buffer(task_id: str) -> Optional[List[Dict[str, Any]]]`: Retrieves and removes buffer
+  - `cleanup_stale_buffers()`: Removes old buffers
+
+### Subdirectory APIs
+
+#### alembic/
+**Purpose:** Database migration configuration and version files for schema management
+**Key Exports:** Migration functions for schema evolution (upgrade/downgrade operations)
+**Import Examples:**
+```python
+# These are migration files executed by Alembic CLI, not directly imported
+# Access via Alembic commands:
+# alembic upgrade head
+# alembic downgrade base
+```
+
+#### components/
+**Purpose:** Specialized SAC components for message forwarding and visualization
+**Key Exports:** `VisualizationForwarderComponent`, `TaskLoggerForwarderComponent`
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.components import VisualizationForwarderComponent
+from solace_agent_mesh.gateway.http_sse.components.task_logger_forwarder import TaskLoggerForwarderComponent
+```
+
+#### repository/
+**Purpose:** Data access layer implementing Repository pattern with SQLAlchemy ORM models
+**Key Exports:** Repository interfaces, implementations, domain entities, and SQLAlchemy models
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository import (
+    ISessionRepository, IMessageRepository, SessionRepository, MessageRepository,
+    Session, Message, SessionHistory, Base, SessionModel, MessageModel
+)
+```
+
+#### routers/
+**Purpose:** FastAPI router modules defining REST API endpoints
+**Key Exports:** Router instances for agents, tasks, SSE, artifacts, auth, config, sessions, people, users, visualization
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers import agents, tasks, sse, artifacts
+from solace_agent_mesh.gateway.http_sse.routers.tasks import CancelTaskApiPayload
+```
+
+#### services/
+**Purpose:** Business logic layer for domain-specific operations
+**Key Exports:** `AgentCardService`, `TaskService`, `PeopleService`, `SessionService`, `FeedbackService`, `TaskLoggerService`
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.services.agent_card_service import AgentCardService
+from solace_agent_mesh.gateway.http_sse.services.task_service import TaskService
+from solace_agent_mesh.gateway.http_sse.services.people_service import PeopleService
+```
+
+#### shared/
+**Purpose:** Common utilities, constants, enums, and exception handling
+**Key Exports:** Authentication utilities, timestamp functions, enums, exception handlers, and type definitions
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import get_current_user, now_epoch_ms
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, TaskStatus
+from solace_agent_mesh.gateway.http_sse.shared.types import UserId, SessionId, PaginationInfo
+```
+
+#### utils/
+**Purpose:** Utility functions for creating .stim file structures from task data
+**Key Exports:** `create_stim_from_task_data`
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.utils.stim_utils import create_stim_from_task_data
+```
+
+## Complete Usage Guide
+
+### 1. Setting Up the Gateway Application
+
+```python
+from solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+
+# Create the gateway app with configuration
+app_config = {
+    "name": "my-webui-gateway",
+    "session_secret_key": "your-secret-key-here",
+    "fastapi_host": "0.0.0.0",
+    "fastapi_port": 8000,
+    "namespace": "/my-namespace",
+    "gateway_id": "webui-gateway-01",
+    "cors_allowed_origins": ["http://localhost:3000"],
+    "frontend_welcome_message": "Welcome to my A2A system!",
+    "frontend_bot_name": "My Assistant",
+    # Database configuration for persistence
+    "session_service": {
+        "type": "sql",
+        "database_url": "sqlite:///./sessions.db"
+    },
+    # Task logging configuration
+    "task_logging": {
+        "enabled": True,
+        "log_status_updates": True,
+        "log_artifact_events": True
+    },
+    # Data retention configuration
+    "data_retention": {
+        "enabled": True,
+        "task_retention_days": 90,
+        "cleanup_interval_hours": 24
+    }
+}
+
+# Initialize and run the app
+webui_app = WebUIBackendApp(app_info=app_config)
+webui_app.run()
+```
+
+### 2. Using Dependencies in Custom Routers
+
+```python
+from fastapi import APIRouter, Depends
+from solace_agent_mesh.gateway.http_sse.dependencies import (
+    get_agent_registry,
+    get_user_id,
+    get_publish_a2a_func,
+    get_core_a2a_service,
+    get_sse_manager,
+    ValidatedUserConfig
+)
+from solace_agent_mesh.common.agent_registry import AgentRegistry
+
+router = APIRouter()
+
+@router.get("/my-custom-endpoint")
+async def my_custom_endpoint(
+    user_id: str = Depends(get_user_id),
+    agent_registry: AgentRegistry = Depends(get_agent_registry),
+    publish_func = Depends(get_publish_a2a_func),
+    user_config: dict = Depends(ValidatedUserConfig(["custom:endpoint:access"]))
+):
+    # Access discovered agents
+    agents = agent_registry.get_all_agents()
+    
+    # Publish a message to the A2A fabric
+    publish_func(
+        topic=f"/my-namespace/a2a/v1/agent/request/some-agent",
+        payload={"method": "custom/request", "params": {"user": user_id}},
+        user_properties={"clientId": user_id}
+    )
+    
+    return {"agents": len(agents), "user": user_id}
+```
+
+### 3. Working with Sessions and Messages
+
+```python
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from solace_agent_mesh.gateway.http_sse.dependencies import (
+    get_db, get_session_business_service_optional
+)
+from solace_agent_mesh.gateway.http_sse.services.session_service import SessionService
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType
+
+@router.post("/sessions/{session_id}/messages")
+async def add_message_to_session(
+    session_id: str,
+    message_text: str,
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+    session_service: SessionService = Depends(get_session_business_service_optional)
+):
+    if session_
+
+================================================================================
+
+## Section 5: solace_agent_mesh/gateway/http_sse/repository/entities/entities_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/repository/entities/entities_llm.txt`
+
+# DEVELOPER GUIDE: entities
+
+## Quick Summary
+The entities directory contains domain entities for the repository layer, providing core business objects for managing chat sessions, messages, tasks, feedback, and events with built-in validation and business logic.
+
+## Files Overview
+- `__init__.py` - Exports the main domain entities (Feedback, Message, Session, SessionHistory, Task, TaskEvent)
+- `feedback.py` - Feedback entity for user ratings and comments on tasks
+- `message.py` - Message entity with content validation and sender type checking
+- `session.py` - Session entity with name management and access control
+- `session_history.py` - Composite entity combining sessions with their message history
+- `task.py` - Task entity for tracking user tasks and their status with token usage
+- `task_event.py` - Task event entity for tracking events related to tasks
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Provides centralized imports for all domain entities
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback, Message, Session, SessionHistory, Task, TaskEvent`
+
+### feedback.py
+**Purpose:** Defines the Feedback domain entity for user ratings and comments
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback`
+
+**Classes:**
+- `Feedback(id: str, session_id: str, task_id: str, user_id: str, rating: str, comment: str | None = None, created_time: int)` - Feedback domain entity
+  - `id: str` - Unique feedback identifier
+  - `session_id: str` - Associated session identifier
+  - `task_id: str` - Associated task identifier
+  - `user_id: str` - User who provided feedback
+  - `rating: str` - User rating
+  - `comment: str | None` - Optional feedback comment
+  - `created_time: int` - Feedback creation timestamp
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback
+
+# Create feedback
+feedback = Feedback(
+    id="feedback_123",
+    session_id="session_456",
+    task_id="task_789",
+    user_id="user_123",
+    rating="5",
+    comment="Great service!",
+    created_time=1640995200000
+)
+```
+
+### message.py
+**Purpose:** Defines the Message domain entity with business logic for chat messages
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Message`
+
+**Classes:**
+- `Message(id: MessageId, session_id: SessionId, message: str, sender_type: SenderType, sender_name: str, message_type: MessageType = MessageType.TEXT, created_time: int)` - Message domain entity with business logic
+  - `validate_message_content() -> None` - Validates message content is not empty and under 10MB limit
+  - `is_from_user() -> bool` - Checks if message is from a user
+  - `is_from_agent() -> bool` - Checks if message is from an agent
+  - `is_system_message() -> bool` - Checks if message is a system message
+  - `id: MessageId` - Unique message identifier
+  - `session_id: SessionId` - Associated session identifier
+  - `message: str` - Message content
+  - `sender_type: SenderType` - Type of sender (USER, AGENT, SYSTEM)
+  - `sender_name: str` - Name of the message sender
+  - `message_type: MessageType` - Type of message content
+  - `created_time: int` - Message creation timestamp
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Message
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, MessageType
+
+# Create a user message
+message = Message(
+    id="msg_123",
+    session_id="session_456",
+    message="Hello, how can I help?",
+    sender_type=SenderType.USER,
+    sender_name="John Doe",
+    message_type=MessageType.TEXT,
+    created_time=1640995200000
+)
+
+# Validate message content
+message.validate_message_content()
+
+# Check sender type
+if message.is_from_user():
+    print("Message from user")
+```
+
+### session.py
+**Purpose:** Defines the Session domain entity with business logic for chat sessions
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Session`
+
+**Classes:**
+- `Session(id: SessionId, user_id: UserId, name: str | None = None, agent_id: AgentId | None = None, created_time: int, updated_time: int | None = None)` - Session domain entity with business logic
+  - `update_name(new_name: str) -> None` - Updates session name with validation and sets updated_time
+  - `mark_activity() -> None` - Marks session as having recent activity by updating timestamp
+  - `can_be_deleted_by_user(user_id: UserId) -> bool` - Checks if user can delete this session
+  - `can_be_accessed_by_user(user_id: UserId) -> bool` - Checks if user can access this session
+  - `id: SessionId` - Unique session identifier
+  - `user_id: UserId` - Owner user identifier
+  - `name: str | None` - Optional session name
+  - `agent_id: AgentId | None` - Optional associated agent identifier
+  - `created_time: int` - Session creation timestamp
+  - `updated_time: int | None` - Last update timestamp
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Session
+
+# Create a new session
+session = Session(
+    id="session_123",
+    user_id="user_456",
+    name="Customer Support Chat",
+    agent_id="agent_789",
+    created_time=1640995200000
+)
+
+# Update session name
+session.update_name("Updated Chat Name")
+
+# Mark activity
+session.mark_activity()
+
+# Check permissions
+if session.can_be_accessed_by_user("user_456"):
+    print("User can access this session")
+```
+
+### session_history.py
+**Purpose:** Defines a composite entity that combines a session with its message history
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import SessionHistory`
+
+**Classes:**
+- `SessionHistory(session: Session, messages: list[Message] = [], total_message_count: int = 0)` - Composite entity representing a session with its messages
+  - `session: Session` - The session entity
+  - `messages: list[Message]` - List of messages in the session
+  - `total_message_count: int` - Total count of messages (may exceed messages list length for pagination)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import SessionHistory, Session, Message
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType
+
+# Create session history
+session = Session(
+    id="session_123",
+    user_id="user_456",
+    created_time=1640995200000
+)
+
+messages = [
+    Message(
+        id="msg_1",
+        session_id="session_123",
+        message="Hello",
+        sender_type=SenderType.USER,
+        sender_name="John",
+        created_time=1640995200000
+    )
+]
+
+history = SessionHistory(
+    session=session,
+    messages=messages,
+    total_message_count=1
+)
+
+# Access session and messages
+print(f"Session: {history.session.id}")
+print(f"Message count: {len(history.messages)}")
+print(f"Total messages: {history.total_message_count}")
+```
+
+### task.py
+**Purpose:** Defines the Task domain entity for tracking user tasks with token usage metrics
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Task`
+
+**Classes:**
+- `Task(id: str, user_id: str, start_time: int, end_time: int | None = None, status: str | None = None, initial_request_text: str | None = None, total_input_tokens: int | None = None, total_output_tokens: int | None = None, total_cached_input_tokens: int | None = None, token_usage_details: dict | None = None)` - Task domain entity with token usage tracking
+  - `id: str` - Unique task identifier
+  - `user_id: str` - User who owns the task
+  - `start_time: int` - Task start timestamp
+  - `end_time: int | None` - Optional task end timestamp
+  - `status: str | None` - Optional task status
+  - `initial_request_text: str | None` - Optional initial request text
+  - `total_input_tokens: int | None` - Total input tokens used
+  - `total_output_tokens: int | None` - Total output tokens generated
+  - `total_cached_input_tokens: int | None` - Total cached input tokens used
+  - `token_usage_details: dict | None` - Detailed token usage information
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Task
+
+# Create a task
+task = Task(
+    id="task_123",
+    user_id="user_456",
+    start_time=1640995200000,
+    status="in_progress",
+    initial_request_text="Help me with my order"
+)
+
+# Task with token usage tracking
+task_with_tokens = Task(
+    id="task_124",
+    user_id="user_456",
+    start_time=1640995200000,
+    end_time=1640995800000,
+    status="completed",
+    total_input_tokens=150,
+    total_output_tokens=300,
+    total_cached_input_tokens=50,
+    token_usage_details={"model": "gpt-4", "cost": 0.05}
+)
+```
+
+### task_event.py
+**Purpose:** Defines the TaskEvent domain entity for tracking events related to tasks
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import TaskEvent`
+
+**Classes:**
+- `TaskEvent(id: str, task_id: str, user_id: str | None = None, created_time: int, topic: str, direction: str, payload: dict[str, Any])` - TaskEvent domain entity
+  - `id: str` - Unique event identifier
+  - `task_id: str` - Associated task identifier
+  - `user_id: str | None` - Optional user identifier
+  - `created_time: int` - Event creation timestamp
+  - `topic: str` - Event topic
+  - `direction: str` - Event direction
+  - `payload: dict[str, Any]` - Event payload data
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import TaskEvent
+
+# Create a task event
+event = TaskEvent(
+    id="event_123",
+    task_id="task_456",
+    user_id="user_789",
+    created_time=1640995200000,
+    topic="task.status.changed",
+    direction="outbound",
+    payload={"status": "completed", "result": "success"}
+)
+
+# Event without user
+system_event = TaskEvent(
+    id="event_124",
+    task_id="task_456",
+    created_time=1640995200000,
+    topic="task.system.notification",
+    direction="inbound",
+    payload={"message": "Task processing started"}
+)
+```
+
+================================================================================
+
+## Section 6: solace_agent_mesh/gateway/http_sse/repository/models/models_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/repository/models/models_llm.txt`
+
+## Quick Summary
+This directory contains SQLAlchemy ORM models and Pydantic schemas for database persistence in the HTTP SSE gateway. It provides models for managing chat sessions, messages, tasks, task events, and user feedback with proper relationships and database schema definitions.
+
+## Files Overview
+- `__init__.py` - Package initialization exposing all SQLAlchemy and Pydantic models
+- `base.py` - SQLAlchemy declarative base configuration
+- `feedback_model.py` - FeedbackModel for storing user feedback on tasks
+- `message_model.py` - MessageModel and Pydantic schemas for chat messages with session relationships
+- `session_model.py` - SessionModel and Pydantic schemas for managing chat sessions
+- `task_event_model.py` - TaskEventModel for storing A2A task events with task relationships
+- `task_model.py` - TaskModel for managing tasks with event relationships and token usage tracking
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Package entry point that exposes all SQLAlchemy models and Pydantic schemas
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models import Base, MessageModel, SessionModel, CreateMessageModel, UpdateMessageModel, CreateSessionModel, UpdateSessionModel, TaskEventModel, TaskModel, FeedbackModel`
+
+**Constants/Variables:**
+- `__all__: List[str]` - Public API exports including all models and schemas
+
+### base.py
+**Purpose:** Provides the SQLAlchemy declarative base for all models
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.base import Base`
+
+**Constants/Variables:**
+- `Base: DeclarativeMeta` - SQLAlchemy declarative base class for all models
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
+from sqlalchemy import create_engine
+
+# Create all tables
+engine = create_engine("sqlite:///example.db")
+Base.metadata.create_all(engine)
+```
+
+### feedback_model.py
+**Purpose:** SQLAlchemy model for storing user feedback on tasks
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.feedback_model import FeedbackModel`
+
+**Classes:**
+- `FeedbackModel(Base)` - SQLAlchemy model for user feedback
+  - `id: Column[String]` - Primary key feedback identifier
+  - `session_id: Column[String]` - Session identifier
+  - `task_id: Column[String]` - Task identifier (indexed)
+  - `user_id: Column[String]` - User identifier (indexed)
+  - `rating: Column[String]` - Feedback rating (e.g., 'up', 'down')
+  - `comment: Column[Text]` - Optional feedback comment
+  - `created_time: Column[BigInteger]` - Creation timestamp in epoch milliseconds
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.feedback_model import FeedbackModel
+from sqlalchemy.orm import sessionmaker
+
+# Create feedback
+feedback = FeedbackModel(
+    id="feedback_123",
+    session_id="session_456",
+    task_id="task_789",
+    user_id="user_123",
+    rating="up",
+    comment="Great response!",
+    created_time=1640995200000
+)
+
+# Add to database
+Session = sessionmaker(bind=engine)
+db_session = Session()
+db_session.add(feedback)
+db_session.commit()
+```
+
+### message_model.py
+**Purpose:** SQLAlchemy model and Pydantic schemas for storing chat messages with session relationships
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.message_model import MessageModel, CreateMessageModel, UpdateMessageModel`
+
+**Classes:**
+- `MessageModel(Base)` - SQLAlchemy model for chat messages
+  - `id: Column[String]` - Primary key message identifier
+  - `session_id: Column[String]` - Foreign key to sessions table with CASCADE delete
+  - `message: Column[Text]` - Message content
+  - `created_time: Column[BigInteger]` - Creation timestamp (auto-generated)
+  - `sender_type: Column[String]` - Type of message sender (max 50 chars)
+  - `sender_name: Column[String]` - Name of message sender (max 255 chars)
+  - `session: relationship` - SQLAlchemy relationship to SessionModel
+
+- `CreateMessageModel(BaseModel)` - Pydantic model for creating messages
+  - `id: str` - Message identifier
+  - `session_id: str` - Session identifier
+  - `message: str` - Message content
+  - `sender_type: str` - Sender type
+  - `sender_name: str` - Sender name
+  - `created_time: int` - Creation timestamp
+
+- `UpdateMessageModel(BaseModel)` - Pydantic model for updating messages
+  - `message: str` - Updated message content
+  - `sender_type: str` - Updated sender type
+  - `sender_name: str` - Updated sender name
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.message_model import MessageModel, CreateMessageModel
+from sqlalchemy.orm import sessionmaker
+
+# Create using SQLAlchemy model
+message = MessageModel(
+    id="msg_123",
+    session_id="session_456",
+    message="Hello, world!",
+    sender_type="user",
+    sender_name="John Doe"
+)
+
+# Create using Pydantic model
+create_data = CreateMessageModel(
+    id="msg_124",
+    session_id="session_456",
+    message="How are you?",
+    sender_type="user",
+    sender_name="John Doe",
+    created_time=1640995200000
+)
+```
+
+### session_model.py
+**Purpose:** SQLAlchemy model and Pydantic schemas for managing chat sessions with message relationships
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.session_model import SessionModel, CreateSessionModel, UpdateSessionModel`
+
+**Classes:**
+- `SessionModel(Base)` - SQLAlchemy model for chat sessions
+  - `id: Column[String]` - Primary key session identifier
+  - `name: Column[String]` - Optional session name
+  - `user_id: Column[String]` - Required user identifier
+  - `agent_id: Column[String]` - Optional agent identifier
+  - `created_time: Column[BigInteger]` - Creation timestamp (auto-generated)
+  - `updated_time: Column[BigInteger]` - Last update timestamp (auto-updated)
+  - `messages: relationship` - SQLAlchemy relationship to MessageModel with cascade delete
+
+- `CreateSessionModel(BaseModel)` - Pydantic model for creating sessions
+  - `id: str` - Session identifier
+  - `name: str | None` - Optional session name
+  - `user_id: str` - User identifier
+  - `agent_id: str | None` - Optional agent identifier
+  - `created_time: int` - Creation timestamp
+  - `updated_time: int` - Update timestamp
+
+- `UpdateSessionModel(BaseModel)` - Pydantic model for updating sessions
+  - `name: str | None` - Optional updated session name
+  - `agent_id: str | None` - Optional updated agent identifier
+  - `updated_time: int` - Update timestamp
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.session_model import SessionModel, CreateSessionModel
+from sqlalchemy.orm import sessionmaker
+
+# Create using SQLAlchemy model
+session = SessionModel(
+    id="session_123",
+    name="My Chat Session",
+    user_id="user_456",
+    agent_id="agent_789"
+)
+
+# Create using Pydantic model
+create_data = CreateSessionModel(
+    id="session_124",
+    name="Another Session",
+    user_id="user_456",
+    agent_id="agent_789",
+    created_time=1640995200000,
+    updated_time=1640995200000
+)
+
+# Access related messages
+messages = session.messages  # Returns list of MessageModel instances
+```
+
+### task_event_model.py
+**Purpose:** SQLAlchemy model for storing A2A task events with task relationships
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model import TaskEventModel`
+
+**Classes:**
+- `TaskEventModel(Base)` - SQLAlchemy model for A2A task events
+  - `id: Column[String]` - Primary key event identifier
+  - `task_id: Column[String]` - Foreign key to tasks table with CASCADE delete (indexed)
+  - `user_id: Column[String]` - Optional user identifier (indexed)
+  - `created_time: Column[BigInteger]` - Creation timestamp in epoch milliseconds
+  - `topic: Column[Text]` - Event topic
+  - `direction: Column[String]` - Event direction (max 50 chars)
+  - `payload: Column[JSON]` - Event payload as JSON
+  - `task: relationship` - SQLAlchemy relationship to TaskModel
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model import TaskEventModel
+from sqlalchemy.orm import sessionmaker
+
+# Create a task event
+event = TaskEventModel(
+    id="event_123",
+    task_id="task_456",
+    user_id="user_789",
+    created_time=1640995200000,
+    topic="agent/response",
+    direction="inbound",
+    payload={"message": "Task completed", "status": "success"}
+)
+
+# Add to database
+Session = sessionmaker(bind=engine)
+db_session = Session()
+db_session.add(event)
+db_session.commit()
+```
+
+### task_model.py
+**Purpose:** SQLAlchemy model for managing tasks with event relationships and token usage tracking
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel`
+
+**Classes:**
+- `TaskModel(Base)` - SQLAlchemy model for tasks
+  - `id: Column[String]` - Primary key task identifier
+  - `user_id: Column[String]` - User identifier (indexed)
+  - `start_time: Column[BigInteger]` - Task start timestamp in epoch milliseconds
+  - `end_time: Column[BigInteger]` - Optional task end timestamp
+  - `status: Column[String]` - Optional task status
+  - `initial_request_text: Column[Text]` - Optional initial request text (indexed)
+  - `total_input_tokens: Column[Integer]` - Optional total input tokens used
+  - `total_output_tokens: Column[Integer]` - Optional total output tokens used
+  - `total_cached_input_tokens: Column[Integer]` - Optional total cached input tokens
+  - `token_usage_details: Column[JSON]` - Optional detailed token usage information
+  - `events: relationship` - SQLAlchemy relationship to TaskEventModel with cascade delete
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
+from sqlalchemy.orm import sessionmaker
+
+# Create a new task with token tracking
+task = TaskModel(
+    id="task_123",
+    user_id="user_456",
+    start_time=1640995200000,
+    status="in_progress",
+    initial_request_text="Please help me with this task",
+    total_input_tokens=150,
+    total_output_tokens=300,
+    total_cached_input_tokens=50,
+    token_usage_details={"model": "gpt-4", "breakdown": {"reasoning": 200, "response": 100}}
+)
+
+# Add to database
+Session = sessionmaker(bind=engine)
+db_session = Session()
+db_session.add(task)
+db_session.commit()
+
+# Access related events
+events = task.events  # Returns list of TaskEventModel instances
+```
+
+================================================================================
+
+## Section 7: solace_agent_mesh/gateway/http_sse/repository/repository_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/repository/repository_llm.txt`
+
+## Quick Summary
+
+The repository directory implements the data access layer for the HTTP SSE gateway using the Repository pattern. It provides a clean separation between domain entities and database persistence through SQLAlchemy ORM models. The architecture consists of abstract interfaces, concrete implementations, domain entities with business logic, and SQLAlchemy models for database operations. The two main subdirectories (entities and models) work together to provide a complete data persistence solution for chat sessions, messages, tasks, feedback, and events.
+
+## Files and Subdirectories Overview
+
+**Direct files:**
+- `__init__.py` - Main package exports for repository interfaces, implementations, entities, and models
+- `interfaces.py` - Abstract repository interfaces defining data access contracts for sessions, messages, tasks, and feedback
+- `message_repository.py` - SQLAlchemy implementation of message data access operations
+- `session_repository.py` - SQLAlchemy implementation of session data access operations
+- `feedback_repository.py` - SQLAlchemy implementation of feedback data access operations
+- `task_repository.py` - SQLAlchemy implementation of task data access operations
+
+**Subdirectories:**
+- `entities/` - Domain entities with business logic for sessions, messages, tasks, feedback, and events
+- `models/` - SQLAlchemy ORM models for database persistence and schema definition
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Central package exports for all repository components
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository import IMessageRepository, ISessionRepository, MessageRepository, SessionRepository, Session, Message, SessionHistory, Base, MessageModel, SessionModel`
+
+**Exports:**
+- `IMessageRepository` - Message repository interface
+- `ISessionRepository` - Session repository interface  
+- `MessageRepository` - Message repository implementation
+- `SessionRepository` - Session repository implementation
+- `Message` - Message domain entity
+- `Session` - Session domain entity
+- `SessionHistory` - Session with messages composite entity
+- `Base` - SQLAlchemy declarative base
+- `MessageModel` - SQLAlchemy message model
+- `SessionModel` - SQLAlchemy session model
+
+#### interfaces.py
+**Purpose:** Defines abstract repository interfaces for data access contracts
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.interfaces import ISessionRepository, IMessageRepository, ITaskRepository, IFeedbackRepository`
+
+**Classes:**
+- `ISessionRepository(ABC)` - Abstract interface for session data operations
+  - `find_by_user(user_id: UserId, pagination: PaginationInfo | None = None) -> list[Session]` - Find all sessions for a user
+  - `count_by_user(user_id: UserId) -> int` - Count total sessions for a user
+  - `find_user_session(session_id: SessionId, user_id: UserId) -> Session | None` - Find specific user session
+  - `save(session: Session) -> Session` - Save or update a session
+  - `delete(session_id: SessionId, user_id: UserId) -> bool` - Delete user session
+  - `find_user_session_with_messages(session_id: SessionId, user_id: UserId, pagination: PaginationInfo | None = None) -> tuple[Session, list[Message]] | None` - Find session with messages
+
+- `IMessageRepository(ABC)` - Abstract interface for message data operations
+  - `find_by_session(session_id: SessionId, pagination: PaginationInfo | None = None) -> list[Message]` - Find messages in session
+  - `save(message: Message) -> Message` - Save or update a message
+  - `delete_by_session(session_id: SessionId) -> bool` - Delete all session messages
+
+- `ITaskRepository(ABC)` - Abstract interface for task data operations
+  - `save_task(task: Task) -> Task` - Create or update a task
+  - `save_event(event: TaskEvent) -> TaskEvent` - Save a task event
+  - `find_by_id(task_id: str) -> Task | None` - Find a task by its ID
+  - `find_by_id_with_events(task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
+  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationParams | None = None) -> list[Task]` - Search for tasks with filters
+  - `delete_tasks_older_than(cutoff_time_ms: int, batch_size: int) -> int` - Delete tasks older than cutoff time
+
+- `IFeedbackRepository(ABC)` - Abstract interface for feedback data operations
+  - `save(feedback: Feedback) -> Feedback` - Save feedback
+  - `delete_feedback_older_than(cutoff_time_ms: int, batch_size: int) -> int` - Delete feedback older than cutoff time
+
+#### message_repository.py
+**Purpose:** SQLAlchemy implementation of message repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.message_repository import MessageRepository`
+
+**Classes:**
+- `MessageRepository(IMessageRepository)` - SQLAlchemy message repository implementation
+  - `__init__(db: DBSession)` - Initialize with database session
+  - `find_by_session(session_id: SessionId, pagination: PaginationInfo | None = None) -> list[Message]` - Find messages in session with pagination
+  - `save(message: Message) -> Message` - Save or update message in database
+  - `delete_by_session(session_id: SessionId) -> bool` - Delete all messages in session
+  - `_convert_model_to_entity(model: MessageModel) -> Message` - Convert SQLAlchemy model to domain entity
+
+#### session_repository.py
+**Purpose:** SQLAlchemy implementation of session repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.session_repository import SessionRepository`
+
+**Classes:**
+- `SessionRepository(ISessionRepository)` - SQLAlchemy session repository implementation
+  - `__init__(db: DBSession)` - Initialize with database session
+  - `find_by_user(user_id: UserId, pagination: PaginationInfo | None = None) -> list[Session]` - Find user sessions with pagination
+  - `count_by_user(user_id: UserId) -> int` - Count total sessions for a user
+  - `find_user_session(session_id: SessionId, user_id: UserId) -> Session | None` - Find specific user session
+  - `save(session: Session) -> Session` - Save or update session in database
+  - `delete(session_id: SessionId, user_id: UserId) -> bool` - Delete user session
+  - `find_user_session_with_messages(session_id: SessionId, user_id: UserId, pagination: PaginationInfo | None = None) -> tuple[Session, list[Message]] | None` - Find session with messages
+  - `_message_model_to_entity(model: MessageModel) -> Message` - Convert message model to entity
+
+#### feedback_repository.py
+**Purpose:** SQLAlchemy implementation of feedback repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.feedback_repository import FeedbackRepository`
+
+**Classes:**
+- `FeedbackRepository(IFeedbackRepository)` - SQLAlchemy feedback repository implementation
+  - `__init__(db: DBSession)` - Initialize with database session
+  - `save(feedback: Feedback) -> Feedback` - Save feedback to database
+  - `delete_feedback_older_than(cutoff_time_ms: int, batch_size: int) -> int` - Delete feedback older than cutoff time using batch deletion
+  - `_model_to_entity(model: FeedbackModel) -> Feedback` - Convert SQLAlchemy model to domain entity
+
+#### task_repository.py
+**Purpose:** SQLAlchemy implementation of task repository interface
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.task_repository import TaskRepository`
+
+**Classes:**
+- `TaskRepository(ITaskRepository)` - SQLAlchemy task repository implementation
+  - `__init__(db: DBSession)` - Initialize with database session
+  - `save_task(task: Task) -> Task` - Create or update a task
+  - `save_event(event: TaskEvent) -> TaskEvent` - Save a task event
+  - `find_by_id(task_id: str) -> Task | None` - Find a task by its ID
+  - `find_by_id_with_events(task_id: str) -> tuple[Task, list[TaskEvent]] | None` - Find a task with all its events
+  - `search(user_id: UserId, start_date: int | None = None, end_date: int | None = None, search_query: str | None = None, pagination: PaginationParams | None = None) -> list[Task]` - Search for tasks with filters
+  - `delete_tasks_older_than(cutoff_time_ms: int, batch_size: int) -> int` - Delete tasks older than cutoff time using batch deletion
+  - `_task_model_to_entity(model: TaskModel) -> Task` - Convert SQLAlchemy task model to domain entity
+  - `_event_model_to_entity(model: TaskEventModel) -> TaskEvent` - Convert SQLAlchemy event model to domain entity
+
+### Subdirectory APIs
+
+#### entities/
+**Purpose:** Provides domain entities with business logic for sessions, messages, tasks, feedback, and events
+**Key Exports:** Message, Session, SessionHistory, Task, TaskEvent, Feedback
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Message, Session, SessionHistory, Task, TaskEvent, Feedback
+```
+
+#### models/
+**Purpose:** Provides SQLAlchemy ORM models for database persistence and schema definition
+**Key Exports:** Base, MessageModel, SessionModel, TaskModel, TaskEventModel, FeedbackModel
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models import Base, MessageModel, SessionModel, TaskModel, TaskEventModel, FeedbackModel
+```
+
+## Complete Usage Guide
+
+### 1. Setting Up the Repository Layer
+
+```python
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from solace_agent_mesh.gateway.http_sse.repository import (
+    Base, MessageRepository, SessionRepository, TaskRepository, FeedbackRepository
+)
+
+# Create database engine and session
+engine = create_engine("sqlite:///chat.db")
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
+db_session = Session()
+
+# Initialize repositories
+message_repo = MessageRepository(db_session)
+session_repo = SessionRepository(db_session)
+task_repo = TaskRepository(db_session)
+feedback_repo = FeedbackRepository(db_session)
+```
+
+### 2. Working with Sessions
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Session
+from solace_agent_mesh.gateway.http_sse.shared.types import PaginationInfo
+import time
+
+# Create a new session
+session = Session(
+    id="session_123",
+    user_id="user_456",
+    name="Customer Support Chat",
+    agent_id="agent_789",
+    created_time=int(time.time() * 1000)
+)
+
+# Save session
+saved_session = session_repo.save(session)
+
+# Find user sessions with pagination
+pagination = PaginationInfo(page=1, page_size=10)
+user_sessions = session_repo.find_by_user("user_456", pagination)
+
+# Count total sessions for user
+total_sessions = session_repo.count_by_user("user_456")
+
+# Find specific session
+found_session = session_repo.find_user_session("session_123", "user_456")
+
+# Update session
+if found_session:
+    found_session.update_name("Updated Chat Name")
+    session_repo.save(found_session)
+```
+
+### 3. Working with Messages
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Message
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, MessageType
+
+# Create a new message
+message = Message(
+    id="msg_123",
+    session_id="session_123",
+    message="Hello, how can I help you today?",
+    sender_type=SenderType.AGENT,
+    sender_name="Support Agent",
+    message_type=MessageType.TEXT,
+    created_time=int(time.time() * 1000)
+)
+
+# Validate and save message
+message.validate_message_content()
+saved_message = message_repo.save(message)
+
+# Find messages in session
+session_messages = message_repo.find_by_session("session_123", pagination)
+
+# Check message properties
+if message.is_from_agent():
+    print("Message from agent")
+```
+
+### 4. Working with Tasks and Events
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Task, TaskEvent
+
+# Create a new task
+task = Task(
+    id="task_123",
+    user_id="user_456",
+    start_time=int(time.time() * 1000),
+    status="in_progress",
+    initial_request_text="Help me with my order"
+)
+
+# Save task
+saved_task = task_repo.save_task(task)
+
+# Create task event
+event = TaskEvent(
+    id="event_123",
+    task_id="task_123",
+    user_id="user_456",
+    created_time=int(time.time() * 1000),
+    topic="task.status.changed",
+    direction="outbound",
+    payload={"status": "completed", "result": "success"}
+)
+
+# Save event
+saved_event = task_repo.save_event(event)
+
+# Find task with events
+result = task_repo.find_by_id_with_events("task_123")
+if result:
+    task, events = result
+    print(f"Task {task.id} has {len(events)} events")
+
+# Search tasks
+from solace_agent_mesh.gateway.http_sse.shared.types import PaginationParams
+pagination_params = PaginationParams(page=1, page_size=10)
+tasks = task_repo.search(
+    user_id="user_456",
+    search_query="order",
+    pagination=pagination_params
+)
+```
+
+### 5. Working with Feedback
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback
+
+# Create feedback
+feedback = Feedback(
+    id="feedback_123",
+    session_id="session_123",
+    task_id="task_123",
+    user_id="user_456",
+    rating="up",
+    comment="Great service!",
+    created_time=int(time.time() * 1000)
+)
+
+# Save feedback
+saved_feedback = feedback_repo.save(feedback)
+```
+
+### 6. Working with Session History (Combined Operations)
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import SessionHistory
+
+# Get session with messages in one operation
+result = session_repo.find_user_session_with_messages(
+    "session_123", "user_456", pagination
+)
+
+if result:
+    session, messages = result
+    
+    # Create session history object
+    history = SessionHistory(
+        session=session,
+        messages=messages,
+        total_message_count=len(messages)
+    )
+    
+    print(f"Session: {history.session.name}")
+    print(f"Messages: {len(history.messages)}")
+```
+
+### 7. Using Repository Interfaces for Dependency Injection
+
+```python
+from solace_agent_mesh.gateway.http_sse.repository.interfaces import (
+    ISessionRepository, IMessageRepository, ITaskRepository, IFeedbackRepository
+)
+
+class ChatService:
+    def __init__(
+        self, 
+        session_repo: ISessionRepository,
+        message_repo: IMessageRepository,
+        task_repo: ITaskRepository,
+        feedback_repo: IFeedbackRepository
+    ):
+        self.session_repo = session_repo
+        self.message_repo = message_repo
+        self.task_repo = task_repo
+        self.feedback_
+
+================================================================================
+
+## Section 8: solace_agent_mesh/gateway/http_sse/routers/dto/dto_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/routers/dto/dto_llm.txt`
+
+# DEVELOPER GUIDE: dto
+
+## Quick Summary
+The `dto` directory contains Data Transfer Objects (DTOs) for API contract definition and validation in the HTTP SSE gateway. It's organized into two main subdirectories: `requests` for incoming API request validation using Pydantic models, and `responses` for structured API response formatting with automatic timestamp conversion. The DTOs primarily focus on session management operations and provide type-safe interfaces for API endpoints.
+
+## Files and Subdirectories Overview
+- **Direct files:** 
+  - `__init__.py` - Main module exports for requests and responses submodules
+- **Subdirectories:**
+  - `requests/` - Request DTOs for API endpoint validation (session CRUD operations)
+  - `responses/` - Response DTOs with automatic timestamp serialization and field aliasing
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Main entry point that exports the requests and responses submodules
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto import requests, responses`
+
+**Exports:**
+- `requests` - Module containing all request DTOs
+- `responses` - Module containing all response DTOs
+
+### Subdirectory APIs
+
+#### requests/
+**Purpose:** Provides Pydantic models for validating incoming API requests, specifically for session management operations
+**Key Exports:** GetSessionsRequest, GetSessionRequest, GetSessionHistoryRequest, UpdateSessionRequest, DeleteSessionRequest
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests import (
+    GetSessionRequest,
+    GetSessionHistoryRequest,
+    UpdateSessionRequest
+)
+```
+
+#### responses/
+**Purpose:** Provides structured response DTOs with automatic timestamp conversion and field aliasing for API consistency
+**Key Exports:** MessageResponse, SessionResponse, SessionListResponse, BaseTimestampResponse
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import (
+    MessageResponse,
+    SessionResponse,
+    SessionListResponse
+)
+```
+
+## Complete Usage Guide
+
+### 1. Basic Imports and Setup
+
+```python
+# Import the main dto modules
+from solace_agent_mesh.gateway.http_sse.routers.dto import requests, responses
+
+# Or import specific DTOs directly
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests import (
+    GetSessionRequest,
+    GetSessionHistoryRequest,
+    UpdateSessionRequest
+)
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import (
+    SessionResponse,
+    MessageResponse,
+    SessionListResponse
+)
+```
+
+### 2. Working with Request DTOs
+
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests import (
+    GetSessionRequest,
+    GetSessionHistoryRequest,
+    UpdateSessionRequest
+)
+from pydantic import ValidationError
+
+# Create a request to get a specific session
+def get_session(session_id: str, user_id: str):
+    try:
+        request = GetSessionRequest(
+            session_id=session_id,
+            user_id=user_id
+        )
+        return request
+    except ValidationError as e:
+        print(f"Invalid request parameters: {e}")
+        return None
+
+# Create a request to get session history with pagination
+def get_session_history(session_id: str, user_id: str, page: int = 1, size: int = 20):
+    try:
+        request = GetSessionHistoryRequest(
+            session_id=session_id,
+            user_id=user_id,
+            pagination={"page": page, "size": size}
+        )
+        return request
+    except ValidationError as e:
+        print(f"Validation failed: {e}")
+        return None
+
+# Create a request to update session name
+def update_session_name(session_id: str, user_id: str, new_name: str):
+    try:
+        request = UpdateSessionRequest(
+            session_id=session_id,
+            user_id=user_id,
+            name=new_name  # Automatically validated (1-255 characters)
+        )
+        return request
+    except ValidationError as e:
+        print(f"Validation failed: {e}")
+        return None
+```
+
+### 3. Working with Response DTOs
+
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import (
+    SessionResponse,
+    MessageResponse,
+    SessionListResponse
+)
+from solace_agent_mesh.gateway.http_sse.shared.enums import MessageType, SenderType
+import time
+
+# Create session responses
+def create_session_response(session_data: dict) -> SessionResponse:
+    return SessionResponse(
+        id=session_data["id"],
+        user_id=session_data["user_id"],
+        name=session_data.get("name"),
+        agent_id=session_data.get("agent_id"),
+        created_time=int(time.time() * 1000),  # Current time in epoch ms
+        updated_time=session_data.get("updated_time")
+    )
+
+# Create message responses
+def create_message_response(message_data: dict) -> MessageResponse:
+    return MessageResponse(
+        id=message_data["id"],
+        session_id=message_data["session_id"],
+        message=message_data["message"],
+        sender_type=SenderType.USER,
+        sender_name=message_data["sender_name"],
+        message_type=MessageType.TEXT,
+        created_time=int(time.time() * 1000)
+    )
+
+# Create paginated session list responses
+def create_session_list_response(sessions: list, total: int) -> SessionListResponse:
+    session_responses = [create_session_response(session) for session in sessions]
+    return SessionListResponse(
+        sessions=session_responses,
+        pagination={"page": 1, "size": len(sessions), "total_pages": 1},
+        total_count=total
+    )
+```
+
+### 4. Complete API Endpoint Example
+
+```python
+from fastapi import APIRouter, HTTPException
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests import (
+    GetSessionRequest,
+    GetSessionHistoryRequest,
+    UpdateSessionRequest
+)
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import (
+    SessionResponse,
+    MessageResponse,
+    SessionListResponse
+)
+
+router = APIRouter()
+
+@router.get("/sessions/{session_id}")
+async def get_session(session_id: str, user_id: str) -> SessionResponse:
+    """Get a specific session"""
+    
+    # Create and validate request DTO
+    request = GetSessionRequest(
+        session_id=session_id,
+        user_id=user_id
+    )
+    
+    # Fetch data (mock implementation)
+    session_data = fetch_session(request)
+    
+    # Return structured response with automatic timestamp conversion
+    return SessionResponse(
+        id=session_data["id"],
+        user_id=session_data["user_id"],
+        name=session_data["name"],
+        created_time=session_data["created_time"]
+    )
+
+@router.get("/sessions/{session_id}/history")
+async def get_session_history(
+    session_id: str,
+    user_id: str,
+    page: int = 1,
+    size: int = 20
+) -> list[MessageResponse]:
+    """Get session message history"""
+    
+    # Validate request using DTO
+    request = GetSessionHistoryRequest(
+        session_id=session_id,
+        user_id=user_id,
+        pagination={"page": page, "size": size}
+    )
+    
+    # Fetch messages (mock implementation)
+    messages_data = fetch_session_messages(request)
+    
+    # Return response DTOs with automatic field aliasing
+    return [
+        MessageResponse(
+            id=msg["id"],
+            session_id=msg["session_id"],
+            message=msg["message"],
+            sender_type=msg["sender_type"],
+            sender_name=msg["sender_name"],
+            message_type=msg["message_type"],
+            created_time=msg["created_time"]
+        )
+        for msg in messages_data
+    ]
+
+@router.put("/sessions/{session_id}")
+async def update_session(
+    session_id: str,
+    user_id: str,
+    name: str
+) -> SessionResponse:
+    """Update session name"""
+    
+    # Validate request using DTO
+    try:
+        request = UpdateSessionRequest(
+            session_id=session_id,
+            user_id=user_id,
+            name=name
+        )
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    # Update session (mock implementation)
+    updated_session = update_session_in_db(request)
+    
+    # Return response DTO with automatic field aliasing
+    return SessionResponse(
+        id=updated_session["id"],
+        user_id=updated_session["user_id"],
+        name=updated_session["name"],
+        created_time=updated_session["created_time"],
+        updated_time=updated_session["updated_time"]
+    )
+```
+
+### 5. JSON Serialization with Automatic Timestamp Conversion
+
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import SessionResponse, MessageResponse
+from solace_agent_mesh.gateway.http_sse.shared.enums import MessageType, SenderType
+import json
+
+# Create a session response
+session = SessionResponse(
+    id="sess_123",
+    user_id="user_456",
+    name="My Session",
+    created_time=1640995200000,  # Epoch milliseconds
+    updated_time=1640995260000
+)
+
+# Automatic conversion to ISO strings in JSON output
+json_output = session.model_dump_json()
+print(json_output)
+# Output: {
+#   "id": "sess_123",
+#   "userId": "user_456",  # Note the camelCase aliasing
+#   "name": "My Session",
+#   "createdTime": "2022-01-01T00:00:00Z",  # Converted to ISO string
+#   "updatedTime": "2022-01-01T00:01:00Z"
+# }
+
+# Create a message response with field aliasing
+message = MessageResponse(
+    id="msg_789",
+    session_id="sess_123",
+    message="Hello world",
+    sender_type=SenderType.USER,
+    sender_name="John Doe",
+    message_type=MessageType.TEXT,
+    created_time=1640995200000
+)
+
+# Get dict with converted timestamps and aliased fields
+dict_output = message.model_dump()
+print(dict_output["sessionId"])  # "sess_123" (camelCase alias)
+print(dict_output["senderType"])  # SenderType.USER (camelCase alias)
+print(dict_output["createdTime"])  # "2022-01-01T00:00:00Z" (converted timestamp)
+```
+
+### 6. Custom Response Classes Using Base
+
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses.base_responses import BaseTimestampResponse
+
+class CustomResponse(BaseTimestampResponse):
+    """Custom response with automatic timestamp handling"""
+    name: str
+    status: str
+    created_time: int
+    last_accessed: int | None = None
+    
+    class Config:
+        # Add field aliases if needed
+        alias_generator = lambda field_name: ''.join(
+            word.capitalize() if i > 0 else word 
+            for i, word in enumerate(field_name.split('_'))
+        )
+
+# Usage
+custom_response = CustomResponse(
+    name="Test Item",
+    status="active",
+    created_time=1640995200000,
+    last_accessed=1640995300000
+)
+
+# Automatic timestamp conversion in JSON
+json_data = custom_response.model_dump_json()
+# Fields like created_time become ISO strings automatically
+```
+
+This comprehensive guide shows how the `dto` directory provides a complete type-safe API contract system with automatic validation for requests and structured responses with timestamp conversion for the HTTP SSE gateway.
+
+================================================================================
+
+## Section 9: solace_agent_mesh/gateway/http_sse/routers/dto/requests/requests_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/routers/dto/requests/requests_llm.txt`
+
+# DEVELOPER GUIDE: requests
+
+## Quick Summary
+This directory contains request Data Transfer Objects (DTOs) for API endpoints, specifically focused on session management operations. These Pydantic models define the structure and validation rules for incoming API requests.
+
+## Files Overview
+- `__init__.py` - Exports all session-related request DTOs for easy importing
+- `session_requests.py` - Defines request DTOs for session CRUD operations (get, update, history retrieval)
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Provides centralized imports for all request DTOs
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.requests import GetSessionRequest, GetSessionHistoryRequest, UpdateSessionRequest`
+
+**Usage Examples:**
+```python
+# Import all session request DTOs
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests import (
+    GetSessionRequest,
+    GetSessionHistoryRequest,
+    UpdateSessionRequest
+)
+```
+
+### session_requests.py
+**Purpose:** Defines Pydantic models for session-related API request validation
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.requests.session_requests import GetSessionRequest, GetSessionHistoryRequest, UpdateSessionRequest`
+
+**Classes:**
+- `GetSessionRequest(session_id: SessionId, user_id: UserId)` - Request DTO for retrieving a specific session by ID
+- `GetSessionHistoryRequest(session_id: SessionId, user_id: UserId, pagination: Optional[PaginationInfo] = None)` - Request DTO for retrieving session message history with optional pagination
+- `UpdateSessionRequest(session_id: SessionId, user_id: UserId, name: str)` - Request DTO for updating session details with validation (name must be 1-255 characters)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests.session_requests import (
+    GetSessionRequest,
+    GetSessionHistoryRequest,
+    UpdateSessionRequest
+)
+from pydantic import ValidationError
+
+# Create a request to get a specific session
+get_session_req = GetSessionRequest(
+    session_id="session456",
+    user_id="user123"
+)
+
+# Create a request to get session history with pagination
+get_history_req = GetSessionHistoryRequest(
+    session_id="session456",
+    user_id="user123",
+    pagination={"page": 1, "size": 20}
+)
+
+# Create a request to update a session name
+update_req = UpdateSessionRequest(
+    session_id="session456",
+    user_id="user123",
+    name="My Updated Session"
+)
+
+# Validate request data from dictionary
+request_data = {
+    "session_id": "session789",
+    "user_id": "user456",
+    "name": "New Session Name"
+}
+
+try:
+    validated_request = UpdateSessionRequest(**request_data)
+    print(f"Valid request: {validated_request}")
+except ValidationError as e:
+    print(f"Validation failed: {e}")
+
+# Access validated fields
+print(f"Session ID: {update_req.session_id}")
+print(f"User ID: {update_req.user_id}")
+print(f"New name: {update_req.name}")
+```
+
+================================================================================
+
+## Section 10: solace_agent_mesh/gateway/http_sse/routers/dto/responses/responses_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/routers/dto/responses/responses_llm.txt`
+
+# DEVELOPER GUIDE: responses
+
+## Quick Summary
+The `responses` directory contains Pydantic response DTOs (Data Transfer Objects) for API endpoints. It provides structured response models with automatic timestamp conversion from epoch milliseconds to ISO 8601 strings for JSON serialization.
+
+## Files Overview
+- `__init__.py` - Exports all response DTOs for easy importing
+- `base_responses.py` - Base response class with automatic timestamp serialization
+- `session_responses.py` - Session and message-related response DTOs
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Central import point for all response DTOs
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.responses import MessageResponse, SessionResponse, SessionListResponse`
+
+### base_responses.py
+**Purpose:** Provides base response class with automatic timestamp field conversion
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.responses.base_responses import BaseTimestampResponse`
+
+**Classes:**
+- `BaseTimestampResponse(BaseModel)` - Base class for responses with timestamp fields that auto-converts epoch ms to ISO strings
+  - `model_dump(**kwargs) -> dict[str, Any]` - Converts timestamp fields to ISO strings in output
+  - `model_dump_json(**kwargs) -> str` - Serializes to JSON with timestamp conversion
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses.base_responses import BaseTimestampResponse
+
+class MyResponse(BaseTimestampResponse):
+    name: str
+    created_time: int  # Will be auto-converted to ISO string in JSON output
+    updated_time: int | None = None
+
+# Usage
+response = MyResponse(name="test", created_time=1640995200000)
+json_data = response.model_dump()  # created_time becomes ISO string
+```
+
+### session_responses.py
+**Purpose:** Session and message response DTOs with field aliasing for API consistency
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.responses import MessageResponse, SessionResponse, SessionListResponse`
+
+**Classes:**
+- `MessageResponse(BaseTimestampResponse)` - Response DTO for chat messages
+  - `id: MessageId` - Unique message identifier
+  - `session_id: SessionId` - Session this message belongs to (aliased as "sessionId")
+  - `message: str` - Message content
+  - `sender_type: SenderType` - Type of sender (aliased as "senderType")
+  - `sender_name: str` - Name of sender (aliased as "senderName")
+  - `message_type: MessageType` - Type of message (aliased as "messageType")
+  - `created_time: int` - Creation timestamp in epoch ms (aliased as "createdTime")
+  - `updated_time: int | None` - Update timestamp in epoch ms (aliased as "updatedTime")
+
+- `SessionResponse(BaseTimestampResponse)` - Response DTO for chat sessions
+  - `id: SessionId` - Unique session identifier
+  - `user_id: UserId` - User who owns the session (aliased as "userId")
+  - `name: str | None` - Optional session name
+  - `agent_id: str | None` - Optional agent identifier (aliased as "agentId")
+  - `created_time: int` - Creation timestamp in epoch ms (aliased as "createdTime")
+  - `updated_time: int | None` - Update timestamp in epoch ms (aliased as "updatedTime")
+
+- `SessionListResponse(BaseModel)` - Response DTO for paginated session lists
+  - `sessions: list[SessionResponse]` - List of session objects
+  - `pagination: PaginationInfo | None` - Pagination metadata
+  - `total_count: int` - Total number of sessions (aliased as "totalCount")
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import (
+    MessageResponse, 
+    SessionResponse, 
+    SessionListResponse
+)
+from solace_agent_mesh.gateway.http_sse.shared.enums import MessageType, SenderType
+
+# Create a message response
+message = MessageResponse(
+    id="msg_123",
+    session_id="sess_456", 
+    message="Hello world",
+    sender_type=SenderType.USER,
+    sender_name="John Doe",
+    message_type=MessageType.TEXT,
+    created_time=1640995200000
+)
+
+# Create a session response
+session = SessionResponse(
+    id="sess_456",
+    user_id="user_789",
+    name="My Chat Session",
+    agent_id="agent_001",
+    created_time=1640995200000
+)
+
+# Create a session list response
+session_list = SessionListResponse(
+    sessions=[session],
+    total_count=1
+)
+
+# Serialize to JSON (timestamps auto-converted to ISO strings)
+json_output = message.model_dump_json()
+```
+
+================================================================================
+
+## Section 11: solace_agent_mesh/gateway/http_sse/routers/routers_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/routers/routers_llm.txt`
+
+# DEVELOPER GUIDE for the routers directory
+
+## Quick Summary
+The `routers` directory contains FastAPI router modules that define the REST API endpoints for the HTTP SSE Gateway. Each router groups endpoints by functional domain (agent discovery, artifact management, authentication, sessions, etc.) and provides the primary interface for frontend applications and other clients to interact with the gateway. The routers work together to provide a complete web API with real-time capabilities through Server-Sent Events (SSE), along with comprehensive session management, artifact handling, and A2A message visualization.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `__init__.py` - Package initialization for router modules
+  - `agent_cards.py` - Agent discovery endpoints
+  - `artifacts.py` - Artifact management (upload, download, versioning)
+  - `auth.py` - Authentication flow endpoints (login, callback, refresh)
+  - `config.py` - Frontend configuration endpoint
+  - `feedback.py` - User feedback collection endpoints
+  - `people.py` - User search for autocomplete features
+  - `sessions.py` - Session management (CRUD operations)
+  - `sse.py` - Server-Sent Events streaming endpoint
+  - `tasks.py` - Task submission and management endpoints
+  - `users.py` - Current user information endpoint
+  - `visualization.py` - A2A message visualization streaming
+- **Subdirectories:**
+  - `dto/` - Data Transfer Objects for request/response validation
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Package initialization for the routers module
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers import *`
+
+#### agent_cards.py
+**Purpose:** Provides REST endpoints for agent discovery
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.agent_cards import router`
+
+**Functions:**
+- `get_discovered_agent_cards() -> List[AgentCard]` - Retrieves all currently discovered A2A agents
+
+#### artifacts.py
+**Purpose:** Manages session-specific artifacts via REST endpoints with versioning and metadata support
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.artifacts import router, ArtifactUploadResponse`
+
+**Classes:**
+- `ArtifactUploadResponse(BaseModel)` - Response model for artifact uploads with camelCase fields
+
+**Functions:**
+- `upload_artifact_with_session(upload_file: UploadFile, sessionId: str, filename: str, metadata_json: str) -> ArtifactUploadResponse` - Uploads artifact with session management
+- `list_artifact_versions(session_id: str, filename: str) -> List[int]` - Lists available versions for an artifact
+- `list_artifacts(session_id: str) -> List[ArtifactInfo]` - Lists all artifacts in a session with metadata
+- `get_latest_artifact(session_id: str, filename: str) -> StreamingResponse` - Downloads latest artifact version with embed resolution
+- `get_specific_artifact_version(session_id: str, filename: str, version: Union[int, str]) -> StreamingResponse` - Downloads specific version
+- `get_artifact_by_uri(uri: str) -> StreamingResponse` - Downloads artifact by formal artifact:// URI
+- `upload_artifact(session_id: str, filename: str, upload_file: UploadFile, metadata_json: Optional[str]) -> Dict[str, Any]` - Uploads new artifact version with metadata
+- `delete_artifact(session_id: str, filename: str) -> Response` - Deletes artifact and all versions
+
+#### auth.py
+**Purpose:** Handles OAuth-based user authentication flow with external authorization service
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.auth import router`
+
+**Functions:**
+- `initiate_login(request: FastAPIRequest) -> RedirectResponse` - Starts OAuth login flow with external service
+- `get_csrf_token(response: Response) -> Dict[str, str]` - Generates and sets CSRF token
+- `auth_callback(request: FastAPIRequest) -> RedirectResponse` - Handles OAuth callback and token exchange
+- `refresh_token(request: FastAPIRequest) -> Dict[str, str]` - Refreshes access token using refresh token
+
+#### config.py
+**Purpose:** Provides frontend configuration settings including feature flags
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.config import router`
+
+**Functions:**
+- `get_app_config() -> Dict[str, Any]` - Returns frontend configuration including auth URLs, feature flags, and persistence settings
+
+#### feedback.py
+**Purpose:** Receives and processes user feedback on chat messages
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.feedback import router, FeedbackPayload`
+
+**Classes:**
+- `FeedbackPayload(BaseModel)` - Data model for feedback submission
+  - `task_id: str` - ID of the task being rated
+  - `session_id: str` - Session containing the task
+  - `feedback_type: Literal["up", "down"]` - Type of feedback
+  - `feedback_text: Optional[str]` - Optional text feedback
+
+**Functions:**
+- `submit_feedback(payload: FeedbackPayload, user_id: str) -> Dict[str, str]` - Processes user feedback asynchronously
+
+#### people.py
+**Purpose:** Provides user search functionality for autocomplete features
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.people import router`
+
+**Functions:**
+- `search_people(q: str, limit: int = 10) -> List[Dict[str, Any]]` - Searches for users for @mention autocomplete
+
+#### sessions.py
+**Purpose:** Manages user sessions including CRUD operations with persistence
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.sessions import router`
+
+**Functions:**
+- `get_all_sessions(page_number: int, page_size: int, user: dict) -> PaginatedResponse[SessionResponse]` - Lists user's sessions with pagination
+- `get_session(session_id: str, user: dict) -> DataResponse[SessionResponse]` - Gets session details with authorization
+- `get_session_history(session_id: str, user: dict) -> List[MessageResponse]` - Gets session message history
+- `update_session_name(session_id: str, name: str, user: dict) -> SessionResponse` - Updates session name with validation
+- `delete_session(session_id: str, user: dict) -> None` - Deletes session with cascade notifications
+
+#### sse.py
+**Purpose:** Provides Server-Sent Events endpoint for real-time streaming
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.sse import router`
+
+**Functions:**
+- `subscribe_to_task_events(task_id: str, request: FastAPIRequest) -> EventSourceResponse` - Establishes SSE connection for task updates with automatic cleanup
+
+#### tasks.py
+**Purpose:** Handles task submission, management, and historical search
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.tasks import router`
+
+**Functions:**
+- `search_tasks(start_date: Optional[str], end_date: Optional[str], search: Optional[str], page: int, page_size: int, query_user_id: Optional[str]) -> List[Task]` - Searches historical tasks with admin capabilities
+- `get_task_as_stim_file(task_id: str) -> Response` - Downloads complete task history as .stim file
+- `send_task_to_agent(request: FastAPIRequest, payload: SendMessageRequest) -> SendMessageSuccessResponse` - Submits non-streaming task
+- `subscribe_task_from_agent(request: FastAPIRequest, payload: SendStreamingMessageRequest) -> SendStreamingMessageSuccessResponse` - Submits streaming task
+- `cancel_agent_task(request: FastAPIRequest, taskId: str, payload: CancelTaskRequest) -> Dict[str, str]` - Cancels active task
+
+#### users.py
+**Purpose:** Provides current user information with authentication status
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.users import router`
+
+**Functions:**
+- `get_current_user_endpoint(user: dict) -> Dict[str, Any]` - Returns current user information with auth status
+
+#### visualization.py
+**Purpose:** Manages A2A message visualization streams for real-time monitoring
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.visualization import router, SubscriptionTarget, VisualizationSubscribeRequest`
+
+**Classes:**
+- `SubscriptionTarget(BaseModel)` - Defines visualization target
+  - `type: str` - Target type (e.g., "current_namespace_a2a_messages", "agent_a2a_messages")
+  - `identifier: Optional[str]` - Target identifier (namespace or agent name)
+- `VisualizationSubscribeRequest(BaseModel)` - Subscription request
+  - `subscription_targets: Optional[List[SubscriptionTarget]]` - Targets to monitor
+  - `client_stream_id: Optional[str]` - Client-generated stream ID for idempotency
+- `VisualizationSubscribeResponse(BaseModel)` - Subscription response with SSE URL
+- `VisualizationConfigUpdateRequest(BaseModel)` - Configuration update request
+- `VisualizationConfigUpdateResponse(BaseModel)` - Configuration update response
+
+**Functions:**
+- `subscribe_to_visualization_stream(request_data: VisualizationSubscribeRequest) -> VisualizationSubscribeResponse` - Starts visualization stream with authorization
+- `get_visualization_stream_events(stream_id: str) -> EventSourceResponse` - SSE endpoint for visualization events
+- `update_visualization_stream_config(stream_id: str, update_request: VisualizationConfigUpdateRequest) -> VisualizationConfigUpdateResponse` - Updates stream configuration
+- `unsubscribe_from_visualization_stream(stream_id: str) -> Response` - Terminates visualization stream
+
+### Subdirectory APIs
+
+#### dto/
+**Purpose:** Provides Data Transfer Objects for request/response validation and serialization with automatic timestamp conversion
+**Key Exports:** Request and response DTOs for session management with field validation and camelCase aliasing
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests import GetSessionsRequest, UpdateSessionRequest
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import SessionResponse, MessageResponse
+```
+
+## Complete Usage Guide
+
+### 1. Setting Up Routers in FastAPI Application
+
+```python
+from fastapi import FastAPI
+from solace_agent_mesh.gateway.http_sse.routers import (
+    agent_cards,
+    artifacts,
+    auth,
+    config,
+    feedback,
+    people,
+    sessions,
+    sse,
+    tasks,
+    users,
+    visualization
+)
+
+app = FastAPI()
+
+# Include all routers with appropriate prefixes
+app.include_router(agent_cards.router, prefix="/api/v1", tags=["agents"])
+app.include_router(artifacts.router, prefix="/api/v1/artifacts", tags=["artifacts"])
+app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
+app.include_router(config.router, prefix="/api/v1", tags=["config"])
+app.include_router(feedback.router, prefix="/api/v1", tags=["feedback"])
+app.include_router(people.router, prefix="/api/v1", tags=["people"])
+app.include_router(sessions.router, prefix="/api/v1", tags=["sessions"])
+app.include_router(sse.router, prefix="/api/v1/sse", tags=["sse"])
+app.include_router(tasks.router, prefix="/api/v1/tasks", tags=["tasks"])
+app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
+app.include_router(visualization.router, prefix="/api/v1/visualization", tags=["visualization"])
+```
+
+### 2. Agent Discovery and Task Submission
+
+```python
+import httpx
+from a2a.types import SendStreamingMessageRequest, Message, MessagePart
+
+# Discover available agents
+async def get_available_agents():
+    async with httpx.AsyncClient() as client:
+        response = await client.get("http://localhost:8000/api/v1/agentCards")
+        return response.json()
+
+# Submit a streaming task to an agent
+async def submit_streaming_task(agent_name: str, message_text: str, session_id: str):
+    # Create message parts
+    parts = [MessagePart(text=message_text)]
+    
+    # Create message with metadata
+    message = Message(
+        parts=parts,
+        context_id=session_id,
+        metadata={"agent_name": agent_name}
+    )
+    
+    # Create request payload
+    payload = SendStreamingMessageRequest(
+        method="message:stream",
+        params={"message": message},
+        id="req_123"
+    )
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "http://localhost:8000/api/v1/tasks/message:stream",
+            json=payload.model_dump()
+        )
+        return response.json()
+
+# Search historical tasks (admin users can query all users)
+async def search_historical_tasks(start_date: str = None, query_user_id: str = None):
+    params = {}
+    if start_date:
+        params["start_date"] = start_date
+    if query_user_id:
+        params["query_user_id"] = query_user_id
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "http://localhost:8000/api/v1/tasks",
+            params=params
+        )
+        return response.json()
+```
+
+### 3. Real-time Event Streaming with SSE
+
+```python
+import asyncio
+import httpx
+import json
+
+# Client-side SSE connection for task events
+async def listen_to_task_events(task_id: str):
+    async with httpx.AsyncClient() as client:
+        async with client.stream(
+            "GET", 
+            f"http://localhost:8000/api/v1/sse/subscribe/{task_id}",
+            headers={"Accept": "text/event-stream"}
+        ) as response:
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    event_data = line[6:]  # Remove "data: " prefix
+                    try:
+                        parsed_data = json.loads(event_data)
+                        print(f"Received event: {parsed_data}")
+                    except json.JSONDecodeError:
+                        print(f"Received raw data: {event_data}")
+
+# Client-side SSE connection for visualization
+async def listen_to_visualization_events(stream_id: str):
+    async with httpx.AsyncClient() as client:
+        async with client.stream(
+            "GET",
+            f"http://localhost:8000/api/v1/visualization/{stream_id}/events",
+            headers={"Accept": "text/event-stream"}
+        ) as response:
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    event_data = line[6:]
+                    print(f"Visualization event: {event_data}")
+```
+
+### 4. Comprehensive Artifact Management
+
+```python
+import httpx
+import json
+from pathlib import Path
+
+# Upload an artifact with metadata using session-based endpoint
+async def upload_artifact_with_metadata(session_id: str, filename: str, file_path: Path, metadata: dict = None):
+    files = {"upload_file": (filename, file_path.open("rb"))}
+    data = {}
+    
+    if metadata:
+        data["metadata_json"] = json.dumps(metadata)
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"http://localhost:8000/api/v1/artifacts/{session_id}/{filename}",
+            files=files,
+            data=data
+        )
+        return response.json()
+
+# Upload artifact with automatic session creation
+
+================================================================================
+
+## Section 12: solace_agent_mesh/gateway/http_sse/services/services_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/services/services_llm.txt`
+
+# DEVELOPER GUIDE: services
+
+## Quick Summary
+The `services` directory contains the business logic layer for the HTTP SSE Gateway. It provides high-level services for agent management (discovering and retrieving A2A agents), user feedback processing with database persistence and event publishing, user search via identity services, session management with database persistence, task logging to database, data retention/cleanup, and A2A task operations like cancellation.
+
+## Files Overview
+- `__init__.py` - Package initialization file marking the directory as a Python package
+- `agent_card_service.py` - Service for retrieving information about discovered A2A agents from the registry
+- `data_retention_service.py` - Service for automatic cleanup of old tasks and feedback based on retention policies
+- `feedback_service.py` - Service for processing and storing user feedback on chat messages with database and event publishing
+- `people_service.py` - Service for searching users via configured identity services
+- `session_service.py` - Service for managing chat sessions and messages with database persistence
+- `task_logger_service.py` - Service for logging A2A tasks and events to the database
+- `task_service.py` - Service for handling A2A task operations like cancellation
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Marks the services directory as a Python package
+**Import:** N/A - No public interfaces
+
+### agent_card_service.py
+**Purpose:** Provides methods for accessing information about discovered A2A agents from the shared AgentRegistry
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.agent_card_service import AgentCardService`
+
+**Classes:**
+- `AgentCardService(agent_registry: AgentRegistry)` - Service for accessing discovered A2A agent information
+  - `get_all_agent_cards() -> List[AgentCard]` - Retrieves all currently discovered and registered agent cards
+  - `get_agent_card_by_name(agent_name: str) -> Optional[AgentCard]` - Retrieves a specific agent card by name, returns None if not found
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.services.agent_card_service import AgentCardService
+from solace_agent_mesh.common.agent_registry import AgentRegistry
+
+# Initialize with shared agent registry
+agent_registry = AgentRegistry()  # Usually injected as shared instance
+agent_service = AgentCardService(agent_registry=agent_registry)
+
+# Get all available agents
+all_agents = agent_service.get_all_agent_cards()
+print(f"Found {len(all_agents)} agents")
+
+# Get specific agent by name
+agent = agent_service.get_agent_card_by_name("data-processor")
+if agent:
+    print(f"Found agent: {agent.name}")
+else:
+    print("Agent not found")
+```
+
+### data_retention_service.py
+**Purpose:** Service for automatically cleaning up old tasks, task events, and feedback based on configurable retention policies
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.data_retention_service import DataRetentionService`
+
+**Classes:**
+- `DataRetentionService(session_factory: Callable[[], DBSession] | None, config: Dict[str, Any])` - Service for automatic data cleanup based on retention policies
+  - `cleanup_old_data() -> None` - Main orchestration method for cleaning up old data, calls cleanup methods for tasks and feedback
+
+**Constants/Variables:**
+- `MIN_RETENTION_DAYS: int` - Minimum retention period (7 days)
+- `MIN_CLEANUP_INTERVAL_HOURS: int` - Minimum cleanup interval (1 hour)
+- `MIN_BATCH_SIZE: int` - Minimum batch size for deletion (1)
+- `MAX_BATCH_SIZE: int` - Maximum batch size for deletion (10000)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.services.data_retention_service import DataRetentionService
+from sqlalchemy.orm import sessionmaker
+
+# Initialize with database session factory and config
+session_factory = sessionmaker(bind=your_engine)
+config = {
+    "enabled": True,
+    "task_retention_days": 90,
+    "feedback_retention_days": 90,
+    "cleanup_interval_hours": 24,
+    "batch_size": 1000
+}
+
+retention_service = DataRetentionService(
+    session_factory=session_factory,
+    config=config
+)
+
+# Run cleanup (typically called by scheduler)
+retention_service.cleanup_old_data()
+```
+
+### feedback_service.py
+**Purpose:** Handles the business logic for processing and storing user feedback with database persistence and event publishing
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.feedback_service import FeedbackService`
+
+**Classes:**
+- `FeedbackService(session_factory: Callable[[], DBSession] | None, component: WebUIBackendComponent, task_repo: ITaskRepository)` - Service for processing user feedback with database persistence and event publishing
+  - `process_feedback(payload: FeedbackPayload, user_id: str) -> None` - Asynchronously processes and stores feedback, publishes events if configured
+
+**Usage Examples:**
+```python
+import asyncio
+from solace_agent_mesh.gateway.http_sse.services.feedback_service import FeedbackService
+from sqlalchemy.orm import sessionmaker
+
+# Initialize with database session factory
+session_factory = sessionmaker(bind=your_engine)
+component = YourWebUIBackendComponent()  # Your component instance
+task_repo = YourTaskRepository()  # Your task repository
+
+feedback_service = FeedbackService(
+    session_factory=session_factory,
+    component=component,
+    task_repo=task_repo
+)
+
+# Process feedback (requires FeedbackPayload from router)
+async def process_user_feedback():
+    # payload would be a FeedbackPayload instance from the router
+    await feedback_service.process_feedback(payload, user_id="user123")
+
+asyncio.run(process_user_feedback())
+```
+
+### people_service.py
+**Purpose:** Provides user search functionality via configured identity services
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.people_service import PeopleService`
+
+**Classes:**
+- `PeopleService(identity_service: Optional[BaseIdentityService])` - Service for searching and retrieving user information
+  - `search_for_users(query: str, limit: int = 10) -> List[Dict[str, Any]]` - Asynchronously searches for users, returns empty list if no identity service configured or query too short
+
+**Usage Examples:**
+```python
+import asyncio
+from solace_agent_mesh.gateway.http_sse.services.people_service import PeopleService
+from solace_agent_mesh.common.services.identity_service import BaseIdentityService
+
+# Initialize with identity service
+identity_service = SomeIdentityService()  # Your identity service implementation
+people_service = PeopleService(identity_service=identity_service)
+
+async def search_users():
+    # Search for users
+    users = await people_service.search_for_users("john", limit=5)
+    for user in users:
+        print(f"User: {user.get('name')} - {user.get('email')}")
+
+# Initialize without identity service (graceful degradation)
+people_service_no_id = PeopleService(identity_service=None)
+# search_for_users will return empty list
+
+asyncio.run(search_users())
+```
+
+### session_service.py
+**Purpose:** Manages chat sessions and messages with database persistence support
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.session_service import SessionService`
+
+**Classes:**
+- `SessionService(component: WebUIBackendComponent = None)` - Service for managing chat sessions and messages
+  - `is_persistence_enabled() -> bool` - Checks if the service is configured with a persistent backend
+  - `get_user_sessions(db: DbSession, user_id: UserId, pagination: PaginationParams | None = None) -> PaginatedResponse[Session]` - Retrieves paginated sessions for a user
+  - `get_session_details(db: DbSession, session_id: SessionId, user_id: UserId) -> Session | None` - Gets session details for a specific session
+  - `get_session_history(db: DbSession, session_id: SessionId, user_id: UserId, pagination: PaginationInfo | None = None) -> SessionHistory | None` - Gets session with messages
+  - `create_session(db: DbSession, user_id: UserId, name: str | None = None, agent_id: str | None = None, session_id: str | None = None) -> Optional[Session]` - Creates a new session
+  - `update_session_name(db: DbSession, session_id: SessionId, user_id: UserId, name: str) -> Session | None` - Updates session name
+  - `delete_session_with_notifications(db: DbSession, session_id: SessionId, user_id: UserId) -> bool` - Deletes session and notifies agents
+  - `add_message_to_session(db: DbSession, session_id: SessionId, user_id: UserId, message: str, sender_type: SenderType, sender_name: str, agent_id: str | None = None, message_type: MessageType = MessageType.TEXT) -> Message` - Adds a message to a session
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.services.session_service import SessionService
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, MessageType
+from sqlalchemy.orm import Session as DbSession
+
+# Initialize with component
+component = YourWebUIBackendComponent()  # Your component
+session_service = SessionService(component=component)
+
+# Use with database session
+with your_session_factory() as db:
+    # Create a new session
+    session = session_service.create_session(
+        db=db,
+        user_id="user123",
+        name="My Chat Session",
+        agent_id="assistant-agent"
+    )
+
+    # Add a message to the session
+    message = session_service.add_message_to_session(
+        db=db,
+        session_id=session.id,
+        user_id="user123",
+        message="Hello, how can you help me?",
+        sender_type=SenderType.USER,
+        sender_name="John Doe"
+    )
+
+    # Get user's sessions with pagination
+    paginated_sessions = session_service.get_user_sessions(db, "user123")
+    
+    db.commit()
+```
+
+### task_logger_service.py
+**Purpose:** Service for logging A2A tasks and events to the database with configurable filtering and sanitization
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.task_logger_service import TaskLoggerService`
+
+**Classes:**
+- `TaskLoggerService(session_factory: Callable[[], DBSession] | None, config: Dict[str, Any])` - Service for logging A2A tasks and events to database
+  - `log_event(event_data: Dict[str, Any]) -> None` - Parses a raw A2A message and logs it as a task event, creates or updates master task record
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.services.task_logger_service import TaskLoggerService
+from sqlalchemy.orm import sessionmaker
+
+# Initialize with database session factory and config
+session_factory = sessionmaker(bind=your_engine)
+config = {
+    "enabled": True,
+    "log_status_updates": True,
+    "log_artifact_events": False,
+    "log_file_parts": True,
+    "max_file_part_size_bytes": 102400
+}
+
+task_logger = TaskLoggerService(
+    session_factory=session_factory,
+    config=config
+)
+
+# Log an A2A event
+event_data = {
+    "topic": "sam/agents/my-agent/request",
+    "payload": {"id": "task-123", "method": "sendMessage"},
+    "user_properties": {"userId": "user@example.com"}
+}
+
+task_logger.log_event(event_data)
+```
+
+### task_service.py
+**Purpose:** Handles A2A task operations, specifically task cancellation using CoreA2AService and message publishing
+**Import:** `from solace_agent_mesh.gateway.http_sse.services.task_service import TaskService, PublishFunc`
+
+**Type Aliases:**
+- `PublishFunc: Callable[[str, Dict, Optional[Dict]], None]` - Function type for publishing messages (topic, payload, user_properties)
+
+**Classes:**
+- `TaskService(core_a2a_service: CoreA2AService, publish_func: PublishFunc, namespace: str, gateway_id: str, sse_manager: SSEManager, task_context_map: Dict[str, Dict], task_context_lock: threading.Lock, app_name: str)` - Service for managing A2A task operations
+  - `cancel_task(agent_name: str, task_id: str, client_id: str, user_id: str = "web_user") -> None` - Asynchronously cancels a task by publishing A2A CancelTaskRequest message
+
+**Usage Examples:**
+```python
+import asyncio
+import threading
+from solace_agent_mesh.gateway.http_sse.services.task_service import TaskService, PublishFunc
+from solace_agent_mesh.core_a2a.service import CoreA2AService
+from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
+
+# Define publish function
+def my_publish_func(topic: str, payload: dict, user_properties: dict = None):
+    print(f"Publishing to {topic}: {payload}")
+    # Your actual message publishing logic here
+
+# Initialize dependencies
+core_a2a_service = CoreA2AService()  # Your core A2A service
+sse_manager = SSEManager()
+task_context_map = {}
+task_context_lock = threading.Lock()
+
+# Create task service
+task_service = TaskService(
+    core_a2a_service=core_a2a_service,
+    publish_func=my_publish_func,
+    namespace="my-namespace",
+    gateway_id="gateway-01",
+    sse_manager=sse_manager,
+    task_context_map=task_context_map,
+    task_context_lock=task_context_lock,
+    app_name="my-app"
+)
+
+async def cancel_task_example():
+    # Cancel a task
+    await task_service.cancel_task(
+        agent_name="data-processor",
+        task_id="task-123",
+        client_id="client-456",
+        user_id="user@example.com"
+    )
+
+asyncio.run(cancel_task_example())
+```
+
+================================================================================
+
+## Section 13: solace_agent_mesh/gateway/http_sse/shared/shared_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/shared/shared_llm.txt`
+
+# DEVELOPER GUIDE: shared
+
+## Quick Summary
+The `shared` directory contains common utilities, constants, enums, types, and exception handling used across all layers of the HTTP SSE gateway. It provides authentication helpers, timestamp utilities, standardized exception handling, database utilities, pagination support, and response formatting for consistent API behavior.
+
+## Files Overview
+- `__init__.py` - Central exports for all shared utilities and components
+- `auth_utils.py` - Authentication utilities for FastAPI applications
+- `timestamp_utils.py` - Epoch timestamp utilities matching Java backend patterns
+- `exceptions.py` - Generic web exceptions for HTTP/REST APIs
+- `error_dto.py` - Standardized error response DTOs
+- `exception_handlers.py` - FastAPI exception handlers for consistent HTTP error responses
+- `base_repository.py` - Base repository classes with proper transaction management
+- `pagination.py` - Pagination utilities for API responses
+- `database_exceptions.py` - Database exception handling and conversion
+- `database_helpers.py` - Database utility functions and custom types
+- `response_utils.py` - Standardized response formatting utilities
+- `enums.py` - Enumerations for message types, task status, and validation errors
+- `types.py` - Custom types and type aliases for better type safety
+- `utils.py` - Generic utility functions
+
+## Developer API Reference
+
+### auth_utils.py
+**Purpose:** Provides authentication utilities for FastAPI controllers
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import get_current_user`
+
+**Functions:**
+- `get_current_user(request: FastAPIRequest) -> dict` - Extracts authenticated user from request state, returns user info or anonymous default
+
+**Usage Examples:**
+```python
+from fastapi import Depends
+from solace_agent_mesh.gateway.http_sse.shared import get_current_user
+
+@app.get("/protected")
+async def protected_endpoint(user: dict = Depends(get_current_user)):
+    return {"user_id": user["id"], "name": user["name"]}
+```
+
+### timestamp_utils.py
+**Purpose:** Provides epoch timestamp utilities for database portability and timezone handling
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import now_epoch_ms, epoch_ms_to_iso8601, iso8601_to_epoch_ms`
+
+**Functions:**
+- `now_epoch_ms() -> int` - Get current time as milliseconds since epoch
+- `epoch_ms_to_iso8601(epoch_ms: int) -> str` - Convert epoch milliseconds to ISO 8601 string
+- `iso8601_to_epoch_ms(iso8601_string: str) -> int` - Convert ISO 8601 string to epoch milliseconds
+- `datetime_to_epoch_ms(dt: datetime) -> int` - Convert datetime object to epoch milliseconds
+- `epoch_ms_to_datetime(epoch_ms: int) -> datetime` - Convert epoch milliseconds to datetime object
+- `validate_epoch_ms(epoch_ms: int | None) -> bool` - Validate that an epoch milliseconds value is reasonable
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import (
+    now_epoch_ms, epoch_ms_to_iso8601, iso8601_to_epoch_ms
+)
+
+# Get current timestamp for database storage
+created_time = now_epoch_ms()
+
+# Convert for API response
+iso_string = epoch_ms_to_iso8601(created_time)
+
+# Parse from API request
+timestamp = iso8601_to_epoch_ms("2024-01-01T00:00:00Z")
+```
+
+### exceptions.py
+**Purpose:** Generic web exceptions for HTTP/REST APIs
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import ValidationError, EntityNotFoundError, EntityAlreadyExistsError`
+
+**Classes:**
+- `WebUIBackendException(message: str, details: Optional[Dict[str, Any]] = None)` - Base exception for all web UI backend errors
+- `ValidationError(message: str, validation_details: Optional[Dict[str, List[str]]] = None, entity_type: Optional[str] = None, entity_identifier: Optional[str] = None)` - Exception for validation errors with field-level details
+- `EntityNotFoundError(entity_type: str, entity_id: str)` - Generic exception for when an entity is not found
+- `EntityAlreadyExistsError(entity_type: str, identifier: str, value: Any = None)` - Exception for when an entity already exists
+- `BusinessRuleViolationError(rule: str, message: str)` - Exception for business rule violations
+- `ConfigurationError(component: str, message: str)` - Exception for configuration-related errors
+- `DataIntegrityError(constraint: str, message: str)` - Exception for data integrity violations
+- `ExternalServiceError(service: str, message: str, status_code: Optional[int] = None)` - Exception for external service communication errors
+- `ValidationErrorBuilder()` - Builder for constructing ValidationError instances with fluent API
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import (
+    ValidationError, EntityNotFoundError, ValidationErrorBuilder
+)
+
+# Simple validation error
+raise ValidationError("Invalid input data")
+
+# Entity not found
+raise EntityNotFoundError("User", "123")
+
+# Complex validation with builder
+error = ValidationError.builder() \
+    .message("Invalid user data") \
+    .validation_detail("email", ["Invalid email format"]) \
+    .entity_type("User") \
+    .build()
+```
+
+### error_dto.py
+**Purpose:** Standardized error response DTOs for HTTP APIs
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import EventErrorDTO`
+
+**Classes:**
+- `EventErrorDTO(message: str, validationDetails: Optional[Dict[str, List[str]]] = None)` - Simplified and standardized error response format
+  - `create(message: str, validation_details: Optional[Dict[str, List[str]]] = None) -> EventErrorDTO` - Create a new EventErrorDTO
+  - `not_found(entity_type: str, entity_id: str) -> EventErrorDTO` - Create a 404 Not Found error
+  - `validation_error(message: str, validation_details: Dict[str, List[str]]) -> EventErrorDTO` - Create a validation error
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import EventErrorDTO
+
+# Simple error
+error = EventErrorDTO.create("Something went wrong")
+
+# Not found error
+error = EventErrorDTO.not_found("User", "123")
+
+# Validation error
+error = EventErrorDTO.validation_error(
+    "Invalid data",
+    {"email": ["Invalid format"], "age": ["Must be positive"]}
+)
+```
+
+### exception_handlers.py
+**Purpose:** FastAPI exception handlers for consistent HTTP error responses
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import register_exception_handlers`
+
+**Functions:**
+- `register_exception_handlers(app)` - Register all exception handlers with a FastAPI app
+- `create_error_response(status_code: int, message: str, validation_details: dict = None) -> JSONResponse` - Create standardized error response
+
+**Usage Examples:**
+```python
+from fastapi import FastAPI
+from solace_agent_mesh.gateway.http_sse.shared import register_exception_handlers
+
+app = FastAPI()
+register_exception_handlers(app)
+```
+
+### base_repository.py
+**Purpose:** Base repository classes with proper transaction management
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import BaseRepository, PaginatedRepository, ValidationMixin`
+
+**Classes:**
+- `BaseRepository(model_class: Type[ModelType], entity_class: Type[EntityType])` - Abstract base class for repositories
+  - `create(session: Session, create_data: Dict[str, Any]) -> EntityType` - Create a new entity
+  - `get_by_id(session: Session, entity_id: Any) -> EntityType` - Get entity by ID
+  - `get_all(session: Session, limit: Optional[int] = None, offset: Optional[int] = None) -> List[EntityType]` - Get all entities
+  - `update(session: Session, entity_id: Any, update_data: Dict[str, Any]) -> EntityType` - Update an entity
+  - `delete(session: Session, entity_id: Any) -> None` - Delete an entity
+- `PaginatedRepository(model_class: Type[ModelType], entity_class: Type[EntityType])` - Base repository with enhanced pagination support
+  - `get_paginated(session: Session, page_number: int, page_size: int) -> tuple[List[EntityType], int]` - Get paginated results
+- `ValidationMixin` - Mixin for repositories that need validation logic
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import BaseRepository
+from sqlalchemy.orm import Session
+
+class UserRepository(BaseRepository[UserModel, UserEntity]):
+    @property
+    def entity_name(self) -> str:
+        return "User"
+
+# Usage
+repo = UserRepository(UserModel, UserEntity)
+user = repo.create(session, {"name": "John", "email": "john@example.com"})
+```
+
+### pagination.py
+**Purpose:** Pagination utilities for API responses
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import PaginationParams, PaginatedResponse, DataResponse`
+
+**Classes:**
+- `PaginationParams(page_number: int = 1, page_size: int = 20)` - Request parameters for pagination
+  - `offset: int` - Calculate the offset for database queries
+- `PaginatedResponse[T](data: list[T], meta: Meta)` - Generic paginated response with data and metadata
+  - `create(data: list[T], total_count: int, pagination: PaginationParams) -> PaginatedResponse[T]` - Create paginated response
+- `DataResponse[T](data: T)` - Simple data response wrapper
+  - `create(data: T) -> DataResponse[T]` - Create data response
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import PaginationParams, PaginatedResponse
+
+# Create pagination params
+pagination = PaginationParams(page_number=1, page_size=20)
+
+# Create paginated response
+response = PaginatedResponse.create(users, total_count=100, pagination=pagination)
+```
+
+### response_utils.py
+**Purpose:** Standardized response formatting utilities
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import create_data_response, create_paginated_response, StandardResponseMixin`
+
+**Functions:**
+- `create_data_response(data: T) -> DataResponse[T]` - Create a standardized data response
+- `create_paginated_response(data: List[T], total_count: int, pagination_params: PaginationParams) -> PaginatedResponse[T]` - Create a standardized paginated response
+- `create_success_response(message: str = "Success") -> DataResponse[Dict[str, str]]` - Create a standardized success response
+- `create_list_response(items: List[T]) -> DataResponse[List[T]]` - Create a standardized list response
+
+**Classes:**
+- `StandardResponseMixin` - Mixin class to add standard response methods to services or controllers
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import create_data_response, create_paginated_response
+
+# Simple data response
+response = create_data_response({"id": 1, "name": "test"})
+
+# Paginated response
+response = create_paginated_response(users, 100, pagination_params)
+```
+
+### database_exceptions.py
+**Purpose:** Database exception handling and conversion
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import DatabaseExceptionHandler, handle_database_errors`
+
+**Classes:**
+- `DatabaseExceptionHandler` - Centralized handler for converting SQLAlchemy exceptions to domain exceptions
+  - `handle_integrity_error(e: IntegrityError, entity_type: str = "Resource") -> ValidationError` - Convert integrity constraint violations
+  - `handle_operational_error(e: OperationalError, entity_type: str = "Resource") -> DataIntegrityError` - Handle operational errors
+
+**Functions:**
+- `handle_database_errors(entity_type: str = "Resource")` - Convenience decorator for database exception handling
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import handle_database_errors
+
+class UserRepository:
+    @handle_database_errors("User")
+    def create_user(self, session, data):
+        # Repository method implementation
+        pass
+```
+
+### database_helpers.py
+**Purpose:** Database utility functions and custom types
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import SimpleJSON`
+
+**Classes:**
+- `SimpleJSON(TypeDecorator)` - Simple JSON type using Text storage for all databases
+
+**Usage Examples:**
+```python
+from sqlalchemy import Column, String
+from solace_agent_mesh.gateway.http_sse.shared import SimpleJSON
+
+class MyModel(Base):
+    id = Column(String, primary_key=True)
+    metadata = Column(SimpleJSON)  # Stores JSON as text
+```
+
+### utils.py
+**Purpose:** Generic utility functions
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import generate_uuid, to_snake_case, to_pascal_case`
+
+**Functions:**
+- `generate_uuid() -> str` - Generate a UUID string for database storage
+- `to_snake_case(name: str) -> str` - Convert a string to snake_case
+- `to_pascal_case(name: str) -> str` - Convert a string to PascalCase
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import generate_uuid, to_snake_case
+
+# Generate unique ID
+user_id = generate_uuid()
+
+# Convert naming
+snake_name = to_snake_case("User Name")  # "user_name"
+```
+
+================================================================================
+
+## Section 14: solace_agent_mesh/gateway/http_sse/utils/utils_llm.txt
+
+**Source file:** `solace_agent_mesh/gateway/http_sse/utils/utils_llm.txt`
+
+## Quick Summary
+The `utils` directory provides utility functions for the HTTP SSE Gateway, specifically for creating .stim file structures from task and event data.
+
+## Files Overview
+- `__init__.py` - Package initialization file for HTTP SSE Gateway utilities
+- `stim_utils.py` - Utility functions for formatting task data into .stim file structures
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Package initialization for HTTP SSE Gateway utilities
+**Import:** `from solace_agent_mesh.gateway.http_sse.utils import *`
+
+This file serves as the package entry point and contains no public interfaces.
+
+### stim_utils.py
+**Purpose:** Provides utility functions for creating .stim file structures from task and event data
+**Import:** `from solace_agent_mesh.gateway.http_sse.utils.stim_utils import create_stim_from_task_data`
+
+**Functions:**
+- `create_stim_from_task_data(task: Task, events: List[TaskEvent]) -> dict` - Formats a task and its events into the .stim file structure with version 2.0 format for gateway-generated logs
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.utils.stim_utils import create_stim_from_task_data
+from solace_agent_mesh.gateway.http_sse.repository.entities import Task, TaskEvent
+
+# Create a .stim file structure from task and events
+task = Task(
+    id="task_123",
+    user_id="user_456", 
+    start_time="2024-01-01T10:00:00Z",
+    end_time="2024-01-01T10:05:00Z",
+    status="completed",
+    initial_request_text="Process this data"
+)
+
+events = [
+    TaskEvent(event_type="start", timestamp="2024-01-01T10:00:00Z"),
+    TaskEvent(event_type="complete", timestamp="2024-01-01T10:05:00Z")
+]
+
+stim_data = create_stim_from_task_data(task, events)
+# Returns a dictionary with 'invocation_details' and 'invocation_flow' keys
+```
+
+================================================================================
+

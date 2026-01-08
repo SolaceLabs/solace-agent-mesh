@@ -1,0 +1,68 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'testing' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/agent/testing/testing_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/testing/testing_llm.txt`
+
+## Quick Summary
+The `testing` directory provides utilities for testing the A2A (Agent-to-Agent) framework, with a focus on debugging tools that help developers understand test failures by providing readable representations of agent event histories.
+
+## Files Overview
+- `__init__.py` - Package initialization file marking the directory as a Python module
+- `debug_utils.py` - Debugging utilities including pretty-printing for A2A event history
+- `testing_llm.txt` - Documentation file (not a code module)
+
+## Developer API Reference
+
+### debug_utils.py
+**Purpose:** Provides debugging utilities for the declarative test framework, including a pretty-printer for A2A event history
+**Import:** `from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history`
+
+**Functions:**
+- `pretty_print_event_history(event_history: List[Dict[str, Any]], max_string_length: int = 200) -> None` - Formats and prints a list of A2A event payloads for debugging, intelligently parsing different event types and truncating long strings for readability
+
+**Usage Examples:**
+```python
+# Import the debugging utility
+from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
+from typing import List, Dict, Any
+
+# Example: Debug a failed test by printing event history
+event_history: List[Dict[str, Any]] = [
+    {
+        "result": {
+            "status": {
+                "state": "EXECUTING",
+                "message": {
+                    "parts": [
+                        {"type": "text", "text": "Processing your request..."}
+                    ]
+                }
+            },
+            "final": False
+        }
+    },
+    {
+        "error": {
+            "code": "TIMEOUT_ERROR",
+            "message": "Request timed out after 30 seconds"
+        }
+    }
+]
+
+# Print formatted event history for debugging
+pretty_print_event_history(event_history)
+
+# Print with custom string truncation length
+pretty_print_event_history(event_history, max_string_length=100)
+
+# Handle empty event history (when test fails before any events)
+pretty_print_event_history([])
+```
+
+================================================================================
+

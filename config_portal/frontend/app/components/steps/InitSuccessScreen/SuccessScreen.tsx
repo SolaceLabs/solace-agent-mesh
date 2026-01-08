@@ -124,7 +124,7 @@ export default function SuccessScreen({
       description:
         "Build an agent that gives Solace Agent Mesh the ability to access real-time weather information.",
       time: "~5 min",
-      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/custom-agent",
+      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/custom-agent",
     },
     {
       icon: "🗃️",
@@ -132,7 +132,7 @@ export default function SuccessScreen({
       description:
         "Enable Solace Agent Mesh to answer company-specific questions using a sample coffee company database.",
       time: "~10-15 min",
-      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/sql-database",
+      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/sql-database",
     },
     {
       icon: "🧠",
@@ -140,14 +140,14 @@ export default function SuccessScreen({
       description:
         "Integrating a Model Context Protocol (MCP) Server into Solace Agent Mesh.",
       time: "~10-15 min",
-      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/mcp-integration",
+      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/mcp-integration",
     },
     {
       icon: "💬",
       title: "Slack Integration",
       description: "Chat with Solace Agent Mesh directly from Slack.",
       time: "~20-30 min",
-      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration",
+      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/slack-integration",
     },
   ];
 
@@ -192,7 +192,7 @@ export default function SuccessScreen({
       ),
       title: "Architecture",
       description: "System architecture and design",
-      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/component-overview",
+      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/architecture",
     },
     {
       icon: (
@@ -213,7 +213,7 @@ export default function SuccessScreen({
       ),
       title: "Tutorials",
       description: "Step-by-step guides",
-      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/event-mesh-gateway",
+      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/custom-agent",
     },
     {
       icon: (
@@ -232,9 +232,9 @@ export default function SuccessScreen({
           />
         </svg>
       ),
-      title: "User Guides",
-      description: "User Guides for various components",
-      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/user-guide/solace-ai-connector",
+      title: "Developing",
+      description: "Development guides for various components",
+      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/",
     },
   ];
 
@@ -289,7 +289,7 @@ export default function SuccessScreen({
               Start the Service
             </h3>
             <p className="text-gray-600 mb-4">
-              To start Solace Agent Mesh directly, run:
+              To start Solace Agent Mesh directly, return to your terminal and run:
             </p>
             <div className="bg-gray-800 text-gray-200 p-4 rounded-md font-mono text-sm mb-4 flex items-center justify-between group relative">
               <code>sam run</code>
@@ -533,21 +533,27 @@ export default function SuccessScreen({
           </span>
         </div>
         <div className="flex space-x-4">
-          <Button
-            onClick={goToPreviousTab}
-            variant="outline"
-            type="button"
-            disabled={currentTabIndex === 0}
-          >
-            Previous
-          </Button>
-          <Button
-            onClick={goToNextTab}
-            type="button"
-            disabled={currentTabIndex === tabCount - 1}
-          >
-            Next
-          </Button>
+          <div className="w-24">
+            {currentTabIndex > 0 && (
+              <Button
+                onClick={goToPreviousTab}
+                variant="outline"
+                type="button"
+              >
+                Previous
+              </Button>
+            )}
+          </div>
+          <div className="w-20">
+            {currentTabIndex < tabCount - 1 && (
+              <Button
+                onClick={goToNextTab}
+                type="button"
+              >
+                Next
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

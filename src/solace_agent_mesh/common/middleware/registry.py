@@ -6,8 +6,10 @@ to be bound at runtime, enabling pluggable behavior for configuration resolution
 and other middleware functions.
 """
 
+import logging
 from typing import Optional, Type, Dict, Any, List
-from solace_ai_connector.common.log import log
+
+log = logging.getLogger(__name__)
 
 LOG_IDENTIFIER = "[MiddlewareRegistry]"
 

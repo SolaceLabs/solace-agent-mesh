@@ -2,6 +2,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import { authenticatedFetch } from "../utils/api";
 import { ConfigContext, type ConfigContextValue } from "../contexts";
 import { useCsrfContext } from "../hooks/useCsrfContext";
+import { EmptyState } from "../components";
 
 interface BackendConfig {
     frontend_server_url: string;
@@ -11,6 +12,21 @@ interface BackendConfig {
     frontend_redirect_url: string;
     frontend_collect_feedback: boolean;
     frontend_bot_name: string;
+    frontend_logo_url: string;
+    frontend_feature_enablement?: Record<string, boolean>;
+    persistence_enabled?: boolean;
+    validation_limits?: {
+        projectNameMax?: number;
+        projectDescriptionMax?: number;
+        projectInstructionsMax?: number;
+    };
+    background_tasks_config?: {
+        default_timeout_ms?: number;
+    };
+    tool_config_status?: {
+        web_search?: boolean;
+        deep_research?: boolean;
+    };
 }
 
 interface ConfigProviderProps {
@@ -84,6 +100,13 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     await fetchCsrfToken();
                 }
 
+                // Compute projectsEnabled from feature flags
+                const projectsEnabled = data.frontend_feature_enablement?.projects ?? false;
+
+                // Extract background tasks config from feature enablement
+                const backgroundTasksEnabled = data.frontend_feature_enablement?.background_tasks ?? false;
+                const backgroundTasksDefaultTimeoutMs = data.background_tasks_config?.default_timeout_ms ?? 3600000;
+
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
                     configServerUrl: data.frontend_server_url,
@@ -93,7 +116,15 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     configRedirectUrl: data.frontend_redirect_url,
                     configCollectFeedback: data.frontend_collect_feedback,
                     configBotName: data.frontend_bot_name,
+                    configLogoUrl: data.frontend_logo_url,
+                    configFeatureEnablement: data.frontend_feature_enablement ?? {},
                     frontend_use_authorization: data.frontend_use_authorization,
+                    persistenceEnabled: data.persistence_enabled ?? false,
+                    projectsEnabled,
+                    validationLimits: data.validation_limits,
+                    backgroundTasksEnabled,
+                    backgroundTasksDefaultTimeoutMs,
+                    toolConfigStatus: data.tool_config_status,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;
@@ -138,17 +169,9 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
     }
 
     if (error) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-red-100 dark:bg-red-900">
-                <div className="rounded border border-red-400 bg-white p-4 text-center dark:bg-gray-800">
-                    <h1 className="text-xl font-bold text-red-700 dark:text-red-300">Configuration Error</h1>
-                    <p className="mt-2 text-red-600 dark:text-red-200">{error}</p>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Please check the backend server and network connection, then refresh the page.</p>
-                </div>
-            </div>
-        );
+        return <EmptyState className="h-screen w-screen" variant="error" title="Configuration Error" subtitle="Please check the backend server and network connection, then refresh the page." />;
     }
-    
+
     return (
         <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
             <div className="text-center">

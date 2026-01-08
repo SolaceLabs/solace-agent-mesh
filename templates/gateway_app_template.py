@@ -2,13 +2,15 @@
 Solace Agent Mesh App class for the __GATEWAY_NAME_PASCAL_CASE__ Gateway.
 """
 
+import logging
 from typing import Any, Dict, List, Type
 
-from solace_ai_connector.common.log import log
 from solace_agent_mesh.gateway.base.app import BaseGatewayApp
 from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
 
 from .component import __GATEWAY_NAME_PASCAL_CASE__GatewayComponent
+
+log = logging.getLogger(__name__)
 
 info = {
     "class_name": "__GATEWAY_NAME_PASCAL_CASE__GatewayApp",

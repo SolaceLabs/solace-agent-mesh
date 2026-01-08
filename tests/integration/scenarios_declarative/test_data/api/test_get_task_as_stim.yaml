@@ -1,0 +1,57 @@
+test_case_id: "api_get_task_as_stim_001"
+description: "Tests retrieving a single task's history as a .stim file."
+tags: ["api", "tasks"]
+skip_intermediate_events: true
+
+http_request_input:
+  method: "POST"
+  path: "/api/v1/message:stream"
+  user_identity: "sam_dev_user"
+  json_body:
+    jsonrpc: "2.0"
+    id: "http-req-stim-test"
+    method: "message/stream"
+    params:
+      message:
+        role: "user"
+        messageId: "msg-http-stim-test"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "This is a test task for .stim file download."
+        metadata:
+          agent_name: "TestAgent"
+
+llm_interactions:
+  - step_id: "llm_responds_to_stim_task"
+    static_response:
+      id: "chatcmpl-stim-task-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Okay, I have processed the task for the .stim file test."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: "task"
+    status:
+      state: "completed"
+
+expected_http_responses:
+  - description: "Verify the task .stim file can be downloaded"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks/{task_id}" # The runner will substitute {task_id}
+    expected_status_code: 200
+    expected_content_type: "application/x-yaml"
+    text_contains:
+      - "log_file_version: '2.0'"
+      - "task_id: {task_id}"
+      - "user_id: sam_dev_user"
+      - "initial_request_text:"
+      - "This is a test task for .stim file download."
+      - "direction: request"
+      - "direction: response"

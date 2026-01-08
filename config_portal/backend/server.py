@@ -54,7 +54,7 @@ def get_agent_field_definitions():
     fields.append(
         {
             "name": "namespace",
-            "label": "A2A Namespace",
+            "label": "Namespace",
             "type": "text",
             "default": AGENT_DEFAULTS["namespace"],
             "description": "A2A topic namespace (e.g., myorg/dev). Can use ${NAMESPACE}.",

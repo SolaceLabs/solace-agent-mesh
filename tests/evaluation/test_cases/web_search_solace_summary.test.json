@@ -2,7 +2,7 @@
     "test_case_id": "web_search_solace_summary",
     "category": "Orchestration",
     "description": "A test case to search the web and summarize the results.",
-    "query": "Do a web search about 'Solace'. Give me a summary of the results.",
+    "query": "Do a web search about 'Solace', the tech company. Give me a summary of the results.",
     "target_agent": "OrchestratorAgent",
     "wait_time": 60,
     "evaluation": {

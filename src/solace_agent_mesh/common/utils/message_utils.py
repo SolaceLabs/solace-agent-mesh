@@ -5,10 +5,11 @@ to ensure they don't exceed configured limits. The size calculation matches
 the exact serialization format used by the Solace AI Connector (JSON + UTF-8).
 """
 
+import logging
 import json
 from typing import Any, Dict, Tuple
 
-from solace_ai_connector.common.log import log
+log = logging.getLogger(__name__)
 
 # Maximum bytes per character in UTF-8 encoding (4 bytes for full Unicode range)
 MAX_UTF8_BYTES_PER_CHARACTER = 4

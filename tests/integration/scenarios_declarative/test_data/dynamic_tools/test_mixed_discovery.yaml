@@ -1,0 +1,40 @@
+test_case_id: "dynamic_tool_mixed_discovery_preference_001"
+description: |
+  Verifies that when a module contains both a DynamicToolProvider and a
+  standalone DynamicTool subclass, the framework prefers the provider and
+  only loads tools from it.
+tags: ["all", "agent", "tools", "dynamic_tools"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "MixedDiscoveryAgent"
+  user_identity: "mixed_discovery_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Which tools are available?"
+
+llm_interactions:
+  - step_id: "llm_sees_only_provider_tools"
+    expected_request:
+      tools_present:
+        - "preferred_tool_from_provider"
+      tools_not_present:
+        - "standalone_tool_should_not_be_loaded"
+    static_response:
+      id: "chatcmpl-mixed-discovery-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I see the preferred tool from the provider."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    status:
+      state: "completed"
+      message:
+        parts:
+          - type: "text"
+            text_exact: "I see the preferred tool from the provider."

@@ -163,12 +163,12 @@ function getInitialTheme(): "light" | "dark" {
     if (storedTheme === "dark" || storedTheme === "light") {
         return storedTheme;
     }
-    
+
     // If no saved preference, check system preference
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
         return "dark";
     }
-    
+
     // Default to light theme
     return "light";
 }
@@ -184,7 +184,9 @@ function applyThemeToDOM(themePalette: ThemePalette, theme: "light" | "dark"): v
 
     // Atomic class update to prevent race conditions
     requestAnimationFrame(() => {
-        console.log(`Applying ${theme} theme with palette`);
+        if (process.env.NODE_ENV === "development") {
+            console.log(`Applying ${theme} theme with palette`);
+        }
         root.classList.remove("light", "dark");
         root.classList.add(theme);
 
@@ -219,23 +221,23 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     useEffect(() => {
         const hasUserPreference = localStorage.getItem(LOCAL_STORAGE_KEY) !== null;
         if (!hasUserPreference) {
-            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-            
+            const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
             const handleChange = (e: MediaQueryListEvent) => {
                 setCurrentTheme(e.matches ? "dark" : "light");
             };
-            
+
             // Add the listener
             if (mediaQuery.addEventListener) {
-                mediaQuery.addEventListener('change', handleChange);
+                mediaQuery.addEventListener("change", handleChange);
             } else {
                 // For older browsers
                 mediaQuery.addListener(handleChange);
             }
-            
+
             return () => {
                 if (mediaQuery.removeEventListener) {
-                    mediaQuery.removeEventListener('change', handleChange);
+                    mediaQuery.removeEventListener("change", handleChange);
                 } else {
                     // For older browsers
                     mediaQuery.removeListener(handleChange);

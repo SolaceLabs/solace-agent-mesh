@@ -1,0 +1,275 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'tools' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/agent/tools/tools_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/tools/tools_llm.txt`
+
+# DEVELOPER GUIDE: tools
+
+## Quick Summary
+The `tools` directory contains the complete tool system for the Solace Agent Mesh, providing built-in tools for artifact management, data analysis, audio/image processing, web interactions, and dynamic tool creation. It includes a registry system for tool discovery and management, with support for declarative YAML-based configurations and multiple tool types including built-in, custom Python, and MCP tools.
+
+## Files Overview
+- `__init__.py` - Ensures all built-in tool modules are imported for declarative registration
+- `audio_tools.py` - Audio processing tools including TTS, transcription, and audio manipulation
+- `builtin_artifact_tools.py` - Core artifact management tools for CRUD operations and content processing
+- `builtin_data_analysis_tools.py` - Data analysis tools for creating charts from Plotly configurations
+- `dynamic_tool.py` - Base classes for creating dynamic, programmatically-defined tools
+- `general_agent_tools.py` - General-purpose tools for file conversion and diagram generation
+- `image_tools.py` - Image generation, editing, and multimodal content analysis tools
+- `peer_agent_tool.py` - Tool for delegating tasks to peer agents over Solace messaging
+- `registry.py` - Singleton registry for tool discovery and management
+- `test_tools.py` - Testing utilities for timeouts and error handling
+- `tool_config_types.py` - Pydantic models for YAML-based tool configurations
+- `tool_definition.py` - Base tool definition classes and structures
+- `web_tools.py` - Web scraping and content extraction tools
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Triggers tool registration by importing all tool modules
+**Import:** `from solace_agent_mesh.agent.tools import *`
+
+No public classes or functions - this is an initialization module.
+
+### audio_tools.py
+**Purpose:** Provides comprehensive audio processing capabilities
+**Import:** `from solace_agent_mesh.agent.tools.audio_tools import select_voice, text_to_speech, multi_speaker_text_to_speech, concatenate_audio, transcribe_audio`
+
+**Functions:**
+- `select_voice(gender: Optional[str] = None, tone: Optional[str] = None, exclude_voices: Optional[List[str]] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Selects a suitable voice based on gender and tone criteria
+- `text_to_speech(text: str, output_filename: Optional[str] = None, voice_name: Optional[str] = None, gender: Optional[str] = None, tone: Optional[str] = None, language: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts text to speech using Gemini TTS API
+- `multi_speaker_text_to_speech(conversation_text: str, output_filename: Optional[str] = None, speaker_configs: Optional[List[Dict[str, str]]] = None, language: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Creates multi-speaker audio from conversation text
+- `concatenate_audio(clips_to_join: List[Dict[str, Any]], output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Combines multiple audio clips with custom pause durations
+- `transcribe_audio(audio_filename: str, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Transcribes audio using OpenAI-compatible API
+
+**Constants/Variables:**
+- `VOICE_TONE_MAPPING: Dict[str, List[str]]` - Maps tone preferences to available voices
+- `GENDER_TO_VOICE_MAPPING: Dict[str, List[str]]` - Maps gender preferences to available voices
+- `ALL_AVAILABLE_VOICES: List[str]` - Complete list of available voice names
+- `SUPPORTED_LANGUAGES: Dict[str, str]` - Maps language names to BCP-47 codes
+
+**Usage Examples:**
+```python
+# Basic text-to-speech
+result = await text_to_speech(
+    text="Hello, world!",
+    voice_name="Kore",
+    tool_context=context
+)
+
+# Multi-speaker conversation
+conversation = "Speaker1: Hello there!\nSpeaker2: Hi, how are you?"
+result = await multi_speaker_text_to_speech(
+    conversation_text=conversation,
+    speaker_configs=[
+        {"name": "Speaker1", "gender": "female", "tone": "friendly"},
+        {"name": "Speaker2", "gender": "male", "tone": "casual"}
+    ],
+    tool_context=context
+)
+```
+
+### builtin_artifact_tools.py
+**Purpose:** Core artifact management and content processing tools
+**Import:** `from solace_agent_mesh.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, apply_embed_and_create_artifact, extract_content_from_artifact, append_to_artifact, delete_artifact`
+
+**Functions:**
+- `list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]` - Lists all available artifacts with metadata summaries
+- `load_artifact(filename: str, version: int, load_metadata_only: bool = False, max_content_length: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Loads artifact content or metadata
+- `apply_embed_and_create_artifact(output_filename: str, embed_directive: str, output_metadata: Optional[Dict[str, Any]] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Resolves embed directives and creates new artifacts
+- `extract_content_from_artifact(filename: str, extraction_goal: str, version: Optional[str] = "latest", output_filename_base: Optional[str] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Uses LLM to extract/transform artifact content
+- `append_to_artifact(filename: str, content_chunk: str, mime_type: str, tool_context: ToolContext = None) -> Dict[str, Any]` - Appends content to existing artifacts
+- `delete_artifact(filename: str, version: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Deletes artifact versions
+
+**Note:** To return artifacts to users, use the `«artifact_return:filename[:version]»` embed in your response text instead of a tool call. This is more efficient and provides a better user experience.
+
+**Usage Examples:**
+```python
+# List all artifacts
+artifacts = await list_artifacts(tool_context=context)
+
+# Load specific artifact version
+content = await load_artifact(
+    filename="data.csv",
+    version=1,
+    tool_context=context
+)
+
+# Extract content using LLM
+result = await extract_content_from_artifact(
+    filename="report.pdf",
+    extraction_goal="Extract all financial figures and create a summary table",
+    tool_context=context
+)
+```
+
+### builtin_data_analysis_tools.py
+**Purpose:** Data analysis and visualization tools
+**Import:** `from solace_agent_mesh.agent.tools.builtin_data_analysis_tools import create_chart_from_plotly_config`
+
+**Functions:**
+- `create_chart_from_plotly_config(config_content: str, config_format: Literal["json", "yaml"], output_filename: str, output_format: Optional[str] = "png", tool_context: ToolContext = None) -> Dict[str, Any]` - Generates static chart images from Plotly configurations
+
+**Usage Examples:**
+```python
+# Create chart from JSON config
+plotly_config = '{"data": [{"x": [1,2,3], "y": [4,5,6], "type": "scatter"}]}'
+result = await create_chart_from_plotly_config(
+    config_content=plotly_config,
+    config_format="json",
+    output_filename="my_chart.png",
+    tool_context=context
+)
+```
+
+### dynamic_tool.py
+**Purpose:** Base classes for creating dynamic, programmatically-defined tools
+**Import:** `from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool, DynamicToolProvider`
+
+**Classes:**
+- `DynamicTool(tool_config: Optional[Union[dict, BaseModel]] = None)` - Base class for dynamic tools with programmatic definitions
+  - `tool_name: str` - Property returning the function name for LLM calls
+  - `tool_description: str` - Property returning tool description
+  - `parameters_schema: adk_types.Schema` - Property returning parameter schema
+  - `raw_string_args: List[str]` - Property listing args that skip embed resolution
+  - `resolution_type: Literal["early", "all"]` - Property determining embed resolution scope
+  - `run_async(*, args: Dict[str, Any], tool_context: ToolContext) -> Dict[str, Any]` - Executes the tool with embed resolution
+  - `_run_async_impl(args: dict, tool_context: ToolContext, credential: Optional[str] = None) -> dict` - Abstract method for tool implementation
+
+- `DynamicToolProvider()` - Base class for tool providers that generate multiple tools
+  - `register_tool(func: Callable) -> Callable` - Class method decorator for registering functions as tools
+  - `create_tools(tool_config: Optional[Union[dict, BaseModel]] = None) -> List[DynamicTool]` - Abstract method for creating custom tools
+  - `get_all_tools_for_framework(tool_config: Optional[Union[dict, BaseModel]] = None) -> List[DynamicTool]` - Framework method combining decorated and custom tools
+
+**Usage Examples:**
+```python
+# Create a custom dynamic tool
+class MyCustomTool(DynamicTool):
+    @property
+    def tool_name(self) -> str:
+        return "my_custom_tool"
+    
+    @property
+    def tool_description(self) -> str:
+        return "Does something custom"
+    
+    @property
+    def parameters_schema(self) -> adk_types.Schema:
+        return adk_types.Schema(
+            type=adk_types.Type.OBJECT,
+            properties={
+                "input": adk_types.Schema(type=adk_types.Type.STRING)
+            },
+            required=["input"]
+        )
+    
+    async def _run_async_impl(self, args: dict, tool_context: ToolContext, credential: Optional[str] = None) -> dict:
+        return {"result": f"Processed: {args['input']}"}
+
+# Create a tool provider with decorated methods
+class MyToolProvider(DynamicToolProvider):
+    @DynamicToolProvider.register_tool
+    async def my_decorated_tool(self, param1: str, tool_context: ToolContext) -> dict:
+        """This tool does something useful."""
+        return {"status": "success", "input": param1}
+    
+    def create_tools(self, tool_config: Optional[Union[dict, BaseModel]] = None) -> List[DynamicTool]:
+        return [MyCustomTool(tool_config)]
+```
+
+### general_agent_tools.py
+**Purpose:** General-purpose utility tools for file conversion and diagram generation
+**Import:** `from solace_agent_mesh.agent.tools.general_agent_tools import convert_file_to_markdown, mermaid_diagram_generator`
+
+**Functions:**
+- `convert_file_to_markdown(input_filename: str, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts files to Markdown using MarkItDown library
+- `mermaid_diagram_generator(mermaid_syntax: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Generates PNG images from Mermaid diagram syntax
+
+**Usage Examples:**
+```python
+# Convert PDF to Markdown
+result = await convert_file_to_markdown(
+    input_filename="document.pdf",
+    tool_context=context
+)
+
+# Generate Mermaid diagram
+mermaid_code = """
+graph TD
+    A[Start] --> B[Process]
+    B --> C[End]
+"""
+result = await mermaid_diagram_generator(
+    mermaid_syntax=mermaid_code,
+    output_filename="flowchart.png",
+    tool_context=context
+)
+```
+
+### image_tools.py
+**Purpose:** Image generation, editing, and multimodal content analysis
+**Import:** `from solace_agent_mesh.agent.tools.image_tools import create_image_from_description, describe_image, describe_audio, edit_image_with_gemini`
+
+**Functions:**
+- `create_image_from_description(image_description: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Generates images from text descriptions
+- `describe_image(image_filename: str, prompt: str = "What is in this image?", tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Describes images using vision APIs
+- `describe_audio(audio_filename: str, prompt: str = "What is in this recording?", tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Describes audio using multimodal APIs
+- `edit_image_with_gemini(image_filename: str, edit_prompt: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Edits images using Gemini 2.0 Flash
+
+**Usage Examples:**
+```python
+# Generate image from description
+result = await create_image_from_description(
+    image_description="A sunset over mountains with a lake in the foreground",
+    output_filename="sunset.png",
+    tool_context=context
+)
+
+# Describe an existing image
+result = await describe_image(
+    image_filename="photo.jpg",
+    prompt="What objects are visible in this image?",
+    tool_context=context
+)
+
+# Edit an image
+result = await edit_image_with_gemini(
+    image_filename="original.jpg",
+    edit_prompt="Add a rainbow in the sky",
+    tool_context=context
+)
+```
+
+### peer_agent_tool.py
+**Purpose:** Enables task delegation to peer agents over Solace messaging
+**Import:** `from solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool`
+
+**Classes:**
+- `PeerAgentTool(target_agent_name: str, host_component)` - Tool for delegating tasks to peer agents
+  - `target_agent_name: str` - Name of the peer agent
+  - `host_component` - Reference to the SamAgentComponent
+  - `is_long_running: bool` - Always True for async delegation
+  - `run_async(*, args: Dict[str, Any], tool_context: ToolContext) -> Any` - Delegates task to peer agent
+
+**Usage Examples:**
+```python
+# Create peer agent tool (typically done by framework)
+peer_tool = PeerAgentTool("data_analyst_agent", host_component)
+
+# Tool is called by LLM with these parameters:
+# {
+#     "task_description": "Analyze the sales data and create a summary report",
+#     "user_query": "What were our top performing products last quarter?",
+#     "artifacts": [{"filename": "sales_data.csv", "version": "latest"}]
+# }
+```
+
+### registry.py
+
+================================================================================
+

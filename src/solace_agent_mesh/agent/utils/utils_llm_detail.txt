@@ -1,0 +1,149 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'utils' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/agent/utils/utils_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/utils/utils_llm.txt`
+
+## Quick Summary
+The `utils` directory provides a collection of helper modules designed to support the core functionality of the agent. These utilities encapsulate common, reusable logic for tasks such as artifact management (saving, loading, schema inference), configuration parsing, and safe interaction with the ADK's invocation context.
+
+## Files Overview
+- `__init__.py` - Empty package marker file
+- `artifact_helpers.py` - Comprehensive artifact management functions including save/load operations, metadata handling, and schema inference
+- `config_parser.py` - Configuration parsing utilities for resolving instruction providers
+- `context_helpers.py` - Safe utilities for extracting data from ADK callback and invocation contexts
+
+## Developer API Reference
+
+### artifact_helpers.py
+**Purpose:** Comprehensive artifact management with automatic metadata generation, schema inference, and async operations
+**Import:** `from solace_agent_mesh.agent.utils.artifact_helpers import save_artifact_with_metadata, load_artifact_content_or_metadata, get_artifact_info_list, is_filename_safe, ensure_correct_extension`
+
+**Functions:**
+- `is_filename_safe(filename: str) -> bool` - Validates filename safety (no path traversal, separators, or reserved names)
+- `ensure_correct_extension(filename_from_llm: str, desired_extension: str) -> str` - Ensures filename has correct extension
+- `format_artifact_uri(app_name: str, user_id: str, session_id: str, filename: str, version: Union[int, str]) -> str` - Formats components into standard artifact:// URI
+- `parse_artifact_uri(uri: str) -> Dict[str, Any]` - Parses artifact:// URI into constituent parts
+- `save_artifact_with_metadata(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str, filename: str, content_bytes: bytes, mime_type: str, metadata_dict: Dict[str, Any], timestamp: datetime, explicit_schema: Optional[Dict] = None, schema_inference_depth: int = 2, schema_max_keys: int = 20, tool_context: Optional["ToolContext"] = None) -> Dict[str, Any]` - Saves artifact with auto-generated metadata and schema inference
+- `load_artifact_content_or_metadata(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str, filename: str, version: Union[int, str], load_metadata_only: bool = False, return_raw_bytes: bool = False, max_content_length: Optional[int] = None, component: Optional[Any] = None, log_identifier_prefix: str = "[ArtifactHelper:load]", encoding: str = "utf-8", error_handling: str = "strict") -> Dict[str, Any]` - Loads artifact content or metadata with flexible options
+- `get_artifact_info_list(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str) -> List[ArtifactInfo]` - Retrieves detailed info for all artifacts
+- `get_latest_artifact_version(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str, filename: str) -> Optional[int]` - Gets latest version number for an artifact
+- `format_metadata_for_llm(metadata: Dict[str, Any]) -> str` - Formats metadata into LLM-friendly text
+- `decode_and_get_bytes(content_str: str, mime_type: str, log_identifier: str) -> Tuple[bytes, str]` - Decodes content based on MIME type (base64 for binary, UTF-8 for text)
+- `generate_artifact_metadata_summary(component: "SamAgentComponent", artifact_identifiers: List[Dict[str, Any]], user_id: str, session_id: str, app_name: str, header_text: Optional[str] = None) -> str` - Generates YAML summary of multiple artifacts' metadata
+
+**Constants/Variables:**
+- `METADATA_SUFFIX: str` - Suffix for metadata files (".metadata.json")
+- `DEFAULT_SCHEMA_MAX_KEYS: int` - Default max keys for schema inference (20)
+
+**Usage Examples:**
+```python
+import asyncio
+from datetime import datetime, timezone
+from solace_agent_mesh.agent.utils.artifact_helpers import (
+    save_artifact_with_metadata,
+    load_artifact_content_or_metadata,
+    get_artifact_info_list,
+    ensure_correct_extension,
+    format_artifact_uri,
+    parse_artifact_uri
+)
+
+async def artifact_example():
+    # Ensure safe filename
+    safe_name = ensure_correct_extension("report", "csv")  # -> "report.csv"
+    
+    # Save artifact with metadata
+    csv_data = b"name,age\nAlice,30\nBob,25"
+    result = await save_artifact_with_metadata(
+        artifact_service=service,
+        app_name="my_app",
+        user_id="user123",
+        session_id="session456",
+        filename=safe_name,
+        content_bytes=csv_data,
+        mime_type="text/csv",
+        metadata_dict={"source": "user_upload", "description": "Employee data"},
+        timestamp=datetime.now(timezone.utc)
+    )
+    
+    # Load artifact content
+    loaded = await load_artifact_content_or_metadata(
+        artifact_service=service,
+        app_name="my_app",
+        user_id="user123", 
+        session_id="session456",
+        filename=safe_name,
+        version="latest"
+    )
+    
+    # Work with artifact URIs
+    uri = format_artifact_uri("my_app", "user123", "session456", "report.csv", 1)
+    # Returns: "artifact://my_app/user123/session456/report.csv?version=1"
+    
+    parsed = parse_artifact_uri(uri)
+    # Returns: {"app_name": "my_app", "user_id": "user123", ...}
+    
+    # List all artifacts
+    artifacts = await get_artifact_info_list(
+        artifact_service=service,
+        app_name="my_app",
+        user_id="user123",
+        session_id="session456"
+    )
+```
+
+### config_parser.py
+**Purpose:** Resolves configuration values that can be static strings or dynamic callable providers
+**Import:** `from solace_agent_mesh.agent.utils.config_parser import resolve_instruction_provider, InstructionProvider`
+
+**Functions:**
+- `resolve_instruction_provider(component, config_value: Any) -> Union[str, InstructionProvider]` - Resolves instruction config from string or invoke block
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.utils.config_parser import resolve_instruction_provider
+
+# Static string instruction
+instruction = resolve_instruction_provider(component, "You are a helpful assistant.")
+# Returns: "You are a helpful assistant."
+
+# Dynamic instruction provider (from YAML invoke block)
+def dynamic_instruction(context):
+    return f"Assistant for {context.user_id}"
+
+instruction_func = resolve_instruction_provider(component, dynamic_instruction)
+# Returns: the callable function
+```
+
+### context_helpers.py
+**Purpose:** Safe utilities for extracting information from ADK contexts
+**Import:** `from solace_agent_mesh.agent.utils.context_helpers import get_session_from_callback_context, get_original_session_id`
+
+**Functions:**
+- `get_session_from_callback_context(callback_context: CallbackContext) -> Session` - Safely extracts Session object from CallbackContext
+- `get_original_session_id(invocation_context: Any) -> str` - Extracts base session ID, removing any colon-separated suffixes
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.utils.context_helpers import (
+    get_session_from_callback_context,
+    get_original_session_id
+)
+
+# In a tool function with callback_context
+def my_tool(callback_context):
+    # Get full session object
+    session = get_session_from_callback_context(callback_context)
+    
+    # Get original session ID (strips suffixes after colon)
+    original_id = get_original_session_id(tool_context._invocation_context)
+    # "session123:tool456" -> "session123"
+```
+
+================================================================================
+

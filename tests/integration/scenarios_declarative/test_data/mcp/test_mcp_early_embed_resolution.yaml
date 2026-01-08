@@ -1,0 +1,81 @@
+test_case_id: "mcp_early_embed_resolution_001"
+description: "Tests that MCP tools properly resolve early embeds (math, datetime)
+  in their parameters"
+tags: ["all", "agent", "mcp"]
+skip_intermediate_events: true
+
+test_runner_config_overrides:
+  agent_config:
+    mcp_tool_response_save_threshold_bytes: 10 # Force saving
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "mcp_early_embed_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Call the MCP tool with early embed parameters: math calculation and current
+        time."
+  external_context:
+    a2a_session_id: "session_mcp_early_embed_001"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mcp_with_early_embeds"
+                type: "function"
+                function:
+                  name: "get_data_stdio"
+                  # Test early embeds (math, datetime) - these should be resolved before reaching MCP server
+                  arguments: >
+                    {
+                      "response_to_return": {
+                        "content": [
+                          {
+                            "type": "text", 
+                            "text": "Math result is «math:5*3» calculated at «datetime:iso»"
+                          }
+                        ]
+                      }
+                    }
+
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_data_stdio"
+          response_json_matches:
+            status: "processed_and_saved"
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_stdio_text_0_.*\\.txt' \\(version 0\\)\\."
+            saved_mcp_response_artifact_details:
+              status: "success"
+              artifacts_saved:
+                - data_filename_matches_regex: "get_data_stdio_text_0_.*\\.txt"
+                  status: "success"
+
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Successfully called MCP tool with resolved early embed parameters."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_mcp_early_embed_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "Successfully called MCP tool with resolved early embed parameters."
+    assert_artifact_state:
+      - filename_matches_regex: "get_data_stdio_text_0_.*\\.txt$"
+        version: 0
+        expected_content_text_matches_regex: "Math result is 15 calculated at \\d{4}-\\\
+          d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*"

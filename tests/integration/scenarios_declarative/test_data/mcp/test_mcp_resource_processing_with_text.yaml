@@ -1,0 +1,76 @@
+test_case_id: "mcp_resource_processing_with_text_001"
+description: "Tests that an MCP response with a resource containing embedded text
+  creates a corresponding artifact."
+tags: ["all", "agent", "mcp"]
+skip_intermediate_events: true
+
+test_runner_config_overrides:
+  agent_config:
+    mcp_tool_response_save_threshold_bytes: 10 # Force saving
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "mcp_resource_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Get a resource with embedded text from the test server."
+  external_context:
+    a2a_session_id: "session_mcp_resource_with_text_001"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mcp_tool_resource_with_text"
+                type: "function"
+                function:
+                  name: "get_data_stdio"
+                  arguments: '{"response_to_return": {"content": [{"type": "resource",
+                    "resource": {"uri": "file:///path/to/remote/report.txt", "text":
+                    "This is the embedded report content."}}]}}'
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_data_stdio"
+          response_json_matches:
+            status: "processed_and_saved"
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_stdio_resource_0_report.txt' \\(version 0\\)\\."
+            saved_mcp_response_artifact_details:
+              status: "success"
+              artifacts_saved:
+                - data_filename: "get_data_stdio_resource_0_report.txt"
+                  data_version: 0
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have received the resource with its content and saved it as
+              an artifact."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_mcp_resource_with_text_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have received the resource with its content and saved it
+              as an artifact."
+    assert_artifact_state:
+      - filename_matches_regex: "get_data_stdio_resource_0_report\\.txt$"
+        version: 0
+        expected_content_text: "This is the embedded report content."
+        expected_metadata_contains:
+          source_tool_name: "get_data_stdio"
+          content_type: "resource"
+          is_placeholder: false
+          resource_uri: "file:///path/to/remote/report.txt"
+          has_text_content: true

@@ -1,0 +1,11 @@
+{
+  "id": 1,
+  "title": "Test Todo Item",
+  "completed": false,
+  "userId": 1,
+  "metadata": {
+    "created": "2024-01-01T00:00:00Z",
+    "tags": ["test", "sample"]
+  },
+  "description": "This is a test JSON file for web_request tool testing"
+}

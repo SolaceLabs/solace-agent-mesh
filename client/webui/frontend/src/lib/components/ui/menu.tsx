@@ -9,6 +9,7 @@ interface MenuAction {
     iconPosition?: "left" | "right"; // Default is left
     onClick: () => void;
     divider?: boolean; // Show divider above this item
+    disabled?: boolean;
 }
 
 interface MenuProps {
@@ -65,8 +66,9 @@ const Menu = React.forwardRef<HTMLDivElement, MenuProps>(({ actions, className, 
                     <div
                         role="menuitem"
                         tabIndex={0}
+                        data-disabled={action.disabled}
                         className={cn(
-                            "relative flex cursor-pointer items-center gap-2 px-3 py-1.5 my-1.5 text-sm transition-colors select-none",
+                            "relative my-1.5 flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm transition-colors select-none",
                             "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
                             "hover:bg-[var(--color-primary-w10)] hover:text-[var(--color-primary-text-w60)] dark:hover:bg-[var(--color-primary-w60)] dark:hover:text-[var(--color-primary-text-w10)]"
                         )}

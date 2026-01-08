@@ -1,0 +1,78 @@
+test_case_id: "mcp_trigger_non_text_content_001"
+description: "Verifies that a response with non-text content (image) is always saved
+  as an artifact, even if it's small."
+tags: ["all", "agent", "mcp"]
+skip_intermediate_events: true
+
+# No config overrides, so default thresholds (2KB save, 4KB return) are used.
+# The small image response is well below these thresholds.
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "mcp_threshold_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Get a small image from the test server."
+  external_context:
+    a2a_session_id: "session_mcp_trigger_non_text_content_001"
+
+llm_interactions:
+  # 1. LLM calls the MCP tool to get an image
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mcp_tool_456"
+                type: "function"
+                function:
+                  name: "get_data_stdio"
+                  # This is a tiny 1x1 pixel PNG, well below the default 2KB save threshold.
+                  # It should be saved because it's non-text content.
+                  arguments: '{"response_to_return": {"content": [{"type": "image",
+                    "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+                    "mimeType": "image/png"}]}}'
+
+  # 2. LLM gets the tool response and generates the final answer
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_data_stdio"
+          response_json_matches:
+            status: "processed_and_saved"
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_stdio_image_0_.*\\.png' \\(version 0\\)\\."
+            saved_mcp_response_artifact_details:
+              status: "success"
+              artifacts_saved:
+                - data_filename_matches_regex: "get_data_stdio_image_0_.*\\.png"
+                  status: "success"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have retrieved the image and saved it as an artifact for you."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_mcp_trigger_non_text_content_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have retrieved the image and saved it as an artifact for
+              you."
+    # Assert that the artifact was created correctly
+    assert_artifact_state:
+      - filename_matches_regex: "get_data_stdio_image_0_.*\\.png$"
+        version: 0
+        expected_content_bytes_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+        expected_metadata_contains:
+          source_tool_name: "get_data_stdio"
+          content_type: "image"
+          original_mime_type: "image/png"

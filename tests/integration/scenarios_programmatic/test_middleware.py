@@ -1,6 +1,7 @@
 import pytest
 
 pytestmark = [
+    pytest.mark.all,
     pytest.mark.asyncio,
     pytest.mark.common,
     pytest.mark.middleware

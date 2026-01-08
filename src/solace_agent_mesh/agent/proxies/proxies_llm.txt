@@ -1,0 +1,283 @@
+# DEVELOPER GUIDE: proxies
+
+## Quick Summary
+The `proxies` directory provides a framework for creating proxy applications that enable the Solace Agent Mesh to communicate with downstream agents using various protocols. It consists of protocol-agnostic base classes in the `base/` subdirectory that handle common functionality like message routing, agent discovery, and task management, plus concrete implementations like `a2a/` for A2A-over-HTTPS protocol support.
+
+## Files and Subdirectories Overview
+- **Direct files:** 
+  - `__init__.py` - Empty package initialization file
+- **Subdirectories:**
+  - `base/` - Abstract base classes for proxy applications and components with common functionality
+  - `a2a/` - Concrete implementation for proxying A2A-over-HTTPS agents with authentication support
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Package initialization (empty file)
+**Import:** `from solace_agent_mesh.agent.proxies import *`
+
+No public API - this is an empty initialization file.
+
+### Subdirectory APIs
+
+#### base/
+**Purpose:** Provides abstract base classes and configuration models for building proxy applications
+**Key Exports:** BaseProxyApp, BaseProxyComponent, BaseProxyAppConfig, ProxyTaskContext
+**Import Examples:**
+```python
+from solace_agent_mesh.agent.proxies.base.app import BaseProxyApp
+from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
+from solace_agent_mesh.agent.proxies.base.config import BaseProxyAppConfig, ProxiedAgentConfig
+from solace_agent_mesh.agent.proxies.base.proxy_task_context import ProxyTaskContext
+```
+
+#### a2a/
+**Purpose:** Concrete implementation for proxying A2A-over-HTTPS agents with OAuth 2.0 and static authentication
+**Key Exports:** A2AProxyApp, A2AProxyComponent, A2AProxyAppConfig, OAuth2TokenCache
+**Import Examples:**
+```python
+from solace_agent_mesh.agent.proxies.a2a.app import A2AProxyApp
+from solace_agent_mesh.agent.proxies.a2a.component import A2AProxyComponent
+from solace_agent_mesh.agent.proxies.a2a.config import A2AProxyAppConfig, AuthenticationConfig
+from solace_agent_mesh.agent.proxies.a2a.oauth_token_cache import OAuth2TokenCache
+```
+
+## Complete Usage Guide
+
+### 1. Creating a Custom Proxy Implementation
+
+To create a new proxy for a different protocol, extend the base classes:
+
+```python
+from solace_agent_mesh.agent.proxies.base.app import BaseProxyApp
+from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
+from solace_agent_mesh.agent.proxies.base.config import BaseProxyAppConfig
+from a2a.types import AgentCard, A2ARequest
+from typing import Optional
+
+# Custom configuration (extend BaseProxyAppConfig)
+class MyProxyAppConfig(BaseProxyAppConfig):
+    custom_setting: str = "default_value"
+
+# Custom component implementation
+class MyProxyComponent(BaseProxyComponent):
+    async def _fetch_agent_card(self, agent_config: dict) -> Optional[AgentCard]:
+        # Implement protocol-specific agent discovery
+        url = agent_config.get("url")
+        # Make HTTP request to get agent capabilities
+        # Return AgentCard with agent information
+        pass
+        
+    async def _forward_request(self, task_context, request: A2ARequest, agent_name: str):
+        # Implement protocol-specific request forwarding
+        # Forward request to downstream agent
+        # Handle response and publish back to Solace
+        pass
+
+# Custom app class
+class MyProxyApp(BaseProxyApp):
+    def _get_component_class(self):
+        return MyProxyComponent
+```
+
+### 2. Using the A2A Proxy Implementation
+
+The most common use case is using the built-in A2A proxy:
+
+```python
+from solace_agent_mesh.agent.proxies.a2a.app import A2AProxyApp
+from solace_agent_mesh.agent.proxies.a2a.config import A2AProxyAppConfig, AuthenticationConfig
+
+# Configuration with OAuth 2.0 authentication
+app_info = {
+    "app_config": {
+        "namespace": "myorg/production",
+        "proxied_agents": [
+            {
+                "name": "external-agent",
+                "url": "https://external-agent.example.com",
+                "request_timeout_seconds": 120,
+                "authentication": {
+                    "type": "oauth2_client_credentials",
+                    "token_url": "https://auth.example.com/oauth/token",
+                    "client_id": "my-client-id",
+                    "client_secret": "my-client-secret",
+                    "scope": "agent:read agent:write",
+                    "token_cache_duration_seconds": 3300
+                }
+            },
+            {
+                "name": "api-key-agent", 
+                "url": "https://api-agent.example.com",
+                "authentication": {
+                    "type": "static_bearer",
+                    "token": "my-api-key"
+                }
+            }
+        ],
+        "artifact_service": {
+            "type": "gcs",
+            "bucket_name": "my-artifacts-bucket",
+            "artifact_scope": "namespace"
+        },
+        "discovery_interval_seconds": 30,
+        "default_request_timeout_seconds": 300
+    }
+}
+
+# Create and run the proxy app
+app = A2AProxyApp(app_info)
+# App automatically handles Solace subscriptions and agent discovery
+```
+
+### 3. Working with Authentication
+
+The A2A proxy supports multiple authentication methods:
+
+```python
+from solace_agent_mesh.agent.proxies.a2a.config import AuthenticationConfig
+
+# OAuth 2.0 Client Credentials
+oauth_auth = AuthenticationConfig(
+    type="oauth2_client_credentials",
+    token_url="https://auth.provider.com/token",
+    client_id="client123",
+    client_secret="secret456", 
+    scope="read write",
+    token_cache_duration_seconds=3300  # Cache for 55 minutes
+)
+
+# Static Bearer Token
+bearer_auth = AuthenticationConfig(
+    type="static_bearer",
+    token="Bearer abc123xyz"
+)
+
+# Static API Key
+apikey_auth = AuthenticationConfig(
+    type="static_apikey",
+    token="api-key-value"
+)
+```
+
+### 4. Managing OAuth Token Cache
+
+For OAuth 2.0 authentication, tokens are automatically cached:
+
+```python
+from solace_agent_mesh.agent.proxies.a2a.oauth_token_cache import OAuth2TokenCache
+from solace_agent_mesh.agent.proxies.a2a.component import A2AProxyComponent
+
+# Access the component to manage cache
+component = A2AProxyComponent(proxied_agents_config=config)
+
+# Clear all cached tokens (useful for testing or credential rotation)
+component.clear_client_cache()
+
+# Direct cache usage (advanced)
+cache = OAuth2TokenCache()
+await cache.set("agent-name", "access_token", 3600)
+token = await cache.get("agent-name")
+await cache.invalidate("agent-name")
+```
+
+### 5. Task Context and Lifecycle Management
+
+The proxy framework automatically manages task contexts:
+
+```python
+from solace_agent_mesh.agent.proxies.base.proxy_task_context import ProxyTaskContext
+
+# Task contexts are created automatically when requests arrive
+# They contain A2A protocol information and task state
+task_context = ProxyTaskContext(
+    task_id="unique-task-id",
+    a2a_context={
+        "jsonrpc_request_id": "req-123",
+        "logical_task_id": "task-456",
+        "session_id": "session-789", 
+        "user_id": "user123",
+        "status_topic": "status/myorg/production/external-agent",
+        "reply_to_topic": "reply/myorg/production/external-agent",
+        "is_streaming": False
+    }
+)
+
+# Access task information in custom components
+print(f"Handling task: {task_context.task_id}")
+print(f"User: {task_context.a2a_context['user_id']}")
+```
+
+### 6. Configuration Validation
+
+All proxy configurations use Pydantic for validation:
+
+```python
+from solace_agent_mesh.agent.proxies.a2a.config import A2AProxyAppConfig
+from pydantic import ValidationError
+
+try:
+    config = A2AProxyAppConfig.model_validate({
+        "namespace": "myorg/dev",
+        "proxied_agents": [
+            {
+                "name": "test-agent",
+                "url": "https://agent.example.com",
+                "authentication": {
+                    "type": "oauth2_client_credentials",
+                    "token_url": "https://auth.example.com/token",
+                    "client_id": "client123"
+                    # Missing client_secret - will cause validation error
+                }
+            }
+        ]
+    })
+except ValidationError as e:
+    print(f"Configuration error: {e}")
+```
+
+### 7. Integration Patterns
+
+Common patterns for integrating proxies into larger applications:
+
+```python
+# Pattern 1: Direct instantiation
+from solace_agent_mesh.agent.proxies.a2a.app import A2AProxyApp
+
+app = A2AProxyApp(app_info)
+# App handles its own lifecycle
+
+# Pattern 2: Component access for advanced control
+from solace_agent_mesh.agent.proxies.a2a.component import A2AProxyComponent
+
+component = A2AProxyComponent(
+    proxied_agents_config=config["proxied_agents"],
+    namespace=config["namespace"],
+    # ... other broker settings
+)
+
+# Manual lifecycle management
+await component.run()
+# ... application logic
+await component.cleanup()
+
+# Pattern 3: Custom proxy with base classes
+class CustomProtocolProxy(BaseProxyComponent):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.custom_clients = {}
+    
+    async def _fetch_agent_card(self, agent_config):
+        # Custom discovery logic
+        pass
+        
+    async def _forward_request(self, task_context, request, agent_name):
+        # Custom forwarding logic  
+        pass
+```
+
+This comprehensive guide covers all the main use cases for the proxies directory, from using the built-in A2A proxy to creating custom proxy implementations for new protocols.
+
+# content_hash: 2f19070457fccc3f5c8f680f44788fb63495f9ea3b3da7d71ddb5a52f8f5b0f6

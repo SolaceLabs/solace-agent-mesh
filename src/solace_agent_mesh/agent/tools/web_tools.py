@@ -2,6 +2,8 @@
 Collection of Python tools for web-related tasks, such as making HTTP requests.
 """
 
+import asyncio
+import logging
 import json
 import uuid
 from datetime import datetime, timezone
@@ -15,7 +17,6 @@ from markdownify import markdownify as md
 from bs4 import BeautifulSoup
 
 from google.adk.tools import ToolContext
-from solace_ai_connector.common.log import log
 
 from ...agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
@@ -27,6 +28,14 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
+log = logging.getLogger(__name__)
+
+CATEGORY_NAME = "Web Access"
+CATEGORY_DESCRIPTION = "Access the web to find information to complete user requests."
+
+# Response size limits (in bytes)
+DEFAULT_MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10 MB default
+ABSOLUTE_MAX_RESPONSE_SIZE = 50 * 1024 * 1024  # 50 MB hard cap (cannot be exceeded even via config)
 
 def _is_safe_url(url: str) -> bool:
     """
@@ -66,9 +75,10 @@ async def web_request(
     output_artifact_filename: Optional[str] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
+    max_retries: int = 2,
 ) -> Dict[str, Any]:
     """
-    Makes an HTTP request to the specified URL, processes the content (e.g., HTML to Markdown),
+    Makes an HTTP request to the specified URL with retry logic, processes the content (e.g., HTML to Markdown),
     and saves the result as an artifact.
 
     Args:
@@ -78,7 +88,10 @@ async def web_request(
         body: Optional request body string for methods like POST/PUT. If sending JSON, this should be a valid JSON string.
         output_artifact_filename: Optional. Desired filename for the output artifact.
         tool_context: The context provided by the ADK framework.
-        tool_config: Optional. Configuration passed by the ADK, generally not used by this simplified tool.
+        tool_config: Optional. Configuration passed by the ADK. Supports:
+            - allow_loopback: bool - Allow requests to loopback addresses (for testing)
+            - max_response_size_bytes: int - Maximum response size in bytes (default: 10MB, max: 50MB)
+        max_retries: Maximum number of retry attempts for failed requests. Defaults to 2.
 
     Returns:
         A dictionary with status, message, and artifact details if successful.
@@ -88,7 +101,19 @@ async def web_request(
         log.error(f"{log_identifier} ToolContext is missing.")
         return {"status": "error", "message": "ToolContext is missing."}
 
-    if not _is_safe_url(url):
+    # Check if loopback URLs are allowed (for testing)
+    allow_loopback = False
+    max_response_size = DEFAULT_MAX_RESPONSE_SIZE
+    
+    if tool_config:
+        allow_loopback = tool_config.get("allow_loopback", False)
+        # Get max response size from config, but enforce hard cap
+        configured_size = tool_config.get("max_response_size_bytes")
+        if configured_size is not None:
+            max_response_size = min(int(configured_size), ABSOLUTE_MAX_RESPONSE_SIZE)
+            log.debug(f"{log_identifier} Using configured max_response_size: {max_response_size} bytes")
+    
+    if not allow_loopback and not _is_safe_url(url):
         log.error(f"{log_identifier} URL is not safe to request: {url}")
         return {"status": "error", "message": "URL is not safe to request."}
 
@@ -131,25 +156,113 @@ async def web_request(
         if body:
             request_body_bytes = body.encode("utf-8")
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            log.debug(
-                f"{log_identifier} Making {method} request to {url} with headers: {headers}"
-            )
-            response = await client.request(
-                method=method.upper(),
-                url=url,
-                headers=headers,
-                content=request_body_bytes,
-            )
-            log.debug(
-                f"{log_identifier} Received response with status code: {response.status_code}"
-            )
+        # Retry logic with exponential backoff
+        last_error = None
+        response = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                    log.info(
+                        f"{log_identifier} Attempt {attempt}/{max_retries}: Making {method} request to {url}"
+                    )
+                    
+                    # Use streaming to check Content-Length and limit response size
+                    async with client.stream(
+                        method=method.upper(),
+                        url=url,
+                        headers=headers,
+                        content=request_body_bytes,
+                    ) as stream_response:
+                        # Check Content-Length header if available
+                        content_length = stream_response.headers.get("content-length")
+                        if content_length:
+                            content_length_int = int(content_length)
+                            if content_length_int > max_response_size:
+                                log.warning(
+                                    f"{log_identifier} Response Content-Length ({content_length_int} bytes) exceeds "
+                                    f"max_response_size ({max_response_size} bytes). Rejecting request."
+                                )
+                                return {
+                                    "status": "error",
+                                    "message": f"Response too large: {content_length_int} bytes exceeds limit of {max_response_size} bytes ({max_response_size // (1024*1024)} MB). "
+                                               f"Consider using a more specific URL or a different approach."
+                                }
+                        
+                        # Read response with size limit using streaming
+                        chunks = []
+                        total_size = 0
+                        async for chunk in stream_response.aiter_bytes():
+                            total_size += len(chunk)
+                            if total_size > max_response_size:
+                                log.warning(
+                                    f"{log_identifier} Response size ({total_size} bytes) exceeded "
+                                    f"max_response_size ({max_response_size} bytes) during streaming. Truncating."
+                                )
+                                # Keep what we have so far but stop reading
+                                break
+                            chunks.append(chunk)
+                        
+                        # Create a response-like object with the data we need
+                        class StreamedResponse:
+                            def __init__(self, stream_resp, content_bytes):
+                                self.status_code = stream_resp.status_code
+                                self.headers = stream_resp.headers
+                                self.content = content_bytes
+                        
+                        response = StreamedResponse(stream_response, b"".join(chunks))
+                        
+                        log.info(
+                            f"{log_identifier} Received response with status code: {response.status_code}, "
+                            f"size: {len(response.content)} bytes"
+                        )
+                    
+                    # Success - break out of retry loop
+                    break
+                    
+            except (httpx.ReadTimeout, httpx.ConnectTimeout) as timeout_error:
+                last_error = timeout_error
+                log.warning(
+                    f"{log_identifier} Attempt {attempt}/{max_retries} timed out: {timeout_error}"
+                )
+                
+                if attempt < max_retries:
+                    # Exponential backoff with jitter
+                    import random
+                    base_delay = 3.0 * (2 ** (attempt - 1))  # 3s, 6s, 12s...
+                    jitter = random.uniform(0, 1.0)
+                    delay = base_delay + jitter
+                    log.info(f"{log_identifier} Waiting {delay:.1f}s before retry {attempt + 1}/{max_retries}")
+                    await asyncio.sleep(delay)
+                else:
+                    # Final attempt failed
+                    error_message = f"Request timed out after {max_retries} attempts (30s timeout per attempt)"
+                    log.error(f"{log_identifier} {error_message}")
+                    return {
+                        "status": "error",
+                        "message": f"{error_message}. The website may be slow or blocking automated requests."
+                    }
+                    
+            except httpx.RequestError as req_error:
+                last_error = req_error
+                log.warning(
+                    f"{log_identifier} Attempt {attempt}/{max_retries} failed with request error: {req_error}"
+                )
+                
+                if attempt < max_retries:
+                    import random
+                    base_delay = 3.0 * (2 ** (attempt - 1))
+                    jitter = random.uniform(0, 1.0)
+                    delay = base_delay + jitter
+                    log.info(f"{log_identifier} Waiting {delay:.1f}s before retry {attempt + 1}/{max_retries}")
+                    await asyncio.sleep(delay)
+                else:
+                    # Will be handled by the outer exception handler
+                    raise
 
         response_content_bytes = response.content
-        response_headers = dict(response.headers)
         response_status_code = response.status_code
         original_content_type = (
-            response_headers.get("content-type", "application/octet-stream")
+            response.headers.get("content-type", "application/octet-stream")
             .split(";")[0]
             .strip()
         )
@@ -234,7 +347,7 @@ async def web_request(
                 {k: v for k, v in headers.items() if k.lower() != "authorization"}
             ),
             "response_status_code": response_status_code,
-            "response_headers": json.dumps(response_headers),
+            "response_headers": json.dumps(dict(response.headers)),
             "original_content_type": original_content_type,
             "processed_content_type": processed_content_type,
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -281,7 +394,8 @@ async def web_request(
         return {
             "status": "success",
             "message": f"Successfully fetched content from {url} (status: {response_status_code}). "
-            f"Saved as artifact '{final_artifact_filename}' v{save_result['data_version']}.",
+            f"Saved as artifact '{final_artifact_filename}' v{save_result['data_version']}. "
+            f"Analyze the content of '{final_artifact_filename}' before providing a final answer to the user.",
             "output_filename": final_artifact_filename,
             "output_version": save_result["data_version"],
             "response_status_code": response_status_code,
@@ -326,9 +440,12 @@ async def web_request(
             return {"status": "error", "message": error_message}
 
     except httpx.RequestError as re:
-        error_message = f"Request error while fetching {url}: {re}"
+        error_message = f"Request error while fetching {url} after {max_retries} attempts: {re}"
         log.error(f"{log_identifier} {error_message}", exc_info=True)
-        return {"status": "error", "message": error_message}
+        return {
+            "status": "error",
+            "message": f"{error_message}. The website may be unreachable or blocking requests."
+        }
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}", exc_info=True)
         return {"status": "error", "message": str(ve)}
@@ -345,6 +462,8 @@ web_request_tool_def = BuiltinTool(
     implementation=web_request,
     description="Makes an HTTP request to a URL, processes content (e.g., HTML to Markdown), and saves the result as an artifact.",
     category="web",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:web:request"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,

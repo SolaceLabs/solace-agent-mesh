@@ -46,7 +46,7 @@ class RegistryManager:
 
         if self.user_registries_file.exists():
             try:
-                with open(self.user_registries_file, "r") as f:
+                with open(self.user_registries_file, "r", encoding="utf-8") as f:
                     loaded_data = json.load(f)
                     if isinstance(loaded_data, list):
                         for reg_dict in loaded_data:
@@ -102,7 +102,7 @@ class RegistryManager:
                 return False
 
         registry_id = self._generate_registry_id(path_or_url)
-
+   
         final_name = name
         if not final_name:
             if registry_type == "git":
@@ -110,6 +110,8 @@ class RegistryManager:
             else:
                 final_name = Path(path_or_url).name
 
+        # Sanitize name to be filesystem-friendly
+        final_name = "".join(c if c.isalnum() else '_' for c in final_name)
         is_official_src = path_or_url == DEFAULT_OFFICIAL_REGISTRY_URL
 
         try:
@@ -128,7 +130,7 @@ class RegistryManager:
         current_registries_data: List[Dict[str, Any]] = []
         if self.user_registries_file.exists():
             try:
-                with open(self.user_registries_file, "r") as f:
+                with open(self.user_registries_file, "r", encoding="utf-8") as f:
                     loaded_data = json.load(f)
                     if isinstance(loaded_data, list):
                         current_registries_data = [
@@ -154,7 +156,7 @@ class RegistryManager:
         current_registries_data.append(new_registry.model_dump())
 
         try:
-            with open(self.user_registries_file, "w") as f:
+            with open(self.user_registries_file, "w", encoding="utf-8") as f:
                 json.dump(current_registries_data, f, indent=2)
             return True
         except Exception as e:

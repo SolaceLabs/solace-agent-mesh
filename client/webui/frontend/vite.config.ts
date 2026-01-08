@@ -1,45 +1,83 @@
-import path from "path"
-import tailwindcss from "@tailwindcss/vite"
-import react from "@vitejs/plugin-react"
-import { defineConfig, loadEnv } from "vite"
+import path from "path";
+import fs from "fs";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { defineConfig, loadEnv } from "vite";
+
+/**
+ * Local Vite plugin to generate ui-version.json during build.
+ * This metadata file contains version information that can be read at runtime
+ * without exposing the full package.json.
+ */
+function generateVersionMetadata() {
+    return {
+        name: "generate-version-metadata",
+        closeBundle() {
+            const packageJsonPath = path.resolve(__dirname, "package.json");
+            const outputPath = path.resolve(__dirname, "static", "ui-version.json");
+
+            try {
+                const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+                const versionMetadata = {
+                    id: packageJson.name,
+                    name: "Solace Agent Mesh UI",
+                    description: packageJson.description || "",
+                    version: packageJson.version,
+                };
+
+                // Ensure output directory exists before writing
+                const outputDir = path.dirname(outputPath);
+                if (!fs.existsSync(outputDir)) {
+                    fs.mkdirSync(outputDir, { recursive: true });
+                }
+
+                fs.writeFileSync(outputPath, JSON.stringify(versionMetadata, null, 2) + "\n");
+                console.log(`Generated ui-version.json: ${versionMetadata.version}`);
+            } catch (error) {
+                console.error("Failed to generate ui-version.json:", error);
+            }
+        },
+    };
+}
 
 export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, process.cwd(), "");
 
-  const env = loadEnv(mode, process.cwd(), ''); // Load env vars from frontend dir
+    const backendPort = env.VITE_BACKEND_PORT || process.env.FASTAPI_PORT || "8000";
+    const backendTarget = `http://localhost:${backendPort}`;
 
-  // Determine the backend port. Use env var or default to 8000.
-  const backendPort = env.VITE_BACKEND_PORT || process.env.FASTAPI_PORT || '8000';
-  const backendTarget = `http://localhost:${backendPort}`;
-
-  return {
-    plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        "@": path.resolve(__dirname, "./src"),
-      },
-    },
-    build: { // Add build configuration
-      outDir: 'static', // Output build files to the 'static' directory
-      emptyOutDir: true, // Clear the directory before building
-      rollupOptions: {
-        input: {
-          main: 'index.html',
-          authCallback: 'auth-callback.html',
+    return {
+        plugins: [react(), tailwindcss(), generateVersionMetadata()],
+        resolve: {
+            alias: {
+                "@": path.resolve(__dirname, "./src"),
+            },
         },
-      },
-    },
-    server: {
-      proxy: {
-        // Proxy requests starting with /api to the backend server
-        '/api': {
-          target: backendTarget, // Use the determined backend URL (e.g., http://localhost:8000)
-          changeOrigin: true, // Recommended for virtual hosted sites
-          secure: false, // Disable SSL verification if backend is HTTP
-          // No rewrite needed if backend paths also start with /api
+        build: {
+            outDir: "static",
+            emptyOutDir: true,
+            rollupOptions: {
+                input: {
+                    main: "index.html",
+                    authCallback: "auth-callback.html",
+                },
+                output: {
+                    manualChunks: {
+                        vendor: ["react", "react-dom", "recharts", "@xyflow/react", "json-edit-react", "marked", "@tanstack/react-table", "lucide-react", "html-react-parser"],
+                    },
+                },
+            },
         },
-      },
-      port: 3000, // Explicitly set frontend dev server port (optional)
-      host: true, // Allow access from network (optional)
-    },
-  };
+        server: {
+            proxy: {
+                "/api": {
+                    target: backendTarget,
+                    changeOrigin: true,
+                    secure: false,
+                },
+            },
+            port: 3000, // Explicitly set frontend dev server port (optional)
+            host: true, // Allow access from network (optional)
+        },
+    };
 });

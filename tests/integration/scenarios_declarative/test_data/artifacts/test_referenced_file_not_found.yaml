@@ -1,0 +1,26 @@
+test_case_id: "artifact_ref_not_found_001"
+description: "Tests graceful failure when a referenced artifact does not exist."
+tags: ["all", "common"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "bad_uri_user@test.com"
+  a2a_parts:
+    - type: "text"
+      text: "Tell me about this file."
+    - type: "file"
+      uri: "artifact://TestAgent/bad_uri_user@test.com/default_session/ghost_file.txt?version=0"
+
+llm_interactions:
+  - expected_request:
+      prompt_contains:
+        - "[System Note: The file 'ghost_file.txt' could not be processed. Error: Failed to load metadata"
+    static_response:
+      choices: [{message: {role: "assistant", content: "I'm sorry, I could not find the file you referenced."}}]
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "could not find the file"

@@ -83,15 +83,16 @@ export class EdgeAnimationService {
         return stepsToCheck.some(step => {
             const stepTimestamp = new Date(step.timestamp).getTime();
 
-            if (stepTimestamp <= callTimestamp) return false;
+            if (stepTimestamp < callTimestamp) return false;
 
             // Check for direct LLM responses to the agent
             const isDirectLLMResponse = (step.type === "AGENT_LLM_RESPONSE_TOOL_DECISION" || step.type === "AGENT_LLM_RESPONSE_TO_AGENT") && step.target === callingAgent;
 
             // Check for any subsequent action by the same agent (indicates LLM call completed)
-            const isSubsequentAgentAction = step.source === callingAgent && (step.type === "AGENT_TOOL_INVOCATION_START" || step.type === "AGENT_LLM_CALL" || step.type === "TASK_COMPLETED");
+            const isSubsequentAgentAction = step.source === callingAgent && (step.type === "AGENT_TOOL_INVOCATION_START" || step.type === "TASK_COMPLETED");
+            const isPeerResponse = step.type === "AGENT_TOOL_EXECUTION_RESULT" && step.data.toolResult?.isPeerResponse;
 
-            return isDirectLLMResponse || isSubsequentAgentAction;
+            return isDirectLLMResponse || isSubsequentAgentAction || isPeerResponse;
         });
     }
 
@@ -105,8 +106,7 @@ export class EdgeAnimationService {
 
         return stepsToCheck.some(step => {
             const stepTimestamp = new Date(step.timestamp).getTime();
-
-            if (stepTimestamp <= callTimestamp) return false;
+            if (stepTimestamp < callTimestamp) return false;
 
             return step.type === "AGENT_TOOL_EXECUTION_RESULT" && step.source === toolName && step.target === callingAgent;
         });

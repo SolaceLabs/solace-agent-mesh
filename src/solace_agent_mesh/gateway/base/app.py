@@ -2,20 +2,22 @@
 Base App class for Gateway implementations in the Solace AI Connector.
 """
 
+import logging
 import uuid
 from abc import abstractmethod
 from typing import Any, Dict, List, Type
 
-from solace_ai_connector.common.log import log
 from solace_ai_connector.common.utils import deep_merge
 from solace_ai_connector.flow.app import App
 from solace_ai_connector.components.component_base import ComponentBase
 
-from ...common.a2a_protocol import (
+from ...common.a2a import (
     get_discovery_topic,
     get_gateway_response_subscription_topic,
     get_gateway_status_subscription_topic,
 )
+
+log = logging.getLogger(__name__)
 
 
 class BaseGatewayComponent(ComponentBase):
@@ -36,6 +38,27 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "type": "string",
             "default": None,
             "description": "Unique ID for this gateway instance. Auto-generated if omitted.",
+        },
+        {
+            "name": "default_agent_name",
+            "required": False,
+            "type": "string",
+            "default": None,
+            "description": "Default agent to route messages to if not specified by the platform or user.",
+        },
+        {
+            "name": "system_purpose",
+            "required": False,
+            "type": "string",
+            "default": "",
+            "description": "Detailed description of the system's overall purpose, to be optionally used by agents.",
+        },
+        {
+            "name": "response_format",
+            "required": False,
+            "type": "string",
+            "default": "",
+            "description": "General guidelines on how agent responses should be structured, to be optionally used by agents.",
         },
         {
             "name": "artifact_service",
@@ -63,6 +86,33 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "type": "integer",
             "default": 12,
             "description": "Maximum depth for recursively resolving 'artifact_content' embeds within files.",
+        },
+        {
+            "name": "artifact_handling_mode",
+            "required": False,
+            "type": "string",
+            "default": "reference",
+            "description": (
+                "How the gateway handles file parts from clients. "
+                "'reference': Save inline file bytes to the artifact store and replace with a URI. "
+                "'embed': Resolve file URIs and embed content as bytes. "
+                "'passthrough': Send file parts to the agent as-is."
+            ),
+            "enum": ["reference", "embed", "passthrough"],
+        },
+        {
+            "name": "gateway_max_message_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": 10_000_000,  # 10MB
+            "description": "Maximum allowed message size in bytes for messages published by the gateway.",
+        },
+        {
+            "name": "gateway_max_upload_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": 52428800,  # 50MB
+            "description": "Maximum file upload size in bytes. Validated before reading file content to prevent memory exhaustion.",
         },
         # --- Default User Identity Configuration ---
         {
@@ -122,8 +172,14 @@ class BaseGatewayApp(App):
 
         base_params = BaseGatewayApp.app_schema.get("config_parameters", [])
 
-        merged_config_parameters = list(base_params)
-        merged_config_parameters.extend(specific_params)
+        # Start with the child's parameters to give them precedence.
+        merged_config_parameters = list(specific_params)
+        specific_param_names = {p["name"] for p in specific_params}
+
+        # Add base parameters only if they are not already defined in the child.
+        for base_param in base_params:
+            if base_param["name"] not in specific_param_names:
+                merged_config_parameters.append(base_param)
 
         cls.app_schema = {"config_parameters": merged_config_parameters}
         log.debug(
@@ -200,6 +256,15 @@ class BaseGatewayApp(App):
         self.gateway_recursive_embed_depth: int = resolved_app_config_block.get(
             "gateway_recursive_embed_depth", 12
         )
+        self.artifact_handling_mode: str = resolved_app_config_block.get(
+            "artifact_handling_mode", "reference"
+        )
+        self.gateway_max_message_size_bytes: int = resolved_app_config_block.get(
+            "gateway_max_message_size_bytes", 10_000_000
+        )
+        self.gateway_max_upload_size_bytes: int = resolved_app_config_block.get(
+            "gateway_max_upload_size_bytes", 52428800
+        )
 
         modified_app_info = app_info.copy()
         modified_app_info["app_config"] = resolved_app_config_block
@@ -217,6 +282,20 @@ class BaseGatewayApp(App):
                 )
             },
         ]
+
+        # Add trust card subscription if trust manager is enabled
+        trust_config = resolved_app_config_block.get("trust_manager")
+        if trust_config and trust_config.get("enabled", False):
+            from ...common.a2a.protocol import get_trust_card_subscription_topic
+
+            trust_card_topic = get_trust_card_subscription_topic(self.namespace)
+            subscriptions.append({"topic": trust_card_topic})
+            log.info(
+                "Trust Manager enabled for gateway '%s', added trust card subscription: %s",
+                self.gateway_id,
+                trust_card_topic,
+            )
+
         log.info(
             "Generated Solace subscriptions for gateway '%s': %s",
             self.gateway_id,
@@ -245,7 +324,7 @@ class BaseGatewayApp(App):
         broker_config["queue_name"] = (
             f"{self.namespace.strip('/')}/q/gdk/gateway/{self.gateway_id}"
         )
-        broker_config["temporary_queue"] = True
+        broker_config["temporary_queue"] = modified_app_info.get("broker", {}).get("temporary_queue", True)
         log.debug(
             "Injected broker settings for gateway '%s': %s",
             self.gateway_id,

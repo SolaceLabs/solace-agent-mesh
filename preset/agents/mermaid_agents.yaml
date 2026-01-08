@@ -37,7 +37,10 @@ apps:
           tool_name: "mermaid_diagram_generator"
         - tool_type: builtin-group
           group_name: "artifact_management"
-      session_service: *default_session_service
+      session_service:
+        type: "${PERSISTENCE_TYPE, sql}"
+        database_url: "${AGENT_MERMAID_DATABASE_URL, sqlite:///mermaid-agent.db}"
+        default_behavior: "PERSISTENT"
       artifact_service: *default_artifact_service
       artifact_handling_mode: "reference"
       enable_embed_resolution: true
@@ -51,7 +54,7 @@ apps:
         skills:
         - id: "mermaid_diagram_generator"
           name: "Mermaid Diagram Generator"
-          description: "Generates a PNG image from Mermaid diagram syntax. Requires detailed data. Input: mermaid_syntax (string), output_filename (string, optional)."
+          description: "Converts Mermaid syntax into visual PNG diagrams, supporting flowcharts, sequence diagrams, class diagrams, and other Mermaid diagram types. Input: mermaid_syntax (string)."
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
       inter_agent_communication:

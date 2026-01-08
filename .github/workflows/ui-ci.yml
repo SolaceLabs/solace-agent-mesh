@@ -1,0 +1,301 @@
+name: "CI (UI)"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "client/webui/frontend/**"
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - "main"
+    paths:
+      - "client/webui/frontend/**"
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  pull-requests: write
+  actions: read
+  statuses: write
+  checks: write
+  repository-projects: read
+
+jobs:
+  validate-conventional-commit:
+    name: "Validate Conventional Commit"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR Title
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          disallowScopes: |
+            release
+          subjectPattern: ^.+$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}"
+            didn't match the configured pattern. Please ensure that the subject
+            is not empty.
+
+  ui-build-and-test:
+    name: "Build and Test UI"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client/webui/frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: client/webui/frontend/package-lock.json
+          registry-url: https://npm.pkg.github.com/
+          scope: "@SolaceLabs"
+
+      - name: Configure npm for install
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > .npmrc
+          echo "@SolaceLabs:registry=https://npm.pkg.github.com/" >> .npmrc
+          echo "legacy-peer-deps=true" >> .npmrc
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore Playwright Browser From Cache
+        id: restore-playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('client/webui/frontend/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.restore-playwright-cache.outputs.cache-hit != 'true'
+        run: ./node_modules/.bin/playwright install chromium --with-deps
+
+      - name: Save Playwright cache
+        if: steps.restore-playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('client/webui/frontend/package-lock.json') }}
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run Storybook Tests
+        run: npm run ci:storybook
+
+      - name: Build UI package
+        run: npm run build-package
+
+      - name: Run WhiteSource Scan
+        id: whitesource_scan
+        uses: SolaceDev/solace-public-workflows/.github/actions/whitesource-scan@main
+        continue-on-error: true
+        with:
+          whitesource_api_key: ${{ secrets.WHITESOURCE_API_KEY }}
+          whitesource_product_name: "solaceai"
+          whitesource_project_name: "solace-agent-mesh-ui${{ github.event_name == 'push' && '' || github.event_name == 'pull_request' && format('-pr-{0}', github.event.pull_request.number) || '' }}"
+          whitesource_config_file: "client/webui/frontend/wss-unified-agent.config"
+          target_directory: "client/webui/frontend"
+
+      - name: Run WhiteSource PR Checker (Policy Violations)
+        id: whitesource-pr-policy-violation-checker
+        if: github.event_name == 'pull_request'
+        uses: docker://ghcr.io/solacedev/maas-build-actions:latest
+        continue-on-error: true
+        env:
+          WS_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
+          WS_PRODUCT_NAME: "solaceai"
+          WS_PROJECT_NAME: "solace-agent-mesh-ui-pr-${{ github.event.pull_request.number }}"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          WS_BLOCKING_POLICY_VIOLATION_LEVELS: "Major,Minor"
+          FAIL_IF_POLICY_VIOLATIONS_FOUND: "True"
+          GH_ORG: ${{ github.repository_owner }}
+          GH_REPO: ${{ github.event.repository.name }}
+          GH_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          INCLUDE_HELPFUL_LINKS: "False"
+          STATUS_CHECK: "True"
+        with:
+          entrypoint: /bin/sh
+          args: >
+            -c "
+            . $VIRTUAL_ENV/bin/activate &&
+            cd $ACTIONS_PATH/whitesource-pr-checker &&
+            python whitesource_pr_checker.py
+            "
+
+      - name: Run WhiteSource Policy Gate
+        id: whitesource-policy-gate
+        if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+        uses: docker://ghcr.io/solacedev/maas-build-actions:latest
+        continue-on-error: true
+        env:
+          WS_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
+          WS_PRODUCT_NAME: "solaceai"
+          WS_PROJECT_NAME: "solace-agent-mesh-ui"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          WS_BLOCKING_POLICY_VIOLATION_LEVELS: "Major,Minor"
+          FAIL_IF_POLICY_VIOLATIONS_FOUND: "True"
+          STATUS_CHECK: "True"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ORG: ${{ github.repository_owner }}
+          GH_REPO: ${{ github.event.repository.name }}
+          GITHUB_SHA: ${{ github.sha }}
+        with:
+          entrypoint: /bin/sh
+          args: >
+            -c "
+            . $VIRTUAL_ENV/bin/activate &&
+            cd $ACTIONS_PATH/whitesource-policy-violation-checker &&
+            python whitesource_policy_violation_checker.py
+            "
+
+      - name: Run WhiteSource Vulnerability Checker
+        id: whitesource-vulnerability-checker
+        if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+        uses: docker://ghcr.io/solacedev/maas-build-actions:latest
+        continue-on-error: true
+        env:
+          WS_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
+          WS_PRODUCT_NAME: "solaceai"
+          WS_PROJECT_NAME: "solace-agent-mesh-ui"
+          AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          WS_JIRA_CHECK: "True"
+          JIRA_ONLY: "True"
+          STATUS_CHECK: "True"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ORG: ${{ github.repository_owner }}
+          GH_REPO: ${{ github.event.repository.name }}
+          GITHUB_SHA: ${{ github.sha }}
+        with:
+          entrypoint: /bin/sh
+          args: >
+            -c "
+            . $VIRTUAL_ENV/bin/activate &&
+            cd $ACTIONS_PATH/whitesource-vulnerability-checker &&
+            python whitesource_vulnerability_checker.py
+            "
+
+  bump-version:
+    needs: ui-build-and-test
+    name: "Bump UI Version"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    outputs:
+      new-tag: ${{ steps.bump.outputs.newTag }}
+    defaults:
+      run:
+        working-directory: client/webui/frontend
+    steps:
+      - name: "Checkout source code"
+        uses: "actions/checkout@v4"
+        with:
+          ref: ${{ github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: "Current package.json"
+        run: cat ./package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: "Automated Version Bump"
+        id: bump
+        uses: "phips28/gh-action-bump-version@master"
+        with:
+          minor-wording: "feat,minor"
+          major-wording: "BREAKING CHANGE,major"
+          patch-wording: "fix,patch,docs,style,refactor,perf,test,build,ci,chore,revert"
+          tag-prefix: "ui-v"
+          commit-message: "ci(ui): bump version to {{version}} [skip ci]"
+          skip-push: "true"
+          default: "patch" # default to patch bump if no bumps included in commit messages
+          bump-policy: "ignore" # always bump regardless of whether bumps included in commit messages
+        env:
+          PACKAGEJSON_DIR: client/webui/frontend
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Updated package.json"
+        run: cat ./package.json
+
+      - name: "Extract version from tag"
+        id: extract-version
+        run: |
+          if [ -n "${{ steps.bump.outputs.newTag }}" ]; then
+            TAG="${{ steps.bump.outputs.newTag }}"
+            VERSION="${TAG#ui-v}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Extracted version: $VERSION from tag: $TAG"
+          else
+            echo "No new tag created"
+            echo "version=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up SSH agent
+        if: steps.bump.outputs.newTag != ''
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.COMMIT_KEY }}
+
+      - name: Push new version and tag
+        if: steps.bump.outputs.newTag != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin git@github.com:${{ github.repository }}.git
+          git push origin main
+          git push origin ${{ steps.bump.outputs.newTag }}
+
+  release-ui:
+    needs: bump-version
+    name: "Release UI Package"
+    if: needs.bump-version.outputs.new-tag != ''
+    uses: ./.github/workflows/ui-release.yml
+    with:
+      tag: ${{ needs.bump-version.outputs.new-tag }}
+    secrets: inherit

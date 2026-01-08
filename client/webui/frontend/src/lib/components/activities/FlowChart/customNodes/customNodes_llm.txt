@@ -1,0 +1,177 @@
+# DEVELOPER GUIDE: customNodes
+
+## Quick Summary
+This directory contains React components for custom node types used in a flow chart visualization system. Each node represents different entities in an agent-based workflow system, including agents, tools, LLMs, orchestrators, and user interactions. All nodes are built using the @xyflow/react library and share common styling patterns with status indicators and connection handles.
+
+## Files Overview
+- `GenericAgentNode.tsx` - Base agent node component with multiple connection handles
+- `GenericToolNode.tsx` - Tool node component with status indicators and left-side connections
+- `LLMNode.tsx` - Large Language Model node component with teal styling and status display
+- `OrchestratorAgentNode.tsx` - Special agent node with gradient styling for orchestration roles
+- `UserNode.tsx` - User interaction node with conditional handle positioning based on node type
+
+## Developer API Reference
+
+### GenericAgentNode.tsx
+**Purpose:** Renders a generic agent node with multiple connection points for workflow integration
+**Import:** `import GenericAgentNode, { GenericNodeData } from './customNodes/GenericAgentNode'`
+
+**Interfaces:**
+- `GenericNodeData extends Record<string, unknown>` - Base data structure for all node types
+  - `label: string` - Display text for the node
+  - `description?: string` - Optional description text
+  - `icon?: string` - Optional icon identifier
+  - `subflow?: boolean` - Whether this node represents a subflow
+  - `isInitial?: boolean` - Whether this is a starting node
+  - `isFinal?: boolean` - Whether this is an ending node
+
+**Components:**
+- `GenericAgentNode: React.FC<NodeProps<Node<GenericNodeData>>>` - Main agent node component
+
+**Usage Examples:**
+```tsx
+import GenericAgentNode, { GenericNodeData } from './customNodes/GenericAgentNode';
+import { Node } from '@xyflow/react';
+
+const nodeData: GenericNodeData = {
+  label: "Processing Agent",
+  description: "Handles data processing",
+  isInitial: false
+};
+
+const agentNode: Node<GenericNodeData> = {
+  id: 'agent-1',
+  type: 'genericAgent',
+  position: { x: 100, y: 100 },
+  data: nodeData
+};
+```
+
+### GenericToolNode.tsx
+**Purpose:** Renders a tool node with status indicators and left-side connection handles
+**Import:** `import GenericToolNode, { GenericToolNodeType } from './customNodes/GenericToolNode'`
+
+**Types:**
+- `GenericToolNodeType = Node<GenericNodeData>` - Type alias for tool nodes
+
+**Components:**
+- `GenericToolNode: React.FC<NodeProps<GenericToolNodeType>>` - Tool node component with status colors
+
+**Usage Examples:**
+```tsx
+import GenericToolNode, { GenericToolNodeType } from './customNodes/GenericToolNode';
+
+const toolNodeData = {
+  label: "Data Parser",
+  status: "completed" // "completed" | "in-progress" | "error" | "started" | "idle"
+};
+
+const toolNode: GenericToolNodeType = {
+  id: 'tool-1',
+  type: 'genericTool',
+  position: { x: 200, y: 150 },
+  data: toolNodeData
+};
+```
+
+### LLMNode.tsx
+**Purpose:** Renders a Large Language Model node with teal styling and status indicators
+**Import:** `import LLMNode, { LLMNodeType } from './customNodes/LLMNode'`
+
+**Types:**
+- `LLMNodeType = Node<GenericNodeData>` - Type alias for LLM nodes
+
+**Components:**
+- `LLMNode: React.FC<NodeProps<LLMNodeType>>` - LLM node component with teal color scheme
+
+**Usage Examples:**
+```tsx
+import LLMNode, { LLMNodeType } from './customNodes/LLMNode';
+
+const llmNodeData = {
+  label: "GPT-4",
+  status: "in-progress"
+};
+
+const llmNode: LLMNodeType = {
+  id: 'llm-1',
+  type: 'llm',
+  position: { x: 300, y: 200 },
+  data: llmNodeData
+};
+```
+
+### OrchestratorAgentNode.tsx
+**Purpose:** Renders an orchestrator agent node with special gradient styling and enhanced visual prominence
+**Import:** `import OrchestratorAgentNode, { OrchestratorAgentNodeType } from './customNodes/OrchestratorAgentNode'`
+
+**Types:**
+- `OrchestratorAgentNodeType = Node<GenericNodeData>` - Type alias for orchestrator nodes
+
+**Components:**
+- `OrchestratorAgentNode: React.FC<NodeProps<OrchestratorAgentNodeType>>` - Orchestrator node with indigo gradient styling
+
+**Usage Examples:**
+```tsx
+import OrchestratorAgentNode, { OrchestratorAgentNodeType } from './customNodes/OrchestratorAgentNode';
+
+const orchestratorData = {
+  label: "Main Orchestrator",
+  description: "Coordinates all agents"
+};
+
+const orchestratorNode: OrchestratorAgentNodeType = {
+  id: 'orch-1',
+  type: 'orchestrator',
+  position: { x: 150, y: 50 },
+  data: orchestratorData
+};
+```
+
+### UserNode.tsx
+**Purpose:** Renders user interaction nodes with conditional handle positioning based on node type
+**Import:** `import UserNode, { UserNodeData, UserNodeType } from './customNodes/UserNode'`
+
+**Interfaces:**
+- `UserNodeData extends GenericNodeData` - Extended data structure for user nodes
+  - `isTopNode?: boolean` - True if created by handleUserRequest (shows bottom handle)
+  - `isBottomNode?: boolean` - True if created at bottom (shows top handle)
+
+**Types:**
+- `UserNodeType = Node<UserNodeData>` - Type alias for user nodes
+
+**Components:**
+- `UserNode: React.FC<NodeProps<UserNodeType>>` - User node with conditional handle rendering
+
+**Usage Examples:**
+```tsx
+import UserNode, { UserNodeData, UserNodeType } from './customNodes/UserNode';
+
+const topUserData: UserNodeData = {
+  label: "User Input",
+  isTopNode: true,
+  status: "completed"
+};
+
+const bottomUserData: UserNodeData = {
+  label: "User Response",
+  isBottomNode: true,
+  status: "idle"
+};
+
+const topUserNode: UserNodeType = {
+  id: 'user-top',
+  type: 'user',
+  position: { x: 100, y: 0 },
+  data: topUserData
+};
+
+const bottomUserNode: UserNodeType = {
+  id: 'user-bottom',
+  type: 'user',
+  position: { x: 100, y: 400 },
+  data: bottomUserData
+};
+```
+
+# content_hash: aee202fe2cd9fcc4aed3b78a36e25c58149f68d4f0a0da9f4487b6027d5a3b90

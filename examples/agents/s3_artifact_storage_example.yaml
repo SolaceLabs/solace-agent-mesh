@@ -1,0 +1,149 @@
+# S3 Artifact Storage Configuration Example
+#
+# This file demonstrates how to configure agents to use Amazon S3 compatible storage
+# for artifact management in Solace Agent Mesh applications.
+#
+# Required Environment Variables:
+# - AWS_ACCESS_KEY_ID: Your AWS access key ID
+# - AWS_SECRET_ACCESS_KEY: Your AWS secret access key
+# - S3_BUCKET_NAME: Name of your S3 bucket
+# - S3_ENDPOINT_URL: S3 endpoint URL (optional for AWS S3, required for S3-compatible services)
+# - S3_REGION: AWS region (e.g., us-east-1)
+# - NAMESPACE: Your application namespace
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: s3_artifact_example.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  # Example 1: Basic S3 Artifact Storage (AWS S3)
+  - name: s3_basic_agent_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+  
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "S3BasicAgent"
+      display_name: "S3 Basic Storage Agent"
+      model: *planning_model
+      instruction: |
+        You can create and manage artifacts stored in Amazon S3.
+  
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+  
+      session_service: { type: "memory" }
+      artifact_service:
+        type: "s3"
+        bucket_name: ${S3_BUCKET_NAME}  # Set this in your .env file
+        region: ${S3_REGION}  # e.g., us-east-1
+        artifact_scope: namespace  # Share artifacts within the NAMESPACE
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+  
+      agent_card:
+        description: "An agent that stores artifacts in Amazon S3."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills: []
+  
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 30
+
+  # Example 2: S3-Compatible Storage (MinIO, etc.)
+  - name: s3_compatible_agent_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+  
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "S3CompatibleAgent"
+      display_name: "S3 Compatible Storage Agent"
+      model: *planning_model
+      instruction: |
+        You can create and manage artifacts stored in S3-compatible storage like MinIO.
+  
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+  
+      session_service: { type: "memory" }
+      artifact_service:
+        type: "s3"
+        bucket_name: ${S3_BUCKET_NAME}
+        endpoint_url: ${S3_ENDPOINT_URL}  # e.g., https://minio.example.com
+        region: ${S3_REGION}
+        artifact_scope: app  # Scope artifacts to this specific app
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+  
+      agent_card:
+        description: "An agent that stores artifacts in S3-compatible storage."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills: []
+  
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 30
+
+  # Example 3: S3 with Custom Scope and Communication
+  - name: s3_custom_scope_agent_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+  
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "S3CustomScopeAgent"
+      display_name: "S3 Custom Scope Agent"
+      model: *planning_model
+      instruction: |
+        You can create and manage artifacts with custom scoping in S3 storage.
+  
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+  
+      session_service: { type: "memory" }
+      artifact_service:
+        type: "s3"
+        bucket_name: ${S3_BUCKET_NAME}
+        endpoint_url: ${S3_ENDPOINT_URL}  # Optional for AWS S3
+        region: ${S3_REGION}
+        artifact_scope: custom  # Custom artifact scoping
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+  
+      agent_card:
+        description: "An agent with custom artifact scoping in S3."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills: []
+  
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }  # Enable discovery for this example
+      inter_agent_communication:
+        allow_list: ["S3BasicAgent", "S3CompatibleAgent"]  # Can communicate with other S3 agents
+        request_timeout_seconds: 45

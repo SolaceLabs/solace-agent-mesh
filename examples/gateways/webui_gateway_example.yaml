@@ -1,0 +1,215 @@
+# Solace AI Connector Configuration for A2A Web UI
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG # Use DEBUG for development
+  log_file: webui_example.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  - name: webui_example_app
+    app_base_path: . # Assume running from project root where src/ is located
+    app_module: solace_agent_mesh.gateway.http_sse.app
+
+    # Broker settings for this app instance
+    broker:
+      <<: *broker_connection # Points to shared_config.yaml
+      # Queue name is generated automatically by WebUIBackendApp based on namespace/gateway_id
+
+    # --- App Level Config (Validated by WebUIBackendApp.app_schema) ---
+    app_config:
+      # --- Required ---
+      namespace: ${NAMESPACE} # Namespace for A2A communication
+      session_secret_key: "${SESSION_SECRET_KEY}" # Secret for web sessions
+
+      # # --- Development User Identity Configuration (WARNING: Only for development!) ---
+      # # Force all user identities to sam_dev_user (overrides web-client-xxxxx)
+      # force_user_identity: "sam_dev_user"
+      # # Fallback for null identities (kept for completeness)
+      # default_user_identity: "sam_dev_user"
+
+      # --- Artifact Service (Required) ---
+      artifact_service: *default_artifact_service # Points to shared_config.yaml
+      session_service:
+        type: "sql"
+        database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
+        default_behavior: "PERSISTENT"
+      # --- Optional with Defaults ---
+      model: *general_model # Optional: defaults to None - Points to shared_config.yaml
+      gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.
+      fastapi_host: ${FASTAPI_HOST, localhost} # Host for the FastAPI server
+      fastapi_port: ${FASTAPI_PORT, 8000} # Port for the FastAPI server
+      cors_allowed_origins: # List of allowed origins for CORS
+        - "http://localhost:3000" # Example: Allow local React dev server
+        - "http://127.0.0.1:3000"
+        # Add other origins as needed, or use ["*"] for wide open (less secure)
+
+      # --- Embed Resolution Config ---
+      enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution
+      gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
+      sse_max_queue_size: ${SSE_MAX_QUEUE_SIZE, 200} # Max size of SSE connection queues
+
+      system_purpose: >
+            The system is an AI Chatbot with agentic capabilities.
+            It will use the agents available to provide information,
+            reasoning and general assistance for the users in this system.
+            **Always return useful artifacts and files that you create to the user.**
+            Provide a status update before each tool call.
+            Your external name is Agent Mesh.    
+
+      response_format: >
+            Responses should be clear, concise, and professionally toned. 
+            Format responses to the user in Markdown using appropriate formatting.
+
+      # --- Frontend Config Passthrough ---
+      frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE}
+      frontend_bot_name: ${FRONTEND_BOT_NAME}
+      frontend_collect_feedback: true
+      frontend_logo_url: "${WEBUI_FRONTEND_LOGO_URL}"
+
+      # # --- Speech Configuration (STT/TTS) ---
+      # # Uncomment the following sections to enable STT and TTS in the UI
+      # speech:
+      #   # stt:
+      #   #   provider: openai
+      #   #   url: "https://api.openai.com/v1/audio/transcriptions"
+      #   #   api_key: "${OPENAI_API_KEY}"
+      #   #   model: "whisper-1"
+      #   stt:
+      #     provider: azure
+      #     azure:
+      #       api_key: "${AZURE_SPEECH_KEY}"
+      #       region: "${AZURE_SPEECH_REGION}"
+      #       language: en-US
+        
+      #   # Text-to-Speech Configuration
+      #   tts:
+      #     provider: ${TTS_PROVIDER, gemini}  # "gemini", "azure", or "polly" (can be overridden by UI)
+
+      #     polly:
+      #       aws_access_key_id: ${AWS_ACCESS_KEY_ID}
+      #       aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+      #       region: ${AWS_POLLY_REGION}
+      #       engine: neural  # or 'standard'
+      #       default_voice: Joanna
+          
+      #     # Azure Neural Voices Configuration (voices field defines the subset voices shown in the UI TTS settins)
+      #     azure:
+      #       api_key: "${AZURE_SPEECH_KEY}"
+      #       region: "${AZURE_SPEECH_REGION}"
+      #       default_voice: "en-US-Andrew:DragonHDLatestNeural"
+      #       voices:
+      #         # DragonHD Latest Neural Voices (Highest Quality)
+      #         - "en-US-Ava:DragonHDLatestNeural"
+      #         - "en-US-Ava3:DragonHDLatestNeural"
+      #         - "en-US-Adam:DragonHDLatestNeural"
+      #         - "en-US-Alloy:DragonHDLatestNeural"
+      #         - "en-US-Andrew:DragonHDLatestNeural"
+      #         - "en-US-Andrew2:DragonHDLatestNeural"
+      #         - "en-US-Andrew3:DragonHDLatestNeural"
+      #         - "en-US-Aria:DragonHDLatestNeural"
+      #         - "en-US-Brian:DragonHDLatestNeural"
+      #         - "en-US-Davis:DragonHDLatestNeural"
+      #         - "en-US-Emma:DragonHDLatestNeural"
+      #         - "en-US-Emma2:DragonHDLatestNeural"
+      #         - "en-US-Jenny:DragonHDLatestNeural"
+      #         - "en-US-MultiTalker-Ava-Andrew:DragonHDLatestNeural"
+      #         - "en-US-Nova:DragonHDLatestNeural"
+      #         - "en-US-Phoebe:DragonHDLatestNeural"
+      #         - "en-US-Serena:DragonHDLatestNeural"
+      #         - "en-US-Steffan:DragonHDLatestNeural"
+      #         # Standard Neural Voices
+      #         - "en-US-JennyNeural"
+      #         - "en-US-GuyNeural"
+      #         - "en-US-AriaNeural"
+      #         - "en-US-DavisNeural"
+      #         - "en-US-JaneNeural"
+      #         - "en-US-JasonNeural"
+      #         - "en-US-NancyNeural"
+      #         - "en-US-TonyNeural"
+      #         - "en-GB-LibbyNeural"
+      #         - "en-GB-RyanNeural"
+      #         - "en-GB-SoniaNeural"
+      #         - "en-AU-NatashaNeural"
+      #         - "en-AU-WilliamNeural"
+          
+      #     # Google Gemini Configuration (voices field defines the subset voices shown in the UI TTS settins)
+      #     gemini:
+      #       api_key: "${GEMINI_API_KEY}"
+      #       model: "gemini-2.5-flash-preview-tts"
+      #       default_voice: "Kore"
+      #       language: "en-US"
+      #       voices:
+      #       - "Kore"
+      #       - "Puck"
+      #       - "Zephyr"
+      #       - "Charon"
+      #       - "Fenrir"
+      #       - "Leda"
+      #       - "Aoede"
+      #       - "Callirhoe"
+      #       - "Umbriel"
+      #       - "Enceladus"
+      #       - "Iapetus"
+      #       - "Erinome"
+      #       - "Algieba"
+      #       - "Despina"
+      #       - "Algenib"
+      #       - "Achernar"
+      #       - "Schedar"
+      #       - "Gacrux"
+      #       - "Pulcherrima"
+      #       - "Achird"
+      #       - "Zubenelgenubi"
+      #       - "Vindemiatrix"
+      #       - "Sadachbia"
+      #       - "Sadaltager"
+      #       - "Sulafat"
+      #       - "Autonoe"
+      #       - "Laomedeia"
+      #       - "Orus"
+      #       - "Rasalgethi"
+      #       - "Alnilam"
+        
+      #   # Frontend Speech Tab Default Settings (optional)
+      #   speechTab:
+      #     advancedMode: false
+      #     speechToText:
+      #       speechToText: true
+      #       engineSTT: "external"  # Use external for better quality
+      #       languageSTT: "en-US"
+      #     textToSpeech:
+      #       textToSpeech: true
+      #       engineTTS: "external"  # Use external for better quality
+      #       voice: "Kore"
+      #       playbackRate: 1.0
+      #       cacheTTS: true
+
+      task_logging:
+        enabled: true
+        log_status_updates: true
+        log_artifact_events: true
+        log_file_parts: true
+        max_file_part_size_bytes: 10240
+
+      feedback_publishing:
+        enabled: true
+        topic: "${NAMESPACE}/sam/feedback/v1"
+        include_task_info: "stim" # Options: "none", "summary", "stim"
+        max_payload_size_bytes: 9000000 # 9MB default, safety margin below 10MB broker limit
+
+      # --- Background Tasks Configuration ---
+      background_tasks:
+        enabled: ${BACKGROUND_TASKS_ENABLED, true}  # Enable background task execution for all tasks
+        default_timeout_ms: ${BACKGROUND_TASKS_TIMEOUT_MS, 3600000}  # 1 hour default timeout
+
+      # --- Data Retention Configuration ---
+      # Automatically cleans up old tasks, task events, and feedback to prevent unbounded database growth
+      # data_retention:
+      #   enabled: true                    # Enable/disable automatic cleanup (default: true)
+      #   task_retention_days: 90          # Days to retain task records (default: 90, minimum: 7)
+      #   feedback_retention_days: 90      # Days to retain feedback records (default: 90, minimum: 7)
+      #   cleanup_interval_hours: 24       # How often cleanup runs (default: 24, minimum: 1)
+      #   batch_size: 1000                 # Records deleted per transaction (default: 1000, range: 1-10000)

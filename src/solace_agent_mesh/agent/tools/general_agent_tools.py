@@ -2,6 +2,7 @@
 Collection of Python tools that can be configured for general purpose agents.
 """
 
+import logging
 import asyncio
 import inspect
 import json
@@ -13,7 +14,6 @@ from typing import Any, Dict, Optional, Tuple
 from playwright.async_api import async_playwright
 
 from google.adk.tools import ToolContext
-from solace_ai_connector.common.log import log
 
 from markitdown import MarkItDown, UnsupportedFormatException
 from mermaid_cli import render_mermaid
@@ -30,6 +30,7 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
+log = logging.getLogger(__name__)
 
 def _simple_truncate_text(text: str, max_bytes: int = 2048) -> Tuple[str, bool]:
     """Truncates text to a maximum number of bytes for preview."""

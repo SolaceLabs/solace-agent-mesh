@@ -1,0 +1,723 @@
+# Agent Configuration File: A2A ADK Agents Configurations
+#
+# This file has the configuration for the A2A ADK agents.
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: a2a_atlassian_sse.log
+
+# Shared SAM config
+!include shared_config.yaml
+
+apps:
+# --- Canva MCP Agent ---
+  - name: Canva_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+  
+    # --- App Level Config ---
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "CanvaAgent"
+      model: *general_model
+      instruction: |
+        An agent that handles canva operations. Use the tools to interact with canva. Don't make up information.
+        If you don't know the answer, just say that you don't know. Do not try to make up an answer.
+        Do NOT use parallel tool calls.
+      
+      # --- Tools Definition (including MCP) ---
+      tools:
+        - tool_type: mcp
+          connection_params:
+            type: streamable-http
+            url: "https://mcp.canva.com/mcp"
+          auth:
+            type: oauth2
+          manifest:
+            - name: upload-asset-from-url
+              id: upload-asset-from-url
+              title: Upload Asset From URL
+              description: |
+                Upload an asset (e.g. an image, a video) from a URL into Canva
+                If the API call returns "Missing scopes: [asset:write]", you should ask the user to disconnect and reconnect their connector. This will generate a new access token with the required scope for this tool.
+              inputSchema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                    description: URL of the asset to upload into Canva
+                  name:
+                    type: string
+                    description: Name for the uploaded asset
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - url
+                  - name
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: search-designs
+              id: search-designs
+              title: Search Designs
+              description: Search docs, presentations, videos, whiteboards, sheets, and other designs in Canva. Use 'query' parameter to search by title or content. If 'query' is used, 'sortBy' must be set to 'relevance'. Filter by 'any' ownership unless specified. Sort by relevance unless specified. Use the continuation token to get the next page of results, if needed.
+              inputSchema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                    description: Optional search term to filter designs by title or content. If it is used, 'sortBy' must be set to 'relevance'.
+                  ownership:
+                    type: string
+                    enum:
+                      - any
+                      - owned
+                      - shared
+                    description: 'Filter designs by ownership: ''any'' for all designs owned by and shared with you (default), ''owned'' for designs you created, ''shared'' for designs shared with you'
+                  sort_by:
+                    type: string
+                    enum:
+                      - relevance
+                      - modified_descending
+                      - modified_ascending
+                      - title_descending
+                      - title_ascending
+                    description: 'Sort results by: ''relevance'' (default), ''modified_descending'' (newest first), ''modified_ascending'' (oldest first), ''title_descending'' (Z-A), ''title_ascending'' (A-Z). Optional sort order for results. If ''query'' is used, ''sortBy'' must be set to ''relevance''.'
+                  continuation:
+                    type: string
+                    description: Token for getting the next page of results. Use the continuation token from the previous response.
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: get-design
+              id: get-design
+              title: Get Design Information
+              description: Get detailed information about a Canva design, such as a doc, presentation, whiteboard, video, or sheet. This includes design owner information, title, URLs for editing and viewing, thumbnail, created/updated time, and page count. This tool doesn't work on folders or images. You must provide the design ID, which you can find by using the `search-designs` or `list-folder-items` tools.
+              inputSchema:
+                type: object
+                properties:
+                  design_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    description: ID of the design to get information for
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - design_id
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: get-design-pages
+              id: get-design-pages
+              title: Get Design Pages
+              description: Get a list of pages in a Canva design, such as a presentation. Each page includes its index and thumbnail. This tool doesn't work on designs that don't have pages (e.g. Canva docs). You must provide the design ID, which you can find using tools like `search-designs` or `list-folder-items`. You can use 'offset' and 'limit' to paginate through the pages. Use `get-design` to find out the total number of pages, if needed.
+              inputSchema:
+                type: object
+                properties:
+                  design_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    description: The design ID to get pages from
+                  offset:
+                    type: integer
+                    minimum: 0
+                    description: Number of pages to skip (for pagination)
+                  limit:
+                    type: integer
+                    minimum: 1
+                    maximum: 100
+                    description: Maximum number of pages to return (for pagination)
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - design_id
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: get-design-content
+              id: get-design-content
+              title: Get Design Text Content
+              description: 'Get the text content of a doc, presentation, whiteboard, social media post, sheet, and other designs in Canva. Use this when you only need to read text content without making changes. IMPORTANT: If the user wants to edit, update, change, translate, or fix content, use `start-editing-transaction` instead as it shows content AND enables editing. You must provide the design ID, which you can find with the `search-designs` tool. When given a URL to a Canva design, you can extract the design ID from the URL. Do not use web search to get the content of a design as the content is not accessible to the public. Example URL: https://www.canva.com/design/{design_id}.'
+              inputSchema:
+                type: object
+                properties:
+                  design_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    description: ID of the design to get content of
+                  content_types:
+                    type: array
+                    items:
+                      type: string
+                      enum:
+                        - richtexts
+                    minItems: 1
+                    description: Types of content to retrieve. Currently, only `richtexts` is supported so use the `start-editing-transaction` tool to get other content types
+                  pages:
+                    type: array
+                    items:
+                      type: integer
+                      minimum: 1
+                      maximum: 500
+                    description: Optional array of page numbers to get content from. If not specified, content from all pages will be returned. Pages are indexed using one-based numbering, so the first page in a design has the index value `1`.
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - design_id
+                  - content_types
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: import-design-from-url
+              id: import-design-from-url
+              title: Import Design From URL
+              description: Import a file from a URL as a new Canva design
+              inputSchema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                    description: URL of the file to import into Canva
+                  name:
+                    type: string
+                    description: Name for the new design
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - url
+                  - name
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: export-design
+              id: export-design
+              title: Export Design
+              description: 'Export a Canva design, doc, presentation, whiteboard, videos and other Canva content types to various formats (PDF, JPG, PNG, PPTX, GIF, MP4). You should use the `get-export-formats` tool first to check which export formats are supported for the design. This tool provides a download URL for the exported file that you can share with users. Always display this download URL to users so they can access their exported content. '
+              inputSchema:
+                type: object
+                properties:
+                  design_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    description: ID of the design to export. Design ID starts with "D".
+                  format:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        enum:
+                          - pdf
+                          - png
+                          - jpg
+                          - gif
+                          - pptx
+                          - mp4
+                        description: Format to export the design as.
+                      quality:
+                        anyOf:
+                          - type: number
+                            minimum: 1
+                            maximum: 100
+                            description: 'Use for types: jpg. Image quality from 1-100'
+                          - type: string
+                            description: 'Required for types: mp4. Video quality (e.g., ''horizontal_1080p'')'
+                      pages:
+                        type: array
+                        items:
+                          type: number
+                          minimum: 1
+                        description: 'Use for types: pdf, png, jpg, gif, pptx, mp4. Page numbers to export (1-based). If not specified, all pages will be exported.'
+                      export_quality:
+                        type: string
+                        enum:
+                          - regular
+                          - pro
+                        description: 'Use for types: pdf, png, jpg, gif, pptx, mp4. Export quality (regular or pro)'
+                      size:
+                        type: string
+                        enum:
+                          - a4
+                          - a3
+                          - letter
+                          - legal
+                        description: 'Use for types: pdf. Paper size for PDF export'
+                      height:
+                        type: number
+                        minimum: 40
+                        maximum: 25000
+                        description: 'Use for types: png, jpg, gif. Height of the exported image in pixels'
+                      width:
+                        type: number
+                        minimum: 40
+                        maximum: 25000
+                        description: 'Use for types: png, jpg, gif. Width of the exported image in pixels'
+                      lossless:
+                        type: boolean
+                        description: 'Use for types: png. Whether to use lossless compression (default: true)'
+                      transparent_background:
+                        type: boolean
+                        description: 'Use for types: png. Whether to use a transparent background (default: false)'
+                      as_single_image:
+                        type: boolean
+                        description: 'Use for types: png. When true, multi-page designs are merged into a single image'
+                    required:
+                      - type
+                    additionalProperties: false
+                    description: Format options for the export
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - design_id
+                  - format
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: get-export-formats
+              id: get-export-formats
+              title: Get Export Formats
+              description: Get the available export formats for a Canva design. This tool lists the formats (PDF, JPG, PNG, PPTX, GIF, MP4) that are supported for exporting the design. Use this tool before calling `export-design` to ensure the format you want is supported.
+              inputSchema:
+                type: object
+                properties:
+                  design_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    description: ID of the design to get export formats for. Design ID starts with "D".
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - design_id
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: create-folder
+              id: create-folder
+              title: Create Folder
+              description: Create a new folder in Canva. You can create it at the root level or inside another folder.
+              inputSchema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    description: Name of the folder to create
+                  parent_folder_id:
+                    type: string
+                    description: ID of the parent folder. Use 'root' to create at the top level
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - name
+                  - parent_folder_id
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: move-item-to-folder
+              id: move-item-to-folder
+              title: Move Item To Folder
+              description: Move items (designs, folders, images) to a specified Canva folder
+              inputSchema:
+                type: object
+                properties:
+                  item_id:
+                    type: string
+                    description: ID of the item to move (design, folder, or image)
+                  to_folder_id:
+                    type: string
+                    description: ID of the destination folder. Use 'root' to move to the top level
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - item_id
+                  - to_folder_id
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: list-folder-items
+              id: list-folder-items
+              title: List Folder Items
+              description: List items in a Canva folder. An item can be a design, folder, or image. You can filter by item type and sort the results. Use the continuation token to get the next page of results if needed.
+              inputSchema:
+                type: object
+                properties:
+                  folder_id:
+                    type: string
+                    description: ID of the folder to list items from. Use 'root' to list items at the top level
+                  item_types:
+                    type: array
+                    items:
+                      type: string
+                      enum:
+                        - design
+                        - folder
+                        - image
+                    description: Filter items by type. Can be 'design', 'folder', or 'image'
+                  sort_by:
+                    type: string
+                    enum:
+                      - created_ascending
+                      - created_descending
+                      - modified_ascending
+                      - modified_descending
+                      - title_ascending
+                      - title_descending
+                    description: Sort the items by creation date, modification date, or title
+                  continuation:
+                    type: string
+                    description: Token for getting the next page of results. Use the continuation token from the previous response.
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - folder_id
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: comment-on-design
+              id: comment-on-design
+              title: Add Comment To Design
+              description: Add a comment on a Canva design. You need to provide the design ID and the message text. The comment will be added to the design and visible to all users with access to the design.
+              inputSchema:
+                type: object
+                properties:
+                  design_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    description: ID of the design to comment on. You can find the design ID by using the `search-designs` tool.
+                  message_plaintext:
+                    type: string
+                    minLength: 1
+                    maxLength: 1000
+                    description: The text content of the comment to add
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - design_id
+                  - message_plaintext
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: list-comments
+              id: list-comments
+              title: List Design Comments
+              description: |-
+                Get a list of comments for a particular Canva design.
+
+                    Comments are discussions attached to designs that help teams collaborate. Each comment can contain
+                    replies, mentions, and can be marked as resolved or unresolved.
+
+                    You need to provide the design ID, which you can find using the `search-designs` tool.
+                    Use the continuation token to get the next page of results, if needed.
+
+                    You can filter comments by their resolution status (resolved or unresolved) using the comment_resolution parameter.
+              inputSchema:
+                type: object
+                properties:
+                  design_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    description: ID of the design to get comments for. You can find the design ID using the `search-designs` tool.
+                  limit:
+                    type: integer
+                    minimum: 1
+                    maximum: 100
+                    description: Maximum number of comments to return (1-100). Defaults to 50 if not specified.
+                  continuation:
+                    type: string
+                    description: Token for getting the next page of results. Use the continuation token from the previous response.
+                  comment_resolution:
+                    type: string
+                    enum:
+                      - resolved
+                      - unresolved
+                    description: 'Filter comments by resolution status: "resolved" or "unresolved". Defaults to "unresolved" if not specified.'
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - design_id
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: list-replies
+              id: list-replies
+              title: List Comment Replies
+              description: |-
+                Get a list of replies for a specific comment on a Canva design.
+
+                    Comments can contain multiple replies from different users. These replies help teams
+                    collaborate by allowing discussion on a specific comment.
+
+                    You need to provide the design ID and comment ID. You can find the design ID using the `search-designs` tool
+                    and the comment ID using the `list-comments` tool.
+
+                    Use the continuation token to get the next page of results, if needed.
+              inputSchema:
+                type: object
+                properties:
+                  design_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    description: ID of the design containing the comment. You can find the design ID using the `search-designs` tool.
+                  comment_id:
+                    type: string
+                    description: ID of the comment to list replies from. You can find comment IDs using the `list-comments` tool.
+                  limit:
+                    type: integer
+                    minimum: 1
+                    maximum: 100
+                    description: Maximum number of replies to return (1-100). Defaults to 50 if not specified.
+                  continuation:
+                    type: string
+                    description: Token for getting the next page of results. Use the continuation token from the previous response.
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - design_id
+                  - comment_id
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: reply-to-comment
+              id: reply-to-comment
+              title: Reply To Comment
+              description: Reply to an existing comment on a Canva design. You need to provide the design ID, comment ID, and your reply message. The reply will be added to the specified comment and visible to all users with access to the design.
+              inputSchema:
+                type: object
+                properties:
+                  design_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    description: ID of the design containing the comment. You can find the design ID by using the `search-designs` tool.
+                  comment_id:
+                    type: string
+                    description: The ID of the comment to reply to. You can find comment IDs using the `list-comments` tool.
+                  message_plaintext:
+                    type: string
+                    minLength: 1
+                    maxLength: 2048
+                    description: The text content of the reply to add
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - design_id
+                  - comment_id
+                  - message_plaintext
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: generate-design
+              id: generate-design
+              title: Generate Design with AI
+              description: |
+                Generate designs with AI.
+                Use the 'query' parameter to tell AI what you want to create.
+                The tool doesn't have context of previous requests. ALWAYS include details from previous queries for each iteration.
+                The tool provides best results with detailed context. ALWAYS look up the chat history and provide as much context as possible in the 'query' parameter.
+                Ask for more details when the tool returns this error message 'Common queries will not be generated'.
+                The generated designs are design candidates for users to select from.
+                Ask for a preferred design and use 'create-design-from-candidate' tool to add the design to users' account.
+                The IDs in the URLs are not design IDs. Do not use them to get design or design content.
+                When using the 'asset_ids' parameter, assets are inserted in the order provided. For small designs with few image slots, only supply the images the user wants. For multi-page designs like presentations, supply images in the order of the slides.
+                The tool will return a list of generated design candidates, including a candidate ID, preview thumbnail and url.
+                Before editing, exporting, or resizing a generated design, follow these steps:
+                1. call 'create-design-from-candidate' tool with 'job_id' and 'candidate_id' of the selected design
+                2. call other tools with 'design_id' in the response
+
+                For presentations, Format the query string with these sections in order (use the headers exactly):
+                1. **Presentation Brief**
+                  Include:
+
+                * **Title** (working title for the deck)
+                * **Topic / Scope** (1–2 lines; include definitions if terms are uncommon)
+                * **Key Messages** (3–5 crisp takeaways)
+                * **Constraints & Assumptions** (timebox, brand, data limits, languages, etc.)
+                * **Style Guide** (tone, color palette, typography hints, imagery style)
+
+                2. **Narrative Arc**
+                  A one-paragraph outline of the story flow (e.g., Hook → Problem → Insight → Solution → Proof → Plan → CTA). Keep transitions explicit.
+
+                3. **Slide Plan**
+                  Provide numbered slides with **EXACT titles** and detailed content. For each slide, include all of the following subsections in this order (use the labels exactly):
+
+                  * **Slide {N} — "{Exact Title}"**
+                  * **Goal:** one sentence describing the purpose of the slide.
+                  * **Bullets (3–6):** short, parallel phrasing; facts, examples, or specifics (avoid vague verbs).
+                  * **Visuals:** explicit recommendation (e.g., "Clustered bar chart of X by Y (2022–2025)", "Swimlane diagram", "2×2 matrix", "Full-bleed photo of <subject>").
+                  * **Data/Inputs:** concrete values, sources, or placeholders to be filled (if unknown, propose realistic ranges or example figures).
+                  * **Speaker Notes (2–4 sentences):** narrative details, definitions, and transitions.
+                  * **Asset Hint (optional):** reference to an asset by descriptive name or index if assets exist (e.g., "Use Asset #3: 'logo_dark.svg' as corner mark").
+                  * **Transition:** one sentence that logically leads into the next slide.
+
+                > Ensure the Slide Plan forms a **cohesive story** (each slide's Goal and Transition should support the Narrative Arc).
+
+                **Quality checklist (the model must self-check before finalizing)**
+
+                * Titles are unique, concise (≤ 65 characters), and action-or insight-oriented.
+                * Each slide has 3–6 bullets; no paragraph walls; numbers are specific where possible.
+                * Visuals are concrete (chart/diagram names + variables/timeframes); tables are used only when necessary.
+                * Terminology is defined once and used consistently; acronyms expanded on first use.
+                * Transitions form an intelligible narrative; the story arc is obvious from titles alone.
+                * No placeholders like "[TBD]" or "[insert]". If data is unknown, propose realistic figures and label as "example values".
+                * All required headers and subsections are present, in the exact order above.
+              inputSchema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                    minLength: 1
+                    description: Query describing the design to generate. Ask for more details to avoid errors like 'Common queries will not be generated'.
+                  design_type:
+                    type: string
+                    enum:
+                      - business_card
+                      - card
+                      - desktop_wallpaper
+                      - document
+                      - facebook_cover
+                      - facebook_post
+                      - flyer
+                      - infographic
+                      - instagram_post
+                      - invitation
+                      - logo
+                      - phone_wallpaper
+                      - photo_collage
+                      - pinterest_pin
+                      - postcard
+                      - poster
+                      - presentation
+                      - proposal
+                      - report
+                      - resume
+                      - twitter_post
+                      - your_story
+                      - youtube_banner
+                      - youtube_thumbnail
+                    description: |
+                      The design type to generate.
+
+                      Options and their descriptions:
+                      - 'business_card': A [business card](https://www.canva.com/create/business-cards/); professional contact information card.
+                      - 'card': A [card](https://www.canva.com/create/cards/); for various occasions like birthdays, holidays, or thank you notes.
+                      - 'desktop_wallpaper': A desktop wallpaper; background image for computer screens.
+                      - 'document': A [document](https://www.canva.com/create/documents/); for creating professional documents.
+                      - 'facebook_cover': A [Facebook cover](https://www.canva.com/create/facebook-covers/); banner image for your Facebook profile or page.
+                      - 'facebook_post': A Facebook post; ideal for sharing content on Facebook.
+                      - 'flyer': A [flyer](https://www.canva.com/create/flyers/); single-page promotional material.
+                      - 'infographic': An [infographic](https://www.canva.com/create/infographics/); for visualizing data and information.
+                      - 'instagram_post': An [Instagram post](https://www.canva.com/create/instagram-posts/); perfect for sharing content on Instagram.
+                      - 'invitation': An invitation; for events, parties, or special occasions.
+                      - 'logo': A [logo](https://www.canva.com/create/logos/); for creating brand identity.
+                      - 'phone_wallpaper': A phone wallpaper; background image for mobile devices.
+                      - 'photo_collage': A [photo collage](https://www.canva.com/create/photo-collages/); for combining multiple photos into one design.
+                      - 'pinterest_pin': A Pinterest pin; vertical image optimized for Pinterest.
+                      - 'postcard': A [postcard](https://www.canva.com/create/postcards/); for sending greeting cards through the mail.
+                      - 'poster': A [poster](https://www.canva.com/create/posters/); large format print for events or decoration.
+                      - 'presentation': A [presentation](https://www.canva.com/presentations/); lets you create and collaborate for presenting to an audience.
+                      - 'proposal': A [proposal](https://www.canva.com/create/proposals/); for presenting business ideas or plans.
+                      - 'report': A [report](https://www.canva.com/create/reports/); for presenting data and information professionally.
+                      - 'resume': A [resume](https://www.canva.com/create/resumes/); professional document for job applications.
+                      - 'twitter_post': A Twitter post; optimized for sharing on Twitter/X.
+                      - 'your_story': A Story; vertical format for Instagram and Facebook Stories.
+                      - 'youtube_banner': A [YouTube banner](https://www.canva.com/create/youtube-banners/); channel header image for YouTube
+                      - 'youtube_thumbnail': A [YouTube thumbnail](https://www.canva.com/create/youtube-thumbnails/); eye-catching image for video previews.
+                  asset_ids:
+                    type: array
+                    items:
+                      type: string
+                    maxItems: 10
+                    description: Optional list of asset IDs to insert into the generated design. Assets are inserted in order, so provide them in the intended sequence. For presentations, order should match slide sequence.
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - query
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+            - name: create-design-from-candidate
+              id: create-design-from-candidate
+              title: Create Design From Candidate
+              description: Create a new Canva design from a generation job candidate ID. This converts an AI-generated design candidate into an editable Canva design. If successful, returns a design summary containing a design ID that can be used with the `editing_transaction_tools`. To make changes to the design, first call this tool with the candidate_id from generate-design results, then use the returned design_id with start-editing-transaction and subsequent editing tools.
+              inputSchema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    description: ID of the design generation job that created the candidate design. This is returned in the generate-design response.
+                  candidate_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    description: ID of the candidate design to convert into an editable Canva design. This is returned in the generate-design response for each design candidate.
+                  user_intent:
+                    type: string
+                    description: Mandatory description of what the user is trying to accomplish with this tool call. This should always be provided by LLM clients. Please keep it concise (255 characters or less recommended).
+                required:
+                  - job_id
+                  - candidate_id
+                additionalProperties: false
+                $schema: http://json-schema.org/draft-07/schema#
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "sql"
+        database_url: "${CANVA_DATABASE_URL, sqlite:///canva-agent.db}"
+        default_behavior: "PERSISTENT"       
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      trust_manager:
+        enabled: ${TRUST_MANAGER_ENABLED, false}  # Enable or disable the trust manager
+        card_publish_interval_seconds: 10  # Publish every 10 seconds for testing
+        card_expiration_days: 7  # 1 week for development
+        verification_mode: "permissive"  # Log warnings, don't fail during initial testing
+        clock_skew_tolerance_seconds: 300  # 5 minutes tolerance
+        enable_time_validation: true
+        # JWT Configuration (Phase 2)
+        jwt_default_ttl_seconds: 3600  # 1 hour default JWT lifetime
+        jwt_max_ttl_seconds: 86400     # 24 hours maximum JWT lifetime
+  
+      # --- Agent Card Definition ---
+      agent_card:
+        description: "An agent that handles canva operations."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"] 
+        skills: []
+  
+      # --- Discovery & Communication ---
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 60

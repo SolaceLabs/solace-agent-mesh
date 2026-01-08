@@ -1,0 +1,101 @@
+# Test Case 2: Verify that an artifact created by a peer is reported back to the calling agent.
+test_case_id: "peer_response_with_artifact_001"
+description: "Verify calling agent's tool response is enriched with metadata of artifact created by peer."
+tags: ["all", "agent", "tools", "delegation"]
+skip_intermediate_events: true
+
+test_runner_config_overrides:
+  agent_config:
+    artifact_scope: "namespace"
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "artifact_tester@example.com"
+  external_context:
+    a2a_session_id: "response_with_artifact_session"
+  prompt:
+    parts:
+      - text: "Ask TestPeerAgentB to create a financial summary and return it."
+
+llm_interactions:
+  # 1. TestAgent delegates the creation task to TestPeerAgentB
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Delegating to TestPeerAgentB."
+            tool_calls:
+              - id: "call_peer_b_to_create"
+                type: "function"
+                function:
+                  name: "peer_TestPeerAgentB"
+                  arguments: '{"task_description": "Create a financial summary as a CSV file."}'
+    expected_request:
+      tools_present: ["peer_TestPeerAgentB"]
+
+  # 2. TestPeerAgentB receives the task and uses a fenced block to create the artifact.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              «««save_artifact: filename="financial_summary.csv" mime_type="text/csv" description="Q1 Financial Summary"
+              Category,Value
+              Revenue,1000
+              »»»
+    expected_request:
+      messages_contain:
+        - role: "user"
+          content_contains: "Create a financial summary as a CSV file."
+
+  # 3. The system processes the fenced block and injects a `_notify_artifact_save` tool call.
+  #    TestPeerAgentB confirms the save.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The financial summary has been created."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_notify_artifact_save"
+          response_json_matches:
+            filename: "financial_summary.csv"
+            status: "success"
+
+  # 4. TestAgent receives the response from TestPeerAgentB. This response IS enriched
+  #    with the artifact summary by the framework.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "TestPeerAgentB has created the financial summary artifact."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0 # Matches the peer_TestPeerAgentB call
+          response_contains_artifact_summary_for:
+            - filename: "financial_summary.csv"
+              version: 0
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "response_with_artifact_session"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+
+              - "TestPeerAgentB has created the financial summary artifact."
+expected_artifacts:
+  - filename: "financial_summary.csv"
+    version: 0
+    mime_type: "text/csv"
+    content_contains: "Revenue,1000"
+    metadata_contains:
+      description: "Q1 Financial Summary"

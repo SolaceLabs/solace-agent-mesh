@@ -22,84 +22,91 @@ classifiers = [
 ]
 dependencies = [
     "google-adk==1.7.0",
-    "pydantic>=2.0",
-    "click~=8.1.7",
-    "python-dotenv>=1.0",
-    "google-genai>=1.16.0",
-    "httpx>=0.25",
-    "jwcrypto>=1.5",
-    "python-jwt>=3.3",
-    "asteval>=1.0.6",
-    "pystache>=0.6.8",
-    "pandas>=2.2.3",
-    "numpy>=2.2.5",
-    "plotly>=6.0.1",
+    "a2a-sdk[http-server]==0.3.7",
+    "pydantic==2.11.9",
+    "click==8.1.8",
+    "python-dotenv==1.1.1",
+    "google-genai==1.39.0",
+    "httpx==0.28.1",
+    "jwcrypto==1.5.6",
+    "python-jwt==4.1.0",
+    "asteval==1.0.6",
+    "pystache==0.6.8",
+    "python-liquid==2.1.0",
+    "pandas==2.3.2",
+    "numpy==2.2.6",
+    "plotly==6.3.0",
     "kaleido==0.2.1",
-    "PyYAML>=6.0",
-    "python-multipart>=0.0.7",
+    "PyYAML==6.0.2",
+    "python-multipart==0.0.20",
     "markitdown[all]==0.1.1",
-    "jmespath>=1.0.1",
-    "mermaid-cli",
-    "playwright>=1.54.0",
-    "litellm>=1.19.0",
-    "markdownify>=1.1.0",
-    "beautifulsoup4>=4.12.0",
-    "jsonpath-ng>=1.7.0",
-    "pydub>=0.25.1",
-    "asteval~=1.0.0",
-    "toml~=0.10.2",
-    "GitPython~=3.1.44",
+    "jmespath==1.0.1",
+    "mermaid_cli==0.1.2",
+    "playwright==1.55.0",
+    "litellm==1.76.3",
+    "markdownify==1.2.0",
+    "beautifulsoup4==4.13.5",
+    "jsonpath-ng==1.7.0",
+    "pydub==0.25.1",
+    "toml==0.10.2",
+    "GitPython==3.1.45",
     "Flask==3.0.3",
-    "Flask-Cors>=5.0.0",
-    "fastapi>=0.100",
-    "uvicorn[standard]>=0.20",
-    "sse-starlette>=1.6",
-    "itsdangerous>=2.0",
-    "solace-ai-connector~=1.1.8",
-    "holidays>=0.24",
-    "rouge~=1.0.1"
+    "flask-cors==6.0.1",
+    "fastapi==0.120.1",
+    "starlette==0.49.1",
+    "uvicorn[standard]==0.37.0",
+    "sse-starlette==3.0.2",
+    "itsdangerous==2.2.0",
+    "solace_ai_connector==3.1.0",
+    "holidays==0.81.0",
+    "rouge==1.0.1",
+    "SQLAlchemy==2.0.40",
+    "alembic==1.16.5",
+    "openai==1.99.9",
+    "boto3==1.40.37",
+    "psycopg2-binary==2.9.10",
+    "azure-cognitiveservices-speech==1.41.1"
 ]
 
 [project.optional-dependencies]
-database = ["sqlalchemy>=2.0"]
-gcs = ["google-cloud-storage>=2.0"]
-vertex = ["google-cloud-aiplatform>=1.38"]
-employee_tools = ["holidays>=0.24"]
-cli = [
-    "click>=8.0",
-    "prompt-toolkit>=3.0",
-    "rich>=13.0",
-]
-dev = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.20",
-    "ruff",
-]
+gcs = ["google-cloud-storage==2.19.0"]
+vertex = ["google-cloud-aiplatform==1.120.0"]
+employee_tools = ["holidays==0.81.0"]
 
 [tool.hatch.envs.hatch-test]
 parallel = false
-installer = "pip"
+installer = "uv"
 dependencies = [
-    "pytest_asyncio",
+    "solace-agent-mesh[gcs,vertex,employee_tools]",
+    "pytest-asyncio",
     "pytest>=8.0.0",
     "pytest-mock>=3.0.0",
     "pytest-cov>=4.0.0",
     "pytest-xdist>=3.5.0",
-    "pytest-httpx>=0.35.0"
-]
-extra-dependencies = [
-    "solace-agent-mesh[database,cli,gcs,vertex,employee_tools]",
+    "pytest-httpx>=0.35.0",
+    "fastmcp",
+    "httpx>=0.25",
+    "respx",
+    "ruff",
+    "testcontainers",
+    "aiosqlite",
+    "psycopg2-binary",
+    "asyncpg",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
-
-[tool.hatch.envs.hatch-test.scripts]
-run = "pytest -m \"$(bash ./tests/pytest_marker_runner.sh)\" {args}"
-run-cov = "coverage run -m pytest -m \"$(bash ./tests/pytest_marker_runner.sh)\" {args}"
-cov-combine = "coverage combine"
-cov-report = "coverage report"
+post-install-commands = [
+  "playwright install"
+]
 
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.13"]
+
+[tool.hatch.envs.hatch-test.scripts]
+run = "pytest {args}"
+run-cov = "coverage run -m pytest --cov=cli --cov=src {args}"
+cov-combine = "coverage combine"
+cov-report = "coverage report"
+
 
 [project.urls]
 Homepage = "https://github.com/SolaceLabs/solace-agent-mesh"
@@ -112,7 +119,7 @@ sam = "solace_agent_mesh.cli.main:cli"
 [tool.ruff]
 line-length = 88
 select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM"]
-ignore = ["E501"]
+ignore = ["E501", "B008"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -120,11 +127,14 @@ quote-style = "double"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "--tb=short --strict-markers --disable-warnings -p pytest_asyncio"
+addopts = "--tb=short --strict-markers --disable-warnings -p pytest_asyncio --ignore=tests/system"
+testpaths = ["tests"]
+pythonpath = [".", "src", "tests/sam-test-infrastructure/src"]
 python_files = ["test_*.py", "*_test.py", "tests.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
+    "all: marks all tests",
     "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
     "default: marks tests that are basic or foundational",
     "stress: marks tests as stress tests (long-running, resource-intensive)",
@@ -145,21 +155,53 @@ markers = [
 
     # Features
     # Markers for specific features.
+    "callbacks: marks tests related to agent callbacks",
+    "datapart: marks tests related to A2A DataPart objects",
     "delegation: marks tests related to agent delegation",
     "embeds: marks tests related to the embeds",
+    "mcp: marks tests related to mcp",
     "notification: marks tests related to notifications",
     "task_cancellation: marks tests related to task cancellation",
+    "proxy: marks tests related to the A2A proxy functionality",
+    "streaming: marks tests related to streaming messages",
+    "artifacts: marks tests related to artifact handling and services",
+    "api: marks tests related to the API",
+    "tasks: marks tests related to task management",
+    "builtin_artifact_embeds: marks tests related to the builtin_artifact_embeds",
+    "projects: marks tests related to project management",
+    "default_agent: marks tests related to default agent functionality",
+    "crud: marks tests related to CRUD operations",
+    "templates: marks tests related to template operations",
+    "pagination: marks tests related to pagination functionality",
+    "security: marks tests related to security and authorization",
+    "error: marks tests related to error handling scenarios",
+    "validation: marks tests related to input validation",
+    "prompts: marks tests related to the prompts library feature",
+    "versioning: marks tests related to version management",
+    "search: marks tests related to search and filtering functionality",
 
     # Agent Tools
     # Markers for the built-in agent tools.
     "tools: marks tests related to the agent tools",
     "audio_tools: marks tests related to the audio_tools",
+    "peer_tool: marks tests for calling peer agents",
     "builtin_artifact_tools: marks tests related to the builtin_artifact_tools",
     "builtin_data_analysis_tools: marks tests related to the builtin_data_analysis_tools",
     "general_agent_tools: marks tests related to the general_agent_tools",
     "image_tools: marks tests related to the image_tools",
     "peer_agent_tool: marks tests related to the peer_agent_tool",
-    "web_tools: marks tests related to the web_tools"
+    "web_tools: marks tests related to the web_tools",
+    "web_search: marks tests related to web search tools (Tavily, Google, Exa, Brave)",
+    "deep_research: marks tests related to deep research tool",
+    "dynamic_tools: marks tests related to the dynamic_tools",
+    "auth: marks tests associated with authentication and authorization",
+    "oauth: OAuth specific tests",
+    "error_handling: Tests related to error handling and recovery",
+    "cancellation: Tests related to task cancellation",
+    "headers: marks tests related to HTTP header handling",
+    "agent_card: marks tests related to agent card fetching and discovery",
+    "url: marks tests related to URL handling and routing",
+    "task: marks tests related to task invocation",
 ]
 
 [tool.hatch.metadata]

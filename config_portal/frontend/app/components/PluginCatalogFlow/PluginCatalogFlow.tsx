@@ -96,7 +96,7 @@ const PluginCatalogFlow: React.FC = () => {
   const [, setRegistries] = useState<RegistryViewData[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<
-    "all" | "agents" | "gateways" | "custom"
+    "all" | "agents" | "gateways" | "tools" | "custom"
   >("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -166,6 +166,7 @@ const PluginCatalogFlow: React.FC = () => {
           typeFilter === "all" ||
           (typeFilter === "agents" && pluginType === "agent") ||
           (typeFilter === "gateways" && pluginType === "gateway") ||
+          (typeFilter === "tools" && pluginType === "tool") ||
           (typeFilter === "custom" && pluginType === "custom");
 
         return matchesSearch && matchesType;
@@ -319,6 +320,7 @@ const PluginCatalogFlow: React.FC = () => {
                 <option value="all">All Types</option>
                 <option value="agents">Agents</option>
                 <option value="gateways">Gateways</option>
+                <option value="tools">Tools</option>
                 <option value="custom">Custom</option>
               </Select>
             </div>

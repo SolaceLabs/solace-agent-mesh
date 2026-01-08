@@ -1,3 +1,4 @@
+import logging
 from jwcrypto import jwk
 import uuid
 from starlette.responses import JSONResponse
@@ -10,9 +11,9 @@ import json
 import hashlib
 import httpx
 
-from solace_ai_connector.common.log import log
-
 from jwt import PyJWK, PyJWKClient
+
+log = logging.getLogger(__name__)
 
 AUTH_HEADER_PREFIX = "Bearer "
 

@@ -1,0 +1,73 @@
+# DEVELOPER GUIDE: auth
+
+## Quick Summary
+The auth directory contains React components for handling OAuth authentication callbacks. It processes authentication tokens from URL fragments and stores them in localStorage for session management.
+
+## Files Overview
+- `authCallback.tsx` - React component that extracts and stores OAuth tokens from URL hash parameters
+- `authCallbackLoader.tsx` - Entry point that renders the AuthCallback component to the DOM
+
+## Developer API Reference
+
+### authCallback.tsx
+**Purpose:** Handles OAuth callback processing by extracting access and refresh tokens from URL hash and storing them in localStorage
+**Import:** `import AuthCallback from "./auth/authCallback"`
+
+**Components:**
+- `AuthCallback()` - React functional component that processes OAuth callback
+  - Automatically extracts `access_token` and `refresh_token` from URL hash on mount
+  - Stores tokens in localStorage
+  - Redirects to "/" on success or logs error on failure
+  - Returns loading UI while processing
+
+**Usage Examples:**
+```tsx
+import AuthCallback from "./auth/authCallback";
+
+// Use as a route component for OAuth callback endpoint
+function App() {
+  return (
+    <Routes>
+      <Route path="/auth/callback" element={<AuthCallback />} />
+    </Routes>
+  );
+}
+
+// Or render directly
+function CallbackPage() {
+  return <AuthCallback />;
+}
+```
+
+### authCallbackLoader.tsx
+**Purpose:** Standalone entry point that renders AuthCallback component to the DOM root
+**Import:** This file is typically used as a separate entry point, not imported
+
+**Functions:**
+- Creates React root and renders `AuthCallback` component
+- Expects DOM element with id "root" to exist
+
+**Usage Examples:**
+```tsx
+// This file is typically used as a webpack entry point
+// webpack.config.js
+module.exports = {
+  entry: {
+    authCallback: './src/auth/authCallbackLoader.tsx'
+  }
+};
+
+// Or include as script in HTML for OAuth callback page
+// <script src="/dist/authCallbackLoader.js"></script>
+```
+
+**Expected URL Format:**
+```
+https://yourapp.com/auth/callback#access_token=abc123&refresh_token=def456
+```
+
+**localStorage Keys Set:**
+- `access_token: string` - OAuth access token for API authentication
+- `refresh_token: string` - OAuth refresh token for token renewal (optional)
+
+# content_hash: 7e137a80ac9265260bf5a0fb6f93d874ead97441e07df645c6f9cf85640ca7df

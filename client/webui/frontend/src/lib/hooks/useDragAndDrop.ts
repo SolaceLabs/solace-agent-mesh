@@ -18,11 +18,7 @@ interface UseDragAndDropResult {
 /**
  * Custom hook for handling file drag and drop functionality
  */
-export const useDragAndDrop = ({
-    onFilesDropped,
-    fileFilter,
-    disabled = false,
-}: UseDragAndDropOptions): UseDragAndDropResult => {
+export const useDragAndDrop = ({ onFilesDropped, fileFilter, disabled = false }: UseDragAndDropOptions): UseDragAndDropResult => {
     const [isDragging, setIsDragging] = useState<boolean>(false);
     const dragCounter = useRef<number>(0);
 

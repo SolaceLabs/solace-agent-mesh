@@ -1,0 +1,30 @@
+test_case_id: "artifact_inline_empty_file_001"
+description: "Tests that an empty inline file is gracefully ignored by the gateway."
+tags: ["all", "common", "gateway"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "empty_file_user@test.com"
+  a2a_parts:
+    - type: "text"
+      text: "This message has an empty file attached."
+    - type: "file"
+      name: "empty.dat"
+      bytes_base64: "" # Empty content
+
+llm_interactions:
+  - expected_request:
+      prompt_not_contains:
+        - "The user has provided the following file"
+        - "Metadata for artifact"
+      prompt_contains:
+        - "This message has an empty file attached."
+    static_response:
+      choices: [{message: {role: "assistant", content: "I see the text, but no file."}}]
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_contains: "no file"

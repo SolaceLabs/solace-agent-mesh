@@ -29,7 +29,10 @@ apps:
           group_name: "artifact_management"
         - tool_type: builtin
           tool_name: "convert_file_to_markdown"
-      session_service: *default_session_service
+      session_service:
+        type: "${PERSISTENCE_TYPE, sql}"
+        database_url: "${AGENT_MARKITDOWN_DATABASE_URL, sqlite:///markitdown-agent.db}"
+        default_behavior: "PERSISTENT"
       artifact_service: *default_artifact_service
       artifact_handling_mode: "reference"
       enable_embed_resolution: true
@@ -39,9 +42,12 @@ apps:
         defaultInputModes: ["text", "file"]
         defaultOutputModes: ["text", "file"]
         skills:
-        - id: "convert_file_to_markdown"
-          name: "Markdown Converter"
-          description: "Converts various file types to Markdown format."
+        - id: "document_conversion"
+          name: Document Conversion
+          description: Converts various file formats (PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP) into clean, readable Markdown format for easier processing and analysis.
+        - id: "content_extraction"
+          name: Content Extraction
+          description: Analyzes and extracts specific information from documents based on natural language instructions, transforming raw content into structured, useful data.
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
       inter_agent_communication:

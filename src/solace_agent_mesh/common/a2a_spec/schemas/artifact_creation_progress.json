@@ -1,0 +1,48 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "ArtifactCreationProgressData",
+    "description": "Schema for the data part of an artifact creation progress signal.",
+    "type": "object",
+    "properties": {
+        "type": {
+            "type": "string",
+            "const": "artifact_creation_progress",
+            "description": "The constant type for this data part."
+        },
+        "filename": {
+            "type": "string",
+            "description": "The name of the artifact being created."
+        },
+        "description": {
+            "type": "string",
+            "description": "An optional description of the artifact being created."
+        },
+        "status": {
+            "type": "string",
+            "enum": ["in-progress", "completed", "failed"],
+            "description": "The status of the artifact creation."
+        },
+        "bytes_transferred": {
+            "type": "integer",
+            "description": "The number of bytes transferred so far."
+        },
+        "artifact_chunk": {
+            "type": "string",
+            "description": "The chunk of artifact data that was transferred in this progress update. Only present for 'in-progress' status."
+        },
+        "mime_type": {
+            "type": "string",
+            "description": "The MIME type of the artifact. Only present for 'completed' status."
+        },
+        "version": {
+            "type": "integer",
+            "description": "The version number of the artifact being created or updated."
+        }
+    },
+    "required": [
+        "type",
+        "filename",
+        "status",
+        "bytes_transferred"
+    ]
+}

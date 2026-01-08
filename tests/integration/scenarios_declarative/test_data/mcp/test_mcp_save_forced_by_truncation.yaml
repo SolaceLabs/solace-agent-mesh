@@ -1,0 +1,87 @@
+test_case_id: "mcp_save_forced_by_truncation_001"
+description: "Verifies a response is saved as an artifact when it exceeds the LLM
+  return limit, even if it's below the save threshold."
+tags: ["all", "agent", "mcp"]
+skip_intermediate_events: true
+
+test_runner_config_overrides:
+  agent_config:
+    # Set a large save threshold so the response doesn't trigger it directly.
+    mcp_tool_response_save_threshold_bytes: 5000
+    # Set a small LLM return limit to trigger truncation, which should force saving.
+    mcp_tool_llm_return_max_bytes: 100
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "mcp_llm_formatter@example.com"
+  parts:
+    - type: "text"
+      text: "Get a response that should be truncated and therefore saved."
+  external_context:
+    a2a_session_id: "session_mcp_save_forced_by_truncation_001"
+
+llm_interactions:
+  # 1. LLM calls the MCP tool
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mcp_tool_123"
+                type: "function"
+                function:
+                  name: "get_data_stdio"
+                  # This response is > 100 bytes but < 5000 bytes.
+                  arguments: '{"response_to_return": {"content": [{"type": "text",
+                    "text": "This is a moderately long text response that is specifically
+                    designed to be larger than the LLM return limit but smaller than
+                    the artifact save threshold."}]}}'
+
+  # 2. LLM gets the truncated tool response and generates the final answer
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_data_stdio"
+          response_json_matches:
+            status: "processed_saved_and_truncated"
+            message_to_llm_matches_regex: "The response from tool 'get_data_stdio'
+              was too large .* for direct display and has been truncated. The full
+              response has been saved as artifact 'get_data_stdio_text_0_.*\\.txt'
+              \\(version 0\\)\\."
+            # The output should be a truncated string preview
+            mcp_tool_output:
+              type: "truncated_json_string"
+              content: '{"content": [{"type": "text", "text": "This is a moderate...
+                [Response truncated due to size limit.]'
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have retrieved the data. It was too long to display fully,
+              but I have saved the complete version as an artifact."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_mcp_save_forced_by_truncation_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have retrieved the data. It was too long to display fully,
+              but I have saved the complete version as an artifact."
+    # Assert that the artifact was created with the FULL content
+    assert_artifact_state:
+      - filename_matches_regex: "get_data_stdio_text_0_.*\\.txt$"
+        version: 0
+        expected_content_text: "This is a moderately long text response that is specifically
+          designed to be larger than the LLM return limit but smaller than the artifact
+          save threshold."
+        expected_metadata_contains:
+          source_tool_name: "get_data_stdio"
+          content_type: "text"
+          detected_format: "plain"

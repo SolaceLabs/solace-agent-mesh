@@ -1,0 +1,331 @@
+# Agent Configuration File: Complete Multi-Modal Agent Configuration
+#
+# This file contains the configuration for a comprehensive multi-modal agent with all capabilities:
+# - Text-to-Speech (single voice and multi-speaker)
+# - Image Generation (from text descriptions)
+# - Image Description/Analysis (vision AI)
+# - Audio Description/Analysis (audio AI)
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: a2a_multimodal.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  # Complete Multi-Modal Agent with All Capabilities
+  - name: multimodal_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    # --- App Level Config ---
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "MultiModalAgent"
+      display_name: "Multi-Modal Assistant"
+      model: *planning_model
+      instruction: |
+        You are a comprehensive multi-modal agent capable of processing and generating content across multiple modalities:
+        
+        **AUDIO CAPABILITIES:**
+        1. Text-to-Speech: Convert text to high-quality MP3 audio using tone-based voice selection
+        2. Multi-speaker TTS: Create conversations with different voices for each speaker
+        3. Audio Transcription: Convert audio recordings to text using advanced speech recognition
+        
+        **VISUAL CAPABILITIES:**
+        4. Image Generation: Create images from text descriptions using OpenAI-compatible APIs
+        5. Image Analysis: Describe and analyze images, answer questions about visual content
+        
+        **USAGE GUIDELINES:**
+        
+        For Text-to-Speech:
+        - Use tone-based voice selection (friendly, professional, warm, etc.)
+        - For single-voice TTS, specify a tone and I'll select an appropriate voice
+        - For multi-speaker TTS, format conversations with speaker labels like "Speaker1: Hello\nSpeaker2: Hi there"
+        - Save generated audio as artifacts for users
+        
+        For Image Generation:
+        - Provide detailed, descriptive prompts for best results
+        - Specify style, mood, composition, and other visual elements
+        - Images are saved as PNG artifacts
+        
+        For Image Analysis:
+        - Reference images by artifact filename and version (e.g., "photo.jpg:2") or just filename ("photo.jpg")
+        - Ask specific questions about visual content for targeted analysis
+        - Use custom prompts like "What safety hazards do you see?" or "Count the people"
+        
+        For Audio Transcription:
+        - Reference audio files by artifact filename and version (e.g., "meeting.wav:1") or just filename ("meeting.wav")
+        - Converts speech to text using advanced speech recognition
+        - Supports WAV and MP3 formats
+        - Returns accurate transcriptions for meetings, interviews, recordings, etc.
+        
+        Available tones for voice selection: bright, upbeat, informative, firm, excitable, youthful, breezy,
+        easy-going, breathy, clear, smooth, gravelly, soft, even, mature, forward, friendly, casual, gentle,
+        lively, knowledgeable, warm, professional, business, cheerful, energetic, calm, serious, educational,
+        conversational, natural, welcoming.
+
+      # --- Tools Definition ---
+      tools:
+        # Single-voice text-to-speech tool
+        - tool_type: builtin
+          tool_name: "text_to_speech"
+          tool_config:
+            gemini_api_key: ${GEMINI_API_KEY}
+            model: "gemini-2.5-flash-preview-tts"
+            voice_name: "Kore"  # Default voice
+            language: "en-US"   # Default language
+            output_format: "mp3"
+            # Voice selection by tone mapping
+            voice_tone_mapping:
+              bright: ["Zephyr", "Autonoe"]
+              upbeat: ["Puck", "Laomedeia"]
+              informative: ["Charon", "Rasalgethi"]
+              firm: ["Kore", "Orus", "Alnilam"]
+              excitable: ["Fenrir"]
+              youthful: ["Leda"]
+              breezy: ["Aoede"]
+              easy-going: ["Callirhoe", "Umbriel"]
+              breathy: ["Enceladus"]
+              clear: ["Iapetus", "Erinome"]
+              smooth: ["Algieba", "Despina"]
+              gravelly: ["Algenib"]
+              soft: ["Achernar"]
+              even: ["Schedar"]
+              mature: ["Gacrux"]
+              forward: ["Pulcherrima"]
+              friendly: ["Achird"]
+              casual: ["Zubenelgenubi"]
+              gentle: ["Vindemiatrix"]
+              lively: ["Sadachbia"]
+              knowledgeable: ["Sadaltager"]
+              warm: ["Sulafar"]
+        # Multi-speaker text-to-speech tool
+        - tool_type: builtin
+          tool_name: "multi_speaker_text_to_speech"
+          tool_config:
+            gemini_api_key: ${GEMINI_API_KEY}
+            model: "gemini-2.5-flash-preview-tts"
+            language: "en-US"   # Default language
+            output_format: "mp3"
+            # Default speaker voice configurations
+            default_speakers:
+              - name: "Speaker1"
+                voice: "Kore"
+                tone: "firm"
+              - name: "Speaker2"
+                voice: "Puck"
+                tone: "upbeat"
+              - name: "Speaker3"
+                voice: "Charon"
+                tone: "informative"
+              - name: "Speaker4"
+                voice: "Achird"
+                tone: "friendly"
+              - name: "Speaker5"
+                voice: "Sulafar"
+                tone: "warm"
+            # Voice selection by tone mapping (shared with single-voice tool)
+            voice_tone_mapping:
+              bright: ["Zephyr", "Autonoe"]
+              upbeat: ["Puck", "Laomedeia"]
+              informative: ["Charon", "Rasalgethi"]
+              firm: ["Kore", "Orus", "Alnilam"]
+              excitable: ["Fenrir"]
+              youthful: ["Leda"]
+              breezy: ["Aoede"]
+              easy-going: ["Callirhoe", "Umbriel"]
+              breathy: ["Enceladus"]
+              clear: ["Iapetus", "Erinome"]
+              smooth: ["Algieba", "Despina"]
+              gravelly: ["Algenib"]
+              soft: ["Achernar"]
+              even: ["Schedar"]
+              mature: ["Gacrux"]
+              forward: ["Pulcherrima"]
+              friendly: ["Achird"]
+              casual: ["Zubenelgenubi"]
+              gentle: ["Vindemiatrix"]
+              lively: ["Sadachbia"]
+              knowledgeable: ["Sadaltager"]
+              warm: ["Sulafar"]
+
+        # Image generation tool
+        - tool_type: builtin
+          tool_name: "create_image_from_description"
+          tool_config:
+            <<: *image_generation_model # This is a reference to the image generation model config
+            # extra_params:
+            #   size: "1024x1024"
+            #   n: 1
+            #   quality: "standard"
+
+        # Image description tool
+        - tool_type: builtin
+          tool_name: "describe_image"
+          tool_config:
+            <<: *image_description_model
+
+        - tool_type: builtin
+          tool_name: select_voice
+
+        - tool_type: builtin
+          tool_name: concatenate_audio
+
+        # Audio description tool (commented out - doesn't work as expected with chat/completions API)
+        # - tool_type: python
+        #   component_module: src.solace_agent_mesh.agent.tools.image_tools
+        #   component_base_path: .
+        #   function_name: describe_audio
+        #   tool_name: "describe_audio"
+        #   tool_config:
+        #     <<: *image_description_model
+
+        # Audio transcription tool
+        - tool_type: builtin
+          tool_name: "transcribe_audio"
+          tool_config:
+            <<: *audio_transcription_model
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+        - tool_type: builtin
+          tool_name: time_delay
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT"
+
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      text_artifact_content_max_length: 20000
+      
+      # --- Agent Card Definition ---
+      agent_card:
+        description: "A comprehensive multi-modal agent that can generate speech and images, analyze visual and audio content using advanced AI capabilities."
+        defaultInputModes: ["text", "file"]
+        defaultOutputModes: ["text", "file", "audio"]
+        skills:
+          - id: "text_to_speech"
+            name: "Text-to-Speech"
+            description: "Converts text to high-quality MP3 audio using advanced AI voice synthesis with tone-based voice selection."
+          - id: "multi_speaker_text_to_speech"
+            name: "Multi-Speaker Text-to-Speech"
+            description: "Converts conversation text with speaker labels to MP3 audio using multiple distinct voices."
+          - id: "create_image_from_description"
+            name: "Image Generation"
+            description: "Generates high-quality images from text descriptions using OpenAI-compatible image generation APIs."
+          - id: "describe_image"
+            name: "Image Analysis"
+            description: "Analyzes and describes images using advanced vision AI, can answer specific questions about image content."
+          - id: "transcribe_audio"
+            name: "Audio Transcription"
+            description: "Converts audio recordings to text using advanced speech recognition technology. Supports WAV and MP3 formats for meetings, interviews, and other recordings."
+          - id: "select_voice"
+            name: "Select Voice"
+            description: "Selects a voice based on tone mapping for text-to-speech applications."
+          - id: "concatenate_audio"
+            name: "Concatenate Audio"
+            description: "Combines multiple audio files into a single output file, useful for creating longer audio streams or conversations."
+          
+
+      # --- Discovery & Communication ---
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 120
+
+# Image Editing Agent with Gemini 2.0 Flash
+  - name: image_editing_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    # --- App Level Config ---
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "ImageEditingAgent"
+      display_name: "Image Editor"
+      model: *planning_model
+      instruction: |
+        You are an advanced image editing agent that can modify existing images based on text descriptions using Google's Gemini 2.0 Flash Preview Image Generation model.
+        
+        **CAPABILITIES:**
+        - Edit existing images using AI-powered image generation
+        - Accept artifact references (e.g., "photo.jpg:2") as input
+        - Apply various modifications like adding objects, changing weather, adjusting style, etc.
+        - Save edited images as new artifacts with detailed metadata
+        - Select voices for text to speech based on tone mapping or other characteristics
+        - Combine multiple audio files into a single output
+        
+        **USAGE GUIDELINES:**
+        
+        For Image Editing:
+        - Reference images by filename with optional version (e.g., "sunset.jpg:1", "landscape.png:2")
+        - If no version is specified, the latest version will be used automatically
+        - Provide clear, descriptive editing instructions for best results
+        - The edited image will be saved as a new JPEG artifact
+        - You can specify a custom output filename or let the system generate one
+        
+        **EXAMPLES:**
+        - "Edit landscape.png to add a rainbow in the sky"
+        - "Take portrait.jpg:2 and change the background to a beach scene"
+        - "Modify cityscape.jpg to make it look like nighttime with city lights"
+        - "Add snow falling to winter_scene.jpg and save as snowy_winter.jpg"
+        
+        **SUPPORTED INPUT FORMATS:**
+        - PNG, JPG, JPEG, WebP, GIF
+        - All edited images are saved as high-quality JPEG files
+        
+        Always confirm successful edits by mentioning the output filename and version.
+
+      # --- Tools Definition ---
+      tools:
+        # Image editing tool using Gemini 2.0 Flash
+        - tool_type: builtin
+          tool_name: "edit_image_with_gemini"
+          tool_config:
+            gemini_api_key: ${GEMINI_API_KEY}
+            model: "gemini-2.0-flash-preview-image-generation"
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT"
+
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      text_artifact_content_max_length: 20000
+      
+      # --- Agent Card Definition ---
+      agent_card:
+        description: "An AI agent that edits existing images based on text prompts using Google's Gemini 2.0 Flash image generation technology."
+        defaultInputModes: ["text", "file"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: "edit_image_with_gemini"
+            name: "Image Editing"
+            description: "Edits existing images based on text descriptions using Google's Gemini 2.0 Flash image generation model. Supports various modifications like adding objects, changing weather, adjusting style, and more."
+
+      # --- Discovery & Communication ---
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 120

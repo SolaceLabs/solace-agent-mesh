@@ -1,6 +1,6 @@
 test_case_id: "auto_continue_max_calls_limit_001"
 description: "Tests that auto-continue is prevented by max_llm_calls_per_task limit."
-tags: ["core_a2a"]
+tags: ["all","core_a2a"]
 skip_intermediate_events: true
 
 # This block will now be applied by the test runner via monkeypatching.

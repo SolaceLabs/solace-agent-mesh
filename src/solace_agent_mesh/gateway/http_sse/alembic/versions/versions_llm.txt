@@ -1,0 +1,161 @@
+# DEVELOPER GUIDE: versions
+
+## Quick Summary
+This directory contains Alembic database migration files for the HTTP SSE gateway. These migrations handle the evolution of the database schema, including initial table creation, performance optimization through indexing, timestamp format standardization, and task management features.
+
+## Files Overview
+- `20250910_d5b3f8f2e9a0_create_initial_database.py` - Creates the initial database schema with sessions and chat_messages tables
+- `20250911_b1c2d3e4f5g6_add_database_indexes.py` - Adds performance indexes for common query patterns
+- `20250916_f6e7d8c9b0a1_convert_timestamps_to_epoch_and_align_columns.py` - Converts datetime columns to epoch milliseconds and standardizes column names
+- `20251006_98882922fa59_add_tasks_events_feedback_chat_tasks.py` - Adds task management tables and replaces chat_messages with chat_tasks
+- `20251015_add_session_performance_indexes.py` - Adds optimized composite indexes for better query performance
+- `versions_llm.txt` - LLM-generated documentation for the versions directory
+
+## Developer API Reference
+
+### 20250910_d5b3f8f2e9a0_create_initial_database.py
+**Purpose:** Initial database migration that creates the core tables for session and message management
+**Import:** This is an Alembic migration file - not directly imported
+
+**Functions:**
+- `upgrade() -> None` - Creates sessions and chat_messages tables with proper relationships and foreign key constraints
+- `downgrade() -> None` - Drops all created tables (chat_messages first, then sessions)
+
+**Constants/Variables:**
+- `revision: str` - Migration identifier "d5b3f8f2e9a0"
+- `down_revision: Union[str, None]` - Previous migration (None for initial migration)
+- `branch_labels: Union[str, Sequence[str], None]` - Branch labels (None)
+- `depends_on: Union[str, Sequence[str], None]` - Dependencies (None)
+
+**Usage Examples:**
+```bash
+# Run this migration
+alembic upgrade d5b3f8f2e9a0
+
+# Rollback this migration
+alembic downgrade base
+```
+
+### 20250911_b1c2d3e4f5g6_add_database_indexes.py
+**Purpose:** Performance optimization migration that adds indexes for efficient querying
+**Import:** This is an Alembic migration file - not directly imported
+
+**Functions:**
+- `upgrade() -> None` - Creates indexes on user_id, timestamps, agent_id, and composite fields for optimal query performance
+- `downgrade() -> None` - Removes all created indexes in reverse order
+
+**Constants/Variables:**
+- `revision: str` - Migration identifier "b1c2d3e4f5g6"
+- `down_revision: Union[str, None]` - Previous migration "d5b3f8f2e9a0"
+
+**Usage Examples:**
+```bash
+# Run this migration
+alembic upgrade b1c2d3e4f5g6
+
+# Rollback this migration
+alembic downgrade d5b3f8f2e9a0
+```
+
+### 20250916_f6e7d8c9b0a1_convert_timestamps_to_epoch_and_align_columns.py
+**Purpose:** Schema modernization migration that converts datetime columns to epoch milliseconds for cross-platform compatibility
+**Import:** This is an Alembic migration file - not directly imported
+
+**Functions:**
+- `upgrade() -> None` - Converts datetime columns to epoch milliseconds and renames columns (created_at → created_time, updated_at → updated_time)
+- `downgrade() -> None` - Reverts back to datetime columns with original names
+- `_upgrade_sqlite(current_time_ms: int) -> None` - SQLite-specific upgrade logic using table recreation
+- `_upgrade_standard_sql(current_time_ms: int) -> None` - PostgreSQL/MySQL upgrade logic using ALTER COLUMN
+- `_downgrade_sqlite() -> None` - SQLite-specific downgrade logic
+- `_downgrade_standard_sql() -> None` - PostgreSQL/MySQL downgrade logic
+- `_create_updated_indexes() -> None` - Creates indexes on new timestamp columns
+- `_create_indexes_safe(index_name: str, table_name: str, columns: list) -> None` - Safely creates indexes (ignores if exists)
+- `_drop_index_safe(index_name: str, table_name: str) -> None` - Safely drops indexes (ignores if not exists)
+
+**Constants/Variables:**
+- `revision: str` - Migration identifier "f6e7d8c9b0a1"
+- `down_revision: str | None` - Previous migration "b1c2d3e4f5g6"
+
+**Usage Examples:**
+```bash
+# Run this migration
+alembic upgrade f6e7d8c9b0a1
+
+# Rollback this migration
+alembic downgrade b1c2d3e4f5g6
+```
+
+### 20251006_98882922fa59_add_tasks_events_feedback_chat_tasks.py
+**Purpose:** Major schema update that adds task management functionality and replaces chat_messages with chat_tasks
+**Import:** This is an Alembic migration file - not directly imported
+
+**Functions:**
+- `upgrade() -> None` - Creates tasks, task_events, feedback, and chat_tasks tables; drops old chat_messages table and indexes
+- `downgrade() -> None` - Recreates chat_messages table and drops all task-related tables
+
+**Constants/Variables:**
+- `revision: str` - Migration identifier "98882922fa59"
+- `down_revision: Union[str, Sequence[str], None]` - Previous migration "f6e7d8c9b0a1"
+
+**Usage Examples:**
+```bash
+# Run this migration
+alembic upgrade 98882922fa59
+
+# Rollback this migration
+alembic downgrade f6e7d8c9b0a1
+```
+
+### 20251015_add_session_performance_indexes.py
+**Purpose:** Performance optimization migration that adds composite indexes for optimal query patterns
+**Import:** This is an Alembic migration file - not directly imported
+
+**Functions:**
+- `upgrade() -> None` - Creates optimized composite indexes for user sessions, chat tasks, and task events; removes unused text index
+- `downgrade() -> None` - Removes performance indexes and recreates the original text index
+
+**Constants/Variables:**
+- `revision: str` - Migration identifier "20251015_session_idx"
+- `down_revision: str | Sequence[str] | None` - Previous migration "98882922fa59"
+
+**Usage Examples:**
+```bash
+# Run this migration
+alembic upgrade 20251015_session_idx
+
+# Rollback this migration
+alembic downgrade 98882922fa59
+
+# Run all migrations to latest
+alembic upgrade head
+
+# Check current migration status
+alembic current
+
+# View migration history
+alembic history
+
+# Generate new migration
+alembic revision --autogenerate -m "description"
+```
+
+**Final Database Schema After All Migrations:**
+```sql
+-- Core tables with epoch millisecond timestamps:
+-- sessions: id, name, user_id, agent_id, created_time, updated_time
+-- chat_tasks: id, session_id, user_id, user_message, message_bubbles, task_metadata, created_time, updated_time
+
+-- Task management tables:
+-- tasks: id, user_id, start_time, end_time, status, initial_request_text,
+--        total_input_tokens, total_output_tokens, total_cached_input_tokens, token_usage_details
+-- task_events: id, task_id, user_id, created_time, topic, direction, payload
+-- feedback: id, session_id, task_id, user_id, rating, comment, created_time
+
+-- Performance indexes:
+-- ix_sessions_user_id, ix_sessions_user_updated
+-- ix_chat_tasks_session_user_created
+-- ix_tasks_user_start_time, ix_task_events_task_created
+-- ix_feedback_task_id, ix_feedback_user_id, ix_feedback_created_time
+```
+
+# content_hash: c1d3d7f6855eba76bdabdb5cc0c7253756faf1583ef349dc503418c611a23bd2

@@ -21,7 +21,9 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "pydantic",
-    "starlette"
+    "starlette",
+    "fastmcp",
+    "pytest-httpx",
 ]
 
 [tool.hatch.build.targets.wheel]

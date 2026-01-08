@@ -3,17 +3,15 @@ Service layer for handling A2A task submissions and cancellations.
 Uses CoreA2AService for logic and a provided function for publishing.
 """
 
+import logging
 import threading
 from typing import Callable, Dict, Optional
 
-from solace_ai_connector.common.log import log
-
-from ....common.types import (
-    InternalError,
-)
-
+from ....common import a2a
 from ....gateway.http_sse.sse_manager import SSEManager
 from ....core_a2a.service import CoreA2AService
+
+log = logging.getLogger(__name__)
 
 PublishFunc = Callable[[str, Dict, Optional[Dict]], None]
 
@@ -44,7 +42,7 @@ class TaskService:
             publish_func: A callable function (provided by WebUIBackendComponent)
                           to publish messages to the A2A messaging layer.
                           Expected signature: publish_func(topic: str, payload: Dict, user_properties: Optional[Dict])
-            namespace: The A2A namespace string.
+            namespace: The namespace string.
             gateway_id: The unique ID of this gateway instance.
             sse_manager: An instance of the SSEManager.
             task_context_map: Shared dictionary to store task context.
@@ -116,6 +114,6 @@ class TaskService:
 
         except Exception as e:
             log.exception("%sFailed to publish cancellation request: %s", log_prefix, e)
-            raise InternalError(
+            raise a2a.create_internal_error(
                 message="Failed to publish cancellation request: %s" % e
             ) from e

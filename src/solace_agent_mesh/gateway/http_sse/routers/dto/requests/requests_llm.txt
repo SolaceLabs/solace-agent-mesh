@@ -1,0 +1,133 @@
+# DEVELOPER GUIDE: requests
+
+## Quick Summary
+This directory contains request Data Transfer Objects (DTOs) for API endpoints, providing Pydantic models for session management and task operations. These DTOs handle request validation, field transformation, and type safety for incoming API requests.
+
+## Files Overview
+- `__init__.py` - Exports all request DTOs for centralized importing
+- `session_requests.py` - Defines request DTOs for session operations (get, update)
+- `task_requests.py` - Defines request DTOs for task operations (save)
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Provides centralized imports for all request DTOs
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.requests import GetSessionRequest, UpdateSessionRequest, SaveTaskRequest`
+
+**Usage Examples:**
+```python
+# Import all request DTOs
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests import (
+    GetSessionRequest,
+    UpdateSessionRequest,
+    SaveTaskRequest
+)
+```
+
+### session_requests.py
+**Purpose:** Defines Pydantic models for session-related API request validation
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.requests.session_requests import GetSessionRequest, UpdateSessionRequest`
+
+**Classes:**
+- `GetSessionRequest(session_id: SessionId, user_id: UserId)` - Request DTO for retrieving a specific session by ID
+- `UpdateSessionRequest(session_id: SessionId, user_id: UserId, name: str)` - Request DTO for updating session details with validation (name must be 1-255 characters)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests.session_requests import (
+    GetSessionRequest,
+    UpdateSessionRequest
+)
+from pydantic import ValidationError
+
+# Create a request to get a specific session
+get_session_req = GetSessionRequest(
+    session_id="session456",
+    user_id="user123"
+)
+
+# Create a request to update a session name
+update_req = UpdateSessionRequest(
+    session_id="session456",
+    user_id="user123",
+    name="My Updated Session"
+)
+
+# Validate request data from dictionary
+request_data = {
+    "session_id": "session789",
+    "user_id": "user456",
+    "name": "New Session Name"
+}
+
+try:
+    validated_request = UpdateSessionRequest(**request_data)
+    print(f"Valid request: {validated_request}")
+except ValidationError as e:
+    print(f"Validation failed: {e}")
+
+# Access validated fields
+print(f"Session ID: {update_req.session_id}")
+print(f"User ID: {update_req.user_id}")
+print(f"New name: {update_req.name}")
+```
+
+### task_requests.py
+**Purpose:** Defines Pydantic models for task-related API request validation with JSON field handling
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.requests.task_requests import SaveTaskRequest`
+
+**Classes:**
+- `SaveTaskRequest(task_id: str, user_message: Optional[str], message_bubbles: str, task_metadata: Optional[str])` - Request DTO for saving tasks with JSON validation
+  - `validate_task_id(v: str) -> str` - Validates task_id is non-empty and strips whitespace
+  - `validate_message_bubbles(v: str) -> str` - Validates message_bubbles is valid non-empty JSON array
+  - `validate_task_metadata(v: Optional[str]) -> Optional[str]` - Validates task_metadata is valid JSON if provided
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests.task_requests import SaveTaskRequest
+from pydantic import ValidationError
+import json
+
+# Create a save task request with camelCase field names (API style)
+task_data = {
+    "taskId": "task_123",
+    "userMessage": "Please analyze this data",
+    "messageBubbles": json.dumps([
+        {"type": "user", "content": "Hello"},
+        {"type": "assistant", "content": "Hi there!"}
+    ]),
+    "taskMetadata": json.dumps({"priority": "high", "category": "analysis"})
+}
+
+try:
+    save_task_req = SaveTaskRequest(**task_data)
+    print(f"Task ID: {save_task_req.task_id}")
+    print(f"User Message: {save_task_req.user_message}")
+    print(f"Message Bubbles: {save_task_req.message_bubbles}")
+    print(f"Task Metadata: {save_task_req.task_metadata}")
+except ValidationError as e:
+    print(f"Validation failed: {e}")
+
+# Create with snake_case field names (internal style)
+task_data_snake = {
+    "task_id": "task_456",
+    "user_message": "Process this request",
+    "message_bubbles": json.dumps([{"type": "system", "content": "Processing..."}]),
+    "task_metadata": None  # Optional field
+}
+
+save_task_req2 = SaveTaskRequest(**task_data_snake)
+
+# Handle validation errors
+invalid_data = {
+    "taskId": "",  # Empty task_id will fail validation
+    "messageBubbles": "invalid json"  # Invalid JSON will fail
+}
+
+try:
+    SaveTaskRequest(**invalid_data)
+except ValidationError as e:
+    print(f"Expected validation error: {e}")
+```
+
+# content_hash: 57595b5f602ab4728452316a250ef1ecdcf8dedba497c07de378959b659eccc2

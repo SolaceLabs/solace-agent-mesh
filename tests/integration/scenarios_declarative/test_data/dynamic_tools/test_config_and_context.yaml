@@ -1,0 +1,98 @@
+test_case_id: "dynamic_tool_config_and_context_001"
+description: |
+  Verifies tool_config injection, and embed resolution features including
+  early resolution, late resolution (all), and raw_string_args.
+tags: ["all", "agent", "tools", "dynamic_tools"]
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "late_resolve_source.txt"
+    content: "This is the late resolved content."
+    mime_type: "text/plain"
+
+gateway_input:
+  target_agent_name: "ConfigContextAgent"
+  user_identity: "config_context_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Run all config and context tests."
+  external_context:
+    a2a_session_id: "session_config_context_test_001"
+
+llm_interactions:
+  - step_id: "llm_calls_all_context_tools"
+    expected_request:
+      tools_present:
+        - "inspect_tool_config"
+        - "resolve_early_embed"
+        - "resolve_late_embed"
+        - "handle_raw_string"
+    static_response:
+      id: "chatcmpl-config-context-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              # Test 1: Tool Config Injection
+              - id: "call_1"
+                type: "function"
+                function:
+                  name: "inspect_tool_config"
+                  arguments: '{}'
+              # Test 2: Early Embed Resolution (default)
+              - id: "call_2"
+                type: "function"
+                function:
+                  name: "resolve_early_embed"
+                  arguments: '{"my_arg": "The answer is «math:2*21»"}'
+              # Test 3: Late Embed Resolution (artifact_content)
+              - id: "call_3"
+                type: "function"
+                function:
+                  name: "resolve_late_embed"
+                  arguments: '{"late_arg": "The file says: «artifact_content:late_resolve_source.txt»"}'
+              # Test 4: Raw String Args (skips resolution)
+              - id: "call_4"
+                type: "function"
+                function:
+                  name: "handle_raw_string"
+                  arguments: '{"raw_arg": "This should not be resolved: «math:1+1»"}'
+          finish_reason: "tool_calls"
+
+  - step_id: "llm_final_response"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            config_received:
+              provider_level: "value1"
+              tool_specific: "value2"
+        - tool_call_id_matches_prior_request_index: 1
+          response_json_matches:
+            result: "The answer is 42"
+        - tool_call_id_matches_prior_request_index: 2
+          response_json_matches:
+            result: "The file says: This is the late resolved content."
+        - tool_call_id_matches_prior_request_index: 3
+          response_json_matches:
+            result: "This should not be resolved: «math:1+1»"
+    static_response:
+      id: "chatcmpl-config-context-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "All config and context tests passed."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    status:
+      state: "completed"
+      message:
+        parts:
+          - type: "text"
+            text_exact: "All config and context tests passed."

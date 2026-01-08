@@ -1,0 +1,319 @@
+# DEVELOPER GUIDE: shared
+
+## Quick Summary
+The `shared` directory contains common utilities, constants, enums, types, and exception handling used across all layers of the HTTP SSE gateway. It provides authentication helpers, timestamp utilities, standardized exception handling, database utilities, pagination support, and response formatting for consistent API behavior.
+
+## Files Overview
+- `__init__.py` - Central exports for all shared utilities and components
+- `auth_utils.py` - Authentication utilities for FastAPI applications
+- `timestamp_utils.py` - Epoch timestamp utilities matching Java backend patterns
+- `exceptions.py` - Generic web exceptions for HTTP/REST APIs
+- `error_dto.py` - Standardized error response DTOs
+- `exception_handlers.py` - FastAPI exception handlers for consistent HTTP error responses
+- `base_repository.py` - Base repository classes with proper transaction management
+- `pagination.py` - Pagination utilities for API responses
+- `database_exceptions.py` - Database exception handling and conversion
+- `database_helpers.py` - Database utility functions and custom types
+- `response_utils.py` - Standardized response formatting utilities
+- `enums.py` - Enumerations for message types, task status, and validation errors
+- `types.py` - Custom types and type aliases for better type safety
+- `utils.py` - Generic utility functions
+
+## Developer API Reference
+
+### auth_utils.py
+**Purpose:** Provides authentication utilities for FastAPI controllers
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import get_current_user`
+
+**Functions:**
+- `get_current_user(request: FastAPIRequest) -> dict` - Extracts authenticated user from request state, returns user info or anonymous default
+
+**Usage Examples:**
+```python
+from fastapi import Depends
+from solace_agent_mesh.gateway.http_sse.shared import get_current_user
+
+@app.get("/protected")
+async def protected_endpoint(user: dict = Depends(get_current_user)):
+    return {"user_id": user["id"], "name": user["name"]}
+```
+
+### timestamp_utils.py
+**Purpose:** Provides epoch timestamp utilities for database portability and timezone handling
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import now_epoch_ms, epoch_ms_to_iso8601, iso8601_to_epoch_ms`
+
+**Functions:**
+- `now_epoch_ms() -> int` - Get current time as milliseconds since epoch
+- `epoch_ms_to_iso8601(epoch_ms: int) -> str` - Convert epoch milliseconds to ISO 8601 string
+- `iso8601_to_epoch_ms(iso8601_string: str) -> int` - Convert ISO 8601 string to epoch milliseconds
+- `datetime_to_epoch_ms(dt: datetime) -> int` - Convert datetime object to epoch milliseconds
+- `epoch_ms_to_datetime(epoch_ms: int) -> datetime` - Convert epoch milliseconds to datetime object
+- `validate_epoch_ms(epoch_ms: int | None) -> bool` - Validate that an epoch milliseconds value is reasonable
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import (
+    now_epoch_ms, epoch_ms_to_iso8601, iso8601_to_epoch_ms
+)
+
+# Get current timestamp for database storage
+created_time = now_epoch_ms()
+
+# Convert for API response
+iso_string = epoch_ms_to_iso8601(created_time)
+
+# Parse from API request
+timestamp = iso8601_to_epoch_ms("2024-01-01T00:00:00Z")
+```
+
+### exceptions.py
+**Purpose:** Generic web exceptions for HTTP/REST APIs
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import ValidationError, EntityNotFoundError, EntityAlreadyExistsError`
+
+**Classes:**
+- `WebUIBackendException(message: str, details: Optional[Dict[str, Any]] = None)` - Base exception for all web UI backend errors
+- `ValidationError(message: str, validation_details: Optional[Dict[str, List[str]]] = None, entity_type: Optional[str] = None, entity_identifier: Optional[str] = None)` - Exception for validation errors with field-level details
+- `EntityNotFoundError(entity_type: str, entity_id: str)` - Generic exception for when an entity is not found
+- `EntityAlreadyExistsError(entity_type: str, identifier: str, value: Any = None)` - Exception for when an entity already exists
+- `BusinessRuleViolationError(rule: str, message: str)` - Exception for business rule violations
+- `ConfigurationError(component: str, message: str)` - Exception for configuration-related errors
+- `DataIntegrityError(constraint: str, message: str)` - Exception for data integrity violations
+- `ExternalServiceError(service: str, message: str, status_code: Optional[int] = None)` - Exception for external service communication errors
+- `ValidationErrorBuilder()` - Builder for constructing ValidationError instances with fluent API
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import (
+    ValidationError, EntityNotFoundError, ValidationErrorBuilder
+)
+
+# Simple validation error
+raise ValidationError("Invalid input data")
+
+# Entity not found
+raise EntityNotFoundError("User", "123")
+
+# Complex validation with builder
+error = ValidationError.builder() \
+    .message("Invalid user data") \
+    .validation_detail("email", ["Invalid email format"]) \
+    .entity_type("User") \
+    .build()
+```
+
+### error_dto.py
+**Purpose:** Standardized error response DTOs for HTTP APIs
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import EventErrorDTO`
+
+**Classes:**
+- `EventErrorDTO(message: str, validationDetails: Optional[Dict[str, List[str]]] = None)` - Simplified and standardized error response format
+  - `create(message: str, validation_details: Optional[Dict[str, List[str]]] = None) -> EventErrorDTO` - Create a new EventErrorDTO
+  - `not_found(entity_type: str, entity_id: str) -> EventErrorDTO` - Create a 404 Not Found error
+  - `validation_error(message: str, validation_details: Dict[str, List[str]]) -> EventErrorDTO` - Create a validation error
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import EventErrorDTO
+
+# Simple error
+error = EventErrorDTO.create("Something went wrong")
+
+# Not found error
+error = EventErrorDTO.not_found("User", "123")
+
+# Validation error
+error = EventErrorDTO.validation_error(
+    "Invalid data",
+    {"email": ["Invalid format"], "age": ["Must be positive"]}
+)
+```
+
+### exception_handlers.py
+**Purpose:** FastAPI exception handlers for consistent HTTP error responses
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import register_exception_handlers`
+
+**Functions:**
+- `register_exception_handlers(app)` - Register all exception handlers with a FastAPI app
+- `create_error_response(status_code: int, message: str, validation_details: dict = None) -> JSONResponse` - Create standardized error response
+
+**Usage Examples:**
+```python
+from fastapi import FastAPI
+from solace_agent_mesh.gateway.http_sse.shared import register_exception_handlers
+
+app = FastAPI()
+register_exception_handlers(app)
+```
+
+### base_repository.py
+**Purpose:** Base repository classes with proper transaction management
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import BaseRepository, PaginatedRepository, ValidationMixin`
+
+**Classes:**
+- `BaseRepository(model_class: Type[ModelType], entity_class: Type[EntityType])` - Abstract base class for repositories
+  - `create(session: Session, create_data: Dict[str, Any]) -> EntityType` - Create a new entity
+  - `get_by_id(session: Session, entity_id: Any) -> EntityType` - Get entity by ID
+  - `get_all(session: Session, limit: Optional[int] = None, offset: Optional[int] = None) -> List[EntityType]` - Get all entities
+  - `update(session: Session, entity_id: Any, update_data: Dict[str, Any]) -> EntityType` - Update an entity
+  - `delete(session: Session, entity_id: Any) -> None` - Delete an entity
+- `PaginatedRepository(model_class: Type[ModelType], entity_class: Type[EntityType])` - Base repository with enhanced pagination support
+- `ValidationMixin` - Mixin for repositories that need validation logic
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import BaseRepository
+from sqlalchemy.orm import Session
+
+class UserRepository(BaseRepository[UserModel, UserEntity]):
+    @property
+    def entity_name(self) -> str:
+        return "User"
+
+# Usage
+repo = UserRepository(UserModel, UserEntity)
+user = repo.create(session, {"name": "John", "email": "john@example.com"})
+```
+
+### pagination.py
+**Purpose:** Pagination utilities for API responses
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import PaginationParams, PaginatedResponse, DataResponse`
+
+**Classes:**
+- `PaginationParams(page_number: int = 1, page_size: int = 20)` - Request parameters for pagination
+  - `offset: int` - Calculate the offset for database queries
+- `PaginatedResponse[T](data: list[T], meta: Meta)` - Generic paginated response with data and metadata
+  - `create(data: list[T], total_count: int, pagination: PaginationParams) -> PaginatedResponse[T]` - Create paginated response
+- `DataResponse[T](data: T)` - Simple data response wrapper
+  - `create(data: T) -> DataResponse[T]` - Create data response
+
+**Constants/Variables:**
+- `DEFAULT_PAGE_NUMBER: int` - Default page number (1)
+- `DEFAULT_PAGE_SIZE: int` - Default page size (20)
+- `MAX_PAGE_SIZE: int` - Maximum allowed page size (100)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import PaginationParams, PaginatedResponse
+
+# Create pagination params
+pagination = PaginationParams(page_number=1, page_size=20)
+
+# Create paginated response
+response = PaginatedResponse.create(users, total_count=100, pagination=pagination)
+```
+
+### response_utils.py
+**Purpose:** Standardized response formatting utilities
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import create_data_response, create_paginated_response, StandardResponseMixin`
+
+**Functions:**
+- `create_data_response(data: T) -> DataResponse[T]` - Create a standardized data response
+- `create_paginated_response(data: List[T], total_count: int, pagination_params: PaginationParams) -> PaginatedResponse[T]` - Create a standardized paginated response
+- `create_success_response(message: str = "Success") -> DataResponse[Dict[str, str]]` - Create a standardized success response
+- `create_list_response(items: List[T]) -> DataResponse[List[T]]` - Create a standardized list response
+
+**Classes:**
+- `StandardResponseMixin` - Mixin class to add standard response methods to services or controllers
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import create_data_response, create_paginated_response
+
+# Simple data response
+response = create_data_response({"id": 1, "name": "test"})
+
+# Paginated response
+response = create_paginated_response(users, 100, pagination_params)
+```
+
+### database_exceptions.py
+**Purpose:** Database exception handling and conversion
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import DatabaseExceptionHandler, handle_database_errors`
+
+**Classes:**
+- `DatabaseExceptionHandler` - Centralized handler for converting SQLAlchemy exceptions to domain exceptions
+  - `handle_integrity_error(e: IntegrityError, entity_type: str = "Resource") -> ValidationError` - Convert integrity constraint violations
+  - `handle_operational_error(e: OperationalError, entity_type: str = "Resource") -> DataIntegrityError` - Handle operational errors
+  - `handle_database_error(e: DatabaseError, entity_type: str = "Resource") -> DataIntegrityError` - Handle general database errors
+  - `handle_sqlalchemy_error(e: SQLAlchemyError, entity_type: str = "Resource") -> DataIntegrityError` - Handle any other SQLAlchemy errors
+
+**Functions:**
+- `handle_database_errors(entity_type: str = "Resource")` - Convenience decorator for database exception handling
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared import handle_database_errors
+
+class UserRepository:
+    @handle_database_errors("User")
+    def create_user(self, session, data):
+        # Repository method implementation
+        pass
+```
+
+### database_helpers.py
+**Purpose:** Database utility functions and custom types
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared import SimpleJSON`
+
+**Classes:**
+- `SimpleJSON(TypeDecorator)` - Simple JSON type using Text storage for all databases
+  - `process_bind_param(value, dialect)` - Convert Python object to JSON string for storage
+  - `process_result_value(value, dialect)` - Convert JSON string back to Python object
+
+**Usage Examples:**
+```python
+from sqlalchemy import Column, String
+from solace_agent_mesh.gateway.http_sse.shared import SimpleJSON
+
+class MyModel(Base):
+    id = Column(String, primary_key=True)
+    metadata = Column(SimpleJSON)  # Stores JSON as text
+```
+
+### enums.py
+**Purpose:** Enumerations used throughout the application
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, TaskStatus, MessageType`
+
+**Classes:**
+- `SenderType(str, Enum)` - Types of message senders (USER, AGENT, SYSTEM)
+- `TaskStatus(str, Enum)` - Task execution status (PENDING, RUNNING, COMPLETED, FAILED, CANCELLED)
+- `MessageType(str, Enum)` - Types of messages (TEXT, FILE, IMAGE, DOCUMENT)
+- `ValidationErrorType(str, Enum)` - Types of validation errors (REQUIRED_FIELD, INVALID_FORMAT, etc.)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, TaskStatus
+
+# Use in message handling
+if sender_type == SenderType.USER:
+    process_user_message()
+
+# Use in task management
+task.status = TaskStatus.RUNNING
+```
+
+### types.py
+**Purpose:** Custom types and type aliases for better type safety
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared.types import UserId, JsonDict, Timestamp`
+
+**Type Aliases:**
+- `UserId: str` - User identifier type
+- `SessionId: str` - Session identifier type
+- `MessageId: str` - Message identifier type
+- `TaskId: str` - Task identifier type
+- `AgentId: str` - Agent identifier type
+- `JsonDict: dict[str, Any]` - JSON dictionary type
+- `Headers: dict[str, str]` - HTTP headers type
+- `QueryParams: dict[str, str | list[str]]` - Query parameters type
+
+**Classes:**
+- `Timestamp(BaseModel)` - Standardized timestamp representation using epoch milliseconds
+  - `created_time: int` - Creation time in epoch milliseconds
+  - `updated_time: int | None` - Update time in epoch milliseconds
+- `SortInfo(BaseModel)` - Sorting information for list requests
+  - `field: str` - Field to sort by
+  - `direction: str` - Sort direction (asc or desc)
+- `FilterInfo(BaseModel)` - Filtering information for list requests
+  - `field: str` - Field to filter
+
+# content_hash: 646c6eedceab05f3b8573660906cf739cefbc0807c5b28dffe25161746299b67

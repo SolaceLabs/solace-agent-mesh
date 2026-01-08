@@ -1,0 +1,70 @@
+# Agent Configuration File: A2A ADK Agents Configurations
+#
+# This file has the configuration for the A2A ADK agents.
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG # Changed from INFO to DEBUG to capture ADK INFO logs
+  log_file: a2a_atlassian_sse.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+# --- Atlassian (Jira/Confluence) MCP Agent ---
+  - name: atlassian_mcp_agent_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+  
+    # --- App Level Config ---
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "AtlassianAgent"
+      model: *multimodal_model # Or another appropriate model from shared_config.yaml
+  
+      instruction: |
+        You can interact with Jira and Confluence using the Atlassian MCP server.
+      # --- Tools Definition (including MCP) ---
+      tools:
+        # - tool_type: mcp
+        #   connection_params:
+        #     type: stdio
+        #     command: "npx"
+        #     args:
+        #       - "-y"
+        #       - "mcp-remote"
+        #       - "https://mcp.atlassian.com/v1/sse"
+        - tool_type: mcp
+          connection_params:
+            type: sse
+            url: "https://mcp.atlassian.com/v1/sse"
+            headers:
+              Authorization: "Bearer ${ATLASSIAN_API_TOKEN}"
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT" # Or "RUN_BASED"
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+  
+      # --- Agent Card Definition ---
+      agent_card:
+        description: "An agent that interacts with Jira and Confluence via the Atlassian MCP server."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"] # Can output Jira/Confluence data
+        skills: [] # Skills could be defined based on specific Jira/Confluence actions
+  
+      # --- Discovery & Communication ---
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 60 # Increase timeout for potentially longer Atlassian API calls

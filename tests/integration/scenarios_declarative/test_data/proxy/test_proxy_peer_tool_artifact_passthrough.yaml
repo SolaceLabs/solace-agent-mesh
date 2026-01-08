@@ -1,0 +1,83 @@
+test_case_id: "proxy_peer_tool_artifact_passthrough_001"
+description: "Tests that artifacts returned from a proxied agent are correctly summarized in the tool response to the calling agent's LLM."
+tags: ["all", "proxy", "artifacts", "peer_tool"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "peer_tool_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please ask TestAgent_Proxied to generate a report and some data."
+  external_context:
+    a2a_session_id: "session_proxy_peer_tool_passthrough_001"
+
+downstream_a2a_agent_responses:
+  - id: "downstream-task-id"
+    contextId: "session_proxy_peer_tool_passthrough_001"
+    kind: "task"
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-downstream-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "I have generated the requested artifacts."
+    artifacts:
+      - artifact_id: "downstream-report-1"
+        name: "report.txt"
+        description: "The main report."
+        parts:
+          - kind: "file"
+            file:
+              name: "report.txt"
+              mime_type: "text/plain"
+              bytes: "VGhpcyBpcyB0aGUgcmVwb3J0Lg==" # "This is the report."
+      - artifact_id: "downstream-data-1"
+        name: "data.json"
+        description: "Supporting data."
+        parts:
+          - kind: "file"
+            file:
+              name: "data.json"
+              mime_type: "application/json"
+              bytes: "eyJrZXkiOiAidmFsdWUifQ==" # {"key": "value"}
+
+llm_interactions:
+  # 1. LLM decides to call the peer agent tool for the proxied agent
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_proxied_peer"
+                type: "function"
+                function:
+                  name: "peer_TestAgent_Proxied"
+                  arguments: '{"task_description": "Generate a report and some data."}'
+
+  # 2. LLM receives the result from the peer tool call and formulates a final answer.
+  #    The key assertion is that the tool response contains the artifact summary.
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "peer_TestAgent_Proxied"
+          response_contains_artifact_summary_for:
+            - filename: "report.txt"
+              version: 0
+            - filename: "data.json"
+              version: 0
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have received the artifacts from the proxied agent."
+
+expected_gateway_output:
+  - type: "status_update"
+    parts:
+      - type: "text"
+        text_contains: "I have received the artifacts from the proxied agent."
+  - type: "final_response"
+    task_state: "completed"

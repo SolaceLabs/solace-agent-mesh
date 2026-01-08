@@ -1,0 +1,25 @@
+test_case_id: "proxy_http_error_503_001"
+description: "Tests that the proxy correctly handles HTTP 503 Service Unavailable errors"
+tags: ["all", "proxy", "error_handling"]
+skip_intermediate_events: true
+
+# Configure the downstream agent to return an HTTP 503 error
+downstream_http_error:
+  status_code: 503
+  error_body:
+    error: "Service Unavailable"
+    message: "Agent is temporarily overloaded"
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "http_error_tester@example.com"
+  parts:
+    - type: "text"
+      text: "This request should receive an HTTP 503 error"
+  external_context:
+    a2a_session_id: "session_http_error_503_001"
+
+expected_gateway_output:
+  - type: "error"
+    error_code: -32603  # InternalError
+    error_message_contains: "503"

@@ -1,0 +1,1702 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'agent' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/agent/adk/adk_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/adk/adk_llm.txt`
+
+# DEVELOPER GUIDE for adk directory
+
+## Quick Summary
+The `adk` directory serves as the core integration layer between the Solace AI Connector framework and Google's Agent Development Kit (ADK). It provides the essential components for building, configuring, and running sophisticated AI agents within a Solace messaging environment.
+
+The architecture is designed for modularity and extensibility. The `setup.py` module acts as the main configuration hub, using factory functions from `services.py` to initialize pluggable services (like `FilesystemArtifactService` for artifact storage) and loading tools (Python functions, MCP tools) via the `ADKToolWrapper`.
+
+Once initialized, the `AppLlmAgent` (a custom agent class) is managed by the `runner.py` module, which handles the asynchronous task execution loop. The agent's behavior is dynamically augmented at runtime by a rich set of callbacks from `callbacks.py`. These callbacks inject dynamic instructions, manage large tool responses, log events to Solace, and handle advanced features like streaming artifact creation and auto-continuation of conversations. The `models/` subdirectory provides the concrete LLM clients, with `LiteLlm` offering broad compatibility with various model providers.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `__init__.py`: Standard Python package initializer
+  - `adk_llm.txt`: Documentation file containing developer guide content
+  - `app_llm_agent.py`: Defines a custom `LlmAgent` subclass that holds a reference to its host component
+  - `callbacks.py`: Provides a rich set of ADK callback functions for dynamic instructions, metadata injection, and Solace integration
+  - `embed_resolving_mcp_toolset.py`: Custom MCPToolset that resolves embeds in tool parameters before calling MCP tools
+  - `filesystem_artifact_service.py`: A local filesystem-based implementation of ADK's `BaseArtifactService`
+  - `intelligent_mcp_callbacks.py`: Intelligent MCP callback functions for processing and saving MCP tool responses as typed artifacts
+  - `invocation_monitor.py`: A utility for monitoring and logging agent invocations to YAML files for debugging
+  - `mcp_content_processor.py`: Intelligent processing of MCP tool responses, converting raw content into appropriately typed artifacts
+  - `runner.py`: Manages the asynchronous execution of ADK agent tasks, including cancellation support
+  - `services.py`: Contains factory functions for initializing ADK services (session, artifact, memory) based on configuration
+  - `setup.py`: Handles the high-level initialization of the ADK agent, tools, and runner
+  - `stream_parser.py`: An internal utility for parsing fenced artifact blocks from an LLM's streaming response
+  - `tool_wrapper.py`: A wrapper for Python functions to make them compatible with ADK, handling embed resolution and config injection
+- **Subdirectories:**
+  - `artifacts/`: Contains filesystem and S3-compatible artifact storage implementations
+  - `models/`: Contains concrete `BaseLlm` implementations for interfacing with various LLM providers
+
+## Developer API Reference
+
+### Direct Files
+
+#### app_llm_agent.py
+**Purpose:** A custom `LlmAgent` subclass that includes a reference to its hosting component, allowing callbacks and tools to access host-level configurations and services.
+**Import:** `from solace_agent_mesh.agent.adk.app_llm_agent import AppLlmAgent`
+
+**Classes/Functions/Constants:**
+- `AppLlmAgent(host_component: Any = None, **kwargs)`: A custom `LlmAgent` that can be linked to a host component. The `host_component` is set post-initialization and is excluded from serialization.
+
+#### callbacks.py
+**Purpose:** Provides a suite of ADK callback functions that hook into the agent's lifecycle to inject custom logic. These are typically not called directly but are assigned to the agent during setup.
+**Import:** `from solace_agent_mesh.agent.adk import callbacks`
+
+**Classes/Functions/Constants:**
+- `inject_dynamic_instructions_callback(...)`: Injects instructions into the prompt based on host configuration, active tools, and peer agents
+- `manage_large_mcp_tool_responses_callback(...)`: Intercepts large tool responses, saves them as artifacts, and returns a truncated summary to the LLM
+- `after_tool_callback_inject_metadata(...)`: After a tool creates an artifact, this loads its metadata and injects it into the tool response
+- `process_artifact_blocks_callback(...)`: Processes streaming text to identify and save fenced artifact blocks (e.g., `«««save_artifact:...»»»`)
+- `auto_continue_on_max_tokens_callback(...)`: Automatically continues a conversation if the LLM response was interrupted due to token limits
+- `notify_tool_invocation_start_callback(...)`: Sends a status update over Solace when a tool is about to be invoked
+- `solace_llm_invocation_callback(...)`: Sends a status update over Solace when the agent calls the LLM
+- `repair_history_callback(...)`: Proactively checks for and repairs dangling tool calls in conversation history
+
+#### embed_resolving_mcp_toolset.py
+**Purpose:** Custom MCPToolset that resolves embeds in tool parameters before calling MCP tools, enabling dynamic content injection.
+**Import:** `from solace_agent_mesh.agent.adk.embed_resolving_mcp_toolset import EmbedResolvingMCPToolset, EmbedResolvingMCPTool`
+
+**Classes/Functions/Constants:**
+- `EmbedResolvingMCPToolset(connection_params, tool_filter=None, auth_scheme=None, auth_credential=None, tool_config=None)`: Custom MCPToolset that creates EmbedResolvingMCPTool instances
+- `EmbedResolvingMCPTool(original_mcp_tool, tool_config=None)`: Custom MCPTool that resolves embeds in parameters before calling the actual MCP tool
+
+#### filesystem_artifact_service.py
+**Purpose:** An implementation of `BaseArtifactService` that stores artifacts on the local filesystem, organized by scope, user, and session.
+**Import:** `from solace_agent_mesh.agent.adk.filesystem_artifact_service import FilesystemArtifactService`
+
+**Classes/Functions/Constants:**
+- `FilesystemArtifactService(base_path: str)`: A service for managing artifacts on the local disk
+  - `async save_artifact(...) -> int`: Saves an artifact and returns its version number
+  - `async load_artifact(...) -> Optional[adk_types.Part]`: Loads a specific version of an artifact, or the latest if unspecified
+  - `async list_artifact_keys(...) -> List[str]`: Lists the names of all artifacts for a given user/session
+  - `async delete_artifact(...)`: Deletes an artifact and all its versions
+  - `async list_versions(...) -> List[int]`: Lists all version numbers for a specific artifact
+
+#### intelligent_mcp_callbacks.py
+**Purpose:** Intelligent MCP callback functions that use intelligent content processing to save MCP tool responses as appropriately typed artifacts.
+**Import:** `from solace_agent_mesh.agent.adk.intelligent_mcp_callbacks import save_mcp_response_as_artifact_intelligent, McpSaveResult, McpSaveStatus`
+
+**Classes/Functions/Constants:**
+- `save_mcp_response_as_artifact_intelligent(tool, tool_context, host_component, mcp_response_dict, original_tool_args) -> McpSaveResult`: Intelligently processes and saves MCP tool response content as typed artifacts
+- `McpSaveStatus`: Enumeration for the status of an MCP save operation (SUCCESS, PARTIAL_SUCCESS, ERROR)
+- `McpSaveResult`: The definitive result of an MCP response save operation with status, message, and artifact details
+
+#### invocation_monitor.py
+**Purpose:** A debugging utility that logs the entire lifecycle of an agent invocation, from the initial request to the final response, into a structured YAML file.
+**Import:** `from solace_agent_mesh.agent.adk.invocation_monitor import InvocationMonitor`
+
+**Classes/Functions/Constants:**
+- `InvocationMonitor()`: A class that monitors and logs agent message flows
+  - `log_message_event(direction: str, topic: str, payload: any, ...)`: Logs a single message event
+  - `cleanup()`: Finalizes any active logging sessions
+
+#### mcp_content_processor.py
+**Purpose:** Intelligent processing of MCP tool responses, converting raw MCP content into appropriately typed and formatted artifacts based on the MCP specification content types.
+**Import:** `from solace_agent_mesh.agent.adk.mcp_content_processor import MCPContentProcessor, MCPContentItem, MCPContentProcessorConfig`
+
+**Classes/Functions/Constants:**
+- `MCPContentProcessor(tool_name: str, tool_args: Dict[str, Any])`: Main processor for MCP tool response content
+  - `process_mcp_response(mcp_response_dict) -> List[MCPContentItem]`: Process an MCP tool response and extract content items
+- `MCPContentItem`: Represents a processed MCP content item with metadata
+- `MCPContentProcessorConfig`: Configuration for MCP content processing
+
+#### runner.py
+**Purpose:** Provides the core asynchronous task execution logic for the ADK agent, including robust cancellation handling.
+**Import:** `from solace_agent_mesh.agent.adk.runner import run_adk_async_task_thread_wrapper, TaskCancelledError`
+
+**Classes/Functions/Constants:**
+- `run_adk_async_task_thread_wrapper(component, adk_session, adk_content, ...)`: A high-level wrapper that runs an ADK task in a separate thread and handles all cleanup and error finalization
+- `run_adk_async_task(component, task_context, adk_session, adk_content, run_config, a2a_context) -> bool`: Runs the ADK Runner asynchronously and processes intermediate events
+- `TaskCancelledError(Exception)`: Custom exception raised when an agent task is cancelled externally
+
+#### services.py
+**Purpose:** Provides factory functions to initialize the various ADK services based on the agent's configuration file.
+**Import:** `from solace_agent_mesh.agent.adk.services import initialize_session_service, initialize_artifact_service, initialize_memory_service, ScopedArtifactServiceWrapper`
+
+**Classes/Functions/Constants:**
+- `initialize_session_service(component) -> BaseSessionService`: Creates a session service (e.g., `InMemorySessionService`)
+- `initialize_artifact_service(component) -> BaseArtifactService`: Creates an artifact service (e.g., `FilesystemArtifactService`, `GcsArtifactService`)
+- `initialize_memory_service(component) -> BaseMemoryService`: Creates a memory service (e.g., `InMemoryMemoryService`)
+- `ScopedArtifactServiceWrapper`: A wrapper that transparently applies configured scope to artifact operations
+
+#### setup.py
+**Purpose:** The main entry point for configuring and instantiating the ADK agent and its dependencies. These functions tie all the other modules together.
+**Import:** `from solace_agent_mesh.agent.adk.setup import load_adk_tools, initialize_adk_agent, initialize_adk_runner`
+
+**Classes/Functions/Constants:**
+- `async load_adk_tools(component) -> Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool]]`: Loads all configured tools, including Python functions, MCP tools, and built-ins, wrapping them with `ADKToolWrapper`
+- `initialize_adk_agent(component, loaded_explicit_tools, enabled_builtin_tools) -> AppLlmAgent`: Creates an `AppLlmAgent` instance, assigns all the necessary callbacks from `callbacks.py`, and attaches the tools
+- `initialize_adk_runner(component) -> Runner`: Initializes the ADK Runner with the agent and services
+
+#### stream_parser.py
+**Purpose:** A stateful stream parser for identifying and extracting fenced artifact blocks from an LLM's text stream.
+**Import:** `from solace_agent_mesh.agent.adk.stream_parser import FencedBlockStreamParser, BlockStartedEvent, BlockCompletedEvent`
+
+**Classes/Functions/Constants:**
+- `FencedBlockStreamParser(progress_update_interval_bytes=4096)`: Processes a stream of text chunks to identify and extract fenced artifact blocks
+  - `process_chunk(text_chunk: str) -> ParserResult`: Processes the next chunk of text from the stream
+  - `finalize() -> ParserResult`: Call at the end of an LLM turn to handle any unterminated blocks
+- `BlockStartedEvent`, `BlockCompletedEvent`, `BlockProgressedEvent`, `BlockInvalidatedEvent`: Events emitted by the parser
+
+#### tool_wrapper.py
+**Purpose:** A wrapper for Python functions to make them compatible with ADK, handling embed resolution and config injection.
+**Import:** `from solace_agent_mesh.agent.adk.tool_wrapper import ADKToolWrapper`
+
+**Classes/Functions/Constants:**
+- `ADKToolWrapper(original_func, tool_config, tool_name, origin, raw_string_args=None)`: A consolidated wrapper for ADK tools that handles metadata preservation, embed resolution, config injection, and error handling
+
+### Subdirectory APIs
+
+#### artifacts/
+**Purpose:** Contains filesystem and S3-compatible artifact storage implementations for managing artifacts with versioning, user namespacing, and session-based organization
+**Key Exports:** `FilesystemArtifactService`, `S3ArtifactService` classes for local and cloud artifact storage
+**Import Examples:**
+```python
+from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService
+from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService
+```
+
+#### models/
+**Purpose:** Contains concrete `BaseLlm` implementations for interfacing with various LLM providers
+**Key Exports:** `LiteLlm` class for broad model provider compatibility
+**Import Examples:**
+```python
+from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+```
+
+## Complete Usage Guide
+
+### 1. Basic ADK Agent Setup
+
+```python
+from solace_agent_mesh.agent.adk.setup import load_adk_tools, initialize_adk_agent, initialize_adk_runner
+from solace_agent_mesh.agent.adk.services import initialize_session_service, initialize_artifact_service, initialize_memory_service
+from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+
+# Initialize services
+session_service = initialize_session_service(component)
+artifact_service = initialize_artifact_service(component)
+memory_service = initialize_memory_service(component)
+
+# Load tools
+loaded_tools, builtin_tools, cleanup_hooks = await load_adk_tools(component)
+
+# Initialize agent
+agent = initialize_adk_agent(component, loaded_tools, builtin_tools)
+
+# Initialize runner
+runner = initialize_adk_runner(component)
+```
+
+### 2. Custom LLM Model Configuration
+
+```python
+from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+
+# Configure LiteLlm for different providers
+# OpenAI
+llm = LiteLlm(
+    model="gpt-4-turbo",
+    temperature=0.7,
+    max_completion_tokens=1000
+)
+
+# Anthropic
+llm = LiteLlm(
+    model="claude-3-sonnet-20240229",
+    temperature=0.5
+)
+
+# Vertex AI
+llm = LiteLlm(
+    model="gemini-pro",
+    temperature=0.3
+)
+```
+
+### 3. Artifact Service Usage
+
+```python
+from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService
+from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService
+from google.genai import types as adk_types
+
+# Initialize filesystem artifact service
+artifact_service = FilesystemArtifactService(base_path="/tmp/artifacts")
+
+# Or initialize S3 artifact service
+artifact_service = S3ArtifactService(bucket_name="my-artifacts-bucket")
+
+# Save an artifact
+
+================================================================================
+
+## Section 2: solace_agent_mesh/agent/adk/artifacts/artifacts_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/adk/artifacts/artifacts_llm.txt`
+
+# DEVELOPER GUIDE: artifacts
+
+## Quick Summary
+The artifacts directory provides ADK ArtifactService implementations for the Solace Agent Mesh. It includes filesystem and S3-compatible storage backends for managing artifacts with versioning, user namespacing, and session-based organization.
+
+## Files Overview
+- `__init__.py` - Package initialization for artifact service implementations
+- `filesystem_artifact_service.py` - Local filesystem-based artifact storage implementation
+- `s3_artifact_service.py` - Amazon S3 compatible storage implementation for artifacts
+
+## Developer API Reference
+
+### filesystem_artifact_service.py
+**Purpose:** Provides local filesystem storage for artifacts with structured directory organization and metadata management.
+
+**Import:** `from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService`
+
+**Classes:**
+- `FilesystemArtifactService(base_path: str)` - Filesystem-based artifact service implementation
+  - `save_artifact(*, app_name: str, user_id: str, session_id: str, filename: str, artifact: adk_types.Part) -> int` - Saves an artifact and returns version number
+  - `load_artifact(*, app_name: str, user_id: str, session_id: str, filename: str, version: int | None = None) -> adk_types.Part | None` - Loads an artifact by version (latest if None)
+  - `list_artifact_keys(*, app_name: str, user_id: str, session_id: str) -> list[str]` - Lists all artifact filenames for a scope
+  - `delete_artifact(*, app_name: str, user_id: str, session_id: str, filename: str) -> None` - Deletes all versions of an artifact
+  - `list_versions(*, app_name: str, user_id: str, session_id: str, filename: str) -> list[int]` - Lists all version numbers for an artifact
+  - `base_path: str` - Root directory for artifact storage
+
+**Constants/Variables:**
+- `METADATA_FILE_SUFFIX: str` - File suffix for metadata files (".meta")
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService
+from google.genai import types as adk_types
+
+# Initialize the service
+artifact_service = FilesystemArtifactService(base_path="/path/to/artifacts")
+
+# Save an artifact
+artifact_data = b"Hello, World!"
+artifact_part = adk_types.Part.from_bytes(data=artifact_data, mime_type="text/plain")
+version = await artifact_service.save_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt",
+    artifact=artifact_part
+)
+
+# Load the latest version
+loaded_artifact = await artifact_service.load_artifact(
+    app_name="my_app",
+    user_id="user123", 
+    session_id="session456",
+    filename="greeting.txt"
+)
+
+# Load a specific version
+specific_version = await artifact_service.load_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456", 
+    filename="greeting.txt",
+    version=1
+)
+
+# List all artifacts
+artifact_keys = await artifact_service.list_artifact_keys(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456"
+)
+
+# List versions of an artifact
+versions = await artifact_service.list_versions(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt"
+)
+
+# Delete an artifact
+await artifact_service.delete_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt"
+)
+```
+
+### s3_artifact_service.py
+**Purpose:** Provides S3-compatible storage for artifacts with structured key organization and AWS integration.
+
+**Import:** `from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService`
+
+**Classes:**
+- `S3ArtifactService(bucket_name: str, s3_client: BaseClient | None = None, **kwargs)` - S3-based artifact service implementation
+  - `save_artifact(*, app_name: str, user_id: str, session_id: str, filename: str, artifact: adk_types.Part) -> int` - Saves an artifact to S3 and returns version number
+  - `load_artifact(*, app_name: str, user_id: str, session_id: str, filename: str, version: int | None = None) -> adk_types.Part | None` - Loads an artifact from S3 by version (latest if None)
+  - `list_artifact_keys(*, app_name: str, user_id: str, session_id: str) -> list[str]` - Lists all artifact filenames for a scope
+  - `delete_artifact(*, app_name: str, user_id: str, session_id: str, filename: str) -> None` - Deletes all versions of an artifact from S3
+  - `list_versions(*, app_name: str, user_id: str, session_id: str, filename: str) -> list[int]` - Lists all version numbers for an artifact
+  - `bucket_name: str` - S3 bucket name for storage
+  - `s3: BaseClient` - Boto3 S3 client instance
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService
+from google.genai import types as adk_types
+import boto3
+
+# Initialize with default credentials
+artifact_service = S3ArtifactService(bucket_name="my-artifacts-bucket")
+
+# Initialize with custom S3 client
+s3_client = boto3.client(
+    's3',
+    endpoint_url='https://minio.example.com',
+    aws_access_key_id='access_key',
+    aws_secret_access_key='secret_key'
+)
+artifact_service = S3ArtifactService(
+    bucket_name="my-artifacts-bucket",
+    s3_client=s3_client
+)
+
+# Save an artifact
+artifact_data = b"Hello, S3!"
+artifact_part = adk_types.Part.from_bytes(data=artifact_data, mime_type="text/plain")
+version = await artifact_service.save_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456", 
+    filename="greeting.txt",
+    artifact=artifact_part
+)
+
+# Load the latest version
+loaded_artifact = await artifact_service.load_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt"
+)
+
+# Save user-scoped artifact (persists across sessions)
+user_artifact = adk_types.Part.from_bytes(data=b"User data", mime_type="text/plain")
+await artifact_service.save_artifact(
+    app_name="my_app", 
+    user_id="user123",
+    session_id="session456",
+    filename="user:profile.json",  # user: prefix for user-scoped storage
+    artifact=user_artifact
+)
+
+# List all artifacts (includes both session and user-scoped)
+artifact_keys = await artifact_service.list_artifact_keys(
+    app_name="my_app",
+    user_id="user123", 
+    session_id="session456"
+)
+
+# Delete an artifact
+await artifact_service.delete_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt"
+)
+```
+
+================================================================================
+
+## Section 3: solace_agent_mesh/agent/adk/models/models_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/adk/models/models_llm.txt`
+
+# DEVELOPER GUIDE for models directory
+
+## Quick Summary
+This directory contains concrete implementations of the `BaseLlm` interface, providing wrappers for various Large Language Model APIs. These classes translate the ADK's standard `LlmRequest` into provider-specific formats and parse responses back into standard `LlmResponse` objects.
+
+## Files Overview
+- `lite_llm.py` - LLM client using the `litellm` library to support hundreds of models from different providers
+
+## Developer API Reference
+
+### lite_llm.py
+**Purpose:** Provides the `LiteLlm` class, a `BaseLlm` implementation that interfaces with hundreds of LLM models through the `litellm` library. Supports models from OpenAI, Anthropic, Vertex AI, and many other providers by simply changing the model string.
+
+**Import:** `from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm`
+
+**Classes:**
+- `LiteLlm(model: str, **kwargs)` - Wrapper around `litellm` supporting any model it recognizes
+  - `generate_content_async(llm_request: LlmRequest, stream: bool = False) -> AsyncGenerator[LlmResponse, None]` - Generates content asynchronously with optional streaming
+  - `supported_models() -> list[str]` - Returns list of supported models (empty for LiteLlm due to dynamic model support)
+  - `model: str` - The name of the LiteLlm model
+  - `llm_client: LiteLLMClient` - The LLM client instance used for API calls
+
+- `LiteLLMClient()` - Internal client providing completion methods for better testability
+  - `acompletion(model, messages, tools, **kwargs) -> Union[ModelResponse, CustomStreamWrapper]` - Asynchronous completion call
+  - `completion(model, messages, tools, stream=False, **kwargs) -> Union[ModelResponse, CustomStreamWrapper]` - Synchronous completion call
+
+- `FunctionChunk(BaseModel)` - Represents a function call chunk in streaming responses
+  - `id: Optional[str]` - Function call ID
+  - `name: Optional[str]` - Function name
+  - `args: Optional[str]` - Function arguments as JSON string
+  - `index: Optional[int]` - Index of the function call
+
+- `TextChunk(BaseModel)` - Represents a text chunk in streaming responses
+  - `text: str` - The text content
+
+- `UsageMetadataChunk(BaseModel)` - Represents token usage information
+  - `prompt_tokens: int` - Number of tokens in the prompt
+  - `completion_tokens: int` - Number of tokens in the completion
+  - `total_tokens: int` - Total number of tokens used
+
+**Functions:**
+- `_content_to_message_param(content: types.Content) -> Union[Message, list[Message]]` - Converts ADK Content to litellm Message format
+- `_get_content(parts: Iterable[types.Part]) -> Union[OpenAIMessageContent, str]` - Converts parts to litellm content format
+- `_function_declaration_to_tool_param(function_declaration: types.FunctionDeclaration) -> dict` - Converts function declarations to OpenAPI spec format
+- `_model_response_to_generate_content_response(response: ModelResponse) -> LlmResponse` - Converts litellm response to LlmResponse
+
+**Usage Examples:**
+```python
+import asyncio
+import os
+from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+from solace_agent_mesh.agent.adk.models.llm_request import LlmRequest, LlmConfig
+from google.genai.types import Content, Part
+
+# Set environment variables for your chosen provider
+# For OpenAI:
+# os.environ["OPENAI_API_KEY"] = "your-api-key"
+# For Vertex AI:
+# os.environ["VERTEXAI_PROJECT"] = "your-project-id"
+# os.environ["VERTEXAI_LOCATION"] = "your-location"
+
+async def main():
+    # Initialize LiteLlm with a specific model
+    llm = LiteLlm(
+        model="gpt-4-turbo",
+        temperature=0.7,
+        max_completion_tokens=150
+    )
+    
+    # Create a request
+    request = LlmRequest(
+        contents=[
+            Content(
+                role="user",
+                parts=[Part.from_text("Explain quantum computing in simple terms")]
+            )
+        ],
+        config=LlmConfig(
+            temperature=0.5,
+            max_output_tokens=200
+        )
+    )
+    
+    # Non-streaming generation
+    print("=== Non-streaming ===")
+    async for response in llm.generate_content_async(request, stream=False):
+        print(f"Response: {response.text}")
+        if response.usage_metadata:
+            print(f"Tokens used: {response.usage_metadata.total_token_count}")
+    
+    # Streaming generation
+    print("\n=== Streaming ===")
+    async for response in llm.generate_content_async(request, stream=True):
+        if response.text:
+            print(response.text, end="", flush=True)
+        if response.usage_metadata:
+            print(f"\nTotal tokens: {response.usage_metadata.total_token_count}")
+
+# Example with function calling
+async def function_calling_example():
+    from google.genai.types import FunctionDeclaration, Schema, Type, Tool
+    
+    # Define a function for the LLM to call
+    get_weather_func = FunctionDeclaration(
+        name="get_weather",
+        description="Get current weather for a location",
+        parameters=Schema(
+            type=Type.OBJECT,
+            properties={
+                "location": Schema(type=Type.STRING, description="City name"),
+                "unit": Schema(type=Type.STRING, description="Temperature unit")
+            },
+            required=["location"]
+        )
+    )
+    
+    llm = LiteLlm(model="gpt-4-turbo")
+    
+    request = LlmRequest(
+        contents=[
+            Content(
+                role="user", 
+                parts=[Part.from_text("What's the weather like in Tokyo?")]
+            )
+        ],
+        config=LlmConfig(
+            tools=[Tool(function_declarations=[get_weather_func])]
+        )
+    )
+    
+    async for response in llm.generate_content_async(request):
+        if response.function_calls:
+            for func_call in response.function_calls:
+                print(f"Function called: {func_call.name}")
+                print(f"Arguments: {func_call.args}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+    # asyncio.run(function_calling_example())
+```
+
+================================================================================
+
+## Section 4: solace_agent_mesh/agent/agent_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/agent_llm.txt`
+
+# DEVELOPER GUIDE for agent directory
+
+## Quick Summary
+The `agent` directory provides a comprehensive framework for hosting Google ADK (Agent Development Kit) agents within the Solace AI Connector ecosystem. It bridges ADK agents with the A2A (Agent-to-Agent) protocol over Solace messaging, enabling distributed agent communication, task delegation, and rich tool functionality.
+
+The architecture is modular, consisting of several key components:
+- **`sac/` (Solace AI Connector):** The main entry point, providing the `SamAgentApp` and `SamAgentComponent` to host the agent and manage its lifecycle and communication over the Solace event mesh.
+- **`adk/` (Agent Development Kit):** The core integration layer with Google's ADK. It defines the custom `AppLlmAgent`, manages asynchronous task execution, and provides a rich set of callbacks to augment agent behavior.
+- **`tools/`:** A comprehensive and extensible library of tools available to the agent, covering data analysis, artifact management, web requests, multimedia processing, and inter-agent communication.
+- **`protocol/`:** The underlying implementation of the A2A (Agent-to-Agent) communication protocol, handling message routing and event processing.
+- **`utils/`:** A collection of helper modules for common tasks like artifact management, configuration parsing, and context handling.
+- **`testing/`:** Utilities to aid in debugging and testing custom agent implementations.
+
+These components work together to create a robust environment where an ADK agent can be configured with specific instructions and tools, communicate with other agents, and execute complex tasks in a distributed, event-driven manner.
+
+## Files and Subdirectories Overview
+- **Direct files:**
+  - `__init__.py`: Standard Python package initializer that marks the `agent` directory as a Python package
+  - `agent_llm.txt`: Documentation file containing comprehensive developer guide content
+- **Subdirectories:**
+  - `adk/`: Provides the core integration layer with Google's ADK, including custom agents, services, and callbacks
+  - `protocol/`: Implements the A2A protocol event handlers for message routing and agent communication
+  - `sac/`: Contains the Solace AI Connector app and component implementations for hosting ADK agents
+  - `testing/`: Provides utilities for testing the A2A framework and debugging agent behavior
+  - `tools/`: A comprehensive, registry-based tool library for AI agents
+  - `utils/`: Contains helper utilities for configuration, context handling, and artifact management
+
+## Developer API Reference
+
+### Direct Files
+
+#### __init__.py
+**Purpose:** Standard Python package initializer. It allows the `agent` directory to be treated as a package.
+**Import:** `import solace_agent_mesh.agent`
+
+**Classes/Functions/Constants:** [None - empty file]
+
+#### agent_llm.txt
+**Purpose:** Documentation file containing comprehensive developer guide content
+**Import:** Not applicable - this is a documentation file, not a code module
+
+**Classes/Functions/Constants:** [None - documentation file]
+
+### Subdirectory APIs
+
+#### adk/
+**Purpose:** Provides the core integration layer between the Solace AI Connector and Google's ADK
+**Key Exports:** `AppLlmAgent`, `initialize_adk_agent`, `initialize_adk_runner`, `load_adk_tools`, `FilesystemArtifactService`, `LiteLlm`
+**Import Examples:**
+```python
+from solace_agent_mesh.agent.adk.setup import load_adk_tools, initialize_adk_agent, initialize_adk_runner
+from solace_agent_mesh.agent.adk.app_llm_agent import AppLlmAgent
+from solace_agent_mesh.agent.adk.filesystem_artifact_service import FilesystemArtifactService
+from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+from solace_agent_mesh.agent.adk.services import initialize_session_service, initialize_artifact_service
+```
+
+#### protocol/
+**Purpose:** Implements the core logic for Agent-to-Agent (A2A) communication protocol
+**Key Exports:** `process_event`, `handle_a2a_request`, `handle_agent_card_message`, `publish_agent_card`
+**Import Examples:**
+```python
+from solace_agent_mesh.agent.protocol.event_handlers import process_event, publish_agent_card
+```
+
+#### sac/
+**Purpose:** Provides the Solace AI Connector app and component implementations for hosting ADK agents
+**Key Exports:** `SamAgentApp`, `SamAgentComponent`, `TaskExecutionContext`
+**Import Examples:**
+```python
+from solace_agent_mesh.agent.sac.app import SamAgentApp
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.sac.task_execution_context import TaskExecutionContext
+```
+
+#### testing/
+**Purpose:** Provides utilities for testing the A2A framework and debugging agent behavior
+**Key Exports:** `pretty_print_event_history`
+**Import Examples:**
+```python
+from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
+```
+
+#### tools/
+**Purpose:** A comprehensive, registry-based tool library for AI agents
+**Key Exports:** `tool_registry`, `BuiltinTool`, `PeerAgentTool`, and various tool functions
+**Import Examples:**
+```python
+from solace_agent_mesh.agent.tools.registry import tool_registry
+from solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
+from solace_agent_mesh.agent.tools.audio_tools import text_to_speech
+from solace_agent_mesh.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact
+```
+
+#### utils/
+**Purpose:** Contains helper utilities for configuration, context handling, and artifact management
+**Key Exports:** `save_artifact_with_metadata`, `load_artifact_content_or_metadata`, `resolve_instruction_provider`
+**Import Examples:**
+```python
+from solace_agent_mesh.agent.utils.artifact_helpers import save_artifact_with_metadata, load_artifact_content_or_metadata
+from solace_agent_mesh.agent.utils.config_parser import resolve_instruction_provider
+from solace_agent_mesh.agent.utils.context_helpers import get_session_from_callback_context
+```
+
+## Complete Usage Guide
+
+### 1. Basic Agent Setup and Configuration
+
+```python
+# Import the main SAC components
+from solace_agent_mesh.agent.sac.app import SamAgentApp
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+
+# The agent is typically configured via YAML and instantiated by the SAC framework
+# Example agent-config.yaml:
+"""
+app:
+  class_name: solace_agent_mesh.agent.sac.app.SamAgentApp
+  app_config:
+    namespace: "my-org/production"
+    agent_name: "customer-support-agent"
+    model: "gemini-1.5-pro-latest"
+    tools:
+      - tool_type: "builtin"
+        tool_name: "text_to_speech"
+      - tool_type: "builtin"
+        tool_name: "list_artifacts"
+    agent_card:
+      description: "An agent that can answer questions about customer accounts."
+    session_service:
+      type: "memory"
+    artifact_service:
+      type: "filesystem"
+      base_path: "/tmp/artifacts"
+"""
+```
+
+### 2. Working with ADK Components
+
+```python
+from solace_agent_mesh.agent.adk.setup import load_adk_tools, initialize_adk_agent, initialize_adk_runner
+from solace_agent_mesh.agent.adk.services import initialize_session_service, initialize_artifact_service
+from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+
+async def setup_adk_agent(component):
+    # Initialize services
+    session_service = initialize_session_service(component)
+    artifact_service = initialize_artifact_service(component)
+    
+    # Load tools
+    loaded_tools, builtin_tools = await load_adk_tools(component)
+    
+    # Initialize agent with LLM
+    agent = initialize_adk_agent(component, loaded_tools, builtin_tools)
+    
+    # Initialize runner
+    runner = initialize_adk_runner(component)
+    
+    return agent, runner
+```
+
+### 3. Custom Tool Development
+
+```python
+from solace_agent_mesh.agent.tools.registry import tool_registry
+from solace_agent_mesh.agent.tools.tool_definition import BuiltinTool
+from google.adk.tools import ToolContext
+
+# Define a custom tool function
+async def my_custom_tool(
+    query: str,
+    tool_context: ToolContext = None,
+    tool_config: dict = None
+) -> dict:
+    """A custom tool that processes queries."""
+    # Access the host component
+    host_component = tool_context._invocation_context.agent.host_component
+    
+    # Use agent state
+    db_connection = host_component.get_agent_specific_state('db_connection')
+    
+    # Process the query
+    result = await process_query(query, db_connection)
+    
+    return {"result": result, "status": "success"}
+
+# Register the tool
+custom_tool = BuiltinTool(
+    name="my_custom_tool",
+    description="Processes custom queries",
+    function=my_custom_tool,
+    category="custom"
+)
+tool_registry.register(custom_tool)
+```
+
+### 4. Artifact Management
+
+```python
+from solace_agent_mesh.agent.utils.artifact_helpers import (
+    save_artifact_with_metadata,
+    load_artifact_content_or_metadata,
+    get_artifact_info_list
+)
+from datetime import datetime, timezone
+
+async def artifact_operations(component, artifact_service):
+    # Save an artifact with metadata
+    content = b"Hello, world!"
+    result = await save_artifact_with_metadata(
+        artifact_service=artifact_service,
+        app_name=component.get_config()["app_name"],
+        user_id="user123",
+        session_id="session456",
+        filename="greeting.txt",
+        content_bytes=content,
+        mime_type="text/plain",
+        metadata_dict={"source": "custom_tool", "description": "A greeting"},
+        timestamp=datetime.now(timezone.utc)
+    )
+    
+    # Load the artifact
+    loaded = await load_artifact_content_or_metadata(
+        artifact_service=artifact_service,
+        app_name=component.get_config()["app_name"],
+        user_id="user123",
+        session_id="session456",
+        filename="greeting.txt",
+        version="latest"
+    )
+    
+    # List all artifacts
+    artifacts = await get_artifact_info_list(
+        artifact_service=artifact_service,
+        app_name=component.get_config()["app_name"],
+        user_id="user123",
+        session_id="session456"
+    )
+    
+    return artifacts
+```
+
+### 5. Inter-Agent Communication
+
+```python
+from solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
+
+# Create a peer agent tool (typically done automatically by the framework)
+peer_tool = PeerAgentTool("data_analyst_agent", host_component)
+
+# The LLM can then use this tool to delegate tasks:
+# "Please use the data_analyst_agent to analyze the sales data in report.csv"
+
+# The framework handles the A2A protocol communication automatically
+```
+
+### 6. Audio and Multimedia Tools
+
+```python
+from solace_agent_mesh.agent.tools.audio_tools import text_to_speech, multi_speaker_text_to_speech
+from solace_agent_mesh.agent.tools.image_tools import create_image_from_description, describe_image
+
+async def multimedia_example(tool_context):
+    # Generate speech from text
+    tts_result = await text_to_speech(
+        text="Welcome to our service!",
+        output_filename="welcome.mp3",
+        gender="female",
+        tone="friendly",
+        tool_context=tool_context
+    )
+    
+    # Create a multi-speaker conversation
+    conversation_result = await multi_speaker_text_to_speech(
+        conversation_text="Alice: Hello there!\nBob: Hi Alice, how are you?",
+        speaker_configs=[
+            {"name": "Alice", "gender": "female", "tone": "bright"},
+            {"name": "Bob", "gender": "male", "tone": "warm"}
+        ],
+        tool_context=tool_context
+    )
+    
+    # Generate an image
+    image_result = await create_image_from_description(
+        image_description="A futuristic cityscape at sunset",
+        output_filename="cityscape.png",
+        tool_context=tool_context
+    )
+    
+    return tts_result, conversation_result, image_result
+```
+
+### 7. Testing and Debugging
+
+```python
+from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
+from solace_agent_mesh.agent.adk.invocation_monitor import InvocationMonitor
+
+# Debug event history in tests
+def test_agent_behavior():
+    event_history = [
+        {"result": {"status": {"state": "EXECUTING"}}},
+        {"result": {"status": {"state": "COMPLETED"}}}
+    ]
+    
+    # Print formatted event history for debugging
+    pretty_print_event_history(event_history)
+
+# Monitor agent invocations
+monitor = InvocationMonitor()
+monitor.log_message_event("incoming", "agent/request", {"task": "analyze data"})
+```
+
+### 8. Configuration and Context Handling
+
+```python
+from solace_agent_mesh.agent.utils.config_parser import resolve_instruction_provider
+from solace_agent_mesh.agent.utils.context_helpers import get_session_from_callback_context
+
+# Resolve dynamic instructions
+def setup_agent_instructions(component):
+    # Static instruction
+    static_instruction = resolve_instruction_provider(
+        component, 
+        "You are a helpful customer service agent."
+    )
+    
+    # Dynamic instruction function
+    def dynamic_instruction(context):
+        return f"You are assisting user {context.user_id} in session {context.session_id}"
+    
+    dynamic_provider = resolve_instruction_provider(component, dynamic_instruction)
+    
+    return static_instruction, dynamic_provider
+
+# Safe context extraction in tools
+def my_tool_with_context(tool_context):
+    session = get_session_from_callback_context(tool_context)
+    original_session_id = get_original_session_id(tool_context._invocation_context)
+    
+    return {"session_id": original_session_id, "session_data": session}
+```
+
+### 9. Complete Agent Implementation Example
+
+```python
+from solace_agent_mesh.agent.sac.app import SamAgentApp
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.adk.setup import load_adk_tools, initialize_adk_agent, initialize_adk_runner
+from solace_agent_mesh.agent.tools.registry import tool_registry
+from solace_agent_mesh.agent.tools.tool_definition import BuiltinTool
+
+# Custom initialization function
+def initialize_my_agent(host_component: SamAgentComponent, config: dict):
+    """Custom initialization function for the agent."""
+    # Store custom state
+    host_component.set_agent_specific_state('custom_data', config.get('custom_data'))
+    
+    # Set dynamic system instruction
+    def dynamic_instruction(context):
+        return f"You are a specialized agent for user {context.user_id}"
+    
+    host_component.set_agent_system_instruction_callback(dynamic_instruction)
+
+# Custom tool
+async def my_business_tool(
+    query: str,
+    tool_context = None,
+    tool_config: dict = None
+) -> dict:
+    """Custom business logic tool."""
+    host_component = tool_context._invocation_context.agent.host_component
+    custom_data = host_component.get_agent_specific_state('custom_data')
+    
+    # Process business logic
+    result =
+
+================================================================================
+
+## Section 5: solace_agent_mesh/agent/protocol/protocol_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/protocol/protocol_llm.txt`
+
+# DEVELOPER GUIDE: protocol
+
+## Quick Summary
+The `protocol` directory implements the core logic for Agent-to-Agent (A2A) communication. It handles receiving and processing requests, responses, and discovery messages (Agent Cards) over the Solace event mesh. It acts as the bridge between the A2A protocol and the underlying Google ADK execution environment.
+
+## Files Overview
+- `__init__.py` - Empty package initialization file
+- `event_handlers.py` - Contains the primary logic for handling all A2A protocol events, including routing incoming messages, managing task execution, and handling agent discovery
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Standard Python package initialization file
+**Import:** `from solace_agent_mesh.agent.protocol import *`
+
+This is an empty package initialization file and has no public interfaces.
+
+### event_handlers.py
+**Purpose:** Central hub for processing all events related to the A2A protocol. Routes events to appropriate handlers and manages task lifecycle.
+**Import:** `from solace_agent_mesh.agent.protocol.event_handlers import process_event, handle_a2a_request, handle_agent_card_message, handle_a2a_response, publish_agent_card, handle_sam_event, cleanup_agent_session`
+
+**Functions:**
+- `process_event(component, event: Event) -> None` - Main event router that processes incoming events and delegates to specific handlers based on event type and topic
+- `handle_a2a_request(component, message: SolaceMessage) -> None` - Handles incoming A2A request messages, starts ADK runner for SendTask requests, and processes CancelTask requests
+- `handle_agent_card_message(component, message: SolaceMessage) -> None` - Processes incoming Agent Card discovery messages and updates peer agent registry
+- `handle_a2a_response(component, message: SolaceMessage) -> None` - Handles responses and status updates from peer agents, manages parallel task completion
+- `publish_agent_card(component) -> None` - Publishes the agent's capabilities and information to the discovery topic
+- `handle_sam_event(component, message: SolaceMessage, topic: str) -> None` - Handles incoming SAM system events like session deletion
+- `cleanup_agent_session(component, session_id: str, user_id: str) -> None` - Cleans up agent-side session data when sessions are deleted
+
+**Internal Helper Functions:**
+- `_register_peer_artifacts_in_parent_context(parent_task_context: "TaskExecutionContext", peer_task_object: Task, log_identifier: str) -> None` - Registers artifacts produced by peer agents in the parent task context
+- `_publish_peer_tool_result_notification(component: "SamAgentComponent", correlation_data: Dict[str, Any], payload_to_queue: Any, log_identifier: str) -> None` - Publishes a ToolResultData status update for a completed peer tool call
+
+**Usage Examples:**
+```python
+# Main event processing (typically called by the SAC framework)
+from solace_agent_mesh.agent.protocol.event_handlers import process_event
+from solace_ai_connector.common.event import Event, EventType
+
+# Process an incoming event
+await process_event(component, event)
+
+# Publish agent discovery card
+from solace_agent_mesh.agent.protocol.event_handlers import publish_agent_card
+
+publish_agent_card(component)
+
+# Handle specific message types (usually called internally by process_event)
+from solace_agent_mesh.agent.protocol.event_handlers import handle_a2a_request
+
+await handle_a2a_request(component, solace_message)
+
+# Handle SAM system events
+from solace_agent_mesh.agent.protocol.event_handlers import handle_sam_event
+
+handle_sam_event(component, message, topic)
+
+# Clean up session data
+from solace_agent_mesh.agent.protocol.event_handlers import cleanup_agent_session
+
+await cleanup_agent_session(component, "session_123", "user_456")
+```
+
+**Key Event Flow:**
+1. `process_event()` receives all events and routes based on type (MESSAGE, TIMER, CACHE_EXPIRY)
+2. For MESSAGE events, routes to specific handlers based on topic patterns:
+   - Agent request topics → `handle_a2a_request()`
+   - Discovery topics → `handle_agent_card_message()`
+   - Response/status topics → `handle_a2a_response()`
+   - SAM events topics → `handle_sam_event()`
+3. For TIMER events, handles periodic agent card publishing
+4. For CACHE_EXPIRY events, delegates to component's cache handling
+
+**Dependencies:**
+- Requires `SamAgentComponent` instance with proper configuration
+- Uses A2A protocol types from `a2a.types`
+- Integrates with Google ADK for task execution
+- Manages task contexts through `TaskExecutionContext`
+
+================================================================================
+
+## Section 6: solace_agent_mesh/agent/sac/sac_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/sac/sac_llm.txt`
+
+# DEVELOPER GUIDE for the directory: sac
+
+## Quick Summary
+The `sac` (Solace AI Connector) directory provides the core implementation for hosting a Google ADK (Agent Development Kit) agent within the Solace AI Connector framework. It acts as a bridge, enabling ADK agents to communicate using the A2A (Agent-to-Agent) protocol over Solace messaging. This allows for the creation of distributed, collaborative agent systems where agents can delegate tasks, share information, and work together to solve complex problems.
+
+## Files Overview
+- `__init__.py` - Empty package marker file
+- `app.py` - Custom SAC App class that automatically configures Solace subscriptions and broker settings for A2A communication
+- `component.py` - Main SAC Component that hosts the ADK agent, manages its lifecycle, and handles all A2A protocol messaging
+- `patch_adk.py` - Runtime patches for the Google ADK library to enhance or correct its behavior
+- `task_execution_context.py` - State management class that encapsulates all runtime information for a single, in-flight A2A task
+
+## Developer API Reference
+
+### app.py
+**Purpose:** Provides a custom SAC App class that simplifies the configuration of an A2A agent
+**Import:** `from solace_agent_mesh.agent.sac.app import SamAgentApp`
+
+**Classes:**
+- `SamAgentApp(app_info: Dict[str, Any], **kwargs)` - Custom App class for SAM Agent Host with namespace prefixing and automatic subscription generation
+  - `app_schema: Dict` - Class attribute defining comprehensive configuration schema for agent host validation
+
+**Constants/Variables:**
+- `info: Dict[str, str]` - Metadata dictionary about the SamAgentApp class for SAC framework discovery
+
+**Usage Examples:**
+```python
+# SamAgentApp is typically instantiated by the SAC framework from YAML config
+# Example agent-config.yaml:
+# app:
+#   class_name: solace_agent_mesh.agent.sac.app.SamAgentApp
+#   app_config:
+#     namespace: "my-org/production"
+#     agent_name: "customer-support-agent"
+#     model: "gemini-1.5-pro-latest"
+#     tools:
+#       - tool_type: "builtin"
+#         tool_name: "file_search"
+#     agent_card:
+#       description: "An agent that can answer questions about customer accounts."
+#     agent_card_publishing:
+#       interval_seconds: 60
+#     session_service:
+#       type: "memory"
+```
+
+### component.py
+**Purpose:** Core component that hosts a Google ADK agent and bridges communication to A2A protocol
+**Import:** `from solace_agent_mesh.agent.sac.component import SamAgentComponent`
+
+**Classes:**
+- `SamAgentComponent(**kwargs)` - Solace AI Connector component that hosts a Google ADK agent
+  - `process_event(event: Event) -> None` - Main entry point for all SAC framework events
+  - `handle_timer_event(timer_data: Dict[str, Any]) -> None` - Handles scheduled timer events for agent card publishing
+  - `handle_cache_expiry_event(cache_data: Dict[str, Any]) -> None` - Handles cache expiry events for peer agent timeouts
+  - `finalize_task_success(a2a_context: Dict) -> None` - Async method to finalize successful task completion
+  - `finalize_task_canceled(a2a_context: Dict) -> None` - Finalizes task as CANCELED
+  - `finalize_task_error(exception: Exception, a2a_context: Dict) -> None` - Async method to finalize failed tasks
+  - `cleanup() -> None` - Cleans up resources on component shutdown
+  - `set_agent_specific_state(key: str, value: Any) -> None` - Sets key-value pair in agent state dictionary
+  - `get_agent_specific_state(key: str, default: Optional[Any] = None) -> Any` - Retrieves value from agent state
+  - `get_async_loop() -> Optional[asyncio.AbstractEventLoop]` - Returns dedicated asyncio event loop
+  - `set_agent_system_instruction_string(instruction_string: str) -> None` - Sets static system prompt injection
+  - `set_agent_system_instruction_callback(callback_function: Callable) -> None` - Sets dynamic system prompt callback
+  - `get_gateway_id() -> str` - Returns unique identifier for agent host instance
+  - `submit_a2a_task(target_agent_name: str, a2a_message: A2AMessage, user_id: str, user_config: Dict[str, Any], sub_task_id: str) -> str` - Submits task to peer agent
+  - `get_agent_context() -> Dict[str, Any]` - Returns agent context for middleware interactions
+
+**Constants/Variables:**
+- `info: Dict` - Metadata dictionary for SAC framework
+- `CORRELATION_DATA_PREFIX: str` - Prefix for cache keys when tracking peer requests
+- `HOST_COMPONENT_VERSION: str` - Version string of the host component
+
+**Usage Examples:**
+```python
+# Custom initialization function example
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+
+def initialize_my_agent(host_component: SamAgentComponent, config: dict):
+    """Custom initialization function for the agent."""
+    # Store database connection in agent state
+    db_connection = create_database_connection(config.get('db_url'))
+    host_component.set_agent_specific_state('db_connection', db_connection)
+    
+    # Set custom system instruction
+    host_component.set_agent_system_instruction_string(
+        "You are a specialized customer service agent with access to our database."
+    )
+
+# Tool accessing agent state
+def my_custom_tool(host_component: SamAgentComponent, query: str) -> str:
+    """Tool that uses stored database connection."""
+    db_connection = host_component.get_agent_specific_state('db_connection')
+    if db_connection:
+        return db_connection.execute_query(query)
+    return "Database not available"
+
+# Scheduling async work from synchronous code
+def schedule_background_task(host_component: SamAgentComponent):
+    """Schedule async work on the component's event loop."""
+    loop = host_component.get_async_loop()
+    if loop:
+        asyncio.run_coroutine_threadsafe(my_async_task(), loop)
+```
+
+### patch_adk.py
+**Purpose:** Contains runtime patches for the Google ADK library to enhance behavior
+**Import:** `from solace_agent_mesh.agent.sac.patch_adk import patch_adk`
+
+**Functions:**
+- `patch_adk() -> None` - Applies all necessary patches to the ADK library
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.sac.patch_adk import patch_adk
+
+# Apply patches before using ADK
+patch_adk()
+```
+
+### task_execution_context.py
+**Purpose:** State management class for single, in-flight agent tasks
+**Import:** `from solace_agent_mesh.agent.sac.task_execution_context import TaskExecutionContext`
+
+**Classes:**
+- `TaskExecutionContext(task_id: str, a2a_context: Dict[str, Any])` - Encapsulates runtime state for a single agent task
+  - `cancel() -> None` - Signals that the task should be cancelled
+  - `is_cancelled() -> bool` - Checks if cancellation event has been set
+  - `append_to_streaming_buffer(text: str) -> None` - Appends text to streaming buffer
+  - `flush_streaming_buffer() -> str` - Returns and clears streaming buffer content
+  - `get_streaming_buffer_content() -> str` - Returns buffer content without clearing
+  - `append_to_run_based_buffer(text: str) -> None` - Appends text to run-based response buffer
+  - `register_peer_sub_task(sub_task_id: str, correlation_data: Dict[str, Any]) -> None` - Adds peer sub-task tracking
+  - `claim_sub_task_completion(sub_task_id: str) -> Optional[Dict[str, Any]]` - Atomically retrieves and removes sub-task data
+  - `register_parallel_call_sent(invocation_id: str) -> None` - Registers new parallel tool call
+  - `handle_peer_timeout(sub_task_id: str, correlation_data: Dict, timeout_sec: int, invocation_id: str) -> bool` - Handles peer timeout
+  - `record_parallel_result(result: Dict, invocation_id: str) -> bool` - Records parallel tool call result
+  - `clear_parallel_invocation_state(invocation_id: str) -> None` - Removes completed invocation state
+  - `register_produced_artifact(filename: str, version: int) -> None` - Tracks newly created artifacts
+  - `add_artifact_signal(signal: Dict[str, Any]) -> None` - Adds artifact return signal
+  - `get_and_clear_artifact_signals() -> List[Dict[str, Any]]` - Retrieves and clears artifact signals
+  - `set_event_loop(loop: asyncio.AbstractEventLoop) -> None` - Stores event loop reference
+  - `get_event_loop() -> Optional[asyncio.AbstractEventLoop]` - Retrieves stored event loop
+  - `record_token_usage(input_tokens: int, output_tokens: int, model: str, source: str = "agent", tool_name: Optional[str] = None, cached_input_tokens: int = 0) -> None` - Records token usage for LLM calls
+  - `get_token_usage_summary() -> Dict[str, Any]` - Returns summary of all token usage for the task
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.sac.task_execution_context import TaskExecutionContext
+
+# Create task context
+a2a_context = {
+    "logical_task_id": "task-123",
+    "user_id": "user-456",
+    "session_id": "session-789"
+}
+task_context = TaskExecutionContext("task-123", a2a_context)
+
+# Use streaming buffer
+task_context.append_to_streaming_buffer("Hello ")
+task_context.append_to_streaming_buffer("world!")
+content = task_context.flush_streaming_buffer()  # Returns "Hello world!"
+
+# Track peer sub-tasks
+correlation_data = {
+    "peer_agent_name": "math-agent",
+    "adk_function_call_id": "call-123"
+}
+task_context.register_peer_sub_task("sub-task-456", correlation_data)
+
+# Handle completion
+completed_data = task_context.claim_sub_task_completion("sub-task-456")
+if completed_data:
+    print(f"Sub-task completed: {completed_data}")
+
+# Track token usage
+task_context.record_token_usage(
+    input_tokens=100,
+    output_tokens=50,
+    model="gemini-1.5-pro",
+    source="agent"
+)
+
+# Get usage summary
+usage = task_context.get_token_usage_summary()
+print(f"Total tokens used: {usage['total_tokens']}")
+```
+
+================================================================================
+
+## Section 7: solace_agent_mesh/agent/testing/testing_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/testing/testing_llm.txt`
+
+## Quick Summary
+The `testing` directory provides utilities for testing the A2A (Agent-to-Agent) framework, with a focus on debugging tools that help developers understand test failures by providing readable representations of agent event histories.
+
+## Files Overview
+- `__init__.py` - Package initialization file marking the directory as a Python module
+- `debug_utils.py` - Debugging utilities including pretty-printing for A2A event history
+- `testing_llm.txt` - Documentation file (not a code module)
+
+## Developer API Reference
+
+### debug_utils.py
+**Purpose:** Provides debugging utilities for the declarative test framework, including a pretty-printer for A2A event history
+**Import:** `from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history`
+
+**Functions:**
+- `pretty_print_event_history(event_history: List[Dict[str, Any]], max_string_length: int = 200) -> None` - Formats and prints a list of A2A event payloads for debugging, intelligently parsing different event types and truncating long strings for readability
+
+**Usage Examples:**
+```python
+# Import the debugging utility
+from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
+from typing import List, Dict, Any
+
+# Example: Debug a failed test by printing event history
+event_history: List[Dict[str, Any]] = [
+    {
+        "result": {
+            "status": {
+                "state": "EXECUTING",
+                "message": {
+                    "parts": [
+                        {"type": "text", "text": "Processing your request..."}
+                    ]
+                }
+            },
+            "final": False
+        }
+    },
+    {
+        "error": {
+            "code": "TIMEOUT_ERROR",
+            "message": "Request timed out after 30 seconds"
+        }
+    }
+]
+
+# Print formatted event history for debugging
+pretty_print_event_history(event_history)
+
+# Print with custom string truncation length
+pretty_print_event_history(event_history, max_string_length=100)
+
+# Handle empty event history (when test fails before any events)
+pretty_print_event_history([])
+```
+
+================================================================================
+
+## Section 8: solace_agent_mesh/agent/tools/tools_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/tools/tools_llm.txt`
+
+# DEVELOPER GUIDE: tools
+
+## Quick Summary
+The `tools` directory contains the complete tool system for the Solace Agent Mesh, providing built-in tools for artifact management, data analysis, audio/image processing, web interactions, and dynamic tool creation. It includes a registry system for tool discovery and management, with support for declarative YAML-based configurations and multiple tool types including built-in, custom Python, and MCP tools.
+
+## Files Overview
+- `__init__.py` - Ensures all built-in tool modules are imported for declarative registration
+- `audio_tools.py` - Audio processing tools including TTS, transcription, and audio manipulation
+- `builtin_artifact_tools.py` - Core artifact management tools for CRUD operations and content processing
+- `builtin_data_analysis_tools.py` - Data analysis tools for creating charts from Plotly configurations
+- `dynamic_tool.py` - Base classes for creating dynamic, programmatically-defined tools
+- `general_agent_tools.py` - General-purpose tools for file conversion and diagram generation
+- `image_tools.py` - Image generation, editing, and multimodal content analysis tools
+- `peer_agent_tool.py` - Tool for delegating tasks to peer agents over Solace messaging
+- `registry.py` - Singleton registry for tool discovery and management
+- `test_tools.py` - Testing utilities for timeouts and error handling
+- `tool_config_types.py` - Pydantic models for YAML-based tool configurations
+- `tool_definition.py` - Base tool definition classes and structures
+- `web_tools.py` - Web scraping and content extraction tools
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Triggers tool registration by importing all tool modules
+**Import:** `from solace_agent_mesh.agent.tools import *`
+
+No public classes or functions - this is an initialization module.
+
+### audio_tools.py
+**Purpose:** Provides comprehensive audio processing capabilities
+**Import:** `from solace_agent_mesh.agent.tools.audio_tools import select_voice, text_to_speech, multi_speaker_text_to_speech, concatenate_audio, transcribe_audio`
+
+**Functions:**
+- `select_voice(gender: Optional[str] = None, tone: Optional[str] = None, exclude_voices: Optional[List[str]] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Selects a suitable voice based on gender and tone criteria
+- `text_to_speech(text: str, output_filename: Optional[str] = None, voice_name: Optional[str] = None, gender: Optional[str] = None, tone: Optional[str] = None, language: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts text to speech using Gemini TTS API
+- `multi_speaker_text_to_speech(conversation_text: str, output_filename: Optional[str] = None, speaker_configs: Optional[List[Dict[str, str]]] = None, language: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Creates multi-speaker audio from conversation text
+- `concatenate_audio(clips_to_join: List[Dict[str, Any]], output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Combines multiple audio clips with custom pause durations
+- `transcribe_audio(audio_filename: str, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Transcribes audio using OpenAI-compatible API
+
+**Constants/Variables:**
+- `VOICE_TONE_MAPPING: Dict[str, List[str]]` - Maps tone preferences to available voices
+- `GENDER_TO_VOICE_MAPPING: Dict[str, List[str]]` - Maps gender preferences to available voices
+- `ALL_AVAILABLE_VOICES: List[str]` - Complete list of available voice names
+- `SUPPORTED_LANGUAGES: Dict[str, str]` - Maps language names to BCP-47 codes
+
+**Usage Examples:**
+```python
+# Basic text-to-speech
+result = await text_to_speech(
+    text="Hello, world!",
+    voice_name="Kore",
+    tool_context=context
+)
+
+# Multi-speaker conversation
+conversation = "Speaker1: Hello there!\nSpeaker2: Hi, how are you?"
+result = await multi_speaker_text_to_speech(
+    conversation_text=conversation,
+    speaker_configs=[
+        {"name": "Speaker1", "gender": "female", "tone": "friendly"},
+        {"name": "Speaker2", "gender": "male", "tone": "casual"}
+    ],
+    tool_context=context
+)
+```
+
+### builtin_artifact_tools.py
+**Purpose:** Core artifact management and content processing tools
+**Import:** `from solace_agent_mesh.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, signal_artifact_for_return, apply_embed_and_create_artifact, extract_content_from_artifact, append_to_artifact, delete_artifact`
+
+**Functions:**
+- `list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]` - Lists all available artifacts with metadata summaries
+- `load_artifact(filename: str, version: int, load_metadata_only: bool = False, max_content_length: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Loads artifact content or metadata
+- `signal_artifact_for_return(filename: str, version: int, tool_context: ToolContext = None) -> Dict[str, Any]` - Signals artifact to be returned to caller
+- `apply_embed_and_create_artifact(output_filename: str, embed_directive: str, output_metadata: Optional[Dict[str, Any]] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Resolves embed directives and creates new artifacts
+- `extract_content_from_artifact(filename: str, extraction_goal: str, version: Optional[str] = "latest", output_filename_base: Optional[str] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Uses LLM to extract/transform artifact content
+- `append_to_artifact(filename: str, content_chunk: str, mime_type: str, tool_context: ToolContext = None) -> Dict[str, Any]` - Appends content to existing artifacts
+- `delete_artifact(filename: str, version: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Deletes artifact versions
+
+**Usage Examples:**
+```python
+# List all artifacts
+artifacts = await list_artifacts(tool_context=context)
+
+# Load specific artifact version
+content = await load_artifact(
+    filename="data.csv",
+    version=1,
+    tool_context=context
+)
+
+# Extract content using LLM
+result = await extract_content_from_artifact(
+    filename="report.pdf",
+    extraction_goal="Extract all financial figures and create a summary table",
+    tool_context=context
+)
+```
+
+### builtin_data_analysis_tools.py
+**Purpose:** Data analysis and visualization tools
+**Import:** `from solace_agent_mesh.agent.tools.builtin_data_analysis_tools import create_chart_from_plotly_config`
+
+**Functions:**
+- `create_chart_from_plotly_config(config_content: str, config_format: Literal["json", "yaml"], output_filename: str, output_format: Optional[str] = "png", tool_context: ToolContext = None) -> Dict[str, Any]` - Generates static chart images from Plotly configurations
+
+**Usage Examples:**
+```python
+# Create chart from JSON config
+plotly_config = '{"data": [{"x": [1,2,3], "y": [4,5,6], "type": "scatter"}]}'
+result = await create_chart_from_plotly_config(
+    config_content=plotly_config,
+    config_format="json",
+    output_filename="my_chart.png",
+    tool_context=context
+)
+```
+
+### dynamic_tool.py
+**Purpose:** Base classes for creating dynamic, programmatically-defined tools
+**Import:** `from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool, DynamicToolProvider`
+
+**Classes:**
+- `DynamicTool(tool_config: Optional[Union[dict, BaseModel]] = None)` - Base class for dynamic tools with programmatic definitions
+  - `tool_name: str` - Property returning the function name for LLM calls
+  - `tool_description: str` - Property returning tool description
+  - `parameters_schema: adk_types.Schema` - Property returning parameter schema
+  - `raw_string_args: List[str]` - Property listing args that skip embed resolution
+  - `resolution_type: Literal["early", "all"]` - Property determining embed resolution scope
+  - `run_async(*, args: Dict[str, Any], tool_context: ToolContext) -> Dict[str, Any]` - Executes the tool with embed resolution
+  - `_run_async_impl(args: dict, tool_context: ToolContext, credential: Optional[str] = None) -> dict` - Abstract method for tool implementation
+
+- `DynamicToolProvider()` - Base class for tool providers that generate multiple tools
+  - `register_tool(func: Callable) -> Callable` - Class method decorator for registering functions as tools
+  - `create_tools(tool_config: Optional[Union[dict, BaseModel]] = None) -> List[DynamicTool]` - Abstract method for creating custom tools
+  - `get_all_tools_for_framework(tool_config: Optional[Union[dict, BaseModel]] = None) -> List[DynamicTool]` - Framework method combining decorated and custom tools
+
+**Usage Examples:**
+```python
+# Create a custom dynamic tool
+class MyCustomTool(DynamicTool):
+    @property
+    def tool_name(self) -> str:
+        return "my_custom_tool"
+    
+    @property
+    def tool_description(self) -> str:
+        return "Does something custom"
+    
+    @property
+    def parameters_schema(self) -> adk_types.Schema:
+        return adk_types.Schema(
+            type=adk_types.Type.OBJECT,
+            properties={
+                "input": adk_types.Schema(type=adk_types.Type.STRING)
+            },
+            required=["input"]
+        )
+    
+    async def _run_async_impl(self, args: dict, tool_context: ToolContext, credential: Optional[str] = None) -> dict:
+        return {"result": f"Processed: {args['input']}"}
+
+# Create a tool provider with decorated methods
+class MyToolProvider(DynamicToolProvider):
+    @DynamicToolProvider.register_tool
+    async def my_decorated_tool(self, param1: str, tool_context: ToolContext) -> dict:
+        """This tool does something useful."""
+        return {"status": "success", "input": param1}
+    
+    def create_tools(self, tool_config: Optional[Union[dict, BaseModel]] = None) -> List[DynamicTool]:
+        return [MyCustomTool(tool_config)]
+```
+
+### general_agent_tools.py
+**Purpose:** General-purpose utility tools for file conversion and diagram generation
+**Import:** `from solace_agent_mesh.agent.tools.general_agent_tools import convert_file_to_markdown, mermaid_diagram_generator`
+
+**Functions:**
+- `convert_file_to_markdown(input_filename: str, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Converts files to Markdown using MarkItDown library
+- `mermaid_diagram_generator(mermaid_syntax: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Generates PNG images from Mermaid diagram syntax
+
+**Usage Examples:**
+```python
+# Convert PDF to Markdown
+result = await convert_file_to_markdown(
+    input_filename="document.pdf",
+    tool_context=context
+)
+
+# Generate Mermaid diagram
+mermaid_code = """
+graph TD
+    A[Start] --> B[Process]
+    B --> C[End]
+"""
+result = await mermaid_diagram_generator(
+    mermaid_syntax=mermaid_code,
+    output_filename="flowchart.png",
+    tool_context=context
+)
+```
+
+### image_tools.py
+**Purpose:** Image generation, editing, and multimodal content analysis
+**Import:** `from solace_agent_mesh.agent.tools.image_tools import create_image_from_description, describe_image, describe_audio, edit_image_with_gemini`
+
+**Functions:**
+- `create_image_from_description(image_description: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Generates images from text descriptions
+- `describe_image(image_filename: str, prompt: str = "What is in this image?", tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Describes images using vision APIs
+- `describe_audio(audio_filename: str, prompt: str = "What is in this recording?", tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Describes audio using multimodal APIs
+- `edit_image_with_gemini(image_filename: str, edit_prompt: str, output_filename: Optional[str] = None, tool_context: ToolContext = None, tool_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` - Edits images using Gemini 2.0 Flash
+
+**Usage Examples:**
+```python
+# Generate image from description
+result = await create_image_from_description(
+    image_description="A sunset over mountains with a lake in the foreground",
+    output_filename="sunset.png",
+    tool_context=context
+)
+
+# Describe an existing image
+result = await describe_image(
+    image_filename="photo.jpg",
+    prompt="What objects are visible in this image?",
+    tool_context=context
+)
+
+# Edit an image
+result = await edit_image_with_gemini(
+    image_filename="original.jpg",
+    edit_prompt="Add a rainbow in the sky",
+    tool_context=context
+)
+```
+
+### peer_agent_tool.py
+**Purpose:** Enables task delegation to peer agents over Solace messaging
+**Import:** `from solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool`
+
+**Classes:**
+- `PeerAgentTool(target_agent_name: str, host_component)` - Tool for delegating tasks to peer agents
+  - `target_agent_name: str` - Name of the peer agent
+  - `host_component` - Reference to the SamAgentComponent
+  - `is_long_running: bool` - Always True for async delegation
+  - `run_async(*, args: Dict[str, Any], tool_context: ToolContext) -> Any` - Delegates task to peer agent
+
+**Usage Examples:**
+```python
+# Create peer agent tool (typically done by framework)
+peer_tool = PeerAgentTool("data_analyst_agent", host_component)
+
+# Tool is called by LLM with these parameters:
+# {
+#     "task_description": "Analyze the sales data and create a summary report",
+#     "user_query": "What were our top performing products last quarter?",
+#     "artifacts": [{"filename": "sales_data.csv", "version": "latest"}]
+# }
+```
+
+### registry.py
+
+================================================================================
+
+## Section 9: solace_agent_mesh/agent/utils/utils_llm.txt
+
+**Source file:** `solace_agent_mesh/agent/utils/utils_llm.txt`
+
+## Quick Summary
+The `utils` directory provides a collection of helper modules designed to support the core functionality of the agent. These utilities encapsulate common, reusable logic for tasks such as artifact management (saving, loading, schema inference), configuration parsing, and safe interaction with the ADK's invocation context.
+
+## Files Overview
+- `__init__.py` - Empty package marker file
+- `artifact_helpers.py` - Comprehensive artifact management functions including save/load operations, metadata handling, and schema inference
+- `config_parser.py` - Configuration parsing utilities for resolving instruction providers
+- `context_helpers.py` - Safe utilities for extracting data from ADK callback and invocation contexts
+
+## Developer API Reference
+
+### artifact_helpers.py
+**Purpose:** Comprehensive artifact management with automatic metadata generation, schema inference, and async operations
+**Import:** `from solace_agent_mesh.agent.utils.artifact_helpers import save_artifact_with_metadata, load_artifact_content_or_metadata, get_artifact_info_list, is_filename_safe, ensure_correct_extension`
+
+**Functions:**
+- `is_filename_safe(filename: str) -> bool` - Validates filename safety (no path traversal, separators, or reserved names)
+- `ensure_correct_extension(filename_from_llm: str, desired_extension: str) -> str` - Ensures filename has correct extension
+- `format_artifact_uri(app_name: str, user_id: str, session_id: str, filename: str, version: Union[int, str]) -> str` - Formats components into standard artifact:// URI
+- `parse_artifact_uri(uri: str) -> Dict[str, Any]` - Parses artifact:// URI into constituent parts
+- `save_artifact_with_metadata(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str, filename: str, content_bytes: bytes, mime_type: str, metadata_dict: Dict[str, Any], timestamp: datetime, explicit_schema: Optional[Dict] = None, schema_inference_depth: int = 2, schema_max_keys: int = 20, tool_context: Optional["ToolContext"] = None) -> Dict[str, Any]` - Saves artifact with auto-generated metadata and schema inference
+- `load_artifact_content_or_metadata(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str, filename: str, version: Union[int, str], load_metadata_only: bool = False, return_raw_bytes: bool = False, max_content_length: Optional[int] = None, component: Optional[Any] = None, log_identifier_prefix: str = "[ArtifactHelper:load]", encoding: str = "utf-8", error_handling: str = "strict") -> Dict[str, Any]` - Loads artifact content or metadata with flexible options
+- `get_artifact_info_list(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str) -> List[ArtifactInfo]` - Retrieves detailed info for all artifacts
+- `get_latest_artifact_version(artifact_service: BaseArtifactService, app_name: str, user_id: str, session_id: str, filename: str) -> Optional[int]` - Gets latest version number for an artifact
+- `format_metadata_for_llm(metadata: Dict[str, Any]) -> str` - Formats metadata into LLM-friendly text
+- `decode_and_get_bytes(content_str: str, mime_type: str, log_identifier: str) -> Tuple[bytes, str]` - Decodes content based on MIME type (base64 for binary, UTF-8 for text)
+- `generate_artifact_metadata_summary(component: "SamAgentComponent", artifact_identifiers: List[Dict[str, Any]], user_id: str, session_id: str, app_name: str, header_text: Optional[str] = None) -> str` - Generates YAML summary of multiple artifacts' metadata
+
+**Constants/Variables:**
+- `METADATA_SUFFIX: str` - Suffix for metadata files (".metadata.json")
+- `DEFAULT_SCHEMA_MAX_KEYS: int` - Default max keys for schema inference (20)
+
+**Usage Examples:**
+```python
+import asyncio
+from datetime import datetime, timezone
+from solace_agent_mesh.agent.utils.artifact_helpers import (
+    save_artifact_with_metadata,
+    load_artifact_content_or_metadata,
+    get_artifact_info_list,
+    ensure_correct_extension,
+    format_artifact_uri,
+    parse_artifact_uri
+)
+
+async def artifact_example():
+    # Ensure safe filename
+    safe_name = ensure_correct_extension("report", "csv")  # -> "report.csv"
+    
+    # Save artifact with metadata
+    csv_data = b"name,age\nAlice,30\nBob,25"
+    result = await save_artifact_with_metadata(
+        artifact_service=service,
+        app_name="my_app",
+        user_id="user123",
+        session_id="session456",
+        filename=safe_name,
+        content_bytes=csv_data,
+        mime_type="text/csv",
+        metadata_dict={"source": "user_upload", "description": "Employee data"},
+        timestamp=datetime.now(timezone.utc)
+    )
+    
+    # Load artifact content
+    loaded = await load_artifact_content_or_metadata(
+        artifact_service=service,
+        app_name="my_app",
+        user_id="user123", 
+        session_id="session456",
+        filename=safe_name,
+        version="latest"
+    )
+    
+    # Work with artifact URIs
+    uri = format_artifact_uri("my_app", "user123", "session456", "report.csv", 1)
+    # Returns: "artifact://my_app/user123/session456/report.csv?version=1"
+    
+    parsed = parse_artifact_uri(uri)
+    # Returns: {"app_name": "my_app", "user_id": "user123", ...}
+    
+    # List all artifacts
+    artifacts = await get_artifact_info_list(
+        artifact_service=service,
+        app_name="my_app",
+        user_id="user123",
+        session_id="session456"
+    )
+```
+
+### config_parser.py
+**Purpose:** Resolves configuration values that can be static strings or dynamic callable providers
+**Import:** `from solace_agent_mesh.agent.utils.config_parser import resolve_instruction_provider, InstructionProvider`
+
+**Functions:**
+- `resolve_instruction_provider(component, config_value: Any) -> Union[str, InstructionProvider]` - Resolves instruction config from string or invoke block
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.utils.config_parser import resolve_instruction_provider
+
+# Static string instruction
+instruction = resolve_instruction_provider(component, "You are a helpful assistant.")
+# Returns: "You are a helpful assistant."
+
+# Dynamic instruction provider (from YAML invoke block)
+def dynamic_instruction(context):
+    return f"Assistant for {context.user_id}"
+
+instruction_func = resolve_instruction_provider(component, dynamic_instruction)
+# Returns: the callable function
+```
+
+### context_helpers.py
+**Purpose:** Safe utilities for extracting information from ADK contexts
+**Import:** `from solace_agent_mesh.agent.utils.context_helpers import get_session_from_callback_context, get_original_session_id`
+
+**Functions:**
+- `get_session_from_callback_context(callback_context: CallbackContext) -> Session` - Safely extracts Session object from CallbackContext
+- `get_original_session_id(invocation_context: Any) -> str` - Extracts base session ID, removing any colon-separated suffixes
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.utils.context_helpers import (
+    get_session_from_callback_context,
+    get_original_session_id
+)
+
+# In a tool function with callback_context
+def my_tool(callback_context):
+    # Get full session object
+    session = get_session_from_callback_context(callback_context)
+    
+    # Get original session ID (strips suffixes after colon)
+    original_id = get_original_session_id(tool_context._invocation_context)
+    # "session123:tool456" -> "session123"
+```
+
+================================================================================
+

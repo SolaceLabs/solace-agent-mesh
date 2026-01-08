@@ -16,10 +16,13 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ items, bot
         onItemChange(itemId);
     };
 
+    // Filter out theme-toggle from bottomItems
+    const filteredBottomItems = bottomItems?.filter(item => item.id !== "theme-toggle");
+
     return (
         <aside className="flex h-screen w-[100px] flex-col border-r border-[var(--color-secondary-w70)] bg-[var(--color-primary-w100)]">
             <NavigationHeader onClick={onHeaderClick} />
-            <NavigationList items={items} bottomItems={bottomItems} activeItem={activeItem} onItemClick={handleItemClick} />
+            <NavigationList items={items} bottomItems={filteredBottomItems} activeItem={activeItem} onItemClick={handleItemClick} />
         </aside>
     );
 };

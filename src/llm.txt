@@ -1,4 +1,4 @@
-Here is the comprehensive developer guide for the `src` directory.
+# DEVELOPER GUIDE for the directory: src
 
 ## Quick Summary
 The `src` directory serves as the main source code root for the Solace AI Connector, containing four primary subsystems that work together to enable comprehensive AI agent communication and hosting. The `agent` directory provides a complete framework for hosting Google ADK agents with A2A protocol support, the `common` directory offers foundational A2A protocol infrastructure and utilities, the `core_a2a` directory provides a reusable service layer for core A2A operations, and the `gateway` directory implements various gateway patterns for external platform integration. These components work together to create a distributed AI agent ecosystem with real-time communication, task delegation, and multi-platform integration capabilities.
@@ -226,3 +226,133 @@ async def analyze_and_delegate_report(component, tool_context):
     
     return report_result
 ```
+
+#### Pattern 2: Building Custom Tools
+Developers can extend the agent's capabilities by creating custom tools that integrate with the existing framework.
+
+```python
+from src.agent.tools.registry import tool_registry
+from src.agent.tools.tool_definition import BuiltinTool
+from google.adk.tools import ToolContext
+
+async def custom_database_query(
+    query: str,
+    database_name: str = "default",
+    tool_context: ToolContext = None,
+    tool_config: dict = None
+) -> dict:
+    """Execute a custom database query with enhanced features."""
+    
+    # Access the host component for shared resources
+    host_component = tool_context._invocation_context.agent.host_component
+    
+    # Get database connection from agent state
+    db_connection = host_component.get_agent_specific_state('db_connection')
+    
+    # Execute query and save results as artifact
+    try:
+        result = await execute_query(db_connection, query, database_name)
+        
+        # Save results using the artifact helpers
+        from src.agent.utils.artifact_helpers import save_artifact_with_metadata
+        import json
+        from datetime import datetime, timezone
+        
+        artifact_result = await save_artifact_with_metadata(
+            artifact_service=host_component.get_shared_artifact_service(),
+            app_name=host_component.get_config()["app_name"],
+            user_id=tool_context.user_id,
+            session_id=tool_context.session_id,
+            filename=f"query_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            content_bytes=json.dumps(result).encode(),
+            mime_type="application/json",
+            metadata_dict={
+                "query": query,
+                "database": database_name,
+                "tool": "custom_database_query"
+            },
+            timestamp=datetime.now(timezone.utc)
+        )
+        
+        return {
+            "status": "success",
+            "rows_returned": len(result),
+            "artifact_filename": artifact_result["filename"]
+        }
+        
+    except Exception as e:
+        return {"status": "error", "error_message": str(e)}
+
+# Register the custom tool
+custom_tool = BuiltinTool(
+    name="custom_database_query",
+    description="Execute custom database queries with enhanced features",
+    function=custom_database_query,
+    category="data_analysis"
+)
+tool_registry.register(custom_tool)
+```
+
+#### Pattern 3: Client-Side Integration
+External applications can interact with the agent system using the client library from the `common/` directory.
+
+```python
+import asyncio
+from src.common.client import A2AClient, A2ACardResolver
+
+async def client_integration_example():
+    # Discover available agents
+    resolver = A2ACardResolver("https://agents.myorg.com")
+    agent_card = resolver.get_agent_card()
+    
+    # Create client for agent interaction
+    client = A2AClient(agent_card=agent_card)
+    
+    # Submit a task with streaming response
+    task_payload = {
+        "action": "analyze_data",
+        "data_file": "sales_report.csv",
+        "analysis_type": "quarterly_trends"
+    }
+    
+    print("Submitting task and streaming response...")
+    async for response in client.send_task_streaming(task_payload):
+        if hasattr(response.result, 'text_delta'):
+            print(response.result.text_delta, end='', flush=True)
+        elif hasattr(response.result, 'artifact'):
+            print(f"\nArtifact created: {response.result.artifact.name}")
+
+# Run the client example
+# asyncio.run(client_integration_example())
+```
+
+#### Pattern 4: Multimedia Processing Workflow
+The system supports rich multimedia processing through specialized tools.
+
+```python
+from src.agent.tools.audio_tools import text_to_speech, multi_speaker_text_to_speech
+from src.agent.tools.image_tools import create_image_from_description
+
+async def multimedia_workflow(tool_context):
+    # Generate speech from text
+    tts_result = await text_to_speech(
+        text="Welcome to our AI-powered presentation system!",
+        output_filename="intro.mp3",
+        gender="female",
+        tone="professional",
+        language="en-US",
+        tool_context=tool_context
+    )
+    
+    # Create a multi-speaker dialogue
+    conversation_result = await multi_speaker_text_to_speech(
+        conversation_text="""
+        Presenter: Today we'll discuss our quarterly results.
+        Analyst: The data shows significant growth in Q4.
+        Presenter: Let's dive into the details.
+        """,
+        speaker_configs=[
+            {"name": "Presenter", "gender": "female", "tone": "professional"},
+            {"name": "
+
+# content_hash: 0d0be1e24971f7ec1b894394591b39ffa220bb091711dd13c3f2834930698ba2

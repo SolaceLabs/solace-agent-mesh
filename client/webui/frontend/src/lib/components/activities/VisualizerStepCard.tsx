@@ -1,8 +1,9 @@
 import React from "react";
 
-import { FiCheckCircle, FiFileText, FiHardDrive, FiLink, FiMessageSquare, FiShare2, FiTerminal, FiUser, FiXCircle, FiZap } from "react-icons/fi";
+import { CheckCircle, FileText, HardDrive, Link, MessageSquare, Share2, Terminal, User, XCircle, Zap } from "lucide-react";
 
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
+import { ImageSearchGrid } from "@/lib/components/research";
 import type { ArtifactNotificationData, LLMCallData, LLMResponseToAgentData, ToolDecisionData, ToolInvocationStartData, ToolResultData, VisualizerStep } from "@/lib/types";
 
 interface VisualizerStepCardProps {
@@ -16,31 +17,31 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
     const getStepIcon = () => {
         switch (step.type) {
             case "USER_REQUEST":
-                return <FiUser className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
+                return <User className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
             case "AGENT_RESPONSE_TEXT":
-                return <FiZap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
+                return <Zap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
             case "TASK_COMPLETED":
-                return <FiCheckCircle className="mr-2 text-green-500 dark:text-green-400" size={18} />;
+                return <CheckCircle className="mr-2 text-green-500 dark:text-green-400" size={18} />;
             case "TASK_FAILED":
-                return <FiXCircle className="mr-2 text-red-500 dark:text-red-400" size={18} />;
+                return <XCircle className="mr-2 text-red-500 dark:text-red-400" size={18} />;
             case "AGENT_LLM_CALL":
-                return <FiZap className="mr-2 text-purple-500 dark:text-purple-400" size={18} />;
+                return <Zap className="mr-2 text-purple-500 dark:text-purple-400" size={18} />;
             case "AGENT_LLM_RESPONSE_TO_AGENT":
-                return <FiZap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
+                return <Zap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
             case "AGENT_LLM_RESPONSE_TOOL_DECISION": {
                 const firstDecision = step.data.toolDecision?.decisions?.[0];
                 const isPeer = firstDecision?.isPeerDelegation;
 
-                return isPeer ? <FiShare2 className="mr-2 text-orange-500 dark:text-orange-400" size={18} /> : <FiTerminal className="mr-2 text-orange-500 dark:text-orange-400" size={18} />;
+                return isPeer ? <Share2 className="mr-2 text-orange-500 dark:text-orange-400" size={18} /> : <Terminal className="mr-2 text-orange-500 dark:text-orange-400" size={18} />;
             }
             case "AGENT_TOOL_INVOCATION_START":
-                return step.data.toolInvocationStart?.isPeerInvocation ? <FiShare2 className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} /> : <FiTerminal className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} />;
+                return step.data.toolInvocationStart?.isPeerInvocation ? <Share2 className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} /> : <Terminal className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} />;
             case "AGENT_TOOL_EXECUTION_RESULT":
-                return <FiHardDrive className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
+                return <HardDrive className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
             case "AGENT_ARTIFACT_NOTIFICATION":
-                return <FiFileText className="mr-2 text-indigo-500 dark:text-indigo-400" size={18} />;
+                return <FileText className="mr-2 text-indigo-500 dark:text-indigo-400" size={18} />;
             default:
-                return <FiMessageSquare className="mr-2 text-gray-500 dark:text-gray-400" size={18} />;
+                return <MessageSquare className="mr-2 text-gray-500 dark:text-gray-400" size={18} />;
         }
     };
 
@@ -143,19 +144,63 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         </div>
     );
 
-    const renderToolResultData = (data: ToolResultData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-            <p>
-                <strong>Tool:</strong> {data.toolName}
-            </p>
-            <p className="mt-1">
-                <strong>Result:</strong>
-            </p>
-            <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
-                {typeof data.resultData === "object" ? <JSONViewer data={data.resultData} /> : <pre className="font-mono text-xs break-all whitespace-pre-wrap">{String(data.resultData)}</pre>}
+    const renderToolResultData = (data: ToolResultData) => {
+        // Check if this is a web search result with images
+        let parsedResult = null;
+        let hasImages = false;
+
+        try {
+            // Try to parse the result if it's a string
+            if (typeof data.resultData === "string") {
+                parsedResult = JSON.parse(data.resultData);
+            } else if (typeof data.resultData === "object") {
+                parsedResult = data.resultData;
+            }
+
+            // Check if the result has an images array (from web search tools)
+            if (parsedResult?.result) {
+                const innerResult = typeof parsedResult.result === "string" ? JSON.parse(parsedResult.result) : parsedResult.result;
+
+                if (innerResult?.images && Array.isArray(innerResult.images) && innerResult.images.length > 0) {
+                    hasImages = true;
+                }
+            }
+        } catch {
+            // Not JSON or parsing failed, will display as normal
+        }
+
+        return (
+            <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                <p>
+                    <strong>Tool:</strong> {data.toolName}
+                </p>
+
+                {hasImages && parsedResult?.result ? (
+                    <>
+                        <p className="mt-1">
+                            <strong>Image Results:</strong>
+                        </p>
+                        <ImageSearchGrid images={typeof parsedResult.result === "string" ? JSON.parse(parsedResult.result).images : parsedResult.result.images} />
+                        <details className="mt-2">
+                            <summary className="cursor-pointer text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">Show full result data</summary>
+                            <div className="mt-2 max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
+                                {typeof data.resultData === "object" ? <JSONViewer data={data.resultData} /> : <pre className="font-mono text-xs break-all whitespace-pre-wrap">{String(data.resultData)}</pre>}
+                            </div>
+                        </details>
+                    </>
+                ) : (
+                    <>
+                        <p className="mt-1">
+                            <strong>Result:</strong>
+                        </p>
+                        <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
+                            {typeof data.resultData === "object" ? <JSONViewer data={data.resultData} /> : <pre className="font-mono text-xs break-all whitespace-pre-wrap">{String(data.resultData)}</pre>}
+                        </div>
+                    </>
+                )}
             </div>
-        </div>
-    );
+        );
+    };
     const renderArtifactNotificationData = (data: ArtifactNotificationData) => (
         <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
             <p>
@@ -205,23 +250,23 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         return "Peer Interaction with: ";
     };
 
-    const displayTitle = step.title;
-
     return (
         <div className={cardClasses} style={indentationStyle} onClick={onClick}>
-            <div className="mb-1.5 flex items-center">
+            <div className="mb-1.5 flex w-full items-center gap-1">
                 {getStepIcon()}
-                <h4 className="flex-grow text-sm font-semibold text-gray-700 dark:text-gray-200" title={step.title}>
-                    {displayTitle}
-                </h4>
-                <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{displayTimestamp}</span>
+                <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
+                    <h4 className="flex-1 truncate text-sm font-semibold" title={step.title}>
+                        {step.title}
+                    </h4>
+                    <span className="text-muted-foreground shrink-0 font-mono text-xs">{displayTimestamp}</span>
+                </div>
             </div>
             {step.delegationInfo && step.delegationInfo.length > 0 && (
                 <div className="mt-2 mb-1.5 space-y-2 rounded-r-md border-l-4 border-blue-500 bg-blue-50 p-2 text-sm dark:border-blue-400 dark:bg-gray-700/60">
                     {step.delegationInfo.map(info => (
                         <div key={info.functionCallId}>
                             <div className="flex items-center font-semibold text-blue-700 dark:text-blue-300">
-                                <FiLink className="mr-2 h-4 w-4 flex-shrink-0" />
+                                <Link className="mr-2 h-4 w-4 flex-shrink-0" />
                                 <span>
                                     {getDelegationText()}
                                     {info.peerAgentName}

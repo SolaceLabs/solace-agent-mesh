@@ -2,9 +2,11 @@
 A singleton registry for discovering and holding all BuiltinTool definitions.
 """
 
+import logging
 from typing import Dict, List, Optional
 from .tool_definition import BuiltinTool
-from solace_ai_connector.common.log import log
+
+log = logging.getLogger(__name__)
 
 
 class _ToolRegistry:

@@ -1,0 +1,131 @@
+test_case_id: "web_to_analysis_pipeline_001"
+description: |
+  Tests integration between web_request, file conversion, data analysis, and visualization tools.
+  Fetches data from web, converts formats, performs analysis, and creates reports.
+  Demonstrates end-to-end tool chain integration.
+tags: ["all", "agent", "tools", "web_tools"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "integration_tester@example.com"
+  parts:
+    - type: "text"
+      text: |
+        Please perform a complete data analysis workflow:
+        1. Fetch JSON data from {{STATIC_FILE_SERVER_URL}}/sample.json
+        2. Convert the data to a structured format
+        3. Analyze the data and calculate metrics
+        4. Create a summary report
+        5. Generate a visualization of the findings
+  external_context:
+    a2a_session_id: "web_analysis_integration_session"
+
+llm_interactions:
+  # Step 1: Fetch data from web
+  - step_id: "fetch_web_data"
+    expected_request:
+      tools_present:
+        - "web_request"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_web_fetch"
+                type: "function"
+                function:
+                  name: "web_request"
+                  arguments: '{"url": "{{STATIC_FILE_SERVER_URL}}/sample.json", "method": "GET"}'
+          finish_reason: "tool_calls"
+
+  # Step 2: Generate visualization
+  - step_id: "create_visualization"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_visualize"
+                type: "function"
+                function:
+                  name: "mermaid_diagram_generator"
+                  arguments: '{"mermaid_syntax": "flowchart TD\n    A[Web Data Source] -->|Fetch JSON| B[Raw Data]\n    B -->|Analyze| C[Analysis Results]\n    C -->|Visualize| D[Data Flow Diagram]\n    \n    E[Integration Pipeline]\n    E --> F[Web Request Tool]\n    E --> G[Analysis Tool]\n    E --> H[Visualization Tool]\n    \n    I[Success Metrics]\n    I --> J[Data Retrieved]\n    I --> K[Analysis Complete]\n    I --> L[Pipeline Functional]\n    \n    style A fill:#e1f5fe\n    style C fill:#c8e6c9\n    style D fill:#fff3e0", "output_filename": "integration_workflow.png"}'
+          finish_reason: "tool_calls"
+
+  # Step 3: Final integration summary
+  - step_id: "final_integration_summary"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              I've successfully completed the integrated web-to-analysis pipeline:
+
+              **🔄 Integration Pipeline Completed:**
+
+              1. **Data Acquisition** ✅
+                 - Fetched JSON data from {{STATIC_FILE_SERVER_URL}}/sample.json
+                 - Retrieved todo item with metadata
+
+              2. **Data Analysis** ✅
+                 - Performed comprehensive analysis of the retrieved data
+                 - Generated structured analysis report
+                 - Identified key characteristics and insights
+
+              3. **Visualization** ✅
+                 - Created integration workflow diagram: `integration_workflow.png`
+                 - Illustrated the complete pipeline process
+
+              **📊 Key Findings:**
+              - Successfully processed task management data
+              - Data quality is high with complete metadata
+              - Workflow demonstrates seamless tool integration
+              - Pipeline is functional and efficient
+
+              **📁 Deliverables Created:**
+              - Raw web data (auto-saved from web_request)
+              - `integration_workflow.png` - Visual workflow diagram
+
+              This demonstrates successful integration of web fetching, analysis, and visualization tools in a streamlined pipeline.
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "web_analysis_integration_session"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "Integration Pipeline Completed"
+              - "Data Acquisition"
+              - "Data Analysis"
+              - "Visualization"
+              - "integration_workflow.png"
+              - "seamless tool integration"
+
+expected_artifacts:
+  - filename_matches_regex: "^web_content_.*\\.json(?<!\\.metadata\\.json)$"
+    mime_type: "application/json"
+  - filename_matches_regex: "^web_content_.*\\.json\\.metadata\\.json$"
+    mime_type: "application/json"
+    content_contains: "application/json"
+  - filename: "integration_workflow.png"
+    mime_type: "image/png"

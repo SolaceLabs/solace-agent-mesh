@@ -24,8 +24,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     // Reconnection state management
     const [reconnectionAttempts, setReconnectionAttempts] = useState<number>(0);
     const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
-    const [maxReconnectionAttempts] = useState<number>(10);
-    const [baseReconnectionDelay] = useState<number>(1000);
+    const maxReconnectionAttempts = 10;
 
     const taskMonitorEventSourceRef = useRef<EventSource | null>(null);
     const taskMonitorSseStreamIdRef = useRef<string | null>(null);
@@ -57,11 +56,13 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 return { ...prevTasks, [taskId]: { ...existingTask, events: updatedEvents, lastUpdated: eventTimestamp } };
             } else {
                 let initialRequestText = "Task started...";
-                if (event.direction === "request" && event.full_payload?.method?.startsWith("tasks/")) {
-                    const params = event.full_payload.params as { message: { parts: { type: string; text: string }[] } };
+                if (event.direction === "request" && event.full_payload?.method?.startsWith("message/")) {
+                    const params = event.full_payload.params as { message: { parts: { kind: string; text: string }[] } };
                     if (params?.message?.parts) {
-                        const textParts = params.message.parts.filter(p => p.type === "text");
-                        initialRequestText = textParts[1]?.text ?? textParts[0]?.text;
+                        const textParts = params.message.parts.filter(p => p.kind === "text" && p.text);
+                        if (textParts.length > 0) {
+                            initialRequestText = textParts[textParts.length - 1].text;
+                        }
                     }
                 }
                 const newTask: TaskFE = {
@@ -118,6 +119,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             taskMonitorEventSourceRef.current.close();
             taskMonitorEventSourceRef.current = null;
         }
+
+        if (reconnectionTimeoutRef.current) {
+            clearTimeout(reconnectionTimeoutRef.current);
+            reconnectionTimeoutRef.current = null;
+        }
     }, []);
 
     const connectTaskMonitorStream = useCallback(async () => {
@@ -173,6 +179,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 taskMonitorEventSourceRef.current.close();
                 taskMonitorEventSourceRef.current = null;
             }
+
+            if (reconnectionTimeoutRef.current) {
+                clearTimeout(reconnectionTimeoutRef.current);
+                reconnectionTimeoutRef.current = null;
+            }
         }
     }, [apiPrefix, configServerUrl, isTaskMonitorConnected, isTaskMonitorConnecting, handleTaskMonitorSseOpen, handleTaskMonitorSseMessage, handleTaskMonitorSseError]);
 
@@ -190,7 +201,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             return;
         }
 
-        const delay = baseReconnectionDelay * Math.pow(2, reconnectionAttempts); // Exponential backoff
+        const delay = 2000;
         console.log(`TaskMonitorContext: Attempting reconnection ${reconnectionAttempts + 1}/${maxReconnectionAttempts} in ${delay}ms...`);
 
         setIsReconnecting(true);
@@ -199,7 +210,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         reconnectionTimeoutRef.current = setTimeout(() => {
             connectTaskMonitorStream();
         }, delay);
-    }, [reconnectionAttempts, maxReconnectionAttempts, baseReconnectionDelay, connectTaskMonitorStream]);
+    }, [reconnectionAttempts, connectTaskMonitorStream]);
 
     const disconnectTaskMonitorStream = useCallback(async () => {
         console.log("TaskMonitorContext: Disconnecting stream...");
@@ -270,22 +281,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }, []); // Empty dependency array for one-time initialization
 
     useEffect(() => {
-        // Only attempt reconnection if:
-        // 1. We're not currently connected
-        // 2. We're not currently connecting
-        // 3. We're not already in a reconnection process
-        // 4. There's an error (indicating a broken connection)
-        // 5. We haven't exceeded max attempts
-        if (!isTaskMonitorConnected && !isTaskMonitorConnecting && !isReconnecting && taskMonitorSseError && reconnectionAttempts < maxReconnectionAttempts) {
-            // Check if the error indicates a connection issue that should trigger reconnection
-            const shouldReconnect = taskMonitorSseError.includes("closed by server") || taskMonitorSseError.includes("network issue") || taskMonitorSseError.includes("connection error");
-
-            if (shouldReconnect) {
-                console.log("TaskMonitorContext: Connection lost, initiating auto-reconnection...");
-                attemptReconnection();
-            }
+        if (!isTaskMonitorConnected && !isTaskMonitorConnecting && taskMonitorSseError) {
+            console.log("TaskMonitorContext: Connection lost, initiating auto-reconnection...");
+            attemptReconnection();
         }
-    }, [isTaskMonitorConnected, isTaskMonitorConnecting, isReconnecting, taskMonitorSseError, reconnectionAttempts, maxReconnectionAttempts, attemptReconnection]);
+    }, [isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, attemptReconnection]);
 
     useEffect(() => {
         return () => {
@@ -300,6 +300,62 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         setHighlightedStepIdState(stepId);
     }, []);
 
+    const loadTaskFromBackend = useCallback(
+        async (taskId: string): Promise<TaskFE | null> => {
+            try {
+                const response = await authenticatedFetch(`${apiPrefix}/tasks/${taskId}/events`, {
+                    method: "GET",
+                    credentials: "include",
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ detail: "Failed to load task" }));
+                    console.error(`TaskProvider: Failed to load task ${taskId}:`, errorData);
+                    return null;
+                }
+
+                const data = await response.json();
+
+                // Backend now returns all tasks (parent + children) in a tasks object
+                const allTasks = data.tasks as Record<string, { events: A2AEventSSEPayload[]; initial_request_text: string }>;
+                const loadedTasks: Record<string, TaskFE> = {};
+
+                // Transform each task to TaskFE format
+                for (const [tid, taskData] of Object.entries(allTasks)) {
+                    const events = taskData.events;
+                    const taskFE: TaskFE = {
+                        taskId: tid,
+                        initialRequestText: taskData.initial_request_text || "Task loaded from history",
+                        events: events,
+                        firstSeen: new Date(events[0]?.timestamp || Date.now()),
+                        lastUpdated: new Date(events[events.length - 1]?.timestamp || Date.now()),
+                    };
+                    loadedTasks[tid] = taskFE;
+                }
+
+                // Add all tasks to monitored tasks for caching
+                setMonitoredTasks(prevTasks => ({
+                    ...prevTasks,
+                    ...loadedTasks,
+                }));
+
+                // Add main task to task order if not already present
+                setMonitoredTaskOrder(prevOrder => {
+                    if (prevOrder.includes(taskId)) {
+                        return prevOrder;
+                    }
+                    return [taskId, ...prevOrder];
+                });
+
+                return loadedTasks[taskId] || null;
+            } catch (error) {
+                console.error(`TaskProvider: Error loading task ${taskId} from backend:`, error);
+                return null;
+            }
+        },
+        [apiPrefix]
+    );
+
     const contextValue: TaskContextValue = {
         isTaskMonitorConnecting,
         isTaskMonitorConnected,
@@ -312,6 +368,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         connectTaskMonitorStream,
         disconnectTaskMonitorStream,
         setHighlightedStepId,
+        loadTaskFromBackend,
     };
 
     return <TaskContext.Provider value={contextValue}>{children}</TaskContext.Provider>;

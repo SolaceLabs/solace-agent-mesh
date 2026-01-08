@@ -31,7 +31,7 @@ def create_gateway_files(
     collected_options["namespace"] = ask_if_not_provided(
         collected_options,
         "namespace",
-        "Enter A2A namespace for the gateway (e.g., myorg/dev, or leave for ${NAMESPACE})",
+        "Enter namespace for the gateway (e.g., myorg/dev, or leave for ${NAMESPACE})",
         GATEWAY_DEFAULTS["namespace"],
         skip_interactive,
     )
@@ -236,7 +236,7 @@ def create_gateway_files(
 
 @click.command(name="gateway")
 @click.argument("name", required=False)
-@click.option("--namespace", help="A2A namespace for the gateway (e.g., myorg/dev).")
+@click.option("--namespace", help="namespace for the gateway (e.g., myorg/dev).")
 @click.option("--gateway-id", help="Custom Gateway ID for the gateway.")
 @click.option(
     "--artifact-service-type",

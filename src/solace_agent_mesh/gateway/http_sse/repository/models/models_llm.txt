@@ -1,0 +1,257 @@
+## Quick Summary
+This directory contains SQLAlchemy ORM models and Pydantic schemas for database persistence in the HTTP SSE gateway. It provides models for managing chat sessions, tasks, task events, and user feedback with proper relationships and database schema definitions.
+
+## Files Overview
+- `__init__.py` - Package initialization exposing all SQLAlchemy and Pydantic models
+- `base.py` - SQLAlchemy declarative base configuration
+- `chat_task_model.py` - ChatTaskModel for storing chat tasks with session relationships
+- `feedback_model.py` - FeedbackModel for storing user feedback on tasks
+- `session_model.py` - SessionModel and Pydantic schemas for managing chat sessions
+- `task_event_model.py` - TaskEventModel for storing A2A task events with task relationships
+- `task_model.py` - TaskModel for managing tasks with event relationships and token usage tracking
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Package entry point that exposes all SQLAlchemy models and Pydantic schemas
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models import Base, ChatTaskModel, FeedbackModel, SessionModel, CreateSessionModel, UpdateSessionModel, TaskEventModel, TaskModel`
+
+**Constants/Variables:**
+- `__all__: List[str]` - Public API exports including all models and schemas
+
+### base.py
+**Purpose:** Provides the SQLAlchemy declarative base for all models
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.base import Base`
+
+**Constants/Variables:**
+- `Base: DeclarativeMeta` - SQLAlchemy declarative base class for all models
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
+from sqlalchemy import create_engine
+
+# Create all tables
+engine = create_engine("sqlite:///example.db")
+Base.metadata.create_all(engine)
+```
+
+### chat_task_model.py
+**Purpose:** SQLAlchemy model for storing chat tasks with session relationships
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.chat_task_model import ChatTaskModel`
+
+**Classes:**
+- `ChatTaskModel(Base)` - SQLAlchemy model for chat tasks
+  - `id: Column[String]` - Primary key task identifier
+  - `session_id: Column[String]` - Foreign key to sessions table with CASCADE delete (indexed)
+  - `user_id: Column[String]` - User identifier (indexed)
+  - `user_message: Column[Text]` - Optional user message content
+  - `message_bubbles: Column[Text]` - Required message bubbles data
+  - `task_metadata: Column[Text]` - Optional task metadata
+  - `created_time: Column[BigInteger]` - Creation timestamp in epoch milliseconds (indexed)
+  - `updated_time: Column[BigInteger]` - Optional update timestamp
+  - `session: relationship` - SQLAlchemy relationship to SessionModel
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.chat_task_model import ChatTaskModel
+from sqlalchemy.orm import sessionmaker
+
+# Create a chat task
+chat_task = ChatTaskModel(
+    id="task_123",
+    session_id="session_456",
+    user_id="user_789",
+    user_message="Hello, how can you help me?",
+    message_bubbles='[{"type": "user", "content": "Hello"}]',
+    task_metadata='{"priority": "high"}',
+    created_time=1640995200000,
+    updated_time=1640995260000
+)
+
+# Add to database
+Session = sessionmaker(bind=engine)
+db_session = Session()
+db_session.add(chat_task)
+db_session.commit()
+
+# Access related session
+session = chat_task.session
+```
+
+### feedback_model.py
+**Purpose:** SQLAlchemy model for storing user feedback on tasks
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.feedback_model import FeedbackModel`
+
+**Classes:**
+- `FeedbackModel(Base)` - SQLAlchemy model for user feedback
+  - `id: Column[String]` - Primary key feedback identifier
+  - `session_id: Column[String]` - Session identifier
+  - `task_id: Column[String]` - Task identifier (indexed)
+  - `user_id: Column[String]` - User identifier (indexed)
+  - `rating: Column[String]` - Feedback rating (e.g., 'up', 'down')
+  - `comment: Column[Text]` - Optional feedback comment
+  - `created_time: Column[BigInteger]` - Creation timestamp in epoch milliseconds
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.feedback_model import FeedbackModel
+from sqlalchemy.orm import sessionmaker
+
+# Create feedback
+feedback = FeedbackModel(
+    id="feedback_123",
+    session_id="session_456",
+    task_id="task_789",
+    user_id="user_123",
+    rating="up",
+    comment="Great response!",
+    created_time=1640995200000
+)
+
+# Add to database
+Session = sessionmaker(bind=engine)
+db_session = Session()
+db_session.add(feedback)
+db_session.commit()
+```
+
+### session_model.py
+**Purpose:** SQLAlchemy model and Pydantic schemas for managing chat sessions with chat task relationships
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.session_model import SessionModel, CreateSessionModel, UpdateSessionModel`
+
+**Classes:**
+- `SessionModel(Base)` - SQLAlchemy model for chat sessions
+  - `id: Column[String]` - Primary key session identifier
+  - `name: Column[String]` - Optional session name
+  - `user_id: Column[String]` - Required user identifier
+  - `agent_id: Column[String]` - Optional agent identifier
+  - `created_time: Column[BigInteger]` - Creation timestamp (auto-generated)
+  - `updated_time: Column[BigInteger]` - Last update timestamp (auto-updated)
+  - `chat_tasks: relationship` - SQLAlchemy relationship to ChatTaskModel with cascade delete
+
+- `CreateSessionModel(BaseModel)` - Pydantic model for creating sessions
+  - `id: str` - Session identifier
+  - `name: str | None` - Optional session name
+  - `user_id: str` - User identifier
+  - `agent_id: str | None` - Optional agent identifier
+  - `created_time: int` - Creation timestamp
+  - `updated_time: int` - Update timestamp
+
+- `UpdateSessionModel(BaseModel)` - Pydantic model for updating sessions
+  - `name: str | None` - Optional updated session name
+  - `agent_id: str | None` - Optional updated agent identifier
+  - `updated_time: int` - Update timestamp
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.session_model import SessionModel, CreateSessionModel
+from sqlalchemy.orm import sessionmaker
+
+# Create using SQLAlchemy model
+session = SessionModel(
+    id="session_123",
+    name="My Chat Session",
+    user_id="user_456",
+    agent_id="agent_789"
+)
+
+# Create using Pydantic model
+create_data = CreateSessionModel(
+    id="session_124",
+    name="Another Session",
+    user_id="user_456",
+    agent_id="agent_789",
+    created_time=1640995200000,
+    updated_time=1640995200000
+)
+
+# Access related chat tasks
+chat_tasks = session.chat_tasks  # Returns list of ChatTaskModel instances
+```
+
+### task_event_model.py
+**Purpose:** SQLAlchemy model for storing A2A task events with task relationships
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model import TaskEventModel`
+
+**Classes:**
+- `TaskEventModel(Base)` - SQLAlchemy model for A2A task events
+  - `id: Column[String]` - Primary key event identifier
+  - `task_id: Column[String]` - Foreign key to tasks table with CASCADE delete (indexed)
+  - `user_id: Column[String]` - Optional user identifier (indexed)
+  - `created_time: Column[BigInteger]` - Creation timestamp in epoch milliseconds
+  - `topic: Column[Text]` - Event topic
+  - `direction: Column[String]` - Event direction (max 50 chars)
+  - `payload: Column[JSON]` - Event payload as JSON
+  - `task: relationship` - SQLAlchemy relationship to TaskModel
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model import TaskEventModel
+from sqlalchemy.orm import sessionmaker
+
+# Create a task event
+event = TaskEventModel(
+    id="event_123",
+    task_id="task_456",
+    user_id="user_789",
+    created_time=1640995200000,
+    topic="agent/response",
+    direction="inbound",
+    payload={"message": "Task completed", "status": "success"}
+)
+
+# Add to database
+Session = sessionmaker(bind=engine)
+db_session = Session()
+db_session.add(event)
+db_session.commit()
+```
+
+### task_model.py
+**Purpose:** SQLAlchemy model for managing tasks with event relationships and token usage tracking
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel`
+
+**Classes:**
+- `TaskModel(Base)` - SQLAlchemy model for tasks
+  - `id: Column[String]` - Primary key task identifier
+  - `user_id: Column[String]` - User identifier (indexed)
+  - `start_time: Column[BigInteger]` - Task start timestamp in epoch milliseconds
+  - `end_time: Column[BigInteger]` - Optional task end timestamp
+  - `status: Column[String]` - Optional task status
+  - `initial_request_text: Column[Text]` - Optional initial request text (indexed)
+  - `total_input_tokens: Column[Integer]` - Optional total input tokens used
+  - `total_output_tokens: Column[Integer]` - Optional total output tokens used
+  - `total_cached_input_tokens: Column[Integer]` - Optional total cached input tokens
+  - `token_usage_details: Column[JSON]` - Optional detailed token usage information
+  - `events: relationship` - SQLAlchemy relationship to TaskEventModel with cascade delete
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
+from sqlalchemy.orm import sessionmaker
+
+# Create a new task with token tracking
+task = TaskModel(
+    id="task_123",
+    user_id="user_456",
+    start_time=1640995200000,
+    status="in_progress",
+    initial_request_text="Please help me with this task",
+    total_input_tokens=150,
+    total_output_tokens=300,
+    total_cached_input_tokens=50,
+    token_usage_details={"model": "gpt-4", "breakdown": {"reasoning": 200, "response": 100}}
+)
+
+# Add to database
+Session = sessionmaker(bind=engine)
+db_session = Session()
+db_session.add(task)
+db_session.commit()
+
+# Access related events
+events = task.events  # Returns list of TaskEventModel instances
+```
+
+# content_hash: 65d43bc49dd561efb9955aae2fc39945567e4302c406eea9718ce797d083646c

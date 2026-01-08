@@ -1,0 +1,123 @@
+# DEVELOPER GUIDE: responses
+
+## Quick Summary
+The `responses` directory contains Pydantic response DTOs (Data Transfer Objects) for API endpoints. It provides structured response models with automatic timestamp conversion from epoch milliseconds to ISO 8601 strings for JSON serialization, covering sessions, tasks, and messages.
+
+## Files Overview
+- `__init__.py` - Exports all response DTOs for easy importing
+- `base_responses.py` - Base response class with automatic timestamp serialization
+- `session_responses.py` - Session-related response DTOs with field aliasing
+- `task_responses.py` - Task-related response DTOs with field aliasing
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Central import point for all response DTOs
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.responses import SessionResponse, SessionListResponse, TaskResponse, TaskListResponse`
+
+### base_responses.py
+**Purpose:** Provides base response class with automatic timestamp field conversion
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.responses.base_responses import BaseTimestampResponse`
+
+**Classes:**
+- `BaseTimestampResponse(BaseModel)` - Base class for responses with timestamp fields that auto-converts epoch ms to ISO strings
+  - `model_dump(**kwargs) -> dict[str, Any]` - Converts timestamp fields to ISO strings in output
+  - `model_dump_json(**kwargs) -> str` - Serializes to JSON with timestamp conversion
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses.base_responses import BaseTimestampResponse
+
+class MyResponse(BaseTimestampResponse):
+    name: str
+    created_time: int  # Will be auto-converted to ISO string in JSON output
+    updated_time: int | None = None
+
+# Usage
+response = MyResponse(name="test", created_time=1640995200000)
+json_data = response.model_dump()  # created_time becomes ISO string
+```
+
+### session_responses.py
+**Purpose:** Session response DTOs with field aliasing for API consistency
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.responses import SessionResponse, SessionListResponse`
+
+**Classes:**
+- `SessionResponse(BaseTimestampResponse)` - Response DTO for chat sessions
+  - `id: SessionId` - Unique session identifier
+  - `user_id: UserId` - User who owns the session (aliased as "userId")
+  - `name: str | None` - Optional session name
+  - `agent_id: str | None` - Optional agent identifier (aliased as "agentId")
+  - `created_time: int` - Creation timestamp in epoch ms (aliased as "createdTime")
+  - `updated_time: int | None` - Update timestamp in epoch ms (aliased as "updatedTime")
+
+- `SessionListResponse(BaseModel)` - Response DTO for paginated session lists
+  - `sessions: list[SessionResponse]` - List of session objects
+  - `pagination: PaginationMeta | None` - Pagination metadata
+  - `total_count: int` - Total number of sessions (aliased as "totalCount")
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import SessionResponse, SessionListResponse
+
+# Create a session response
+session = SessionResponse(
+    id="sess_456",
+    user_id="user_789",
+    name="My Chat Session",
+    agent_id="agent_001",
+    created_time=1640995200000
+)
+
+# Create a session list response
+session_list = SessionListResponse(
+    sessions=[session],
+    total_count=1
+)
+
+# Serialize to JSON (timestamps auto-converted to ISO strings)
+json_output = session.model_dump_json()
+```
+
+### task_responses.py
+**Purpose:** Task response DTOs with field aliasing for API consistency
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.responses import TaskResponse, TaskListResponse`
+
+**Classes:**
+- `TaskResponse(BaseTimestampResponse)` - Response DTO for a single task
+  - `task_id: str` - Unique task identifier (aliased as "taskId")
+  - `session_id: str` - Session this task belongs to (aliased as "sessionId")
+  - `user_message: str | None` - Optional user message (aliased as "userMessage")
+  - `message_bubbles: str` - JSON string containing message bubbles (aliased as "messageBubbles")
+  - `task_metadata: str | None` - Optional JSON string with task metadata (aliased as "taskMetadata")
+  - `created_time: int` - Creation timestamp in epoch ms (aliased as "createdTime")
+  - `updated_time: int | None` - Update timestamp in epoch ms (aliased as "updatedTime")
+
+- `TaskListResponse(BaseModel)` - Response DTO for a list of tasks
+  - `tasks: list[TaskResponse]` - List of task objects
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import TaskResponse, TaskListResponse
+
+# Create a task response
+task = TaskResponse(
+    task_id="task_123",
+    session_id="sess_456",
+    user_message="Process this data",
+    message_bubbles='{"bubbles": [{"type": "text", "content": "Processing..."}]}',
+    task_metadata='{"priority": "high"}',
+    created_time=1640995200000,
+    updated_time=1640995260000
+)
+
+# Create a task list response
+task_list = TaskListResponse(
+    tasks=[task]
+)
+
+# Serialize to JSON (timestamps auto-converted to ISO strings)
+json_output = task.model_dump_json()
+```
+
+# content_hash: 059aa6ca2472994cbde0e223252c8e78ba2be6c5d0d4f3e91f5e10976e173e5d

@@ -1,0 +1,70 @@
+{
+    "agents": [
+        "examples/agents/a2a_agents_example.yaml",
+        "examples/agents/a2a_multimodal_example.yaml",
+        "examples/agents/orchestrator_example.yaml"
+    ],
+    "broker": {
+        "SOLACE_BROKER_URL_VAR": "SOLACE_BROKER_URL",
+        "SOLACE_BROKER_USERNAME_VAR": "SOLACE_BROKER_USERNAME",
+        "SOLACE_BROKER_PASSWORD_VAR": "SOLACE_BROKER_PASSWORD",
+        "SOLACE_BROKER_VPN_VAR": "SOLACE_BROKER_VPN"
+    },
+    "llm_models": [
+        {
+            "name": "gpt-4-1",
+            "env": {
+                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/azure-gpt-4-1",
+                "LLM_SERVICE_ENDPOINT_VAR": "LLM_SERVICE_ENDPOINT",
+                "LLM_SERVICE_API_KEY_VAR": "LLM_SERVICE_API_KEY"
+            }
+        },
+        {
+            "name": "gemini-2.5-pro",
+            "env": {
+                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/gemini-2.5-pro",
+                "LLM_SERVICE_ENDPOINT_VAR": "LLM_SERVICE_ENDPOINT",
+                "LLM_SERVICE_API_KEY_VAR": "LLM_SERVICE_API_KEY"
+            }
+        },
+        {
+            "name": "gemini-2.5-flash",
+            "env": {
+                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/gemini-2.5-flash",
+                "LLM_SERVICE_ENDPOINT_VAR": "LLM_SERVICE_ENDPOINT",
+                "LLM_SERVICE_API_KEY_VAR": "LLM_SERVICE_API_KEY",
+                "MAX_TOKENS": "8000"
+            }
+        }
+    ],
+    "results_dir_name": "sam-local-eval-test",
+    "runs": 3,
+    "workers": 4,
+    "test_cases": [
+        "tests/evaluation/test_cases/convert_html_to_md.test.json",
+        "tests/evaluation/test_cases/convert_pdf_to_md.test.json",
+        "tests/evaluation/test_cases/create_diagram.test.json",
+        "tests/evaluation/test_cases/file_artifact.test.json",
+        "tests/evaluation/test_cases/filter_csv_employees_by_age_and_country.test.json",
+        "tests/evaluation/test_cases/generate_employee_csv.test.json",
+        "tests/evaluation/test_cases/generate_sales_report.test.json",
+        "tests/evaluation/test_cases/hello_world.test.json",
+        "tests/evaluation/test_cases/web_search_solace_summary.test.json"
+    ],
+    "evaluation_settings": {
+        "tool_match": {
+            "enabled": true
+        },
+        "response_match": {
+            "enabled": true
+        },
+        "llm_evaluator": {
+            "enabled": true,
+            "env": {
+                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/gemini-2.5-pro",
+                "LLM_SERVICE_ENDPOINT_VAR": "LLM_SERVICE_ENDPOINT",
+                "LLM_SERVICE_API_KEY_VAR": "LLM_SERVICE_API_KEY"
+            }
+        }
+    }
+}

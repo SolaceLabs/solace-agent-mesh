@@ -1,39 +1,42 @@
-import React from "react";
+import { useChatContext, useConfigContext } from "@/lib/hooks";
+import { Edit } from "lucide-react";
+import { Button } from "@/lib/components/ui/button";
+import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
+import { useState } from "react";
 
-import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/lib/components/ui";
-import { useChatContext } from "@/lib/hooks";
-
-interface ChatSessionDialogProps {
-    isOpen: boolean;
-    onClose: () => void;
+interface NewChatButtonProps {
+    text?: string;
+    onClick?: () => void;
 }
 
-export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ isOpen, onClose }) => {
-	const { handleNewSession } = useChatContext();
-
+const NewChatButton: React.FC<NewChatButtonProps> = ({ text, onClick }) => {
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle className="flex flex-row gap-1 max-w-[400px]">
-						New Chat Session?
-                    </DialogTitle>
-                    <DialogDescription className="flex flex-col gap-2">
-                        Starting a new chat session will clear the current chat history and files. Are you sure you want to proceed?
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={onClose}>
-                        Cancel
-                    </Button>
-                    <Button variant="default" onClick={() => {
-						handleNewSession();
-						onClose();
-					}}>
-                        Start New Chat
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
+        <Button data-testid="startNewChat" variant="ghost" onClick={onClick} tooltip="Start New Chat Session">
+            <Edit className="size-5" />
+            {text}
+        </Button>
+    );
+};
+
+interface ChatSessionDialogProps {
+    buttonText?: string;
+}
+export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ buttonText }) => {
+    const { handleNewSession } = useChatContext();
+    const { persistenceEnabled } = useConfigContext();
+    const [isOpen, setIsOpen] = useState(false);
+
+    return persistenceEnabled ? (
+        <NewChatButton text={buttonText} onClick={() => handleNewSession()} />
+    ) : (
+        <ConfirmationDialog
+            open={isOpen}
+            onOpenChange={setIsOpen}
+            title="Start New Chat Session"
+            description="Starting a new chat session will clear the current chat history and files. Are you sure you want to proceed?"
+            actionLabels={{ confirm: "Start New Chat" }}
+            onConfirm={handleNewSession}
+            trigger={<NewChatButton text={buttonText} />}
+        />
     );
 };

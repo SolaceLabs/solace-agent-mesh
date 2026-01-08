@@ -2,16 +2,17 @@
 Test-specific ADK Tools.
 """
 
+import logging
 import asyncio
 from typing import Dict, Optional, Any
 
 from google.adk.tools import ToolContext
-from solace_ai_connector.common.log import log
 
 from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
+log = logging.getLogger(__name__)
 
 async def time_delay(
     seconds: float,

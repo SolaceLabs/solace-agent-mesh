@@ -1,0 +1,104 @@
+# DEVELOPER GUIDE: sam_events
+
+## Quick Summary
+The `sam_events` directory provides system-level event messaging for Solace Agent Mesh (SAM). It enables clean separation between agent-to-agent (A2A) task communication and system events like session lifecycle, agent health, and configuration changes.
+
+## Files Overview
+- `__init__.py` - Package initialization and public API exports
+- `event_service.py` - Core event service implementation with publishing/subscription capabilities
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Package entry point that exports the main classes for SAM event handling
+**Import:** `from solace_agent_mesh.common.sam_events import SamEventService, SamEvent, SessionDeletedEvent`
+
+### event_service.py
+**Purpose:** Implements the core event messaging service for system-level events in SAM
+**Import:** `from solace_agent_mesh.common.sam_events.event_service import SamEventService, SamEvent, SessionDeletedEvent`
+
+**Classes:**
+
+- `SamEvent(event_type: str, event_id: str, timestamp: str, source_component: str, namespace: str, data: Dict[str, Any])` - Base class for all SAM system events
+  - `create(event_type: str, source_component: str, namespace: str, data: Dict[str, Any]) -> SamEvent` - Create a new event with auto-generated ID and timestamp
+  - `to_dict() -> Dict[str, Any]` - Convert event to dictionary for messaging
+  - `event_type: str` - Type of event (e.g., "session.deleted")
+  - `event_id: str` - Unique identifier for the event
+  - `timestamp: str` - ISO format timestamp when event was created
+  - `source_component: str` - Component that generated the event
+  - `namespace: str` - SAM namespace
+  - `data: Dict[str, Any]` - Event-specific data payload
+
+- `SessionDeletedEvent(SamEvent)` - Specialized event for session deletion notifications
+  - `create(namespace: str, source_component: str, session_id: str, user_id: str, agent_id: str, gateway_id: str) -> SessionDeletedEvent` - Create a session deleted event
+
+- `SamEventService(namespace: str, component_name: str, publish_func: Callable[[str, Dict, Optional[Dict]], None])` - Service for publishing and subscribing to SAM system events
+  - `publish_event(event: SamEvent) -> bool` - Publish a system event
+  - `publish_session_deleted(session_id: str, user_id: str, agent_id: str, gateway_id: str) -> bool` - Convenience method to publish session deleted event
+  - `subscribe_to_events(event_type: str, handler: Callable[[SamEvent], None]) -> bool` - Subscribe to events of a specific type
+  - `handle_incoming_event(topic: str, payload: Dict[str, Any]) -> None` - Handle incoming events from messaging system
+  - `namespace: str` - The SAM namespace
+  - `component_name: str` - Name of the component using this service
+
+**Functions:**
+
+- `SamEventService.get_event_topic(namespace: str, event_type: str) -> str` - Get the topic for a specific event type
+
+**Usage Examples:**
+
+```python
+# Basic event service setup
+from solace_agent_mesh.common.sam_events import SamEventService, SamEvent, SessionDeletedEvent
+
+# Initialize the event service
+def my_publish_func(topic: str, payload: dict, headers: dict = None):
+    # Your A2A publishing implementation
+    pass
+
+event_service = SamEventService(
+    namespace="my_namespace",
+    component_name="my_component", 
+    publish_func=my_publish_func
+)
+
+# Create and publish a custom event
+custom_event = SamEvent.create(
+    event_type="agent.health_check",
+    source_component="health_monitor",
+    namespace="my_namespace",
+    data={"status": "healthy", "cpu_usage": 45.2}
+)
+success = event_service.publish_event(custom_event)
+
+# Publish a session deleted event (convenience method)
+success = event_service.publish_session_deleted(
+    session_id="sess_123",
+    user_id="user_456", 
+    agent_id="agent_789",
+    gateway_id="gateway_001"
+)
+
+# Subscribe to events
+def handle_session_deleted(event: SamEvent):
+    session_id = event.data["session_id"]
+    print(f"Session {session_id} was deleted")
+
+event_service.subscribe_to_events("session.deleted", handle_session_deleted)
+
+# Handle incoming events (typically called by your messaging infrastructure)
+incoming_payload = {
+    "event_type": "session.deleted",
+    "event_id": "evt_123",
+    "timestamp": "2024-01-01T12:00:00Z",
+    "source_component": "gateway",
+    "namespace": "my_namespace",
+    "data": {"session_id": "sess_123", "user_id": "user_456"}
+}
+event_service.handle_incoming_event("sam/events/session/deleted", incoming_payload)
+
+# Get topic for an event type
+topic = SamEventService.get_event_topic("my_namespace", "session.deleted")
+print(topic)  # Returns the proper SAM events topic
+```
+
+# content_hash: 2a249adbac594bbf8a551a6b4f606218b7b8fce41753efe31954b8acc50cc126

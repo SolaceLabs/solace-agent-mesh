@@ -5,27 +5,38 @@ import { RefreshCcw, Trash } from "lucide-react";
 import { Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components";
 import { useChatContext } from "@/lib/hooks";
 
-interface MorePopoverProps {
+interface ArtifactMorePopoverProps {
     children: React.ReactNode;
+    hideDeleteAll?: boolean;
 }
 
-export const MorePopover: React.FC<MorePopoverProps> = ({ children }) => {
-	const { artifactsRefetch, setIsBatchDeleteModalOpen } = useChatContext();
+export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({ children, hideDeleteAll = false }) => {
+    const { artifactsRefetch, setIsBatchDeleteModalOpen } = useChatContext();
 
-    const menuActions: MenuAction[] = [{
-        id: "refreshAll",
-        label: "Refresh",
-        onClick: () => { artifactsRefetch(); },
-        icon: <RefreshCcw />,
-        iconPosition: "left",
-    },{
-        id: "deleteAll",
-        label: "Delete All",
-        onClick: () => { setIsBatchDeleteModalOpen(true); },
-        icon: <Trash />,
-        iconPosition: "left",
-        divider: true,
-    }];
+    const menuActions: MenuAction[] = [
+        {
+            id: "refreshAll",
+            label: "Refresh",
+            onClick: () => {
+                artifactsRefetch();
+            },
+            icon: <RefreshCcw />,
+            iconPosition: "left",
+        },
+    ];
+
+    if (!hideDeleteAll) {
+        menuActions.push({
+            id: "deleteAll",
+            label: "Delete All",
+            onClick: () => {
+                setIsBatchDeleteModalOpen(true);
+            },
+            icon: <Trash />,
+            iconPosition: "left",
+            divider: true,
+        });
+    }
 
     return (
         <Popover>

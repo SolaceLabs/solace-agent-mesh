@@ -126,7 +126,7 @@ def broker_setup_step(
                 )
             )
             options["broker_url"] = default_values.get(
-                "SOLACE_LOCAL_BROKER_URL", "ws://localhost:8080"
+                "SOLACE_LOCAL_BROKER_URL", "ws://localhost:8008"
             )
             options["broker_vpn"] = default_values.get(
                 "SOLACE_LOCAL_BROKER_VPN", "default"

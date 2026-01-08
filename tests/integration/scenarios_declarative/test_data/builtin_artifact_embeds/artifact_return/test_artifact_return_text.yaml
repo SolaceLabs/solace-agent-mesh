@@ -1,0 +1,95 @@
+test_case_id: "builtin_artifact_return_embed_text_001"
+description: |
+  Tests the 'artifact_return' embed for a text artifact.
+  Verifies that the embed in the LLM response causes the artifact to be
+  attached to the final message and the embed text is removed.
+# We need to see intermediate events to catch artifact attachment
+tags: ["all","agent","embeds","builtin_artifact_embeds"]
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "return_text_doc.txt"
+    content: "This is the text to be returned via embed." # Length 42
+    mime_type: "text/plain"
+    metadata:
+      description: "A sample text document for artifact_return embed."
+      mime_type: "text/plain" # For .metadata.json
+      size_bytes: 42
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_artifact_return_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please return 'return_text_doc.txt', version 0, to me."
+  external_context:
+    a2a_session_id: "session_artifact_return_embed_001"
+
+llm_interactions:
+  # Single LLM interaction that includes the artifact_return embed
+  - step_id: "llm_response_with_artifact_embed"
+    static_response:
+      id: "chatcmpl-artifact-return-embed-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'll return the file for you. {artifact_return:return_text_doc.txt:0}"
+          finish_reason: "stop"
+
+expected_gateway_output:
+  # Since skip_intermediate_events is false, we must list events in the order they appear.
+  # The key events are the LLM invocation/response and the final response with artifact attached.
+
+  # LLM Call (that generates response with embed)
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+    # Not asserting specific data for brevity, but could be added:
+    # expected_llm_data_contains:
+    #   model: "test-llm-model" # Or whatever is configured
+
+  - type: "status_update"
+    event_purpose: "llm_response" # LLM response containing the embed
+    # Assert that the LLM response contains the embed (before resolution)
+    expected_llm_data_contains:
+      content:
+        parts:
+          - text: "I'll return the file for you. {artifact_return:return_text_doc.txt:0}"
+        # role: "model" # Optionally assert role
+
+  - type: "status_update"
+    event_purpose: "generic_text_update"
+
+  # Final Task object
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "session_artifact_return_embed_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            # The embed should be resolved and removed from the text
+            text_exact: "I'll return the file for you. "
+          # The artifact should be attached to the message
+          - kind: "file"
+            filename: "return_text_doc.txt"
+            mime_type: "text/plain"
+            # Optionally assert content if needed:
+            # content_text: "This is the text to be returned via embed."
+    # We can also assert the original artifact was not changed.
+    assert_artifact_state:
+      - filename: "return_text_doc.txt"
+        user_id: "declarative_artifact_return_tester@example.com"
+        session_id: "session_artifact_return_embed_001"
+        version: 0
+        expected_content_text: "This is the text to be returned via embed."
+        expected_metadata_contains:
+          description: "A sample text document for artifact_return embed."
+          mime_type: "text/plain"
+          size_bytes: 42

@@ -14,6 +14,7 @@ const sessionServiceTypeOptions = [
     label: "Use Default (from shared_config.yaml)",
   },
   { value: "memory", label: "Memory (In-Process)" },
+  { value: "sql", label: "SQL (Relational Database)" },
   { value: "vertex_rag", label: "Vertex RAG (Google Cloud)" },
 ];
 
@@ -55,6 +56,11 @@ const AgentServicesStep: React.FC<StepProps> = ({
         updates.session_service_behavior = undefined;
       } else if (!data.session_service_behavior) {
         updates.session_service_behavior = "PERSISTENT";
+      }
+      if (value === "sql") {
+        updates.database_url = "default_agent_db";
+      } else {
+        updates.database_url = undefined;
       }
     } else if (name === "artifact_service_type") {
       if (value === USE_DEFAULT_SHARED_ARTIFACT) {
@@ -99,15 +105,16 @@ const AgentServicesStep: React.FC<StepProps> = ({
   return (
     <div className="space-y-6">
       <InfoBox>
-        Configure how your agent stores session history and handles artifacts
+        Configure how your agent handles artifacts
         (files). You can use default settings from a shared project
         configuration or define them specifically for this agent.
       </InfoBox>
 
-      <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-4">
+      { /* <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-4">
         Session Service
       </h3>
-      <FormField
+
+       <FormField
         label="Session Service Configuration"
         htmlFor="session_service_type"
         required
@@ -115,12 +122,12 @@ const AgentServicesStep: React.FC<StepProps> = ({
         <Select
           id="session_service_type"
           name="session_service_type"
-          value={data.session_service_type || USE_DEFAULT_SHARED_SESSION}
+          value={data.session_service_type || "sql"}
           onChange={handleServiceTypeChange}
           options={sessionServiceTypeOptions}
         />
-      </FormField>
-
+      </FormField> 
+      
       {showSessionSpecificConfig && (
         <FormField
           label="Session Service Behavior"
@@ -134,8 +141,9 @@ const AgentServicesStep: React.FC<StepProps> = ({
             onChange={handleChange}
             options={sessionBehaviorOptions}
           />
-        </FormField>
-      )}
+        </FormField> 
+      )}  */ }
+      
 
       <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-4 mt-8">
         Artifact Service

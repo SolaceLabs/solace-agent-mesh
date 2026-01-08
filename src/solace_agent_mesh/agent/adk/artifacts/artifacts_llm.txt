@@ -1,0 +1,171 @@
+# DEVELOPER GUIDE: artifacts
+
+## Quick Summary
+The artifacts directory provides ADK ArtifactService implementations for the Solace Agent Mesh. It includes filesystem and S3-compatible storage backends for managing artifacts with versioning, user namespacing, and session-based organization.
+
+## Files Overview
+- `__init__.py` - Package initialization for artifact service implementations
+- `filesystem_artifact_service.py` - Local filesystem-based artifact storage implementation
+- `s3_artifact_service.py` - Amazon S3 compatible storage implementation for artifacts
+
+## Developer API Reference
+
+### filesystem_artifact_service.py
+**Purpose:** Provides local filesystem storage for artifacts with structured directory organization and metadata management.
+
+**Import:** `from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService`
+
+**Classes:**
+- `FilesystemArtifactService(base_path: str)` - Filesystem-based artifact service implementation
+  - `save_artifact(*, app_name: str, user_id: str, session_id: str, filename: str, artifact: adk_types.Part) -> int` - Saves an artifact and returns version number
+  - `load_artifact(*, app_name: str, user_id: str, session_id: str, filename: str, version: int | None = None) -> adk_types.Part | None` - Loads an artifact by version (latest if None)
+  - `list_artifact_keys(*, app_name: str, user_id: str, session_id: str) -> list[str]` - Lists all artifact filenames for a scope
+  - `delete_artifact(*, app_name: str, user_id: str, session_id: str, filename: str) -> None` - Deletes all versions of an artifact
+  - `list_versions(*, app_name: str, user_id: str, session_id: str, filename: str) -> list[int]` - Lists all version numbers for an artifact
+  - `base_path: str` - Root directory for artifact storage
+
+**Constants/Variables:**
+- `METADATA_FILE_SUFFIX: str` - File suffix for metadata files (".meta")
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService
+from google.genai import types as adk_types
+
+# Initialize the service
+artifact_service = FilesystemArtifactService(base_path="/path/to/artifacts")
+
+# Save an artifact
+artifact_data = b"Hello, World!"
+artifact_part = adk_types.Part.from_bytes(data=artifact_data, mime_type="text/plain")
+version = await artifact_service.save_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt",
+    artifact=artifact_part
+)
+
+# Load the latest version
+loaded_artifact = await artifact_service.load_artifact(
+    app_name="my_app",
+    user_id="user123", 
+    session_id="session456",
+    filename="greeting.txt"
+)
+
+# Load a specific version
+specific_version = await artifact_service.load_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456", 
+    filename="greeting.txt",
+    version=1
+)
+
+# List all artifacts
+artifact_keys = await artifact_service.list_artifact_keys(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456"
+)
+
+# List versions of an artifact
+versions = await artifact_service.list_versions(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt"
+)
+
+# Delete an artifact
+await artifact_service.delete_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt"
+)
+```
+
+### s3_artifact_service.py
+**Purpose:** Provides S3-compatible storage for artifacts with structured key organization and AWS integration.
+
+**Import:** `from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService`
+
+**Classes:**
+- `S3ArtifactService(bucket_name: str, s3_client: BaseClient | None = None, **kwargs)` - S3-based artifact service implementation
+  - `save_artifact(*, app_name: str, user_id: str, session_id: str, filename: str, artifact: adk_types.Part) -> int` - Saves an artifact to S3 and returns version number
+  - `load_artifact(*, app_name: str, user_id: str, session_id: str, filename: str, version: int | None = None) -> adk_types.Part | None` - Loads an artifact from S3 by version (latest if None)
+  - `list_artifact_keys(*, app_name: str, user_id: str, session_id: str) -> list[str]` - Lists all artifact filenames for a scope
+  - `delete_artifact(*, app_name: str, user_id: str, session_id: str, filename: str) -> None` - Deletes all versions of an artifact from S3
+  - `list_versions(*, app_name: str, user_id: str, session_id: str, filename: str) -> list[int]` - Lists all version numbers for an artifact
+  - `bucket_name: str` - S3 bucket name for storage
+  - `s3: BaseClient` - Boto3 S3 client instance
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService
+from google.genai import types as adk_types
+import boto3
+
+# Initialize with default credentials
+artifact_service = S3ArtifactService(bucket_name="my-artifacts-bucket")
+
+# Initialize with custom S3 client
+s3_client = boto3.client(
+    's3',
+    endpoint_url='https://minio.example.com',
+    aws_access_key_id='access_key',
+    aws_secret_access_key='secret_key'
+)
+artifact_service = S3ArtifactService(
+    bucket_name="my-artifacts-bucket",
+    s3_client=s3_client
+)
+
+# Save an artifact
+artifact_data = b"Hello, S3!"
+artifact_part = adk_types.Part.from_bytes(data=artifact_data, mime_type="text/plain")
+version = await artifact_service.save_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456", 
+    filename="greeting.txt",
+    artifact=artifact_part
+)
+
+# Load the latest version
+loaded_artifact = await artifact_service.load_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt"
+)
+
+# Save user-scoped artifact (persists across sessions)
+user_artifact = adk_types.Part.from_bytes(data=b"User data", mime_type="text/plain")
+await artifact_service.save_artifact(
+    app_name="my_app", 
+    user_id="user123",
+    session_id="session456",
+    filename="user:profile.json",  # user: prefix for user-scoped storage
+    artifact=user_artifact
+)
+
+# List all artifacts (includes both session and user-scoped)
+artifact_keys = await artifact_service.list_artifact_keys(
+    app_name="my_app",
+    user_id="user123", 
+    session_id="session456"
+)
+
+# Delete an artifact
+await artifact_service.delete_artifact(
+    app_name="my_app",
+    user_id="user123",
+    session_id="session456",
+    filename="greeting.txt"
+)
+```
+
+# content_hash: 8edcfe37e688e203ddb9d14f62b8e5f8dcb6129fc3c08816eea26de02ff6eb69

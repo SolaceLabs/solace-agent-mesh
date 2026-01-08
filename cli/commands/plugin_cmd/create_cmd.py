@@ -9,7 +9,7 @@ from cli.utils import (
 from cli import __version__ as cli_version
 from .official_registry import is_official_plugin
 
-PLUGIN_TYPES = ["agent", "gateway", "custom"]
+PLUGIN_TYPES = ["agent", "gateway", "tool", "custom"]
 
 DEFAULT_PLUGIN_TYPE = "agent"
 DEFAULT_AUTHOR_NAME = "Your Name"
@@ -18,12 +18,10 @@ DEFAULT_PLUGIN_VERSION = "0.1.0"
 
 
 def ensure_directory_exists(path: pathlib.Path):
-    """Creates a directory if it doesn't exist."""
     path.mkdir(parents=True, exist_ok=True)
 
 
 def replace_placeholders(content: str, replacements: dict) -> str:
-    """Replaces placeholders in a string."""
     for placeholder, value in replacements.items():
         content = content.replace(placeholder, str(value))
     return content
@@ -54,7 +52,7 @@ def setup_plugin_type_src(plugin_type: str, src_path: pathlib.Path, replacements
     except IOError as e:
         error_exit(f"Error writing {src_path / '__init__.py'}: {e}")
 
-    if plugin_type == "agent":
+    if plugin_type == "agent" or plugin_type == "tool":
         # --- Generate tools.py ---
         try:
             src_tools_py_content = load_template(
@@ -134,7 +132,7 @@ def setup_plugin_type_src(plugin_type: str, src_path: pathlib.Path, replacements
 
 @click.command("create")
 @click.argument("plugin_name_arg")
-@click.option("--type", "type_opt", help="Plugin type. Options: agent, gateway, custom")
+@click.option("--type", "type_opt", help="Plugin type. Options: agent, gateway, tool, custom")
 @click.option("--author-name", "author_name_opt", help="Author's name.")
 @click.option("--author-email", "author_email_opt", help="Author's email.")
 @click.option("--description", "description_opt", help="Plugin description.")
@@ -244,7 +242,6 @@ def create_plugin_cmd(
         "__PLUGIN_DESCRIPTION__": options["description"],
         "__PLUGIN_VERSION__": options["version"],
         "__PLUGIN_META_DATA_TYPE__": options["type"].lower(),
-        "__SAM_VERSION__": cli_version,
         "__COMPONENT_KEBAB_CASE_NAME__": "__COMPONENT_KEBAB_CASE_NAME__",
         "__COMPONENT_PASCAL_CASE_NAME__": "__COMPONENT_PASCAL_CASE_NAME__",
         "__COMPONENT_UPPER_SNAKE_CASE_NAME__": "__COMPONENT_UPPER_SNAKE_CASE_NAME__",

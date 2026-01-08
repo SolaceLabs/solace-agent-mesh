@@ -11,7 +11,7 @@
 
 test_case_id: test_ssrf_localhost_blocked
 description: "Tests that the web_request tool blocks requests to localhost."
-tags: ["agent","tools","web_tools"]
+tags: ["all", "agent", "tools", "web_tools"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -30,7 +30,7 @@ llm_interactions:
               - id: "call_123"
                 type: "function"
                 function:
-                  name: "web_request"
+                  name: "web_request_strict"
                   arguments: '{"url": "http://localhost:8000/api/data"}'
   - expected_request:
       messages:
@@ -41,7 +41,7 @@ llm_interactions:
             - id: "call_123"
               type: "function"
               function:
-                name: "web_request"
+                name: "web_request_strict"
                 arguments: '{"url": "http://localhost:8000/api/data"}'
       expected_tool_responses_in_llm_messages:
         - tool_call_id: "call_123"
@@ -49,7 +49,7 @@ llm_interactions:
             status: "error"
             message: "URL is not safe to request."
       tools_present:
-        - "web_request"
+        - "web_request_strict"
     static_response:
       choices:
         - message:
@@ -58,18 +58,72 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_test_ssrf_localhost_blocked
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "llm_invocation"
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_test_ssrf_localhost_blocked
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "llm_response"
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_test_ssrf_localhost_blocked
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "tool_invocation_start"
-    expected_tool_name: "web_request"
+    expected_tool_name: "web_request_strict"
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_test_ssrf_localhost_blocked
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "llm_invocation"
   - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: session_test_ssrf_localhost_blocked
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
     event_purpose: "llm_response"
   - type: "final_response"
-    task_state: "completed"
-    content_parts:
-      - type: "text"
-        text_contains: "unable to access the local service"
+    kind: task
+    id: '*'
+    contextId: session_test_ssrf_localhost_blocked
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "unable to access the local service"

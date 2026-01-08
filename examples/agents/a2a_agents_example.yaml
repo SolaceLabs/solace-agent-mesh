@@ -1,0 +1,364 @@
+# Agent Configuration File: A2A ADK Agents Configurations
+#
+# This file has the configuration for the A2A ADK agents.
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG # Changed from INFO to DEBUG to capture ADK INFO logs
+  log_file: a2a_agents.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+# Playwright MCP Agent
+  # - name: playwright_mcp_agent_app
+  #   app_base_path: .
+  #   app_module: src.solace_agent_mesh.agent.sac.app
+  #   broker:
+  #     <<: *broker_connection
+  #
+  #   # --- App Level Config ---
+  #   app_config:
+  #     namespace: ${NAMESPACE}
+  #     supports_streaming: true
+  #     agent_name: "PlaywrightAgent"
+  #     model: *planning_model
+  #     instruction: |
+  #       Use the Playwright MCP server to answer incoming questions through web browsing. The tools you have will allow
+  #       you to navigate to, click on, and extract information from web pages. You must retrieve information to answer
+  #       the incoming request, which might require visiting multiple pages and interacting with them. During this, you
+  #       must return status_update messages to the user using embeds so it is clear what you are doing. Any files you get that
+  #       might be useful should be saved using create_artifact.
+  #
+  #     # --- Tools Definition (including MCP) ---
+  #     tools:
+  #       - tool_type: mcp
+  #         # tool_name: "specific_tool_name" # Optional: Uncomment and set if you only want one specific tool from the server
+  #         connection_params:
+  #           type: stdio # Correct key is 'type' inside connection_params
+  #           command: "npx"
+  #           args:
+  #             - "@playwright/mcp@latest"
+  #             - "--headless"
+  #
+  #     session_service:
+  #       type: "memory"
+  #       default_behavior: "PERSISTENT" # Or "RUN_BASED"
+  #
+  #     artifact_service:
+  #       type: "filesystem"
+  #       base_path: "/tmp/samv2"
+  #       artifact_scope: namespace # Default scope, shares artifacts within the NAMESPACE
+  #     artifact_handling_mode: "reference"
+  #     enable_embed_resolution: true
+  #     enable_artifact_content_instruction: true
+  #     # --- Agent Card Definition ---
+  #     agent_card:
+  #       description: "An agent that interacts with the web pages."
+  #       defaultInputModes: ["text"]
+  #       defaultOutputModes: ["text", "file"] # Can potentially output file info/content
+  #       skills: [] # Define skills if specific filesystem operations are exposed as tools later
+  #
+  #     # --- Discovery & Communication ---
+  #     agent_card_publishing: { interval_seconds: 10 }
+  #     agent_discovery: { enabled: false }
+  #     inter_agent_communication:
+  #       allow_list: []
+  #       request_timeout_seconds: 60
+
+# ---  Markitdown Agent ---
+  - name: markitdown_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    # --- App Level Config ---
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "MarkitdownAgent"
+      display_name: "Markdown Creator"
+      model: *multimodal_model # Or *planning_model, choose as appropriate
+      instruction: |
+        The MarkitdownAgent has the following capability:
+        * convert various file types (like PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP) to Markdown.
+        Any files you get that might be useful should be saved using create_artifact.
+        There is no need to provide a preview of the content in the response.
+
+      # --- Tools Definition ---
+      tools:
+        - tool_type: builtin
+          tool_name: "convert_file_to_markdown"
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT" # Or "RUN_BASED"
+
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      # --- Agent Card Definition ---
+      agent_card:
+        description: "An agent that converts various file types (like PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP) to Markdown format."
+        defaultInputModes: ["text", "file"] # Can take files as input
+        defaultOutputModes: ["text", "file"] # Outputs markdown file
+        skills:
+        - id: "document_conversion"
+          name: Document Conversion
+          description: Converts various file formats (PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP) into clean, readable Markdown format for easier processing and analysis.
+        - id: "content_extraction"
+          name: Content Extraction
+          description: Analyzes and extracts specific information from documents based on natural language instructions, transforming raw content into structured, useful data.
+
+      # --- Discovery & Communication ---
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 60
+
+# --- Mermaid Agent (Python Tool based) ---
+  - name: mermaid_pytool_agent_app # New distinct app name
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "MermaidAgent" # Replaces the old MermaidAgent
+      display_name: "Mermaid Diagram Generator"
+      model: *planning_model # Or your preferred model (e.g., *general_model)
+      instruction: |
+        The MermaidAgent can generate PNG images from Mermaid diagram syntax.
+        You will be provided with the Mermaid syntax as a string.
+        Use the 'mermaid_diagram_generator' tool to create the PNG image.
+        The tool accepts 'mermaid_syntax' (the diagram code) and an optional 'output_filename'.
+        The generated image will be saved as a PNG artifact.
+        Confirm completion by stating the name and version of the created artifact.
+      tools:
+        - tool_type: builtin
+          tool_name: "mermaid_diagram_generator" # This is how the LLM will call the tool
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT" # Or "RUN_BASED"
+
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2" # Or your preferred path
+        artifact_scope: namespace
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: "An agent that generates PNG images from Mermaid diagram syntax using a Python tool."
+        defaultInputModes: ["text"] # Expects Mermaid syntax as text
+        defaultOutputModes: ["text", "file"] # Confirms with text, outputs file artifact
+        skills:
+        - id: "mermaid_diagram_generator"
+          name: "Mermaid Diagram Generator"
+          description: "Converts Mermaid syntax into visual PNG diagrams, supporting flowcharts, sequence diagrams, class diagrams, and other Mermaid diagram types. Input: mermaid_syntax (string)."
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 60
+
+# --- Web Agent ---
+  - name: web_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "WebAgent"
+      display_name: "Web Agent"
+      model: *planning_model # Or another appropriate model from shared_config.yaml
+      instruction: |
+        You are an agent that can fetch content from web URLs using the 'web_request' tool.
+        You can make various types of HTTP requests (GET, POST, etc.) and include custom headers or a body.
+        The tool will return the fetched content (HTML converted to Markdown, other text types as is, or raw binary data).
+        You will then need to process this content based on the user's request.
+        Always save useful fetched content as an artifact.
+
+      tools:
+        - tool_type: builtin
+          tool_name: "web_request"
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT"
+
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: "An agent that fetches content from web URLs."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: "web_request"
+            name: "Web Request"
+            description: "Fetches and processes content from web URLs."
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 120 # Increased for potential web + LLM processing
+
+# --- Report Agent ---
+  # - name: report_generation_agent_app
+  #   app_base_path: .
+  #   app_module: src.solace_agent_mesh.agent.sac.app
+  #   broker:
+  #     <<: *broker_connection
+
+  #   app_config:
+  #     namespace: ${NAMESPACE}
+  #     supports_streaming: true
+  #     agent_name: "ReportGenerationAgent"
+  #     display_name: "Report Generator"
+  #     model: *report_generation_model # Or another appropriate model from shared_config.yaml
+  #     instruction: |
+  #       You are an agent that is in charge of thinking through how to generate a report and
+  #       then later generating it. When first asked about a report, you will create a plan
+  #       for the report and respond with an outline of what the report should contain. The
+  #       caller can then assemble all the required data for you to generate the report.
+  #       Later you will be called back with a reference to the report outline and a list of
+  #       all the data and resources needed to generate the report. 
+
+  #       When creating the report, do it section by section and then assemble the final report
+  #       from all the sections. Unless told otherwise, create a rich, well styled html report.
+  #       It should contain the appropriate introduction and conclusion sections for the type of
+  #       report you are generating. 
+
+  #       It is important to provide useful illustrations, graphs and diagrams in the report as 
+  #       appropriate. You can use the mermaid agent to generate diagrams, plotly tool for graphs
+  #       and the image generation for additional images, but images should just be used for visual
+  #       interest since they generally are not going to be guaranteed to have the exact content you expect.
+
+
+
+  #     tools:
+  #       - tool_type: python
+  #         component_module: src.solace_agent_mesh.agent.tools.web_tools
+  #         component_base_path: .
+  #         function_name: web_request
+  #         tool_name: "web_request"
+
+  #     session_service:
+  #       type: "memory"
+  #       default_behavior: "PERSISTENT"
+
+  #     artifact_service:
+  #       type: "filesystem"
+  #       base_path: "/tmp/samv2"
+  #       artifact_scope: namespace
+  #     artifact_handling_mode: "reference"
+  #     enable_embed_resolution: true
+  #     enable_artifact_content_instruction: true
+  #     agent_card:
+  #       description: |
+  #         This agent works in two phases. It should first be consulted for a report outline and plan.
+  #         It will return the outline to you and then you should use that outline to gather the data
+  #         and resources needed to generate the report. Once you have all the data, you can call
+  #         this agent again with the outline and the data and it will generate the report for you.
+  #       defaultInputModes: ["text"]
+  #       defaultOutputModes: ["text", "file"]
+  #       skills:
+  #         - id: "report_outline_generation"
+  #           name: "Report plan and outline generation"
+  #           description: "Considers the type of report you want and generates a plan and outline for the report."
+  #         - id: "report_generation"
+  #           name: "Report generation"
+  #           description: "Generates a report based on the outline and the data provided. This might take a long time"
+
+  #     agent_card_publishing: { interval_seconds: 10 }
+  #     agent_discovery: { enabled: false }
+  #     inter_agent_communication:
+  #       allow_list: ["MermaidAgent"]
+  #       request_timeout_seconds: 120 # Increased for potential web + LLM processing
+
+
+# --- Atlassian (Jira/Confluence) MCP Agent ---
+  # - name: atlassian_mcp_agent_app
+  #   app_base_path: .
+  #   app_module: src.solace_agent_mesh.agent.sac.app
+  #   broker:
+  #     <<: *broker_connection
+  
+  #   # --- App Level Config ---
+  #   app_config:
+  #     namespace: ${NAMESPACE}
+  #     supports_streaming: true
+  #     agent_name: "AtlassianAgent"
+  #     model: *planning_model
+  
+  #     instruction: |
+  #       You can interact with Jira and Confluence using the Atlassian MCP server.
+  #     # --- Tools Definition (including MCP) ---
+  #     tools:
+  #       - tool_type: mcp
+  #         connection_params:
+  #           type: stdio
+  #           command: "uvx" # Command to run
+  #           args:
+  #             - "mcp-atlassian" # Arguments for the command
+  #           # Note: Authentication for Atlassian MCP is typically handled via environment variables
+  #           # (ATLASSIAN_URL, ATLASSIAN_USERNAME, ATLASSIAN_API_TOKEN)
+  #         environment_variables:
+  #           CONFLUENCE_URL: ${CONFLUENCE_URL}
+  #           CONFLUENCE_USERNAME: ${CONFLUENCE_USERNAME}
+  #           CONFLUENCE_API_TOKEN: ${CONFLUENCE_API_TOKEN}
+  #           JIRA_URL: ${JIRA_URL}
+  #           JIRA_USERNAME: ${JIRA_USERNAME}
+  #           JIRA_API_TOKEN: ${JIRA_API_TOKEN}
+  
+  #     session_service:
+  #       type: "memory"
+  #       default_behavior: "PERSISTENT" # Or "RUN_BASED"
+  #     artifact_service:
+  #       type: "filesystem"
+  #       base_path: "/tmp/samv2"
+  #       artifact_scope: namespace
+  #     artifact_handling_mode: "reference"
+  #     enable_embed_resolution: true
+  #     enable_artifact_content_instruction: true
+  #     # --- Agent Card Definition ---
+  #     agent_card:
+  #       description: "An agent that interacts with Jira and Confluence via the Atlassian MCP server."
+  #       defaultInputModes: ["text"]
+  #       defaultOutputModes: ["text", "file"] # Can output Jira/Confluence data
+  #       skills: [] # Skills could be defined based on specific Jira/Confluence actions
+  
+  #     # --- Discovery & Communication ---
+  #     agent_card_publishing: { interval_seconds: 10 }
+  #     agent_discovery: { enabled: false }
+  #     inter_agent_communication:
+  #       allow_list: []
+  #       request_timeout_seconds: 60 # Increase timeout for potentially longer Atlassian API calls

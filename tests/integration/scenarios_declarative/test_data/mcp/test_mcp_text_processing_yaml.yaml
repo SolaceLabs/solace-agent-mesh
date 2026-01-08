@@ -1,0 +1,77 @@
+test_case_id: "mcp_text_processing_yaml_001"
+description: "Tests that a valid YAML string from an MCP tool is saved as a .yaml
+  artifact with correct metadata."
+tags: ["all", "agent", "mcp"]
+skip_intermediate_events: true
+
+test_runner_config_overrides:
+  agent_config:
+    mcp_tool_response_save_threshold_bytes: 10 # Force saving for small responses
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "mcp_text_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Get YAML data from the test server."
+  external_context:
+    a2a_session_id: "session_mcp_text_processing_yaml_001"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mcp_tool_yaml"
+                type: "function"
+                function:
+                  name: "get_data_stdio"
+                  # The YAML string with newlines must be escaped within the arguments string.
+                  arguments: '{"response_to_return": {"content": [{"type": "text",
+                    "text": "status: ok\ndata:\n  id: 123\n  values: [1, 2, 3]"}]}}'
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_data_stdio"
+          response_json_matches:
+            status: "processed_and_saved"
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_stdio_yaml_0_.*\\.yaml' \\(version 0\\)\\."
+            saved_mcp_response_artifact_details:
+              status: "success"
+              artifacts_saved:
+                - data_filename_matches_regex: "get_data_stdio_yaml_0_.*\\.yaml"
+                  status: "success"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have retrieved the YAML data and saved it as an artifact."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_mcp_text_processing_yaml_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have retrieved the YAML data and saved it as an artifact."
+    assert_artifact_state:
+      - filename_matches_regex: "get_data_stdio_yaml_0_.*\\.yaml$"
+        version: 0
+        expected_content_text: "status: ok\ndata:\n  id: 123\n  values: [1, 2, 3]"
+        expected_metadata_contains:
+          source_tool_name: "get_data_stdio"
+          content_type: "text"
+          detected_format: "yaml"
+          mime_type: "application/yaml"
+          parsed_data_summary:
+            type: "object"
+            key_count: 2
+            keys: ["status", "data"]
