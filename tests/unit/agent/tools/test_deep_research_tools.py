@@ -14,6 +14,10 @@ from solace_agent_mesh.agent.tools.deep_research_tools import (
     _get_model_for_phase,
     _send_research_progress,
     _send_rag_info_update,
+    _generate_initial_queries,
+    _generate_research_title,
+    _reflect_on_findings,
+    _select_sources_to_fetch,
     SearchResult,
     ReflectionResult,
     ResearchCitationTracker,
@@ -1051,3 +1055,506 @@ class TestSendRagInfoUpdate:
         
         # Should not raise, just log the error
         await _send_rag_info_update(tracker, tool_context)
+
+
+@pytest.mark.asyncio
+class TestGenerateInitialQueries:
+    """Tests for _generate_initial_queries async function."""
+    
+    def _create_mock_tool_context(self, canonical_model=None):
+        """Helper to create a mock tool context with a model."""
+        mock_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.canonical_model = canonical_model
+        mock_agent.host_component = None
+        mock_inv_context.agent = mock_agent
+        mock_context._invocation_context = mock_inv_context
+        return mock_context
+    
+    async def test_returns_queries_from_llm_response(self):
+        """Test that queries are extracted from LLM JSON response."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response with queries
+        mock_response = MagicMock()
+        mock_response.text = '{"queries": ["query1", "query2", "query3"]}'
+        mock_response.parts = None
+        mock_response.content = None
+        
+        # Make generate_content_async return an async generator
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        result = await _generate_initial_queries("What is AI?", tool_context, None)
+        
+        assert len(result) == 3
+        assert "query1" in result
+        assert "query2" in result
+        assert "query3" in result
+    
+    async def test_returns_fallback_on_empty_response(self):
+        """Test that research question is returned as fallback on empty response."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response with empty text
+        mock_response = MagicMock()
+        mock_response.text = ""
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        result = await _generate_initial_queries("What is AI?", tool_context, None)
+        
+        assert result == ["What is AI?"]
+    
+    async def test_returns_fallback_on_invalid_json(self):
+        """Test that research question is returned as fallback on invalid JSON."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response with invalid JSON
+        mock_response = MagicMock()
+        mock_response.text = "This is not valid JSON"
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        result = await _generate_initial_queries("What is AI?", tool_context, None)
+        
+        assert result == ["What is AI?"]
+    
+    async def test_returns_fallback_on_exception(self):
+        """Test that research question is returned as fallback on exception."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Make generate_content_async raise an exception
+        mock_model.generate_content_async = MagicMock(side_effect=Exception("LLM error"))
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        result = await _generate_initial_queries("What is AI?", tool_context, None)
+        
+        assert result == ["What is AI?"]
+    
+    async def test_limits_queries_to_five(self):
+        """Test that queries are limited to 5."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response with more than 5 queries
+        mock_response = MagicMock()
+        mock_response.text = '{"queries": ["q1", "q2", "q3", "q4", "q5", "q6", "q7"]}'
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        result = await _generate_initial_queries("What is AI?", tool_context, None)
+        
+        assert len(result) == 5
+
+
+@pytest.mark.asyncio
+class TestGenerateResearchTitle:
+    """Tests for _generate_research_title async function."""
+    
+    def _create_mock_tool_context(self, canonical_model=None):
+        """Helper to create a mock tool context with a model."""
+        mock_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.canonical_model = canonical_model
+        mock_agent.host_component = None
+        mock_inv_context.agent = mock_agent
+        mock_context._invocation_context = mock_inv_context
+        return mock_context
+    
+    async def test_returns_title_from_llm_response(self):
+        """Test that title is extracted from LLM response."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response with title
+        mock_response = MagicMock()
+        mock_response.text = "Artificial Intelligence Overview"
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        result = await _generate_research_title("What is artificial intelligence?", tool_context, None)
+        
+        assert result == "Artificial Intelligence Overview"
+    
+    async def test_strips_quotes_from_title(self):
+        """Test that quotes are stripped from title."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response with quoted title
+        mock_response = MagicMock()
+        mock_response.text = '"AI Overview"'
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        result = await _generate_research_title("What is AI?", tool_context, None)
+        
+        assert result == "AI Overview"
+    
+    async def test_returns_truncated_question_on_empty_response(self):
+        """Test that truncated question is returned on empty response."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response with empty text
+        mock_response = MagicMock()
+        mock_response.text = ""
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        result = await _generate_research_title("What is AI?", tool_context, None)
+        
+        assert result == "What is AI?"
+    
+    async def test_returns_truncated_question_on_exception(self):
+        """Test that truncated question is returned on exception."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Make generate_content_async raise an exception
+        mock_model.generate_content_async = MagicMock(side_effect=Exception("LLM error"))
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        result = await _generate_research_title("What is AI?", tool_context, None)
+        
+        assert result == "What is AI?"
+    
+    async def test_truncates_long_questions(self):
+        """Test that long questions are truncated."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Make generate_content_async raise an exception to trigger fallback
+        mock_model.generate_content_async = MagicMock(side_effect=Exception("LLM error"))
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        long_question = "A" * 100  # 100 character question
+        result = await _generate_research_title(long_question, tool_context, None)
+        
+        assert len(result) == 63  # 60 chars + "..."
+        assert result.endswith("...")
+
+
+@pytest.mark.asyncio
+class TestReflectOnFindings:
+    """Tests for _reflect_on_findings async function."""
+    
+    def _create_mock_tool_context(self, canonical_model=None):
+        """Helper to create a mock tool context with a model."""
+        mock_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.canonical_model = canonical_model
+        mock_agent.host_component = None
+        mock_inv_context.agent = mock_agent
+        mock_context._invocation_context = mock_inv_context
+        return mock_context
+    
+    async def test_returns_reflection_result_from_llm(self):
+        """Test that ReflectionResult is created from LLM response."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response with reflection data
+        mock_response = MagicMock()
+        mock_response.text = '''{
+            "quality_score": 0.75,
+            "gaps": ["Missing historical context"],
+            "should_continue": true,
+            "suggested_queries": ["AI history", "AI applications"],
+            "reasoning": "Good progress but gaps remain"
+        }'''
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        findings = [
+            SearchResult(source_type="web", title="Source 1", content="Content 1", relevance_score=0.9)
+        ]
+        
+        result = await _reflect_on_findings("What is AI?", findings, 1, tool_context, 10, None)
+        
+        assert isinstance(result, ReflectionResult)
+        assert result.quality_score == 0.75
+        assert "Missing historical context" in result.gaps
+        assert result.should_continue is True
+        assert len(result.suggested_queries) == 2
+    
+    async def test_returns_fallback_on_empty_response(self):
+        """Test that fallback ReflectionResult is returned on empty response."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response with empty text
+        mock_response = MagicMock()
+        mock_response.text = ""
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        findings = [
+            SearchResult(source_type="web", title="Source 1", content="Content 1", relevance_score=0.9)
+        ]
+        
+        result = await _reflect_on_findings("What is AI?", findings, 1, tool_context, 10, None)
+        
+        assert isinstance(result, ReflectionResult)
+        assert result.quality_score == 0.6
+        assert "Need more sources" in result.gaps
+    
+    async def test_returns_fallback_on_exception(self):
+        """Test that fallback ReflectionResult is returned on exception."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Make generate_content_async raise an exception
+        mock_model.generate_content_async = MagicMock(side_effect=Exception("LLM error"))
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        findings = [
+            SearchResult(source_type="web", title="Source 1", content="Content 1", relevance_score=0.9)
+        ]
+        
+        result = await _reflect_on_findings("What is AI?", findings, 1, tool_context, 10, None)
+        
+        assert isinstance(result, ReflectionResult)
+        assert result.quality_score == 0.5
+        assert "LLM reflection error" in result.gaps
+    
+    async def test_respects_max_iterations(self):
+        """Test that should_continue respects max_iterations."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response that says to continue
+        mock_response = MagicMock()
+        mock_response.text = '''{
+            "quality_score": 0.5,
+            "gaps": ["Need more"],
+            "should_continue": true,
+            "suggested_queries": ["more queries"],
+            "reasoning": "Continue"
+        }'''
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        findings = []
+        
+        # At max iterations, should_continue should be False
+        result = await _reflect_on_findings("What is AI?", findings, 10, tool_context, 10, None)
+        
+        assert result.should_continue is False
+
+
+@pytest.mark.asyncio
+class TestSelectSourcesToFetch:
+    """Tests for _select_sources_to_fetch async function."""
+    
+    def _create_mock_tool_context(self, canonical_model=None):
+        """Helper to create a mock tool context with a model."""
+        mock_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.canonical_model = canonical_model
+        mock_agent.host_component = None
+        mock_inv_context.agent = mock_agent
+        mock_context._invocation_context = mock_inv_context
+        return mock_context
+    
+    async def test_returns_empty_list_for_no_web_findings(self):
+        """Test that empty list is returned when no web findings."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        # Only KB findings, no web
+        findings = [
+            SearchResult(source_type="kb", title="KB Source", content="Content", url=None)
+        ]
+        
+        result = await _select_sources_to_fetch("What is AI?", findings, 3, tool_context, None)
+        
+        assert result == []
+    
+    async def test_returns_selected_sources_from_llm(self):
+        """Test that sources are selected based on LLM response."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response with selected indices
+        mock_response = MagicMock()
+        mock_response.text = '{"selected_sources": [1, 3], "reasoning": "Best sources"}'
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        findings = [
+            SearchResult(source_type="web", title="Source 1", content="Content 1", url="https://example1.com", relevance_score=0.9),
+            SearchResult(source_type="web", title="Source 2", content="Content 2", url="https://example2.com", relevance_score=0.8),
+            SearchResult(source_type="web", title="Source 3", content="Content 3", url="https://example3.com", relevance_score=0.7),
+        ]
+        
+        result = await _select_sources_to_fetch("What is AI?", findings, 3, tool_context, None)
+        
+        assert len(result) == 2
+        assert result[0].title == "Source 1"
+        assert result[1].title == "Source 3"
+    
+    async def test_returns_fallback_on_empty_response(self):
+        """Test that fallback selection is used on empty response."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response with empty text
+        mock_response = MagicMock()
+        mock_response.text = ""
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        findings = [
+            SearchResult(source_type="web", title="Source 1", content="Content 1", url="https://example1.com", relevance_score=0.9),
+            SearchResult(source_type="web", title="Source 2", content="Content 2", url="https://example2.com", relevance_score=0.8),
+        ]
+        
+        result = await _select_sources_to_fetch("What is AI?", findings, 2, tool_context, None)
+        
+        # Should return top sources by relevance
+        assert len(result) == 2
+        assert result[0].relevance_score >= result[1].relevance_score
+    
+    async def test_returns_fallback_on_exception(self):
+        """Test that fallback selection is used on exception."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Make generate_content_async raise an exception
+        mock_model.generate_content_async = MagicMock(side_effect=Exception("LLM error"))
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        findings = [
+            SearchResult(source_type="web", title="Source 1", content="Content 1", url="https://example1.com", relevance_score=0.9),
+            SearchResult(source_type="web", title="Source 2", content="Content 2", url="https://example2.com", relevance_score=0.8),
+        ]
+        
+        result = await _select_sources_to_fetch("What is AI?", findings, 2, tool_context, None)
+        
+        # Should return top sources by relevance
+        assert len(result) == 2
+    
+    async def test_limits_to_max_to_fetch(self):
+        """Test that results are limited to max_to_fetch."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response with more indices than max_to_fetch
+        mock_response = MagicMock()
+        mock_response.text = '{"selected_sources": [1, 2, 3, 4, 5], "reasoning": "All sources"}'
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        tool_context = self._create_mock_tool_context(canonical_model=mock_model)
+        
+        findings = [
+            SearchResult(source_type="web", title=f"Source {i}", content=f"Content {i}", url=f"https://example{i}.com", relevance_score=0.9-i*0.1)
+            for i in range(5)
+        ]
+        
+        result = await _select_sources_to_fetch("What is AI?", findings, 2, tool_context, None)
+        
+        assert len(result) <= 2
