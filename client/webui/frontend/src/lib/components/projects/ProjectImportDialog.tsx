@@ -66,7 +66,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
 
         // Validate ZIP file size against configurable limit
         if (file.size > maxZipUploadSizeBytes) {
-            setError(`ZIP file size exceeds ${formatBytes(maxZipUploadSizeBytes)}MB limit`);
+            setError(`ZIP file size exceeds ${formatBytes(maxZipUploadSizeBytes)} limit`);
             return false;
         }
 
@@ -181,8 +181,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
 
         // Validate ZIP file size against configurable limit
         if (file.size > maxZipUploadSizeBytes) {
-            const maxSizeMB = (maxZipUploadSizeBytes / (1024 * 1024)).toFixed(0);
-            return { valid: false, error: `ZIP file size exceeds ${maxSizeMB}MB limit` };
+            return { valid: false, error: `ZIP file size exceeds ${formatBytes(maxZipUploadSizeBytes)} limit` };
         }
 
         return { valid: true };
@@ -260,7 +259,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                                             <div key={index} className={`flex items-center gap-1.5 text-xs ${artifact.isOversized ? "text-destructive" : ""}`}>
                                                 {artifact.isOversized ? <AlertTriangle className="text-destructive h-3 w-3 flex-shrink-0" /> : <FileJson className="text-muted-foreground h-3 w-3 flex-shrink-0" />}
                                                 <span className="truncate">{artifact.name}</span>
-                                                <span className="text-muted-foreground flex-shrink-0">({(artifact.size / (1024 * 1024)).toFixed(2)} MB)</span>
+                                                <span className="text-muted-foreground flex-shrink-0">({formatBytes(artifact.size)})</span>
                                             </div>
                                         ))}
                                         {projectPreview.artifacts.length > 5 && <p className="text-muted-foreground text-xs italic">+ {projectPreview.artifacts.length - 5} more files</p>}
@@ -273,7 +272,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                                 <div className="mt-2">
                                     <MessageBanner
                                         variant="warning"
-                                        message={`${projectPreview.oversizedArtifacts.length} ${projectPreview.oversizedArtifacts.length === 1 ? "file exceeds" : "files exceed"} the maximum size of ${(maxUploadSizeBytes / (1024 * 1024)).toFixed(0)} MB and will be skipped during import: ${projectPreview.oversizedArtifacts
+                                        message={`${projectPreview.oversizedArtifacts.length} ${projectPreview.oversizedArtifacts.length === 1 ? "file exceeds" : "files exceed"} the maximum size of ${formatBytes(maxUploadSizeBytes)} and will be skipped during import: ${projectPreview.oversizedArtifacts
                                             .slice(0, 3)
                                             .map(a => a.name)
                                             .join(", ")}${projectPreview.oversizedArtifacts.length > 3 ? ` and ${projectPreview.oversizedArtifacts.length - 3} more` : ""}`}
