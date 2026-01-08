@@ -10,6 +10,7 @@ The base class is determined at import time based on enterprise package availabi
 """
 
 import logging
+import time
 from typing import Any
 
 from google.adk.auth.credential_manager import CredentialManager
@@ -85,6 +86,19 @@ def _log_mcp_tool_call(userId, agentId, tool_name, session_id):
         tool_name,
         session_id,
         extra={"user_id": userId, "agent_id": agentId, "tool_name": tool_name, "session_id": session_id },
+    )
+
+
+def _log_mcp_tool_success(userId, agentId, tool_name, session_id, duration_ms):
+    """ A short log message so that customers can track successful tool completion per user/agent """
+    log.info(
+        "MCP Tool Success - UserID: %s, AgentID: %s, ToolName: %s, SessionID: %s, Duration: %.2fms",
+        userId,
+        agentId,
+        tool_name,
+        session_id,
+        duration_ms,
+        extra={"user_id": userId, "agent_id": agentId, "tool_name": tool_name, "session_id": session_id, "duration_ms": duration_ms },
     )
 
 
@@ -336,9 +350,13 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
             resolved_args = args
 
         # Call the original MCP tool with resolved parameters
-        return await self._original_mcp_tool._run_async_impl(
+        start_time = time.perf_counter()
+        result = await self._original_mcp_tool._run_async_impl(
             args=resolved_args, tool_context=tool_context, credential=credential
         )
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        _log_mcp_tool_success(tool_context.session.user_id, tool_context.agent_name, self.name, tool_context.session.id, duration_ms)
+        return result
 
 
 # Get the base toolset class to use for inheritance
