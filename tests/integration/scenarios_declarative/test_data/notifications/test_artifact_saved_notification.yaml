@@ -1,0 +1,116 @@
+test_case_id: "notification_artifact_saved_001"
+description: |
+  Tests that an artifact_saved notification is sent when an artifact is created by a tool.
+  Uses apply_embed_and_create_artifact to create a new artifact, which should emit
+  the ArtifactSavedData signal captured as a status_update event with event_purpose "artifact_saved".
+expected_completion_timeout_seconds: 15
+tags: ["all", "agent", "notification", "artifacts"]
+skip_intermediate_events: true
+
+# Setup a source artifact to copy from
+setup_artifacts:
+  - filename: "source.txt"
+    content: "Hello World"
+    mime_type: "text/plain"
+    metadata:
+      description: "Source file for testing"
+      mime_type: "text/plain"
+      size_bytes: 11
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "artifact_saved_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Copy source.txt to output.txt"
+  external_context:
+    a2a_session_id: "session_artifact_saved_notification_001"
+
+llm_interactions:
+  # Step 1: LLM calls apply_embed_and_create_artifact to create new artifact
+  - step_id: "llm_calls_apply_embed_to_create_artifact"
+    expected_request:
+      tools_present: ["apply_embed_and_create_artifact"]
+    static_response:
+      id: "chatcmpl-create-via-tool"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_create_output_file"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "output.txt", "embed_directive": "«artifact_content:source.txt»", "output_metadata": {"description": "Copy of source file"}}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_processes_tool_response"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "apply_embed_and_create_artifact"
+          tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            output_filename: "output.txt"
+            output_version: 0
+    static_response:
+      id: "chatcmpl-create-resp"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I've copied source.txt to output.txt."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  # Expect status_update with artifact_saved event
+  - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: "session_artifact_saved_notification_001"
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+    event_purpose: "artifact_saved"
+    expected_artifact_saved_data_contains:
+      filename: "output.txt"
+      version: 0
+      mime_type: "text/plain"
+      description: "Copy of source file"
+      function_call_id: "call_create_output_file"
+    final_flag: false
+
+  # Expect final response
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_artifact_saved_notification_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "output.txt"
+
+    # Verify artifact state
+    assert_artifact_state:
+      - filename: "output.txt"
+        user_id: "artifact_saved_tester@example.com"
+        session_id: "session_artifact_saved_notification_001"
+        version: 0
+        expected_content_text: "Hello World"
+        expected_metadata_contains:
+          description: "Copy of source file"
+          mime_type: "text/plain"
+          size_bytes: 11

@@ -175,6 +175,7 @@ async def _internal_create_artifact(
             timestamp=timestamp_for_artifact,
             schema_max_keys=max_keys_to_use,
             tool_context=tool_context,
+            suppress_visualization_signal=True,  # Fenced blocks handle their own visualization signals
         )
         log.info(
             "%s Result from save_artifact_with_metadata: %s", log_identifier, result
@@ -1740,18 +1741,20 @@ tool_registry.register(extract_content_from_artifact_tool_def)
 async def delete_artifact(
     filename: str,
     version: Optional[int] = None,
+    confirm_delete: bool = False,
     tool_context: ToolContext = None,
 ) -> Dict[str, Any]:
     """
-    Deletes a specific version of an artifact, or all versions if no version is specified.
+    Deletes all versions of an artifact. Version-specific deletion is not currently supported.
 
     Args:
         filename: The name of the artifact to delete.
-        version: The specific version number to delete. If not provided, all versions will be deleted.
+        version: Reserved for future use. Currently not supported - returns error if specified.
+        confirm_delete: Must be set to True to confirm deletion. If False, returns confirmation prompt.
         tool_context: The context provided by the ADK framework.
 
     Returns:
-        A dictionary indicating the result of the deletion.
+        A dictionary indicating the result of the deletion or requesting confirmation.
     """
     if not tool_context:
         return {
@@ -1760,9 +1763,7 @@ async def delete_artifact(
             "message": "ToolContext is missing, cannot delete artifact.",
         }
 
-    log_identifier = (
-        f"[BuiltinArtifactTool:delete_artifact:{filename}:{version or 'all'}]"
-    )
+    log_identifier = f"[BuiltinArtifactTool:delete_artifact:{filename}]"
     log.debug("%s Processing request.", log_identifier)
 
     try:
@@ -1780,14 +1781,32 @@ async def delete_artifact(
                 "ArtifactService does not support deleting artifacts."
             )
 
+        # Error if version-specific deletion requested (not currently supported)
         if version is not None:
-            log.warning(
-                "%s Deleting a specific version (%s) is not supported by the current artifact service interface. "
-                "All versions of the artifact will be deleted.",
-                log_identifier,
-                version,
-            )
+            return {
+                "status": "error",
+                "filename": filename,
+                "version_requested": version,
+                "message": f"Deleting a specific version ({version}) is not currently supported. Only deletion of ALL versions is supported. To delete all versions, omit 'version' and set confirm_delete=True.",
+            }
 
+        # Get version list for confirmation message
+        versions = await artifact_service.list_versions(
+            app_name=app_name, user_id=user_id, session_id=session_id, filename=filename
+        )
+
+        # Require confirmation before deleting
+        if not confirm_delete:
+            count = len(versions) if versions else "unknown number of"
+            return {
+                "status": "confirmation_required",
+                "filename": filename,
+                "version_count": len(versions) if versions else None,
+                "versions": versions,
+                "message": f"WARNING: This operation is irreversible and will permanently delete artifact '{filename}' and ALL {count} version(s). To proceed, call this tool again with confirm_delete=True.",
+            }
+
+        # Proceed with deletion
         await artifact_service.delete_artifact(
             app_name=app_name,
             user_id=user_id,
@@ -1795,17 +1814,12 @@ async def delete_artifact(
             filename=filename,
         )
 
-        log.info(
-            "%s Successfully deleted artifact '%s' version '%s'.",
-            log_identifier,
-            filename,
-            version or "all",
-        )
+        log.info("%s Successfully deleted artifact '%s'.", log_identifier, filename)
         return {
             "status": "success",
             "filename": filename,
-            "version": version or "all",
-            "message": f"Artifact '{filename}' version '{version or 'all'}' deleted successfully.",
+            "versions_deleted": len(versions) if versions else None,
+            "message": f"Artifact '{filename}' deleted successfully.",
         }
 
     except FileNotFoundError as e:
@@ -1829,7 +1843,7 @@ async def delete_artifact(
 delete_artifact_tool_def = BuiltinTool(
     name="delete_artifact",
     implementation=delete_artifact,
-    description="Deletes a specific version of an artifact, or all versions if no version is specified.",
+    description="Deletes all versions of an artifact. IMPORTANT: Requires explicit confirmation via confirm_delete=True parameter. The first call without confirmation will return details about what will be deleted.",
     category="artifact_management",
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
@@ -1843,7 +1857,12 @@ delete_artifact_tool_def = BuiltinTool(
             ),
             "version": adk_types.Schema(
                 type=adk_types.Type.INTEGER,
-                description="The specific version number to delete. If not provided, all versions will be deleted.",
+                description="Reserved for future use. Version-specific deletion is not currently supported - will return error if specified.",
+                nullable=True,
+            ),
+            "confirm_delete": adk_types.Schema(
+                type=adk_types.Type.BOOLEAN,
+                description="Must be set to True to actually perform the deletion. If False or omitted, returns a confirmation prompt with details about what will be deleted (including version count).",
                 nullable=True,
             ),
         },

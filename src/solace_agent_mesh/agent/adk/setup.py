@@ -6,7 +6,18 @@ import functools
 import inspect
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
 
 from google.adk import tools as adk_tools_module
 from google.adk.agents.callback_context import CallbackContext
@@ -15,6 +26,7 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.adk.tools import BaseTool, ToolContext
+from google.adk.tools.mcp_tool import MCPTool
 from google.adk.tools.mcp_tool.mcp_session_manager import (
     SseServerParams,
     StdioConnectionParams,
@@ -30,8 +42,8 @@ from ..tools.dynamic_tool import DynamicTool, DynamicToolProvider
 from ..tools.registry import tool_registry
 from ..tools.tool_config_types import (
     AnyToolConfig,
-    BuiltinToolConfig,
     BuiltinGroupToolConfig,
+    BuiltinToolConfig,
     McpToolConfig,
     PythonToolConfig,
 )
@@ -505,30 +517,30 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
 def validate_filesystem_path(path, log_identifier=""):
     """
     Validates that a filesystem path exists and is accessible.
-    
+
     Args:
         path: The filesystem path to validate
         log_identifier: Optional identifier for logging
-        
+
     Returns:
         bool: True if the path exists and is accessible, False otherwise
-        
+
     Raises:
         ValueError: If the path doesn't exist or isn't accessible
     """
     if not path:
         raise ValueError(f"{log_identifier} Filesystem path is empty or None")
-        
+
     if not os.path.exists(path):
         raise ValueError(f"{log_identifier} Filesystem path does not exist: {path}")
-        
+
     if not os.path.isdir(path):
         raise ValueError(f"{log_identifier} Filesystem path is not a directory: {path}")
-        
+
     # Check if the directory is readable and writable
     if not os.access(path, os.R_OK | os.W_OK):
         raise ValueError(f"{log_identifier} Filesystem path is not readable and writable: {path}")
-        
+
     return True
 
 async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
@@ -578,7 +590,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
             raise ValueError(
                 f"MCP tool 'args' parameter must be a list, got {type(args_list)}"
             )
-            
+
         # Check if this is the filesystem MCP server
         if args_list and any("@modelcontextprotocol/server-filesystem" in arg for arg in args_list):
             # Find the index of the server-filesystem argument
@@ -587,11 +599,11 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
                 if "@modelcontextprotocol/server-filesystem" in arg:
                     server_fs_index = i
                     break
-            
+
             # All arguments after server-filesystem are directory paths
             if server_fs_index >= 0 and server_fs_index + 1 < len(args_list):
                 directory_paths = args_list[server_fs_index + 1:]
-                
+
                 for path in directory_paths:
                     try:
                         validate_filesystem_path(path, log_identifier=component.log_identifier)
@@ -625,14 +637,30 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     else:
         raise ValueError(f"Unsupported MCP connection type: {connection_type}")
 
-    tool_filter_list = (
-        [tool_config_model.tool_name] if tool_config_model.tool_name else None
-    )
-    if tool_filter_list:
+    # Determine tool filter based on configuration
+    # tool_name, allow_list, and deny_list are mutually exclusive (validated by pydantic)
+    tool_filter = None
+    filter_description = "none (all tools)"
+
+    if tool_config_model.tool_name:
+        # Backward compatible: single tool name becomes a list
+        tool_filter = [tool_config_model.tool_name]
+        filter_description = f"tool_name='{tool_config_model.tool_name}'"
+    elif tool_config_model.allow_list:
+        # Allow list: pass directly as list of tool names
+        tool_filter = tool_config_model.allow_list
+        filter_description = f"allow_list={tool_config_model.allow_list}"
+    elif tool_config_model.deny_list:
+        # Deny list: create a ToolPredicate that excludes these tools
+        deny_set = set(tool_config_model.deny_list)
+        tool_filter = lambda tool, ctx=None, _deny=deny_set: tool.name not in _deny
+        filter_description = f"deny_list={tool_config_model.deny_list}"
+
+    if tool_filter:
         log.info(
-            "%s MCP tool config specifies tool_name: '%s'. Applying as tool_filter.",
+            "%s MCP tool config specifies filter: %s",
             component.log_identifier,
-            tool_config_model.tool_name,
+            filter_description,
         )
 
     additional_params = {}
@@ -647,7 +675,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
                 tool_type="mcp",
                 tool_config=tool_config,
                 connection_params=connection_params,
-                tool_filter=tool_filter_list,
+                tool_filter=tool_filter,
             )
         except Exception as e:
             log.error(
@@ -664,7 +692,8 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     # Create the EmbedResolvingMCPToolset with base parameters
     toolset_params = {
         "connection_params": connection_params,
-        "tool_filter": tool_filter_list,
+        "tool_filter": tool_filter,
+        "tool_name_prefix": tool_config_model.tool_name_prefix,
         "tool_config": tool_config,
     }
 
@@ -675,10 +704,10 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     mcp_toolset_instance.origin = "mcp"
 
     log.info(
-        "%s Initialized MCPToolset (filter: %s) for server: %s",
-        component.log_identifier,
-        (tool_filter_list if tool_filter_list else "none (all tools)"),
-        connection_params,
+            "%s Initialized MCPToolset (filter: %s) for server: %s",
+            component.log_identifier,
+            filter_description,
+            connection_params,
     )
 
     return [mcp_toolset_instance], [], []
@@ -701,6 +730,7 @@ async def _load_openapi_tool(component: "SamAgentComponent", tool_config: Dict) 
                           Returns ([], [], []) if enterprise package not available
     """
     from pydantic import TypeAdapter
+
     from ..tools.tool_config_types import OpenApiToolConfig
 
     # Validate basic tool configuration structure
@@ -893,19 +923,7 @@ async def load_adk_tools(
                 for tool in new_tools:
                     if isinstance(tool, EmbedResolvingMCPToolset):
                         # Special handling for MCPToolset which can load multiple tools
-                        try:
-                            mcp_tools = await tool.get_tools()
-                            for mcp_tool in mcp_tools:
-                                _check_and_register_tool_name(
-                                    mcp_tool.name, "mcp", loaded_tool_names
-                                )
-                        except Exception as e:
-                            log.error(
-                                "%s Failed to discover tools from MCP server for name registration: %s",
-                                component.log_identifier,
-                                str(e),
-                            )
-                            raise
+                        await _check_and_register_tool_name_mcp(component, loaded_tool_names, tool)
                     else:
                         tool_name = getattr(
                             tool, "name", getattr(tool, "__name__", None)
@@ -947,6 +965,25 @@ async def load_adk_tools(
         len(cleanup_hooks),
     )
     return loaded_tools, enabled_builtin_tools, cleanup_hooks
+
+
+async def _check_and_register_tool_name_mcp(component, loaded_tool_names: set[str], tool: EmbedResolvingMCPToolset):
+    try:
+        mcp_tools: list[MCPTool] = await tool.get_tools()
+        for mcp_tool in mcp_tools:
+            toolname = mcp_tool.name
+            if tool.tool_name_prefix != None:
+                toolname = f"{tool.tool_name_prefix}_{toolname}"
+            _check_and_register_tool_name(
+                toolname, "mcp", loaded_tool_names
+            )
+    except Exception as e:
+        log.error(
+            "%s Failed to discover tools from MCP server for name registration: %s",
+            component.log_identifier,
+            str(e),
+        )
+        raise
 
 
 def initialize_adk_agent(
@@ -1221,7 +1258,17 @@ def initialize_adk_agent(
         # The callbacks are executed in the order they are added to this list.
         callbacks_in_order_for_after_model = []
 
-        # 1. Fenced Artifact Block Processing (must run before auto-continue)
+        # 1. Pre-register long-running tools (must run BEFORE tool execution)
+        preregister_cb = functools.partial(
+            adk_callbacks.preregister_long_running_tools_callback, host_component=component
+        )
+        callbacks_in_order_for_after_model.append(preregister_cb)
+        log.debug(
+            "%s Added preregister_long_running_tools_callback to after_model chain.",
+            component.log_identifier,
+        )
+
+        # 2. Fenced Artifact Block Processing (must run before auto-continue)
         artifact_block_cb = functools.partial(
             adk_callbacks.process_artifact_blocks_callback, host_component=component
         )
@@ -1231,7 +1278,7 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
-        # 2. Auto-Continuation (may short-circuit the chain)
+        # 3. Auto-Continuation (may short-circuit the chain)
         auto_continue_cb = functools.partial(
             adk_callbacks.auto_continue_on_max_tokens_callback, host_component=component
         )
@@ -1241,13 +1288,13 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
-        # 3. Solace LLM Response Logging
+        # 4. Solace LLM Response Logging
         solace_llm_response_cb = functools.partial(
             adk_callbacks.solace_llm_response_callback, host_component=component
         )
         callbacks_in_order_for_after_model.append(solace_llm_response_cb)
 
-        # 4. Chunk Logging
+        # 5. Chunk Logging
         log_chunk_cb = functools.partial(
             adk_callbacks.log_streaming_chunk_callback, host_component=component
         )

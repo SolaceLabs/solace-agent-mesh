@@ -7,7 +7,7 @@ Provides database sessions, component instance access, and user authentication.
 import logging
 from typing import TYPE_CHECKING, Generator
 
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, status
 from sqlalchemy import create_engine, event, pool
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
@@ -124,24 +124,31 @@ def get_platform_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def get_current_user(request: Request) -> dict:
+def get_heartbeat_tracker():
     """
-    FastAPI dependency to extract authenticated user from request state.
+    Get the heartbeat tracker from platform component.
 
-    The user is set by the OAuth2 middleware during request processing.
-
-    Args:
-        request: FastAPI Request object.
+    Used by deployer status endpoint to check if deployer is online.
 
     Returns:
-        Dictionary containing user information (user_id, email, name, etc.).
-
-    Raises:
-        HTTPException: 401 if user is not authenticated.
+        HeartbeatTracker instance if initialized, None otherwise.
     """
-    if not hasattr(request.state, "user") or not request.state.user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-        )
-    return request.state.user
+    if platform_component_instance is None:
+        log.warning("Platform component not initialized - heartbeat tracker unavailable")
+        return None
+    return platform_component_instance.get_heartbeat_tracker()
+
+
+def get_agent_registry():
+    """
+    Get the agent registry from platform component.
+
+    Used for deployment status monitoring.
+
+    Returns:
+        AgentRegistry instance if initialized, None otherwise.
+    """
+    if platform_component_instance is None:
+        log.warning("Platform component not initialized - agent registry unavailable")
+        return None
+    return platform_component_instance.get_agent_registry()
