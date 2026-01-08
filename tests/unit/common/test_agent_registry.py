@@ -384,13 +384,229 @@ class TestAgentRegistryEdgeCases:
         for i in range(3):
             card = sample_agent_card.model_copy(update={"name": f"Agent{i}"})
             agent_registry.add_or_update_agent(card)
-        
+
         # Verify tracking data exists
         for i in range(3):
             assert agent_registry.get_last_seen(f"Agent{i}") is not None
-        
+
         agent_registry.clear()
-        
+
         # Verify all tracking data is cleared
         for i in range(3):
             assert agent_registry.get_last_seen(f"Agent{i}") is None
+
+
+class TestAgentRegistryCallbacks:
+    """Test callback functionality for agent additions and removals."""
+
+    def test_on_agent_added_callback_called_for_new_agent(self, sample_agent_card):
+        """Test that on_agent_added callback is called when a new agent is added."""
+        callback_invocations = []
+
+        def on_added(agent_card):
+            callback_invocations.append(agent_card.name)
+
+        registry = AgentRegistry(on_agent_added=on_added)
+        registry.add_or_update_agent(sample_agent_card)
+
+        assert len(callback_invocations) == 1
+        assert callback_invocations[0] == "TestAgent"
+
+    def test_on_agent_added_callback_not_called_for_update(self, sample_agent_card):
+        """Test that on_agent_added callback is NOT called when updating an existing agent."""
+        callback_invocations = []
+
+        def on_added(agent_card):
+            callback_invocations.append(agent_card.name)
+
+        registry = AgentRegistry(on_agent_added=on_added)
+
+        # Add agent first time
+        registry.add_or_update_agent(sample_agent_card)
+        assert len(callback_invocations) == 1
+
+        # Update the same agent
+        updated_card = sample_agent_card.model_copy(
+            update={"description": "Updated description"}
+        )
+        registry.add_or_update_agent(updated_card)
+
+        # Should still be 1 - callback not called for updates
+        assert len(callback_invocations) == 1
+
+    def test_on_agent_removed_callback_called(self, sample_agent_card):
+        """Test that on_agent_removed callback is called when an agent is removed."""
+        removal_invocations = []
+
+        def on_removed(agent_name):
+            removal_invocations.append(agent_name)
+
+        registry = AgentRegistry(on_agent_removed=on_removed)
+        registry.add_or_update_agent(sample_agent_card)
+
+        # Remove the agent
+        registry.remove_agent("TestAgent")
+
+        assert len(removal_invocations) == 1
+        assert removal_invocations[0] == "TestAgent"
+
+    def test_on_agent_removed_callback_not_called_for_nonexistent(self):
+        """Test that on_agent_removed callback is NOT called when removing nonexistent agent."""
+        removal_invocations = []
+
+        def on_removed(agent_name):
+            removal_invocations.append(agent_name)
+
+        registry = AgentRegistry(on_agent_removed=on_removed)
+
+        # Try to remove nonexistent agent
+        registry.remove_agent("NonExistentAgent")
+
+        # Callback should not be called
+        assert len(removal_invocations) == 0
+
+    def test_callbacks_with_both_add_and_remove(self, sample_agent_card):
+        """Test that both callbacks work together correctly."""
+        added_agents = []
+        removed_agents = []
+
+        def on_added(agent_card):
+            added_agents.append(agent_card.name)
+
+        def on_removed(agent_name):
+            removed_agents.append(agent_name)
+
+        registry = AgentRegistry(
+            on_agent_added=on_added,
+            on_agent_removed=on_removed
+        )
+
+        # Add multiple agents
+        for i in range(3):
+            card = sample_agent_card.model_copy(update={"name": f"Agent{i}"})
+            registry.add_or_update_agent(card)
+
+        assert len(added_agents) == 3
+        assert added_agents == ["Agent0", "Agent1", "Agent2"]
+
+        # Remove one agent
+        registry.remove_agent("Agent1")
+
+        assert len(removed_agents) == 1
+        assert removed_agents[0] == "Agent1"
+
+    def test_callback_exception_handling_on_add(self, sample_agent_card):
+        """Test that exceptions in on_agent_added callback are handled gracefully."""
+        def failing_callback(agent_card):
+            raise ValueError("Callback failed!")
+
+        registry = AgentRegistry(on_agent_added=failing_callback)
+
+        # Should not raise exception - should be caught and logged
+        result = registry.add_or_update_agent(sample_agent_card)
+
+        # Agent should still be added despite callback failure
+        assert result is True
+        assert registry.get_agent("TestAgent") is not None
+
+    def test_callback_exception_handling_on_remove(self, sample_agent_card):
+        """Test that exceptions in on_agent_removed callback are handled gracefully."""
+        def failing_callback(agent_name):
+            raise ValueError("Callback failed!")
+
+        registry = AgentRegistry(on_agent_removed=failing_callback)
+        registry.add_or_update_agent(sample_agent_card)
+
+        # Should not raise exception - should be caught and logged
+        result = registry.remove_agent("TestAgent")
+
+        # Agent should still be removed despite callback failure
+        assert result is True
+        assert registry.get_agent("TestAgent") is None
+
+    def test_callbacks_are_optional(self, sample_agent_card):
+        """Test that callbacks are optional - registry works without them."""
+        registry = AgentRegistry()  # No callbacks
+
+        # Should work normally without callbacks
+        result = registry.add_or_update_agent(sample_agent_card)
+        assert result is True
+
+        result = registry.remove_agent("TestAgent")
+        assert result is True
+
+    def test_callback_receives_correct_agent_card(self, sample_agent_card):
+        """Test that callback receives the actual agent card object."""
+        received_cards = []
+
+        def on_added(agent_card):
+            received_cards.append(agent_card)
+
+        registry = AgentRegistry(on_agent_added=on_added)
+        registry.add_or_update_agent(sample_agent_card)
+
+        assert len(received_cards) == 1
+        received_card = received_cards[0]
+
+        # Verify it's the same card with all properties
+        assert received_card.name == "TestAgent"
+        assert received_card.description == "A test agent"
+        assert received_card.version == "1.0.0"
+        assert len(received_card.skills) == 1
+
+    def test_callback_invoked_outside_lock(self, sample_agent_card):
+        """Test that callbacks are invoked outside the registry lock to prevent deadlock."""
+        # This test verifies the callback can safely call registry methods
+        registry_ref = []
+
+        def on_added(agent_card):
+            # This should not deadlock - callback is called outside lock
+            if registry_ref:
+                # Try to read from registry in callback
+                names = registry_ref[0].get_agent_names()
+                assert agent_card.name in names
+
+        registry = AgentRegistry(on_agent_added=on_added)
+        registry_ref.append(registry)
+
+        # Should complete without deadlock
+        registry.add_or_update_agent(sample_agent_card)
+
+    def test_callback_thread_safety(self, sample_agent_card):
+        """Test that callbacks work correctly with concurrent operations."""
+        added_agents = []
+        removed_agents = []
+        lock = threading.Lock()
+
+        def on_added(agent_card):
+            with lock:
+                added_agents.append(agent_card.name)
+
+        def on_removed(agent_name):
+            with lock:
+                removed_agents.append(agent_name)
+
+        registry = AgentRegistry(
+            on_agent_added=on_added,
+            on_agent_removed=on_removed
+        )
+
+        # Add agents from multiple threads
+        def add_agents(thread_id):
+            for i in range(5):
+                card = sample_agent_card.model_copy(
+                    update={"name": f"Agent_{thread_id}_{i}"}
+                )
+                registry.add_or_update_agent(card)
+
+        threads = []
+        for i in range(3):
+            thread = threading.Thread(target=add_agents, args=(i,))
+            threads.append(thread)
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
+        # Verify all additions were tracked
+        assert len(added_agents) == 15  # 3 threads * 5 agents each

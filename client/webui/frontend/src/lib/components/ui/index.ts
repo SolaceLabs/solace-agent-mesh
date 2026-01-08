@@ -30,6 +30,7 @@ export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 export { Tooltip, TooltipTrigger, TooltipContent } from "./tooltip";
 export { Separator } from "./separator";
 export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table";
+export { type StepperConfigProps, type StepperDefineProps, type CircleStepIndicatorProps, type StepperVariant, type StepperLabelOrientation, defineStepper } from "./stepper";
 
 // Chat Components
 export { ChatInput } from "./chat/chat-input";

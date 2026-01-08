@@ -11,6 +11,13 @@ from unittest.mock import MagicMock, AsyncMock, patch
 from fastapi import HTTPException
 from fastapi.responses import RedirectResponse
 
+# Test if enterprise package is available
+try:
+    from solace_agent_mesh_enterprise.gateway.auth.internal import oauth_utils
+    ENTERPRISE_AVAILABLE = True
+except ImportError:
+    oauth_utils = None
+    ENTERPRISE_AVAILABLE = False
 
 class TestLogoutEndpoint:
     """Unit tests for the logout endpoint logic"""
@@ -234,6 +241,7 @@ class TestGetCsrfTokenEndpoint:
         assert mock_token.call_count == 2
 
 
+@pytest.mark.skipif(not ENTERPRISE_AVAILABLE, reason="Enterprise package not available")
 class TestInitiateLoginEndpoint:
     """Unit tests for the initiate login endpoint logic"""
 
