@@ -1,3 +1,4 @@
+import { formatBytes } from "@/lib/utils";
 import { File } from "lucide-react";
 
 export const FileLabel = ({ fileName, fileSize }: { fileName: string; fileSize: number }) => {
@@ -8,7 +9,7 @@ export const FileLabel = ({ fileName, fileSize }: { fileName: string; fileSize: 
                 <div className="truncate" title={fileName}>
                     {fileName}
                 </div>
-                <div className="text-muted-foreground text-xs">{(fileSize / 1024).toFixed(1)} KB</div>
+                <div className="text-muted-foreground text-xs">{formatBytes(fileSize)}</div>
             </div>
         </div>
     );

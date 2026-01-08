@@ -4,6 +4,7 @@ import JSZip from "jszip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
 import { MessageBanner, FileUpload } from "@/lib/components/common";
 import { useConfigContext } from "@/lib/hooks";
+import { formatBytes } from "@/lib/utils";
 
 interface ProjectImportDialogProps {
     open: boolean;
@@ -65,8 +66,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
 
         // Validate ZIP file size against configurable limit
         if (file.size > maxZipUploadSizeBytes) {
-            const maxSizeMB = (maxZipUploadSizeBytes / (1024 * 1024)).toFixed(0);
-            setError(`ZIP file size exceeds ${maxSizeMB}MB limit`);
+            setError(`ZIP file size exceeds ${formatBytes(maxZipUploadSizeBytes)}MB limit`);
             return false;
         }
 

@@ -36,7 +36,7 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({ is
         }));
     }, []);
 
-    const handleConfirmClick = useCallback(() => {
+    const handleConfirmClick = useCallback(async () => {
         if (!files) return;
 
         const formData = new FormData();
@@ -53,7 +53,7 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({ is
             formData.append("fileMetadata", JSON.stringify(metadataPayload));
         }
 
-        onConfirm(formData);
+        await onConfirm(formData);
     }, [files, fileDescriptions, onConfirm]);
 
     const fileList = files ? Array.from(files) : [];
