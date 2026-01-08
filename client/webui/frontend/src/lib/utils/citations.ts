@@ -15,11 +15,13 @@ export { getCleanDomain } from "./url";
 export const CITATION_PATTERN = /\[?\[cite:(?:(file|ref|search|research))?(\d+)\]\]?/g;
 
 // Pattern for comma-separated citations like [[cite:search3, search4]] or [[cite:search3, search4, search5]]
+// Also handles LLM-generated format with repeated cite: prefix like [[cite:research0, cite:research1, cite:research2]]
 // This matches the entire bracket group with comma-separated values
-export const MULTI_CITATION_PATTERN = /\[?\[cite:((?:(?:file|ref|search|research)?\d+)(?:\s*,\s*(?:file|ref|search|research)?\d+)+)\]\]?/g;
+export const MULTI_CITATION_PATTERN = /\[?\[cite:((?:(?:file|ref|search|research)?\d+)(?:\s*,\s*(?:cite:)?(?:file|ref|search|research)?\d+)+)\]\]?/g;
 
 // Pattern to extract individual citations from a comma-separated list
-export const INDIVIDUAL_CITATION_PATTERN = /(file|ref|search|research)?(\d+)/g;
+// Handles both formats: "research0, research1" and "research0, cite:research1, cite:research2"
+export const INDIVIDUAL_CITATION_PATTERN = /(?:cite:)?(file|ref|search|research)?(\d+)/g;
 
 export const CLEANUP_REGEX = /\[?\[cite:[^\]]+\]\]?/g;
 

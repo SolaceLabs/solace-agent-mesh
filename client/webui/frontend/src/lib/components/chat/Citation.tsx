@@ -410,7 +410,7 @@ function parseMultiCitationIds(content: string): Array<{ type: "file" | "ref" | 
  * Combined pattern that matches both single and multi-citation formats
  * This ensures we process them in order of appearance
  */
-const COMBINED_CITATION_PATTERN = /\[?\[cite:((?:(?:file|ref|search|research)?\d+)(?:\s*,\s*(?:file|ref|search|research)?\d+)*)\]\]?/g;
+const COMBINED_CITATION_PATTERN = /\[?\[cite:((?:(?:file|ref|search|research)?\d+)(?:\s*,\s*(?:cite:)?(?:file|ref|search|research)?\d+)*)\]\]?/g;
 
 /**
  * Process text node content to replace citation markers with React components
