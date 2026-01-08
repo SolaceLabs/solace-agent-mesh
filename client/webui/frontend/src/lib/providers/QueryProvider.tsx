@@ -1,7 +1,11 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const queryClient = new QueryClient({
+/**
+ * Shared QueryClient instance used across the application.
+ * Export this to allow manual query invalidation or cache manipulation.
+ */
+export const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
             staleTime: 1000 * 60 * 5,
