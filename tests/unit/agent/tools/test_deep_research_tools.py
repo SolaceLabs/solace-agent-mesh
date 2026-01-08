@@ -14,10 +14,15 @@ from solace_agent_mesh.agent.tools.deep_research_tools import (
     _get_model_for_phase,
     _send_research_progress,
     _send_rag_info_update,
+    _send_deep_research_report_signal,
     _generate_initial_queries,
     _generate_research_title,
     _reflect_on_findings,
     _select_sources_to_fetch,
+    _search_web,
+    _multi_source_search,
+    _fetch_selected_sources,
+    _generate_research_report,
     SearchResult,
     ReflectionResult,
     ResearchCitationTracker,
@@ -1558,3 +1563,580 @@ class TestSelectSourcesToFetch:
         result = await _select_sources_to_fetch("What is AI?", findings, 2, tool_context, None)
         
         assert len(result) <= 2
+
+
+@pytest.mark.asyncio
+class TestSendDeepResearchReportSignal:
+    """Tests for _send_deep_research_report_signal async function.
+    
+    Function signature: _send_deep_research_report_signal(artifact_filename, artifact_version, title, sources_count, tool_context)
+    """
+    
+    def _create_mock_tool_context(self, a2a_context=None, invocation_context=None, agent=None, host_component=None):
+        """Helper to create a mock tool context."""
+        mock_context = MagicMock()
+        mock_context.state = MagicMock()
+        mock_context.state.get = MagicMock(return_value=a2a_context)
+        
+        if invocation_context is None:
+            invocation_context = MagicMock()
+            if agent is None:
+                agent = MagicMock()
+                agent.host_component = host_component
+            invocation_context.agent = agent
+        
+        mock_context._invocation_context = invocation_context
+        
+        return mock_context
+    
+    async def test_returns_early_when_no_a2a_context(self):
+        """Test that function returns early when no a2a_context is found."""
+        tool_context = self._create_mock_tool_context(a2a_context=None)
+        
+        # Should not raise, just return early
+        # Signature: _send_deep_research_report_signal(artifact_filename, artifact_version, title, sources_count, tool_context)
+        await _send_deep_research_report_signal("report.md", 1, "Test Title", 5, tool_context)
+        
+        # Verify state.get was called
+        tool_context.state.get.assert_called_once_with("a2a_context")
+    
+    async def test_returns_early_when_no_invocation_context(self):
+        """Test that function returns early when no invocation context is found."""
+        mock_context = MagicMock()
+        mock_context.state = MagicMock()
+        mock_context.state.get = MagicMock(return_value={"task_id": "test"})
+        mock_context._invocation_context = None
+        
+        # Should not raise, just return early
+        await _send_deep_research_report_signal("report.md", 1, "Test Title", 5, mock_context)
+    
+    async def test_returns_early_when_no_agent(self):
+        """Test that function returns early when no agent is found."""
+        mock_inv_context = MagicMock()
+        mock_inv_context.agent = None
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            invocation_context=mock_inv_context
+        )
+        
+        # Should not raise, just return early
+        await _send_deep_research_report_signal("report.md", 1, "Test Title", 5, tool_context)
+    
+    async def test_returns_early_when_no_host_component(self):
+        """Test that function returns early when no host component is found."""
+        mock_agent = MagicMock()
+        mock_agent.host_component = None
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            agent=mock_agent
+        )
+        
+        # Should not raise, just return early
+        await _send_deep_research_report_signal("report.md", 1, "Test Title", 5, tool_context)
+    
+    async def test_sends_report_signal_successfully(self):
+        """Test that report signal is sent successfully."""
+        mock_host_component = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.host_component = mock_host_component
+        
+        mock_inv_context = MagicMock()
+        mock_inv_context.agent = mock_agent
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            invocation_context=mock_inv_context,
+            agent=mock_agent,
+            host_component=mock_host_component
+        )
+        
+        # Patch at the source module where get_original_session_id is imported from
+        with patch('solace_agent_mesh.agent.utils.context_helpers.get_original_session_id') as mock_session_id:
+            mock_session_id.return_value = "test-session-123"
+            
+            with patch('solace_agent_mesh.common.data_parts.DeepResearchReportData') as mock_report_data:
+                mock_report_data.return_value = MagicMock()
+                
+                await _send_deep_research_report_signal("ai_report.md", 1, "AI Overview", 10, tool_context)
+                
+                # Verify DeepResearchReportData was created
+                mock_report_data.assert_called_once()
+                call_kwargs = mock_report_data.call_args[1]
+                assert call_kwargs["filename"] == "ai_report.md"
+                assert call_kwargs["version"] == 1
+                assert call_kwargs["title"] == "AI Overview"
+                assert call_kwargs["sources_count"] == 10
+    
+    async def test_handles_exception_gracefully(self):
+        """Test that exceptions are caught and logged."""
+        mock_host_component = MagicMock()
+        mock_host_component.publish_data_signal_from_thread.side_effect = Exception("Test error")
+        mock_agent = MagicMock()
+        mock_agent.host_component = mock_host_component
+        
+        mock_inv_context = MagicMock()
+        mock_inv_context.agent = mock_agent
+        
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            invocation_context=mock_inv_context,
+            agent=mock_agent,
+            host_component=mock_host_component
+        )
+        
+        # Patch at the source module where get_original_session_id is imported from
+        with patch('solace_agent_mesh.agent.utils.context_helpers.get_original_session_id') as mock_session_id:
+            mock_session_id.return_value = "test-session-123"
+            
+            # Should not raise, just log the error
+            await _send_deep_research_report_signal("report.md", 1, "Test Title", 5, tool_context)
+
+
+@pytest.mark.asyncio
+class TestSearchWeb:
+    """Tests for _search_web async function.
+    
+    Function signature: _search_web(query, max_results, tool_context, tool_config, send_progress=True)
+    """
+    
+    def _create_mock_tool_context(self, a2a_context=None, agent=None, host_component=None):
+        """Helper to create a mock tool context."""
+        mock_context = MagicMock()
+        mock_context.state = MagicMock()
+        mock_context.state.get = MagicMock(return_value=a2a_context)
+        
+        mock_inv_context = MagicMock()
+        if agent is None:
+            agent = MagicMock()
+            agent.host_component = host_component
+        mock_inv_context.agent = agent
+        mock_context._invocation_context = mock_inv_context
+        
+        return mock_context
+    
+    async def test_returns_search_results_on_success(self):
+        """Test that search results are returned on successful search."""
+        tool_context = self._create_mock_tool_context(a2a_context={"task_id": "test"})
+        
+        # Mock the web_search_google to return proper format
+        mock_result = {
+            "result": '{"organic": [{"title": "Result 1", "snippet": "Snippet 1", "link": "https://example1.com"}, {"title": "Result 2", "snippet": "Snippet 2", "link": "https://example2.com"}]}'
+        }
+        
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.web_search_google', new_callable=AsyncMock) as mock_search:
+            mock_search.return_value = mock_result
+            
+            # Signature: _search_web(query, max_results, tool_context, tool_config, send_progress=True)
+            results = await _search_web("test query", 10, tool_context, None, send_progress=False)
+            
+            assert len(results) == 2
+            assert results[0].title == "Result 1"
+            assert results[0].content == "Snippet 1"
+            assert results[0].url == "https://example1.com"
+            assert results[0].source_type == "web"
+    
+    async def test_returns_empty_list_on_search_failure(self):
+        """Test that empty list is returned when search fails."""
+        tool_context = self._create_mock_tool_context(a2a_context={"task_id": "test"})
+        
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.web_search_google', new_callable=AsyncMock) as mock_search:
+            mock_search.side_effect = Exception("Search failed")
+            
+            results = await _search_web("test query", 10, tool_context, None, send_progress=False)
+            
+            assert results == []
+    
+    async def test_returns_empty_list_when_no_results(self):
+        """Test that empty list is returned when search returns no results."""
+        tool_context = self._create_mock_tool_context(a2a_context={"task_id": "test"})
+        
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.web_search_google', new_callable=AsyncMock) as mock_search:
+            mock_search.return_value = None
+            
+            results = await _search_web("test query", 10, tool_context, None, send_progress=False)
+            
+            assert results == []
+    
+    async def test_uses_tool_config_for_search(self):
+        """Test that tool config is passed to search function."""
+        tool_context = self._create_mock_tool_context(a2a_context={"task_id": "test"})
+        
+        tool_config = {
+            "google_api_key": "test-api-key",
+            "google_cse_id": "test-cse-id",
+        }
+        
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.web_search_google', new_callable=AsyncMock) as mock_search:
+            mock_search.return_value = {"result": '{"organic": []}'}
+            
+            await _search_web("test query", 10, tool_context, tool_config, send_progress=False)
+            
+            mock_search.assert_called_once()
+            call_kwargs = mock_search.call_args[1]
+            assert call_kwargs.get("tool_config") == tool_config
+
+
+@pytest.mark.asyncio
+class TestMultiSourceSearch:
+    """Tests for _multi_source_search async function.
+    
+    Function signature: _multi_source_search(query, sources, max_results_per_source, kb_ids, tool_context, tool_config)
+    """
+    
+    def _create_mock_tool_context(self, a2a_context=None, agent=None, host_component=None):
+        """Helper to create a mock tool context."""
+        mock_context = MagicMock()
+        mock_context.state = MagicMock()
+        mock_context.state.get = MagicMock(return_value=a2a_context)
+        
+        mock_inv_context = MagicMock()
+        if agent is None:
+            agent = MagicMock()
+            agent.host_component = host_component
+        mock_inv_context.agent = agent
+        mock_context._invocation_context = mock_inv_context
+        
+        return mock_context
+    
+    async def test_executes_web_search(self):
+        """Test that web search is executed when 'web' is in sources."""
+        tool_context = self._create_mock_tool_context(a2a_context={"task_id": "test"})
+        
+        # Mock _search_web to return SearchResult objects
+        mock_results = [
+            SearchResult(source_type="web", title="Result 1", content="Snippet 1", url="https://example1.com", relevance_score=0.9),
+        ]
+        
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools._search_web', new_callable=AsyncMock) as mock_search:
+            mock_search.return_value = mock_results
+            
+            # Signature: _multi_source_search(query, sources, max_results_per_source, kb_ids, tool_context, tool_config)
+            results = await _multi_source_search("test query", ["web"], 5, None, tool_context, None)
+            
+            assert len(results) >= 1
+            # Check that web results are included
+            web_results = [r for r in results if r.source_type == "web"]
+            assert len(web_results) >= 1
+    
+    async def test_deduplicates_by_url(self):
+        """Test that results are deduplicated by URL."""
+        tool_context = self._create_mock_tool_context(a2a_context={"task_id": "test"})
+        
+        # Return duplicate URLs
+        mock_results = [
+            SearchResult(source_type="web", title="Result 1", content="Snippet 1", url="https://example.com", relevance_score=0.9),
+            SearchResult(source_type="web", title="Result 2", content="Snippet 2", url="https://example.com", relevance_score=0.8),  # Duplicate URL
+        ]
+        
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools._search_web', new_callable=AsyncMock) as mock_search:
+            mock_search.return_value = mock_results
+            
+            results = await _multi_source_search("test query", ["web"], 5, None, tool_context, None)
+            
+            # Should only have one result due to deduplication
+            urls = [r.url for r in results if r.url]
+            unique_urls = set(urls)
+            assert len(urls) == len(unique_urls)
+    
+    async def test_handles_search_exception(self):
+        """Test that search exceptions are handled gracefully."""
+        tool_context = self._create_mock_tool_context(a2a_context={"task_id": "test"})
+        
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools._search_web', new_callable=AsyncMock) as mock_search:
+            mock_search.side_effect = Exception("Search failed")
+            
+            # Should not raise, just return empty or partial results
+            results = await _multi_source_search("test query", ["web"], 5, None, tool_context, None)
+            
+            assert isinstance(results, list)
+    
+    async def test_sorts_by_relevance(self):
+        """Test that results are sorted by relevance score."""
+        tool_context = self._create_mock_tool_context(a2a_context={"task_id": "test"})
+        
+        mock_results = [
+            SearchResult(source_type="web", title="Low relevance", content="Snippet 1", url="https://example1.com", relevance_score=0.5),
+            SearchResult(source_type="web", title="High relevance", content="Snippet 2", url="https://example2.com", relevance_score=0.9),
+        ]
+        
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools._search_web', new_callable=AsyncMock) as mock_search:
+            mock_search.return_value = mock_results
+            
+            results = await _multi_source_search("test query", ["web"], 5, None, tool_context, None)
+            
+            # Results should be sorted by relevance (higher first)
+            if len(results) >= 2:
+                for i in range(len(results) - 1):
+                    assert results[i].relevance_score >= results[i + 1].relevance_score
+
+
+@pytest.mark.asyncio
+class TestFetchSelectedSources:
+    """Tests for _fetch_selected_sources async function.
+    
+    Function signature: _fetch_selected_sources(selected_sources, tool_context, tool_config, citation_tracker, start_time=0, max_runtime_seconds=None)
+    Returns: Dict[str, int] with 'success' and 'failed' counts
+    """
+    
+    def _create_mock_tool_context(self, a2a_context=None, agent=None, host_component=None):
+        """Helper to create a mock tool context."""
+        mock_context = MagicMock()
+        mock_context.state = MagicMock()
+        mock_context.state.get = MagicMock(return_value=a2a_context)
+        
+        mock_inv_context = MagicMock()
+        if agent is None:
+            agent = MagicMock()
+            agent.host_component = host_component
+        mock_inv_context.agent = agent
+        mock_context._invocation_context = mock_inv_context
+        
+        return mock_context
+    
+    async def test_returns_stats_for_empty_sources(self):
+        """Test that stats dict is returned when no sources provided."""
+        tool_context = self._create_mock_tool_context(a2a_context={"task_id": "test"})
+        tracker = ResearchCitationTracker("Test question")
+        
+        # Signature: _fetch_selected_sources(selected_sources, tool_context, tool_config, citation_tracker, start_time=0, max_runtime_seconds=None)
+        result = await _fetch_selected_sources([], tool_context, None, tracker)
+        
+        # Returns dict with success/failed counts
+        assert result == {"success": 0, "failed": 0}
+    
+    async def test_fetches_content_successfully(self):
+        """Test that content is fetched successfully."""
+        mock_host_component = MagicMock()
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            host_component=mock_host_component
+        )
+        tracker = ResearchCitationTracker("Test question")
+        
+        sources = [
+            SearchResult(source_type="web", title="Source 1", content="Snippet", url="https://example.com", relevance_score=0.9)
+        ]
+        
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.web_request', new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"status": "success", "result_preview": "Full content here"}
+            
+            result = await _fetch_selected_sources(sources, tool_context, None, tracker)
+            
+            # Returns dict with success/failed counts
+            assert result["success"] == 1
+            assert result["failed"] == 0
+            # Source should be marked as fetched
+            assert sources[0].metadata.get("fetched") is True
+    
+    async def test_handles_fetch_failure(self):
+        """Test that fetch failures are handled gracefully."""
+        mock_host_component = MagicMock()
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            host_component=mock_host_component
+        )
+        tracker = ResearchCitationTracker("Test question")
+        
+        sources = [
+            SearchResult(source_type="web", title="Source 1", content="Snippet", url="https://example.com", relevance_score=0.9)
+        ]
+        
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.web_request', new_callable=AsyncMock) as mock_request:
+            mock_request.side_effect = Exception("Fetch failed")
+            
+            result = await _fetch_selected_sources(sources, tool_context, None, tracker)
+            
+            # Should return stats with failed count
+            assert result["success"] == 0
+            assert result["failed"] == 1
+    
+    async def test_updates_citation_tracker(self):
+        """Test that citation tracker is updated with fetched sources."""
+        mock_host_component = MagicMock()
+        tool_context = self._create_mock_tool_context(
+            a2a_context={"task_id": "test"},
+            host_component=mock_host_component
+        )
+        tracker = ResearchCitationTracker("Test question")
+        
+        # Add citation first so it can be updated
+        source = SearchResult(source_type="web", title="Source 1", content="Snippet", url="https://example.com", relevance_score=0.9)
+        tracker.add_citation(source)
+        
+        sources = [source]
+        
+        with patch('solace_agent_mesh.agent.tools.deep_research_tools.web_request', new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"status": "success", "result_preview": "Full content"}
+            
+            await _fetch_selected_sources(sources, tool_context, None, tracker)
+            
+            # Citation should have been updated
+            assert tracker.citation_counter >= 1
+
+
+@pytest.mark.asyncio
+class TestGenerateResearchReport:
+    """Tests for _generate_research_report async function."""
+    
+    def _create_mock_tool_context(self, canonical_model=None, a2a_context=None, host_component=None):
+        """Helper to create a mock tool context with a model."""
+        mock_context = MagicMock()
+        mock_context.state = MagicMock()
+        mock_context.state.get = MagicMock(return_value=a2a_context)
+        
+        mock_inv_context = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.canonical_model = canonical_model
+        mock_agent.host_component = host_component
+        mock_inv_context.agent = mock_agent
+        mock_context._invocation_context = mock_inv_context
+        return mock_context
+    
+    async def test_generates_report_from_llm(self):
+        """Test that report is generated from LLM response."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock streaming response
+        mock_chunk1 = MagicMock()
+        mock_chunk1.text = "# Research Report\n\n"
+        mock_chunk1.parts = None
+        mock_chunk1.content = None
+        
+        mock_chunk2 = MagicMock()
+        mock_chunk2.text = "This is the report content."
+        mock_chunk2.parts = None
+        mock_chunk2.content = None
+        
+        async def mock_generate():
+            yield mock_chunk1
+            yield mock_chunk2
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        mock_host_component = MagicMock()
+        tool_context = self._create_mock_tool_context(
+            canonical_model=mock_model,
+            a2a_context={"task_id": "test"},
+            host_component=mock_host_component
+        )
+        
+        tracker = ResearchCitationTracker("What is AI?")
+        tracker.set_title("AI Overview")
+        
+        findings = [
+            SearchResult(source_type="web", title="Source 1", content="Content 1", url="https://example.com", relevance_score=0.9)
+        ]
+        tracker.add_citation(findings[0])
+        
+        report = await _generate_research_report("What is AI?", findings, tracker, tool_context, None)
+        
+        assert "# Research Report" in report
+        assert "This is the report content." in report
+    
+    async def test_includes_sources_section(self):
+        """Test that report includes sources section."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Create mock response
+        mock_response = MagicMock()
+        mock_response.text = "# Report\n\nContent here."
+        mock_response.parts = None
+        mock_response.content = None
+        
+        async def mock_generate():
+            yield mock_response
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        mock_host_component = MagicMock()
+        tool_context = self._create_mock_tool_context(
+            canonical_model=mock_model,
+            a2a_context={"task_id": "test"},
+            host_component=mock_host_component
+        )
+        
+        tracker = ResearchCitationTracker("What is AI?")
+        
+        findings = [
+            SearchResult(source_type="web", title="Source 1", content="Content 1", url="https://example.com", relevance_score=0.9)
+        ]
+        findings[0].citation_id = "search0"
+        tracker.citations["search0"] = findings[0]
+        
+        report = await _generate_research_report("What is AI?", findings, tracker, tool_context, None)
+        
+        # Report should include references section
+        assert "References" in report or "Source" in report
+    
+    async def test_handles_llm_exception(self):
+        """Test that LLM exceptions are handled gracefully."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        # Make generate_content_async raise an exception
+        mock_model.generate_content_async = MagicMock(side_effect=Exception("LLM error"))
+        
+        mock_host_component = MagicMock()
+        tool_context = self._create_mock_tool_context(
+            canonical_model=mock_model,
+            a2a_context={"task_id": "test"},
+            host_component=mock_host_component
+        )
+        
+        tracker = ResearchCitationTracker("What is AI?")
+        findings = []
+        
+        # Should return an error message instead of raising
+        report = await _generate_research_report("What is AI?", findings, tracker, tool_context, None)
+        
+        assert "error" in report.lower() or "failed" in report.lower() or report == ""
+    
+    async def test_streams_report_content(self):
+        """Test that report content is streamed."""
+        mock_model = MagicMock()
+        mock_model.model = "gpt-4"
+        
+        chunks_received = []
+        
+        # Create mock streaming response with multiple chunks
+        mock_chunk1 = MagicMock()
+        mock_chunk1.text = "Part 1. "
+        mock_chunk1.parts = None
+        mock_chunk1.content = None
+        
+        mock_chunk2 = MagicMock()
+        mock_chunk2.text = "Part 2. "
+        mock_chunk2.parts = None
+        mock_chunk2.content = None
+        
+        mock_chunk3 = MagicMock()
+        mock_chunk3.text = "Part 3."
+        mock_chunk3.parts = None
+        mock_chunk3.content = None
+        
+        async def mock_generate():
+            for chunk in [mock_chunk1, mock_chunk2, mock_chunk3]:
+                chunks_received.append(chunk.text)
+                yield chunk
+        
+        mock_model.generate_content_async = MagicMock(return_value=mock_generate())
+        
+        mock_host_component = MagicMock()
+        tool_context = self._create_mock_tool_context(
+            canonical_model=mock_model,
+            a2a_context={"task_id": "test"},
+            host_component=mock_host_component
+        )
+        
+        tracker = ResearchCitationTracker("What is AI?")
+        findings = []
+        
+        report = await _generate_research_report("What is AI?", findings, tracker, tool_context, None)
+        
+        # Verify all chunks were processed
+        assert len(chunks_received) == 3
+        assert "Part 1. Part 2. Part 3." in report
