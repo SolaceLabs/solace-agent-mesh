@@ -642,6 +642,117 @@ class TestFilesystemArtifactServiceDeleteArtifact:
         artifact_dir = artifact_service._get_artifact_dir("test_app", "user1", "session1", "test.txt")
         assert not os.path.exists(artifact_dir)
 
+    @pytest.mark.asyncio
+    async def test_delete_artifact_with_metadata_directory(self, artifact_service, sample_artifact):
+        """Test deleting artifact when metadata directory exists"""
+        from src.solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import METADATA_DIR_SUFFIX
+        
+        # Save artifact first
+        await artifact_service.save_artifact(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+            artifact=sample_artifact
+        )
+        
+        # Create a metadata directory
+        metadata_dir = artifact_service._get_artifact_dir(
+            "test_app", "user1", "session1", f"test.txt{METADATA_DIR_SUFFIX}"
+        )
+        os.makedirs(metadata_dir, exist_ok=True)
+        
+        # Add some files to the metadata directory
+        with open(os.path.join(metadata_dir, "metadata.json"), "w") as f:
+            f.write('{"key": "value"}')
+        
+        # Verify both directories exist
+        artifact_dir = artifact_service._get_artifact_dir("test_app", "user1", "session1", "test.txt")
+        assert os.path.exists(artifact_dir)
+        assert os.path.exists(metadata_dir)
+        
+        # Delete artifact
+        await artifact_service.delete_artifact(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt"
+        )
+        
+        # Verify both directories are gone
+        assert not os.path.exists(artifact_dir)
+        assert not os.path.exists(metadata_dir)
+
+    @pytest.mark.asyncio
+    async def test_delete_artifact_error_deleting_artifact_directory(self, artifact_service, sample_artifact):
+        """Test error handling when deleting artifact directory fails"""
+        # Save artifact first
+        await artifact_service.save_artifact(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+            artifact=sample_artifact
+        )
+        
+        # Mock shutil.rmtree to raise OSError on first call (artifact directory)
+        with patch('shutil.rmtree', side_effect=OSError("Permission denied")) as mock_rmtree:
+            # Should not raise exception, just log error
+            await artifact_service.delete_artifact(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt"
+            )
+            
+            # Verify rmtree was called at least once
+            assert mock_rmtree.call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_delete_artifact_error_deleting_metadata_directory(self, artifact_service, sample_artifact):
+        """Test error handling when deleting metadata directory fails"""
+        from src.solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import METADATA_DIR_SUFFIX
+        
+        # Save artifact first
+        await artifact_service.save_artifact(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+            artifact=sample_artifact
+        )
+        
+        # Create a metadata directory
+        metadata_dir = artifact_service._get_artifact_dir(
+            "test_app", "user1", "session1", f"test.txt{METADATA_DIR_SUFFIX}"
+        )
+        os.makedirs(metadata_dir, exist_ok=True)
+        
+        # Mock shutil.rmtree to succeed on first call but fail on second call (metadata directory)
+        original_rmtree = shutil.rmtree
+        call_count = [0]
+        
+        def mock_rmtree_side_effect(path, *args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # First call (artifact directory) - succeed
+                original_rmtree(path, *args, **kwargs)
+            else:
+                # Second call (metadata directory) - fail
+                raise OSError("Permission denied on metadata directory")
+        
+        with patch('shutil.rmtree', side_effect=mock_rmtree_side_effect) as mock_rmtree:
+            # Should not raise exception, just log error
+            await artifact_service.delete_artifact(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt"
+            )
+            
+            # Verify rmtree was called twice (once for artifact dir, once for metadata dir)
+            assert mock_rmtree.call_count == 2
+
 
 class TestFilesystemArtifactServiceListVersions:
     """Tests for list_versions method"""
