@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
-import type { FileAttachment } from "@/lib/types";
+import type { FileAttachment, MessageFE } from "@/lib/types";
 import { api } from "@/lib/api";
+import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
 import { Spinner } from "@/lib/components/ui/spinner";
 
@@ -33,10 +34,11 @@ type ArtifactMessageProps = (
 ) & {
     context?: "chat" | "list";
     uniqueKey?: string; // Optional unique key for expansion state (e.g., taskId-filename)
+    message?: MessageFE; // Optional message to get taskId for ragData lookup
 };
 
 export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
-    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion } = useChatContext();
+    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion, ragData } = useChatContext();
     const { activeProject } = useProjectContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -75,6 +77,11 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const shouldAutoExpand = useMemo(() => {
         // Don't auto-expand deleted artifacts
         if (isDeleted) {
+            return false;
+        }
+
+        // Don't auto-expand deep research reports - they are shown inline without expander
+        if (isDeepResearchReportFilename(fileName)) {
             return false;
         }
 
@@ -252,15 +259,18 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 const parsedUri = parseArtifactUri(fileUri);
                 if (!parsedUri) throw new Error("Invalid artifact URI.");
 
-                const { filename, version } = parsedUri;
+                const { sessionId: uriSessionId, filename, version } = parsedUri;
 
                 // Construct API URL based on context
-                // Priority 1: Session context (active chat)
+                // Priority 1: Session ID from URI (artifact was created in this session)
+                // Priority 2: Current session context (active chat)
+                // Priority 3: Project context (pre-session, project artifacts)
                 let apiUrl: string;
-                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
-                    apiUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
+                const effectiveSessionId = uriSessionId || sessionId;
+                if (effectiveSessionId && effectiveSessionId.trim() && effectiveSessionId !== "null" && effectiveSessionId !== "undefined") {
+                    apiUrl = `/api/v1/artifacts/${effectiveSessionId}/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
                 }
-                // Priority 2: Project context (pre-session, project artifacts)
+                // Priority 3: Project context (pre-session, project artifacts)
                 else if (activeProject?.id) {
                     apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version || "latest"}?project_id=${activeProject.id}`;
                 }
@@ -299,6 +309,12 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
         fetchContentFromUri();
     }, [props.status, shouldRender, fileAttachment, sessionId, activeProject?.id, isLoading, fetchedContent, artifact?.accumulatedContent, fileName, isExpanded, artifact]);
+
+    // Get ragData for this task if message is provided
+    const taskRagData = useMemo(() => {
+        if (!props.message?.taskId || !ragData) return undefined;
+        return ragData.find(r => r.taskId === props.message?.taskId);
+    }, [props.message?.taskId, ragData]);
 
     // Prepare actions for the artifact bar
     const actions = useMemo(() => {
@@ -398,7 +414,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                             }}
                             className={isImage ? "drop-shadow-md" : ""}
                         >
-                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment?.mime_type} setRenderError={setRenderError} />
+                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment?.mime_type} setRenderError={setRenderError} ragData={taskRagData} />
                         </div>
                         <ArtifactTransitionOverlay isVisible={isDownloading} message="Resolving embeds..." />
                     </div>
@@ -454,7 +470,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             mimeType={fileMimeType}
             size={fileAttachment?.size}
             status={props.status}
-            expandable={isExpandable && context === "chat"} // Allow expansion in chat context for user-controllable files
+            expandable={isExpandable && context === "chat" && !isDeepResearchReportFilename(fileName)} // Allow expansion in chat context for user-controllable files, but not for deep research reports (shown inline)
             expanded={isExpanded || isInfoExpanded}
             onToggleExpand={isExpandable && context === "chat" ? toggleExpanded : undefined}
             actions={actions}
