@@ -3,11 +3,11 @@ title: SQL Connectors
 sidebar_position: 3
 ---
 
-SQL connectors enable agents to query and analyze database information using natural language.
+SQL connectors allow agents to query and analyze database information using natural language.
 
 ## Overview
 
-When you create a SQL connector, agents can convert user questions into SQL queries, execute them against your database, and return results in conversational format. This capability makes database information accessible through agent interactions without requiring users to write SQL code.
+SQL connectors convert user questions into SQL queries, execute them against your database, and return results in conversational format. This allows users to access database information through agent conversations without writing SQL code.
 
 SQL connectors establish persistent connection pools to your database servers. Agents use these pooled connections to execute queries efficiently, with automatic connection management and reconnection handling.
 
@@ -152,7 +152,13 @@ Users can potentially request any data the connector can access by phrasing ques
 
 ### Database Connection Failures
 
-If the database connection fails, verify network connectivity to the database host and port, ensure the firewall rules allow traffic from Agent Mesh Enterprise, check the username and password are correct, confirm the database name exists, and verify the database type selection matches your server.
+If the database connection fails:
+
+1. Verify network connectivity to the database host and port
+2. Ensure firewall rules allow traffic from Agent Mesh Enterprise
+3. Check that the username and password are correct
+4. Confirm the database name exists
+5. Verify the database type selection matches your server
 
 ### Supabase PostgreSQL Connectivity
 
@@ -168,4 +174,8 @@ In your Supabase project settings, navigate to Database then Connection Pooling 
 
 ### Query Performance Issues
 
-If agents experience slow query responses, ensure frequently queried columns have appropriate indexes, optimize database views if you use them for access control, and review query patterns in database logs to identify inefficient queries that agents generate.
+If agents experience slow query responses:
+
+1. Ensure frequently queried columns have appropriate indexes
+2. Optimize database views if you use them for access control
+3. Review query patterns in database logs to identify inefficient queries that agents generate

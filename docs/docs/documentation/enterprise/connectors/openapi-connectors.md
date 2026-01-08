@@ -1,21 +1,27 @@
 ---
-title: API Connectors
+title: OpenAPI Connectors
 sidebar_position: 1
 ---
 
-API connectors enable agents to interact with REST APIs defined by OpenAPI specifications.
+OpenAPI connectors allow agents to interact with REST APIs that use OpenAPI specifications.
 
 ## Overview
 
-When you create an API connector, agents can automatically generate callable tools from API endpoints and make authenticated HTTP requests to external services. This capability allows agents to integrate with any OpenAPI-compliant REST API through natural language interactions.
+OpenAPI connectors generate callable tools from API endpoints. Agents use these tools to make authenticated HTTP requests to external services and integrate with any OpenAPI-compliant REST API through natural language.
 
-API connectors use OpenAPI specifications to understand API structure, parameter requirements, authentication methods, and response formats. The connector automatically converts API operations into tools that agents can invoke, handling HTTP request construction, authentication, and response parsing.
+OpenAPI connectors use OpenAPI specifications to understand:
+- API structure
+- Parameter requirements
+- Authentication methods
+- Response formats
+
+The connector automatically converts API operations into tools that agents invoke. The connector handles HTTP request construction, authentication, and response parsing.
 
 The connector supports OpenAPI 3.0+ specifications in JSON or YAML format and provides flexible authentication options to accommodate different API security models.
 
 ## Prerequisites
 
-Before you create an API connector, ensure you have the following:
+Before you create an OpenAPI connector, ensure you have the following:
 
 ### OpenAPI Specification File
 
@@ -23,9 +29,9 @@ You need an OpenAPI specification file in JSON or YAML format that describes the
 
 ### Public Storage Bucket Configuration
 
-The platform service must be configured with a publicly accessible storage bucket where OpenAPI specification files are stored. This configuration is set up by your platform administrator during deployment.
+Your platform administrator must configure the platform service with a publicly accessible storage bucket where OpenAPI specification files are stored. Your platform administrator sets up this configuration during deployment.
 
-If you are unsure whether the storage bucket is configured, contact your platform administrator. Without this configuration, you will not be able to create API connectors.
+If you are unsure whether the storage bucket is configured, contact your platform administrator. Without this configuration, you will not be able to create OpenAPI connectors.
 
 ### API Credentials (if required)
 
@@ -40,13 +46,13 @@ Depending on the API's authentication requirements, you may need:
 
 Ensure your Agent Mesh Enterprise deployment can reach the API endpoints over the network. Verify that firewalls and security groups allow outbound HTTPS traffic to the API server.
 
-## Creating an API Connector
+## Creating an OpenAPI Connector
 
-You create API connectors through the Connectors section in the Agent Mesh Enterprise web interface. Navigate to Connectors and click the Create Connector button to begin.
+You create OpenAPI connectors through the Connectors section in the Agent Mesh Enterprise web interface. Navigate to Connectors and click the Create Connector button to begin.
 
 ### Configuration Fields
 
-The API connector creation form requires the following information:
+The OpenAPI connector creation form requires the following information:
 
 **Connector Name**
 
@@ -56,7 +62,7 @@ The connector name must be unique across all connectors in your deployment, rega
 
 **OpenAPI Specification File**
 
-Upload your OpenAPI specification file using the file picker or drag and drop. The file must be in JSON or YAML format and conform to OpenAPI 3.0 or later. The uploaded file is stored in the configured public storage bucket where the connector can retrieve it.
+Upload your OpenAPI specification file using the file picker or drag and drop. The file must be in JSON or YAML format and conform to OpenAPI 3.0 or later. The system stores the uploaded file in the configured public storage bucket where the platform service and agent can retrieve it.
 
 **Authentication Type**
 
@@ -78,13 +84,13 @@ Select this option for public APIs that do not require authentication. No additi
 
 Configure API key authentication by providing:
 
-**Location**: Select where the API key should be sent:
-- Header: The API key is sent in an HTTP header
-- Query Parameter: The API key is sent as a URL query parameter
+**Location:** Select where the connector should send the API key:
+- Header: Send the API key in an HTTP header
+- Query Parameter: Send the API key as a URL query parameter
 
-**Parameter Name**: Enter the name of the header or query parameter that should contain the API key. Common examples include `X-API-Key`, `api_key`, or `apikey`.
+**Parameter Name:** Enter the name of the header or query parameter that should contain the API key. Common examples include `X-API-Key`, `api_key`, or `apikey`.
 
-**API Key Value**: Enter the API key value.
+**API Key Value:** Enter the API key value.
 
 **Example Configuration (Header):**
 - Location: Header
@@ -100,21 +106,21 @@ Configure API key authentication by providing:
 
 Configure HTTP authentication by providing:
 
-**HTTP Authentication Type**: Select the specific HTTP authentication method:
+**HTTP Authentication Type:** Select the specific HTTP authentication method:
 - Basic: Uses HTTP Basic Authentication with username and password
 - Bearer: Uses Bearer token authentication
 
 **For Basic Authentication:**
 
-**Username**: Enter the username for Basic Authentication
+**Username:** Enter the username for Basic Authentication.
 
-**Password**: Enter the password for Basic Authentication
+**Password:** Enter the password for Basic Authentication.
 
 The connector automatically encodes the username and password in Base64 format and sends them in the `Authorization` header as required by the HTTP Basic Authentication specification.
 
 **For Bearer Token:**
 
-**Token**: Enter the bearer token value
+**Token:** Enter the bearer token value.
 
 The connector sends the token in the `Authorization` header with the `Bearer` prefix as required by the Bearer token specification.
 
@@ -128,9 +134,9 @@ For detailed information about creating and configuring agents, see [Agent Build
 
 ## Security Considerations
 
-API connectors implement a shared credential model where all agents assigned to a connector use the same API credentials and have identical access permissions to the API.
+OpenAPI connectors implement a shared credential model where all agents assigned to a connector use the same API credentials and have identical access permissions to the API.
 
-If you assign an API connector to multiple agents, those agents can all invoke any API operations the connector's credentials permit. You cannot restrict one agent to read-only operations and another agent to write operations if they share the same connector. Security boundaries exist at the API credential level, not at the connector assignment level.
+If you assign an OpenAPI connector to multiple agents, those agents can all invoke any API operations the connector's credentials permit. You cannot restrict one agent to read-only operations and another agent to write operations if they share the same connector. Security boundaries exist at the API credential level, not at the connector assignment level.
 
 To implement different access levels for different agents, create multiple connectors with different API credentials if the API supports multiple credential sets with different permissions.
 
@@ -140,12 +146,28 @@ Users can potentially invoke any API operation the connector allows by phrasing 
 
 ### Specification Loading Failures
 
-If the connector fails to load the OpenAPI specification, ensure the specification file is valid JSON or YAML format, validate the specification using online tools like Swagger Editor or the OpenAPI CLI, check that the file upload completed successfully, and verify the specification conforms to OpenAPI 3.0+ schema requirements.
+If the connector fails to load the OpenAPI specification:
+
+1. Ensure the specification file uses valid JSON or YAML format
+2. Validate the specification using an online tool such as Swagger Editor or the OpenAPI CLI
+3. Check that the file upload completed successfully
+4. Verify the specification conforms to OpenAPI 3.0 or later schema requirements
 
 ### Authentication Failures
 
-If API calls fail with 401 or 403 errors, verify the API credentials are correct by testing them directly with curl or Postman, check that credentials have not expired, confirm the authentication type matches what the API expects (API Key vs HTTP Basic vs Bearer), verify the parameter name or header name is correct, and ensure credentials have sufficient permissions for the operations agents attempt to invoke.
+If API calls fail with 401 or 403 errors:
+
+1. Verify the API credentials are correct by testing them directly with curl or Postman
+2. Check that credentials have not expired
+3. Confirm the authentication type matches what the API expects (API Key vs HTTP Basic vs Bearer)
+4. Verify the parameter name or header name is correct
+5. Ensure credentials have sufficient permissions for the operations agents attempt to invoke
 
 ### Operations Not Available
 
-If agents report that operations are not available, verify the specification contains paths with operations defined, check that operations have operationId fields (required for tool generation—operations without operationId are skipped and will not be available as tools), review connector logs for tool loading messages, and confirm the specification was successfully uploaded and processed.
+If agents report that operations are not available:
+
+1. Verify the specification contains paths with operations defined
+2. Check that operations have operationId fields. Operations without operationId are skipped and will not be available as tools
+3. Review connector logs for tool loading messages
+4. Confirm the specification was successfully uploaded and processed
