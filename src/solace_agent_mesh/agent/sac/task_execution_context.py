@@ -45,6 +45,9 @@ class TaskExecutionContext:
         self.token_usage_by_model: Dict[str, Dict[str, int]] = {}
         self.token_usage_by_source: Dict[str, Dict[str, int]] = {}
 
+        # Generic flags storage for task-level state
+        self._flags: Dict[str, Any] = {}
+
         # Generic security storage (enterprise use only)
         self._security_context: Dict[str, Any] = {}
 
@@ -413,3 +416,31 @@ class TaskExecutionContext:
                 self._need_spacing_before_next_text = False
                 return True
             return False
+
+    def set_flag(self, key: str, value: Any) -> None:
+        """
+        Set a task-level flag.
+
+        This method provides a generic mechanism for storing task-level state
+        that needs to persist across different parts of the task execution.
+
+        Args:
+            key: The flag name
+            value: The flag value
+        """
+        with self.lock:
+            self._flags[key] = value
+
+    def get_flag(self, key: str, default: Any = None) -> Any:
+        """
+        Get a task-level flag.
+
+        Args:
+            key: The flag name
+            default: Default value to return if flag not found
+
+        Returns:
+            The flag value, or default if not found
+        """
+        with self.lock:
+            return self._flags.get(key, default)
