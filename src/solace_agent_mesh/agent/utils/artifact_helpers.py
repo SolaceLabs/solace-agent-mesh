@@ -33,6 +33,7 @@ log = logging.getLogger(__name__)
 
 METADATA_SUFFIX = ".metadata.json"
 DEFAULT_SCHEMA_MAX_KEYS = 20
+BM25_INDEX_SUFFIX = ".bm25_index"
 
 
 def is_filename_safe(filename: str) -> bool:
@@ -957,13 +958,14 @@ async def get_artifact_info_list(
         )
 
         for filename in keys:
-            # Skip metadata files
+            # Skip artifact metadata files
             if filename.endswith(METADATA_SUFFIX):
+                log.debug("%s Skipping artifact metadata files: %s", log_prefix, filename)
                 continue
             
             # Skip bm25_index directory and all its contents
-            if filename.startswith("bm25_index/") or filename == "bm25_index":
-                log.debug("%s Skipping BM25 index artifact: %s", log_prefix, filename)
+            if filename.endswith(BM25_INDEX_SUFFIX):
+                log.debug("%s Skipping BM25 index artifact contents: %s", log_prefix, filename)
                 continue
 
             log_identifier_item = f"{log_prefix} [{filename}]"
