@@ -170,7 +170,7 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
                     original_mcp_tool._mcp_tool, "auth_credential", None
                 ),
             )
-        self._original_mcp_tool = original_mcp_tool
+        self._original_mcp_tool: MCPTool = original_mcp_tool
         self._tool_config = tool_config or {}
 
     async def _resolve_embeds_recursively(
@@ -333,6 +333,38 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
         )
         return data
 
+
+    async def _execute_tool_with_audit_logs(self, tool_call, tool_context):
+        _log_mcp_tool_call(
+            tool_context.session.user_id,
+            tool_context.agent_name,
+            self.name,
+            tool_context.session.id,
+        )
+        start_time = time.perf_counter()
+        try:
+            result = await tool_call()
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            _log_mcp_tool_success(
+                tool_context.session.user_id,
+                tool_context.agent_name,
+                self.name,
+                tool_context.session.id,
+                duration_ms,
+            )
+            return result
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            _log_mcp_tool_failure(
+                tool_context.session.user_id,
+                tool_context.agent_name,
+                self.name,
+                tool_context.session.id,
+                duration_ms,
+                e,
+            )
+            raise
+
     async def _run_async_impl(
         self, *, args, tool_context: ToolContext, credential
     ) -> Any:
@@ -343,13 +375,6 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
 
         # Get context for embed resolution - pass the tool_context object directly
         context_for_embeds = tool_context
-        _log_mcp_tool_call(
-            tool_context.session.user_id,
-            tool_context.agent_name,
-            self.name,
-            tool_context.session.id,
-        )
-
         if context_for_embeds:
             log.debug(
                 "%s Starting recursive embed resolution for all parameters. Context type: %s",
@@ -385,34 +410,13 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
                 log_identifier,
             )
             resolved_args = args
-
         # Call the original MCP tool with resolved parameters
-        start_time = time.perf_counter()
-        try:
-            result = await self._original_mcp_tool._run_async_impl(
+        return await self._execute_tool_with_audit_logs(
+            lambda: self._original_mcp_tool._run_async_impl(
                 args=resolved_args, tool_context=tool_context, credential=credential
-            )
-            duration_ms = (time.perf_counter() - start_time) * 1000
-            _log_mcp_tool_success(
-                tool_context.session.user_id,
-                tool_context.agent_name,
-                self.name,
-                tool_context.session.id,
-                duration_ms,
-            )
-            return result
-        except Exception as e:
-            duration_ms = (time.perf_counter() - start_time) * 1000
-            _log_mcp_tool_failure(
-                tool_context.session.user_id,
-                tool_context.agent_name,
-                self.name,
-                tool_context.session.id,
-                duration_ms,
-                e,
-            )
-            raise
-
+            ),
+            tool_context,
+        )
 
 # Get the base toolset class to use for inheritance
 _BaseMcpToolsetClass, _base_toolset_supports_tool_config = _get_base_mcp_toolset_class()

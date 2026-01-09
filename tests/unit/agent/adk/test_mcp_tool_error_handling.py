@@ -4,6 +4,8 @@ import pytest
 from unittest.mock import Mock, AsyncMock, patch, PropertyMock
 from solace_agent_mesh.agent.adk.embed_resolving_mcp_toolset import (
     EmbedResolvingMCPTool,
+    _log_mcp_tool_failure,
+    _log_mcp_tool_success,
 )
 
 
