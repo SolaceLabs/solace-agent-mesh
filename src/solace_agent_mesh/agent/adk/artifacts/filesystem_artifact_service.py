@@ -17,7 +17,7 @@ from typing_extensions import override
 logger = logging.getLogger(__name__)
 
 METADATA_FILE_SUFFIX = ".meta"
-METADATA_DIR_SUFFIX = ".metadata.json"
+#METADATA_DIR_SUFFIX = ".metadata.json"
 
 
 class FilesystemArtifactService(BaseArtifactService):
@@ -347,26 +347,6 @@ class FilesystemArtifactService(BaseArtifactService):
                 artifact_dir,
                 e,
             )
-
-        # remove artifact metadata directory and all its contents
-        metadata_dir = self._get_artifact_dir(
-            app_name, user_id, session_id, f"{filename}{METADATA_DIR_SUFFIX}"
-        )
-        if await asyncio.to_thread(os.path.isdir, metadata_dir):
-            try:
-                await asyncio.to_thread(shutil.rmtree, metadata_dir)
-                logger.info(
-                    "%sRemoved artifact metadata directory and all its contents: %s",
-                    log_prefix,
-                    metadata_dir,
-                )
-            except OSError as e:
-                logger.error(
-                    "%sError deleting artifact metadata directory '%s': %s",
-                    log_prefix,
-                    metadata_dir,
-                    e,
-                )
 
     @override
     async def list_versions(

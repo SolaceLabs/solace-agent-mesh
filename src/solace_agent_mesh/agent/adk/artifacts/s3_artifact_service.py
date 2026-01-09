@@ -406,39 +406,6 @@ class S3ArtifactService(BaseArtifactService):
             len(versions),
         )
 
-        # Delete all artifact metadata versions
-        for version in versions:
-            object_key = self._get_object_key(
-                app_name, user_id, session_id, f"{filename}{METADATA_DIR_SUFFIX}", version
-            )
-            try:
-
-                def _delete_object():
-                    return self.s3.delete_object(
-                        Bucket=self.bucket_name, Key=object_key
-                    )
-
-                await asyncio.to_thread(_delete_object)
-                logger.debug(
-                    "%sDeleted metadata version %d: %s", log_prefix, version, object_key
-                )
-            except ClientError as e:
-                logger.warning(
-                    "%sFailed to delete metadata version %d (%s): %s",
-                    log_prefix,
-                    version,
-                    object_key,
-                    e,
-                )
-        
-        logger.info(
-            "%sDeleted artifact metadata '%s' (%d versions)",
-            log_prefix,
-            filename,
-            len(versions),
-        )
-
-
     @override
     async def list_versions(
         self, *, app_name: str, user_id: str, session_id: str, filename: str
