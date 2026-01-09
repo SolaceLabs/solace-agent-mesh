@@ -3,14 +3,10 @@ ADK Callbacks for the A2A Host Component.
 Includes dynamic instruction injection, artifact metadata injection,
 embed resolution, and logging.
 """
-
-import sys
-print("🔥 LOADED CUSTOM SOLACE-AGENT-MESH CALLBACKS FROM LOCAL SOURCE!")
-sys.stdout.flush()
-
 import logging
 import json
 import asyncio
+import time
 import uuid
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 from collections import defaultdict
@@ -2484,3 +2480,303 @@ def preregister_long_running_tools_callback(
     )
 
     return None  # Don't alter the response
+
+
+# ============================================================================
+# OpenAPI Tool Audit Logging Callbacks
+# ============================================================================
+
+
+def _is_openapi_tool(tool: BaseTool) -> bool:
+    """
+    Check if a tool is an OpenAPI-based RestApiTool.
+
+    tool.operation is ALWAYS present on RestApiTool created from OpenAPI specs
+
+    Args:
+        tool: The tool to check
+
+    Returns:
+        True if the tool is OpenAPI-based, False otherwise
+    """
+    # This is set by RestApiTool.__init__() when created from OpenAPI specs
+    if hasattr(tool, "operation") and tool.operation is not None:
+        return True
+
+    return False
+
+
+def _extract_openapi_base_url(tool: BaseTool) -> Optional[str]:
+    """Extract base URL from an OpenAPI tool."""
+    try:
+        # Check for endpoint.base_url attribute (RestApiTool has this)
+        if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "base_url"):
+            return str(tool.endpoint.base_url)
+
+        if hasattr(tool, "base_url") and tool.base_url:
+            return str(tool.base_url)
+
+        if hasattr(tool, "_base_url") and tool._base_url:
+            return str(tool._base_url)
+
+        if hasattr(tool, "_config") and isinstance(tool._config, dict):
+            return tool._config.get("base_url")
+
+    except Exception as e:
+        log.debug("Could not extract base URL: %s", e)
+
+    return None
+
+
+def _extract_openapi_http_method(tool: BaseTool, args: Dict[str, Any]) -> Optional[str]:
+    """Extract HTTP method from OpenAPI tool or args."""
+    # First try to get from tool's endpoint (RestApiTool)
+    if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "method"):
+        return str(tool.endpoint.method).upper()
+
+    if not args:
+        return None
+
+    # Try common patterns for HTTP method in args
+    return (
+        args.get("http_method")
+        or args.get("method")
+        or args.get("request_method")
+        or args.get("verb")
+    )
+
+
+def _extract_openapi_operation_id(tool: BaseTool, args: Dict[str, Any]) -> Optional[str]:
+    """Extract operation ID from OpenAPI tool or args."""
+    # First try to get from tool's operation (RestApiTool)
+    if hasattr(tool, "operation") and hasattr(tool.operation, "operationId"):
+        return tool.operation.operationId
+
+    if not args:
+        return None
+
+    return (
+        args.get("operation_id")
+        or args.get("operationId")
+        or args.get("operation")
+        or str(args.get("function_name", ""))
+    )
+
+
+def _extract_openapi_metadata(tool: BaseTool, args: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    """
+    Extract all OpenAPI metadata from tool in one pass.
+
+    Returns:
+        Dict with keys: operation_id, base_url, http_method, endpoint_path, tool_uri
+    """
+    operation_id = _extract_openapi_operation_id(tool, args)
+    base_url = _extract_openapi_base_url(tool)
+    http_method = _extract_openapi_http_method(tool, args)
+
+    # Extract endpoint path template (safe, non-sensitive)
+    endpoint_path = None
+    if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "path"):
+        endpoint_path = tool.endpoint.path
+
+    # Construct URI from base URL + path template
+    tool_uri = base_url
+    if base_url and endpoint_path:
+        base_clean = base_url.rstrip('/')
+        path_clean = endpoint_path.lstrip('/') if endpoint_path.startswith('/') else endpoint_path
+        tool_uri = f"{base_clean}/{path_clean}"
+
+    return {
+        "operation_id": operation_id,
+        "base_url": base_url,
+        "http_method": http_method,
+        "endpoint_path": endpoint_path,
+        "tool_uri": tool_uri,
+    }
+
+
+def audit_log_openapi_tool_invocation_start(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    host_component: "SamAgentComponent",
+) -> None:
+    """
+    ADK before_tool_callback for OpenAPI tools - logs invocation start.
+
+    Args:
+        tool: The tool being invoked
+        args: Tool arguments (NOT logged)
+        tool_context: ADK tool context
+        host_component: The SamAgentComponent host
+    """
+    # Only process OpenAPI tools (RestApiTool instances created from OpenAPI specs)
+    if not _is_openapi_tool(tool):
+        return
+
+    # Extract context
+    invocation_context = tool_context._invocation_context
+    session_id = None
+    user_id = None
+
+    if invocation_context and invocation_context.session:
+        session_id = invocation_context.session.id
+        user_id = invocation_context.session.user_id
+
+    # Extract all OpenAPI metadata
+    metadata = _extract_openapi_metadata(tool, args)
+
+    # Build action field and correlation tag
+    action = f"{metadata['http_method']}: {metadata['operation_id']}" if metadata['http_method'] and metadata['operation_id'] else (metadata['operation_id'] or "unknown")
+    correlation_tag = f"corr:{session_id}" if session_id else "corr:unknown"
+
+    # Store start time for latency calculation
+    tool_context.state["audit_start_time_ms"] = int(time.time() * 1000)
+
+    # Log in MCP-style format: [openapi-tool] [corr:xxx] message
+    log.info(
+        "[openapi-tool] [%s] Tool call: %s - User: %s, Agent: %s, URI: %s",
+        correlation_tag,
+        action,
+        user_id,
+        host_component.agent_name,
+        metadata['tool_uri'],
+        extra={
+            "user_id": user_id,
+            "agent_id": host_component.agent_name,
+            "tool_name": tool.name,
+            "session_id": session_id,
+            "operation_id": metadata['operation_id'],
+            "tool_uri": metadata['tool_uri'],
+        },
+    )
+
+
+async def audit_log_openapi_tool_execution_result(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    tool_response: Any,
+    host_component: "SamAgentComponent",
+) -> Optional[Dict[str, Any]]:
+    """
+    ADK after_tool_callback for OpenAPI tools - logs execution result.
+
+    Args:
+        tool: The tool that was executed
+        args: Tool arguments (NOT logged)
+        tool_context: ADK tool context
+        tool_response: Tool response (NOT logged for sensitive data)
+        host_component: The SamAgentComponent host
+
+    Returns:
+        None (does not modify the response)
+    """
+    # Only process OpenAPI tools (RestApiTool instances created from OpenAPI specs)
+    if not _is_openapi_tool(tool):
+        return None
+
+    # Extract context
+    invocation_context = tool_context._invocation_context
+    session_id = None
+    user_id = None
+
+    if invocation_context and invocation_context.session:
+        session_id = invocation_context.session.id
+        user_id = invocation_context.session.user_id
+
+    # Extract all OpenAPI metadata
+    metadata = _extract_openapi_metadata(tool, args)
+
+    # Check if request failed or is pending auth
+    has_error = False
+    is_pending_auth = False
+    error_type = None
+
+    if isinstance(tool_response, dict):
+        has_error = "error" in tool_response
+        is_pending_auth = tool_response.get("pending") == True
+
+        # Extract error type if present (safe, non-sensitive)
+        if has_error:
+            error_data = tool_response.get("error", {})
+            if isinstance(error_data, dict):
+                error_type = error_data.get("type") or error_data.get("code")
+            elif isinstance(error_data, str):
+                # If error is just a string, try to classify it
+                error_lower = error_data.lower()
+                if "auth" in error_lower or "unauthorized" in error_lower:
+                    error_type = "auth_error"
+                elif "not found" in error_lower or "404" in error_lower:
+                    error_type = "not_found"
+                elif "timeout" in error_lower:
+                    error_type = "timeout"
+                elif "network" in error_lower or "connection" in error_lower:
+                    error_type = "network_error"
+
+    # Calculate latency
+    latency_ms = None
+    start_time = tool_context.state.get("audit_start_time_ms")
+    if start_time:
+        latency_ms = int(time.time() * 1000) - start_time
+
+    # Build action and correlation tag
+    action = f"{metadata['http_method']}: {metadata['operation_id']}" if metadata['http_method'] and metadata['operation_id'] else (metadata['operation_id'] or "unknown")
+    correlation_tag = f"corr:{session_id}" if session_id else "corr:unknown"
+
+    if has_error:
+        # Build error message with optional error type
+        error_msg = f"[openapi-tool] [{correlation_tag}] {action} failed - Path: {metadata['endpoint_path'] or 'unknown'}"
+        if error_type:
+            error_msg += f", Error Type: {error_type}"
+        error_msg += f", Latency: {latency_ms}ms, User: {user_id}"
+
+        log.error(
+            error_msg,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+                "endpoint_path": metadata['endpoint_path'],
+                "error_type": error_type,
+            },
+        )
+    elif is_pending_auth:
+        log.warning(
+            "[openapi-tool] [%s] %s pending auth - Latency: %sms, User: %s",
+            correlation_tag,
+            action,
+            latency_ms,
+            user_id,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+                "status": "pending_auth",
+            },
+        )
+    else:
+        # SUCCESS format
+        log.info(
+            "[openapi-tool] [%s] %s completed - Latency: %sms, User: %s",
+            correlation_tag,
+            action,
+            latency_ms,
+            user_id,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+            },
+        )
+
+    return None

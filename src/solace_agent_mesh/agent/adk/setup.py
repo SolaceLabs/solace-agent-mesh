@@ -1167,18 +1167,14 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
-        # Import OpenAPI audit callbacks
-        from .openapi_audit_callback import (
-            audit_log_openapi_tool_invocation_start,
-            audit_log_openapi_tool_execution_result,
-        )
-
+        # Prepare callback partials with component injected
         tool_invocation_start_cb_with_component = functools.partial(
             adk_callbacks.notify_tool_invocation_start_callback,
             host_component=component,
         )
+
         openapi_audit_start_cb_with_component = functools.partial(
-            audit_log_openapi_tool_invocation_start,
+            adk_callbacks.audit_log_openapi_tool_invocation_start,
             host_component=component,
         )
 
@@ -1214,7 +1210,7 @@ def initialize_adk_agent(
             host_component=component,
         )
         openapi_audit_result_cb_with_component = functools.partial(
-            audit_log_openapi_tool_execution_result,
+            adk_callbacks.audit_log_openapi_tool_execution_result,
             host_component=component,
         )
 
@@ -1235,6 +1231,12 @@ def initialize_adk_agent(
                 # First, notify the UI about the raw result.
                 # This is a fire-and-forget notification that does not modify the response.
                 notify_tool_result_cb_with_component(
+                    tool, args, tool_context, tool_response
+                )
+
+                # Log OpenAPI audit on RAW response (before any processing).
+                # This ensures audit logs reflect the actual API response.
+                await openapi_audit_result_cb_with_component(
                     tool, args, tool_context, tool_response
                 )
 
@@ -1262,11 +1264,6 @@ def initialize_adk_agent(
 
                 # Track produced artifacts. This callback does not modify the response.
                 await track_artifacts_cb_with_component(
-                    tool, args, tool_context, final_result
-                )
-
-                # Log OpenAPI audit. This callback does not modify the response.
-                await openapi_audit_result_cb_with_component(
                     tool, args, tool_context, final_result
                 )
 
