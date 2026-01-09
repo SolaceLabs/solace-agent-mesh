@@ -298,7 +298,7 @@ async def get_app_config(
             log.debug("%s Projects feature flag is enabled.", log_prefix)
         else:
             log.debug("%s Projects feature flag is disabled.", log_prefix)
-
+        
         
         # Determine if background tasks should be enabled
         background_tasks_enabled = _determine_background_tasks_enabled(component, log_prefix)
