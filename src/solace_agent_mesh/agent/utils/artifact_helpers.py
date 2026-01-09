@@ -594,7 +594,7 @@ async def delete_artifact_with_metadata(
             status = "partial success"
             status_message = f"Data artifact '{filename}' deleted successfully."
         except FileNotFoundError as e:
-            log.warning("%s Data artifact not found for deletion: %s", log_identifier, e)
+            log.exception("%s Data artifact not found for deletion: %s", log_identifier, e)
             status = "error"
             status_message = f"Data artifact '{filename}' not found for deletion."
         except Exception as data_delete_err:
@@ -624,7 +624,7 @@ async def delete_artifact_with_metadata(
                 status = "partial success"
                 status_message = f"Metadata artifact '{metadata_filename}' deleted, but data artifact '{filename}' failed."
         except FileNotFoundError as e:
-            log.warning("%s Metadata artifact not found for deletion: %s", log_identifier, e)
+            log.exception("%s Metadata artifact not found for deletion: %s", log_identifier, e)
             # Don't change status if data was deleted successfully
             if not data_deleted:
                 status = "error"

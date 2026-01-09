@@ -519,14 +519,10 @@ class ProjectService:
             raise ValueError("Project not found or access denied")
 
         if not self.artifact_service:
-            self.logger.warning(f"No artifact service is configured.")
+            self.logger.warning("No artifact service is configured.")
             raise ValueError("Artifact service is not configured")
 
         storage_session_id = f"project-{project.id}"
-        
-        self.logger.info(
-            f"Deleting artifact from project {project_id} for user {user_id}"
-        )
         
         result = await delete_artifact_with_metadata(
             artifact_service=self.artifact_service,
