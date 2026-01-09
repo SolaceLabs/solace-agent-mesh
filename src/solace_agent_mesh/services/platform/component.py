@@ -115,6 +115,7 @@ class PlatformServiceComponent(SamComponentBase):
             self.ssl_certfile = self.get_config("ssl_certfile", "")
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
             self.cors_allowed_origins = self.get_config("cors_allowed_origins", ["*"])
+            self.cors_allowed_origin_regex = self.get_config("cors_allowed_origin_regex", "")
 
             # OAuth2 configuration (enterprise feature - defaults to community mode)
             self.external_auth_service_url = self.get_config("external_auth_service_url", "")
@@ -577,6 +578,15 @@ class PlatformServiceComponent(SamComponentBase):
             List of allowed origin strings.
         """
         return self.cors_allowed_origins
+
+    def get_cors_origin_regex(self) -> str:
+        """
+        Return the configured CORS allowed origin regex pattern.
+
+        Returns:
+            Regex pattern string, or empty string if not configured.
+        """
+        return self.cors_allowed_origin_regex
 
     def get_namespace(self) -> str:
         """

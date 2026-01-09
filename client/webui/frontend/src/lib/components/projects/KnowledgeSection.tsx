@@ -168,7 +168,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
 
                 {!isLoading && !error && (
                     <>
-                        <FileUpload name="project-files" accept="*" multiple value={filesToUpload} onChange={handleFileUploadChange} onValidate={handleValidateFileSizes} />
+                        {filesToUpload ? null : <FileUpload name="project-files" accept="*" multiple value={filesToUpload} onChange={handleFileUploadChange} onValidate={handleValidateFileSizes} />}
                         {artifacts.length > 0 && (
                             <div className="mt-4 min-h-0 flex-1 overflow-y-auto border-t">
                                 {sortedArtifacts.map(artifact => {

@@ -538,12 +538,24 @@ async def _submit_task(
             "target_agent_name": agent_name,
         }
 
+        # Extract additional metadata from the message (e.g., background execution settings)
+        # This metadata will be passed through to the A2A message for the task logger
+        additional_metadata = {}
+        if payload.params and payload.params.message and payload.params.message.metadata:
+            msg_metadata = payload.params.message.metadata
+            # Pass through background execution settings
+            if msg_metadata.get("backgroundExecutionEnabled"):
+                additional_metadata["backgroundExecutionEnabled"] = msg_metadata.get("backgroundExecutionEnabled")
+            if msg_metadata.get("maxExecutionTimeMs"):
+                additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
+
         task_id = await component.submit_a2a_task(
             target_agent_name=agent_name,
             a2a_parts=a2a_parts,
             external_request_context=external_req_ctx,
             user_identity=user_identity,
             is_streaming=is_streaming,
+            metadata=additional_metadata if additional_metadata else None,
         )
 
         log.info("%sTask submitted successfully. TaskID: %s", log_prefix, task_id)
