@@ -232,14 +232,20 @@ def _setup_middleware(component: "PlatformServiceComponent"):
     # Combine and deduplicate
     allowed_origins = list(set(auto_trusted_origins + configured_origins))
 
+    # Get optional regex pattern for CORS origins (useful for local dev with dynamic ports)
+    cors_origin_regex = component.get_cors_origin_regex()
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
+        allow_origin_regex=cors_origin_regex if cors_origin_regex else None,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
     log.info(f"CORS middleware added with origins: {allowed_origins}")
+    if cors_origin_regex:
+        log.info(f"  CORS origin regex pattern: {cors_origin_regex}")
     if auto_trusted_origins:
         log.info(f"  Auto-added trusted origins: {auto_trusted_origins}")
 

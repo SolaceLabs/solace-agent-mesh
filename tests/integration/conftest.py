@@ -746,6 +746,7 @@ def shared_solace_connector(
                 "max_result_preview_rows": 5,
                 "max_result_preview_bytes": 2048,
             },
+            "stream_batching_threshold_bytes": 0,
             "tools": tools,
         }
 
@@ -837,6 +838,22 @@ def shared_solace_connector(
             # prefixes are ignored in allow list
             "allow_list": ["get_data_stdio"],
             "connection_params": mcp_server_harness["stdio"],
+        },
+        {
+            "tool_type": "builtin",
+            "tool_name": "web_search_google",
+            "tool_config": {
+                "google_search_api_key": "fake-google-key",
+                "google_cse_id": "fake-cse-id",
+            },
+        },
+        {
+            "tool_type": "builtin",
+            "tool_name": "deep_research",
+            "tool_config": {
+                "google_search_api_key": "fake-google-key",
+                "google_cse_id": "fake-cse-id",
+            },
         },
     ]
     sam_agent_app_config = create_agent_config(
