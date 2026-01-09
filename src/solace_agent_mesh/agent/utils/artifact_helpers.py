@@ -33,6 +33,7 @@ log = logging.getLogger(__name__)
 
 METADATA_SUFFIX = ".metadata.json"
 DEFAULT_SCHEMA_MAX_KEYS = 20
+DEFAULT_SCHEMA_INFERENCE_DEPTH = 4
 
 
 def is_filename_safe(filename: str) -> bool:
@@ -323,7 +324,7 @@ async def save_artifact_with_metadata(
     metadata_dict: Dict[str, Any],
     timestamp: datetime,
     explicit_schema: Optional[Dict] = None,
-    schema_inference_depth: int = 2,
+    schema_inference_depth: Optional[int] = None,
     schema_max_keys: int = DEFAULT_SCHEMA_MAX_KEYS,
     tool_context: Optional["ToolContext"] = None,
     suppress_visualization_signal: bool = False,
@@ -333,6 +334,30 @@ async def save_artifact_with_metadata(
     """
     log_identifier = f"[ArtifactHelper:save:{filename}]"
     log.debug("%s Saving artifact and metadata (async)...", log_identifier)
+
+    # Resolve schema_inference_depth from artifact service wrapper if not provided
+    if schema_inference_depth is None:
+        # Use duck typing to check for ScopedArtifactServiceWrapper capability
+        # (avoids dynamic class loading issues with isinstance)
+        if hasattr(artifact_service, "component") and hasattr(
+            artifact_service.component, "get_config"
+        ):
+            schema_inference_depth = artifact_service.component.get_config(
+                "schema_inference_depth", DEFAULT_SCHEMA_INFERENCE_DEPTH
+            )
+            log.debug(
+                "%s Resolved schema_inference_depth from agent config: %d",
+                log_identifier,
+                schema_inference_depth,
+            )
+        else:
+            schema_inference_depth = DEFAULT_SCHEMA_INFERENCE_DEPTH
+            log.debug(
+                "%s Using default schema_inference_depth: %d",
+                log_identifier,
+                schema_inference_depth,
+            )
+
     data_version = None
     metadata_version = None
     metadata_filename = f"{filename}{METADATA_SUFFIX}"
