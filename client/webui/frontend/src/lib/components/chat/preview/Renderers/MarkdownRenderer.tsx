@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 
+import { MarkdownWrapper } from "@/lib/components";
 import type { BaseRendererProps } from ".";
 import { useCopy } from "../../../../hooks/useCopy";
 import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
@@ -14,12 +15,10 @@ interface MarkdownRendererProps extends BaseRendererProps {
 /**
  * MarkdownRenderer - Renders markdown content with citation support
  *
- * Uses TextWithCitations from Citation.tsx which handles:
- * - Markdown to HTML conversion
- * - Citation marker parsing and bundling
- * - Hover cards for bundled citations
+ * Uses MarkdownWrapper for streaming content (smooth text animation)
+ * Uses TextWithCitations for non-streaming content (citation support)
  */
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, ragData }) => {
+export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, ragData, isStreaming }) => {
     const { ref, handleKeyDown } = useCopy<HTMLDivElement>();
 
     // Parse citations from content using ragData
@@ -30,9 +29,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, rag
     return (
         <div className="w-full p-4">
             <div ref={ref} className="max-w-full overflow-hidden select-text focus-visible:outline-none" tabIndex={0} onKeyDown={handleKeyDown}>
-                <div className={getThemeHtmlStyles("max-w-full break-words")}>
-                    <TextWithCitations text={content} citations={citations} />
-                </div>
+                {isStreaming ? (
+                    <MarkdownWrapper content={content} isStreaming={isStreaming} className="max-w-full break-words" />
+                ) : (
+                    <div className={getThemeHtmlStyles("max-w-full break-words")}>
+                        <TextWithCitations text={content} citations={citations} />
+                    </div>
+                )}
             </div>
         </div>
     );

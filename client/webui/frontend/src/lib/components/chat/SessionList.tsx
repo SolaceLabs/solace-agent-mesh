@@ -27,7 +27,7 @@ import {
     TooltipTrigger,
 } from "@/lib/components/ui";
 
-interface PaginatedSessionsResponse {
+export interface PaginatedSessionsResponse {
     data: Session[];
     meta: {
         pagination: {
