@@ -235,7 +235,9 @@ export function ChatPage() {
                                                 {messages.map((message, index) => {
                                                     const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                                     const messageKey = message.metadata?.messageId || `temp-${index}`;
-                                                    return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} />;
+                                                    const isLastMessage = index === messages.length - 1;
+                                                    const shouldStream = isLastMessage && isResponding && !message.isUser;
+                                                    return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />;
                                                 })}
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
