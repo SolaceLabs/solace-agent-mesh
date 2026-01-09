@@ -4,20 +4,12 @@ import { PanelLeftIcon } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
-import type { TextPart } from "@/lib/types";
-import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui";
-import { Spinner } from "@/lib/components/ui/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useChatContext, useTaskContext, useThemeContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
-
-import { ChatSidePanel } from "../chat/ChatSidePanel";
-import { ChatSessionDialog } from "../chat/ChatSessionDialog";
-import { SessionSidePanel } from "../chat/SessionSidePanel";
-import { ChatSessionDeleteDialog } from "../chat/ChatSessionDeleteDialog";
-import type { ChatMessageListRef } from "../ui/chat/chat-message-list";
+import type { TextPart } from "@/lib/types";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
+import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -201,11 +193,7 @@ export function ChatPage() {
                                     <p>{pageTitle}</p>
                                 </TooltipContent>
                             </Tooltip>
-                            {activeProject && (
-                                <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary max-w-[200px] px-2 py-0.5 text-xs font-semibold shadow-sm" title={activeProject.name}>
-                                    <span className="block truncate text-left">{activeProject.name}</span>
-                                </Badge>
-                            )}
+                            {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[200px]" />}
                         </div>
                     }
                     breadcrumbs={breadcrumbs}

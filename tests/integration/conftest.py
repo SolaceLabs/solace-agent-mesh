@@ -838,6 +838,22 @@ def shared_solace_connector(
             "allow_list": ["get_data_stdio"],
             "connection_params": mcp_server_harness["stdio"],
         },
+        {
+            "tool_type": "builtin",
+            "tool_name": "web_search_google",
+            "tool_config": {
+                "google_search_api_key": "fake-google-key",
+                "google_cse_id": "fake-cse-id",
+            },
+        },
+        {
+            "tool_type": "builtin",
+            "tool_name": "deep_research",
+            "tool_config": {
+                "google_search_api_key": "fake-google-key",
+                "google_cse_id": "fake-cse-id",
+            },
+        },
     ]
     sam_agent_app_config = create_agent_config(
         agent_name="TestAgent",

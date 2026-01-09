@@ -90,32 +90,17 @@ async def _publish_data_part_status_update(
     a2a_context: Dict[str, Any],
     data_part_model: BaseModel,
 ):
-    """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart."""
-    logical_task_id = a2a_context.get("logical_task_id")
-    context_id = a2a_context.get("contextId")
-
-    status_update_event = a2a.create_data_signal_event(
-        task_id=logical_task_id,
-        context_id=context_id,
+    """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart.
+    
+    This function delegates to the host component's publish_data_signal_from_thread method,
+    which handles the async loop check and scheduling internally.
+    """
+    host_component.publish_data_signal_from_thread(
+        a2a_context=a2a_context,
         signal_data=data_part_model,
-        agent_name=host_component.agent_name,
+        skip_buffer_flush=False,
+        log_identifier=host_component.log_identifier,
     )
-
-    loop = host_component.get_async_loop()
-    if loop and loop.is_running():
-        asyncio.run_coroutine_threadsafe(
-            host_component._publish_status_update_with_buffer_flush(
-                status_update_event,
-                a2a_context,
-                skip_buffer_flush=False,
-            ),
-            loop,
-        )
-    else:
-        log.error(
-            "%s Async loop not available. Cannot publish status update.",
-            host_component.log_identifier,
-        )
 
 
 async def _resolve_early_embeds_in_chunk(
@@ -1553,6 +1538,14 @@ Examples:
  - BAD: "Let me search for that information." [then calls tool]
  - BAD: "Searching for information..." [then calls tool]
 
+**CRITICAL - No Links From Training Data**:
+- DO NOT include URLs, links, or markdown links from your training data in responses
+- NEVER include markdown links like [text](url) or raw URLs like https://example.com unless they came from a tool result
+- If a delegated agent's response contains [[cite:searchN]] citations, those are properly formatted - preserve them exactly
+- If a delegated agent's response has no links, do NOT add any links yourself
+- The ONLY acceptable links are those returned by tools (web search, deep research, etc.) with proper citation format
+- Your role is to coordinate and present results, not to augment them with links from your training data
+
 Embeds in responses from agents:
 To be efficient, peer agents may respond with artifact_content in their responses. These will not be resolved until they are sent back to a gateway. If it makes
 sense, just carry that embed forward to your response to the user. For example, if you ask for an org chart from another agent and its response contains an embed like
@@ -2237,9 +2230,11 @@ def notify_tool_invocation_start_callback(
             tool_args=serializable_args,
             function_call_id=tool_context.function_call_id,
         )
-        asyncio.run_coroutine_threadsafe(
-            _publish_data_part_status_update(host_component, a2a_context, tool_data),
-            host_component.get_async_loop(),
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=tool_data,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
         )
         log.debug(
             "%s Scheduled tool_invocation_start notification.",
@@ -2310,9 +2305,11 @@ def notify_tool_execution_result_callback(
             result_data=serializable_response,
             function_call_id=tool_context.function_call_id,
         )
-        asyncio.run_coroutine_threadsafe(
-            _publish_data_part_status_update(host_component, a2a_context, tool_data),
-            host_component.get_async_loop(),
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=tool_data,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
         )
         log.debug(
             "%s Scheduled tool_result notification for function call ID %s.",

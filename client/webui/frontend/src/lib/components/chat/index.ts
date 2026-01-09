@@ -1,6 +1,8 @@
 export { AudioRecorder } from "./AudioRecorder";
 export { ChatInputArea } from "./ChatInputArea";
 export { ChatMessage } from "./ChatMessage";
+export { ChatSessionDeleteDialog } from "./ChatSessionDeleteDialog";
+export { ChatSessionDialog } from "./ChatSessionDialog";
 export { ChatSessions } from "./ChatSessions";
 export { ChatSidePanel } from "./ChatSidePanel";
 export { LoadingMessageRow } from "./LoadingMessageRow";
@@ -9,4 +11,5 @@ export { MoveSessionDialog } from "./MoveSessionDialog";
 export { VariableDialog } from "./VariableDialog";
 export { SessionSearch } from "./SessionSearch";
 export { MessageHoverButtons } from "./MessageHoverButtons";
+export * from "./file";
 export * from "./selection";

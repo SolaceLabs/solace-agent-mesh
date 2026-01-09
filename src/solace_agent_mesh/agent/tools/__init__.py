@@ -13,6 +13,8 @@ from . import image_tools
 from . import web_tools
 from . import time_tools
 from . import test_tools
+from . import deep_research_tools
+from . import web_search_tools
 from . import dynamic_tool
 
 # Export ToolResult abstraction for tool authors
