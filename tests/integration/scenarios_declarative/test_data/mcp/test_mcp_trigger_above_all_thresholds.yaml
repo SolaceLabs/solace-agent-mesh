@@ -52,7 +52,7 @@ llm_interactions:
             # The output should NOT contain actual data - only a reference message
             mcp_tool_output:
               type: "data_in_artifact_only"
-              message: "Data exceeds size limit. Full data saved as artifact - use template_liquid or load_artifact to access."
+              message: "Data exceeds size limit. Full data saved as artifact - use template_liquid, load_artifact or other artifact analysis tools to process and access."
     static_response:
       choices:
         - message:

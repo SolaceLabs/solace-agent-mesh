@@ -78,6 +78,7 @@ from ...agent.adk.stream_parser import (
     TEMPLATE_LIQUID_START_SEQUENCE,
 )
 
+
 log = logging.getLogger(__name__)
 
 A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
@@ -92,7 +93,7 @@ async def _publish_data_part_status_update(
     data_part_model: BaseModel,
 ):
     """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart.
-    
+
     This function delegates to the host component's publish_data_signal_from_thread method,
     which handles the async loop check and scheduling internally.
     """
@@ -565,9 +566,7 @@ async def process_artifact_blocks_callback(
                         # Reconstruct the original template block text for peer-to-peer responses
                         # Peer agents don't receive TemplateBlockData signals, so they need
                         # the original block text to pass templates through to the gateway
-                        params_str = " ".join(
-                            [f'{k}="{v}"' for k, v in params.items()]
-                        )
+                        params_str = " ".join([f'{k}="{v}"' for k, v in params.items()])
                         original_template_text = (
                             f"{TEMPLATE_LIQUID_START_SEQUENCE} {params_str}\n"
                             f"{event.template_content}"
@@ -579,7 +578,9 @@ async def process_artifact_blocks_callback(
                         # This allows the calling agent to forward it to the gateway.
                         # Gateway requests use streaming sessions and receive TemplateBlockData
                         # signals instead.
-                        is_run_based = a2a_context and a2a_context.get("is_run_based_session", False)
+                        is_run_based = a2a_context and a2a_context.get(
+                            "is_run_based_session", False
+                        )
                         if is_run_based and llm_response.partial:
                             processed_parts.append(
                                 adk_types.Part(text=original_template_text)
@@ -715,7 +716,8 @@ async def process_artifact_blocks_callback(
                         artifact_info = ArtifactInfo(
                             filename=block_info["filename"],
                             version=block_info["version"],
-                            mime_type=block_info.get("mime_type") or "application/octet-stream",
+                            mime_type=block_info.get("mime_type")
+                            or "application/octet-stream",
                             size=block_info.get("bytes_transferred", 0),
                             description=block_info.get("description"),
                             version_count=None,  # Count not available in save context
@@ -1011,14 +1013,18 @@ async def manage_large_mcp_tool_responses_callback(
         # to use reliable mechanisms (template_liquid, load_artifact) to access the full data.
         final_llm_response_dict["mcp_tool_output"] = {
             "type": "data_in_artifact_only",
-            "message": "Data exceeds size limit. Full data saved as artifact - use template_liquid or load_artifact to access.",
+            "message": "Data exceeds size limit. Full data saved as artifact - use template_liquid, load_artifact or other artifact analysis tools to process and access.",
         }
         message_parts_for_llm.append(
             f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) to display directly. "
-            f"The data has NOT been included here to prevent incomplete information. "
-            f"You MUST use template_liquid (for displaying to users) or load_artifact (for processing) to access the full data."
+            "The data has NOT been included here to prevent incomplete information. "
+            "You MUST use template_liquid (for displaying to users) or load_artifact or other "
+            "artifact analysis tools (for processing) to access the full data."
         )
-        log.debug("%s MCP tool output withheld from LLM (all-or-nothing approach).", log_identifier)
+        log.debug(
+            "%s MCP tool output withheld from LLM (all-or-nothing approach).",
+            log_identifier,
+        )
 
     if needs_saving_as_artifact:
         if save_result and save_result.status in [
@@ -1042,8 +1048,8 @@ async def manage_large_mcp_tool_responses_callback(
                 # When data was too large and truncated, provide explicit guidance
                 if needs_truncation_for_llm:
                     artifact_msg += (
-                        f" To display this data to the user, use template_liquid with data=\"{filename}\". "
-                        f"To process the data yourself, use load_artifact(\"{filename}\")."
+                        f' To display this data to the user, use template_liquid with data="{filename}". '
+                        f'To process the data yourself, use load_artifact("{filename}").'
                     )
                 message_parts_for_llm.append(artifact_msg)
             elif save_result.fallback_artifact:
@@ -1052,8 +1058,8 @@ async def manage_large_mcp_tool_responses_callback(
                 artifact_msg = f"The full response has been saved as artifact '{filename}' (version {version})."
                 if needs_truncation_for_llm:
                     artifact_msg += (
-                        f" To display this data to the user, use template_liquid with data=\"{filename}\". "
-                        f"To process the data yourself, use load_artifact(\"{filename}\")."
+                        f' To display this data to the user, use template_liquid with data="{filename}". '
+                        f'To process the data yourself, use load_artifact("{filename}").'
                     )
                 message_parts_for_llm.append(artifact_msg)
 
