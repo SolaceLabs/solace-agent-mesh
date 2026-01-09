@@ -7,8 +7,8 @@ from unittest.mock import Mock
 
 from solace_agent_mesh.agent.adk.intelligent_mcp_callbacks import (
     _get_schema_config_from_tool_or_agent,
-    DEFAULT_SCHEMA_MAX_KEYS,
 )
+from solace_agent_mesh.agent.utils.artifact_helpers import DEFAULT_SCHEMA_MAX_KEYS
 
 
 class TestGetSchemaConfigFromToolOrAgent:

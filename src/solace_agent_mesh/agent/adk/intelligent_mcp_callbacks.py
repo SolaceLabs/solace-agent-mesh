@@ -19,6 +19,7 @@ from .mcp_content_processor import MCPContentProcessor, MCPContentProcessorConfi
 from ...agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
     DEFAULT_SCHEMA_MAX_KEYS,
+    DEFAULT_SCHEMA_INFERENCE_DEPTH,
 )
 from ...agent.utils.context_helpers import get_original_session_id
 
@@ -335,7 +336,7 @@ async def _save_content_item_as_artifact(
             tool, host_component, "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
         )
         schema_inference_depth = _get_schema_config_from_tool_or_agent(
-            tool, host_component, "schema_inference_depth", 4
+            tool, host_component, "schema_inference_depth", DEFAULT_SCHEMA_INFERENCE_DEPTH
         )
         artifact_timestamp = datetime.now(timezone.utc)
 
@@ -422,7 +423,7 @@ async def _save_raw_mcp_response_fallback(
             tool, host_component, "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
         )
         schema_inference_depth = _get_schema_config_from_tool_or_agent(
-            tool, host_component, "schema_inference_depth", 4
+            tool, host_component, "schema_inference_depth", DEFAULT_SCHEMA_INFERENCE_DEPTH
         )
 
         save_result = await save_artifact_with_metadata(
