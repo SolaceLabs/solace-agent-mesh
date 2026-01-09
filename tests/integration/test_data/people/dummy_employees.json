@@ -1,0 +1,62 @@
+[
+  {
+    "id": "john.doe@solace.com",
+    "email": "john.doe@solace.com",
+    "name": "John Doe",
+    "title": "Product Manager"
+  },
+  {
+    "id": "john.doe2@solace.com",
+    "email": "john.doe2@solace.com",
+    "name": "John Doe",
+    "title": "Software Engineer"
+  },
+  {
+    "id": "jane.smith@solace.com",
+    "email": "jane.smith@solace.com",
+    "name": "Jane Smith",
+    "title": "UX Designer"
+  },
+  {
+    "id": "bob.wilson@solace.com",
+    "email": "bob.wilson@solace.com",
+    "name": "Bob Wilson",
+    "title": "Engineering Manager"
+  },
+  {
+    "id": "alice.johnson@solace.com",
+    "email": "alice.johnson@solace.com",
+    "name": "Alice Johnson",
+    "title": "Technical Writer"
+  },
+  {
+    "id": "charlie.brown@solace.com",
+    "email": "charlie.brown@solace.com",
+    "name": "Charlie Brown",
+    "title": "DevOps Engineer"
+  },
+  {
+    "id": "diana.prince@solace.com",
+    "email": "diana.prince@solace.com",
+    "name": "Diana Prince",
+    "title": "Security Architect"
+  },
+  {
+    "id": "eric.cartman@solace.com",
+    "email": "eric.cartman@solace.com",
+    "name": "Eric Cartman",
+    "title": "QA Engineer"
+  },
+  {
+    "id": "frank.underwood@solace.com",
+    "email": "frank.underwood@solace.com",
+    "name": "Frank Underwood",
+    "title": "VP of Engineering"
+  },
+  {
+    "id": "grace.hopper@solace.com",
+    "email": "grace.hopper@solace.com",
+    "name": "Grace Hopper",
+    "title": "Staff Engineer"
+  }
+]

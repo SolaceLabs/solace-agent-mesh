@@ -32,7 +32,7 @@ const RESERVED_COMMANDS: ReservedCommand[] = [
 interface PromptsCommandProps {
     isOpen: boolean;
     onClose: () => void;
-    textAreaRef: React.RefObject<HTMLTextAreaElement | null>;
+    textAreaRef: React.RefObject<HTMLDivElement | HTMLTextAreaElement | null>;
     onPromptSelect: (promptText: string) => void;
     messages?: MessageFE[];
     onReservedCommand?: (command: ChatCommand, context?: string) => void;

@@ -50,7 +50,7 @@ class PeopleService:
             )
             return []
 
-        if not query or len(query) < 2:
+        if not query or len(query) < 1:
             return []
 
         try:

@@ -21,9 +21,8 @@ router = APIRouter()
 async def search_people(
     q: str = Query(
         ...,
-        min_length=2,
         max_length=50,
-        description="Search query for user name/email.",
+        description="Search query for user name/email (1+ characters).",
     ),
     limit: int = Query(
         10, ge=1, le=25, description="Maximum number of results to return."
