@@ -29,5 +29,5 @@ def get_community_platform_routers() -> list:
         {
             "router": health_router,
             "tags": ["Health"],
-        }
+        },
     ]
