@@ -193,8 +193,25 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
         checkForRunningTasks();
     }, [userId, fetchActiveBackgroundTasks]);
 
-    // Periodic checking removed - tasks are unregistered immediately on completion
-    // via SSE final_response event in ChatProvider
+    // Periodic checking to detect background task completion when not connected to SSE
+    // This handles the case where a task completes while the user is on a different session
+    useEffect(() => {
+        if (backgroundTasks.length === 0) {
+            return;
+        }
+
+        // Check immediately on mount/change
+        checkAllBackgroundTasks();
+
+        // Then check periodically (every 5 seconds)
+        const intervalId = setInterval(() => {
+            checkAllBackgroundTasks();
+        }, 5000);
+
+        return () => {
+            clearInterval(intervalId);
+        };
+    }, [backgroundTasks.length, checkAllBackgroundTasks]);
 
     // Dismiss a notification
     const dismissNotification = useCallback((taskId: string) => {

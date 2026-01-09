@@ -109,6 +109,9 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 // Check if platform service is configured
                 const platformConfigured = Boolean(data.frontend_platform_server_url);
 
+                // Extract auto title generation config from feature enablement
+                const autoTitleGenerationEnabled = data.frontend_feature_enablement?.auto_title_generation ?? false;
+
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
                     webuiServerUrl: data.frontend_server_url,
@@ -128,6 +131,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     backgroundTasksEnabled,
                     backgroundTasksDefaultTimeoutMs,
                     platformConfigured,
+                    autoTitleGenerationEnabled,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;
