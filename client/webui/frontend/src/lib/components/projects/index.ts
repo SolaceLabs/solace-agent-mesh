@@ -9,5 +9,4 @@ export { ProjectChatsSection } from "./ProjectChatsSection";
 export { SystemPromptSection } from "./SystemPromptSection";
 export { DefaultAgentSection } from "./DefaultAgentSection";
 export { KnowledgeSection } from "./KnowledgeSection";
-export { DocumentListItem } from "./DocumentListItem";
 export { DeleteProjectDialog } from "./DeleteProjectDialog";

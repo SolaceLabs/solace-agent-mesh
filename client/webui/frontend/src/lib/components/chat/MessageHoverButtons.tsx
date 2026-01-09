@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Copy, Check } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { cn } from "@/lib/utils";
@@ -10,17 +10,22 @@ import { extractDisplayTextFromHTML } from "@/lib/utils/mentionUtils";
 interface MessageHoverButtonsProps {
     message: MessageFE;
     className?: string;
+    /** Optional text content override */
+    textContentOverride?: string;
 }
 
-export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ message, className }) => {
+export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ message, className, textContentOverride }) => {
     const { addNotification } = useChatContext();
     const { configFeatureEnablement } = useConfigContext();
     const mentionsEnabled = configFeatureEnablement?.mentions ?? true;
     const [isCopied, setIsCopied] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
 
-    // Extract text content from message parts
+    // Extract text content from message parts, or use override if provided
     const getTextContent = useCallback((): string => {
+        if (textContentOverride) {
+            return textContentOverride;
+        }
         // For user messages with displayHtml (containing mention chips), extract display text
         if (message.isUser && message.displayHtml) {
             return extractDisplayTextFromHTML(message.displayHtml);
@@ -32,7 +37,7 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ messag
         }
         const textParts = message.parts.filter(p => p.kind === "text") as TextPart[];
         return textParts.map(p => p.text).join("");
-    }, [message.isUser, message.displayHtml, message.parts]);
+    }, [textContentOverride, message.isUser, message.displayHtml, message.parts]);
 
     // Copy functionality
     const handleCopy = useCallback(() => {
@@ -105,6 +110,17 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ messag
         };
     }, [handleCopy]);
 
+    // Create a synthetic message with text content override
+    const messageForTTS = useMemo((): MessageFE => {
+        if (!textContentOverride) {
+            return message;
+        }
+        return {
+            ...message,
+            parts: [{ kind: "text", text: textContentOverride }],
+        };
+    }, [message, textContentOverride]);
+
     // Don't show buttons for status messages
     if (message.isStatusBubble || message.isStatusMessage) {
         return null;
@@ -113,7 +129,7 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ messag
     return (
         <div className={cn("flex justify-start gap-1 text-gray-500", className)}>
             {/* TTS Button - for AI messages */}
-            {!message.isUser && <TTSButton message={message} />}
+            {!message.isUser && <TTSButton message={messageForTTS} />}
 
             {/* Copy button - all messages */}
             <Button ref={buttonRef} variant="ghost" size="icon" className="h-8 w-8" onClick={handleCopy} tooltip={isCopied ? "Copied!" : "Copy to clipboard"}>

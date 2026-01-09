@@ -1,5 +1,5 @@
 import { type SelectionContextValue } from "@/lib";
-import { TextSelectionContext } from "@/lib/components/chat/selection/TextSelectionProvider";
+import { TextSelectionContext } from "@/lib/components/chat/selection/TextSelectionContext";
 
 interface MockTextSelectionProviderProps {
     children: React.ReactNode;
