@@ -17,7 +17,6 @@ from typing_extensions import override
 logger = logging.getLogger(__name__)
 
 METADATA_FILE_SUFFIX = ".meta"
-#METADATA_DIR_SUFFIX = ".metadata.json"
 
 
 class FilesystemArtifactService(BaseArtifactService):

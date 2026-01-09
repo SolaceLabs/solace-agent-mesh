@@ -16,8 +16,6 @@ from typing_extensions import override
 
 logger = logging.getLogger(__name__)
 
-METADATA_DIR_SUFFIX = ".metadata.json"
-
 
 class S3ArtifactService(BaseArtifactService):
     """

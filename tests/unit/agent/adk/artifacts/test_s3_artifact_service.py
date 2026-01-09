@@ -640,17 +640,15 @@ class TestS3ArtifactServiceDeleteArtifact:
                 filename="test.txt"
             )
         
-        # Should delete all artifact versions (3) and metadata versions (3)
-        assert mock_s3_client.delete_object.call_count == 6
+        # Should delete all artifact versions (3)
+        # Note: S3 stores metadata in object metadata, not as separate files
+        assert mock_s3_client.delete_object.call_count == 3
         
         # Verify correct keys were deleted
         expected_calls = [
             {'Bucket': 'test-bucket', 'Key': 'test_app/user1/session1/test.txt/0'},
             {'Bucket': 'test-bucket', 'Key': 'test_app/user1/session1/test.txt/1'},
             {'Bucket': 'test-bucket', 'Key': 'test_app/user1/session1/test.txt/2'},
-            {'Bucket': 'test-bucket', 'Key': 'test_app/user1/session1/test.txt.metadata.json/0'},
-            {'Bucket': 'test-bucket', 'Key': 'test_app/user1/session1/test.txt.metadata.json/1'},
-            {'Bucket': 'test-bucket', 'Key': 'test_app/user1/session1/test.txt.metadata.json/2'},
         ]
         
         actual_calls = [call[1] for call in mock_s3_client.delete_object.call_args_list]
@@ -678,15 +676,12 @@ class TestS3ArtifactServiceDeleteArtifact:
         service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
         
         # Mock delete_object to fail on second call
-        # Note: delete_artifact deletes both artifact versions AND metadata versions
-        # So for 3 versions, we need 6 responses (3 artifacts + 3 metadata)
+        # Note: S3 stores metadata in object metadata, not as separate files
+        # So for 3 versions, we need 3 responses (3 artifacts only)
         mock_s3_client.delete_object.side_effect = [
             {},  # Success - artifact version 0
             ClientError({'Error': {'Code': '403'}}, 'DeleteObject'),  # Failure - artifact version 1
             {},  # Success - artifact version 2
-            {},  # Success - metadata version 0
-            {},  # Success - metadata version 1
-            {},  # Success - metadata version 2
         ]
         
         with patch.object(service, 'list_versions', return_value=[0, 1, 2]):
@@ -698,8 +693,8 @@ class TestS3ArtifactServiceDeleteArtifact:
                 filename="test.txt"
             )
         
-        # Should attempt to delete all versions (3 artifacts + 3 metadata = 6 total)
-        assert mock_s3_client.delete_object.call_count == 6
+        # Should attempt to delete all versions (3 artifacts)
+        assert mock_s3_client.delete_object.call_count == 3
 
 
 class TestS3ArtifactServiceListVersions:
