@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Download, ChevronDown, Trash, Info, ChevronUp, CircleAlert, Pencil } from "lucide-react";
 
 import { Button, Spinner } from "@/lib/components/ui";
-import { cn } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 
 import { FileIcon, ProjectBadge } from "../file";
 
@@ -110,7 +110,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
         switch (status) {
             case "in-progress":
                 return {
-                    text: bytesTransferred ? `Creating... ${(bytesTransferred / 1024).toFixed(1)}KB` : "Creating...",
+                    text: bytesTransferred ? `Creating... ${formatBytes(bytesTransferred)}` : "Creating...",
                     className: "text-[var(--color-info-wMain)]",
                 };
             case "failed":
@@ -120,7 +120,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 };
             case "completed":
                 return {
-                    text: size ? `${(size / 1024).toFixed(1)}KB` : "",
+                    text: size ? formatBytes(size) : "",
                 };
             default:
                 return {
