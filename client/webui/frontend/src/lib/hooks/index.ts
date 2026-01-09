@@ -16,6 +16,8 @@ export * from "./useDragAndDrop";
 export * from "./useMobile";
 export * from "./useProjectArtifacts";
 export * from "./useSpeechToText";
+export * from "./useStreamingAnimation";
+export * from "./useStreamingSpeed";
 export * from "./useStreamingTTS";
 export * from "./useTaskContext";
 export * from "./useTextToSpeech";
