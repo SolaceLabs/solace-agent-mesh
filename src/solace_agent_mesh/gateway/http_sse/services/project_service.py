@@ -2,7 +2,7 @@
 Business service for project-related operations.
 """
 
-from typing import List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 import logging
 import json
 import zipfile
@@ -10,7 +10,7 @@ from io import BytesIO
 from fastapi import UploadFile
 from datetime import datetime, timezone
 
-from ....agent.utils.artifact_helpers import get_artifact_info_list, save_artifact_with_metadata, get_artifact_counts_batch
+from ....agent.utils.artifact_helpers import get_artifact_info_list, save_artifact_with_metadata, delete_artifact_with_metadata, get_artifact_counts_batch
 
 # Default max upload size (50MB) - matches gateway_max_upload_size_bytes default
 DEFAULT_MAX_UPLOAD_SIZE_BYTES = 52428800
@@ -494,7 +494,13 @@ class ProjectService:
             self.logger.error(f"Error updating artifact metadata: {e}")
             raise
 
-    async def delete_artifact_from_project(self, db, project_id: str, user_id: str, filename: str) -> bool:
+    async def delete_artifact_from_project(
+        self, 
+        db, 
+        project_id: str, 
+        user_id: str, 
+        filename: str
+    ) -> dict[str, Any]:
         """
         Deletes an artifact from a project.
         
@@ -504,31 +510,30 @@ class ProjectService:
             user_id: The requesting user ID
             filename: The filename of the artifact to delete
             
-        Returns:
-            bool: True if deletion was attempted, False if project not found
-            
         Raises:
-            ValueError: If user cannot modify the project or artifact service is missing
+            ValueError: If project not found or access denied, or if artifact service is not configured
         """
         project = self.get_project(db, project_id, user_id)
+        
         if not project:
-            return False
+            raise ValueError("Project not found or access denied")
 
         if not self.artifact_service:
-            self.logger.warning(f"Attempted to delete artifact from project {project_id} but no artifact service is configured.")
+            self.logger.warning("No artifact service is configured.")
             raise ValueError("Artifact service is not configured")
 
         storage_session_id = f"project-{project.id}"
         
-        self.logger.info(f"Deleting artifact '{filename}' from project {project_id} for user {user_id}")
-        
-        await self.artifact_service.delete_artifact(
+        result = await delete_artifact_with_metadata(
+            artifact_service=self.artifact_service,
             app_name=self.app_name,
-            user_id=project.user_id, # Always use project owner's ID for storage
+            user_id=project.user_id,  # Always use project owner's ID for storage
             session_id=storage_session_id,
             filename=filename,
         )
-        return True
+        
+        return result
+        
 
     def update_project(self, db, project_id: str, user_id: str,
                            name: Optional[str] = None, description: Optional[str] = None,
