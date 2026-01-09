@@ -387,6 +387,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                         disabled ? "cursor-not-allowed opacity-50" : "",
                         className
                     )}
+                    data-testid="chat-input"
                     data-placeholder={placeholder}
                     suppressContentEditableWarning
                     style={{
