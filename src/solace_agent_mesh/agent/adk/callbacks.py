@@ -75,6 +75,7 @@ from ...agent.adk.stream_parser import (
     TemplateBlockCompletedEvent,
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
+    TEMPLATE_LIQUID_START_SEQUENCE,
 )
 
 log = logging.getLogger(__name__)
@@ -583,7 +584,7 @@ async def process_artifact_blocks_callback(
                             [f'{k}="{v}"' for k, v in params.items()]
                         )
                         original_template_text = (
-                            f"{ARTIFACT_BLOCK_DELIMITER_OPEN}template_liquid: {params_str}\n"
+                            f"{TEMPLATE_LIQUID_START_SEQUENCE} {params_str}\n"
                             f"{event.template_content}"
                             f"{ARTIFACT_BLOCK_DELIMITER_CLOSE}"
                         )
