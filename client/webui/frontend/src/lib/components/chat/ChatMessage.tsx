@@ -108,24 +108,8 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     // Trim text for user messages to prevent trailing whitespace issues
     const displayText = message.isUser ? textContent.trim() : textContent;
 
-    // If user message has displayHtml (with mention chips), render that instead
-    if (message.isUser && message.displayHtml) {
-        // Sanitize the HTML to prevent XSS
-        // Allow mention chips and their data attributes
-        const cleanHtml = DOMPurify.sanitize(message.displayHtml, {
-            ALLOWED_TAGS: ['span', 'br'],
-            ALLOWED_ATTR: ['class', 'contenteditable', 'data-internal', 'data-person-id', 'data-person-name', 'data-display']
-        });
-
-        return (
-            <div
-                className="message-with-mentions whitespace-pre-wrap break-words"
-                dangerouslySetInnerHTML={{ __html: cleanHtml }}
-            />
-        );
-    }
-
     // Parse citations from text and match to RAG sources
+    // All hooks must be called before any early returns to satisfy React's rules of hooks
     const taskRagData = useMemo(() => {
         if (!message.taskId || !ragData) return undefined;
         // Find the last matching entry (most recent/complete data)
@@ -137,14 +121,6 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
         if (message.isUser) return [];
         return parseCitations(displayText, taskRagData);
     }, [displayText, taskRagData, message.isUser]);
-
-    const handleCitationClick = () => {
-        // Open RAG panel when citation is clicked
-        if (message.taskId) {
-            setTaskIdInSidePanel(message.taskId);
-            openSidePanelTab("rag");
-        }
-    };
 
     // Extract embedded content and compute modified text at component level
     const embeddedContent = useMemo(() => extractEmbeddedContent(displayText), [displayText]);
@@ -190,6 +166,31 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
         if (message.isUser) return [];
         return parseCitations(modifiedText, taskRagData);
     }, [modifiedText, taskRagData, message.isUser]);
+
+    const handleCitationClick = () => {
+        // Open RAG panel when citation is clicked
+        if (message.taskId) {
+            setTaskIdInSidePanel(message.taskId);
+            openSidePanelTab("rag");
+        }
+    };
+
+    // If user message has displayHtml (with mention chips), render that instead
+    if (message.isUser && message.displayHtml) {
+        // Sanitize the HTML to prevent XSS
+        // Allow mention chips and their data attributes
+        const cleanHtml = DOMPurify.sanitize(message.displayHtml, {
+            ALLOWED_TAGS: ['span', 'br'],
+            ALLOWED_ATTR: ['class', 'contenteditable', 'data-internal', 'data-person-id', 'data-person-name', 'data-display']
+        });
+
+        return (
+            <div
+                className="message-with-mentions whitespace-pre-wrap break-words"
+                dangerouslySetInnerHTML={{ __html: cleanHtml }}
+            />
+        );
+    }
 
     const renderContent = () => {
         if (message.isError) {
@@ -553,7 +554,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         // If there are multiple report artifacts and we couldn't find one,
         // don't show any inline report to avoid showing the wrong one
         return null;
-    }, [message, isLastWithTaskId, artifacts, taskRagData, sessionId]);
+    }, [message, isLastWithTaskId, artifacts, taskRagData]);
 
     // Get the last RAG data entry for this task (for citations in report)
     const lastTaskRagData = useMemo(() => {
