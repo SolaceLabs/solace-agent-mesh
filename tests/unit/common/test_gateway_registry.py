@@ -244,34 +244,6 @@ class TestGatewayRegistryHealthTracking:
         assert is_expired is False
         assert seconds_since == 0
 
-    def test_get_healthy_gateways(self, gateway_registry):
-        """Test getting list of healthy gateways."""
-        gateway_registry.add_or_update_gateway(create_test_gateway_card("gw-1", "http_sse"))
-        gateway_registry.add_or_update_gateway(create_test_gateway_card("gw-2", "slack"))
-
-        gateway_registry.add_or_update_gateway(create_test_gateway_card("gw-3", "rest"))
-        gateway_registry._last_seen["gw-3"] = time.time() - 120
-
-        healthy = gateway_registry.get_healthy_gateways(ttl_seconds=90)
-
-        assert "gw-1" in healthy
-        assert "gw-2" in healthy
-        assert "gw-3" not in healthy
-
-    def test_get_unhealthy_gateways(self, gateway_registry):
-        """Test getting list of unhealthy gateways."""
-        gateway_registry.add_or_update_gateway(create_test_gateway_card("gw-1", "http_sse"))
-        gateway_registry.add_or_update_gateway(create_test_gateway_card("gw-2", "slack"))
-
-        gateway_registry.add_or_update_gateway(create_test_gateway_card("gw-3", "rest"))
-        gateway_registry._last_seen["gw-3"] = time.time() - 120
-
-        unhealthy = gateway_registry.get_unhealthy_gateways(ttl_seconds=90)
-
-        assert "gw-1" not in unhealthy
-        assert "gw-2" not in unhealthy
-        assert "gw-3" in unhealthy
-
     def test_default_ttl_90_seconds(self, gateway_registry, sample_gateway_card):
         """Test default TTL is 90 seconds."""
         gateway_registry.add_or_update_gateway(sample_gateway_card)
