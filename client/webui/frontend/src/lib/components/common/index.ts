@@ -1,6 +1,7 @@
 export { ConfirmationDialog } from "./ConfirmationDialog";
 export { EmptyState } from "./EmptyState";
 export { ErrorDialog } from "./ErrorDialog";
+export { FileUpload } from "./FileUpload";
 export { Footer } from "./Footer";
 export { GridCard } from "./GridCard";
 export { LoadingBlocker } from "./LoadingBlocker";

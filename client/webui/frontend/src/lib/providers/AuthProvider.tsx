@@ -3,6 +3,7 @@ import React, { useState, useEffect, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { AuthContext } from "@/lib/contexts/AuthContext";
 import { useConfigContext, useCsrfContext } from "@/lib/hooks";
+import { EmptyState } from "../components";
 
 interface AuthProviderProps {
     children: ReactNode;
@@ -74,25 +75,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
             if (configUseAuthorization) {
                 await api.webui.post("/api/v1/auth/logout");
+                setIsAuthenticated(false);
+                setUserInfo(null);
+                clearCsrfToken();
+
+                // Clear tokens from localStorage - set in authCallback.tsx
+                localStorage.removeItem("access_token");
+                localStorage.removeItem("refresh_token");
             }
         } catch (error) {
             console.error("Error calling logout endpoint:", error);
-        } finally {
-            setIsAuthenticated(false);
-            setUserInfo(null);
-            clearCsrfToken();
         }
     };
 
     if (isLoading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
-                <div className="text-center">
-                    <div className="border-solace-green mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2"></div>
-                    <h1 className="text-2xl text-black dark:text-white">Checking Authentication...</h1>
-                </div>
-            </div>
-        );
+        return <EmptyState variant="loading" title="Checking Authentication..." className="h-screen w-screen" />;
     }
 
     return (

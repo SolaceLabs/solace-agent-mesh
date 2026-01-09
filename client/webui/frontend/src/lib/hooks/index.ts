@@ -14,6 +14,7 @@ export * from "./useDebounce";
 export * from "./useDownload";
 export * from "./useDragAndDrop";
 export * from "./useMobile";
+export * from "./useProjectArtifacts";
 export * from "./useSpeechToText";
 export * from "./useStreamingAnimation";
 export * from "./useStreamingSpeed";
