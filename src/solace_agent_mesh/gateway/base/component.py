@@ -2368,7 +2368,10 @@ class BaseGatewayComponent(SamComponentBase):
                 supports_streaming=True,
                 supports_cancellation=True,
                 extensions=extensions
-            )
+            ),
+            default_input_modes=self._gateway_card_config.get("defaultInputModes", ["text"]),
+            default_output_modes=self._gateway_card_config.get("defaultOutputModes", ["text"]),
+            skills=self._gateway_card_config.get("skills", []),
         )
 
         return gateway_card
