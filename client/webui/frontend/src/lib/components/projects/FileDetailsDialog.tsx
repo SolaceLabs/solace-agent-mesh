@@ -1,7 +1,7 @@
 import React from "react";
 import { Pencil } from "lucide-react";
 
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, VisuallyHidden } from "@/lib/components/ui";
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, VisuallyHidden } from "@/lib/components/ui";
 import type { ArtifactInfo } from "@/lib/types";
 import { FileLabel } from "../chat/file/FileLabel";
 
@@ -27,6 +27,7 @@ export const FileDetailsDialog: React.FC<FileDetailsDialogProps> = ({ isOpen, ar
                         </Button>
                     </div>
                     <VisuallyHidden>
+                        <DialogTitle>Project File Details</DialogTitle>
                         <DialogDescription>Project File Information</DialogDescription>
                     </VisuallyHidden>
                 </DialogHeader>

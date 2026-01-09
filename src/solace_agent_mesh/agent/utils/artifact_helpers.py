@@ -68,6 +68,67 @@ def is_filename_safe(filename: str) -> bool:
     return True
 
 
+def sanitize_to_filename(
+    text: str,
+    max_length: int = 50,
+    suffix: str = "",
+    replacement_char: str = "_"
+) -> str:
+    """
+    Sanitizes arbitrary text into a safe filename.
+    
+    Converts text (like a research question or title) into a filesystem-safe
+    filename by:
+    1. Converting to lowercase
+    2. Removing non-word characters (except spaces and hyphens)
+    3. Replacing spaces and hyphens with the replacement character
+    4. Limiting length to max_length
+    5. Optionally appending a suffix
+    
+    Args:
+        text: The text to convert into a filename (e.g., research question, title)
+        max_length: Maximum length of the base filename (before suffix). Default: 50
+        suffix: Optional suffix to append (e.g., "_report.md"). Default: ""
+        replacement_char: Character to replace spaces/hyphens with. Default: "_"
+    
+    Returns:
+        A sanitized filename string safe for filesystem use.
+    
+    Examples:
+        >>> sanitize_to_filename("What is AI?")
+        'what_is_ai'
+        >>> sanitize_to_filename("Research: Deep Learning!", suffix="_report.md")
+        'research_deep_learning_report.md'
+        >>> sanitize_to_filename("A very long research question about many topics", max_length=20)
+        'a_very_long_research'
+    """
+    import re
+    
+    if not text:
+        return f"unnamed{suffix}"
+    
+    # Convert to lowercase and remove non-word characters except spaces and hyphens
+    safe_name = re.sub(r'[^\w\s-]', '', text.lower())
+    
+    # Replace spaces and hyphens with the replacement character
+    safe_name = re.sub(r'[-\s]+', replacement_char, safe_name)
+    
+    # Strip leading/trailing replacement chars
+    safe_name = safe_name.strip(replacement_char)
+    
+    # Limit length
+    if max_length > 0:
+        safe_name = safe_name[:max_length]
+        # Strip trailing replacement char if we cut in the middle
+        safe_name = safe_name.rstrip(replacement_char)
+    
+    # Handle empty result
+    if not safe_name:
+        safe_name = "unnamed"
+    
+    return f"{safe_name}{suffix}"
+
+
 def ensure_correct_extension(filename_from_llm: str, desired_extension: str) -> str:
     """
     Ensures a filename has the correct extension, handling cases where the LLM
