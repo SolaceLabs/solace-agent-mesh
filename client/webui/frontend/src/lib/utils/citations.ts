@@ -2,6 +2,7 @@
  * Citation utilities for parsing and handling RAG source citations
  * Uses [[cite:type0]] pattern that LLMs can reliably reproduce
  * Also supports [[cite:research0]] for deep research citations
+ * Also supports new format [[cite:s0r0]] for unique search turn citations
  */
 
 import type { RAGSource, RAGSearchResult } from "@/lib/types/fe";
@@ -12,16 +13,22 @@ export { getCleanDomain } from "./url";
 // Citation marker pattern: [[cite:file0]], [[cite:ref0]], [[cite:search0]], [[cite:research0]], etc.
 // Also matches [[cite:0]] (treats as search citation when no type prefix)
 // Also matches single bracket [cite:xxx] in case LLM uses wrong format
-export const CITATION_PATTERN = /\[?\[cite:(?:(file|ref|search|research))?(\d+)\]\]?/g;
+// NEW: Also matches [[cite:s0r0]], [[cite:s1r2]] format (sTrN where T=turn, N=index)
+export const CITATION_PATTERN = /\[?\[cite:(?:(file|ref|search|research))?(\d+)\]\]?|\[?\[cite:(s\d+r\d+)\]\]?/g;
+
+// Pattern for the new sTrN format specifically
+export const NEW_CITATION_PATTERN = /\[?\[cite:(s(\d+)r(\d+))\]\]?/g;
 
 // Pattern for comma-separated citations like [[cite:search3, search4]] or [[cite:search3, search4, search5]]
 // Also handles LLM-generated format with repeated cite: prefix like [[cite:research0, cite:research1, cite:research2]]
+// Also handles new format like [[cite:s0r0, s0r1, s0r2]]
 // This matches the entire bracket group with comma-separated values
-export const MULTI_CITATION_PATTERN = /\[?\[cite:((?:(?:file|ref|search|research)?\d+)(?:\s*,\s*(?:cite:)?(?:file|ref|search|research)?\d+)+)\]\]?/g;
+export const MULTI_CITATION_PATTERN = /\[?\[cite:((?:(?:file|ref|search|research)?\d+|s\d+r\d+)(?:\s*,\s*(?:cite:)?(?:(?:file|ref|search|research)?\d+|s\d+r\d+))+)\]\]?/g;
 
 // Pattern to extract individual citations from a comma-separated list
 // Handles both formats: "research0, research1" and "research0, cite:research1, cite:research2"
-export const INDIVIDUAL_CITATION_PATTERN = /(?:cite:)?(file|ref|search|research)?(\d+)/g;
+// Also handles new format: "s0r0, s0r1, s0r2"
+export const INDIVIDUAL_CITATION_PATTERN = /(?:cite:)?(?:(file|ref|search|research)?(\d+)|(s\d+r\d+))/g;
 
 export const CLEANUP_REGEX = /\[?\[cite:[^\]]+\]\]?/g;
 
@@ -31,13 +38,15 @@ export interface Citation {
     sourceId: number;
     position: number;
     source?: RAGSource;
+    // For new sTrN format citations
+    citationId?: string; // The full citation ID like "s0r0"
 }
 
 // Re-export for convenience
 export type { RAGSource, RAGSearchResult as RAGMetadata };
 
 /**
- * Parse individual citations from a comma-separated list like "search3, search4, search5"
+ * Parse individual citations from a comma-separated list like "search3, search4, search5" or "s0r0, s0r1, s0r2"
  */
 function parseMultiCitationContent(content: string, position: number, fullMatch: string, ragMetadata?: RAGSearchResult): Citation[] {
     const citations: Citation[] = [];
@@ -47,23 +56,47 @@ function parseMultiCitationContent(content: string, position: number, fullMatch:
     INDIVIDUAL_CITATION_PATTERN.lastIndex = 0;
 
     while ((individualMatch = INDIVIDUAL_CITATION_PATTERN.exec(content)) !== null) {
-        const [, type, sourceId] = individualMatch;
-        // If no type prefix, default to 'search' for web search citations
-        const citationType = (type || "search") as "file" | "ref" | "search" | "research";
-        const citation: Citation = {
-            marker: fullMatch, // Use the full multi-citation marker
-            type: citationType,
-            sourceId: parseInt(sourceId, 10),
-            position: position,
-        };
+        const [, type, sourceId, newFormatId] = individualMatch;
 
-        // Match to source metadata if available
-        if (ragMetadata?.sources) {
-            const citationId = `${citationType}${sourceId}`;
-            citation.source = ragMetadata.sources.find((s: RAGSource) => s.citationId === citationId);
+        // Check if this is the new sTrN format
+        if (newFormatId) {
+            // New format: s0r0, s1r2, etc.
+            const newFormatMatch = newFormatId.match(/s(\d+)r(\d+)/);
+            if (newFormatMatch) {
+                const [, , resultIndex] = newFormatMatch;
+                const citation: Citation = {
+                    marker: fullMatch,
+                    type: "search", // New format is always search type
+                    sourceId: parseInt(resultIndex, 10),
+                    position: position,
+                    citationId: newFormatId, // Store the full citation ID
+                };
+
+                // Match to source metadata using the full citation ID
+                if (ragMetadata?.sources) {
+                    citation.source = ragMetadata.sources.find((s: RAGSource) => s.citationId === newFormatId);
+                }
+
+                citations.push(citation);
+            }
+        } else {
+            // Old format: search0, research1, etc.
+            const citationType = (type || "search") as "file" | "ref" | "search" | "research";
+            const citation: Citation = {
+                marker: fullMatch, // Use the full multi-citation marker
+                type: citationType,
+                sourceId: parseInt(sourceId, 10),
+                position: position,
+            };
+
+            // Match to source metadata if available
+            if (ragMetadata?.sources) {
+                const citationId = `${citationType}${sourceId}`;
+                citation.source = ragMetadata.sources.find((s: RAGSource) => s.citationId === citationId);
+            }
+
+            citations.push(citation);
         }
-
-        citations.push(citation);
     }
 
     return citations;
@@ -102,7 +135,7 @@ export function parseCitations(text: string, ragMetadata?: RAGSearchResult): Cit
 
         // If there's a comma immediately after (within the same bracket), skip it
         // as it will be handled by the multi-citation pattern
-        if (afterMatch.match(/^\s*,\s*(?:file|ref|search|research)?\d+/)) {
+        if (afterMatch.match(/^\s*,\s*(?:file|ref|search|research|s\d+r)?\d+/)) {
             continue;
         }
 
@@ -111,31 +144,64 @@ export function parseCitations(text: string, ragMetadata?: RAGSearchResult): Cit
             continue;
         }
 
-        const [fullMatch, type, sourceId] = match;
-        // If no type prefix, default to 'search' for web search citations
-        const citationType = (type || "search") as "file" | "ref" | "search" | "research";
-        const citation: Citation = {
-            marker: fullMatch,
-            type: citationType,
-            sourceId: parseInt(sourceId, 10),
-            position: match.index,
-        };
+        const [fullMatch, type, sourceId, newFormatId] = match;
 
-        // Match to source metadata if available
-        if (ragMetadata?.sources) {
-            const citationId = `${citationType}${sourceId}`;
-            citation.source = ragMetadata.sources.find((s: RAGSource) => s.citationId === citationId);
+        // Check if this is the new sTrN format (captured in group 3)
+        if (newFormatId) {
+            // New format: s0r0, s1r2, etc.
+            const newFormatMatch = newFormatId.match(/s(\d+)r(\d+)/);
+            if (newFormatMatch) {
+                const [, , resultIndex] = newFormatMatch;
+                const citation: Citation = {
+                    marker: fullMatch,
+                    type: "search", // New format is always search type
+                    sourceId: parseInt(resultIndex, 10),
+                    position: match.index,
+                    citationId: newFormatId, // Store the full citation ID
+                };
 
-            // Debug logging to help troubleshoot citation matching
-            if (!citation.source && ragMetadata.sources.length > 0) {
-                console.log(
-                    `Citation ${citationId} not found in sources:`,
-                    ragMetadata.sources.map(s => s.citationId)
-                );
+                // Match to source metadata using the full citation ID
+                if (ragMetadata?.sources) {
+                    citation.source = ragMetadata.sources.find((s: RAGSource) => s.citationId === newFormatId);
+
+                    // Debug logging to help troubleshoot citation matching
+                    if (!citation.source && ragMetadata.sources.length > 0) {
+                        console.log(
+                            `Citation ${newFormatId} not found in sources:`,
+                            ragMetadata.sources.map(s => s.citationId)
+                        );
+                    }
+                }
+
+                citations.push(citation);
             }
-        }
+        } else {
+            // Old format: search0, research1, etc.
+            // If no type prefix, default to 'search' for web search citations
+            const citationType = (type || "search") as "file" | "ref" | "search" | "research";
+            const citation: Citation = {
+                marker: fullMatch,
+                type: citationType,
+                sourceId: parseInt(sourceId, 10),
+                position: match.index,
+            };
 
-        citations.push(citation);
+            // Match to source metadata if available
+            if (ragMetadata?.sources) {
+                const citationId = `${citationType}${sourceId}`;
+                citation.source = ragMetadata.sources.find((s: RAGSource) => s.citationId === citationId);
+
+                // Debug logging to help troubleshoot citation matching
+                if (!citation.source && ragMetadata.sources.length > 0) {
+                    console.log(
+                        `Citation ${citationId} not found in sources:`,
+                        ragMetadata.sources.map(s => s.citationId)
+                    );
+                }
+            }
+
+            citations.push(citation);
+        }
     }
 
     // Sort by position to maintain order

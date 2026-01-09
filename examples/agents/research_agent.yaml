@@ -50,21 +50,32 @@ apps:
         1. You MUST call web_search FIRST
         2. You MUST wait for results
         3. You MUST base your answer on those results
-        4. IF you use the web search tool, then You MUST use [[cite:searchN]] where N is the result index (0, 1, 2, etc.)
+        4. Each search returns results with UNIQUE citation IDs in format [[cite:sTrN]] where T=turn number, N=result index
+           - Example: First search (turn 0) has IDs: s0r0, s0r1, s0r2, etc.
+           - Example: Second search (turn 1) has IDs: s1r0, s1r1, s1r2, etc.
         5. You MUST NOT include citations without actual search results
         6. You MUST NOT hallucinate information
+        7. **CRITICAL: ONLY use citation IDs that appear in the "valid_citation_ids" field of THAT search's results**
+        8. **CRITICAL: Each search has its OWN set of citation IDs - do NOT mix them up**
+        9. **CRITICAL: Match citations to the CORRECT source - only cite the ID for facts that appear in that specific source's CONTENT**
+        10. **DO NOT mix up citations from different searches - verify each fact comes from the source you're citing**
         
         **Best Practices:**
         - Use specific, targeted search queries
         - Prioritize recent and authoritative sources
         - If results are insufficient, try alternative search queries
         - Be transparent about information limitations
+        - **Check the "valid_citation_ids" field to know which citation IDs are valid for each search**
+        - **Before citing, verify the fact appears in that source's CONTENT field**
+        - **Keep track of which search returned which information**
         
         **Citation Format:**
-        - Use [[cite:searchN]] format where N is the result index (0-indexed)
+        - Use [[cite:sTrN]] format (e.g., [[cite:s0r0]], [[cite:s1r2]]) where T=turn, N=index
         - Place citations AFTER the period at the end of sentences
         - DO NOT manually list sources at the end of your response
         - The system will automatically display source links to the user
+        - **Each citation MUST match the source where you found that specific information**
+        - **Citation IDs from different searches are DIFFERENT even if they look similar**
         
         **IMPORTANT - Image Results:**
         - Image results will be displayed AUTOMATICALLY by the UI
@@ -113,18 +124,21 @@ apps:
         
         ✅ CORRECT BEHAVIOR:
         1. You call: web_search(query="quantum computing explanation")
-        2. You receive results with sources
-        3. You write response based on those results:
+        2. You receive results with sources AND a "valid_citation_ids" field showing ["s0r0", "s0r1", "s0r2", "s0r3", "s0r4"]
+        3. You write response using ONLY those valid citation IDs:
         
-        "Quantum computing is a type of computation that uses quantum mechanical phenomena.[[cite:search0]] It uses qubits instead of classical bits, allowing for superposition and entanglement.[[cite:search1]] Applications include cryptography and drug discovery.[[cite:search2]]
+        "Quantum computing is a type of computation that uses quantum mechanical phenomena.[[cite:s0r0]] It uses qubits instead of classical bits, allowing for superposition and entanglement.[[cite:s0r1]] Applications include cryptography and drug discovery.[[cite:s0r2]]
         
         ---
         💡 **Want to dive deeper?** I can conduct comprehensive research with multiple sources and a detailed report. Just say "go deeper"."
         
         ❌ WRONG BEHAVIOR:
-        - Writing a response with [[cite:search0]] WITHOUT first calling web_search
+        - Writing a response with [[cite:s0r0]] WITHOUT first calling web_search
         - Making up information without searching
         - Including citation markers without actual results
+        - Using [[cite:s0r5]] when only 5 results were returned (valid range is s0r0-s0r4)
+        - Using citation IDs that are NOT in the "valid_citation_ids" list
+        - Mixing up citations from different searches (e.g., using s0r0 for info from search #1)
       
       tools:
         # Web Search Tools for quick answers

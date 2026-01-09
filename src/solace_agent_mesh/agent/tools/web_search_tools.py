@@ -21,6 +21,26 @@ log = logging.getLogger(__name__)
 CATEGORY_NAME = "web_search"
 CATEGORY_DESCRIPTION = "Tools for searching the web and retrieving current information"
 
+# Global search turn counter to ensure unique citation IDs across multiple searches
+# Key: session_id, Value: turn counter
+_search_turn_counter: Dict[str, int] = {}
+
+
+def _get_next_search_turn(session_id: str = "default") -> int:
+    """
+    Get the next search turn number for a session to ensure unique citation IDs.
+    
+    Each search within a session gets a unique turn number, so citations from
+    different searches never collide (e.g., s0r0, s0r1 for first search,
+    s1r0, s1r1 for second search).
+    """
+    global _search_turn_counter
+    if session_id not in _search_turn_counter:
+        _search_turn_counter[session_id] = 0
+    turn = _search_turn_counter[session_id]
+    _search_turn_counter[session_id] += 1
+    return turn
+
 
 async def web_search_google(
     query: str,
@@ -77,18 +97,50 @@ async def web_search_google(
             log.error("%s Search failed: %s", log_identifier, result.error)
             return f"Error: {result.error}"
         
+        # Get unique search turn for this search to prevent citation ID collisions
+        # across multiple searches in the same session
+        session_id = "default"
+        if tool_context:
+            try:
+                # Try to get session ID from tool context for per-session tracking
+                session_id = getattr(tool_context, 'session_id', None) or "default"
+            except Exception:
+                pass
+        
+        search_turn = _get_next_search_turn(session_id)
+        citation_prefix = f"s{search_turn}r"  # e.g., s0r0, s0r1 for first search; s1r0, s1r1 for second
+        
         log.info(
-            "%s Search successful: %d results, %d images",
+            "%s Search successful: %d results, %d images (turn=%d, citation_prefix=%s)",
             log_identifier,
             len(result.organic),
-            len(result.images)
+            len(result.images),
+            search_turn,
+            citation_prefix
         )
         
         rag_sources = []
+        valid_citation_ids = []
+        
+        # Log citation-to-source mapping for debugging
+        log.info("%s === CITATION TO SOURCE MAPPING (turn %d) ===", log_identifier, search_turn)
+        
         for i, source in enumerate(result.organic):
+            citation_id = f"{citation_prefix}{i}"
+            valid_citation_ids.append(citation_id)
+            
+            # Log each citation mapping
+            log.info(
+                "%s Citation [[cite:%s]] -> URL: %s | Title: %s",
+                log_identifier,
+                citation_id,
+                source.link,
+                source.title[:50] if source.title else "N/A"
+            )
+            
             rag_source = create_rag_source(
-                citation_id=f"search{i}",
-                file_id=f"web_search_{i}",
+                citation_id=citation_id,
+                file_id=f"web_search_{search_turn}_{i}",
                 filename=source.attribution or source.title,
                 title=source.title,
                 source_url=source.link,
@@ -106,10 +158,14 @@ async def web_search_google(
             )
             rag_sources.append(rag_source)
         
+        log.info("%s === END CITATION MAPPING ===", log_identifier)
+        log.info("%s Valid citation IDs for this search: %s", log_identifier, valid_citation_ids)
+        
         for i, image in enumerate(result.images):
+            image_citation_id = f"img{search_turn}r{i}"
             image_source = create_rag_source(
-                citation_id=f"image{i}",
-                file_id=f"web_search_image_{i}",
+                citation_id=image_citation_id,
+                file_id=f"web_search_image_{search_turn}_{i}",
                 filename=image.title or f"Image {i+1}",
                 title=image.title,
                 source_url=image.link,
@@ -136,7 +192,10 @@ async def web_search_google(
         
         return {
             "result": result.model_dump_json(),
-            "rag_metadata": rag_metadata
+            "rag_metadata": rag_metadata,
+            "valid_citation_ids": valid_citation_ids,
+            "num_results": len(result.organic),
+            "search_turn": search_turn
         }
         
     except Exception as e:
