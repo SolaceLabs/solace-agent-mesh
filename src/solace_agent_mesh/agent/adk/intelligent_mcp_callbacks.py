@@ -28,41 +28,6 @@ if TYPE_CHECKING:
     from ...agent.sac.component import SamAgentComponent
 
 
-def _get_schema_config_from_tool_or_agent(
-    tool: BaseTool,
-    host_component: "SamAgentComponent",
-    config_key: str,
-    default_value: Any,
-) -> Any:
-    """
-    Get schema configuration from tool_config if available, otherwise fall back to agent config.
-
-    This allows per-tool override of schema settings like schema_inference_depth.
-
-    Args:
-        tool: The MCP tool instance (may have _tool_config attribute)
-        host_component: The agent component for fallback config
-        config_key: The configuration key to look up
-        default_value: Default value if not found in either location
-
-    Returns:
-        The configuration value from tool config, agent config, or default
-    """
-    # Check if tool has tool_config with this setting
-    tool_config = getattr(tool, "_tool_config", None)
-    if tool_config and isinstance(tool_config, dict):
-        if config_key in tool_config:
-            log.debug(
-                "Using per-tool config for %s: %s",
-                config_key,
-                tool_config[config_key],
-            )
-            return tool_config[config_key]
-
-    # Fall back to agent-level config
-    return host_component.get_config(config_key, default_value)
-
-
 class McpSaveStatus(str, Enum):
     """Enumeration for the status of an MCP save operation."""
 
@@ -199,7 +164,7 @@ async def save_mcp_response_as_artifact_intelligent(
                 if hasattr(item, "uri"):
                     item.uri = str(item.uri)
                 result_dict = await _save_content_item_as_artifact(
-                    item, tool, tool_context, host_component
+                    item, tool_context, host_component
                 )
                 if result_dict.get("status") in ["success", "partial_success"]:
                     saved_artifacts.append(SavedArtifactInfo(**result_dict))
@@ -314,7 +279,6 @@ async def save_mcp_response_as_artifact_intelligent(
 
 async def _save_content_item_as_artifact(
     content_item,
-    tool: BaseTool,
     tool_context: ToolContext,
     host_component: "SamAgentComponent",
 ) -> Dict[str, Any]:
@@ -330,12 +294,8 @@ async def _save_content_item_as_artifact(
         app_name = host_component.agent_name
         user_id = tool_context._invocation_context.user_id
         session_id = get_original_session_id(tool_context._invocation_context)
-        # Get schema config from tool_config (per-tool) or agent config (fallback)
-        schema_max_keys = _get_schema_config_from_tool_or_agent(
-            tool, host_component, "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
-        )
-        schema_inference_depth = _get_schema_config_from_tool_or_agent(
-            tool, host_component, "schema_inference_depth", 4
+        schema_max_keys = host_component.get_config(
+            "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
         )
         artifact_timestamp = datetime.now(timezone.utc)
 
@@ -358,7 +318,6 @@ async def _save_content_item_as_artifact(
             metadata_dict=content_item.metadata,
             timestamp=artifact_timestamp,
             schema_max_keys=schema_max_keys,
-            schema_inference_depth=schema_inference_depth,
             tool_context=tool_context,
         )
 
@@ -417,12 +376,8 @@ async def _save_raw_mcp_response_fallback(
         app_name = host_component.agent_name
         user_id = tool_context._invocation_context.user_id
         session_id = get_original_session_id(tool_context._invocation_context)
-        # Get schema config from tool_config (per-tool) or agent config (fallback)
-        schema_max_keys = _get_schema_config_from_tool_or_agent(
-            tool, host_component, "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
-        )
-        schema_inference_depth = _get_schema_config_from_tool_or_agent(
-            tool, host_component, "schema_inference_depth", 4
+        schema_max_keys = host_component.get_config(
+            "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
         )
 
         save_result = await save_artifact_with_metadata(
@@ -436,7 +391,6 @@ async def _save_raw_mcp_response_fallback(
             metadata_dict=metadata_for_saving,
             timestamp=artifact_timestamp,
             schema_max_keys=schema_max_keys,
-            schema_inference_depth=schema_inference_depth,
             tool_context=tool_context,
         )
 

@@ -1005,20 +1005,26 @@ async def manage_large_mcp_tool_responses_callback(
     message_parts_for_llm: list[str] = []
 
     if needs_truncation_for_llm:
-        # ALL-OR-NOTHING APPROACH: Do not include truncated data to prevent LLM hallucination.
-        # When LLMs receive partial data, they tend to confidently fill in gaps with
-        # hallucinated information. By withholding partial data entirely, we force the LLM
-        # to use reliable mechanisms (template_liquid, load_artifact) to access the full data.
+        truncation_suffix = "... [Response truncated due to size limit.]"
+        adjusted_max_bytes = llm_max_bytes - len(truncation_suffix.encode("utf-8"))
+        if adjusted_max_bytes < 0:
+            adjusted_max_bytes = 0
+
+        truncated_bytes = serialized_original_response_str.encode("utf-8")[
+            :adjusted_max_bytes
+        ]
+        truncated_preview_str = (
+            truncated_bytes.decode("utf-8", "ignore") + truncation_suffix
+        )
+
         final_llm_response_dict["mcp_tool_output"] = {
-            "type": "data_in_artifact_only",
-            "message": "Data exceeds size limit. Full data saved as artifact - use template_liquid or load_artifact to access.",
+            "type": "truncated_json_string",
+            "content": truncated_preview_str,
         }
         message_parts_for_llm.append(
-            f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) to display directly. "
-            f"The data has NOT been included here to prevent incomplete information. "
-            f"You MUST use template_liquid (for displaying to users) or load_artifact (for processing) to access the full data."
+            f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) for direct display and has been truncated."
         )
-        log.debug("%s MCP tool output withheld from LLM (all-or-nothing approach).", log_identifier)
+        log.debug("%s MCP tool output truncated for LLM.", log_identifier)
 
     if needs_saving_as_artifact:
         if save_result and save_result.status in [
@@ -1035,27 +1041,19 @@ async def manage_large_mcp_tool_responses_callback(
                 filename = first_artifact.data_filename
                 version = first_artifact.data_version
                 if total_artifacts > 1:
-                    artifact_msg = f"The full response has been saved as {total_artifacts} artifacts, starting with '{filename}' (version {version})."
-                else:
-                    artifact_msg = f"The full response has been saved as artifact '{filename}' (version {version})."
-
-                # When data was too large and truncated, provide explicit guidance
-                if needs_truncation_for_llm:
-                    artifact_msg += (
-                        f" To display this data to the user, use template_liquid with data=\"{filename}\". "
-                        f"To process the data yourself, use load_artifact(\"{filename}\")."
+                    message_parts_for_llm.append(
+                        f"The full response has been saved as {total_artifacts} artifacts, starting with '{filename}' (version {version})."
                     )
-                message_parts_for_llm.append(artifact_msg)
+                else:
+                    message_parts_for_llm.append(
+                        f"The full response has been saved as artifact '{filename}' (version {version})."
+                    )
             elif save_result.fallback_artifact:
                 filename = save_result.fallback_artifact.data_filename
                 version = save_result.fallback_artifact.data_version
-                artifact_msg = f"The full response has been saved as artifact '{filename}' (version {version})."
-                if needs_truncation_for_llm:
-                    artifact_msg += (
-                        f" To display this data to the user, use template_liquid with data=\"{filename}\". "
-                        f"To process the data yourself, use load_artifact(\"{filename}\")."
-                    )
-                message_parts_for_llm.append(artifact_msg)
+                message_parts_for_llm.append(
+                    f"The full response has been saved as artifact '{filename}' (version {version})."
+                )
 
             log.debug(
                 "%s Added saved artifact details to LLM response.", log_identifier
@@ -1080,18 +1078,16 @@ async def manage_large_mcp_tool_responses_callback(
         and save_result.status in [McpSaveStatus.SUCCESS, McpSaveStatus.PARTIAL_SUCCESS]
     ):
         if needs_truncation_for_llm:
-            # Data was too large - withheld from LLM, only available via artifact
-            final_llm_response_dict["status"] = "processed_saved_artifact_only"
+            final_llm_response_dict["status"] = "processed_saved_and_truncated"
         else:
             final_llm_response_dict["status"] = "processed_and_saved"
     elif needs_saving_as_artifact:
         if needs_truncation_for_llm:
-            final_llm_response_dict["status"] = "processed_artifact_only_save_failed"
+            final_llm_response_dict["status"] = "processed_truncated_save_failed"
         else:
             final_llm_response_dict["status"] = "processed_save_failed"
     elif needs_truncation_for_llm:
-        # This case shouldn't happen (truncation implies saving), but handle it
-        final_llm_response_dict["status"] = "processed_data_withheld"
+        final_llm_response_dict["status"] = "processed_truncated"
     else:
         final_llm_response_dict["status"] = "processed"
 

@@ -375,12 +375,6 @@ class SamAgentAppConfig(SamConfigBase):
         ge=0,
         description="Maximum number of dictionary keys to inspect during schema inference.",
     )
-    schema_inference_depth: int = Field(
-        default=4,
-        ge=1,
-        le=10,
-        description="Maximum depth for schema inference on nested structures. Higher values reveal more nested field names but increase metadata size.",
-    )
     enable_embed_resolution: bool = Field(
         default=True,
         description="Enable early-stage processing of dynamic embeds and inject related instructions.",

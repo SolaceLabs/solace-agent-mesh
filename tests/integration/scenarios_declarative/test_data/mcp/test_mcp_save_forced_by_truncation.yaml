@@ -1,6 +1,6 @@
 test_case_id: "mcp_save_forced_by_truncation_001"
 description: "Verifies a response is saved as an artifact when it exceeds the LLM
-  return limit, even if it's below the save threshold. Uses all-or-nothing approach."
+  return limit, even if it's below the save threshold."
 tags: ["all", "agent", "mcp"]
 skip_intermediate_events: true
 
@@ -8,7 +8,7 @@ test_runner_config_overrides:
   agent_config:
     # Set a large save threshold so the response doesn't trigger it directly.
     mcp_tool_response_save_threshold_bytes: 5000
-    # Set a small LLM return limit to trigger artifact-only mode, which should force saving.
+    # Set a small LLM return limit to trigger truncation, which should force saving.
     mcp_tool_llm_return_max_bytes: 100
 
 gateway_input:
@@ -16,7 +16,7 @@ gateway_input:
   user_identity: "mcp_llm_formatter@example.com"
   parts:
     - type: "text"
-      text: "Get a response that should be saved as artifact-only due to size."
+      text: "Get a response that should be truncated and therefore saved."
   external_context:
     a2a_session_id: "session_mcp_save_forced_by_truncation_001"
 
@@ -37,23 +37,21 @@ llm_interactions:
                     designed to be larger than the LLM return limit but smaller than
                     the artifact save threshold."}]}}'
 
-  # 2. LLM gets NO data (artifact-only) and must use artifact tools
+  # 2. LLM gets the truncated tool response and generates the final answer
   - expected_request:
       expected_tool_responses_in_llm_messages:
         - tool_name: "get_data_stdio"
           response_json_matches:
-            status: "processed_saved_artifact_only"
+            status: "processed_saved_and_truncated"
             message_to_llm_matches_regex: "The response from tool 'get_data_stdio'
-              was too large .* to display directly. The data has NOT been included
-              here to prevent incomplete information. You MUST use template_liquid
-              .* or load_artifact .* to access the full data. The full response has
-              been saved as artifact 'get_data_stdio_text_0_.*\\.txt' \\(version 0\\)\\.
-              To display this data to the user, use template_liquid with data=\"get_data_stdio_text_0_.*\\.txt\"\\.
-              To process the data yourself, use load_artifact\\(\"get_data_stdio_text_0_.*\\.txt\"\\)\\."
-            # The output should NOT contain actual data - only a reference message
+              was too large .* for direct display and has been truncated. The full
+              response has been saved as artifact 'get_data_stdio_text_0_.*\\.txt'
+              \\(version 0\\)\\."
+            # The output should be a truncated string preview
             mcp_tool_output:
-              type: "data_in_artifact_only"
-              message: "Data exceeds size limit. Full data saved as artifact - use template_liquid or load_artifact to access."
+              type: "truncated_json_string"
+              content: '{"content": [{"type": "text", "text": "This is a moderate...
+                [Response truncated due to size limit.]'
     static_response:
       choices:
         - message:
