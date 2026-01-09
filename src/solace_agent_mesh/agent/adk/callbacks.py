@@ -75,6 +75,7 @@ from ...agent.adk.stream_parser import (
     TemplateBlockCompletedEvent,
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
+    TEMPLATE_LIQUID_START_SEQUENCE,
 )
 
 log = logging.getLogger(__name__)
@@ -421,6 +422,13 @@ async def process_artifact_blocks_callback(
                                             version_for_tool,
                                             logical_task_id,
                                         )
+                                    else:
+                                        log.warning(
+                                            "%s TaskExecutionContext not found for task %s, cannot register inline artifact '%s'.",
+                                            log_identifier,
+                                            logical_task_id,
+                                            filename,
+                                        )
                                 else:
                                     log.warning(
                                         "%s No logical_task_id, cannot register inline artifact.",
@@ -554,8 +562,37 @@ async def process_artifact_blocks_callback(
                                 template_id,
                             )
 
-                        # Store template_id in session for potential future use
-                        # (Gateway will handle the actual resolution)
+                        # Reconstruct the original template block text for peer-to-peer responses
+                        # Peer agents don't receive TemplateBlockData signals, so they need
+                        # the original block text to pass templates through to the gateway
+                        params_str = " ".join(
+                            [f'{k}="{v}"' for k, v in params.items()]
+                        )
+                        original_template_text = (
+                            f"{TEMPLATE_LIQUID_START_SEQUENCE} {params_str}\n"
+                            f"{event.template_content}"
+                            f"{ARTIFACT_BLOCK_DELIMITER_CLOSE}"
+                        )
+
+                        # For RUN_BASED sessions (peer-to-peer agent requests), preserve the
+                        # template block in the response text at its original position.
+                        # This allows the calling agent to forward it to the gateway.
+                        # Gateway requests use streaming sessions and receive TemplateBlockData
+                        # signals instead.
+                        is_run_based = a2a_context and a2a_context.get("is_run_based_session", False)
+                        if is_run_based and llm_response.partial:
+                            processed_parts.append(
+                                adk_types.Part(text=original_template_text)
+                            )
+                            log.debug(
+                                "%s Preserved template block in RUN_BASED peer response. Template ID: %s",
+                                log_identifier,
+                                template_id,
+                            )
+
+                        # Store template_id and original text in session for potential future use
+                        # (Gateway will handle the actual resolution via signals,
+                        # but peer agents need the original text in their responses)
                         if (
                             "completed_template_blocks_list" not in session.state
                             or session.state["completed_template_blocks_list"] is None
@@ -565,6 +602,7 @@ async def process_artifact_blocks_callback(
                             {
                                 "template_id": template_id,
                                 "data_artifact": data_artifact,
+                                "original_text": original_template_text,
                             }
                         )
 
