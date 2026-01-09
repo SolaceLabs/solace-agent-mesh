@@ -52,18 +52,38 @@ You need to specify the library at least once in your chat session to activate t
 
 **Getting Information About SAM:**
 ```
-Using solacelabs/solace-agent-mesh library, give me the broker configurations with possible data fields.
+Using solacelabs/solace-agent-mesh context7 library, give me a list of built-in tools.
 ```
 
 **Creating a New SAM Project:**
 ```
-Using /solace/solace-agent-mesh library, initialize a SAM project called example_app.
+Using solacelabs/solace-agent-mesh context7 library, initialize a SAM project called example_app.
 ```
 
 **Creating a New Plugin:**
 ```
-Using solacelabs/solace-agent-mesh library, create a calculator plugin that sums two numbers.
+Using solacelabs/solace-agent-mesh context7 library, create a calculator plugin that sums two numbers.
 ```
+
+**Creating a New Plugin using built-in tools:**
+```
+Using solacelabs/solace-agent-mesh context7 library, initialize a SAM project called example_app.
+```
+
+
+To avoid mentioning `solacelabs/solace-agent-mesh` context7 library in every prompt, configure your MCP client with a rule that automatically triggers the library for any code-related request.
+
+```
+Cursor: Cursor Settings → Rules
+Claude Code: CLAUDE.md
+Or the equivalent configuration in your MCP client.
+```
+
+Example rule:
+```
+Automatically use `solacelabs/solace-agent-mesh` context7 library without requiring me to explicitly request it.
+```
+
 
 ## Troubleshooting
 
