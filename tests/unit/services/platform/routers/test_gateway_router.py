@@ -4,6 +4,9 @@ Tests the gateway discovery API endpoint.
 """
 
 import pytest
+from unittest.mock import AsyncMock, patch, MagicMock
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from a2a.types import AgentCard, AgentExtension
 
 from solace_agent_mesh.common.gateway_registry import GatewayRegistry
@@ -55,6 +58,14 @@ def create_test_gateway_card(
     )
 
 
+def create_mock_user_config(user_id: str = "test-user") -> dict:
+    """Helper to create mock user config for authorized requests."""
+    return {
+        "user_profile": {"id": user_id, "email": f"{user_id}@test.com"},
+        "scopes": ["sam:gateways:read"],
+    }
+
+
 class TestGetDiscoveredGatewayCardsEndpoint:
     """Test GET /api/v1/platform/gatewayCards endpoint."""
 
@@ -66,8 +77,9 @@ class TestGetDiscoveredGatewayCardsEndpoint:
         )
 
         registry = GatewayRegistry()
+        user_config = create_mock_user_config()
 
-        result = await get_discovered_gateway_cards(registry)
+        result = await get_discovered_gateway_cards(registry, user_config)
 
         assert result == []
 
@@ -85,7 +97,8 @@ class TestGetDiscoveredGatewayCardsEndpoint:
         registry.add_or_update_gateway(gw1)
         registry.add_or_update_gateway(gw2)
 
-        result = await get_discovered_gateway_cards(registry)
+        user_config = create_mock_user_config()
+        result = await get_discovered_gateway_cards(registry, user_config)
 
         assert len(result) == 2
         assert result[0].name == "gw-1"
@@ -103,7 +116,8 @@ class TestGetDiscoveredGatewayCardsEndpoint:
             card = create_test_gateway_card(name, "http_sse")
             registry.add_or_update_gateway(card)
 
-        result = await get_discovered_gateway_cards(registry)
+        user_config = create_mock_user_config()
+        result = await get_discovered_gateway_cards(registry, user_config)
 
         assert len(result) == 3
         assert [g.name for g in result] == ["alpha", "mike", "zebra"]
@@ -114,10 +128,11 @@ class TestGetDiscoveredGatewayCardsEndpoint:
         from solace_agent_mesh.services.platform.api.routers.gateway_router import (
             get_discovered_gateway_cards
         )
-        from fastapi import HTTPException
+
+        user_config = create_mock_user_config()
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_discovered_gateway_cards(None)
+            await get_discovered_gateway_cards(None, user_config)
 
         assert exc_info.value.status_code == 503
         assert "not initialized" in exc_info.value.detail.lower()
@@ -138,7 +153,8 @@ class TestGetDiscoveredGatewayCardsEndpoint:
         )
         registry.add_or_update_gateway(gw)
 
-        result = await get_discovered_gateway_cards(registry)
+        user_config = create_mock_user_config()
+        result = await get_discovered_gateway_cards(registry, user_config)
 
         assert len(result) == 1
         card = result[0]
@@ -147,3 +163,43 @@ class TestGetDiscoveredGatewayCardsEndpoint:
         assert card.description == "HTTP_SSE Gateway"
         assert card.version == "1.0.0"
         assert "solace:prod/company" in card.url
+
+
+class TestGatewayCardsAuthorization:
+    """Test authorization for gatewayCards endpoint."""
+
+    def test_validated_user_config_dependency_is_configured(self):
+        """Test that endpoint uses ValidatedUserConfig with correct scope."""
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import (
+            get_discovered_gateway_cards
+        )
+        import inspect
+
+        sig = inspect.signature(get_discovered_gateway_cards)
+        params = sig.parameters
+
+        assert "user_config" in params
+        default = params["user_config"].default
+        assert default is not None
+        assert hasattr(default, "dependency")
+
+    def test_required_scope_is_sam_gateways_read(self):
+        """Test that endpoint requires sam:gateways:read scope."""
+        from solace_agent_mesh.services.platform.api.routers.gateway_router import router
+
+        route = None
+        for r in router.routes:
+            if hasattr(r, "path") and r.path == "/gatewayCards":
+                route = r
+                break
+
+        assert route is not None
+
+        endpoint = route.endpoint
+        import inspect
+        sig = inspect.signature(endpoint)
+        user_config_param = sig.parameters.get("user_config")
+
+        assert user_config_param is not None
+        validated_config = user_config_param.default
+        assert validated_config.dependency.required_scopes == ["sam:gateways:read"]

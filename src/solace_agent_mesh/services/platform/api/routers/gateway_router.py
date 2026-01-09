@@ -11,6 +11,7 @@ from typing import List
 
 from a2a.types import AgentCard
 from solace_agent_mesh.common.gateway_registry import GatewayRegistry
+from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig
 from ..dependencies import get_gateway_registry
 
 log = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ router = APIRouter()
 @router.get("/gatewayCards", response_model=List[AgentCard], tags=["Gateways"])
 async def get_discovered_gateway_cards(
     gateway_registry: GatewayRegistry = Depends(get_gateway_registry),
+    user_config: dict = Depends(ValidatedUserConfig(["sam:gateways:read"])),
 ):
     """
     Retrieves a list of discovered gateways.
@@ -28,11 +30,14 @@ async def get_discovered_gateway_cards(
     Returns gateway discovery cards for all gateways publishing heartbeats
     to the discovery topic. Used for monitoring gateway deployment status.
 
+    Requires scope: sam:gateways:read
+
     Returns:
         List of AgentCard objects representing discovered gateways.
     """
     log_prefix = "[GET /api/v1/platform/gatewayCards] "
-    log.info("%sRequest received", log_prefix)
+    user_id = user_config.get("user_profile", {}).get("id")
+    log.info("%sRequest received from user '%s'", log_prefix, user_id)
 
     if not gateway_registry:
         log.error("%sGatewayRegistry not available", log_prefix)
