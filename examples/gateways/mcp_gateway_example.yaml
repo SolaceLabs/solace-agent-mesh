@@ -1,0 +1,172 @@
+# MCP Gateway Example Configuration
+# This gateway exposes SAM agents as MCP (Model Context Protocol) tools.
+#
+# This allows any MCP-compatible client (like Claude Desktop, IDEs, etc.) to interact
+# with SAM agents through the standardized MCP interface.
+#
+# Features:
+# - Dynamic tool registration from agent registry
+# - HTTP or stdio transport support
+# - Streaming responses to MCP clients
+# - Timeout protection
+#
+# Required Environment Variables:
+# - NAMESPACE: The A2A topic namespace (e.g., "myorg/dev")
+# - SOLACE_BROKER_URL: URL of the Solace broker (e.g., "ws://localhost:8008")
+# - SOLACE_BROKER_USERNAME: Username for the Solace broker
+# - SOLACE_BROKER_PASSWORD: Password for the Solace broker
+# - SOLACE_BROKER_VPN: VPN name for the Solace broker
+#
+# Dependencies:
+# First install the sam-mcp-server-gateway-adapter plugin
+# > sam plugin install sam-mcp-server-gateway-adapter
+#
+# Usage:
+#   sam run examples/gateways/mcp_gateway_example.yaml
+#
+# Then connect an MCP client to: http://localhost:8000/mcp
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: mcp_gateway.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  - name: mcp_gateway_app
+    app_base_path: .
+    app_module: solace_agent_mesh.gateway.generic.app
+
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      # --- Required ---
+      namespace: ${NAMESPACE}
+
+      # --- Generic Adapter Framework Config ---
+      gateway_adapter: sam_mcp_server_gateway_adapter.McpAdapter
+
+      # --- MCP Adapter Config ---
+      adapter_config:
+        # MCP server identity
+        mcp_server_name: "SAM MCP Gateway"
+        mcp_server_description: "Access to Solace Agent Mesh agents via MCP"
+
+        # Session and execution behavior:
+        # - Each MCP client connection creates a persistent SAM session (based on client_id)
+        # - All tool calls from the same connection share this session
+        # - Tool calls use RUN_BASED execution (no persistent chat history between calls)
+        # - Artifacts created in any tool call persist in the session and are accessible
+        #   in subsequent tool calls via MCP resources
+        # - Resources are never auto-cleaned (live for connection lifetime or until restart)
+
+        # Transport configuration
+        # Options: "http" or "stdio"
+        # - http: Web-accessible MCP server for remote clients
+        # - stdio: Local MCP server for desktop clients (like Claude Desktop)
+        transport: http
+
+        # HTTP transport settings (only used if transport = "http")
+        host: "localhost"  # Listen on all interfaces
+        port: 8090       # MCP server port
+
+        # Authentication
+        # Default user identity for MCP requests
+        # In production, you might want to implement token-based auth
+        default_user_identity: "sam_dev_user"
+
+        # Streaming configuration
+        # Enable real-time streaming of agent responses back to MCP client
+        stream_responses: true
+
+        # Timeout configuration
+        # How long to wait for agent task completion before timing out (in seconds)
+        task_timeout_seconds: 300  # 5 minutes default
+
+        # File handling configuration
+        # These settings control when files are returned inline vs as resource links
+        inline_image_max_bytes: 5242880      # 5MB - images larger than this become resource links
+        inline_audio_max_bytes: 10485760     # 10MB - audio files larger than this become resource links
+        inline_text_max_bytes: 1048576       # 1MB - text files larger than this become resource links
+        inline_binary_max_bytes: 524288      # 512KB - binary files larger than this become resource links
+
+        # Artifact resource configuration
+        # Enable exposing artifacts as MCP resources for separate download
+        enable_artifact_resources: true
+        resource_uri_prefix: "artifact"      # URI format: artifact://session_id/filename
+
+        # Tool filtering configuration
+        # Control which agent tools are exposed through the MCP server
+        # Filters check against agent name, skill name, AND final tool name
+        # Supports both regex patterns and exact string matches (auto-detected)
+        #
+        # Priority order (highest to lowest):
+        #   1. Exclude exact match - if any exclude pattern matches exactly, reject
+        #   2. Include exact match - if any include pattern matches exactly, accept
+        #   3. Exclude regex match - if any exclude pattern matches as regex, reject
+        #   4. Include regex match - if any include pattern matches as regex, accept
+        #   5. Default - if include_tools is empty, accept all; otherwise reject
+        #
+        # Examples:
+        #   include_tools:
+        #     - ".*"                 # Include all tools that exclude filters allows
+        #     - "data_.*"           # Regex: include tools starting with "data_"
+        #     - "fetch_user_info"   # Exact: include this specific tool
+        #   exclude_tools:
+        #     - ".*_debug"          # Regex: exclude tools ending with "_debug"
+        #     - "TestAgent"         # Exact: exclude all tools from agent "TestAgent"
+        #     - "test_tool"         # Exact: exclude this specific tool
+        #
+        include_tools: []  # Empty = include all tools (default)
+        exclude_tools: []  # Empty = no exclusions (default)
+
+      # --- Artifact Service ---
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: "namespace"
+
+      # --- Optional with Defaults ---
+      default_user_identity: "sam_dev_user"
+
+      # --- System Purpose ---
+      system_purpose: >
+        The system is an AI Chatbot with agentic capabilities.
+        It will use the agents available to provide information,
+        reasoning and general assistance for the users in this system.
+        **Always return useful artifacts and files that you create to the user.**
+        Provide a status update before each tool call.
+        Your external name is Agent Mesh.
+
+      response_format: >
+        Responses should be clear, concise, and professionally toned.
+        Format responses to the user in Markdown using appropriate formatting.
+        Note that the user is not able to access the internal artifacts of the system. You
+        must return them, so if you create any files or artifacts, provide them to the user
+        via the artifact_return embed.
+
+# Notes on usage:
+# ---------------
+# 1. Agents are automatically discovered from the agent registry
+# 2. Each agent skill becomes an MCP tool named: {agent_name}_{skill_name}
+# 3. All tools accept a single "message" parameter (string)
+# 4. Responses are streamed back in real-time
+# 5. Connect MCP clients to: http://localhost:8000/mcp (for HTTP transport)
+#
+# Example MCP client usage (with MCP inspector CLI):
+#   npx @modelcontextprotocol/inspector
+# Select Streamable HTTP for the transport type and enter the following for the url: http://localhost:8090/mcp
+#
+# Example connecting from Claude Desktop:
+# Add to Claude Desktop config (~/.config/claude/config.json):
+# {
+#   "mcpServers": {
+#     "sam": {
+#       "url": "http://localhost:8090/mcp",
+#       "transport": "http"
+#     }
+#   }
+# }
