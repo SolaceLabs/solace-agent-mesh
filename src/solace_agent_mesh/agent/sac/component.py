@@ -783,7 +783,9 @@ class SamAgentComponent(SamComponentBase):
                 log_retrigger,
                 len(new_response_parts),
             )
-            new_tool_response_content = adk_types.Content(role="tool", parts=new_response_parts)
+            new_tool_response_content = adk_types.Content(
+                role="tool", parts=new_response_parts
+            )
 
             # Always use SSE streaming mode for the ADK runner, even on re-trigger.
             # This ensures that real-time callbacks for status updates and artifact
@@ -801,7 +803,12 @@ class SamAgentComponent(SamComponentBase):
             )
             try:
                 await run_adk_async_task_thread_wrapper(
-                    self, session, new_tool_response_content, run_config, original_task_context, append_context_event=False
+                    self,
+                    session,
+                    new_tool_response_content,
+                    run_config,
+                    original_task_context,
+                    append_context_event=False,
                 )
             finally:
                 log.info(
@@ -1017,6 +1024,9 @@ class SamAgentComponent(SamComponentBase):
                 "- Provide a clear and detailed `task_description` for the peer agent\n"
                 "- **Important:** The peer agent does not have access to your session history, "
                 "so you must provide all required context necessary to fulfill the request\n\n"
+                "IMPORTANT: When a peer agent's response contains citation markers like [[cite:search0]], [[cite:file1]], etc., "
+                "you MUST preserve these markers in your response to the user. These markers link to source references and are "
+                "essential for proper attribution. Include them exactly as they appear in the peer's response. DO NOT repeat them without markers.\n\n"
                 "## Available Peer Agents\n"
                 f"{peer_list_str}"
             )
@@ -1549,7 +1559,9 @@ class SamAgentComponent(SamComponentBase):
             a2a_context: The A2A context dictionary for the current task
             function_call_id: Optional function call ID if artifact was created by a tool
         """
-        log_identifier = f"{self.log_identifier}[ArtifactSaved:{artifact_info.filename}]"
+        log_identifier = (
+            f"{self.log_identifier}[ArtifactSaved:{artifact_info.filename}]"
+        )
 
         try:
             # Create artifact saved signal
@@ -2276,6 +2288,19 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                     len(task_context.produced_artifacts),
                 )
+            else:
+                if not task_context:
+                    log.warning(
+                        "%s TaskExecutionContext not found for task %s during finalization, cannot attach produced artifacts.",
+                        self.log_identifier,
+                        logical_task_id,
+                    )
+                else:
+                    log.debug(
+                        "%s No produced artifacts to attach for task %s.",
+                        self.log_identifier,
+                        logical_task_id,
+                    )
 
             # Add token usage summary
             if task_context:
@@ -2715,11 +2740,11 @@ class SamAgentComponent(SamComponentBase):
 
             # Detect context limit errors and provide user-friendly message
             error_message = "An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
-            
+
             if isinstance(exception, BadRequestError):
                 # Use centralized error handler
                 error_message, is_context_limit = get_error_message(exception)
-                
+
                 if is_context_limit:
                     log.error(
                         "%s Context limit exceeded for task %s. Error: %s",
@@ -2730,9 +2755,7 @@ class SamAgentComponent(SamComponentBase):
 
             failed_status = a2a.create_task_status(
                 state=TaskState.failed,
-                message=a2a.create_agent_text_message(
-                    text=error_message
-                ),
+                message=a2a.create_agent_text_message(text=error_message),
             )
 
             final_task = a2a.create_final_task(
@@ -3414,6 +3437,80 @@ class SamAgentComponent(SamComponentBase):
     def get_async_loop(self) -> Optional[asyncio.AbstractEventLoop]:
         """Returns the dedicated asyncio event loop for this component's async tasks."""
         return self._async_loop
+
+    def publish_data_signal_from_thread(
+        self,
+        a2a_context: Dict[str, Any],
+        signal_data: BaseModel,
+        skip_buffer_flush: bool = False,
+        log_identifier: Optional[str] = None,
+    ) -> bool:
+        """
+        Publishes a data signal status update from any thread by scheduling it on the async loop.
+
+        This is a convenience method for tools and callbacks that need to publish status updates
+        but are not running in an async context. It handles:
+        1. Extracting task_id and context_id from a2a_context
+        2. Creating the status update event
+        3. Checking if the async loop is available and running
+        4. Scheduling the publish operation on the async loop
+
+        Args:
+            a2a_context: The A2A context dictionary containing logical_task_id and contextId
+            signal_data: A Pydantic BaseModel instance (e.g., AgentProgressUpdateData,
+                        DeepResearchProgressData, ArtifactCreationProgressData)
+            skip_buffer_flush: If True, skip buffer flushing before publishing
+            log_identifier: Optional log identifier for debugging
+
+        Returns:
+            bool: True if the publish was successfully scheduled, False otherwise
+        """
+        from ...common import a2a
+
+        log_id = log_identifier or f"{self.log_identifier}[PublishDataSignal]"
+
+        if not a2a_context:
+            log.error("%s No a2a_context provided. Cannot publish data signal.", log_id)
+            return False
+
+        logical_task_id = a2a_context.get("logical_task_id")
+        context_id = a2a_context.get("contextId")
+
+        if not logical_task_id:
+            log.error("%s No logical_task_id in a2a_context. Cannot publish data signal.", log_id)
+            return False
+
+        # Create status update event using the standard data signal pattern
+        status_update_event = a2a.create_data_signal_event(
+            task_id=logical_task_id,
+            context_id=context_id,
+            signal_data=signal_data,
+            agent_name=self.agent_name,
+        )
+
+        # Get the async loop and schedule the publish
+        loop = self.get_async_loop()
+        if loop and loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                self._publish_status_update_with_buffer_flush(
+                    status_update_event,
+                    a2a_context,
+                    skip_buffer_flush=skip_buffer_flush,
+                ),
+                loop,
+            )
+            log.debug(
+                "%s Scheduled data signal status update (type: %s).",
+                log_id,
+                type(signal_data).__name__,
+            )
+            return True
+        else:
+            log.error(
+                "%s Async loop not available or not running. Cannot publish data signal.",
+                log_id,
+            )
+            return False
 
     def set_agent_system_instruction_string(self, instruction_string: str) -> None:
         """

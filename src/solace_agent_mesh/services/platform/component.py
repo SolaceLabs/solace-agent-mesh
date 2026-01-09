@@ -116,6 +116,7 @@ class PlatformServiceComponent(SamComponentBase):
             self.ssl_certfile = self.get_config("ssl_certfile", "")
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
             self.cors_allowed_origins = self.get_config("cors_allowed_origins", ["*"])
+            self.cors_allowed_origin_regex = self.get_config("cors_allowed_origin_regex", "")
 
             # OAuth2 configuration (enterprise feature - defaults to community mode)
             self.external_auth_service_url = self.get_config("external_auth_service_url", "")
@@ -178,13 +179,27 @@ class PlatformServiceComponent(SamComponentBase):
         self.background_scheduler = None
         self.background_tasks_thread = None
 
-        # Direct message publisher for deployer commands
         self.direct_publisher = None
+
+        log.info("%s Running database migrations...", self.log_identifier)
+        self._run_database_migrations()
+        log.info("%s Database migrations completed", self.log_identifier)
 
         log.info("%s Platform Service Component initialized.", self.log_identifier)
 
-        # Note: FastAPI server, direct publisher, and background tasks are started
-        # in _late_init() after SamComponentBase.run() is called and broker is ready
+    def _run_database_migrations(self):
+        """Run database migrations synchronously during __init__."""
+        try:
+            from .api.main import _setup_database
+            _setup_database(self.database_url)
+        except Exception as e:
+            log.error(
+                "%s Failed to run database migrations: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
+            raise RuntimeError(f"Database migration failed during component initialization: {e}") from e
 
     def _late_init(self):
         """
@@ -240,8 +255,7 @@ class PlatformServiceComponent(SamComponentBase):
 
             self.fastapi_app = fastapi_app_instance
 
-            # Setup dependencies (idempotent - safe to call multiple times)
-            setup_dependencies(self, self.database_url)
+            setup_dependencies(self)
 
             # Register startup event for background tasks
             @self.fastapi_app.on_event("startup")
@@ -605,6 +619,15 @@ class PlatformServiceComponent(SamComponentBase):
             List of allowed origin strings.
         """
         return self.cors_allowed_origins
+
+    def get_cors_origin_regex(self) -> str:
+        """
+        Return the configured CORS allowed origin regex pattern.
+
+        Returns:
+            Regex pattern string, or empty string if not configured.
+        """
+        return self.cors_allowed_origin_regex
 
     def get_namespace(self) -> str:
         """
