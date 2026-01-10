@@ -387,35 +387,51 @@ interface TextWithCitationsProps {
 }
 
 /**
- * Parse individual citations from a comma-separated content string
- * Supports both old format (search0, research1) and new format (s0r0, s1r2)
+ * Parse a citation ID and return its components
+ * Handles both formats:
+ * - s{turn}r{index} (e.g., "s0r0", "s1r2") -> type: "search"
+ * - research{N} (e.g., "research0") -> type: "research"
  */
-function parseMultiCitationIds(content: string): Array<{ type: "file" | "ref" | "search" | "research"; sourceId: number; citationId?: string }> {
-    const results: Array<{ type: "file" | "ref" | "search" | "research"; sourceId: number; citationId?: string }> = [];
+function parseCitationIdLocal(citationId: string): { type: "search" | "research"; sourceId: number } | null {
+    // Try sTrN format first
+    const searchMatch = citationId.match(/^s(\d+)r(\d+)$/);
+    if (searchMatch) {
+        return {
+            type: "search",
+            sourceId: parseInt(searchMatch[2], 10), // Use result index as sourceId
+        };
+    }
+
+    // Try research format
+    const researchMatch = citationId.match(/^research(\d+)$/);
+    if (researchMatch) {
+        return {
+            type: "research",
+            sourceId: parseInt(researchMatch[1], 10),
+        };
+    }
+
+    return null;
+}
+
+/**
+ * Parse individual citations from a comma-separated content string
+ * Supports: s0r0, s1r2, research0, research1
+ */
+function parseMultiCitationIds(content: string): Array<{ type: "search" | "research"; sourceId: number; citationId: string }> {
+    const results: Array<{ type: "search" | "research"; sourceId: number; citationId: string }> = [];
     let individualMatch;
 
     INDIVIDUAL_CITATION_PATTERN.lastIndex = 0;
     while ((individualMatch = INDIVIDUAL_CITATION_PATTERN.exec(content)) !== null) {
-        const [, type, sourceId, newFormatId] = individualMatch;
+        const citationId = individualMatch[1]; // The captured citation ID (s0r0 or research0)
+        const parsed = parseCitationIdLocal(citationId);
 
-        // Check if this is the new sTrN format
-        if (newFormatId) {
-            // New format: s0r0, s1r2, etc.
-            const newFormatMatch = newFormatId.match(/s(\d+)r(\d+)/);
-            if (newFormatMatch) {
-                const [, , resultIndex] = newFormatMatch;
-                results.push({
-                    type: "search", // New format is always search type
-                    sourceId: parseInt(resultIndex, 10),
-                    citationId: newFormatId, // Store the full citation ID
-                });
-            }
-        } else {
-            // Old format: search0, research1, etc.
-            const citationType = (type || "search") as "file" | "ref" | "search" | "research";
+        if (parsed) {
             results.push({
-                type: citationType,
-                sourceId: parseInt(sourceId, 10),
+                type: parsed.type,
+                sourceId: parsed.sourceId,
+                citationId: citationId,
             });
         }
     }
@@ -426,9 +442,9 @@ function parseMultiCitationIds(content: string): Array<{ type: "file" | "ref" | 
 /**
  * Combined pattern that matches both single and multi-citation formats
  * This ensures we process them in order of appearance
- * Supports both old format (search0) and new format (s0r0)
+ * Supports: s0r0, s1r2, research0, research1
  */
-const COMBINED_CITATION_PATTERN = /\[?\[cite:((?:(?:file|ref|search|research)?\d+|s\d+r\d+)(?:\s*,\s*(?:cite:)?(?:(?:file|ref|search|research)?\d+|s\d+r\d+))*)\]\]?/g;
+const COMBINED_CITATION_PATTERN = /\[?\[cite:((?:s\d+r\d+|research\d+)(?:\s*,\s*(?:cite:)?(?:s\d+r\d+|research\d+))*)\]\]?/g;
 
 /**
  * Process text node content to replace citation markers with React components
@@ -457,17 +473,9 @@ function processTextWithCitations(textContent: string, citations: CitationType[]
         const [, content] = match;
         const citationIds = parseMultiCitationIds(content);
 
-        for (const { type, sourceId, citationId: newFormatCitationId } of citationIds) {
-            let citation: CitationType | undefined;
-
-            if (newFormatCitationId) {
-                // New format: look up by citationId (e.g., "s0r0")
-                citation = citations.find(c => c.citationId === newFormatCitationId);
-            } else {
-                // Old format: look up by type + sourceId (e.g., "search0")
-                const oldFormatCitationId = `${type}${sourceId}`;
-                citation = citations.find(c => `${c.type}${c.sourceId}` === oldFormatCitationId);
-            }
+        for (const { citationId } of citationIds) {
+            // Look up by citationId (e.g., "s0r0" or "research0")
+            const citation = citations.find(c => c.citationId === citationId);
 
             if (citation) {
                 pendingCitations.push(citation);

@@ -21,25 +21,34 @@ log = logging.getLogger(__name__)
 CATEGORY_NAME = "web_search"
 CATEGORY_DESCRIPTION = "Tools for searching the web and retrieving current information"
 
-# Global search turn counter to ensure unique citation IDs across multiple searches
-# Key: session_id, Value: turn counter
-_search_turn_counter: Dict[str, int] = {}
+# State key for tracking search turns within a task/session
+_SEARCH_TURN_STATE_KEY = "web_search_turn_counter"
 
 
-def _get_next_search_turn(session_id: str = "default") -> int:
+def _get_next_search_turn(tool_context: Optional[ToolContext]) -> int:
     """
-    Get the next search turn number for a session to ensure unique citation IDs.
+    Get the next search turn number using tool context state.
     
-    Each search within a session gets a unique turn number, so citations from
+    This approach stores the turn counter in the tool context state, which is:
+    - Per-task/session scoped (not global)
+    - Automatically cleaned up when the task ends
+    
+    Each search within a task gets a unique turn number, so citations from
     different searches never collide (e.g., s0r0, s0r1 for first search,
     s1r0, s1r1 for second search).
     """
-    global _search_turn_counter
-    if session_id not in _search_turn_counter:
-        _search_turn_counter[session_id] = 0
-    turn = _search_turn_counter[session_id]
-    _search_turn_counter[session_id] += 1
-    return turn
+    if not tool_context:
+        # Fallback: return 0 if no context (shouldn't happen in practice)
+        log.warning("[web_search] No tool_context provided, using turn=0")
+        return 0
+    
+    # Get current turn from state, defaulting to 0
+    current_turn = tool_context.state.get(_SEARCH_TURN_STATE_KEY, 0)
+    
+    # Increment for next search
+    tool_context.state[_SEARCH_TURN_STATE_KEY] = current_turn + 1
+    
+    return current_turn
 
 
 async def web_search_google(
@@ -98,16 +107,8 @@ async def web_search_google(
             return f"Error: {result.error}"
         
         # Get unique search turn for this search to prevent citation ID collisions
-        # across multiple searches in the same session
-        session_id = "default"
-        if tool_context:
-            try:
-                # Try to get session ID from tool context for per-session tracking
-                session_id = getattr(tool_context, 'session_id', None) or "default"
-            except Exception:
-                pass
-        
-        search_turn = _get_next_search_turn(session_id)
+        # Uses tool context state (per-task scoped, automatically cleaned up)
+        search_turn = _get_next_search_turn(tool_context)
         citation_prefix = f"s{search_turn}r"  # e.g., s0r0, s0r1 for first search; s1r0, s1r1 for second
         
         log.info(
@@ -190,8 +191,32 @@ async def web_search_google(
             sources=rag_sources
         )
         
+        # Build a formatted result string that clearly associates each citation ID with its content
+        # This helps the LLM correctly match citations to facts
+        formatted_results = []
+        formatted_results.append(f"=== SEARCH RESULTS (Turn {search_turn}) ===")
+        formatted_results.append(f"Query: {query}")
+        formatted_results.append(f"Valid citation IDs: {', '.join(valid_citation_ids)}")
+        formatted_results.append("")
+        
+        for i, source in enumerate(result.organic):
+            citation_id = f"{citation_prefix}{i}"
+            formatted_results.append(f"--- RESULT {i+1} ---")
+            formatted_results.append(f"CITATION ID: [[cite:{citation_id}]]")
+            formatted_results.append(f"TITLE: {source.title}")
+            formatted_results.append(f"URL: {source.link}")
+            formatted_results.append(f"CONTENT: {source.snippet}")
+            formatted_results.append(f"USE [[cite:{citation_id}]] to cite facts from THIS result only")
+            formatted_results.append("")
+        
+        formatted_results.append("=== END SEARCH RESULTS ===")
+        formatted_results.append("")
+        formatted_results.append("IMPORTANT: Each citation ID is UNIQUE to its result.")
+        formatted_results.append("Only use a citation ID for facts that appear in THAT specific result's CONTENT.")
+        
         return {
             "result": result.model_dump_json(),
+            "formatted_results": "\n".join(formatted_results),
             "rag_metadata": rag_metadata,
             "valid_citation_ids": valid_citation_ids,
             "num_results": len(result.organic),
