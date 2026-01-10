@@ -108,11 +108,36 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>
     const displayText = message.isUser ? textContent.trim() : textContent;
 
     // Parse citations from text and match to RAG sources
+    // Aggregate sources from ALL RAG entries for this task, not just the last one.
+    // When there are multiple web searches (multiple tool calls), each creates a separate RAG entry.
     const taskRagData = useMemo(() => {
         if (!message.taskId || !ragData) return undefined;
-        // Find the last matching entry (most recent/complete data)
         const matches = ragData.filter(r => r.taskId === message.taskId);
-        return matches.length > 0 ? matches[matches.length - 1] : undefined;
+        if (matches.length === 0) return undefined;
+
+        // If only one entry, return it directly
+        if (matches.length === 1) return matches[0];
+
+        // Aggregate all sources from all matching RAG entries
+        // Use the last entry as the base (for query, title, etc.) but combine all sources
+        const lastEntry = matches[matches.length - 1];
+        const allSources = matches.flatMap(r => r.sources || []);
+
+        // Deduplicate sources by citationId (keep the first occurrence)
+        const seenCitationIds = new Set<string>();
+        const uniqueSources = allSources.filter(source => {
+            const citationId = source.citationId;
+            if (!citationId || seenCitationIds.has(citationId)) {
+                return false;
+            }
+            seenCitationIds.add(citationId);
+            return true;
+        });
+
+        return {
+            ...lastEntry,
+            sources: uniqueSources,
+        };
     }, [message.taskId, ragData]);
 
     const citations = useMemo(() => {
