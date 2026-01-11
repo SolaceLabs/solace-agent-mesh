@@ -1,0 +1,113 @@
+# Lambda Streaming Executor Example Agent
+#
+# This example demonstrates streaming status updates from a Lambda function.
+# It uses a Function URL with IAM authentication to enable response streaming,
+# which allows the Lambda to send progress updates during execution.
+#
+# Prerequisites:
+#   1. Run ./setup-streaming-lambda.sh to create the Lambda function
+#   2. Set the SAM_LAMBDA_STREAMING_URL environment variable (printed by setup script)
+#   3. Ensure AWS credentials are available (e.g., source ~/bin/set-aws-auth)
+#
+# Usage:
+#   sam run examples/agents/lambda-executor-streaming/lambda_streaming_example.yaml
+#
+# Test prompts:
+#   - "Process the message 'hello' with 5 steps"
+#   - "Process 'analyzing data' in 3 steps"
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: lambda_streaming_agent.log
+
+!include ../../shared_config.yaml
+
+apps:
+  - name: lambda_streaming_agent_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "LambdaStreamingAgent"
+      display_name: "Lambda Streaming"
+      model: *planning_model
+
+      instruction: |
+        You are an agent that demonstrates streaming status updates from AWS Lambda.
+        You have access to a tool that processes messages with multiple steps,
+        sending real-time status updates during execution.
+
+        The slow_process tool simulates a long-running process that takes about
+        1 second per step and sends progress updates at each step. Use it to
+        demonstrate streaming capabilities.
+
+        When the user wants to test streaming, run the slow_process tool and they
+        will see status updates appear in real-time as the tool executes.
+
+      tools:
+        # Slow process tool - demonstrates streaming status updates
+        - tool_type: executor
+          name: "slow_process"
+          description: |
+            Process a message with multiple steps, sending streaming status updates
+            during execution. Each step takes approximately 1 second. Use this to
+            demonstrate real-time progress updates from Lambda functions.
+          executor: lambda
+          function_url: ${SAM_LAMBDA_STREAMING_URL}
+          include_context: true
+          timeout_seconds: 120
+          parameters:
+            properties:
+              message:
+                type: string
+                description: The message to process
+              steps:
+                type: integer
+                description: Number of processing steps (each takes ~1 second)
+            required:
+              - message
+              - steps
+
+        # Add artifact management tools for completeness
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT"
+
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: |
+          An agent that demonstrates streaming status updates from AWS Lambda.
+          It can process messages with real-time progress updates, showing how
+          Lambda functions can communicate their progress during execution.
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills:
+          - id: slow_process
+            name: Streaming Process
+            description: "Process a message with streaming status updates"
+            examples:
+              - "Process the message 'hello' with 5 steps"
+              - "Run a slow process on 'analyzing data' in 3 steps"
+              - "Process 'test message' with 10 steps to see streaming updates"
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+      inter_agent_communication:
+        allow_list: ["*"]
+        request_timeout_seconds: 120

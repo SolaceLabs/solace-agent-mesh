@@ -28,6 +28,7 @@ dependencies = [
     "python-dotenv==1.1.1",
     "google-genai==1.49.0",
     "httpx==0.28.1",
+    "httpx-auth-awssigv4==0.1.6",
     "jwcrypto==1.5.6",
     "python-jwt==4.1.0",
     "asteval==1.0.6",

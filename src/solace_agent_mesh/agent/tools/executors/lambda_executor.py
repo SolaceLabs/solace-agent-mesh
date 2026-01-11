@@ -313,6 +313,54 @@ class LambdaExecutor(ToolExecutor):
             )
             return None
 
+    def _get_sigv4_auth(self) -> Optional[Any]:
+        """
+        Get SigV4 authentication for Lambda Function URL requests.
+
+        Returns an auth object for httpx requests, or None if credentials
+        are not available.
+        """
+        try:
+            from httpx_auth_awssigv4 import SigV4Auth
+
+            session = boto3.Session()
+            credentials = session.get_credentials()
+
+            if credentials is None:
+                log.warning(
+                    "%s No AWS credentials available for SigV4 signing",
+                    self._log_identifier,
+                )
+                return None
+
+            # Determine region - use configured region, session region, or default
+            region = (
+                self._region
+                or session.region_name
+                or "us-east-1"
+            )
+
+            return SigV4Auth(
+                access_key=credentials.access_key,
+                secret_key=credentials.secret_key,
+                service="lambda",
+                region=region,
+                token=credentials.token,
+            )
+        except ImportError:
+            log.warning(
+                "%s httpx-auth-awssigv4 not installed, SigV4 signing disabled",
+                self._log_identifier,
+            )
+            return None
+        except Exception as e:
+            log.warning(
+                "%s Failed to create SigV4 auth: %s",
+                self._log_identifier,
+                e,
+            )
+            return None
+
     async def execute(
         self,
         args: Dict[str, Any],
@@ -355,12 +403,18 @@ class LambdaExecutor(ToolExecutor):
 
         log.debug("%s Invoking Lambda via Function URL: %s", log_id, url)
 
+        # Get SigV4 auth for IAM-authenticated Function URLs
+        auth = self._get_sigv4_auth()
+        if auth:
+            log.debug("%s Using SigV4 authentication", log_id)
+
         try:
             async with self._http_client.stream(
                 "POST",
                 url,
                 json=payload,
                 headers={"Content-Type": "application/json"},
+                auth=auth,
             ) as response:
                 if response.status_code >= 400:
                     error_body = await response.aread()
