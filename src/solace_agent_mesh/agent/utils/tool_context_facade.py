@@ -2,18 +2,25 @@
 Provides a clean, simplified interface for tool authors to access context and artifacts.
 
 The ToolContextFacade hides all the boilerplate of extracting session info,
-accessing the artifact service, and managing context from the raw ADK ToolContext.
+accessing the artifact service, managing context, and sending status updates
+from the raw ADK ToolContext.
 
 Example usage:
     from solace_agent_mesh.agent.utils import ToolContextFacade
     from solace_agent_mesh.agent.tools import ToolResult, DataObject
 
     async def my_tool(filename: str, ctx: ToolContextFacade) -> ToolResult:
+        # Send status updates - no boilerplate!
+        ctx.send_status("Loading artifact...")
+
         # Load artifact - no boilerplate!
         data = await ctx.load_artifact(filename, as_text=True)
 
         # Access context properties
         print(f"User: {ctx.user_id}, Session: {ctx.session_id}")
+
+        # Send progress update
+        ctx.send_status("Processing data...")
 
         # Process and return
         result = process(data)
@@ -33,19 +40,21 @@ from .context_helpers import get_original_session_id
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
+    from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
 
 class ToolContextFacade:
     """
-    A simplified, read-only interface for tool authors to access context and artifacts.
+    A simplified interface for tool authors to access context, artifacts, and status updates.
 
     This facade provides:
     - Easy access to session/user/app context
     - Simplified artifact loading (content and metadata)
     - Artifact listing
     - Tool configuration access
+    - Status update methods for sending progress to the frontend
 
     Note: This facade is intentionally read-only for artifact operations.
     All artifact saving should be done through the ToolResult/DataObject pattern,
@@ -72,6 +81,8 @@ class ToolContextFacade:
         self._user_id: Optional[str] = None
         self._app_name: Optional[str] = None
         self._artifact_service: Optional["BaseArtifactService"] = None
+        self._host_component: Optional[Any] = None
+        self._host_component_resolved: bool = False
 
     def _ensure_context(self) -> None:
         """Extract and cache context values from the invocation context."""
@@ -304,6 +315,138 @@ class ToolContextFacade:
             return filename in artifacts
         except ValueError:
             return False
+
+    # -------------------------------------------------------------------------
+    # Status Update Methods
+    # -------------------------------------------------------------------------
+
+    def _ensure_host_component(self) -> Optional[Any]:
+        """
+        Extract and cache the host component from the invocation context.
+
+        The host component is needed for publishing status updates.
+        Returns None if the component cannot be accessed (e.g., in tests).
+        """
+        if self._host_component_resolved:
+            return self._host_component
+
+        self._host_component_resolved = True
+        try:
+            inv_context = getattr(self._ctx, "_invocation_context", None)
+            if inv_context:
+                agent = getattr(inv_context, "agent", None)
+                if agent:
+                    self._host_component = getattr(agent, "host_component", None)
+        except Exception as e:
+            log.debug(
+                "[ToolContextFacade] Could not get host_component: %s", e
+            )
+
+        return self._host_component
+
+    @property
+    def a2a_context(self) -> Optional[Dict[str, Any]]:
+        """
+        Get the A2A context for this request.
+
+        The A2A context contains routing information needed for status updates.
+        Returns None if not available (e.g., in tests).
+        """
+        return self._ctx.state.get("a2a_context")
+
+    def send_status(self, message: str) -> bool:
+        """
+        Send a simple text status update to the frontend.
+
+        This is the easiest way to show progress during long-running tool operations.
+        The message will appear in the UI as a progress indicator.
+
+        Args:
+            message: Human-readable progress message (e.g., "Analyzing data...",
+                    "Processing file 3 of 10...", "Fetching results...")
+
+        Returns:
+            True if the update was successfully scheduled, False otherwise.
+            Returns False if the context is not available (e.g., in unit tests).
+
+        Example:
+            async def my_tool(data: str, ctx: ToolContextFacade) -> ToolResult:
+                ctx.send_status("Starting analysis...")
+                # ... do work ...
+                ctx.send_status("Almost done...")
+                return ToolResult.ok("Complete")
+        """
+        from ...common.data_parts import AgentProgressUpdateData
+
+        host = self._ensure_host_component()
+        a2a_ctx = self.a2a_context
+
+        if not host or not a2a_ctx:
+            log.debug(
+                "[ToolContextFacade] Cannot send status: missing host_component or a2a_context"
+            )
+            return False
+
+        signal = AgentProgressUpdateData(status_text=message)
+        return host.publish_data_signal_from_thread(
+            a2a_context=a2a_ctx,
+            signal_data=signal,
+        )
+
+    def send_signal(
+        self,
+        signal_data: "BaseModel",
+        skip_buffer_flush: bool = False,
+    ) -> bool:
+        """
+        Send a custom signal/data update to the frontend.
+
+        Use this for specialized signals that need structured data beyond
+        a simple text message. For simple progress messages, prefer send_status().
+
+        Args:
+            signal_data: A Pydantic model instance from solace_agent_mesh.common.data_parts.
+                        Common types include:
+                        - AgentProgressUpdateData: Simple text status
+                        - ArtifactCreationProgressData: Artifact streaming progress
+                        - DeepResearchProgressData: Structured research progress
+            skip_buffer_flush: If True, skip flushing the output buffer before
+                              sending. Usually False for immediate updates.
+
+        Returns:
+            True if the update was successfully scheduled, False otherwise.
+            Returns False if the context is not available (e.g., in unit tests).
+
+        Example:
+            from solace_agent_mesh.common.data_parts import DeepResearchProgressData
+
+            async def research_tool(query: str, ctx: ToolContextFacade) -> ToolResult:
+                ctx.send_signal(DeepResearchProgressData(
+                    phase="searching",
+                    status_text="Searching for sources...",
+                    progress_percentage=25,
+                    current_iteration=1,
+                    total_iterations=3,
+                    sources_found=5,
+                    elapsed_seconds=10,
+                ))
+                # ... do work ...
+                return ToolResult.ok("Complete")
+        """
+        host = self._ensure_host_component()
+        a2a_ctx = self.a2a_context
+
+        if not host or not a2a_ctx:
+            log.debug(
+                "[ToolContextFacade] Cannot send signal: missing host_component or a2a_context"
+            )
+            return False
+
+        return host.publish_data_signal_from_thread(
+            a2a_context=a2a_ctx,
+            signal_data=signal_data,
+            skip_buffer_flush=skip_buffer_flush,
+        )
 
     def __repr__(self) -> str:
         self._ensure_context()
