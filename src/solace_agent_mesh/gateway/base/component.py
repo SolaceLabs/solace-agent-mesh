@@ -2418,7 +2418,8 @@ class BaseGatewayComponent(SamComponentBase):
             interval_seconds
         )
 
-        self.add_timer(
+        SamComponentBase.add_timer(
+            self,
             delay_ms=1000,
             timer_id=self._gateway_card_timer_id,
             interval_ms=interval_seconds * 1000,
