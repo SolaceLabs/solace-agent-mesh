@@ -33,7 +33,7 @@ export function AppInfoPopover({ app }: AppInfoPopoverProps) {
                     size="sm"
                     onClick={handleClick}
                     className="h-8 px-2"
-                    title="App info"
+                    title="Widget info"
                 >
                     <Info className="size-4" />
                 </Button>

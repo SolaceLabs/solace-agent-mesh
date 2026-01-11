@@ -42,7 +42,7 @@ export const DeleteAppDialog = ({ isOpen, onClose, onConfirm, app, isDeleting = 
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-destructive">
                         <AlertTriangle className="size-5" />
-                        Delete App Permanently
+                        Delete Widget Permanently
                     </DialogTitle>
                     <DialogDescription>
                         This action cannot be undone.
@@ -93,7 +93,7 @@ export const DeleteAppDialog = ({ isOpen, onClose, onConfirm, app, isDeleting = 
                         onClick={handleConfirm}
                         disabled={!isConfirmEnabled || isDeleting}
                     >
-                        {isDeleting ? "Deleting..." : "Delete App"}
+                        {isDeleting ? "Deleting..." : "Delete Widget"}
                     </Button>
                 </DialogFooter>
 

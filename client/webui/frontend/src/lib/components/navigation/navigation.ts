@@ -23,7 +23,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
         },
         {
             id: "apps",
-            label: "Apps",
+            label: "Widgets",
             icon: Layout,
             badge: "EXPERIMENTAL",
         },
@@ -69,7 +69,7 @@ export const topNavigationItems: NavigationItem[] = [
     },
     {
         id: "apps",
-        label: "Apps",
+        label: "Widgets",
         icon: Layout,
         badge: "EXPERIMENTAL",
     },

@@ -59,7 +59,7 @@ export function AppCard({ app, onClick, onEdit, onViewEnvironment, onSettingsSav
     const menuActions: MenuAction[] = [
         {
             id: "edit",
-            label: "Edit App",
+            label: "Edit Widget",
             icon: <Edit size={14} />,
             onClick: () => {
                 setMenuOpen(false);
@@ -68,7 +68,7 @@ export function AppCard({ app, onClick, onEdit, onViewEnvironment, onSettingsSav
         },
         {
             id: "settings",
-            label: "App Settings",
+            label: "Widget Settings",
             icon: <Settings size={14} />,
             onClick: () => {
                 setMenuOpen(false);
@@ -132,7 +132,7 @@ export function AppCard({ app, onClick, onEdit, onViewEnvironment, onSettingsSav
             ? [
                   {
                       id: "delete",
-                      label: "Delete App",
+                      label: "Delete Widget",
                       icon: <Trash2 size={14} />,
                       divider: true,
                       variant: "destructive" as const,

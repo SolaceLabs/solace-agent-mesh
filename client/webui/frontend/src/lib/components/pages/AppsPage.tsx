@@ -124,8 +124,8 @@ export function AppsPage() {
     return (
         <div className="flex h-full w-full flex-col">
             <Header
-                title="Apps"
-                subtitle="Build React applications through conversation"
+                title="Widgets"
+                subtitle="Build React widgets through conversation"
                 buttons={[
                     <Button
                         key="create"
@@ -134,14 +134,14 @@ export function AppsPage() {
                         onClick={handleCreateApp}
                     >
                         <Plus className="size-4" />
-                        Create App
+                        Create Widget
                     </Button>,
                     <Button
                         key="refresh"
                         data-testid="refreshApps"
                         disabled={loading}
                         variant="ghost"
-                        title="Refresh Apps"
+                        title="Refresh Widgets"
                         onClick={() => refetch()}
                     >
                         <RefreshCcw className="size-4" />
@@ -157,7 +157,7 @@ export function AppsPage() {
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
-                                placeholder="Search apps by name, description, or tags..."
+                                placeholder="Search widgets by name, description, or tags..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="pl-9"
@@ -167,33 +167,33 @@ export function AppsPage() {
                 )}
 
                 {loading ? (
-                    <EmptyState title="Loading apps..." variant="loading" />
+                    <EmptyState title="Loading widgets..." variant="loading" />
                 ) : error ? (
                     <EmptyState
                         variant="error"
-                        title="Error loading apps"
+                        title="Error loading widgets"
                         subtitle={error}
                     />
                 ) : apps.length === 0 ? (
                     <EmptyState
-                        title="No apps yet"
-                        subtitle="Create your first app to get started"
+                        title="No widgets yet"
+                        subtitle="Create your first widget to get started"
                         action={{
-                            label: "Create App",
+                            label: "Create Widget",
                             onClick: handleCreateApp,
                         }}
                     />
                 ) : filteredApps.length === 0 ? (
                     <EmptyState
-                        title="No matching apps"
-                        subtitle={`No apps found matching "${searchQuery}"`}
+                        title="No matching widgets"
+                        subtitle={`No widgets found matching "${searchQuery}"`}
                     />
                 ) : (
                     <div className="space-y-8">
                         {/* My Apps Section */}
                         {myApps.length > 0 && (
                             <section>
-                                <h2 className="text-lg font-semibold mb-4">My Apps</h2>
+                                <h2 className="text-lg font-semibold mb-4">My Widgets</h2>
                                 {renderAppGrid(myApps)}
                             </section>
                         )}
@@ -201,7 +201,7 @@ export function AppsPage() {
                         {/* Public Apps Section */}
                         {publicApps.length > 0 && (
                             <section>
-                                <h2 className="text-lg font-semibold mb-4">Public Apps</h2>
+                                <h2 className="text-lg font-semibold mb-4">Public Widgets</h2>
                                 {renderAppGrid(publicApps, true)}
                             </section>
                         )}

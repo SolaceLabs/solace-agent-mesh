@@ -73,7 +73,7 @@ export function CreateAppPage() {
         e.preventDefault();
 
         if (!name.trim()) {
-            setError("App name is required");
+            setError("Widget name is required");
             return;
         }
 
@@ -95,7 +95,7 @@ export function CreateAppPage() {
 
             if (!appResponse.ok) {
                 const errorData = await appResponse.json().catch(() => ({}));
-                throw new Error(errorData.detail || "Failed to create app");
+                throw new Error(errorData.detail || "Failed to create widget");
             }
 
             const appData = await appResponse.json();
@@ -130,7 +130,7 @@ export function CreateAppPage() {
             }
 
             // Build initial message
-            let initialMessage = `I'm starting a new app called "${name.trim()}".`;
+            let initialMessage = `I'm starting a new widget called "${name.trim()}".`;
 
             if (description.trim()) {
                 initialMessage += `\n\nDescription: ${description.trim()}`;
@@ -151,7 +151,7 @@ export function CreateAppPage() {
             } else {
                 // No instructions - ask agent to guide requirements gathering
                 initialMessage += `\n\nPlease ask me questions about the requirements. Here are some suggestions to consider:
-- What are the main features this app should have?
+- What are the main features this widget should have?
 - What kind of data will it work with?
 - Do you need to integrate with any SAM agents?
 - What should the user interface look like?`;
@@ -179,8 +179,8 @@ export function CreateAppPage() {
     return (
         <div className="flex h-full w-full flex-col">
             <Header
-                title="Create New App"
-                subtitle="Build a React application through conversation with the App Agent"
+                title="Create New Widget"
+                subtitle="Build a React widget through conversation with the App Agent"
             />
 
             <div className="flex-1 overflow-auto p-6">
@@ -202,14 +202,14 @@ export function CreateAppPage() {
                                 htmlFor="app-name"
                                 className="block text-sm font-medium mb-2"
                             >
-                                App Name <span className="text-red-500">*</span>
+                                Widget Name <span className="text-red-500">*</span>
                             </label>
                             <Input
                                 id="app-name"
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="My Awesome App"
+                                placeholder="My Awesome Widget"
                                 disabled={creating}
                                 required
                                 autoFocus
@@ -227,7 +227,7 @@ export function CreateAppPage() {
                                 id="app-description"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
-                                placeholder="Describe what your app should do..."
+                                placeholder="Describe what your widget should do..."
                                 rows={4}
                                 disabled={creating}
                             />
@@ -238,7 +238,7 @@ export function CreateAppPage() {
                                 htmlFor="app-instructions"
                                 className="block text-sm font-medium mb-2"
                             >
-                                Tell me how your app should work and look
+                                Tell me how your widget should work and look
                             </label>
                             <Textarea
                                 id="app-instructions"
@@ -256,7 +256,7 @@ export function CreateAppPage() {
                                 Reference Files (optional)
                             </label>
                             <p className="text-sm text-muted-foreground mb-3">
-                                Upload mockups, sample data, or other files to help build your app.
+                                Upload mockups, sample data, or other files to help build your widget.
                                 You can also drag and drop files anywhere on this form.
                             </p>
 
@@ -328,7 +328,7 @@ export function CreateAppPage() {
                                 disabled={creating || !name.trim()}
                             >
                                 {creating && <Loader2 className="size-4 animate-spin mr-2" />}
-                                {creating ? "Creating..." : "Create App and Start Coding"}
+                                {creating ? "Creating..." : "Create Widget and Start Coding"}
                             </Button>
                         </div>
                     </form>

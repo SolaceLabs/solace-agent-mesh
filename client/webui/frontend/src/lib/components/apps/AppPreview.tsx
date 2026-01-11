@@ -164,10 +164,10 @@ export function AppPreview({ appId }: AppPreviewProps) {
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
                     <div className="text-6xl mb-4">🏗️</div>
-                    <h2 className="text-2xl font-semibold mb-2">App Not Built Yet</h2>
+                    <h2 className="text-2xl font-semibold mb-2">Widget Not Built Yet</h2>
                     <p className="text-muted-foreground max-w-md mb-6">
-                        Your app is being built by the App Agent. Once the first build completes,
-                        click the Refresh button above to see your app.
+                        Your widget is being built by the App Agent. Once the first build completes,
+                        click the Refresh button above to see your widget.
                     </p>
                     <div className="text-sm text-muted-foreground">
                         ← Watch the chat on the left for build progress
@@ -247,7 +247,7 @@ export function AppPreview({ appId }: AppPreviewProps) {
                     key={key}
                     src={`/api/v1/apps/preview/${appId}/?_t=${key}`}
                     className="w-full h-full border-0"
-                    title="App Preview"
+                    title="Widget Preview"
                     sandbox="allow-scripts allow-forms allow-popups allow-downloads allow-modals allow-presentation"
                     onError={handleIframeError}
                 />

@@ -111,7 +111,7 @@ export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags, on
 
     const handleSave = async () => {
         if (!name.trim()) {
-            setError("App name is required");
+            setError("Widget name is required");
             return;
         }
 
@@ -172,9 +172,9 @@ export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags, on
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                    <DialogTitle>App Settings</DialogTitle>
+                    <DialogTitle>Widget Settings</DialogTitle>
                     <DialogDescription>
-                        Configure your app's name, description, and visibility.
+                        Configure your widget's name, description, and visibility.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -187,7 +187,7 @@ export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags, on
                                 id="app-name"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="App name"
+                                placeholder="Widget name"
                             />
                         </div>
 
@@ -197,7 +197,7 @@ export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags, on
                                 id="app-description"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
-                                placeholder="A brief description of your app"
+                                placeholder="A brief description of your widget"
                                 rows={3}
                             />
                         </div>
@@ -254,9 +254,9 @@ export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags, on
                                     {iconEmoji}
                                 </div>
                                 <div>
-                                    <div className="font-medium">App Icon</div>
+                                    <div className="font-medium">Widget Icon</div>
                                     <div className="text-sm text-muted-foreground">
-                                        {iconChanged() ? "New icon (save to apply)" : "AI-generated icon for your app"}
+                                        {iconChanged() ? "New icon (save to apply)" : "AI-generated icon for your widget"}
                                     </div>
                                 </div>
                             </div>
@@ -309,8 +309,8 @@ export function AppSettingsDialog({ isOpen, onClose, app, onSave, onSaveTags, on
                                     </div>
                                     <div className="text-sm text-muted-foreground">
                                         {isPublic
-                                            ? "Anyone can see this app"
-                                            : "Only you and collaborators can see this app"}
+                                            ? "Anyone can see this widget"
+                                            : "Only you and collaborators can see this widget"}
                                     </div>
                                 </div>
                             </div>

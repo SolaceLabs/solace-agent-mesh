@@ -64,7 +64,7 @@ export function AppViewPage() {
     if (loading) {
         return (
             <div className="flex h-full w-full items-center justify-center">
-                <div className="text-muted-foreground">Loading app...</div>
+                <div className="text-muted-foreground">Loading widget...</div>
             </div>
         );
     }
@@ -73,7 +73,7 @@ export function AppViewPage() {
         return (
             <div className="flex h-full w-full flex-col">
                 <Header
-                    title="App View"
+                    title="Widget View"
                     buttons={[
                         <Button key="back" variant="ghost" onClick={handleBack}>
                             <ArrowLeft className="size-4" />
@@ -85,7 +85,7 @@ export function AppViewPage() {
                     <div className="text-center">
                         <div className="text-destructive font-semibold">Error</div>
                         <div className="text-muted-foreground">
-                            {error || "App not found"}
+                            {error || "Widget not found"}
                         </div>
                     </div>
                 </div>
@@ -106,15 +106,15 @@ export function AppViewPage() {
                         </Button>,
                         <Button key="edit" variant="default" onClick={handleEdit}>
                             <Edit className="size-4" />
-                            Edit App
+                            Edit Widget
                         </Button>,
                     ]}
                 />
                 <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
-                        <div className="font-semibold text-lg">App Not Deployed</div>
+                        <div className="font-semibold text-lg">Widget Not Deployed</div>
                         <div className="text-muted-foreground mt-2">
-                            This app hasn't been deployed to any environment yet. Deploy it from the editor.
+                            This widget hasn't been deployed to any environment yet. Deploy it from the editor.
                         </div>
                         <Button className="mt-4" onClick={handleEdit}>
                             Go to Editor

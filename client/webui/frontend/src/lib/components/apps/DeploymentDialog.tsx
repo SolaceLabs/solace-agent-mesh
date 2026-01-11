@@ -157,14 +157,14 @@ export function DeploymentDialog({ isOpen, onClose, appId }: DeploymentDialogPro
                                         <Badge variant="outline">v{versions.preview.version}</Badge>
                                     </div>
                                     <p className="text-muted-foreground text-sm">
-                                        No build available. Ask the agent to build the app first.
+                                        No build available. Ask the agent to build the widget first.
                                     </p>
                                 </div>
                             ) : (
                                 // No VERSION file at all
                                 <div className="text-center py-4">
                                     <p className="text-muted-foreground">
-                                        No preview available. Ask the agent to build the app first.
+                                        No preview available. Ask the agent to build the widget first.
                                     </p>
                                 </div>
                             )}

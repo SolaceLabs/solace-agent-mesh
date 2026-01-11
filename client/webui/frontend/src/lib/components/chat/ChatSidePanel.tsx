@@ -174,7 +174,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                 <div className="bg-border my-4 h-px w-8"></div>
 
                 {appId && (
-                    <Button variant="ghost" size="sm" onClick={() => handleIconClick("app-preview")} className="mb-2 h-10 w-10 p-0" tooltip="App Preview">
+                    <Button variant="ghost" size="sm" onClick={() => handleIconClick("app-preview")} className="mb-2 h-10 w-10 p-0" tooltip="Widget Preview">
                         <Monitor className="size-5" />
                     </Button>
                 )}
@@ -203,11 +203,11 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                             {appId && (
                                 <TabsTrigger
                                     value="app-preview"
-                                    title="App Preview"
+                                    title="Widget Preview"
                                     className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-l-md border border-r-0 data-[state=active]:z-10"
                                 >
                                     <Monitor className="mr-2 h-4 w-4" />
-                                    App Preview
+                                    Widget Preview
                                 </TabsTrigger>
                             )}
                             <TabsTrigger
