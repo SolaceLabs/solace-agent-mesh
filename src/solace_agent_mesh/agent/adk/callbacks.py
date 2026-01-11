@@ -75,7 +75,9 @@ from ...agent.adk.stream_parser import (
     TemplateBlockCompletedEvent,
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
+    TEMPLATE_LIQUID_START_SEQUENCE,
 )
+
 
 log = logging.getLogger(__name__)
 
@@ -91,7 +93,7 @@ async def _publish_data_part_status_update(
     data_part_model: BaseModel,
 ):
     """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart.
-    
+
     This function delegates to the host component's publish_data_signal_from_thread method,
     which handles the async loop check and scheduling internally.
     """
@@ -421,6 +423,13 @@ async def process_artifact_blocks_callback(
                                             version_for_tool,
                                             logical_task_id,
                                         )
+                                    else:
+                                        log.warning(
+                                            "%s TaskExecutionContext not found for task %s, cannot register inline artifact '%s'.",
+                                            log_identifier,
+                                            logical_task_id,
+                                            filename,
+                                        )
                                 else:
                                     log.warning(
                                         "%s No logical_task_id, cannot register inline artifact.",
@@ -554,8 +563,37 @@ async def process_artifact_blocks_callback(
                                 template_id,
                             )
 
-                        # Store template_id in session for potential future use
-                        # (Gateway will handle the actual resolution)
+                        # Reconstruct the original template block text for peer-to-peer responses
+                        # Peer agents don't receive TemplateBlockData signals, so they need
+                        # the original block text to pass templates through to the gateway
+                        params_str = " ".join([f'{k}="{v}"' for k, v in params.items()])
+                        original_template_text = (
+                            f"{TEMPLATE_LIQUID_START_SEQUENCE} {params_str}\n"
+                            f"{event.template_content}"
+                            f"{ARTIFACT_BLOCK_DELIMITER_CLOSE}"
+                        )
+
+                        # For RUN_BASED sessions (peer-to-peer agent requests), preserve the
+                        # template block in the response text at its original position.
+                        # This allows the calling agent to forward it to the gateway.
+                        # Gateway requests use streaming sessions and receive TemplateBlockData
+                        # signals instead.
+                        is_run_based = a2a_context and a2a_context.get(
+                            "is_run_based_session", False
+                        )
+                        if is_run_based and llm_response.partial:
+                            processed_parts.append(
+                                adk_types.Part(text=original_template_text)
+                            )
+                            log.debug(
+                                "%s Preserved template block in RUN_BASED peer response. Template ID: %s",
+                                log_identifier,
+                                template_id,
+                            )
+
+                        # Store template_id and original text in session for potential future use
+                        # (Gateway will handle the actual resolution via signals,
+                        # but peer agents need the original text in their responses)
                         if (
                             "completed_template_blocks_list" not in session.state
                             or session.state["completed_template_blocks_list"] is None
@@ -565,6 +603,7 @@ async def process_artifact_blocks_callback(
                             {
                                 "template_id": template_id,
                                 "data_artifact": data_artifact,
+                                "original_text": original_template_text,
                             }
                         )
 
@@ -677,7 +716,8 @@ async def process_artifact_blocks_callback(
                         artifact_info = ArtifactInfo(
                             filename=block_info["filename"],
                             version=block_info["version"],
-                            mime_type=block_info.get("mime_type") or "application/octet-stream",
+                            mime_type=block_info.get("mime_type")
+                            or "application/octet-stream",
                             size=block_info.get("bytes_transferred", 0),
                             description=block_info.get("description"),
                             version_count=None,  # Count not available in save context
@@ -967,26 +1007,24 @@ async def manage_large_mcp_tool_responses_callback(
     message_parts_for_llm: list[str] = []
 
     if needs_truncation_for_llm:
-        truncation_suffix = "... [Response truncated due to size limit.]"
-        adjusted_max_bytes = llm_max_bytes - len(truncation_suffix.encode("utf-8"))
-        if adjusted_max_bytes < 0:
-            adjusted_max_bytes = 0
-
-        truncated_bytes = serialized_original_response_str.encode("utf-8")[
-            :adjusted_max_bytes
-        ]
-        truncated_preview_str = (
-            truncated_bytes.decode("utf-8", "ignore") + truncation_suffix
-        )
-
+        # ALL-OR-NOTHING APPROACH: Do not include truncated data to prevent LLM hallucination.
+        # When LLMs receive partial data, they tend to confidently fill in gaps with
+        # hallucinated information. By withholding partial data entirely, we force the LLM
+        # to use reliable mechanisms (template_liquid, load_artifact) to access the full data.
         final_llm_response_dict["mcp_tool_output"] = {
-            "type": "truncated_json_string",
-            "content": truncated_preview_str,
+            "type": "data_in_artifact_only",
+            "message": "Data exceeds size limit. Full data saved as artifact - use template_liquid, load_artifact or other artifact analysis tools to process and access.",
         }
         message_parts_for_llm.append(
-            f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) for direct display and has been truncated."
+            f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) to display directly. "
+            "The data has NOT been included here to prevent incomplete information. "
+            "You MUST use template_liquid (for displaying to users) or load_artifact or other "
+            "artifact analysis tools (for processing) to access the full data."
         )
-        log.debug("%s MCP tool output truncated for LLM.", log_identifier)
+        log.debug(
+            "%s MCP tool output withheld from LLM (all-or-nothing approach).",
+            log_identifier,
+        )
 
     if needs_saving_as_artifact:
         if save_result and save_result.status in [
@@ -1003,19 +1041,27 @@ async def manage_large_mcp_tool_responses_callback(
                 filename = first_artifact.data_filename
                 version = first_artifact.data_version
                 if total_artifacts > 1:
-                    message_parts_for_llm.append(
-                        f"The full response has been saved as {total_artifacts} artifacts, starting with '{filename}' (version {version})."
-                    )
+                    artifact_msg = f"The full response has been saved as {total_artifacts} artifacts, starting with '{filename}' (version {version})."
                 else:
-                    message_parts_for_llm.append(
-                        f"The full response has been saved as artifact '{filename}' (version {version})."
+                    artifact_msg = f"The full response has been saved as artifact '{filename}' (version {version})."
+
+                # When data was too large and truncated, provide explicit guidance
+                if needs_truncation_for_llm:
+                    artifact_msg += (
+                        f' To display this data to the user, use template_liquid with data="{filename}". '
+                        f'To process the data yourself, use load_artifact("{filename}").'
                     )
+                message_parts_for_llm.append(artifact_msg)
             elif save_result.fallback_artifact:
                 filename = save_result.fallback_artifact.data_filename
                 version = save_result.fallback_artifact.data_version
-                message_parts_for_llm.append(
-                    f"The full response has been saved as artifact '{filename}' (version {version})."
-                )
+                artifact_msg = f"The full response has been saved as artifact '{filename}' (version {version})."
+                if needs_truncation_for_llm:
+                    artifact_msg += (
+                        f' To display this data to the user, use template_liquid with data="{filename}". '
+                        f'To process the data yourself, use load_artifact("{filename}").'
+                    )
+                message_parts_for_llm.append(artifact_msg)
 
             log.debug(
                 "%s Added saved artifact details to LLM response.", log_identifier
@@ -1040,16 +1086,18 @@ async def manage_large_mcp_tool_responses_callback(
         and save_result.status in [McpSaveStatus.SUCCESS, McpSaveStatus.PARTIAL_SUCCESS]
     ):
         if needs_truncation_for_llm:
-            final_llm_response_dict["status"] = "processed_saved_and_truncated"
+            # Data was too large - withheld from LLM, only available via artifact
+            final_llm_response_dict["status"] = "processed_saved_artifact_only"
         else:
             final_llm_response_dict["status"] = "processed_and_saved"
     elif needs_saving_as_artifact:
         if needs_truncation_for_llm:
-            final_llm_response_dict["status"] = "processed_truncated_save_failed"
+            final_llm_response_dict["status"] = "processed_artifact_only_save_failed"
         else:
             final_llm_response_dict["status"] = "processed_save_failed"
     elif needs_truncation_for_llm:
-        final_llm_response_dict["status"] = "processed_truncated"
+        # This case shouldn't happen (truncation implies saving), but handle it
+        final_llm_response_dict["status"] = "processed_data_withheld"
     else:
         final_llm_response_dict["status"] = "processed"
 
