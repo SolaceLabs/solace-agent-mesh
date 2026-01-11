@@ -3,6 +3,8 @@ Unit tests for LambdaExecutor behavior.
 
 Tests the execute() method behavior with mocked boto3 at the boundary.
 We verify what payload is sent to Lambda and how different responses are handled.
+
+Also tests the streaming mode with mocked httpx.
 """
 
 import json
@@ -284,7 +286,12 @@ class TestLambdaExecutorBehavior:
     async def test_execute_includes_context_when_configured(
         self, mock_tool_context
     ):
-        """When include_context=True, session context is included in payload."""
+        """When include_context=True, session context is included in payload.
+
+        Note: Only session_id and user_id are sent to Lambda. app_name is NOT
+        included because Lambda tools can't access the artifact store (artifacts
+        are pre-loaded), so app_name serves no purpose in the Lambda context.
+        """
         executor = LambdaExecutor(
             function_arn="arn:aws:lambda:us-east-1:123456789:function:test",
             include_context=True,
@@ -313,7 +320,9 @@ class TestLambdaExecutorBehavior:
         assert "context" in captured_payload
         assert captured_payload["context"]["session_id"] == "test-session-123"
         assert captured_payload["context"]["user_id"] == "test-user"
-        assert captured_payload["context"]["app_name"] == "test-app"
+        # app_name is intentionally NOT sent - Lambda tools don't need it
+        # since they can't access the artifact store (artifacts are pre-loaded)
+        assert "app_name" not in captured_payload["context"]
 
     @pytest.mark.asyncio
     async def test_execute_excludes_context_when_not_configured(
@@ -738,3 +747,355 @@ class TestExecutorBasedToolArtifactPreloading:
         assert serialized_files[0]["content"] == "Content of file1.txt"
         assert serialized_files[1]["filename"] == "file2.txt"
         assert serialized_files[2]["filename"] == "file3.txt"
+
+
+class TestLambdaExecutorStreamingMode:
+    """Test LambdaExecutor streaming mode via Function URLs."""
+
+    @pytest.fixture
+    def mock_tool_context(self):
+        """Create a mock ToolContext for tests."""
+        context = MagicMock()
+        context._invocation_context = MagicMock()
+        context._invocation_context.session_id = "test-session-123"
+        context._invocation_context.user_id = "test-user"
+        context._invocation_context.app_name = "test-app"
+        context.state = {}
+        return context
+
+    @pytest.fixture
+    def streaming_executor(self):
+        """Create a LambdaExecutor in streaming mode."""
+        return LambdaExecutor(
+            function_url="https://lambda.example.com/default",
+            include_context=False,
+            timeout_seconds=30,
+        )
+
+    def test_streaming_mode_detected_with_function_url(self):
+        """Executor with function_url should be in streaming mode."""
+        executor = LambdaExecutor(
+            function_url="https://lambda.example.com/default",
+        )
+        assert executor._is_streaming_mode is True
+        assert executor._function_url == "https://lambda.example.com/default"
+
+    def test_standard_mode_detected_with_function_arn(self):
+        """Executor with function_arn should be in standard mode."""
+        executor = LambdaExecutor(
+            function_arn="arn:aws:lambda:us-east-1:123456789:function:test",
+        )
+        assert executor._is_streaming_mode is False
+        assert executor._function_arn is not None
+
+    def test_requires_function_arn_or_url(self):
+        """Executor requires either function_arn or function_url."""
+        with pytest.raises(ValueError, match="Either function_arn or function_url"):
+            LambdaExecutor()
+
+    @pytest.mark.asyncio
+    async def test_streaming_execute_processes_ndjson_stream(
+        self, streaming_executor, mock_tool_context
+    ):
+        """Streaming mode should process NDJSON stream and return result."""
+        # Create NDJSON stream content
+        ndjson_lines = [
+            '{"type":"status","payload":{"message":"Starting..."},"timestamp":1704067200.0}',
+            '{"type":"status","payload":{"message":"Processing..."},"timestamp":1704067201.0}',
+            '{"type":"result","payload":{"tool_result":{"_schema":"ToolResult","_schema_version":"1.0","status":"success","message":"Done","data":{"count":42},"data_objects":[],"error_code":null}},"timestamp":1704067202.0}',
+        ]
+
+        async def mock_aiter_lines():
+            for line in ndjson_lines:
+                yield line
+
+        # Create mock response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = mock_aiter_lines
+
+        # Create mock context manager
+        mock_stream_context = AsyncMock()
+        mock_stream_context.__aenter__.return_value = mock_response
+        mock_stream_context.__aexit__.return_value = None
+
+        # Create mock http client
+        mock_http_client = MagicMock()
+        mock_http_client.stream.return_value = mock_stream_context
+
+        streaming_executor._http_client = mock_http_client
+
+        result = await streaming_executor.execute(
+            args={"input": "test"},
+            tool_context=mock_tool_context,
+            tool_config={},
+        )
+
+        assert isinstance(result, ToolResult)
+        assert result.status == "success"
+        assert result.message == "Done"
+        assert result.data == {"count": 42}
+
+    @pytest.mark.asyncio
+    async def test_streaming_execute_forwards_status_updates(
+        self, streaming_executor, mock_tool_context
+    ):
+        """Streaming mode should forward status updates to ToolContextFacade."""
+        ndjson_lines = [
+            '{"type":"status","payload":{"message":"Loading..."},"timestamp":1704067200.0}',
+            '{"type":"status","payload":{"message":"Processing..."},"timestamp":1704067201.0}',
+            '{"type":"result","payload":{"tool_result":{"_schema":"ToolResult","_schema_version":"1.0","status":"success","message":"Done","data":{},"data_objects":[],"error_code":null}},"timestamp":1704067202.0}',
+        ]
+
+        async def mock_aiter_lines():
+            for line in ndjson_lines:
+                yield line
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = mock_aiter_lines
+
+        mock_stream_context = AsyncMock()
+        mock_stream_context.__aenter__.return_value = mock_response
+        mock_stream_context.__aexit__.return_value = None
+
+        mock_http_client = MagicMock()
+        mock_http_client.stream.return_value = mock_stream_context
+
+        streaming_executor._http_client = mock_http_client
+
+        # Track status updates
+        status_messages = []
+        mock_facade = MagicMock()
+        mock_facade.send_status.side_effect = lambda msg: status_messages.append(msg)
+
+        with patch.object(
+            streaming_executor,
+            "_get_tool_context_facade",
+            return_value=mock_facade,
+        ):
+            await streaming_executor.execute(
+                args={"input": "test"},
+                tool_context=mock_tool_context,
+                tool_config={},
+            )
+
+        assert status_messages == ["Loading...", "Processing..."]
+
+    @pytest.mark.asyncio
+    async def test_streaming_execute_handles_error_message(
+        self, streaming_executor, mock_tool_context
+    ):
+        """Streaming mode should handle error messages in stream."""
+        ndjson_lines = [
+            '{"type":"status","payload":{"message":"Starting..."},"timestamp":1704067200.0}',
+            '{"type":"error","payload":{"error":"Something went wrong","error_code":"PROCESSING_ERROR"},"timestamp":1704067201.0}',
+        ]
+
+        async def mock_aiter_lines():
+            for line in ndjson_lines:
+                yield line
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = mock_aiter_lines
+
+        mock_stream_context = AsyncMock()
+        mock_stream_context.__aenter__.return_value = mock_response
+        mock_stream_context.__aexit__.return_value = None
+
+        mock_http_client = MagicMock()
+        mock_http_client.stream.return_value = mock_stream_context
+
+        streaming_executor._http_client = mock_http_client
+
+        result = await streaming_executor.execute(
+            args={"input": "test"},
+            tool_context=mock_tool_context,
+            tool_config={},
+        )
+
+        assert isinstance(result, ToolExecutionResult)
+        assert result.success is False
+        assert "Something went wrong" in result.error
+        assert result.error_code == "PROCESSING_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_streaming_execute_handles_http_error(
+        self, streaming_executor, mock_tool_context
+    ):
+        """Streaming mode should handle HTTP errors."""
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+
+        async def mock_aread():
+            return b"Internal Server Error"
+
+        mock_response.aread = mock_aread
+
+        mock_stream_context = AsyncMock()
+        mock_stream_context.__aenter__.return_value = mock_response
+        mock_stream_context.__aexit__.return_value = None
+
+        mock_http_client = MagicMock()
+        mock_http_client.stream.return_value = mock_stream_context
+
+        streaming_executor._http_client = mock_http_client
+
+        result = await streaming_executor.execute(
+            args={"input": "test"},
+            tool_context=mock_tool_context,
+            tool_config={},
+        )
+
+        assert isinstance(result, ToolExecutionResult)
+        assert result.success is False
+        assert "HTTP 500" in result.error
+        assert result.error_code == "HTTP_500"
+
+    @pytest.mark.asyncio
+    async def test_streaming_execute_handles_no_result(
+        self, streaming_executor, mock_tool_context
+    ):
+        """Streaming mode should handle stream with no result message."""
+        ndjson_lines = [
+            '{"type":"status","payload":{"message":"Starting..."},"timestamp":1704067200.0}',
+            '{"type":"heartbeat","payload":{},"timestamp":1704067201.0}',
+            # No result message
+        ]
+
+        async def mock_aiter_lines():
+            for line in ndjson_lines:
+                yield line
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = mock_aiter_lines
+
+        mock_stream_context = AsyncMock()
+        mock_stream_context.__aenter__.return_value = mock_response
+        mock_stream_context.__aexit__.return_value = None
+
+        mock_http_client = MagicMock()
+        mock_http_client.stream.return_value = mock_stream_context
+
+        streaming_executor._http_client = mock_http_client
+
+        result = await streaming_executor.execute(
+            args={"input": "test"},
+            tool_context=mock_tool_context,
+            tool_config={},
+        )
+
+        assert isinstance(result, ToolExecutionResult)
+        assert result.success is False
+        assert result.error_code == "NO_RESULT"
+
+    @pytest.mark.asyncio
+    async def test_streaming_execute_fails_when_not_initialized(
+        self, mock_tool_context
+    ):
+        """Streaming mode should fail when HTTP client is not initialized."""
+        executor = LambdaExecutor(
+            function_url="https://lambda.example.com/default",
+        )
+        # _http_client is None by default
+
+        result = await executor.execute(
+            args={"input": "test"},
+            tool_context=mock_tool_context,
+            tool_config={},
+        )
+
+        assert isinstance(result, ToolExecutionResult)
+        assert result.success is False
+        assert result.error_code == "NOT_INITIALIZED"
+
+    @pytest.mark.asyncio
+    async def test_streaming_execute_appends_invoke_path(
+        self, streaming_executor, mock_tool_context
+    ):
+        """Streaming mode should append /invoke to URL if not present."""
+        ndjson_lines = [
+            '{"type":"result","payload":{"tool_result":{"_schema":"ToolResult","_schema_version":"1.0","status":"success","message":"Done","data":{},"data_objects":[],"error_code":null}},"timestamp":1704067202.0}',
+        ]
+
+        async def mock_aiter_lines():
+            for line in ndjson_lines:
+                yield line
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = mock_aiter_lines
+
+        mock_stream_context = AsyncMock()
+        mock_stream_context.__aenter__.return_value = mock_response
+        mock_stream_context.__aexit__.return_value = None
+
+        captured_url = None
+
+        def capture_stream(method, url, **kwargs):
+            nonlocal captured_url
+            captured_url = url
+            return mock_stream_context
+
+        mock_http_client = MagicMock()
+        mock_http_client.stream.side_effect = capture_stream
+
+        streaming_executor._http_client = mock_http_client
+
+        await streaming_executor.execute(
+            args={"input": "test"},
+            tool_context=mock_tool_context,
+            tool_config={},
+        )
+
+        assert captured_url == "https://lambda.example.com/default/invoke"
+
+    @pytest.mark.asyncio
+    async def test_streaming_execute_skips_status_forwarding_when_disabled(
+        self, mock_tool_context
+    ):
+        """When stream_status=False, status updates should not be forwarded."""
+        executor = LambdaExecutor(
+            function_url="https://lambda.example.com/default",
+            stream_status=False,
+        )
+
+        ndjson_lines = [
+            '{"type":"status","payload":{"message":"Loading..."},"timestamp":1704067200.0}',
+            '{"type":"result","payload":{"tool_result":{"_schema":"ToolResult","_schema_version":"1.0","status":"success","message":"Done","data":{},"data_objects":[],"error_code":null}},"timestamp":1704067202.0}',
+        ]
+
+        async def mock_aiter_lines():
+            for line in ndjson_lines:
+                yield line
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = mock_aiter_lines
+
+        mock_stream_context = AsyncMock()
+        mock_stream_context.__aenter__.return_value = mock_response
+        mock_stream_context.__aexit__.return_value = None
+
+        mock_http_client = MagicMock()
+        mock_http_client.stream.return_value = mock_stream_context
+
+        executor._http_client = mock_http_client
+
+        mock_facade = MagicMock()
+
+        with patch.object(
+            executor,
+            "_get_tool_context_facade",
+            return_value=mock_facade,
+        ):
+            await executor.execute(
+                args={"input": "test"},
+                tool_context=mock_tool_context,
+                tool_config={},
+            )
+
+        # send_status should not have been called
+        mock_facade.send_status.assert_not_called()

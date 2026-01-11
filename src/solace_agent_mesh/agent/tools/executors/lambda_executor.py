@@ -2,7 +2,49 @@
 AWS Lambda executor for running tool functions as serverless functions.
 
 This executor invokes AWS Lambda functions and handles the serialization
-of arguments and deserialization of results.
+of arguments and deserialization of results. It supports two invocation modes
+to accommodate different deployment complexity and feature requirements.
+
+=============================================================================
+WHY TWO MODES?
+=============================================================================
+
+We support both standard and streaming modes because they have different
+deployment requirements and trade-offs:
+
+STANDARD MODE (function_arn via boto3):
+  - Deployment: Simple .zip upload or container image
+  - Handler: Regular Python function (def handler(event, context))
+  - Auth: IAM-based authentication
+  - Features: No real-time status updates
+  - Use when: Quick tools that don't need progress feedback, simpler deployment
+
+STREAMING MODE (function_url via HTTP):
+  - Deployment: Requires Lambda Web Adapter (LWA) - either as Layer (.zip) or
+    in container image. Container images are recommended for easier packaging.
+  - Handler: FastAPI app running via uvicorn (using sam-lambda-tools package)
+  - Auth: Function URL authentication (IAM or NONE)
+  - Features: Real-time NDJSON status updates, unified experience with local tools
+  - Use when: Long-running tools that benefit from progress feedback
+
+For streaming mode deployment, see the sam-lambda-tools package documentation.
+Lambda Web Adapter layer ARN: arn:aws:lambda:<region>:753240598075:layer:LambdaAdapterLayerX86:24
+
+TODO: Add comprehensive deployment guide to documentation covering both modes.
+=============================================================================
+
+Mode Details:
+
+1. Standard Invocation (via boto3):
+   - Uses function_arn to invoke via AWS SDK
+   - Synchronous request-response pattern
+   - No streaming support
+
+2. Streaming Invocation (via Function URL):
+   - Uses function_url to invoke via HTTP POST
+   - Streams NDJSON status updates in real-time
+   - Requires Lambda Web Adapter (LWA) on the Lambda side
+   - Status updates are forwarded to ToolContextFacade
 """
 
 import asyncio
@@ -20,6 +62,7 @@ from ..tool_result import ToolResult
 
 if TYPE_CHECKING:
     from ...sac.component import SamAgentComponent
+    from ...utils.tool_context_facade import ToolContextFacade
 
 log = logging.getLogger(__name__)
 
@@ -79,15 +122,23 @@ class LambdaExecutor(ToolExecutor):
     Executor that invokes AWS Lambda functions.
 
     This executor serializes tool arguments to JSON, invokes a Lambda function,
-    and deserializes the response. It supports passing context information
-    to the Lambda function.
+    and deserializes the response. It supports two invocation modes:
+
+    1. **Standard Mode** (function_arn): Uses boto3 to invoke Lambda directly.
+       Synchronous request-response, no streaming.
+
+    2. **Streaming Mode** (function_url): Uses HTTP POST to Lambda Function URL.
+       Supports real-time status updates via NDJSON streaming. Requires Lambda
+       Web Adapter (LWA) on the Lambda side with sam-lambda-tools package.
 
     Configuration:
-        function_arn: The ARN of the Lambda function to invoke
+        function_arn: The ARN of the Lambda function (for standard mode)
+        function_url: Lambda Function URL (for streaming mode, takes precedence)
         region: AWS region (optional, uses default if not specified)
-        invocation_type: "RequestResponse" (sync) or "Event" (async)
+        invocation_type: "RequestResponse" (sync) or "Event" (async) - standard mode only
         include_context: Whether to include session context in the payload
         timeout_seconds: Client-side timeout for the invocation
+        stream_status: Whether to forward status updates (streaming mode only, default True)
 
     Lambda Payload Format:
         {
@@ -99,7 +150,11 @@ class LambdaExecutor(ToolExecutor):
             "tool_config": { ... }
         }
 
-    Expected Lambda Response Format:
+    Streaming Response Format (NDJSON):
+        {"type":"status","payload":{"message":"Processing..."},"timestamp":1704067200.0}
+        {"type":"result","payload":{"tool_result":{...}},"timestamp":1704067201.0}
+
+    Standard Response Format:
         {
             "success": true/false,
             "data": { ... result data ... },
@@ -110,74 +165,107 @@ class LambdaExecutor(ToolExecutor):
 
     def __init__(
         self,
-        function_arn: str,
+        function_arn: Optional[str] = None,
+        function_url: Optional[str] = None,
         region: Optional[str] = None,
         invocation_type: str = "RequestResponse",
         include_context: bool = True,
         timeout_seconds: int = 60,
+        stream_status: bool = True,
     ):
         """
         Initialize the Lambda executor.
 
         Args:
-            function_arn: ARN of the Lambda function
+            function_arn: ARN of the Lambda function (standard mode)
+            function_url: Lambda Function URL (streaming mode, takes precedence)
             region: AWS region (optional)
-            invocation_type: Lambda invocation type
+            invocation_type: Lambda invocation type (standard mode only)
             include_context: Whether to include context in payload
             timeout_seconds: Client-side timeout
+            stream_status: Whether to forward status updates (streaming mode)
         """
+        if not function_arn and not function_url:
+            raise ValueError("Either function_arn or function_url must be provided")
+
         self._function_arn = function_arn
+        self._function_url = function_url
         self._region = region
         self._invocation_type = invocation_type
         self._include_context = include_context
         self._timeout_seconds = timeout_seconds
-        self._client = None
+        self._stream_status = stream_status
+        self._client = None  # boto3 client for standard mode
+        self._http_client = None  # httpx client for streaming mode
 
     @property
     def executor_type(self) -> str:
         return "lambda"
+
+    @property
+    def _is_streaming_mode(self) -> bool:
+        """Check if executor is configured for streaming mode."""
+        return self._function_url is not None
+
+    @property
+    def _log_identifier(self) -> str:
+        """Get a log identifier for this executor."""
+        if self._function_url:
+            return f"[LambdaExecutor:streaming:{self._function_url[:50]}]"
+        return f"[LambdaExecutor:{self._function_arn}]"
 
     async def initialize(
         self,
         component: "SamAgentComponent",
         executor_config: Dict[str, Any],
     ) -> None:
-        """Initialize the Lambda client."""
-        log_id = f"[LambdaExecutor:{self._function_arn}]"
+        """Initialize the Lambda client (boto3 or httpx depending on mode)."""
+        log_id = self._log_identifier
 
         try:
-            # Create Lambda client
-            client_kwargs = {}
-            if self._region:
-                client_kwargs["region_name"] = self._region
+            if self._is_streaming_mode:
+                # Streaming mode: use httpx for HTTP streaming
+                import httpx
 
-            self._client = boto3.client("lambda", **client_kwargs)
+                self._http_client = httpx.AsyncClient(
+                    timeout=httpx.Timeout(
+                        connect=10.0,
+                        read=self._timeout_seconds,
+                        write=30.0,
+                        pool=5.0,
+                    )
+                )
+                log.info(
+                    "%s Initialized in streaming mode (timeout=%ds)",
+                    log_id,
+                    self._timeout_seconds,
+                )
+            else:
+                # Standard mode: use boto3
+                client_kwargs = {}
+                if self._region:
+                    client_kwargs["region_name"] = self._region
 
-            log.info(
-                "%s Initialized (region=%s, invocation_type=%s)",
-                log_id,
-                self._region or "default",
-                self._invocation_type,
-            )
+                self._client = boto3.client("lambda", **client_kwargs)
+                log.info(
+                    "%s Initialized in standard mode (region=%s, invocation_type=%s)",
+                    log_id,
+                    self._region or "default",
+                    self._invocation_type,
+                )
 
         except Exception as e:
             log.error("%s Failed to initialize Lambda client: %s", log_id, e)
             raise
 
-    async def execute(
+    def _build_payload(
         self,
         args: Dict[str, Any],
         tool_context: ToolContext,
         tool_config: Dict[str, Any],
-    ) -> ToolExecutionResult:
-        """Invoke the Lambda function."""
-        log_id = f"[LambdaExecutor:{self._function_arn}]"
-
-        if self._client is None:
-            return ToolExecutionResult.fail(
-                error="Lambda client not initialized. Call initialize() first.",
-                error_code="NOT_INITIALIZED",
-            )
+    ) -> Dict[str, Any]:
+        """Build the payload for Lambda invocation."""
+        log_id = self._log_identifier
 
         # Serialize args (handles Artifact objects with binary content)
         serialized_args = _serialize_args_for_lambda(args)
@@ -204,6 +292,191 @@ class LambdaExecutor(ToolExecutor):
                     log_id,
                     ctx_err,
                 )
+
+        return payload
+
+    def _get_tool_context_facade(
+        self,
+        tool_context: ToolContext,
+        tool_config: Dict[str, Any],
+    ) -> Optional["ToolContextFacade"]:
+        """Get a ToolContextFacade for forwarding status updates."""
+        try:
+            from ...utils.tool_context_facade import ToolContextFacade
+
+            return ToolContextFacade(tool_context, tool_config)
+        except Exception as e:
+            log.debug(
+                "%s Could not create ToolContextFacade: %s",
+                self._log_identifier,
+                e,
+            )
+            return None
+
+    async def execute(
+        self,
+        args: Dict[str, Any],
+        tool_context: ToolContext,
+        tool_config: Dict[str, Any],
+    ) -> ToolExecutionResult:
+        """Invoke the Lambda function (streaming or standard mode)."""
+        if self._is_streaming_mode:
+            return await self._execute_streaming(args, tool_context, tool_config)
+        else:
+            return await self._execute_standard(args, tool_context, tool_config)
+
+    async def _execute_streaming(
+        self,
+        args: Dict[str, Any],
+        tool_context: ToolContext,
+        tool_config: Dict[str, Any],
+    ) -> ToolExecutionResult:
+        """Execute via Lambda Function URL with NDJSON streaming."""
+        import httpx
+
+        log_id = self._log_identifier
+
+        if self._http_client is None:
+            return ToolExecutionResult.fail(
+                error="HTTP client not initialized. Call initialize() first.",
+                error_code="NOT_INITIALIZED",
+            )
+
+        # Get ToolContextFacade for status forwarding
+        ctx_facade = self._get_tool_context_facade(tool_context, tool_config)
+
+        # Build payload
+        payload = self._build_payload(args, tool_context, tool_config)
+
+        # Construct URL (append /invoke if not present)
+        url = self._function_url
+        if not url.endswith("/invoke"):
+            url = url.rstrip("/") + "/invoke"
+
+        log.debug("%s Invoking Lambda via Function URL: %s", log_id, url)
+
+        try:
+            async with self._http_client.stream(
+                "POST",
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            ) as response:
+                if response.status_code >= 400:
+                    error_body = await response.aread()
+                    log.error(
+                        "%s HTTP error %d: %s",
+                        log_id,
+                        response.status_code,
+                        error_body.decode("utf-8", errors="replace")[:500],
+                    )
+                    return ToolExecutionResult.fail(
+                        error=f"Lambda returned HTTP {response.status_code}",
+                        error_code=f"HTTP_{response.status_code}",
+                    )
+
+                # Process NDJSON stream
+                final_result = None
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
+
+                    try:
+                        msg = json.loads(line)
+                    except json.JSONDecodeError as e:
+                        log.warning("%s Invalid JSON in stream: %s", log_id, e)
+                        continue
+
+                    msg_type = msg.get("type")
+                    msg_payload = msg.get("payload", {})
+
+                    if msg_type == "status":
+                        # Forward status to ToolContextFacade
+                        status_msg = msg_payload.get("message", "")
+                        if status_msg and self._stream_status and ctx_facade:
+                            ctx_facade.send_status(status_msg)
+                        log.debug("%s Status: %s", log_id, status_msg)
+
+                    elif msg_type == "heartbeat":
+                        # Heartbeat - just log at debug level
+                        log.debug("%s Heartbeat received", log_id)
+
+                    elif msg_type == "result":
+                        # Final result
+                        tool_result = msg_payload.get("tool_result", {})
+                        log.debug("%s Result received", log_id)
+
+                        # Deserialize ToolResult
+                        if ToolResult.is_serialized_tool_result(tool_result):
+                            try:
+                                final_result = ToolResult.from_serialized(tool_result)
+                            except Exception as e:
+                                log.warning(
+                                    "%s Failed to deserialize ToolResult: %s",
+                                    log_id,
+                                    e,
+                                )
+                                final_result = ToolExecutionResult.ok(data=tool_result)
+                        else:
+                            # Wrap raw result
+                            final_result = ToolExecutionResult.ok(data=tool_result)
+
+                    elif msg_type == "error":
+                        # Error from Lambda
+                        error_msg = msg_payload.get("error", "Unknown error")
+                        error_code = msg_payload.get("error_code", "LAMBDA_ERROR")
+                        log.error("%s Stream error: %s", log_id, error_msg)
+                        return ToolExecutionResult.fail(
+                            error=error_msg,
+                            error_code=error_code,
+                        )
+
+                # Return final result or error if none received
+                if final_result is None:
+                    log.error("%s No result message received in stream", log_id)
+                    return ToolExecutionResult.fail(
+                        error="No result received from Lambda stream",
+                        error_code="NO_RESULT",
+                    )
+
+                return final_result
+
+        except httpx.TimeoutException as e:
+            log.error("%s Request timeout: %s", log_id, e)
+            return ToolExecutionResult.fail(
+                error=f"Lambda request timed out after {self._timeout_seconds}s",
+                error_code="TIMEOUT",
+            )
+        except httpx.HTTPError as e:
+            log.error("%s HTTP error: %s", log_id, e)
+            return ToolExecutionResult.fail(
+                error=f"HTTP error: {str(e)}",
+                error_code="HTTP_ERROR",
+            )
+        except Exception as e:
+            log.exception("%s Unexpected error: %s", log_id, e)
+            return ToolExecutionResult.fail(
+                error=f"Unexpected error: {str(e)}",
+                error_code="UNEXPECTED_ERROR",
+            )
+
+    async def _execute_standard(
+        self,
+        args: Dict[str, Any],
+        tool_context: ToolContext,
+        tool_config: Dict[str, Any],
+    ) -> ToolExecutionResult:
+        """Execute via boto3 Lambda invoke (standard mode)."""
+        log_id = self._log_identifier
+
+        if self._client is None:
+            return ToolExecutionResult.fail(
+                error="Lambda client not initialized. Call initialize() first.",
+                error_code="NOT_INITIALIZED",
+            )
+
+        # Build payload
+        payload = self._build_payload(args, tool_context, tool_config)
 
         try:
             log.debug("%s Invoking Lambda with args: %s", log_id, list(args.keys()))
@@ -321,6 +594,15 @@ class LambdaExecutor(ToolExecutor):
         component: "SamAgentComponent",
         executor_config: Dict[str, Any],
     ) -> None:
-        """Clean up Lambda client."""
+        """Clean up Lambda client(s)."""
+        log_id = self._log_identifier
+
+        # Clean up boto3 client
         self._client = None
-        log.debug("[LambdaExecutor:%s] Cleaned up", self._function_arn)
+
+        # Clean up httpx client
+        if self._http_client is not None:
+            await self._http_client.aclose()
+            self._http_client = None
+
+        log.debug("%s Cleaned up", log_id)

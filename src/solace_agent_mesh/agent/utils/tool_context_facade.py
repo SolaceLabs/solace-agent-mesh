@@ -5,6 +5,10 @@ The ToolContextFacade hides all the boilerplate of extracting session info,
 accessing the artifact service, managing context, and sending status updates
 from the raw ADK ToolContext.
 
+This class extends ToolContextBase from the shared agent_tools package,
+allowing tools to be written against the abstract interface and work in
+both SAM and Lambda execution environments.
+
 Example usage:
     from solace_agent_mesh.agent.utils import ToolContextFacade
     from solace_agent_mesh.agent.tools import ToolResult, DataObject
@@ -28,12 +32,21 @@ Example usage:
             "Done",
             data_objects=[DataObject(name="output.json", content=result)]
         )
+
+    # For portable tools, type-hint with ToolContextBase:
+    from agent_tools import ToolContextBase
+
+    async def portable_tool(data: str, ctx: ToolContextBase) -> ToolResult:
+        ctx.send_status("Working...")  # Works in SAM and Lambda
+        return ToolResult.ok("Done")
 """
 
 import logging
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 
 from google.adk.tools import ToolContext
+
+from agent_tools import ToolContextBase
 
 from .artifact_helpers import load_artifact_content_or_metadata
 from .context_helpers import get_original_session_id
@@ -45,7 +58,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-class ToolContextFacade:
+class ToolContextFacade(ToolContextBase):
     """
     A simplified interface for tool authors to access context, artifacts, and status updates.
 
