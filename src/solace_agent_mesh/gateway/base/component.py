@@ -22,6 +22,7 @@ from ...common.services.identity_service import (
     create_identity_service,
 )
 from .task_context import TaskContextManager
+from .auth_interface import AuthHandler
 from ...common.a2a.types import ContentPart
 from ...common.utils.rbac_utils import validate_agent_access
 from a2a.types import (
@@ -191,9 +192,64 @@ class BaseGatewayComponent(SamComponentBase):
             self.log_identifier,
         )
 
+        # Authentication handler (optional, enterprise feature)
+        self.auth_handler: Optional[AuthHandler] = None
+
+        # Setup authentication if enabled (subclasses override _setup_auth)
+        self._setup_auth()
+
         log.info(
             "%s Initialized Base Gateway Component.", self.log_identifier
         )
+
+    def _setup_auth(self) -> None:
+        """
+        Setup authentication handler if enabled.
+
+        This method is called during initialization and can be overridden
+        by subclasses to customize auth setup. The default implementation
+        does nothing - subclasses should override to enable auth.
+
+        Example override in subclass:
+            def _setup_auth(self):
+                if self.get_config('enable_auth', False):
+                    from enterprise.auth import SAMOAuth2Handler
+                    self.auth_handler = SAMOAuth2Handler(self.config)
+        """
+        # Base implementation: no auth
+        # Subclasses (like GenericGateway) override to enable auth
+        pass
+
+    async def _inject_auth_headers(self, headers: Dict[str, str]) -> Dict[str, str]:
+        """
+        Inject authentication headers if authenticated.
+
+        This helper method should be called before making outgoing HTTP requests
+        to add authentication headers (e.g., Bearer tokens) to the request.
+
+        Args:
+            headers: Existing headers dictionary
+
+        Returns:
+            Headers dictionary with auth headers added (if authenticated)
+
+        Example:
+            headers = {"Content-Type": "application/json"}
+            headers = await self._inject_auth_headers(headers)
+            # headers now includes Authorization if authenticated
+        """
+        if self.auth_handler:
+            try:
+                auth_headers = await self.auth_handler.get_auth_headers()
+                headers.update(auth_headers)
+            except Exception as e:
+                log.warning(
+                    "%s Failed to get auth headers: %s",
+                    self.log_identifier,
+                    e
+                )
+
+        return headers
 
     async def authenticate_and_enrich_user(
         self, external_event_data: Any
@@ -346,6 +402,15 @@ class BaseGatewayComponent(SamComponentBase):
             "system_purpose": system_purpose,
             "response_format": response_format,
         }
+
+        # Add session behavior if provided by adapter
+        session_behavior = external_request_context.get("session_behavior")
+        if session_behavior:
+            a2a_metadata["sessionBehavior"] = session_behavior
+            log.debug(
+                "%s Setting sessionBehavior to: %s", log_id_prefix, session_behavior
+            )
+
         invoked_artifacts = external_request_context.get("invoked_with_artifacts")
         if invoked_artifacts:
             a2a_metadata["invoked_with_artifacts"] = invoked_artifacts
@@ -823,6 +888,123 @@ class BaseGatewayComponent(SamComponentBase):
                         log.exception(
                             "%s Error sending artifact creation completion signal: %s", log_id_prefix, e
                         )
+                elif signal_type == "SIGNAL_DEEP_RESEARCH_REPORT":
+                    # Handle deep research report signal for legacy gateways
+                    # For legacy gateways, we send the report as a file attachment
+                    if is_finalizing_context:
+                        log.debug(
+                            "%s Suppressing SIGNAL_DEEP_RESEARCH_REPORT during finalizing context to avoid duplicate: %s",
+                            log_id_prefix,
+                            signal_data,
+                        )
+                        continue
+
+                    try:
+                        filename = signal_data.get("filename")
+                        version = signal_data.get("version")
+
+                        if not filename:
+                            log.error(
+                                "%s SIGNAL_DEEP_RESEARCH_REPORT missing filename. Skipping.",
+                                log_id_prefix,
+                            )
+                            continue
+
+                        # Load artifact content for legacy gateways
+                        artifact_data = await load_artifact_content_or_metadata(
+                            self.shared_artifact_service,
+                            app_name=external_request_context.get(
+                                "app_name_for_artifacts", self.gateway_id
+                            ),
+                            user_id=external_request_context.get("user_id_for_artifacts"),
+                            session_id=external_request_context.get("a2a_session_id"),
+                            filename=filename,
+                            version=version,
+                            load_metadata_only=False,
+                        )
+
+                        if artifact_data.get("status") != "success":
+                            log.error(
+                                "%s Failed to load deep research report content for %s v%s",
+                                log_id_prefix,
+                                filename,
+                                version,
+                            )
+                            continue
+
+                        content = artifact_data.get("content")
+                        if not content:
+                            log.error(
+                                "%s No content found in deep research report %s v%s",
+                                log_id_prefix,
+                                filename,
+                                version,
+                            )
+                            continue
+
+                        # Convert to bytes if it's a string
+                        if isinstance(content, str):
+                            content_bytes = content.encode("utf-8")
+                        elif isinstance(content, bytes):
+                            content_bytes = content
+                        else:
+                            log.error(
+                                "%s Deep research report content is neither string nor bytes: %s",
+                                log_id_prefix,
+                                type(content),
+                            )
+                            continue
+
+                        # Create FilePart with bytes for legacy gateway to upload
+                        file_part = a2a.create_file_part_from_bytes(
+                            content_bytes=content_bytes,
+                            name=filename,
+                            mime_type=artifact_data.get("metadata", {}).get(
+                                "mime_type", "text/markdown"
+                            ),
+                        )
+
+                        # Create artifact with the file part
+                        from a2a.types import Artifact, Part
+                        artifact = Artifact(
+                            artifact_id=str(uuid.uuid4().hex),
+                            parts=[Part(root=file_part)],
+                            name=filename,
+                            description=f"Deep Research Report: {filename}",
+                        )
+
+                        # Send as TaskArtifactUpdateEvent
+                        a2a_task_id_for_signal = external_request_context.get(
+                            "a2a_task_id_for_event", original_rpc_id
+                        )
+
+                        if not a2a_task_id_for_signal:
+                            log.error(
+                                "%s Cannot determine A2A task ID for deep research report signal. Skipping.",
+                                log_id_prefix,
+                            )
+                            continue
+
+                        artifact_event = a2a.create_artifact_update(
+                            task_id=a2a_task_id_for_signal,
+                            context_id=external_request_context.get("a2a_session_id"),
+                            artifact=artifact,
+                        )
+
+                        await self._send_update_to_external(
+                            external_request_context=external_request_context,
+                            event_data=artifact_event,
+                            is_final_chunk_of_update=False,
+                        )
+                        log.info(
+                            "%s Sent deep research report as TaskArtifactUpdateEvent for %s",
+                            log_id_prefix,
+                            filename,
+                        )
+                    except Exception as e:
+                        log.exception(
+                            "%s Error sending deep research report signal: %s", log_id_prefix, e
+                        )
                 else:
                     log.warning(
                         "%s Received unhandled signal type during embed resolution: %s",
@@ -1221,6 +1403,69 @@ class BaseGatewayComponent(SamComponentBase):
                                         new_parts.append(
                                             a2a.create_text_part(
                                                 f"[Error: Could not retrieve artifact '{signal_data.get('filename')}'.]"
+                                            )
+                                        )
+                                else:
+                                    # Legacy gateway mode: pass signal through for gateway to handle
+                                    other_signals.append(signal_tuple)
+                            elif signal_type == "SIGNAL_DEEP_RESEARCH_REPORT":
+                                # Deep research reports should be rendered by the frontend component
+                                # For modern gateways (HTTP SSE), create a DataPart with artifact reference
+                                # For legacy gateways, pass through as signal
+                                if self.supports_inline_artifact_resolution:
+                                    try:
+                                        filename = signal_data["filename"]
+                                        version = signal_data["version"]
+                                        log.info(
+                                            "%s Converting SIGNAL_DEEP_RESEARCH_REPORT to DataPart for frontend rendering: %s v%s",
+                                            log_id_prefix,
+                                            filename,
+                                            version,
+                                        )
+                                        # Create a DataPart that the frontend can use to render DeepResearchReportBubble
+                                        # The frontend will fetch the artifact content separately
+                                        artifact_data = (
+                                            await load_artifact_content_or_metadata(
+                                                self.shared_artifact_service,
+                                                **embed_eval_context["session_context"],
+                                                filename=filename,
+                                                version=version,
+                                                load_metadata_only=True,
+                                            )
+                                        )
+                                        if artifact_data.get("status") == "success":
+                                            uri = format_artifact_uri(
+                                                **embed_eval_context["session_context"],
+                                                filename=filename,
+                                                version=artifact_data.get("version"),
+                                            )
+                                            # Create a DataPart with deep_research_report type
+                                            # This will be rendered by DeepResearchReportBubble in the frontend
+                                            data_part = a2a.create_data_part(
+                                                data={
+                                                    "type": "deep_research_report",
+                                                    "filename": filename,
+                                                    "version": artifact_data.get("version"),
+                                                    "uri": uri,
+                                                },
+                                                metadata={"source": "deep_research_tool"},
+                                            )
+                                            new_parts.append(data_part)
+                                        else:
+                                            new_parts.append(
+                                                a2a.create_text_part(
+                                                    f"[Error: Deep research report '{filename}' v{version} not found.]"
+                                                )
+                                            )
+                                    except Exception as e:
+                                        log.exception(
+                                            "%s Error handling SIGNAL_DEEP_RESEARCH_REPORT: %s",
+                                            log_id_prefix,
+                                            e,
+                                        )
+                                        new_parts.append(
+                                            a2a.create_text_part(
+                                                f"[Error: Could not retrieve deep research report '{signal_data.get('filename')}'.]"
                                             )
                                         )
                                 else:

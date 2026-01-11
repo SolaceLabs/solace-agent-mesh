@@ -92,6 +92,16 @@ apps:
             examples:
               - "Delay for 5 seconds."
               - "Wait for 10 seconds."
+          - id: always_fail_tool
+            name: Always Fail Tool
+            description: "A tool that always fails to test error handling."
+            examples:
+              - "Invoke the always fail tool to see error handling."
+          - id: dangling_tool_call_test_tool
+            name: Dangling Tool Call Test Tool
+            description: "A tool that simulates a call that never completes."
+            examples:
+              - "Invoke the dangling tool call test tool to test timeouts."
 
       # How often (in seconds) the agent publishes its agent_card for discovery.
       agent_card_publishing: { interval_seconds: 10 }
