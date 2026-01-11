@@ -1,0 +1,364 @@
+# Lambda Executor Example Agent
+#
+# This example demonstrates how to use the Lambda executor to run tools
+# on AWS Lambda functions. It uses a test Lambda function that provides
+# several simple operations.
+#
+# Prerequisites:
+#   1. Run ./setup-lambda.sh to create the test Lambda function
+#   2. Set the SAM_LAMBDA_TEST_ARN environment variable (printed by setup script)
+#   3. Set the SAM_LAMBDA_TEST_REGION environment variable (default: ca-central-1)
+#   4. Ensure AWS credentials are available (e.g., source ~/bin/set-aws-auth)
+#
+# Usage:
+#   sam run examples/agents/lambda-executor/lambda_executor_example.yaml
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: lambda_executor_agent.log
+
+!include ../../shared_config.yaml
+
+apps:
+  - name: lambda_executor_agent_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "LambdaExecutorAgent"
+      display_name: "Lambda Executor"
+      model: *planning_model
+
+      instruction: |
+        You are an agent that demonstrates tools running on AWS Lambda. You have access
+        to several Lambda-based tools that can:
+        - Echo messages back with session context
+        - Perform basic arithmetic calculations
+        - Reverse strings
+        - Return Lambda execution information
+        - Analyze artifacts (files) - get statistics like size, hash, line count
+        - Compare multiple artifacts - find duplicates and differences
+        - Generate files - create text, JSON, or CSV files
+        - Generate multiple files at once
+
+        Use these tools to help users with their requests. Be helpful and explain
+        what you're doing when using the tools.
+
+        For artifact tools, the user must first save files using artifact management tools
+        before you can analyze or compare them. When generating files, you should save
+        the returned content using artifact management tools.
+
+      tools:
+        # Echo tool - demonstrates context passing to Lambda
+        - tool_type: executor
+          name: "lambda_echo"
+          description: |
+            Echo a message back. This tool demonstrates passing messages to a Lambda
+            function and receiving responses. It also returns session context info
+            to show how context is passed to Lambda.
+          executor: lambda
+          function_arn: ${SAM_LAMBDA_TEST_ARN}
+          region: ${SAM_LAMBDA_TEST_REGION, ca-central-1}
+          include_context: true
+          timeout_seconds: 30
+          tool_config:
+            operation: echo
+          parameters:
+            properties:
+              message:
+                type: string
+                description: The message to echo back
+            required:
+              - message
+
+        # Calculator tool - demonstrates argument handling
+        - tool_type: executor
+          name: "lambda_calculate"
+          description: |
+            Perform basic arithmetic operations (add, subtract, multiply, divide).
+            Provide two numbers and an operation to get the result.
+          executor: lambda
+          function_arn: ${SAM_LAMBDA_TEST_ARN}
+          region: ${SAM_LAMBDA_TEST_REGION, ca-central-1}
+          include_context: false
+          timeout_seconds: 30
+          tool_config:
+            operation: calculate
+          parameters:
+            properties:
+              operation:
+                type: string
+                description: "The operation to perform: add, subtract, multiply, or divide"
+              a:
+                type: number
+                description: The first number
+              b:
+                type: number
+                description: The second number
+            required:
+              - operation
+              - a
+              - b
+
+        # String reverse tool - simple string manipulation
+        - tool_type: executor
+          name: "lambda_reverse"
+          description: Reverse a string. Useful for demonstrating string manipulation in Lambda.
+          executor: lambda
+          function_arn: ${SAM_LAMBDA_TEST_ARN}
+          region: ${SAM_LAMBDA_TEST_REGION, ca-central-1}
+          include_context: false
+          timeout_seconds: 30
+          tool_config:
+            operation: reverse
+          parameters:
+            properties:
+              text:
+                type: string
+                description: The text to reverse
+            required:
+              - text
+
+        # Info tool - returns Lambda execution environment details
+        - tool_type: executor
+          name: "lambda_info"
+          description: |
+            Get information about the Lambda execution environment including
+            function name, version, memory limit, and remaining execution time.
+            Useful for debugging and understanding Lambda behavior.
+          executor: lambda
+          function_arn: ${SAM_LAMBDA_TEST_ARN}
+          region: ${SAM_LAMBDA_TEST_REGION, ca-central-1}
+          include_context: true
+          timeout_seconds: 30
+          tool_config:
+            operation: info
+          parameters:
+            properties:
+              debug_info:
+                type: string
+                description: Optional debug information to include in the request
+
+        # ============================================================
+        # Artifact Tools - demonstrate artifact handling in Lambda
+        # ============================================================
+
+        # Analyze a single artifact - demonstrates single artifact input
+        - tool_type: executor
+          name: "lambda_analyze_artifact"
+          description: |
+            Analyze a single artifact (file) and return statistics including
+            size, MD5 hash, line count, word count, and a content preview.
+            The artifact content is automatically loaded by the framework.
+          executor: lambda
+          function_arn: ${SAM_LAMBDA_TEST_ARN}
+          region: ${SAM_LAMBDA_TEST_REGION, ca-central-1}
+          include_context: false
+          timeout_seconds: 30
+          tool_config:
+            operation: analyze_artifact
+          parameters:
+            properties:
+              artifact:
+                type: artifact
+                description: The artifact (file) to analyze - provide the filename
+            required:
+              - artifact
+
+        # Compare multiple artifacts - demonstrates list of artifact inputs
+        - tool_type: executor
+          name: "lambda_compare_artifacts"
+          description: |
+            Compare multiple artifacts (files) and return comparison results
+            including total size, duplicate detection, and per-file statistics.
+            Provide a list of filenames to compare.
+          executor: lambda
+          function_arn: ${SAM_LAMBDA_TEST_ARN}
+          region: ${SAM_LAMBDA_TEST_REGION, ca-central-1}
+          include_context: false
+          timeout_seconds: 30
+          tool_config:
+            operation: compare_artifacts
+          parameters:
+            properties:
+              artifacts:
+                type: array
+                items:
+                  type: artifact
+                description: List of artifacts (files) to compare - provide filenames
+            required:
+              - artifacts
+
+        # Generate a single file - demonstrates artifact output
+        - tool_type: executor
+          name: "lambda_generate_file"
+          description: |
+            Generate a single file with specified content. Returns the file content
+            which you should save using artifact management tools.
+            Supports text, json, csv, and binary content types.
+          executor: lambda
+          function_arn: ${SAM_LAMBDA_TEST_ARN}
+          region: ${SAM_LAMBDA_TEST_REGION, ca-central-1}
+          include_context: false
+          timeout_seconds: 30
+          tool_config:
+            operation: generate_file
+          parameters:
+            properties:
+              filename:
+                type: string
+                description: Name for the generated file (e.g., "report.txt")
+              content_type:
+                type: string
+                description: "Type of content to generate: text, json, csv, or binary"
+              data:
+                type: string
+                description: Optional data to include in the file (format depends on content_type)
+            required:
+              - filename
+              - content_type
+
+        # Generate multiple files - demonstrates multiple artifact outputs
+        - tool_type: executor
+          name: "lambda_generate_files"
+          description: |
+            Generate multiple files at once. Returns a list of file contents
+            which you should save using artifact management tools.
+            Useful for batch file generation.
+          executor: lambda
+          function_arn: ${SAM_LAMBDA_TEST_ARN}
+          region: ${SAM_LAMBDA_TEST_REGION, ca-central-1}
+          include_context: false
+          timeout_seconds: 30
+          tool_config:
+            operation: generate_files
+          parameters:
+            properties:
+              prefix:
+                type: string
+                description: Filename prefix for generated files (e.g., "report" -> report_1.txt, report_2.txt)
+              count:
+                type: integer
+                description: Number of files to generate (1-10)
+              content_type:
+                type: string
+                description: "Type of content to generate: text, json, or csv"
+            required:
+              - prefix
+              - count
+
+        # Generate binary files - demonstrates binary artifact output
+        - tool_type: executor
+          name: "lambda_generate_binary"
+          description: |
+            Generate various types of binary files for testing. Can create PNG images,
+            GIF images, PDF documents, ZIP archives, or random binary data.
+            The file is automatically saved as an artifact.
+          executor: lambda
+          function_arn: ${SAM_LAMBDA_TEST_ARN}
+          region: ${SAM_LAMBDA_TEST_REGION, ca-central-1}
+          include_context: false
+          timeout_seconds: 30
+          tool_config:
+            operation: generate_binary
+          parameters:
+            properties:
+              binary_type:
+                type: string
+                description: "Type of binary file to generate: png, gif, pdf, zip, or random"
+              filename:
+                type: string
+                description: Optional custom filename for the generated file
+              size:
+                type: integer
+                description: Size in bytes for random binary data (default 1024, max 102400)
+            required:
+              - binary_type
+
+        # Add artifact management tools so the agent can save generated files
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "memory"
+        default_behavior: "PERSISTENT"
+
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: |
+          An agent that demonstrates Lambda-based tools. It can echo messages,
+          perform calculations, reverse strings, provide Lambda environment info,
+          analyze and compare files, and generate new files.
+          Use this agent to test AWS Lambda integration with SAM.
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: lambda_echo
+            name: Echo Message
+            description: "Echo a message back with session context information"
+            examples:
+              - "Echo 'Hello World'"
+              - "Send a message to Lambda"
+          - id: lambda_calculate
+            name: Calculator
+            description: "Perform arithmetic operations"
+            examples:
+              - "Calculate 5 + 3"
+              - "What is 100 divided by 4?"
+              - "Multiply 7 by 8"
+          - id: lambda_reverse
+            name: String Reverser
+            description: "Reverse a string"
+            examples:
+              - "Reverse the word 'hello'"
+              - "What is 'racecar' backwards?"
+          - id: lambda_analyze_artifact
+            name: File Analyzer
+            description: "Analyze a file and get statistics"
+            examples:
+              - "Analyze the file report.txt"
+              - "Get the hash of data.csv"
+          - id: lambda_compare_artifacts
+            name: File Comparator
+            description: "Compare multiple files"
+            examples:
+              - "Compare file1.txt and file2.txt"
+              - "Check if these files are duplicates"
+          - id: lambda_generate_file
+            name: File Generator
+            description: "Generate a file with content"
+            examples:
+              - "Generate a JSON file called config.json"
+              - "Create a CSV report"
+          - id: lambda_generate_files
+            name: Batch File Generator
+            description: "Generate multiple files at once"
+            examples:
+              - "Generate 5 text files with prefix 'log'"
+              - "Create 3 JSON data files"
+          - id: lambda_generate_binary
+            name: Binary File Generator
+            description: "Generate binary files (PNG, GIF, PDF, ZIP, or random)"
+            examples:
+              - "Generate a PNG image"
+              - "Create a PDF document"
+              - "Generate 10KB of random binary data"
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+      inter_agent_communication:
+        allow_list: ["*"]
+        request_timeout_seconds: 120
