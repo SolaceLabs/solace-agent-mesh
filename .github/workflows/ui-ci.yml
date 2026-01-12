@@ -5,14 +5,10 @@ on:
   push:
     branches:
       - "main"
-    paths:
-      - "client/webui/frontend/**"
   pull_request:
     types: [opened, synchronize]
     branches:
       - "main"
-    paths:
-      - "client/webui/frontend/**"
 
 permissions:
   contents: write
