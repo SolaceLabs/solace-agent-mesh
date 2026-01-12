@@ -110,6 +110,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead className="w-[250px]">Name</TableHead>
+                                        <TableHead className="w-[100px]">Version</TableHead>
                                         <TableHead className="w-[100px]">Status</TableHead>
                                         <TableHead>Description</TableHead>
                                     </TableRow>
@@ -118,6 +119,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
                                     {paginatedWorkflows.map(workflow => (
                                         <TableRow key={workflow.name} onClick={() => handleRowClick(workflow)} className="cursor-pointer">
                                             <TableCell className="font-medium">{workflow.displayName || workflow.name}</TableCell>
+                                            <TableCell className="text-muted-foreground">{workflow.version || "N/A"}</TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-2">
                                                     <div className="h-2 w-2 rounded-full bg-[var(--color-success-wMain)]"></div>

@@ -67,6 +67,8 @@ def get_workflow_config_json(workflow_definition: WorkflowDefinition) -> Dict[st
         config["input_schema"] = workflow_definition.input_schema
     if workflow_definition.output_schema:
         config["output_schema"] = workflow_definition.output_schema
+    if workflow_definition.version:
+        config["version"] = workflow_definition.version
 
     return config
 
@@ -376,3 +378,90 @@ Please follow these guidelines:
         )
         assert node.instruction == instruction
         assert "Be thorough" in node.instruction
+
+
+class TestWorkflowVersion:
+    """Tests for workflow version field."""
+
+    def test_workflow_default_version(self):
+        """Workflow has default version of 1.0.0 when not specified."""
+        workflow = WorkflowDefinition(
+            description="Test workflow",
+            nodes=[
+                AgentNode(id="step1", type="agent", agent_name="Agent1"),
+            ],
+            output_mapping={"result": "{{step1.output}}"},
+        )
+        assert workflow.version == "1.0.0"
+
+    def test_workflow_custom_version(self):
+        """Workflow accepts custom version."""
+        workflow = WorkflowDefinition(
+            description="Test workflow",
+            version="2.5.0",
+            nodes=[
+                AgentNode(id="step1", type="agent", agent_name="Agent1"),
+            ],
+            output_mapping={"result": "{{step1.output}}"},
+        )
+        assert workflow.version == "2.5.0"
+
+    def test_version_in_workflow_config_json(self):
+        """Version is included in workflow config JSON."""
+        workflow = WorkflowDefinition(
+            description="Test workflow",
+            version="3.0.0",
+            nodes=[
+                AgentNode(id="step1", type="agent", agent_name="Agent1"),
+            ],
+            output_mapping={"result": "{{step1.output}}"},
+        )
+
+        config = get_workflow_config_json(workflow)
+
+        assert "version" in config
+        assert config["version"] == "3.0.0"
+
+    def test_default_version_in_workflow_config_json(self):
+        """Default version is included in workflow config JSON."""
+        workflow = WorkflowDefinition(
+            description="Test workflow",
+            nodes=[
+                AgentNode(id="step1", type="agent", agent_name="Agent1"),
+            ],
+            output_mapping={"result": "{{step1.output}}"},
+        )
+
+        config = get_workflow_config_json(workflow)
+
+        assert "version" in config
+        assert config["version"] == "1.0.0"
+
+    def test_version_accepts_any_string(self):
+        """Version field accepts any string format."""
+        # Semantic versioning
+        workflow1 = WorkflowDefinition(
+            description="Test",
+            version="1.2.3",
+            nodes=[AgentNode(id="a", type="agent", agent_name="A")],
+            output_mapping={"r": "v"},
+        )
+        assert workflow1.version == "1.2.3"
+
+        # Pre-release version
+        workflow2 = WorkflowDefinition(
+            description="Test",
+            version="2.0.0-alpha.1",
+            nodes=[AgentNode(id="a", type="agent", agent_name="A")],
+            output_mapping={"r": "v"},
+        )
+        assert workflow2.version == "2.0.0-alpha.1"
+
+        # Simple version
+        workflow3 = WorkflowDefinition(
+            description="Test",
+            version="v1",
+            nodes=[AgentNode(id="a", type="agent", agent_name="A")],
+            output_mapping={"r": "v"},
+        )
+        assert workflow3.version == "v1"

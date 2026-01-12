@@ -320,6 +320,11 @@ class WorkflowDefinition(BaseModel):
 
     description: str = Field(..., description="Human-readable workflow description")
 
+    version: str = Field(
+        default="1.0.0",
+        description="User-defined version of the workflow (semantic versioning recommended)",
+    )
+
     input_schema: Optional[Dict[str, Any]] = Field(
         default=None,
         description="JSON Schema for workflow input.",

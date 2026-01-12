@@ -272,6 +272,8 @@ class WorkflowExecutorComponent(SamComponentBase):
             config["input_schema"] = self.workflow_definition.input_schema
         if self.workflow_definition.output_schema:
             config["output_schema"] = self.workflow_definition.output_schema
+        if self.workflow_definition.version:
+            config["version"] = self.workflow_definition.version
 
         return config
 
@@ -335,7 +337,7 @@ class WorkflowExecutorComponent(SamComponentBase):
             defaultOutputModes=["text"],
             skills=self.workflow_definition.skills or [],
             capabilities=capabilities,
-            version="1.0.0",
+            version=self.workflow_definition.version,
             url=f"solace:{a2a.get_agent_request_topic(self.namespace, self.workflow_name)}",
         )
 
