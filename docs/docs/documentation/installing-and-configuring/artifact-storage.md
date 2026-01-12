@@ -42,6 +42,34 @@ Contrast with session storage:
 
 For session storage configuration, see [Session Storage](./session-storage.md).
 
+### Multiple S3 Buckets for OpenAPI Connector Feature
+
+If you're using the **OpenAPI Connector feature** or deploying SAM via Kubernetes, you will need to configure **two separate S3 buckets** instead of one:
+
+| Bucket Type | Purpose | Access Requirements | Features Enabled |
+|-------------|---------|---------------------|------------------|
+| **Artifacts** | Workflow artifacts, temporary files | Fully private (authenticated read/write only) | Core workflow functionality |
+| **Connector Specs** | OpenAPI specification files | Public read, authenticated write | OpenAPI Connector feature for automatic REST API integrations |
+
+**When do you need two buckets?**
+- Deploying SAM via Kubernetes (sam-kubernetes, solace-agent-mesh-docker-quickstart, maas-cloud-agent-k8s)
+- Using the OpenAPI Connector feature for REST API integrations
+- When agents need to access connector specification files during startup
+
+**Why two separate buckets?**
+- **Different access patterns**: Agents must download connector specs at startup without authentication, but workflow artifacts must remain private
+- **Security isolation**: Keeps temporary workflow data separate from long-lived infrastructure files
+- **Critical infrastructure**: Agents cannot start without access to connector specification files
+
+**Security note on public read access:**
+
+The connector specs bucket requires public read access so agents can download OpenAPI specification files during startup without authentication. This is safe because:
+- Connector specs contain only API schemas, endpoints, and data models (no credentials)
+- Write access remains restricted to the SAM service only (using S3 access keys)
+- Never store API keys, passwords, or secrets in connector specifications
+
+For Kubernetes deployments, this configuration is handled automatically by the Helm charts. For standalone deployments, see the configuration examples below.
+
 ## Artifact Scoping
 
 Artifact scoping controls how artifacts are organized and isolated within your storage backend. This determines which components can access which artifacts.
@@ -350,6 +378,75 @@ For production deployments on AWS:
    export AWS_SECRET_ACCESS_KEY="your-secret"
    export AWS_REGION="us-west-2"
    ```
+
+#### Two-Bucket Setup for OpenAPI Connector
+
+If you're using the OpenAPI Connector feature, you need to create **two buckets**: one for artifacts (private) and one for connector specs (public read).
+
+1. **Create Both S3 Buckets:**
+   ```bash
+   # Create artifacts bucket (private)
+   aws s3 mb s3://my-artifacts-bucket --region us-west-2
+
+   # Create connector specs bucket (will configure public read next)
+   aws s3 mb s3://my-connector-specs-bucket --region us-west-2
+   ```
+
+2. **Apply Public Read Policy to Connector Specs Bucket:**
+
+   Save this policy as `connector-specs-policy.json`:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Sid": "PublicReadGetObject",
+       "Effect": "Allow",
+       "Principal": "*",
+       "Action": "s3:GetObject",
+       "Resource": "arn:aws:s3:::my-connector-specs-bucket/*"
+     }]
+   }
+   ```
+
+   Apply the policy:
+   ```bash
+   aws s3api put-bucket-policy \
+     --bucket my-connector-specs-bucket \
+     --policy file://connector-specs-policy.json
+   ```
+
+3. **Configure IAM User or Role** with required permissions for **both buckets**:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "s3:GetObject",
+           "s3:PutObject",
+           "s3:DeleteObject",
+           "s3:ListBucket"
+         ],
+         "Resource": [
+           "arn:aws:s3:::my-artifacts-bucket",
+           "arn:aws:s3:::my-artifacts-bucket/*",
+           "arn:aws:s3:::my-connector-specs-bucket",
+           "arn:aws:s3:::my-connector-specs-bucket/*"
+         ]
+       }
+     ]
+   }
+   ```
+
+**Note:** The specific configuration mechanism for specifying the second bucket varies by deployment method:
+- **Kubernetes deployments**: Use the `connectorSpecBucketName` configuration in your Helm values (see sam-kubernetes documentation)
+- **Standalone deployments**: The connector specs bucket is currently managed by the SAM platform infrastructure
+
+**Security summary:**
+- Artifacts bucket: Fully private (no public access)
+- Connector specs bucket: Public read (anonymous GetObject), authenticated write (SAM service only)
 
 ### On-Premises or Private Cloud
 
