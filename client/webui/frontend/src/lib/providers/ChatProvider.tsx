@@ -913,11 +913,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         title: string;
                                         query: string;
                                         search_type: string;
+                                        search_turn?: number;
                                         sources: Array<{
                                             url: string;
                                             title: string;
                                             favicon?: string;
                                             source_type?: string;
+                                            citationId?: string;
                                         }>;
                                         is_complete: boolean;
                                         timestamp: string;
@@ -925,9 +927,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                                     if (ragEnabled) {
                                         setRagData(prev => {
+                                            // Determine the search turn for citation IDs
+                                            // If backend provides search_turn, use it; otherwise count existing entries for this task
+                                            const searchTurn = ragInfoData.search_turn ?? prev.filter(r => r.taskId === currentTaskIdFromResult).length;
+
                                             // Convert sources to RAGSearchResult format
+                                            // Use new citation format: s{turn}r{index} (e.g., s0r0, s0r1, s1r0, s1r1)
                                             const formattedSources = (ragInfoData.sources || []).map((source, idx) => ({
-                                                citationId: `search${idx}`,
+                                                // Use backend-provided citationId if available, otherwise generate new format
+                                                citationId: source.citationId || `s${searchTurn}r${idx}`,
                                                 title: source.title || source.url,
                                                 sourceUrl: source.url,
                                                 url: source.url,
