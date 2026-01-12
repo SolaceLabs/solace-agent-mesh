@@ -311,3 +311,68 @@ class TestWorkflowConfigJson:
 
         assert len(config["nodes"]) == 4
         assert len(config["nodes"]) == len(workflow.nodes)
+
+
+class TestAgentNodeInstruction:
+    """Tests for AgentNode instruction field."""
+
+    def test_agent_node_with_instruction(self):
+        """AgentNode accepts instruction field."""
+        node = AgentNode(
+            id="analyze",
+            type="agent",
+            agent_name="DataAnalyzer",
+            instruction="Analyze this data using statistical methods.",
+        )
+        assert node.instruction == "Analyze this data using statistical methods."
+
+    def test_agent_node_instruction_optional(self):
+        """AgentNode works without instruction field."""
+        node = AgentNode(
+            id="analyze",
+            type="agent",
+            agent_name="DataAnalyzer",
+        )
+        assert node.instruction is None
+
+    def test_agent_node_with_template_instruction(self):
+        """AgentNode accepts template expressions in instruction."""
+        node = AgentNode(
+            id="process",
+            type="agent",
+            agent_name="Processor",
+            instruction="Process using context: {{workflow.input.context}}",
+        )
+        assert "{{workflow.input.context}}" in node.instruction
+
+    def test_workflow_with_instruction_parses(self):
+        """Workflow with instruction in agent node parses correctly."""
+        workflow = WorkflowDefinition(
+            description="Test workflow",
+            nodes=[
+                AgentNode(
+                    id="step1",
+                    type="agent",
+                    agent_name="Agent1",
+                    instruction="{{workflow.input.context}}",
+                ),
+            ],
+            output_mapping={"result": "{{step1.output}}"},
+        )
+        assert workflow.nodes[0].instruction == "{{workflow.input.context}}"
+
+    def test_agent_node_with_multiline_instruction(self):
+        """AgentNode accepts multiline instruction."""
+        instruction = """You are being invoked as part of a workflow.
+Please follow these guidelines:
+1. Be thorough
+2. Be concise
+3. Be accurate"""
+        node = AgentNode(
+            id="analyze",
+            type="agent",
+            agent_name="Analyzer",
+            instruction=instruction,
+        )
+        assert node.instruction == instruction
+        assert "Be thorough" in node.instruction
