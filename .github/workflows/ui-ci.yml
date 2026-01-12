@@ -242,13 +242,13 @@ jobs:
       - name: Check build status
         run: |
           if [[ "${{ needs.check-paths.outputs.should-run }}" == "false" ]]; then
-            echo "UI files not changed, skipping tests"
+            echo "UI files not changed, skipping UI build and tests"
             exit 0
           elif [[ "${{ needs.ui-build-and-test.result }}" == "success" ]]; then
-            echo "UI tests passed"
+            echo "UI build/tests passed"
             exit 0
           else
-            echo "UI tests failed"
+            echo "UI build/tests failed"
             exit 1
           fi
 
