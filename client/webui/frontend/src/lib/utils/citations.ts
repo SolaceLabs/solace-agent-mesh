@@ -47,9 +47,13 @@ export type { RAGSource, RAGSearchResult as RAGMetadata };
  * - s{turn}r{index} (e.g., "s0r0", "s1r2") -> type: "search"
  * - research{N} (e.g., "research0") -> type: "research"
  */
+// Regex patterns for parsing citation IDs
+const SEARCH_CITATION_ID_PATTERN = /^s(\d+)r(\d+)$/;
+const RESEARCH_CITATION_ID_PATTERN = /^research(\d+)$/;
+
 function parseCitationId(citationId: string): { type: "search" | "research"; sourceId: number } | null {
     // Try sTrN format first
-    const searchMatch = citationId.match(/^s(\d+)r(\d+)$/);
+    const searchMatch = citationId.match(SEARCH_CITATION_ID_PATTERN);
     if (searchMatch) {
         return {
             type: "search",
@@ -58,7 +62,7 @@ function parseCitationId(citationId: string): { type: "search" | "research"; sou
     }
 
     // Try research format
-    const researchMatch = citationId.match(/^research(\d+)$/);
+    const researchMatch = citationId.match(RESEARCH_CITATION_ID_PATTERN);
     if (researchMatch) {
         return {
             type: "research",

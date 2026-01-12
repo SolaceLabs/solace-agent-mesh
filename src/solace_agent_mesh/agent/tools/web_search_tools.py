@@ -124,14 +124,14 @@ async def web_search_google(
         valid_citation_ids = []
         
         # Log citation-to-source mapping for debugging
-        log.info("%s === CITATION TO SOURCE MAPPING (turn %d) ===", log_identifier, search_turn)
+        log.debug("%s === CITATION TO SOURCE MAPPING (turn %d) ===", log_identifier, search_turn)
         
         for i, source in enumerate(result.organic):
             citation_id = f"{citation_prefix}{i}"
             valid_citation_ids.append(citation_id)
             
-            # Log each citation mapping
-            log.info(
+            # Log each citation mapping at debug level
+            log.debug(
                 "%s Citation [[cite:%s]] -> URL: %s | Title: %s",
                 log_identifier,
                 citation_id,
@@ -159,8 +159,8 @@ async def web_search_google(
             )
             rag_sources.append(rag_source)
         
-        log.info("%s === END CITATION MAPPING ===", log_identifier)
-        log.info("%s Valid citation IDs for this search: %s", log_identifier, valid_citation_ids)
+        log.debug("%s === END CITATION MAPPING ===", log_identifier)
+        log.debug("%s Valid citation IDs for this search: %s", log_identifier, valid_citation_ids)
         
         for i, image in enumerate(result.images):
             image_citation_id = f"img{search_turn}r{i}"
