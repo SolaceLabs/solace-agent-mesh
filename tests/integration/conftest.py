@@ -997,6 +997,7 @@ def shared_solace_connector(
         },
         "artifact_service": {"type": "test_in_memory"},
         "default_user_identity": "default-user@example.com",
+        "gateway_card_publishing": {"enabled": False},
     }
 
     auth_gateway_config = {
@@ -1009,6 +1010,7 @@ def shared_solace_connector(
         },
         "artifact_service": {"type": "test_in_memory"},
         "default_user_identity": "fallback-user@example.com",
+        "gateway_card_publishing": {"enabled": False},
     }
 
     file_gateway_config = {
@@ -1019,6 +1021,7 @@ def shared_solace_connector(
             "max_file_size": 1024 * 1024,
         },
         "artifact_service": {"type": "test_in_memory"},
+        "gateway_card_publishing": {"enabled": False},
     }
 
     dispatching_gateway_config = {
@@ -1031,6 +1034,7 @@ def shared_solace_connector(
         },
         "artifact_service": {"type": "test_in_memory"},
         "default_user_identity": "default-dispatch@example.com",
+        "gateway_card_publishing": {"enabled": False},
     }
 
     app_infos = [
