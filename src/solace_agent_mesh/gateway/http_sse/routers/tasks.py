@@ -232,8 +232,11 @@ async def _inject_project_context(
                     log_prefix=log_prefix,
                 )
 
-                if inject_full_context and artifacts_copied > 0:
-                    # need to clear the pending flags even if injection fails
+                # Only clear pending flags when injecting full context WITHOUT having just copied artifacts.
+                # This means the flags were set in a previous request and are now being consumed.
+                # - New sessions: inject_full_context=True AND artifacts_copied>0 → don't clear (just set)
+                # - Existing sessions with pending flags: inject_full_context=True AND artifacts_copied=0 → clear
+                if inject_full_context and artifacts_copied == 0:
                     should_clear_pending_flags = True
 
                 # Get artifact descriptions for context injection
@@ -304,6 +307,7 @@ async def _inject_project_context(
         return message_text
     finally:
         # Clear the pending project context flags from all artifacts
+        # This only runs for existing sessions (should_clear_pending_flags=True)
         if should_clear_pending_flags and artifact_service:
             from ..utils.artifact_copy_utils import clear_pending_project_context
             try:
