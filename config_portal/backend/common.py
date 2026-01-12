@@ -19,6 +19,8 @@ INIT_DEFAULT = {
     "webui_fastapi_host": "127.0.0.1",
     "webui_fastapi_port": 8000,
     "webui_enable_embed_resolution": True,
+    "platform_api_host": "127.0.0.1",
+    "platform_api_port": 8001,
 }
 
 USE_DEFAULT_SHARED_SESSION = "use_default_shared_session"
@@ -69,6 +71,16 @@ GATEWAY_DEFAULTS = {
         "Responses should be clear, concise, and professionally toned.\n"
         "Format responses to the user in Markdown using appropriate formatting."
     ),
+}
+
+PROXY_DEFAULTS = {
+    "namespace": "${NAMESPACE}",
+    "artifact_service_type": "filesystem",
+    "artifact_service_base_path": "/tmp/samv2",
+    "artifact_service_scope": "namespace",
+    "artifact_handling_mode": "reference",
+    "discovery_interval_seconds": 5,
+    "proxied_agents": [],
 }
 
 

@@ -1,9 +1,11 @@
 import { ConfigContext, type ConfigContextValue } from "@/lib/contexts/ConfigContext";
-import React from "react";
+import { api } from "@/lib/api";
+import React, { useMemo } from "react";
 
 // Default mock values for ConfigContext
 const defaultMockConfigContext: ConfigContextValue = {
-    configServerUrl: "http://localhost:8000",
+    webuiServerUrl: "", // Empty for relative URLs (same-origin)
+    platformServerUrl: "http://localhost:8001",
     configAuthLoginUrl: "http://localhost:8000/auth/login",
     configUseAuthorization: false,
     configWelcomeMessage: "Welcome to the mock Solace Agent Mesh!",
@@ -12,6 +14,7 @@ const defaultMockConfigContext: ConfigContextValue = {
     configBotName: "Mock Bot",
     configLogoUrl: "",
     frontend_use_authorization: false,
+    platformConfigured: true,
 };
 
 interface MockConfigProviderProps {
@@ -26,10 +29,15 @@ interface MockConfigProviderProps {
  * @param props.mockValues - Optional partial ConfigContextValue to override default values
  */
 export const MockConfigProvider: React.FC<MockConfigProviderProps> = ({ children, mockValues = {} }) => {
-    const contextValue = {
-        ...defaultMockConfigContext,
-        ...mockValues,
-    };
+    const contextValue = useMemo(
+        () => ({
+            ...defaultMockConfigContext,
+            ...mockValues,
+        }),
+        [mockValues]
+    );
+
+    api.configure(contextValue.webuiServerUrl, contextValue.platformServerUrl);
 
     return <ConfigContext.Provider value={contextValue}>{children}</ConfigContext.Provider>;
 };

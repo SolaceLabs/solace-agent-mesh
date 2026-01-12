@@ -2,7 +2,7 @@
  * Modal dialog for substituting variables in prompts
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables, replaceVariables } from "@/lib/utils/promptUtils";
 import { Button } from "@/lib/components/ui";
@@ -26,6 +26,7 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({ group, onSubmit,
         return initial;
     });
     const [showError, setShowError] = useState(false);
+    const firstInputRef = useRef<HTMLTextAreaElement>(null);
 
     // Handle form submission
     const handleSubmit = (e: React.FormEvent) => {
@@ -42,6 +43,13 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({ group, onSubmit,
         const processedPrompt = replaceVariables(promptText, values);
         onSubmit(processedPrompt);
     };
+
+    // Auto-focus first input when dialog opens
+    useEffect(() => {
+        if (firstInputRef.current) {
+            firstInputRef.current.focus();
+        }
+    }, []);
 
     // Handle escape key
     useEffect(() => {
@@ -73,13 +81,14 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({ group, onSubmit,
                 <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
                     <div className="flex-1 overflow-y-auto px-6 py-4">
                         <div className="space-y-4">
-                            {variables.map(variable => (
+                            {variables.map((variable, index) => (
                                 <div key={variable}>
                                     <label htmlFor={`var-${variable}`} className="mb-1 block text-sm font-medium">
                                         {variable}
                                     </label>
                                     <textarea
                                         id={`var-${variable}`}
+                                        ref={index === 0 ? firstInputRef : null}
                                         value={values[variable]}
                                         onChange={e =>
                                             setValues(prev => ({

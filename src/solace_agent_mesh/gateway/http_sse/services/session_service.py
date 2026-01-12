@@ -11,10 +11,10 @@ from ..repository import (
 from ..repository.chat_task_repository import ChatTaskRepository
 from ..repository.task_repository import TaskRepository
 from ..repository.entities import ChatTask
-from ..shared.enums import SenderType
-from ..shared.types import SessionId, UserId
-from ..shared import now_epoch_ms
-from ..shared.pagination import PaginationParams, PaginatedResponse, get_pagination_or_default
+from solace_agent_mesh.shared.utils.enums import SenderType
+from solace_agent_mesh.shared.utils.types import SessionId, UserId
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+from solace_agent_mesh.shared.api.pagination import PaginationParams, PaginatedResponse, get_pagination_or_default
 
 log = logging.getLogger(__name__)
 
@@ -592,7 +592,15 @@ class SessionService:
 
         # Load tasks
         task_repo = ChatTaskRepository()
-        return task_repo.find_by_session(db, session_id, user_id)
+        tasks = task_repo.find_by_session(db, session_id, user_id)
+        
+        # Note: Deduplication logic was removed because the root cause of duplicate
+        # artifact markers has been fixed in task_logger_service.py. The fix ensures
+        # that when reconstructing chat messages for background tasks, existing
+        # versioned markers (e.g., «artifact_return:report.md:0») are properly
+        # detected and prevent adding duplicate non-versioned markers.
+        
+        return tasks
 
     def get_session_messages_from_tasks(
         self,
