@@ -147,6 +147,10 @@
           "description": "Input mapping for the agent. Supports template expressions like '{{workflow.input.field}}' or '{{other_node.output.field}}'. If omitted, inferred from dependencies.",
           "additionalProperties": true
         },
+        "instruction": {
+          "type": "string",
+          "description": "Optional instruction/guidance text sent to the target agent. Supports template expressions like '{{workflow.input.context}}' or '{{previous_node.output.instructions}}'. Provides context for how the agent should process the request."
+        },
         "input_schema_override": {
           "$ref": "#/$defs/jsonSchema",
           "description": "Override the agent's default input schema for this invocation."
