@@ -7,7 +7,11 @@ the semantic meaning of the content.
 import re
 import html
 from typing import Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
+# Maximum input length to prevent resource exhaustion (100KB)
+# This matches the limit in stream_speech API endpoint
+MAX_INPUT_LENGTH = 100 * 1024
 
 @dataclass
 class MarkdownToSpeechOptions:
@@ -62,12 +66,13 @@ def markdown_to_speech(
         
         >>> markdown_to_speech("Click [here](https://example.com)")
         'Click here'
-        
-        >>> markdown_to_speech("# Welcome\\n\\nHello world")
-        'Welcome. Hello world'
     """
     if not text:
         return ""
+    
+    # Truncate input to prevent resource exhaustion
+    if len(text) > MAX_INPUT_LENGTH:
+        text = text[:MAX_INPUT_LENGTH]
     
     opts = options or DEFAULT_OPTIONS
     result = text
@@ -182,7 +187,6 @@ def _handle_emphasis(text: str) -> str:
     text = re.sub(r'__([^_]+)__', r'\1', text)
     
     # Italic: *text* or _text_ (but not inside words like snake_case)
-    # Be careful not to match underscores in the middle of words
     text = re.sub(r'\*([^*]+)\*', r'\1', text)
     text = re.sub(r'(?<!\w)_([^_]+)_(?!\w)', r'\1', text)
     
@@ -253,13 +257,12 @@ def _handle_citations(text: str, opts: MarkdownToSpeechOptions) -> str:
         return text
     
     # Handle web search format: [[cite:s1r1]], [[cite:s2r3]] (s=search turn, r=result index)
-    # This must come BEFORE the general SAM citation pattern to avoid conflicts
     def replace_web_search_citation(match):
         search_turn = match.group(1)
         result_index = match.group(2)
         # Convert to 1-indexed for natural speech
-        search_num = str(int(search_turn))  # Keep as-is since it's already 1-indexed
-        result_num = str(int(result_index))  # Keep as-is since it's already 1-indexed
+        search_num = str(int(search_turn))  
+        result_num = str(int(result_index)) 
         return f', search {search_num} result {result_num},'
     
     # Web search citation pattern: [[cite:s1r1]] or [cite:s1r1]
