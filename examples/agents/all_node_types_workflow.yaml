@@ -1101,6 +1101,7 @@ apps:
       display_name: "Simple Loop Workflow"
 
       workflow:
+        version: 0.1.0
         description: |
           A simple workflow that demonstrates the loop node by polling
           a status checker until it reports ready.
