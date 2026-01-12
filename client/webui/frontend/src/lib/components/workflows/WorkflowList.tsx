@@ -5,7 +5,7 @@ import { getWorkflowConfig } from "@/lib/utils/agentUtils";
 import { SearchInput } from "@/lib/components/ui";
 import { EmptyState } from "@/lib/components/common";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/lib/components/ui/table";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/lib/components/ui/pagination";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/lib/components/ui/pagination";
 import { Workflow } from "lucide-react";
 import { WorkflowDetailPanel } from "./WorkflowDetailPanel";
 import { WorkflowOnboardingBanner } from "./WorkflowOnboardingBanner";
@@ -78,11 +78,11 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
         return pages.map((page, index) =>
             page === "ellipsis" ? (
                 <PaginationItem key={`ellipsis-${index}`}>
-                    <span className="px-2">...</span>
+                    <PaginationEllipsis />
                 </PaginationItem>
             ) : (
                 <PaginationItem key={page}>
-                    <PaginationLink href="#" isActive={currentPage === page} onClick={e => { e.preventDefault(); handlePageChange(page); }}>
+                    <PaginationLink onClick={() => handlePageChange(page)} isActive={currentPage === page} className="cursor-pointer">
                         {page}
                     </PaginationLink>
                 </PaginationItem>
@@ -98,14 +98,15 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
         <>
             <div className="flex h-full flex-col">
                 <WorkflowOnboardingBanner />
-                <div className="bg-card-background flex-1 px-6 pt-6">
+                <div className="bg-muted flex-1 px-6 pt-6 dark:bg-[var(--color-bg-wMain)]">
                     <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="workflowSearchInput" className="mb-4 w-xs" />
 
                     {filteredWorkflows.length === 0 && searchQuery ? (
                         <EmptyState variant="notFound" title="No Workflows Match Your Filter" subtitle="Try adjusting your filter terms." buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchQuery("") }]} />
                     ) : (
                         <div className="flex flex-col">
-                            <Table>
+                            <div className="rounded-sm border">
+                                <Table>
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead className="w-[250px]">Name</TableHead>
@@ -118,27 +119,28 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
                                         <TableRow key={workflow.name} onClick={() => handleRowClick(workflow)} className="cursor-pointer">
                                             <TableCell className="font-medium">{workflow.displayName || workflow.name}</TableCell>
                                             <TableCell>
-                                                <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200">Online</span>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-2 w-2 rounded-full bg-[var(--color-success-wMain)]"></div>
+                                                    <span>Online</span>
+                                                </div>
                                             </TableCell>
                                             <TableCell className="max-w-md truncate">{getWorkflowDescription(workflow)}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
-                            </Table>
+                                </Table>
+                            </div>
 
                             {totalPages > 1 && (
-                                <div className="mt-4 flex items-center justify-between border-t pt-4">
-                                    <div className="text-muted-foreground text-sm">
-                                        Showing {startIndex + 1}-{Math.min(endIndex, filteredWorkflows.length)} of {filteredWorkflows.length} results
-                                    </div>
+                                <div className="bg-background mt-4 flex flex-shrink-0 justify-center border-t pt-4 pb-2">
                                     <Pagination>
                                         <PaginationContent>
                                             <PaginationItem>
-                                                <PaginationPrevious href="#" onClick={e => { e.preventDefault(); handlePageChange(currentPage - 1); }} className={currentPage === 1 ? "pointer-events-none opacity-50" : ""} />
+                                                <PaginationPrevious onClick={() => handlePageChange(currentPage - 1)} className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
                                             </PaginationItem>
                                             {renderPaginationNumbers()}
                                             <PaginationItem>
-                                                <PaginationNext href="#" onClick={e => { e.preventDefault(); handlePageChange(currentPage + 1); }} className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""} />
+                                                <PaginationNext onClick={() => handlePageChange(currentPage + 1)} className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} />
                                             </PaginationItem>
                                         </PaginationContent>
                                     </Pagination>

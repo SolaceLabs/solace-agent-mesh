@@ -23,7 +23,7 @@ const DetailItem: React.FC<DetailItemProps> = ({ label, value, icon }) => {
     if (value === undefined || value === null || value === "") return null;
     return (
         <div className="mb-4">
-            <div className="text-muted-foreground mb-2 flex items-center text-xs font-semibold uppercase tracking-wide">
+            <div className="text-muted-foreground mb-2 flex items-center text-sm font-medium">
                 {icon && <span className="mr-2">{icon}</span>}
                 {label}
             </div>
@@ -59,7 +59,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
                 <div className="scrollbar-themed flex-1 space-y-6 overflow-y-auto px-6 py-6">
                     {description && (
                         <div className="mb-6">
-                            <div className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">Description</div>
+                            <div className="text-muted-foreground mb-2 text-sm font-medium">Description</div>
                             <div className="prose prose-sm dark:prose-invert max-w-none">
                                 <MarkdownHTMLConverter>{description}</MarkdownHTMLConverter>
                             </div>
@@ -73,7 +73,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
 
                     {config?.input_schema && (
                         <div className="mb-4">
-                            <div className="text-muted-foreground mb-2 flex items-center text-xs font-semibold uppercase tracking-wide">
+                            <div className="text-muted-foreground mb-2 flex items-center text-sm font-medium">
                                 <FileJson size={14} className="mr-2" />
                                 Input Schema
                             </div>
@@ -86,7 +86,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
 
                     {config?.output_schema && (
                         <div className="mb-4">
-                            <div className="text-muted-foreground mb-2 flex items-center text-xs font-semibold uppercase tracking-wide">
+                            <div className="text-muted-foreground mb-2 flex items-center text-sm font-medium">
                                 <Box size={14} className="mr-2" />
                                 Output Schema
                             </div>
@@ -99,7 +99,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
 
                     {workflow.provider && (
                         <div className="border-t pt-4">
-                            <div className="text-muted-foreground mb-3 text-xs font-semibold uppercase tracking-wide">Provider</div>
+                            <div className="text-muted-foreground mb-3 text-sm font-medium">Provider</div>
                             <div className="space-y-2 text-sm">
                                 {workflow.provider.organization && (
                                     <div>
