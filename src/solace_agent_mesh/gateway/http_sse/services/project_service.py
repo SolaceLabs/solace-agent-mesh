@@ -255,18 +255,18 @@ class ProjectService:
 
     def get_user_projects(self, db, user_id: str) -> List[Project]:
         """
-        Get all projects owned by a specific user.
+        Get all projects accessible by a specific user (owned + shared).
 
         Args:
             db: Database session
             user_id: The user ID
-            
+
         Returns:
-            List[DomainProject]: List of user's projects
+            List[DomainProject]: List of user's accessible projects (owned + shared)
         """
-        self.logger.debug(f"Retrieving projects for user {user_id}")
+        self.logger.debug(f"Retrieving accessible projects for user {user_id}")
         project_repository = self._get_repositories(db)
-        db_projects = project_repository.get_user_projects(user_id)
+        db_projects = project_repository.get_accessible_projects(user_id)
         return db_projects
 
     async def get_user_projects_with_counts(self, db, user_id: str) -> List[tuple[Project, int]]:
