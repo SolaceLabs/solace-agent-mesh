@@ -14,6 +14,11 @@
       "type": "string",
       "description": "Human-readable workflow description explaining what the workflow does."
     },
+    "version": {
+      "type": "string",
+      "default": "1.0.0",
+      "description": "User-defined version of the workflow (semantic versioning recommended, e.g., '1.0.0')."
+    },
     "inputSchema": {
       "$ref": "#/$defs/jsonSchema",
       "description": "JSON Schema defining the expected workflow input structure."
@@ -146,6 +151,10 @@
           "type": "object",
           "description": "Input mapping for the agent. Supports template expressions like '{{workflow.input.field}}' or '{{other_node.output.field}}'. If omitted, inferred from dependencies.",
           "additionalProperties": true
+        },
+        "instruction": {
+          "type": "string",
+          "description": "Optional instruction/guidance text sent to the target agent. Supports template expressions like '{{workflow.input.context}}' or '{{previous_node.output.instructions}}'. Provides context for how the agent should process the request."
         },
         "input_schema_override": {
           "$ref": "#/$defs/jsonSchema",

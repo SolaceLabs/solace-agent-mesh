@@ -33,6 +33,51 @@ class AgentCaller:
     def __init__(self, host_component: "WorkflowExecutorComponent"):
         self.host = host_component
 
+    def _resolve_string_with_templates(
+        self, template_string: str, workflow_state: WorkflowExecutionState
+    ) -> Optional[str]:
+        """
+        Resolve a string that may contain embedded template expressions.
+
+        Unlike dag_executor.resolve_value which only handles strings that ARE templates,
+        this method handles strings that CONTAIN templates (e.g., "Hello {{name}}!").
+
+        Args:
+            template_string: A string that may contain {{...}} template expressions
+            workflow_state: Current workflow state for resolving variables
+
+        Returns:
+            The string with all template expressions resolved, or None if resolution fails
+        """
+        if not template_string:
+            return None
+
+        # Pattern to match {{...}} template expressions
+        template_pattern = re.compile(r"\{\{\s*(.+?)\s*\}\}")
+
+        def replace_template(match: re.Match) -> str:
+            """Replace a single template match with its resolved value."""
+            full_match = match.group(0)  # The full {{...}} string
+            try:
+                # Use dag_executor to resolve the full template
+                resolved = self.host.dag_executor.resolve_value(
+                    full_match, workflow_state
+                )
+                if resolved is None:
+                    # Keep the original template if resolution fails
+                    return full_match
+                return str(resolved)
+            except Exception as e:
+                log.warning(
+                    f"{self.host.log_identifier} Failed to resolve template "
+                    f"'{full_match}': {e}"
+                )
+                return full_match
+
+        # Replace all template expressions in the string
+        resolved = template_pattern.sub(replace_template, template_string)
+        return resolved
+
     async def call_agent(
         self,
         node: WorkflowNode,
@@ -54,6 +99,14 @@ class AgentCaller:
         # Resolve input data
         input_data = await self._resolve_node_input(node, workflow_state)
 
+        # Resolve instruction template if present
+        # Handles both full templates ({{...}}) and embedded templates within strings
+        resolved_instruction = None
+        if hasattr(node, "instruction") and node.instruction:
+            resolved_instruction = self._resolve_string_with_templates(
+                node.instruction, workflow_state
+            )
+
         # Get schemas from agent card extensions if available
         agent_card = self.host.agent_registry.get_agent(node.agent_name)
         card_input_schema, card_output_schema = get_schemas_from_agent_card(agent_card)
@@ -71,6 +124,7 @@ class AgentCaller:
             workflow_state,
             sub_task_id,
             workflow_context,
+            resolved_instruction,
         )
 
         # Publish request
@@ -167,6 +221,7 @@ This is MANDATORY for the workflow to continue.
         workflow_state: WorkflowExecutionState,
         sub_task_id: str,
         workflow_context: WorkflowExecutionContext,
+        resolved_instruction: Optional[str] = None,
     ) -> A2AMessage:
         """Construct A2A message for agent."""
 
@@ -193,6 +248,10 @@ This is MANDATORY for the workflow to continue.
             suggested_output_filename=suggested_output_filename,
         )
         parts.append(a2a.create_data_part(data=invocation_request.model_dump()))
+
+        # 2. Add instruction text part if provided
+        if resolved_instruction and resolved_instruction.strip():
+            parts.append(a2a.create_text_part(text=resolved_instruction))
 
         # Determine if we should send as structured artifact or text
         should_send_artifact = False

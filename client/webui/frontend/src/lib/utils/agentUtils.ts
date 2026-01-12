@@ -8,6 +8,7 @@ const EXTENSION_URI_AGENT_TYPE = "https://solace.com/a2a/extensions/agent-type";
  */
 export interface WorkflowConfig {
     description?: string;
+    version?: string;
     nodes: WorkflowNodeConfig[];
     input_schema?: Record<string, unknown>;
     output_schema?: Record<string, unknown>;

@@ -1996,3 +1996,192 @@ async def test_workflow_cancellation(
         pytest.fail(f"Scenario {scenario_id}: Unexpected error: {terminal_event.error}")
 
     print(f"Scenario {scenario_id}: Workflow cancellation test completed.")
+
+
+async def test_workflow_instruction_appears_in_llm_request(
+    test_llm_server: TestLLMServer,
+    test_gateway_app_instance: TestGatewayComponent,
+    test_artifact_service_instance: TestInMemoryArtifactService,
+):
+    """
+    Test that the instruction field on a workflow agent node appears in the LLM request,
+    including template expression resolution.
+
+    The InstructionTestWorkflow has an agent node with:
+        instruction: "STATIC_MARKER_123 - Context from workflow input: {{workflow.input.context}}"
+
+    This test verifies that:
+    1. The workflow executes successfully
+    2. The static instruction text appears in the captured LLM request messages
+    3. The template expression {{workflow.input.context}} is resolved to its actual value
+    4. The unresolved template placeholder does NOT appear (proving resolution worked)
+
+    This tests the instruction resolution and message construction in:
+    - agent_caller.py call_agent() - resolves instruction template
+    - agent_caller.py _construct_agent_message() - adds instruction as text part
+    """
+    scenario_id = "workflow_instruction_llm_001"
+    print(f"\nRunning programmatic scenario: {scenario_id}")
+
+    # Setup: Pre-save the input artifact with a unique context value
+    user_identity = "instruction_test_user@example.com"
+    session_id = f"session_{scenario_id}"
+
+    # Use a unique context value that we can search for in the LLM request
+    context_value = "RESOLVED_CONTEXT_VALUE_XYZ789"
+    artifact_content = {
+        "input_text": "Test data for instruction validation",
+        "context": context_value,
+    }
+    artifact_filename = "workflow_input.json"
+
+    artifact_part = adk_types.Part(
+        inline_data=adk_types.Blob(
+            mime_type="application/json",
+            data=json.dumps(artifact_content).encode("utf-8"),
+        )
+    )
+    await test_artifact_service_instance.save_artifact(
+        app_name="test_namespace",
+        user_id=user_identity,
+        session_id=session_id,
+        filename=artifact_filename,
+        artifact=artifact_part,
+    )
+    print(f"Scenario {scenario_id}: Setup artifact '{artifact_filename}' created.")
+
+    # Prime LLM for successful single-node workflow
+    # Agent saves artifact and returns success
+    llm_response_1 = ChatCompletionResponse(
+        id="chatcmpl-instruction-1",
+        model="test-model",
+        choices=[
+            Choice(
+                message=Message(
+                    role="assistant",
+                    content="""Processing with the special instruction.
+«««save_artifact: filename="output.json" mime_type="application/json" description="Result"
+{"result": "Processed successfully following instructions"}
+»»»""",
+                ),
+                finish_reason="stop",
+            )
+        ],
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    ).model_dump(exclude_none=True)
+
+    llm_response_2 = ChatCompletionResponse(
+        id="chatcmpl-instruction-2",
+        model="test-model",
+        choices=[
+            Choice(
+                message=Message(
+                    role="assistant",
+                    content="Done. «result:artifact=output.json:0 status=success»",
+                ),
+                finish_reason="stop",
+            )
+        ],
+        usage=Usage(prompt_tokens=10, completion_tokens=10, total_tokens=20),
+    ).model_dump(exclude_none=True)
+
+    prime_llm_server(test_llm_server, [llm_response_1, llm_response_2])
+
+    # Submit to the instruction test workflow
+    input_data = {
+        "target_agent_name": "InstructionTestWorkflow",
+        "user_identity": user_identity,
+        "a2a_parts": [{"type": "text", "text": "Process this with instructions"}],
+        "external_context": {
+            "test_case": scenario_id,
+            "a2a_session_id": session_id,
+        },
+        "invoked_with_artifacts": [
+            {"filename": artifact_filename, "version": 0}
+        ],
+    }
+
+    task_id = await submit_test_input(
+        test_gateway_app_instance, input_data, scenario_id
+    )
+
+    # Wait for workflow completion
+    all_events = await get_all_task_events(
+        test_gateway_app_instance, task_id, overall_timeout=30.0
+    )
+
+    terminal_event, _, _ = extract_outputs_from_event_list(all_events, scenario_id)
+
+    assert terminal_event is not None, f"Scenario {scenario_id}: No terminal event received"
+
+    # Verify workflow completed successfully
+    if isinstance(terminal_event, Task):
+        print(f"Scenario {scenario_id}: Task state: {terminal_event.status.state}")
+        assert terminal_event.status.state == "completed", (
+            f"Scenario {scenario_id}: Expected completed state, "
+            f"got: {terminal_event.status.state}"
+        )
+    elif isinstance(terminal_event, JSONRPCError):
+        pytest.fail(f"Scenario {scenario_id}: Workflow failed: {terminal_event.error}")
+
+    # Now verify the instruction appeared in the LLM requests
+    captured_requests = test_llm_server.get_captured_requests()
+    call_count = len(captured_requests)
+    print(f"Scenario {scenario_id}: LLM was called {call_count} times")
+
+    assert call_count >= 1, (
+        f"Scenario {scenario_id}: Expected at least 1 LLM call, got {call_count}"
+    )
+
+    # Helper function to search for a marker in captured requests
+    def find_marker_in_requests(marker: str) -> bool:
+        for request in captured_requests:
+            messages = getattr(request, "messages", [])
+            for message in messages:
+                content = getattr(message, "content", "")
+                if isinstance(content, str) and marker in content:
+                    return True
+                elif isinstance(content, list):
+                    for part in content:
+                        if isinstance(part, dict):
+                            text = part.get("text", "")
+                            if marker in text:
+                                return True
+        return False
+
+    # Test 1: Verify the static instruction marker appears
+    static_marker = "STATIC_MARKER_123"
+    assert find_marker_in_requests(static_marker), (
+        f"Scenario {scenario_id}: The static marker '{static_marker}' was NOT found "
+        f"in any of the {call_count} captured LLM requests. "
+        "This indicates the instruction field is not being passed to the target agent."
+    )
+    print(f"Scenario {scenario_id}: Found static marker '{static_marker}' in LLM request")
+
+    # Test 2: Verify the RESOLVED context value appears (template was resolved)
+    assert find_marker_in_requests(context_value), (
+        f"Scenario {scenario_id}: The resolved context value '{context_value}' was NOT "
+        f"found in any of the {call_count} captured LLM requests. "
+        "This indicates the template expression {{workflow.input.context}} was not resolved."
+    )
+    print(
+        f"Scenario {scenario_id}: Found resolved context value '{context_value}' "
+        "in LLM request"
+    )
+
+    # Test 3: Verify the UNRESOLVED template placeholder does NOT appear
+    unresolved_template = "{{workflow.input.context}}"
+    assert not find_marker_in_requests(unresolved_template), (
+        f"Scenario {scenario_id}: The unresolved template '{unresolved_template}' "
+        f"was found in the LLM requests. "
+        "This indicates template resolution is not working correctly."
+    )
+    print(
+        f"Scenario {scenario_id}: Confirmed template placeholder "
+        "was resolved (not found in raw form)"
+    )
+
+    print(
+        f"Scenario {scenario_id}: Successfully verified instruction with template "
+        "expression appears correctly resolved in LLM request."
+    )
