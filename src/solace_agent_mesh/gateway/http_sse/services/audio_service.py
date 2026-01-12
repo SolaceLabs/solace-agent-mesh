@@ -935,20 +935,22 @@ class AudioService:
         session_id: str,
         app_name: str = "webui",
         message_id: Optional[str] = None,
-        provider: Optional[str] = None  # NEW: Allow provider override from request
+        provider: Optional[str] = None,
+        preprocess_markdown: bool = True
     ) -> bytes:
         """
         Generate speech audio from text using configured TTS service.
         Routes to appropriate provider (Azure, Gemini, etc.).
         
         Args:
-            text: Text to convert to speech
+            text: Text to convert to speech (may contain markdown)
             voice: Voice name to use
             user_id: User identifier
             session_id: Session identifier
             app_name: Application name
             message_id: Optional message ID for caching
-            provider: Optional provider override (azure, gemini)
+            provider: Optional provider override (azure, gemini, polly)
+            preprocess_markdown: Whether to strip markdown syntax for natural speech (default: True)
             
         Returns:
             Audio data as bytes (MP3 format)
@@ -957,11 +959,21 @@ class AudioService:
             HTTPException: If generation fails
         """
         log.info(
-            "[AudioService] Generating speech for user=%s, session=%s, voice=%s, text_len=%d, provider=%s",
-            user_id, session_id, voice, len(text), provider
+            "[AudioService] Generating speech for user=%s, session=%s, voice=%s, text_len=%d, provider=%s, preprocess_markdown=%s",
+            user_id, session_id, voice, len(text), provider, preprocess_markdown
         )
         
-        try:            
+        try:
+            # Preprocess markdown to natural speech text if enabled
+            if preprocess_markdown:
+                from solace_agent_mesh.common.utils.markdown_to_speech import markdown_to_speech
+                original_len = len(text)
+                text = markdown_to_speech(text)
+                log.debug(
+                    "[AudioService] Preprocessed markdown: %d chars -> %d chars",
+                    original_len, len(text)
+                )
+            
             tts_config = self.speech_config.get("tts", {}) if self.speech_config else {}
             
             if not tts_config:
@@ -1005,23 +1017,34 @@ class AudioService:
         user_id: str,
         session_id: str,
         app_name: str = "webui",
-        provider: Optional[str] = None
+        provider: Optional[str] = None,
+        preprocess_markdown: bool = True
     ) -> AsyncGenerator[bytes, None]:
         """
         Stream speech audio for long text with intelligent sentence-based chunking.
         Generates and yields audio chunks immediately for reduced latency.
         
         Args:
-            text: Text to convert to speech
+            text: Text to convert to speech (may contain markdown)
             voice: Voice name to use
             user_id: User identifier
             session_id: Session identifier
             app_name: Application name
             provider: Optional provider override (azure, gemini, polly)
+            preprocess_markdown: Whether to strip markdown syntax for natural speech (default: True)
             
         Yields:
             Audio data chunks as bytes
         """
+        # Preprocess markdown ONCE before chunking (not per-chunk)
+        if preprocess_markdown:
+            from solace_agent_mesh.common.utils.markdown_to_speech import markdown_to_speech
+            original_len = len(text)
+            text = markdown_to_speech(text)
+            log.debug(
+                "[AudioService] Stream: Preprocessed markdown: %d chars -> %d chars",
+                original_len, len(text)
+            )
     
         # Split text into sentence-based chunks for more natural audio boundaries
         import re
@@ -1057,7 +1080,8 @@ class AudioService:
                     session_id=session_id,
                     app_name=app_name,
                     message_id=f"chunk_{i}",
-                    provider=provider  # Pass provider to generate_speech
+                    provider=provider,
+                    preprocess_markdown=False  # Already preprocessed above
                 )
                 
                 if audio_data:

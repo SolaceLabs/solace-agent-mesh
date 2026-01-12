@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
 import { api } from "@/lib/api";
+import { markdownToSpeech } from "@/lib/utils/markdownToSpeech";
 
 interface UseTextToSpeechOptions {
     messageId?: string;
@@ -45,6 +46,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
     const audioQueueRef = useRef<HTMLAudioElement[]>([]);
     const isPlayingQueueRef = useRef(false);
     const currentAudioIndexRef = useRef(0);
+    const streamDoneRef = useRef(false); // Track if stream has finished
 
     const isBrowserMode = settings.engineTTS === "browser";
 
@@ -137,6 +139,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
         audioQueueRef.current = [];
         isPlayingQueueRef.current = false;
         currentAudioIndexRef.current = 0;
+        streamDoneRef.current = false;
     }, []);
 
     // Browser TTS implementation
@@ -155,7 +158,10 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 // Cancel any ongoing speech
                 synth.cancel();
 
-                const utterance = new SpeechSynthesisUtterance(text);
+                // Preprocess markdown for natural speech (browser TTS doesn't have backend preprocessing)
+                const processedText = markdownToSpeech(text);
+
+                const utterance = new SpeechSynthesisUtterance(processedText);
                 utterance.rate = settings.playbackRate || 1.0;
                 utterance.lang = settings.languageSTT || "en-US";
 
@@ -201,20 +207,35 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
 
     // Play next audio in queue - ensures sequential playback
     const playNextInQueue = useCallback(() => {
-        if (!isPlayingQueueRef.current || currentAudioIndexRef.current >= audioQueueRef.current.length) {
-            // Queue finished
-            setIsSpeaking(false);
-            isPlayingQueueRef.current = false;
-            currentAudioIndexRef.current = 0;
+        if (!isPlayingQueueRef.current) {
+            return;
+        }
 
-            // Cleanup all audio elements
-            audioQueueRef.current.forEach(audio => {
-                if (audio.src) {
-                    URL.revokeObjectURL(audio.src);
-                }
-            });
-            audioQueueRef.current = [];
-            onEnd?.();
+        // Check if we have more chunks to play
+        if (currentAudioIndexRef.current >= audioQueueRef.current.length) {
+            // No more chunks available yet
+            if (streamDoneRef.current) {
+                // Stream is done and we've played all chunks - finish
+                setIsSpeaking(false);
+                isPlayingQueueRef.current = false;
+                currentAudioIndexRef.current = 0;
+
+                // Cleanup all audio elements
+                audioQueueRef.current.forEach(audio => {
+                    if (audio.src) {
+                        URL.revokeObjectURL(audio.src);
+                    }
+                });
+                audioQueueRef.current = [];
+                streamDoneRef.current = false;
+                onEnd?.();
+            } else {
+                // Stream still in progress - wait for more chunks
+                // Use a short timeout to check again
+                setTimeout(() => {
+                    playNextInQueue();
+                }, 100);
+            }
             return;
         }
 
@@ -318,11 +339,15 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 audioQueueRef.current = [];
                 currentAudioIndexRef.current = 0;
                 isPlayingQueueRef.current = true;
+                streamDoneRef.current = false; // Reset stream done flag
 
                 while (true) {
                     const { done, value } = await reader.read();
 
                     if (done) {
+                        // Mark stream as complete so playNextInQueue knows when to finish
+                        streamDoneRef.current = true;
+
                         // Cache the complete audio if enabled
                         if (settings.cacheTTS && allChunks.length > 0) {
                             const totalSize = allChunks.reduce((sum, chunk) => sum + chunk.length, 0);

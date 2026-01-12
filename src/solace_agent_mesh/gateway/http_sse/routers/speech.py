@@ -23,6 +23,7 @@ class TTSRequest(BaseModel):
     voice: Optional[str] = None
     messageId: Optional[str] = None
     provider: Optional[str] = None
+    preprocess_markdown: bool = True  # Strip markdown syntax for natural speech
 
 
 class StreamTTSRequest(BaseModel):
@@ -31,6 +32,7 @@ class StreamTTSRequest(BaseModel):
     voice: Optional[str] = None
     runId: Optional[str] = None
     provider: Optional[str] = None
+    preprocess_markdown: bool = True  # Strip markdown syntax for natural speech
 
 
 @router.post("/stt")
@@ -141,7 +143,8 @@ async def text_to_speech(
             session_id=user.get("session_id", "default"),
             app_name=user.get("app_name", "webui"),
             message_id=request.messageId,
-            provider=request.provider  # NEW: Pass provider from request
+            provider=request.provider,
+            preprocess_markdown=request.preprocess_markdown
         )
         
         return Response(
@@ -202,7 +205,8 @@ async def stream_audio(
                 user_id=user.get("user_id", "anonymous"),
                 session_id=user.get("session_id", "default"),
                 app_name=user.get("app_name", "webui"),
-                provider=request.provider  # Pass provider from request
+                provider=request.provider,
+                preprocess_markdown=request.preprocess_markdown
             ):
                 yield chunk
         
@@ -340,7 +344,8 @@ async def get_voice_sample(
             session_id=user.get("session_id", "default"),
             app_name=user.get("app_name", "webui"),
             message_id=f"voice_sample_{voice}",
-            provider=provider
+            provider=provider,
+            preprocess_markdown=False  # Sample text has no markdown
         )
         
         return Response(
