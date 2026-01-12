@@ -46,6 +46,9 @@ export default defineConfig(({ mode }) => {
     const backendPort = env.VITE_BACKEND_PORT || process.env.FASTAPI_PORT || "8000";
     const backendTarget = `http://localhost:${backendPort}`;
 
+    const platformPort = env.VITE_PLATFORM_PORT || "8001";
+    const platformTarget = `http://localhost:${platformPort}`;
+
     return {
         plugins: [react(), tailwindcss(), generateVersionMetadata()],
         resolve: {
@@ -63,13 +66,21 @@ export default defineConfig(({ mode }) => {
                 },
                 output: {
                     manualChunks: {
-                        vendor: ["react", "react-dom", "recharts", "@xyflow/react", "json-edit-react", "marked", "@tanstack/react-table", "lucide-react", "html-react-parser"],
+                        vendor: ["react", "react-dom", "@xyflow/react", "json-edit-react", "marked", "@tanstack/react-table", "lucide-react", "html-react-parser"],
                     },
                 },
             },
         },
         server: {
             proxy: {
+                // IMPORTANT: Platform Service endpoints must come first for specificity
+                // More specific routes must be defined before general routes
+                "/api/v1/platform": {
+                    target: platformTarget,
+                    changeOrigin: true,
+                    secure: false,
+                },
+                // Community endpoints - catch-all for remaining /api routes
                 "/api": {
                     target: backendTarget,
                     changeOrigin: true,

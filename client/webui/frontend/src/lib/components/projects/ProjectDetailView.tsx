@@ -6,6 +6,7 @@ import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
+
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
 import { KnowledgeSection } from "./KnowledgeSection";
@@ -158,7 +159,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 </div>
 
                 {/* Right Panel - Metadata Sidebar */}
-                <div className="bg-muted/30 w-[40%] overflow-y-auto">
+                <div className="flex min-h-0 w-[40%] flex-col">
                     <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
 
                     <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />
@@ -189,7 +190,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Description*</label>
                             <Textarea value={editedDescription} onChange={e => setEditedDescription(e.target.value)} placeholder="Project description" rows={4} disabled={isSaving} maxLength={1000} />
-                            <div className="text-muted-foreground text-right text-xs">{editedDescription.length}/1000 characters</div>
+                            <div className="text-muted-foreground text-right text-xs">{editedDescription.length}/1000</div>
                         </div>
                         {nameError && <MessageBanner variant="error" message={nameError} />}
                     </div>

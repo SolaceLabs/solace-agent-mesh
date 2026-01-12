@@ -6,6 +6,7 @@ export interface BaseRendererProps {
     rendererType?: string; // Optional, for structured data renderers
     mime_type?: string; // Optional MIME type for specific renderers
     setRenderError: (error: string | null) => void; // Function to set error state
+    isStreaming?: boolean;
 }
 
 export { AudioRenderer } from "./AudioRenderer";

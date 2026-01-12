@@ -1,17 +1,19 @@
 """
 API Router for providing frontend configuration.
 """
+from __future__ import annotations
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any
-
-from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
-from ..routers.dto.requests.project_requests import CreateProjectRequest, UpdateProjectRequest
 from typing import TYPE_CHECKING
 
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from ..routers.dto.requests.project_requests import CreateProjectRequest
+from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
+
 if TYPE_CHECKING:
-    from gateway.http_sse.component import WebUIBackendComponent
+    from ..component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
 
@@ -255,7 +257,7 @@ async def get_app_config(
             log.debug("%s Projects feature flag is enabled.", log_prefix)
         else:
             log.debug("%s Projects feature flag is disabled.", log_prefix)
-
+        
         
         # Determine if background tasks should be enabled
         background_tasks_enabled = _determine_background_tasks_enabled(component, log_prefix)
@@ -337,14 +339,16 @@ async def get_app_config(
             "ttsProvider": tts_provider,
         }
 
+        platform_config = component.get_config("platform_service", {})
+        platform_service_url = platform_config.get("url", "")
+
         config_data = {
-            "frontend_server_url": "",
+            "frontend_server_url": component.frontend_server_url,
+            "frontend_platform_server_url": platform_service_url,
             "frontend_auth_login_url": component.get_config(
                 "frontend_auth_login_url", ""
             ),
-            "frontend_use_authorization": component.get_config(
-                "frontend_use_authorization", False
-            ),
+            "frontend_use_authorization": component.get_config("frontend_use_authorization", False),
             "frontend_welcome_message": component.get_config(
                 "frontend_welcome_message", ""
             ),
