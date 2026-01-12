@@ -170,7 +170,7 @@ class TestGatewayCardPublishingMechanism:
     def test_publish_to_correct_discovery_topic(
         self, test_gateway_app_instance: TestGatewayComponent
     ):
-        """Test that card is published to the correct discovery topic."""
+        """Test that card is published to the gateway-specific discovery topic."""
         gateway = test_gateway_app_instance
 
         published_topics = []
@@ -189,7 +189,7 @@ class TestGatewayCardPublishingMechanism:
 
             assert gateway.namespace in topic
             assert "a2a" in topic
-            assert "discovery" in topic
+            assert "discovery/gatewaycards" in topic
 
         finally:
             gateway.publish_a2a_message = original_publish

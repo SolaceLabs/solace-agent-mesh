@@ -401,7 +401,7 @@ class PlatformServiceComponent(SamComponentBase):
 
         try:
             if a2a.topic_matches_subscription(
-                topic, a2a.get_discovery_topic(self.namespace)
+                topic, a2a.get_discovery_subscription_topic(self.namespace)
             ):
                 payload = message.get_payload()
 

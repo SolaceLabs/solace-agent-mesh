@@ -12,7 +12,7 @@ from solace_ai_connector.flow.app import App
 from solace_ai_connector.components.component_base import ComponentBase
 
 from ...common.a2a import (
-    get_discovery_topic,
+    get_discovery_subscription_topic,
     get_gateway_response_subscription_topic,
     get_gateway_status_subscription_topic,
 )
@@ -313,7 +313,7 @@ class BaseGatewayApp(App):
         modified_app_info["app_config"] = resolved_app_config_block
 
         subscriptions = [
-            {"topic": get_discovery_topic(self.namespace)},
+            {"topic": get_discovery_subscription_topic(self.namespace)},
             {
                 "topic": get_gateway_response_subscription_topic(
                     self.namespace, self.gateway_id

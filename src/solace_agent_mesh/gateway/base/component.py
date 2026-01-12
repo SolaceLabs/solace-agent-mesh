@@ -2141,7 +2141,7 @@ class BaseGatewayComponent(SamComponentBase):
                     continue
 
                 if a2a.topic_matches_subscription(
-                    topic, a2a.get_discovery_topic(self.namespace)
+                    topic, a2a.get_discovery_subscription_topic(self.namespace)
                 ):
                     processed_successfully = await self._handle_discovery_message(
                         payload
@@ -2377,10 +2377,10 @@ class BaseGatewayComponent(SamComponentBase):
         return gateway_card
 
     def _publish_gateway_card(self) -> None:
-        """Publish gateway card to discovery topic."""
+        """Publish gateway card to gateway discovery topic."""
         try:
             gateway_card = self._build_gateway_card()
-            discovery_topic = a2a.get_discovery_topic(self.namespace)
+            discovery_topic = a2a.get_gateway_discovery_topic(self.namespace)
 
             payload = gateway_card.model_dump(by_alias=True, exclude_none=True)
             self.publish_a2a_message(payload, discovery_topic)
