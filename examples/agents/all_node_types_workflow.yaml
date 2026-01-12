@@ -872,6 +872,11 @@ apps:
             type: agent
             agent_name: "CustomerEnricher"
             depends_on: [validate_order]
+            # Demonstrates the 'instruction' field for providing workflow-specific guidance
+            instruction: |
+              You are being invoked as part of an order processing workflow.
+              Enrich the customer data with tier and discount information.
+              This data will be used by downstream nodes to calculate discounts.
             input:
               customer_id: "{{workflow.input.customer_id}}"
 

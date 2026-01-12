@@ -122,6 +122,7 @@ class AgentNode(WorkflowNode):
     - `when`: Conditional execution clause (Argo-style)
     - `retryStrategy`: Retry configuration
     - `timeout`: Node-specific timeout override
+    - `instruction`: Optional guidance text sent to the target agent
     """
 
     type: Literal["agent"] = "agent"
@@ -129,6 +130,14 @@ class AgentNode(WorkflowNode):
     input: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Input mapping. If omitted, inferred from dependencies.",
+    )
+    instruction: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional instruction/guidance text sent to the target agent. "
+            "Supports template expressions like '{{workflow.input.context}}'. "
+            "Provides context for how the agent should process the request."
+        ),
     )
 
     # Optional schema overrides

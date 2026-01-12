@@ -1335,10 +1335,14 @@ def shared_solace_connector(
                         },
                         {
                             "id": "branch",
-                            "type": "conditional",
-                            "condition": "'{{check_status.output.status}}' == 'success'",
-                            "true_branch": "success_path",
-                            "false_branch": "failure_path",
+                            "type": "switch",
+                            "cases": [
+                                {
+                                    "condition": "'{{check_status.output.status}}' == 'success'",
+                                    "node": "success_path",
+                                },
+                            ],
+                            "default": "failure_path",
                             "depends_on": ["check_status"],
                         },
                         {
@@ -1579,6 +1583,53 @@ def shared_solace_connector(
                     "output_mapping": {
                         "final_count": "{{increment_counter.output.count}}",
                         "iterations": "{{count_loop.output.iterations_completed}}",
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestInstructionWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "agent_name": "InstructionTestWorkflow",
+                "display_name": "Instruction Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow to test the instruction field on agent nodes",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "input_text": {"type": "string"},
+                            "context": {"type": "string"},
+                        },
+                        "required": ["input_text", "context"],
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "result": {"type": "string"},
+                        },
+                    },
+                    "nodes": [
+                        {
+                            "id": "process_with_instruction",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            # Uses both static marker and template expression
+                            "instruction": "STATIC_MARKER_123 - Context from workflow input: {{workflow.input.context}}",
+                            "input": {
+                                "task": "{{workflow.input.input_text}}",
+                            },
+                        },
+                    ],
+                    "output_mapping": {
+                        "result": "{{process_with_instruction.output.result}}",
                     },
                 },
                 "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
