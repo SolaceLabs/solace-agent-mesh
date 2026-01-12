@@ -86,7 +86,7 @@ async def auth_callback(
 
 
 @router.post("/auth/logout")
-async def logout(request: FastAPIRequest):
+async def logout(request: FastAPIRequest, response: Response):
     """
     Logout endpoint - clears server-side session and access token.
     
@@ -113,6 +113,14 @@ async def logout(request: FastAPIRequest):
         if hasattr(request, 'session'):
             request.session.clear()
             log.debug("Cleared all session data")
+        
+        # Clear the session cookie from response to FE cannot use
+        response.delete_cookie(
+            key="session",  # Starlette's default session cookie name
+            path="/",
+            samesite="lax"
+        )
+        log.debug("Deleted session cookie")
         
         log.info("User logged out successfully")
         return {"success": True, "message": "Logged out successfully"}
