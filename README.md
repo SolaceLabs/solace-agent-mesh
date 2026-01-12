@@ -79,6 +79,9 @@ To run Solace Agent Mesh locally, you'll need:
 - **LLM API key** (any major provider or custom endpoint)
 
 ### 💻 Setup Steps
+:::note
+For a fast and automated setup, check out the [Vibe Coding Quickstart Guide](docs/documentation/getting-started/vibe_coding.md). This guide walks you through the essential steps to get Solace Agent Mesh up and running with minimal effort.
+:::
 
 #### 1. Create a directory for a new project
 ```bash
