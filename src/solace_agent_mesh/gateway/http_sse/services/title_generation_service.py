@@ -6,6 +6,14 @@ import logging
 from typing import Optional
 from litellm import acompletion
 
+from .title_generation_constants import (
+    MAX_USER_MESSAGE_LENGTH,
+    MAX_AGENT_RESPONSE_LENGTH,
+    MAX_TITLE_LENGTH,
+    TITLE_CHAR_LIMIT,
+    DEFAULT_TEMPERATURE,
+)
+
 log = logging.getLogger(__name__)
 
 
@@ -108,26 +116,28 @@ class TitleGenerationService:
         log.info(f"[_call_litellm] Starting LiteLLM call with model: {self.model}")
         
         # Truncate messages to avoid token limits
-        user_text = self._truncate_text(user_message, 200)
-        response_text = self._truncate_text(agent_response, 200)
+        user_text = self._truncate_text(user_message, MAX_USER_MESSAGE_LENGTH)
+        response_text = self._truncate_text(agent_response, MAX_AGENT_RESPONSE_LENGTH)
         
         log.debug(f"[_call_litellm] User text (truncated): {user_text}")
         log.debug(f"[_call_litellm] Agent response (truncated): {response_text}")
 
-        # Use a simple, clear prompt that works across all models
-        prompt = f'''Generate a short, descriptive title (under 50 characters) for this conversation. Output ONLY the title, nothing else.
+        # Use a clear prompt that generates specific, meaningful titles
+        prompt = f'''Generate a concise, specific title (under {TITLE_CHAR_LIMIT} characters) for this conversation.
+Avoid generic titles like "New Chat" or "Conversation".
+Focus on the main topic or question.
 
 User: "{user_text}"
-Agent: "{response_text}"'''
+Agent: "{response_text}"
+
+Title:'''
 
         try:
-            # log.info(f"[_call_litellm] Calling LiteLLM with model: {self.model}")
-            
             # Build completion arguments (avoid max_tokens for Gemini compatibility)
             completion_args = {
                 "model": self.model,
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": 1.0,
+                "temperature": DEFAULT_TEMPERATURE,
             }
             
             if self.api_base:
@@ -155,7 +165,7 @@ Agent: "{response_text}"'''
                 return self._fallback_title(user_message)
 
             log.info(f"[_call_litellm] LiteLLM generated title: '{title}'")
-            return title[:100]  # Enforce max length
+            return title[:MAX_TITLE_LENGTH]  # Enforce max length
 
         except Exception as e:
             log.error(f"[_call_litellm] Error generating title via LiteLLM: {e}", exc_info=True)
@@ -174,8 +184,8 @@ Agent: "{response_text}"'''
         if not user_message or not user_message.strip():
             return "New Chat"
 
-        # Use first 50 chars of user message
-        title = user_message.strip()[:50]
-        if len(user_message) > 50:
+        # Use first TITLE_CHAR_LIMIT chars of user message
+        title = user_message.strip()[:TITLE_CHAR_LIMIT]
+        if len(user_message) > TITLE_CHAR_LIMIT:
             title += "..."
         return title

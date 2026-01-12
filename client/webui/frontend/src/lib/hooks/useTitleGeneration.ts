@@ -120,7 +120,18 @@ export const useTitleGeneration = () => {
             };
 
             // Start polling in background
-            pollForTitle();
+            // The polling function handles its own errors and cleanup
+            pollForTitle().catch(error => {
+                console.error("[useTitleGeneration] Unexpected error in polling:", error);
+                // Ensure generating indicator is stopped on unexpected error
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(
+                        new CustomEvent("session-title-generating", {
+                            detail: { sessionId, isGenerating: false },
+                        })
+                    );
+                }
+            });
         } catch (error) {
             console.error("[useTitleGeneration] Error triggering title generation:", error);
             // Stop generating indicator on error

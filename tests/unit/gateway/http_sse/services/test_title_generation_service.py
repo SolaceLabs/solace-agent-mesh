@@ -8,6 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from solace_agent_mesh.gateway.http_sse.services.title_generation_service import (
     TitleGenerationService,
 )
+from solace_agent_mesh.gateway.http_sse.services.title_generation_constants import (
+    TITLE_CHAR_LIMIT,
+)
 
 
 class TestTitleGenerationService:
@@ -50,7 +53,7 @@ class TestTitleGenerationService:
         service = TitleGenerationService(model_config={"model": "test"})
         
         assert service._fallback_title("Hello") == "Hello"
-        assert service._fallback_title("A" * 100) == "A" * 50 + "..."
+        assert service._fallback_title("A" * 100) == "A" * TITLE_CHAR_LIMIT + "..."
         assert service._fallback_title("") == "New Chat"
         assert service._fallback_title(None) == "New Chat"
 
