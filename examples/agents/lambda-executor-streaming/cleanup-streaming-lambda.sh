@@ -19,6 +19,21 @@ ECR_REPO_NAME="sam-streaming-example"
 ROLE_NAME="sam-streaming-example-role"
 REGION="${AWS_REGION:-us-east-1}"
 
+# Auto-detect AWS credentials method
+# Priority: 1) Environment variables, 2) AWS profile from ~/.aws/credentials
+if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
+    echo "Using AWS credentials from environment variables"
+elif [ -f "$HOME/.aws/credentials" ]; then
+    # Use default profile unless AWS_PROFILE is already set
+    if [ -z "$AWS_PROFILE" ]; then
+        export AWS_PROFILE="default"
+    fi
+    echo "Using AWS profile: $AWS_PROFILE"
+else
+    echo "Error: No AWS credentials found. Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or configure ~/.aws/credentials"
+    exit 1
+fi
+
 echo "=== SAM Streaming Lambda Example Cleanup ==="
 echo "Region: $REGION"
 echo ""

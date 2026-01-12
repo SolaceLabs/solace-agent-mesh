@@ -320,8 +320,10 @@ class LambdaExecutor(ToolExecutor):
         Returns an auth object for httpx requests, or None if credentials
         are not available.
         """
+        log_id = self._log_identifier
         try:
             from httpx_auth_awssigv4 import SigV4Auth
+            log.debug("%s httpx_auth_awssigv4 module loaded successfully", log_id)
 
             session = boto3.Session()
             credentials = session.get_credentials()
@@ -329,15 +331,29 @@ class LambdaExecutor(ToolExecutor):
             if credentials is None:
                 log.warning(
                     "%s No AWS credentials available for SigV4 signing",
-                    self._log_identifier,
+                    log_id,
                 )
                 return None
 
-            # Determine region - use configured region, session region, or default
-            region = (
-                self._region
-                or session.region_name
-                or "us-east-1"
+            # Determine region - use configured region, extract from URL, session region, or default
+            region = self._region
+            if not region and self._function_url:
+                # Extract region from Function URL (e.g., xxx.lambda-url.us-east-1.on.aws)
+                import re
+                match = re.search(r'lambda-url\.([a-z0-9-]+)\.on\.aws', self._function_url)
+                if match:
+                    region = match.group(1)
+                    log.debug("%s Extracted region from Function URL: %s", log_id, region)
+            if not region:
+                region = session.region_name or "us-east-1"
+
+            log.info(
+                "%s Creating SigV4Auth with access_key=%s..., region=%s, has_token=%s, profile=%s",
+                log_id,
+                credentials.access_key[:10] if credentials.access_key else "None",
+                region,
+                bool(credentials.token),
+                session.profile_name,
             )
 
             return SigV4Auth(
@@ -347,16 +363,18 @@ class LambdaExecutor(ToolExecutor):
                 region=region,
                 token=credentials.token,
             )
-        except ImportError:
+        except ImportError as e:
             log.warning(
-                "%s httpx-auth-awssigv4 not installed, SigV4 signing disabled",
-                self._log_identifier,
+                "%s httpx-auth-awssigv4 not installed, SigV4 signing disabled. "
+                "Install with: pip install httpx-auth-awssigv4. Error: %s",
+                log_id,
+                e,
             )
             return None
         except Exception as e:
             log.warning(
                 "%s Failed to create SigV4 auth: %s",
-                self._log_identifier,
+                log_id,
                 e,
             )
             return None
@@ -406,7 +424,12 @@ class LambdaExecutor(ToolExecutor):
         # Get SigV4 auth for IAM-authenticated Function URLs
         auth = self._get_sigv4_auth()
         if auth:
-            log.debug("%s Using SigV4 authentication", log_id)
+            log.info("%s Using SigV4 authentication for Function URL", log_id)
+        else:
+            log.warning(
+                "%s No SigV4 auth available - request may fail with 403 if Function URL requires IAM auth",
+                log_id,
+            )
 
         try:
             async with self._http_client.stream(

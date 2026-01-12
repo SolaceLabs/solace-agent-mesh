@@ -28,6 +28,21 @@ REGION="${AWS_REGION:-us-east-1}"
 MEMORY_SIZE=512
 TIMEOUT=120
 
+# Auto-detect AWS credentials method
+# Priority: 1) Environment variables, 2) AWS profile from ~/.aws/credentials
+if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
+    echo "Using AWS credentials from environment variables"
+elif [ -f "$HOME/.aws/credentials" ]; then
+    # Use default profile unless AWS_PROFILE is already set
+    if [ -z "$AWS_PROFILE" ]; then
+        export AWS_PROFILE="default"
+    fi
+    echo "Using AWS profile: $AWS_PROFILE"
+else
+    echo "Error: No AWS credentials found. Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or configure ~/.aws/credentials"
+    exit 1
+fi
+
 # Auto-detect container runtime (docker or podman)
 if command -v docker &> /dev/null; then
     CONTAINER_CMD="docker"
@@ -106,8 +121,9 @@ echo "=== Step 2: Building and pushing container image ==="
 aws ecr get-login-password --region "$REGION" | $CONTAINER_CMD login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.${REGION}.amazonaws.com"
 
 # Build the image (from repo root)
+# Use --platform linux/amd64 to ensure compatibility with Lambda (especially when building on ARM Macs)
 echo "Building container image..."
-$CONTAINER_CMD build -f examples/agents/lambda-executor-streaming/Dockerfile -t "$ECR_REPO_NAME" .
+$CONTAINER_CMD build --platform linux/amd64 -f examples/agents/lambda-executor-streaming/Dockerfile -t "$ECR_REPO_NAME" .
 
 # Tag and push
 $CONTAINER_CMD tag "$ECR_REPO_NAME:latest" "$ECR_URI:latest"

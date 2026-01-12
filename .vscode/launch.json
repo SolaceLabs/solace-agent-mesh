@@ -35,7 +35,7 @@
             "request": "launch",
             "module": "cli.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml examples/agents/lambda-executor/lambda_executor_example.yaml",
+            "args": "run examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml examples/agents/lambda-executor/lambda_executor_example.yaml examples/agents/lambda-executor-streaming/lambda_streaming_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"

@@ -154,16 +154,22 @@ class ExecutorToolConfig(BaseToolConfig):
 
     # Lambda executor options
     function_arn: Optional[str] = Field(
-        default=None, description="Lambda function ARN (for lambda executor)"
+        default=None, description="Lambda function ARN (for lambda executor, standard mode)"
+    )
+    function_url: Optional[str] = Field(
+        default=None, description="Lambda Function URL (for lambda executor, streaming mode)"
     )
     region: Optional[str] = Field(
         default=None, description="AWS region (for lambda executor)"
     )
     invocation_type: Literal["RequestResponse", "Event"] = Field(
-        default="RequestResponse", description="Lambda invocation type"
+        default="RequestResponse", description="Lambda invocation type (standard mode only)"
     )
     include_context: bool = Field(
         default=True, description="Include session context in request"
+    )
+    stream_status: bool = Field(
+        default=True, description="Forward status updates to client (streaming mode only)"
     )
 
     @model_validator(mode='after')
@@ -175,9 +181,9 @@ class ExecutorToolConfig(BaseToolConfig):
                     "Python executor requires 'module' and 'function' fields"
                 )
         elif self.executor == "lambda":
-            if not self.function_arn:
+            if not self.function_arn and not self.function_url:
                 raise ValueError(
-                    "Lambda executor requires 'function_arn' field"
+                    "Lambda executor requires either 'function_arn' or 'function_url' field"
                 )
         return self
 

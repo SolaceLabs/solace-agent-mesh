@@ -1,20 +1,19 @@
 # Lambda Streaming Executor Example Agent
 #
-# This example demonstrates streaming status updates from a Lambda function.
-# It uses a Function URL with IAM authentication to enable response streaming,
-# which allows the Lambda to send progress updates during execution.
+# This example demonstrates streaming status updates from a Lambda function,
+# along with artifact input and output support.
 #
 # Prerequisites:
 #   1. Run ./setup-streaming-lambda.sh to create the Lambda function
 #   2. Set the SAM_LAMBDA_STREAMING_URL environment variable (printed by setup script)
-#   3. Ensure AWS credentials are available (e.g., source ~/bin/set-aws-auth)
+#   3. Ensure AWS credentials are available (AWS_PROFILE=default in .env)
 #
 # Usage:
 #   sam run examples/agents/lambda-executor-streaming/lambda_streaming_example.yaml
 #
 # Test prompts:
-#   - "Process the message 'hello' with 5 steps"
-#   - "Process 'analyzing data' in 3 steps"
+#   - "Analyze the document sample.txt" (after uploading a text file)
+#   - "Can you analyze this text file for me?"
 
 log:
   stdout_log_level: INFO
@@ -34,46 +33,49 @@ apps:
       namespace: ${NAMESPACE}
       supports_streaming: true
       agent_name: "LambdaStreamingAgent"
-      display_name: "Lambda Streaming"
+      display_name: "Lambda Document Analyzer"
       model: *planning_model
 
       instruction: |
-        You are an agent that demonstrates streaming status updates from AWS Lambda.
-        You have access to a tool that processes messages with multiple steps,
-        sending real-time status updates during execution.
+        You are a document analysis agent that can analyze text documents with
+        real-time progress updates. You have access to the analyze_document tool
+        which performs comprehensive text analysis including:
 
-        The slow_process tool simulates a long-running process that takes about
-        1 second per step and sends progress updates at each step. Use it to
-        demonstrate streaming capabilities.
+        - Word count and character statistics
+        - Vocabulary analysis (unique words, richness)
+        - Frequency analysis (most common words)
+        - Readability metrics (sentence length, reading time)
 
-        When the user wants to test streaming, run the slow_process tool and they
-        will see status updates appear in real-time as the tool executes.
+        When a user uploads a text document or asks you to analyze one, use the
+        analyze_document tool. The analysis takes a few seconds and you'll see
+        real-time status updates as it progresses through each analysis step.
+
+        The tool will return both a summary and a detailed analysis report as
+        an artifact that the user can download.
 
       tools:
-        # Slow process tool - demonstrates streaming status updates
+        # Document analysis tool - demonstrates streaming with artifact I/O
         - tool_type: executor
-          name: "slow_process"
+          name: "analyze_document"
           description: |
-            Process a message with multiple steps, sending streaming status updates
-            during execution. Each step takes approximately 1 second. Use this to
-            demonstrate real-time progress updates from Lambda functions.
+            Analyze a text document with streaming progress updates. Performs
+            comprehensive analysis including word count, vocabulary analysis,
+            word frequency, and readability metrics. Takes a few seconds to
+            complete and streams status updates during processing.
+            Returns an analysis report artifact.
           executor: lambda
           function_url: ${SAM_LAMBDA_STREAMING_URL}
           include_context: true
           timeout_seconds: 120
           parameters:
             properties:
-              message:
-                type: string
-                description: The message to process
-              steps:
-                type: integer
-                description: Number of processing steps (each takes ~1 second)
+              document:
+                type: artifact
+                description: The text document to analyze
             required:
-              - message
-              - steps
+              - document
 
-        # Add artifact management tools for completeness
+        # Add artifact management tools so users can upload/view files
         - tool_type: builtin-group
           group_name: "artifact_management"
 
@@ -92,19 +94,20 @@ apps:
 
       agent_card:
         description: |
-          An agent that demonstrates streaming status updates from AWS Lambda.
-          It can process messages with real-time progress updates, showing how
-          Lambda functions can communicate their progress during execution.
-        defaultInputModes: ["text"]
-        defaultOutputModes: ["text"]
+          A document analysis agent that processes text files with real-time
+          streaming progress updates. Upload a text document and ask for analysis
+          to see detailed statistics about word count, vocabulary, word frequency,
+          and readability metrics.
+        defaultInputModes: ["text", "file"]
+        defaultOutputModes: ["text", "file"]
         skills:
-          - id: slow_process
-            name: Streaming Process
-            description: "Process a message with streaming status updates"
+          - id: analyze_document
+            name: Document Analysis
+            description: "Analyze text documents with streaming progress updates"
             examples:
-              - "Process the message 'hello' with 5 steps"
-              - "Run a slow process on 'analyzing data' in 3 steps"
-              - "Process 'test message' with 10 steps to see streaming updates"
+              - "Analyze the document sample.txt"
+              - "Can you analyze this text file and give me statistics?"
+              - "What are the most common words in my document?"
 
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: true }

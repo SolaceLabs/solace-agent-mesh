@@ -255,9 +255,10 @@ def create_executor_tool_from_config(
     executor_type = config["executor"]
 
     # Define required fields for each executor type
+    # Lambda executor requires either function_arn OR function_url (for streaming)
     executor_required_fields = {
         "python": ["module", "function"],
-        "lambda": ["function_arn"],
+        "lambda": [],  # Validated separately - needs function_arn OR function_url
     }
 
     # Validate executor type
@@ -274,6 +275,13 @@ def create_executor_tool_from_config(
             f"Missing required fields for '{executor_type}' executor: {missing_fields}"
         )
 
+    # Special validation for lambda - needs either function_arn or function_url
+    if executor_type == "lambda":
+        if not config.get("function_arn") and not config.get("function_url"):
+            raise ValueError(
+                "Lambda executor requires either 'function_arn' or 'function_url'"
+            )
+
     # Build executor kwargs based on type
     executor_kwargs = {}
 
@@ -286,11 +294,13 @@ def create_executor_tool_from_config(
         }
     elif executor_type == "lambda":
         executor_kwargs = {
-            "function_arn": config["function_arn"],
+            "function_arn": config.get("function_arn"),
+            "function_url": config.get("function_url"),
             "region": config.get("region"),
             "invocation_type": config.get("invocation_type", "RequestResponse"),
             "include_context": config.get("include_context", True),
             "timeout_seconds": config.get("timeout_seconds", 60),
+            "stream_status": config.get("stream_status", True),
         }
 
     # Create executor

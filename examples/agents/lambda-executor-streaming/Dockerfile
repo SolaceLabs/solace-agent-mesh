@@ -1,10 +1,10 @@
 # Dockerfile for Lambda with Web Adapter (streaming support)
 #
 # Build from the repository root:
-#   docker build -f examples/agents/lambda-executor-streaming/Dockerfile -t sam-streaming-example .
-#   podman build -f examples/agents/lambda-executor-streaming/Dockerfile -t sam-streaming-example .
+#   docker build --platform linux/amd64 -f examples/agents/lambda-executor-streaming/Dockerfile -t sam-streaming-example .
+#   podman build --platform linux/amd64 -f examples/agents/lambda-executor-streaming/Dockerfile -t sam-streaming-example .
 #
-FROM public.ecr.aws/docker/library/python:3.12-slim
+FROM --platform=linux/amd64 public.ecr.aws/docker/library/python:3.12-slim
 
 # Install Lambda Web Adapter for response streaming
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1 /lambda-adapter /opt/extensions/lambda-adapter

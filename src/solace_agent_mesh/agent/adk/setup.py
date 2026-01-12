@@ -834,10 +834,12 @@ async def _load_executor_tool(
     elif tool_config_model.executor == "lambda":
         executor_kwargs = {
             "function_arn": tool_config_model.function_arn,
+            "function_url": tool_config_model.function_url,
             "region": tool_config_model.region,
             "invocation_type": tool_config_model.invocation_type,
             "include_context": tool_config_model.include_context,
             "timeout_seconds": tool_config_model.timeout_seconds,
+            "stream_status": tool_config_model.stream_status,
         }
 
     # Create executor
