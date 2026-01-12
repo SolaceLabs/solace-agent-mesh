@@ -2,7 +2,6 @@ import React, { useRef, useState, useLayoutEffect, useEffect, useCallback } from
 import { Workflow, Maximize2, Minimize2 } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 import AgentNode from "./AgentNode";
-import ConditionalNode from "./ConditionalNode";
 import SwitchNode from "./SwitchNode";
 import LoopNode from "./LoopNode";
 import MapNode from "./MapNode";
@@ -212,12 +211,6 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                 return (
                     <div key={child.id} data-node-id={child.id}>
                         <AgentNode {...childProps} onChildClick={onChildClick} />
-                    </div>
-                );
-            case 'conditional':
-                return (
-                    <div key={child.id} data-node-id={child.id}>
-                        <ConditionalNode {...childProps} />
                     </div>
                 );
             case 'switch':

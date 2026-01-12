@@ -17,7 +17,6 @@ from .app import (
     WorkflowDefinition,
     WorkflowNode,
     AgentNode,
-    ConditionalNode,
     SwitchNode,
     LoopNode,
     MapNode,
@@ -394,23 +393,7 @@ class DAGExecutor:
                 if implicit_branch_index is not None:
                     start_data_args["iteration_index"] = implicit_branch_index
 
-            if node.type == "conditional":
-                start_data_args["condition"] = node.condition
-                start_data_args["true_branch"] = node.true_branch
-                start_data_args["false_branch"] = node.false_branch
-
-                # Resolve labels for branches
-                if node.true_branch and node.true_branch in self.nodes:
-                    true_node = self.nodes[node.true_branch]
-                    if hasattr(true_node, "agent_name"):
-                        start_data_args["true_branch_label"] = true_node.agent_name
-
-                if node.false_branch and node.false_branch in self.nodes:
-                    false_node = self.nodes[node.false_branch]
-                    if hasattr(false_node, "agent_name"):
-                        start_data_args["false_branch_label"] = false_node.agent_name
-
-            elif node.type == "switch":
+            if node.type == "switch":
                 # Include switch case info for visualization
                 from ..common.data_parts import SwitchCaseInfo
                 start_data_args["cases"] = [
@@ -437,10 +420,6 @@ class DAGExecutor:
             # Handle different node types
             if node.type == "agent":
                 await self._execute_agent_node(node, workflow_state, workflow_context, sub_task_id)
-            elif node.type == "conditional":
-                await self._execute_conditional_node(
-                    node, workflow_state, workflow_context
-                )
             elif node.type == "switch":
                 await self._execute_switch_node(node, workflow_state, workflow_context)
             elif node.type == "loop":
@@ -513,123 +492,6 @@ class DAGExecutor:
         await self.host.agent_caller.call_agent(
             node, workflow_state, workflow_context, sub_task_id
         )
-
-    async def _execute_conditional_node(
-        self,
-        node: ConditionalNode,
-        workflow_state: WorkflowExecutionState,
-        workflow_context: WorkflowExecutionContext,
-    ):
-        """Execute conditional node."""
-        log_id = f"{self.host.log_identifier}[Conditional:{node.id}]"
-
-        # Evaluate condition
-        from .flow_control.conditional import evaluate_condition
-
-        result = evaluate_condition(node.condition, workflow_state)
-
-        log.info(f"{log_id} Condition '{node.condition}' evaluated to: {result}")
-
-        # Select branch
-        next_node_id = node.true_branch if result else node.false_branch
-
-        # Mark conditional as complete immediately since it's internal logic
-        workflow_state.completed_nodes[node.id] = "conditional_evaluated"
-
-        # Store output for dependency resolution
-        workflow_state.node_outputs[node.id] = {
-            "output": {
-                "condition_result": result,
-                "condition": node.condition,
-            }
-        }
-
-        # Publish result event
-        result_data = WorkflowNodeExecutionResultData(
-            type="workflow_node_execution_result",
-            node_id=node.id,
-            status="success",
-            metadata={
-                "condition_result": result,
-                "selected_branch": next_node_id,
-                "condition": node.condition,
-            },
-        )
-        await self.host.publish_workflow_event(workflow_context, result_data)
-
-        if next_node_id:
-            # Add selected branch to dependencies dynamically?
-            # No, the graph is static. But we need to ensure the next node
-            # becomes runnable.
-            # The next node already depends on this conditional node.
-            # So by marking this node complete, the next node will be picked up
-            # by get_next_nodes in the next iteration.
-            # However, we need to handle the UN-taken branch.
-            # Nodes on the un-taken branch will effectively be skipped because
-            # their dependencies (this conditional node) are met, BUT
-            # we need to ensure we don't execute BOTH if the graph structure
-            # implies it.
-            # Actually, in a DAG, if A -> B and A -> C, and A is conditional,
-            # we need to know which edge to follow.
-            # The current DAG structure has `depends_on` in the child.
-            # So B depends on A, and C depends on A.
-            # If A evaluates to True, we want B to run.
-            # If A evaluates to False, we want C to run.
-            # But `get_next_nodes` will see A is complete and try to run BOTH B and C.
-            # This implies we need to modify the graph or state to "block" the un-taken path.
-            #
-            # Strategy: We can mark the un-taken node as "skipped" or "completed"
-            # so that its children can proceed (if they don't strictly need its output)
-            # OR we assume the un-taken branch is dead.
-            #
-            # Let's implement a "skip" mechanism.
-            pass
-
-        # For MVP, we will assume the graph is structured such that
-        # the conditional node is the ONLY dependency for the branch start nodes.
-        # We need to explicitly "disable" the un-taken branch.
-        # But wait, `get_next_nodes` checks `dependencies`.
-        # If we want to prevent a node from running, we can mark it as "skipped" in completed_nodes?
-        # Or we can modify the dependencies in memory?
-        #
-        # Better approach for MVP:
-        # The `ConditionalNode` has `true_branch` and `false_branch` IDs.
-        # We can check these in `get_next_nodes`? No, that's coupling.
-        #
-        # Let's use a `skipped_nodes` set in WorkflowExecutionState?
-        # If a node is skipped, we treat it as completed for dependency purposes,
-        # but we don't execute it. And we recursively skip its children?
-        # That seems complex.
-        #
-        # Alternative:
-        # `get_next_nodes` logic:
-        # If a node depends on a ConditionalNode, we check if that ConditionalNode
-        # selected THIS node as its branch.
-        # This requires looking up the parent node type.
-
-        # Let's refine `get_next_nodes` to handle this.
-        # But `get_next_nodes` is generic.
-        #
-        # Let's stick to the design doc:
-        # "Nodes on the un-taken branch will be skipped automatically by the
-        # DAGExecutor, as their dependencies will never be met."
-        # This implies we DON'T mark the conditional node as complete in the standard way?
-        # Or we mark it complete, but `get_next_nodes` has extra logic?
-        #
-        # Actually, if we mark the conditional node as complete, both branches become runnable.
-        # We must prevent the un-taken branch from running.
-        #
-        # Let's add `skipped_nodes` to `WorkflowExecutionState`.
-        # When a conditional evaluates, we add the un-taken branch root to `skipped_nodes`.
-        # And `get_next_nodes` filters out skipped nodes.
-        # AND we need to propagate skipping. If a node depends on a skipped node, it is also skipped.
-
-        untaken_node_id = node.false_branch if result else node.true_branch
-        if untaken_node_id:
-            await self._skip_branch(untaken_node_id, workflow_state)
-
-        # Continue execution
-        await self.execute_workflow(workflow_state, workflow_context)
 
     async def _execute_switch_node(
         self,

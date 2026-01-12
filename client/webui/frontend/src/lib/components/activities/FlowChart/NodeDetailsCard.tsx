@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ArrowRight, Bot, CheckCircle, Eye, FileText, GitBranch, GitMerge, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, X, Zap } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle, Eye, FileText, GitBranch, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, X, Zap } from "lucide-react";
 import type { NodeDetails } from "./utils/nodeDetailsHelper";
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
 import type { VisualizerStep, ToolDecision } from "@/lib/types";
@@ -174,8 +174,6 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                 return <Zap className="text-teal-500 dark:text-teal-400" size={20} />;
             case 'tool':
                 return <Wrench className="text-cyan-500 dark:text-cyan-400" size={20} />;
-            case 'conditional':
-                return <GitMerge className="text-amber-500 dark:text-amber-400" size={20} />;
             case 'switch':
                 return <GitBranch className="text-purple-500 dark:text-purple-400" size={20} />;
             case 'loop':

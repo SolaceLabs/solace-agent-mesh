@@ -3,7 +3,6 @@ import { Bot, Maximize2, Minimize2 } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 import LLMNode from "./LLMNode";
 import ToolNode from "./ToolNode";
-import ConditionalNode from "./ConditionalNode";
 import SwitchNode from "./SwitchNode";
 import LoopNode from "./LoopNode";
 import WorkflowGroup from "./WorkflowGroup";
@@ -36,8 +35,6 @@ const AgentNode: React.FC<AgentNodeProps> = ({ node, isSelected, onClick, onChil
                 return <LLMNode key={child.id} {...childProps} />;
             case 'tool':
                 return <ToolNode key={child.id} {...childProps} />;
-            case 'conditional':
-                return <ConditionalNode key={child.id} {...childProps} />;
             case 'switch':
                 return <SwitchNode key={child.id} {...childProps} />;
             case 'loop':

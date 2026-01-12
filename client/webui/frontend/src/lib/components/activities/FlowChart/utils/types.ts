@@ -6,19 +6,15 @@ import type { VisualizerStep } from "@/lib/types";
  */
 export interface LayoutNode {
     id: string;
-    type: 'agent' | 'tool' | 'llm' | 'user' | 'conditional' | 'switch' | 'loop' | 'map' | 'group' | 'workflow' | 'parallelBlock';
+    type: 'agent' | 'tool' | 'llm' | 'user' | 'switch' | 'loop' | 'map' | 'group' | 'workflow' | 'parallelBlock';
     data: {
         label: string;
         visualizerStepId?: string;
         description?: string;
         status?: string;
         variant?: 'default' | 'pill';
-        // Conditional node fields
-        condition?: string;
-        trueBranch?: string;
-        falseBranch?: string;
-        conditionResult?: boolean;
         // Switch node fields
+        condition?: string;
         cases?: { condition: string; node: string }[];
         defaultBranch?: string;
         selectedBranch?: string;

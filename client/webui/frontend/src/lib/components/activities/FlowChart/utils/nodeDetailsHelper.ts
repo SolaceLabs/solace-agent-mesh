@@ -62,8 +62,6 @@ export function findNodeDetails(
             return findLLMNodeDetails(node, primaryStep, allSteps);
         case 'tool':
             return findToolNodeDetails(node, primaryStep, allSteps);
-        case 'conditional':
-            return findConditionalNodeDetails(node, primaryStep, allSteps);
         case 'switch':
             return findSwitchNodeDetails(node, primaryStep, allSteps);
         case 'loop':
@@ -289,40 +287,6 @@ function findToolNodeDetails(
         requestStep,
         resultStep,
         createdArtifacts,
-    };
-}
-
-/**
- * Find details for Conditional nodes
- */
-function findConditionalNodeDetails(
-    node: LayoutNode,
-    primaryStep: VisualizerStep,
-    allSteps: VisualizerStep[]
-): NodeDetails {
-    // Primary step should be WORKFLOW_NODE_EXECUTION_START with nodeType: conditional
-    const requestStep = primaryStep.type === 'WORKFLOW_NODE_EXECUTION_START' ? primaryStep : undefined;
-
-    // Find the result by matching nodeId
-    let resultStep: VisualizerStep | undefined;
-
-    if (requestStep?.data.workflowNodeExecutionStart) {
-        const nodeId = requestStep.data.workflowNodeExecutionStart.nodeId;
-        const owningTaskId = requestStep.owningTaskId;
-
-        resultStep = allSteps.find(
-            s => s.type === 'WORKFLOW_NODE_EXECUTION_RESULT' &&
-            s.owningTaskId === owningTaskId &&
-            s.data.workflowNodeExecutionResult?.nodeId === nodeId
-        );
-    }
-
-    return {
-        nodeType: 'conditional',
-        label: node.data.label,
-        description: node.data.description,
-        requestStep,
-        resultStep,
     };
 }
 

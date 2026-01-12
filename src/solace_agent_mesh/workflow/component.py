@@ -275,20 +275,13 @@ class WorkflowExecutorComponent(SamComponentBase):
                 # Use agent name as the primary label
                 label = f"<b>Agent</b><br/>{node.agent_name}"
                 lines.append(f'    {safe_id}("{label}")')
-            elif node.type == "conditional":
-                # Diamond for conditionals
-                # Escape quotes in condition if needed
-                condition = node.condition.replace('"', "'")
-                pretty_id = prettify_id(node.id)
-                label = f"<b>Decision</b><br/>{pretty_id}<br/>{condition}?"
-                lines.append(f'    {safe_id}{{"{label}"}}')
             elif node.type == "map":
                 # Circle for map nodes
                 pretty_id = prettify_id(node.id)
                 label = f"<b>Map</b><br/>{pretty_id}"
                 lines.append(f'    {safe_id}(("{label}"))')
             elif node.type == "switch":
-                # Diamond for switch nodes (similar to conditional)
+                # Diamond for switch nodes
                 pretty_id = prettify_id(node.id)
                 label = f"<b>Switch</b><br/>{pretty_id}"
                 lines.append(f'    {safe_id}{{"{label}"}}')
@@ -302,8 +295,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         lines.append('    Finish([Finish])')
 
         # 2. Define Edges
-        # First, collect all conditional/switch node IDs to avoid duplicate edges
-        conditional_node_ids = {n.id for n in nodes if n.type == "conditional"}
+        # First, collect all switch node IDs to avoid duplicate edges
         switch_node_ids = {n.id for n in nodes if n.type == "switch"}
 
         # Find map target nodes (they should not be entry/exit nodes in the normal sense)
@@ -330,13 +322,6 @@ class WorkflowExecutorComponent(SamComponentBase):
                 for dep in node.depends_on:
                     nodes_with_dependents.add(dep)
 
-            # Also track conditional branches
-            if node.type == "conditional":
-                if node.true_branch:
-                    nodes_with_dependents.add(node.id)
-                if node.false_branch:
-                    nodes_with_dependents.add(node.id)
-
             # Track switch branches
             if node.type == "switch":
                 if node.cases or node.default:
@@ -362,11 +347,11 @@ class WorkflowExecutorComponent(SamComponentBase):
             safe_id = sanitize(node.id)
 
             # Standard dependencies - draw edges TO this node from its dependencies
-            # Skip dependencies that point FROM conditional/switch nodes (they're handled by branch edges below)
+            # Skip dependencies that point FROM switch nodes (they're handled by branch edges below)
             if node.depends_on:
                 for dep in node.depends_on:
-                    # Only draw edge if dependency is NOT a conditional or switch node
-                    if dep not in conditional_node_ids and dep not in switch_node_ids:
+                    # Only draw edge if dependency is NOT a switch node
+                    if dep not in switch_node_ids:
                         # If the dependency is a map node, connect from its join instead
                         if dep in map_to_join:
                             join_node = map_to_join[dep]
@@ -374,25 +359,6 @@ class WorkflowExecutorComponent(SamComponentBase):
                         else:
                             safe_dep = sanitize(dep)
                             lines.append(f"    {safe_dep} --> {safe_id}")
-
-            # Conditional branches (Outgoing edges) - handle these specially
-            if node.type == "conditional":
-                if node.true_branch:
-                    safe_true = sanitize(node.true_branch)
-                    lines.append(f"    {safe_id} -- True --> {safe_true}")
-                if node.false_branch:
-                    safe_false = sanitize(node.false_branch)
-                    lines.append(f"    {safe_id} -- False --> {safe_false}")
-                else:
-                    # If no explicit false branch, find what depends on this conditional
-                    # and draw a "False" edge to it
-                    for other_node in nodes:
-                        if other_node.depends_on and node.id in other_node.depends_on:
-                            # This node depends on the conditional
-                            # If it's not the true branch, it's implicitly the false branch
-                            if node.true_branch != other_node.id:
-                                safe_other = sanitize(other_node.id)
-                                lines.append(f"    {safe_id} -- False --> {safe_other}")
 
             # Switch branches (Outgoing edges) - handle multi-way branching
             if node.type == "switch":

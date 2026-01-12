@@ -776,7 +776,7 @@ apps:
 
   # ============================================================================
   # WORKFLOW: Complete Order Processing Pipeline
-  # Demonstrates ALL node types: agent, conditional, switch, map, loop
+  # Demonstrates ALL node types: agent, switch, map, loop
   # Parallelism is achieved through dependency-based scheduling (implicit fork)
   # ============================================================================
   - name: complete_order_workflow
@@ -922,16 +922,17 @@ apps:
               discount_pct: "{{customer_enrichment.output.discount_pct}}"
 
           # ====================================================================
-          # STEP 5: CONDITIONAL NODE - Approval routing
+          # STEP 5: SWITCH NODE - Approval routing
           # Demonstrates binary branching based on order total
           # Orders over $500 require manual approval
           # ====================================================================
           - id: approval_decision
-            type: conditional
+            type: switch
             depends_on: [calculate_price]
-            condition: "{{calculate_price.output.final_total}} > 500"
-            true_branch: manual_approval
-            false_branch: auto_approval
+            cases:
+              - condition: "{{calculate_price.output.final_total}} > 500"
+                node: manual_approval
+            default: auto_approval
 
           # Manual approval branch
           - id: manual_approval
@@ -954,7 +955,7 @@ apps:
           # STEP 6: SWITCH NODE - Select shipping method
           # Demonstrates multi-way branching based on priority
           # Depends on both approval branches (implicit join - waits for the
-          # one that executes, since the other is skipped by conditional)
+          # one that executes, since the other is skipped by switch)
           # ====================================================================
           - id: shipping_selection
             type: switch

@@ -7,7 +7,6 @@ const NODE_WIDTHS = {
     TOOL: 180,
     LLM: 180,
     USER: 140,
-    CONDITIONAL: 120,
     SWITCH: 120,
     LOOP: 120,
     MAP: 120,
@@ -19,7 +18,6 @@ const NODE_HEIGHTS = {
     TOOL: 50,
     LLM: 50,
     USER: 50,
-    CONDITIONAL: 80,
     SWITCH: 80,
     LOOP: 80,
     MAP: 80,
@@ -594,13 +592,10 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
 
     // Determine node type and variant
     let type: LayoutNode['type'] = 'agent';
-    let variant: 'default' | 'pill' = 'default';
+    const variant: 'default' | 'pill' = 'default';
     let label: string;
 
-    if (nodeType === 'conditional') {
-        type = 'conditional';
-        label = 'Conditional';
-    } else if (nodeType === 'switch') {
+    if (nodeType === 'switch') {
         type = 'switch';
         label = 'Switch';
     } else if (nodeType === 'loop') {
@@ -772,11 +767,6 @@ function handleWorkflowNodeResult(step: VisualizerStep, context: BuildContext): 
             // Update status
             targetNode.data.status = resultData?.status === 'success' ? 'completed' :
                                      resultData?.status === 'failure' ? 'error' : 'completed';
-
-            // Update conditional node with result
-            if (targetNode.type === 'conditional' && resultData?.conditionResult !== undefined) {
-                targetNode.data.conditionResult = resultData.conditionResult;
-            }
 
             // Update switch node with selected branch
             if (targetNode.type === 'switch') {
@@ -957,10 +947,6 @@ function measureNode(node: LayoutNode): void {
         case 'user':
             node.width = NODE_WIDTHS.USER;
             node.height = NODE_HEIGHTS.USER;
-            break;
-        case 'conditional':
-            node.width = NODE_WIDTHS.CONDITIONAL;
-            node.height = NODE_HEIGHTS.CONDITIONAL;
             break;
         case 'switch':
             node.width = NODE_WIDTHS.SWITCH;

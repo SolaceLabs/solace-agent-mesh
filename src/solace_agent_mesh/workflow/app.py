@@ -157,30 +157,6 @@ class AgentNode(WorkflowNode):
         populate_by_name = True
 
 
-class ConditionalNode(WorkflowNode):
-    """
-    Conditional branching node (binary true/false).
-
-    For multi-way branching, use SwitchNode instead.
-    """
-
-    type: Literal["conditional"] = "conditional"
-    condition: str = Field(..., description="Expression to evaluate")
-    true_branch: str = Field(
-        ...,
-        description="Node ID to execute if condition is true.",
-        alias="trueBranch",
-    )
-    false_branch: Optional[str] = Field(
-        default=None,
-        description="Node ID to execute if condition is false.",
-        alias="falseBranch",
-    )
-
-    class Config:
-        populate_by_name = True
-
-
 class SwitchCase(BaseModel):
     """A single case in a switch node."""
 
@@ -203,7 +179,6 @@ class SwitchNode(WorkflowNode):
     """
     Multi-way conditional branching node.
 
-    More flexible than ConditionalNode for routing to multiple paths.
     Cases are evaluated in order; first match wins.
     """
 
@@ -318,7 +293,6 @@ class MapNode(WorkflowNode):
 # Union type for polymorphic node list
 WorkflowNodeUnion = Union[
     AgentNode,
-    ConditionalNode,
     SwitchNode,
     LoopNode,
     MapNode,

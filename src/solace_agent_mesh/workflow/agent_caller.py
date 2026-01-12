@@ -116,11 +116,11 @@ class AgentCaller:
         if len(node.depends_on) == 1:
             dep_id = node.depends_on[0]
 
-            # Check if dependency is a conditional node
+            # Check if dependency is a switch node - use workflow input instead of switch metadata
             dep_node = self.host.dag_executor.nodes.get(dep_id)
-            if dep_node and dep_node.type == "conditional":
+            if dep_node and dep_node.type == "switch":
                 log.debug(
-                    f"{self.host.log_identifier} Node '{node.id}' depends on conditional '{dep_id}'. Using workflow input."
+                    f"{self.host.log_identifier} Node '{node.id}' depends on switch '{dep_id}'. Using workflow input."
                 )
                 if "workflow_input" not in workflow_state.node_outputs:
                     raise ValueError("Workflow input has not been initialized")

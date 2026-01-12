@@ -10,7 +10,7 @@ import pytest
 from datetime import datetime
 from unittest.mock import Mock, MagicMock
 from solace_agent_mesh.workflow.agent_caller import AgentCaller
-from solace_agent_mesh.workflow.app import AgentNode, ConditionalNode
+from solace_agent_mesh.workflow.app import AgentNode, SwitchNode, SwitchCase
 from solace_agent_mesh.workflow.workflow_execution_context import (
     WorkflowExecutionState,
 )
@@ -147,7 +147,7 @@ class TestResolveNodeInputImplicitSingleDependency:
 
     @pytest.mark.asyncio
     async def test_single_dependency_uses_dependency_output(self):
-        """Node with one non-conditional dependency uses that dependency's output."""
+        """Node with one non-switch dependency uses that dependency's output."""
         host = create_mock_host()
         # Register the dependency as a regular agent node
         host.dag_executor.nodes = {
@@ -202,16 +202,18 @@ class TestResolveNodeInputImplicitSingleDependency:
         assert "Dependency 'step_1' has not completed" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_conditional_dependency_uses_workflow_input(self):
-        """Node depending on conditional uses workflow input, not conditional output."""
+    async def test_switch_dependency_uses_workflow_input(self):
+        """Node depending on switch uses workflow input, not switch output."""
         host = create_mock_host()
-        # Register the dependency as a conditional node
+        # Register the dependency as a switch node
         host.dag_executor.nodes = {
-            "branch": ConditionalNode(
+            "branch": SwitchNode(
                 id="branch",
-                type="conditional",
-                condition="{{step_1.output.status}} == 'success'",
-                true_branch="success_path",
+                type="switch",
+                cases=[
+                    SwitchCase(condition="{{step_1.output.status}} == 'success'", node="success_path"),
+                ],
+                default="failure_path",
             )
         }
         caller = AgentCaller(host)
@@ -238,15 +240,16 @@ class TestResolveNodeInputImplicitSingleDependency:
         assert result == workflow_input_data
 
     @pytest.mark.asyncio
-    async def test_conditional_dependency_raises_when_workflow_input_missing(self):
-        """Node depending on conditional raises if workflow_input missing."""
+    async def test_switch_dependency_raises_when_workflow_input_missing(self):
+        """Node depending on switch raises if workflow_input missing."""
         host = create_mock_host()
         host.dag_executor.nodes = {
-            "branch": ConditionalNode(
+            "branch": SwitchNode(
                 id="branch",
-                type="conditional",
-                condition="true",
-                true_branch="next",
+                type="switch",
+                cases=[
+                    SwitchCase(condition="true", node="next"),
+                ],
             )
         }
         caller = AgentCaller(host)
