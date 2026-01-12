@@ -1,8 +1,7 @@
 """
 Markdown to Speech Preprocessor
 Converts markdown-formatted text to natural, speakable text suitable for
-Text-to-Speech (TTS) engines. Removes markdown syntax while preserving
-the semantic meaning of the content.
+Text-to-Speech (TTS) engines. 
 """
 import re
 import html
