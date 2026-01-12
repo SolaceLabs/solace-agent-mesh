@@ -23,7 +23,7 @@ interface ArtifactDetailsProps {
 }
 
 export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, isPreview = false, isExpanded = false, onDelete, onDownload, setIsExpanded, badge }) => {
-    const { previewedArtifactAvailableVersions, currentPreviewedVersionNumber, navigateArtifactVersion } = useChatContext();
+    const { previewedArtifactAvailableVersions, currentPreviewedVersionNumber, navigateArtifactVersion, sessionId } = useChatContext();
     const versions = useMemo(() => previewedArtifactAvailableVersions ?? [], [previewedArtifactAvailableVersions]);
 
     return (
@@ -41,7 +41,8 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, 
                     </div>
                 </div>
 
-                {isPreview && versions.length > 1 && (
+                {/* Only show the version selector in the preview if there are multiple versions and a sessionId is available */}
+                {isPreview && versions.length > 1 && sessionId && (
                     <div className="align-right">
                         <Select
                             value={currentPreviewedVersionNumber?.toString()}

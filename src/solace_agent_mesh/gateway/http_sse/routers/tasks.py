@@ -306,23 +306,6 @@ async def _inject_project_context(
         # Continue without injection - don't fail the request
         return message_text
     finally:
-        # Clear the pending project context flags from all artifacts
-        # This only runs for existing sessions (should_clear_pending_flags=True)
-        if should_clear_pending_flags and artifact_service:
-            from ..utils.artifact_copy_utils import clear_pending_project_context
-            try:
-                await clear_pending_project_context(
-                    user_id=user_id,
-                    session_id=session_id,
-                    artifact_service=artifact_service,
-                    app_name=project_service.app_name,
-                    db=db,
-                    log_prefix=log_prefix,
-                )
-                log.debug("%sCleared pending project context flags", log_prefix)
-            except Exception as e:
-                log.warning("%sFailed to clear pending project context flags: %s", log_prefix, e)
-
         db.close()
 
 
