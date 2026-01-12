@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 
 import type { AgentCardInfo } from "@/lib/types";
 import { getWorkflowConfig, getWorkflowNodeCount } from "@/lib/utils/agentUtils";
@@ -33,6 +34,8 @@ const DetailItem: React.FC<DetailItemProps> = ({ label, value, icon }) => {
 };
 
 export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workflow, onClose }) => {
+    const navigate = useNavigate();
+
     if (!workflow) {
         return null;
     }
@@ -42,8 +45,8 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
     const description = config?.description || workflow.description;
 
     const handleOpenWorkflow = () => {
-        // Placeholder - functionality in future story
-        console.log("Open workflow:", workflow.name);
+        navigate(`/agents/workflows/${encodeURIComponent(workflow.name)}`);
+        onClose();
     };
 
     return (
