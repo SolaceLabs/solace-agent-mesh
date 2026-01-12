@@ -12,5 +12,6 @@ export { MarkdownHTMLConverter, MessageBanner, EmptyState, ErrorDialog, Confirma
 export * from "./header";
 export * from "./pages";
 export * from "./agents";
+export * from "./workflows";
 export * from "./jsonViewer";
 export * from "./projects";
