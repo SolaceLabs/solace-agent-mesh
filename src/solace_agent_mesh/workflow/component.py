@@ -4,7 +4,6 @@ Orchestrates workflow execution by coordinating agents.
 """
 
 import logging
-import re
 import threading
 import uuid
 import asyncio
@@ -228,209 +227,53 @@ class WorkflowExecutorComponent(SamComponentBase):
                 f"{self.log_identifier} Failed to publish workflow agent card: {e}"
             )
 
-    def _generate_mermaid_diagram(self) -> str:
-        """Generate a Mermaid diagram from the workflow definition."""
-        nodes = self.workflow_definition.nodes
-        lines = ["graph TD"]
+    def _get_workflow_config_json(self) -> Dict[str, Any]:
+        """Get workflow configuration as a JSON-serializable dict."""
+        nodes_json = []
+        for node in self.workflow_definition.nodes:
+            node_dict = {
+                "id": node.id,
+                "type": node.type,
+            }
+            if node.depends_on:
+                node_dict["depends_on"] = node.depends_on
 
-        # Helper to sanitize IDs
-        def sanitize(node_id):
-            return node_id.replace("-", "_").replace(".", "_")
-
-        # Helper to make IDs displayable (convert snake_case/camelCase to Title Case)
-        def prettify_id(node_id):
-            # Split on underscores and hyphens
-            parts = node_id.replace("_", " ").replace("-", " ").split()
-            # Split camelCase (insert space before capitals)
-            expanded_parts = []
-            for part in parts:
-                # Insert space before capital letters in camelCase
-                expanded = re.sub(r'([a-z])([A-Z])', r'\1 \2', part)
-                expanded_parts.extend(expanded.split())
-            # Capitalize each word
-            return " ".join(word.capitalize() for word in expanded_parts if word)
-
-        # Add Start node (stadium/pill shape)
-        lines.append('    Start([Start])')
-
-        # Collect map/loop target nodes first so we can exclude them from regular rendering
-        map_target_node_ids = set()
-        loop_target_node_ids = set()
-        for node in nodes:
-            if node.type == "map":
-                map_target_node_ids.add(node.node)
-            elif node.type == "loop":
-                loop_target_node_ids.add(node.node)
-
-        # 1. Define Nodes (excluding map/loop targets - they'll be rendered as instances)
-        for node in nodes:
-            # Skip nodes that are targets of map or loop operations
-            if node.id in map_target_node_ids or node.id in loop_target_node_ids:
-                continue
-
-            safe_id = sanitize(node.id)
-
+            # Add type-specific fields
             if node.type == "agent":
-                # Rounded rectangle for agents (looks more friendly/professional)
-                # Use agent name as the primary label
-                label = f"<b>Agent</b><br/>{node.agent_name}"
-                lines.append(f'    {safe_id}("{label}")')
-            elif node.type == "map":
-                # Circle for map nodes
-                pretty_id = prettify_id(node.id)
-                label = f"<b>Map</b><br/>{pretty_id}"
-                lines.append(f'    {safe_id}(("{label}"))')
+                node_dict["agent_name"] = node.agent_name
+                if node.input:
+                    node_dict["input"] = node.input
             elif node.type == "switch":
-                # Diamond for switch nodes
-                pretty_id = prettify_id(node.id)
-                label = f"<b>Switch</b><br/>{pretty_id}"
-                lines.append(f'    {safe_id}{{"{label}"}}')
-            elif node.type == "loop":
-                # Stadium shape for loop nodes
-                pretty_id = prettify_id(node.id)
-                label = f"<b>Loop</b><br/>{pretty_id}"
-                lines.append(f'    {safe_id}(["{label}"])')
-
-        # Add Finish node (stadium/pill shape)
-        lines.append('    Finish([Finish])')
-
-        # 2. Define Edges
-        # First, collect all switch node IDs to avoid duplicate edges
-        switch_node_ids = {n.id for n in nodes if n.type == "switch"}
-
-        # Find map target nodes (they should not be entry/exit nodes in the normal sense)
-        # Also create a mapping from map node ID to its join node ID
-        map_target_nodes = set()
-        map_to_join = {}
-        for node in nodes:
-            if node.type == "map":
-                map_target_nodes.add(node.node)
-                map_to_join[node.id] = f"{sanitize(node.id)}_join"
-
-        # Find entry nodes (nodes with no dependencies) and exit nodes (nodes that no other node depends on)
-        all_node_ids = {node.id for node in nodes}
-        entry_nodes = []
-        nodes_with_dependents = set()
-
-        for node in nodes:
-            # Entry nodes have no dependencies AND are not map targets
-            if not node.depends_on and node.id not in map_target_nodes:
-                entry_nodes.append(node.id)
-
-            # Track which nodes have dependents
-            if node.depends_on:
-                for dep in node.depends_on:
-                    nodes_with_dependents.add(dep)
-
-            # Track switch branches
-            if node.type == "switch":
-                if node.cases or node.default:
-                    nodes_with_dependents.add(node.id)
-
-            # Track map nodes as having dependents (they produce children)
-            if node.type == "map":
-                nodes_with_dependents.add(node.id)
-
-            # Track loop nodes as having dependents (they execute inner nodes)
-            if node.type == "loop":
-                nodes_with_dependents.add(node.id)
-
-        # Exit nodes are those that no other node depends on (excluding map targets)
-        exit_nodes = (all_node_ids - nodes_with_dependents) - map_target_nodes
-
-        # Connect Start to entry nodes
-        for entry_node_id in entry_nodes:
-            safe_entry = sanitize(entry_node_id)
-            lines.append(f"    Start --> {safe_entry}")
-
-        for node in nodes:
-            safe_id = sanitize(node.id)
-
-            # Standard dependencies - draw edges TO this node from its dependencies
-            # Skip dependencies that point FROM switch nodes (they're handled by branch edges below)
-            if node.depends_on:
-                for dep in node.depends_on:
-                    # Only draw edge if dependency is NOT a switch node
-                    if dep not in switch_node_ids:
-                        # If the dependency is a map node, connect from its join instead
-                        if dep in map_to_join:
-                            join_node = map_to_join[dep]
-                            lines.append(f"    {join_node} --> {safe_id}")
-                        else:
-                            safe_dep = sanitize(dep)
-                            lines.append(f"    {safe_dep} --> {safe_id}")
-
-            # Switch branches (Outgoing edges) - handle multi-way branching
-            if node.type == "switch":
-                for i, case in enumerate(node.cases):
-                    safe_target = sanitize(case.node)
-                    # Use short label for case
-                    case_label = f"Case {i + 1}"
-                    lines.append(f"    {safe_id} -- {case_label} --> {safe_target}")
+                node_dict["cases"] = [
+                    {"condition": c.condition, "node": c.node}
+                    for c in node.cases
+                ]
                 if node.default:
-                    safe_default = sanitize(node.default)
-                    lines.append(f"    {safe_id} -- Default --> {safe_default}")
+                    node_dict["default"] = node.default
+            elif node.type == "map":
+                node_dict["node"] = node.node
+                node_dict["items"] = node.items
+            elif node.type == "loop":
+                node_dict["node"] = node.node
+                if node.condition:
+                    node_dict["condition"] = node.condition
+                if node.max_iterations:
+                    node_dict["max_iterations"] = node.max_iterations
 
-            # Map node - create join node and show parallel pattern with multiple instances
-            if node.type == "map":
-                target_node = next((n for n in nodes if n.id == node.node), None)
-                if not target_node:
-                    continue
+            nodes_json.append(node_dict)
 
-                join_id = f"{safe_id}_join"
+        config = {
+            "nodes": nodes_json,
+        }
 
-                # Get the label for the target node
-                if target_node.type == "agent":
-                    target_label = f"<b>Agent</b><br/>{target_node.agent_name}"
-                else:
-                    pretty_target_id = prettify_id(node.node)
-                    target_label = f"<b>{target_node.type.capitalize()}</b><br/>{pretty_target_id}"
+        if self.workflow_definition.description:
+            config["description"] = self.workflow_definition.description
+        if self.workflow_definition.input_schema:
+            config["input_schema"] = self.workflow_definition.input_schema
+        if self.workflow_definition.output_schema:
+            config["output_schema"] = self.workflow_definition.output_schema
 
-                # Create 3 parallel instances to show the map pattern
-                for i in range(1, 4):
-                    instance_id = f"{safe_id}_instance_{i}"
-                    # Rounded rectangle for each instance
-                    lines.append(f'    {instance_id}("{target_label}")')
-                    # Map -> Instance (dotted)
-                    lines.append(f"    {safe_id} -.-> {instance_id}")
-
-                # Create join node (circle shape)
-                lines.append(f'    {join_id}(("Join"))')
-
-                # Each instance -> Join (dotted)
-                for i in range(1, 4):
-                    instance_id = f"{safe_id}_instance_{i}"
-                    lines.append(f"    {instance_id} -.-> {join_id}")
-
-            # Loop node - show loop pattern with inner node and feedback edge
-            if node.type == "loop":
-                target_node = next((n for n in nodes if n.id == node.node), None)
-                if not target_node:
-                    continue
-
-                # Get the label for the target node
-                if target_node.type == "agent":
-                    target_label = f"<b>Agent</b><br/>{target_node.agent_name}"
-                else:
-                    pretty_target_id = prettify_id(node.node)
-                    target_label = f"<b>{target_node.type.capitalize()}</b><br/>{pretty_target_id}"
-
-                # Create inner node representation
-                inner_id = f"{safe_id}_inner"
-                lines.append(f'    {inner_id}("{target_label}")')
-
-                # Loop -> Inner (forward)
-                lines.append(f"    {safe_id} --> {inner_id}")
-
-                # Inner -> Loop (feedback loop, dotted)
-                lines.append(f"    {inner_id} -.->|repeat| {safe_id}")
-
-        # Connect exit nodes to Finish
-        for exit_node_id in exit_nodes:
-            safe_exit = sanitize(exit_node_id)
-            lines.append(f"    {safe_exit} --> Finish")
-
-        return "\n".join(lines)
+        return config
 
     def _create_workflow_agent_card(self) -> AgentCard:
         """Create the workflow agent card."""
@@ -465,18 +308,18 @@ class WorkflowExecutorComponent(SamComponentBase):
             )
             extensions_list.append(schemas_extension)
 
-        # Add visualization extension
+        # Add workflow configuration extension
         try:
-            mermaid_source = self._generate_mermaid_diagram()
+            workflow_config = self._get_workflow_config_json()
             viz_extension = AgentExtension(
                 uri=EXTENSION_URI_WORKFLOW_VISUALIZATION,
-                description="Mermaid JS diagram of the workflow logic.",
-                params={"mermaid_source": mermaid_source},
+                description="JSON configuration of the workflow.",
+                params={"workflow_config": workflow_config},
             )
             extensions_list.append(viz_extension)
         except Exception as e:
             log.warning(
-                f"{self.log_identifier} Failed to generate workflow visualization: {e}"
+                f"{self.log_identifier} Failed to generate workflow configuration: {e}"
             )
 
         capabilities = AgentCapabilities(
