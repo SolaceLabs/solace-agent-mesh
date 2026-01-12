@@ -24,6 +24,7 @@ from ...common.constants import (
     TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH,
 )
 from ...agent.utils.context_helpers import get_original_session_id
+from .bm25_indexer import BM25DocumentIndexer
 
 if TYPE_CHECKING:
     from google.adk.tools import ToolContext
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 METADATA_SUFFIX = ".metadata.json"
+BM25_INDEX_SUFFIX = ".bm25_index"
 DEFAULT_SCHEMA_MAX_KEYS = 20
 DEFAULT_SCHEMA_INFERENCE_DEPTH = 4
 
@@ -1498,3 +1500,239 @@ async def load_artifact_content_or_metadata(
             "status": "error",
             "message": f"Unexpected error loading artifact: {e}",
         }
+
+async def save_bm25_index_with_metadata(
+    artifact_service: BaseArtifactService,
+    app_name: str,
+    user_id: str,
+    session_id: str,
+    source_filename: str,
+    source_version: int,
+    temp_source_file_path: str,
+    temp_index_dir: str,
+    source_mime_type: str,
+    source_description: str,
+    timestamp: datetime,
+    chunk_size: int = 1024,
+    chunk_overlap: int = 128,
+) -> Dict[str, Any]:
+    """
+    Creates a BM25 index for a document and saves it as a ZIP artifact with metadata.
+    
+    This function:
+    - Creates BM25 index files using BM25DocumentIndexer
+    - Packages all index files into a single ZIP archive
+    - Saves the ZIP as a versioned artifact
+    - Saves metadata artifact with index information
+    - Returns structured result with status tracking
+    
+    Args:
+        artifact_service: The artifact service instance
+        app_name: Application name
+        user_id: User ID
+        session_id: Session ID
+        source_filename: Name of the source document being indexed
+        source_version: Version of the source document
+        temp_source_file_path: Path to temporary source file
+        temp_index_dir: Temporary directory containing index files
+        source_mime_type: MIME type of source document
+        source_description: Description of source document
+        timestamp: Timestamp for the operation
+        chunk_size: Size of text chunks for indexing (default: 1024)
+        chunk_overlap: Overlap between chunks (default: 128)
+    
+    Returns:
+        Dict with keys:
+            - status: "success", "partial_success", or "error"
+            - index_path_name: Name of the index artifact (ZIP file)
+            - index_version: Version of saved index
+            - metadata_path_name: Name of metadata artifact
+            - metadata_version: Version of saved metadata
+            - message: Status message
+            - num_chunks: Number of chunks created (on success)
+            - saved_files: List of files included in the ZIP (on success)
+    """
+    from pathlib import Path
+    import zipfile
+    from io import BytesIO
+    
+    log_identifier = f"[ArtifactHelper:save_bm25_index:{source_filename}]"
+    log.debug("%s Saving BM25 index and metadata (async)...", log_identifier)
+    
+    index_path_name = f"{source_filename}{BM25_INDEX_SUFFIX}"
+    metadata_path_name = f"{index_path_name}{METADATA_SUFFIX}"
+    index_version = None
+    metadata_version = None
+    status = "error"
+    status_message = "Initialization error"
+    saved_files = []
+    num_chunks = 0
+    
+    try:
+        # Create the BM25 index using BM25DocumentIndexer
+        log.debug("%s Creating BM25 index with chunk_size=%d, chunk_overlap=%d", 
+                  log_identifier, chunk_size, chunk_overlap)
+        bm25_indexer = BM25DocumentIndexer(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        
+        index_result = bm25_indexer.create_document_index(
+            file_path=Path(temp_source_file_path),
+            index_dir=Path(temp_index_dir),
+            description=source_description,
+            mime_type=source_mime_type
+        )
+        
+        if not index_result:
+            status = "error"
+            status_message = f"Failed to create BM25 index for {source_filename}"
+            log.warning("%s %s", log_identifier, status_message)
+            return {
+                "status": status,
+                "index_path_name": index_path_name,
+                "index_version": None,
+                "metadata_path_name": metadata_path_name,
+                "metadata_version": None,
+                "message": status_message,
+            }
+        
+        num_chunks = index_result.get("num_chunks", 0)
+        log.info("%s Created BM25 index with %d chunks", log_identifier, num_chunks)
+        
+        # Collect index files created by bm25s.save(), excluding the source file
+        index_files = []
+        temp_index_dir_path = Path(temp_index_dir)
+        
+        for file_path in temp_index_dir_path.iterdir():
+            if file_path.is_file() and file_path.name != source_filename:
+                index_files.append(file_path)
+        
+        log.debug("%s Found %d index files to package (excluding source file '%s'): %s", 
+                  log_identifier, len(index_files), source_filename, [f.name for f in index_files])
+        
+        if not index_files:
+            status = "error"
+            status_message = "No index files found to package"
+            log.error("%s %s", log_identifier, status_message)
+            return {
+                "status": status,
+                "index_path_name": index_path_name,
+                "index_version": None,
+                "metadata_path_name": metadata_path_name,
+                "metadata_version": None,
+                "message": status_message,
+            }
+        
+        # Create ZIP file in memory containing all index files
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file_path in index_files:
+                # Add file to ZIP with just its name (no directory structure)
+                zip_file.write(file_path, arcname=file_path.name)
+                saved_files.append(file_path.name)
+                log.debug("%s Added '%s' to ZIP archive", log_identifier, file_path.name)
+        
+        # Get ZIP bytes
+        zip_bytes = zip_buffer.getvalue()
+        log.info("%s Created ZIP archive with %d files (%d bytes)", 
+                 log_identifier, len(saved_files), len(zip_bytes))
+        
+        # Save the ZIP file as a single versioned artifact
+        save_index_method = getattr(artifact_service, "save_artifact")
+        
+        try:
+            index_zip_part = adk_types.Part.from_bytes(
+                data=zip_bytes, 
+                mime_type="application/zip"
+            )
+            
+            index_version = await save_index_method(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=index_path_name,
+                artifact=index_zip_part,
+            )
+            
+            log.info("%s Saved BM25 index ZIP '%s' as version %s",
+                    log_identifier, index_path_name, index_version)
+                    
+        except Exception as zip_save_err:
+            log.exception("%s Failed to save BM25 index ZIP: %s",
+                        log_identifier, zip_save_err)
+            status = "error"
+            status_message = f"Failed to save BM25 index ZIP: {zip_save_err}"
+            return {
+                "status": status,
+                "index_path_name": index_path_name,
+                "index_version": None,
+                "metadata_path_name": metadata_path_name,
+                "metadata_version": None,
+                "message": status_message,
+            }
+        
+        log.info("%s Successfully saved BM25 index ZIP with %d files", log_identifier, len(saved_files))
+        
+        # Prepare and save metadata
+        final_metadata = {
+            "filename": index_path_name,
+            "mime_type": "application/x-bm25-index",
+            "source_artifact": source_filename,
+            "source_version": source_version,
+            "index_type": "bm25",
+            "format": "folder",
+            "num_chunks": num_chunks,
+            "total_chars": index_result.get("total_chars", 0),
+            "source_description": source_description,
+            "source_mime_type": source_mime_type,
+            "chunk_size": chunk_size,
+            "chunk_overlap": chunk_overlap,
+            "index_files": saved_files,
+            "timestamp_utc": (
+                timestamp
+                if isinstance(timestamp, (int, float))
+                else timestamp.timestamp()
+            ),
+        }
+        
+        try:
+            metadata_bytes = json.dumps(final_metadata, indent=2).encode("utf-8")
+            metadata_artifact_part = adk_types.Part.from_bytes(
+                data=metadata_bytes, mime_type="application/json"
+            )
+            
+            save_index_metadata_method = getattr(artifact_service, "save_artifact")
+            metadata_version = await save_index_metadata_method(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=metadata_path_name,
+                artifact=metadata_artifact_part,
+            )
+            
+            log.info("%s Saved metadata artifact '%s' as version %s.",
+                    log_identifier, metadata_path_name, metadata_version)
+            
+            status = "success"
+            status_message = f"BM25 index and metadata saved successfully. {len(saved_files)} files, {num_chunks} chunks."
+            
+        except Exception as meta_save_err:
+            log.exception("%s Failed to save metadata artifact '%s': %s",
+                        log_identifier, metadata_path_name, meta_save_err)
+            status = "partial_success"
+            status_message = f"Index files saved (v{index_version}), but failed to save metadata: {meta_save_err}"
+            
+    except Exception as index_create_err:
+        log.exception("%s Failed to create or save BM25 index for '%s': %s",
+                     log_identifier, source_filename, index_create_err)
+        status = "error"
+        status_message = f"Failed to create BM25 index: {index_create_err}"
+    
+    return {
+        "status": status,
+        "index_path_name": index_path_name,
+        "index_version": index_version,
+        "metadata_path_name": metadata_path_name,
+        "metadata_version": metadata_version,
+        "message": status_message,
+        "num_chunks": num_chunks,
+        "saved_files": saved_files,
+    }

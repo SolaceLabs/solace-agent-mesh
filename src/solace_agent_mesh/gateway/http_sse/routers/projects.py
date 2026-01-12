@@ -387,7 +387,7 @@ async def add_project_artifacts(
         )
 
         # Create versioned BM25 indexes for uploaded artifacts
-        if project_service.artifact_service and results:
+        if results:
             log.info(f"Creating versioned BM25 indexes for {len(results)} artifacts in project {project_id}")
             
             for result in results:
@@ -399,11 +399,11 @@ async def add_project_artifacts(
                 if filename and version is not None:
                     try:
                         # Create versioned BM25 index using artifact service abstraction
-                        index_version = await project_service._create_versioned_bm25_index(
+                        index_version = await project_service.create_bm25_index_to_project(
                             source_filename=filename,
                             source_version=version,
                             source_mime_type=mime_type or "application/octet-stream",
-                            description=description,
+                            source_description=description,
                             user_id=user_id,
                             project_id=project_id,
                         )
@@ -490,11 +490,11 @@ async def update_project_artifact_metadata(
                     mime_type = artifact_version_info.mime_type
                     
                     # Create versioned BM25 index using artifact service abstraction
-                    index_version = await project_service._create_versioned_bm25_index(
+                    index_version = await project_service.create_bm25_index_to_project(
                         source_filename=filename,
                         source_version=version,
                         source_mime_type=mime_type or "application/octet-stream",
-                        description=description or "",
+                        source_description=description or "",
                         user_id=user_id,
                         project_id=project_id,
                     )
@@ -553,7 +553,8 @@ async def delete_project_artifact(
         # Delete the BM25 index first (if it exists)
         if project_service.artifact_service:
             try:
-                index_deleted = await project_service._delete_versioned_bm25_index(
+                index_deleted = await project_service.delete_bm25_index_from_project(
+                    db=db,
                     source_filename=filename,
                     user_id=user_id,
                     project_id=project_id,
@@ -847,11 +848,11 @@ async def import_project(
                 if filename and version is not None:
                     try:
                         # Create versioned BM25 index using artifact service abstraction
-                        index_version = await project_service._create_versioned_bm25_index(
+                        index_version = await project_service.create_bm25_index_to_project(
                             source_filename=filename,
                             source_version=version,
                             source_mime_type=mime_type or "application/octet-stream",
-                            description=description,
+                            source_description=description,
                             user_id=user_id,
                             project_id=project.id,
                         )
