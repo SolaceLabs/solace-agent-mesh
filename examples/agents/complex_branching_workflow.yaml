@@ -1,0 +1,521 @@
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: complex_branching_workflow.log
+
+!include ../shared_config.yaml
+
+apps:
+  # ============================================================================
+  # SIMPLE TEST AGENTS
+  # These agents do nothing meaningful - just for testing workflow visualization
+  # ============================================================================
+
+  - name: agent_alpha_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AgentAlpha"
+      model: *planning_model
+      instruction: "Test agent Alpha"
+      input_schema: {type: object, properties: {data: {type: string}}}
+      output_schema: {type: object, properties: {result: {type: string}}}
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: {<<: *default_session_service}
+      artifact_service: {<<: *default_artifact_service}
+      agent_card:
+        description: "Test agent Alpha"
+        skills: [{id: "alpha", name: "Alpha", description: "Alpha", tags: ["test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: agent_beta_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AgentBeta"
+      model: *planning_model
+      instruction: "Test agent Beta"
+      input_schema: {type: object, properties: {data: {type: string}}}
+      output_schema: {type: object, properties: {result: {type: string}}}
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: {<<: *default_session_service}
+      artifact_service: {<<: *default_artifact_service}
+      agent_card:
+        description: "Test agent Beta"
+        skills: [{id: "beta", name: "Beta", description: "Beta", tags: ["test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: agent_gamma_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AgentGamma"
+      model: *planning_model
+      instruction: "Test agent Gamma"
+      input_schema: {type: object, properties: {data: {type: string}}}
+      output_schema: {type: object, properties: {result: {type: string}}}
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: {<<: *default_session_service}
+      artifact_service: {<<: *default_artifact_service}
+      agent_card:
+        description: "Test agent Gamma"
+        skills: [{id: "gamma", name: "Gamma", description: "Gamma", tags: ["test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: agent_delta_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AgentDelta"
+      model: *planning_model
+      instruction: "Test agent Delta"
+      input_schema: {type: object, properties: {data: {type: string}}}
+      output_schema: {type: object, properties: {result: {type: string}}}
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: {<<: *default_session_service}
+      artifact_service: {<<: *default_artifact_service}
+      agent_card:
+        description: "Test agent Delta"
+        skills: [{id: "delta", name: "Delta", description: "Delta", tags: ["test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: agent_epsilon_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AgentEpsilon"
+      model: *planning_model
+      instruction: "Test agent Epsilon"
+      input_schema: {type: object, properties: {data: {type: string}}}
+      output_schema: {type: object, properties: {result: {type: string}}}
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: {<<: *default_session_service}
+      artifact_service: {<<: *default_artifact_service}
+      agent_card:
+        description: "Test agent Epsilon"
+        skills: [{id: "epsilon", name: "Epsilon", description: "Epsilon", tags: ["test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: agent_zeta_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AgentZeta"
+      model: *planning_model
+      instruction: "Test agent Zeta"
+      input_schema: {type: object, properties: {data: {type: string}}}
+      output_schema: {type: object, properties: {result: {type: string}}}
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: {<<: *default_session_service}
+      artifact_service: {<<: *default_artifact_service}
+      agent_card:
+        description: "Test agent Zeta"
+        skills: [{id: "zeta", name: "Zeta", description: "Zeta", tags: ["test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: agent_eta_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AgentEta"
+      model: *planning_model
+      instruction: "Test agent Eta"
+      input_schema: {type: object, properties: {data: {type: string}}}
+      output_schema: {type: object, properties: {result: {type: string}}}
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: {<<: *default_session_service}
+      artifact_service: {<<: *default_artifact_service}
+      agent_card:
+        description: "Test agent Eta"
+        skills: [{id: "eta", name: "Eta", description: "Eta", tags: ["test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: agent_theta_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AgentTheta"
+      model: *planning_model
+      instruction: "Test agent Theta"
+      input_schema: {type: object, properties: {data: {type: string}}}
+      output_schema: {type: object, properties: {result: {type: string}}}
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: {<<: *default_session_service}
+      artifact_service: {<<: *default_artifact_service}
+      agent_card:
+        description: "Test agent Theta"
+        skills: [{id: "theta", name: "Theta", description: "Theta", tags: ["test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: agent_iota_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AgentIota"
+      model: *planning_model
+      instruction: "Test agent Iota"
+      input_schema: {type: object, properties: {data: {type: string}}}
+      output_schema: {type: object, properties: {result: {type: string}}}
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: {<<: *default_session_service}
+      artifact_service: {<<: *default_artifact_service}
+      agent_card:
+        description: "Test agent Iota"
+        skills: [{id: "iota", name: "Iota", description: "Iota", tags: ["test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: agent_kappa_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AgentKappa"
+      model: *planning_model
+      instruction: "Test agent Kappa"
+      input_schema: {type: object, properties: {data: {type: string}}}
+      output_schema: {type: object, properties: {result: {type: string}}}
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: {<<: *default_session_service}
+      artifact_service: {<<: *default_artifact_service}
+      agent_card:
+        description: "Test agent Kappa"
+        skills: [{id: "kappa", name: "Kappa", description: "Kappa", tags: ["test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: agent_lambda_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AgentLambda"
+      model: *planning_model
+      instruction: "Test agent Lambda"
+      input_schema: {type: object, properties: {data: {type: string}}}
+      output_schema: {type: object, properties: {result: {type: string}}}
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: {<<: *default_session_service}
+      artifact_service: {<<: *default_artifact_service}
+      agent_card:
+        description: "Test agent Lambda"
+        skills: [{id: "lambda", name: "Lambda", description: "Lambda", tags: ["test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: agent_mu_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "AgentMu"
+      model: *planning_model
+      instruction: "Test agent Mu"
+      input_schema: {type: object, properties: {data: {type: string}}}
+      output_schema: {type: object, properties: {result: {type: string}}}
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service: {<<: *default_session_service}
+      artifact_service: {<<: *default_artifact_service}
+      agent_card:
+        description: "Test agent Mu"
+        skills: [{id: "mu", name: "Mu", description: "Mu", tags: ["test"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ============================================================================
+  # WORKFLOW: Complex Branching Test
+  # Lots of branches, switches, maps, loops for testing visualization
+  # ============================================================================
+  - name: complex_branching_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ComplexBranchingWorkflow"
+      display_name: "Complex Branching Test Workflow"
+
+      workflow:
+        version: "1.0.0"
+        description: |
+          A complex workflow for testing the visualization with many branches,
+          parallel paths, nested containers, and multiple switch nodes.
+
+        input_schema:
+          type: object
+          properties:
+            mode:
+              type: string
+              enum: ["fast", "normal", "slow", "ultra"]
+            items:
+              type: array
+              items: {type: object}
+            enable_loop:
+              type: boolean
+          required: [mode, items]
+
+        output_schema:
+          type: object
+          properties:
+            status: {type: string}
+
+        nodes:
+          # ====================================================================
+          # ENTRY: Initial processing
+          # ====================================================================
+          - id: entry_processor
+            type: agent
+            agent_name: "AgentAlpha"
+            input:
+              data: "{{workflow.input.mode}}"
+
+          # ====================================================================
+          # FIRST BRANCH: Three parallel paths from entry
+          # ====================================================================
+          - id: path_a_start
+            type: agent
+            agent_name: "AgentBeta"
+            depends_on: [entry_processor]
+            input:
+              data: "path_a"
+
+          - id: path_b_start
+            type: agent
+            agent_name: "AgentGamma"
+            depends_on: [entry_processor]
+            input:
+              data: "path_b"
+
+          - id: path_c_start
+            type: agent
+            agent_name: "AgentDelta"
+            depends_on: [entry_processor]
+            input:
+              data: "path_c"
+
+          # ====================================================================
+          # PATH A: Contains a switch with 4 branches
+          # ====================================================================
+          - id: path_a_switch
+            type: switch
+            depends_on: [path_a_start]
+            cases:
+              - condition: "'{{workflow.input.mode}}' == 'fast'"
+                node: fast_handler
+              - condition: "'{{workflow.input.mode}}' == 'normal'"
+                node: normal_handler
+              - condition: "'{{workflow.input.mode}}' == 'slow'"
+                node: slow_handler
+            default: ultra_handler
+
+          - id: fast_handler
+            type: agent
+            agent_name: "AgentEpsilon"
+            depends_on: [path_a_switch]
+            input:
+              data: "fast"
+
+          - id: normal_handler
+            type: agent
+            agent_name: "AgentZeta"
+            depends_on: [path_a_switch]
+            input:
+              data: "normal"
+
+          - id: slow_handler
+            type: agent
+            agent_name: "AgentEta"
+            depends_on: [path_a_switch]
+            input:
+              data: "slow"
+
+          - id: ultra_handler
+            type: agent
+            agent_name: "AgentTheta"
+            depends_on: [path_a_switch]
+            input:
+              data: "ultra"
+
+          # Path A continuation after switch
+          - id: path_a_merge
+            type: agent
+            agent_name: "AgentIota"
+            depends_on: [fast_handler, normal_handler, slow_handler, ultra_handler]
+            input:
+              data: "merged"
+
+          # ====================================================================
+          # PATH B: Contains a map node
+          # ====================================================================
+          - id: path_b_map
+            type: map
+            depends_on: [path_b_start]
+            items: "{{workflow.input.items}}"
+            node: item_processor
+
+          - id: item_processor
+            type: agent
+            agent_name: "AgentKappa"
+            input:
+              data: "{{_map_item}}"
+
+          # Path B continuation after map
+          - id: path_b_post_map
+            type: agent
+            agent_name: "AgentLambda"
+            depends_on: [path_b_map]
+            input:
+              data: "post_map"
+
+          # ====================================================================
+          # PATH C: Contains a loop node
+          # ====================================================================
+          - id: path_c_loop
+            type: loop
+            depends_on: [path_c_start]
+            node: loop_body
+            condition: "{{loop_body.output.continue}} == true"
+            max_iterations: 3
+
+          - id: loop_body
+            type: agent
+            agent_name: "AgentMu"
+            input:
+              data: "iteration_{{_loop_iteration}}"
+
+          # Path C continuation after loop
+          - id: path_c_post_loop
+            type: agent
+            agent_name: "AgentAlpha"
+            depends_on: [path_c_loop]
+            input:
+              data: "post_loop"
+
+          # ====================================================================
+          # SECOND MERGE: All three paths come together
+          # ====================================================================
+          - id: merge_all_paths
+            type: agent
+            agent_name: "AgentBeta"
+            depends_on: [path_a_merge, path_b_post_map, path_c_post_loop]
+            input:
+              data: "all_merged"
+
+          # ====================================================================
+          # FINAL SWITCH: Two more branches before exit
+          # ====================================================================
+          - id: final_switch
+            type: switch
+            depends_on: [merge_all_paths]
+            cases:
+              - condition: "{{workflow.input.enable_loop}} == true"
+                node: enabled_path
+            default: disabled_path
+
+          - id: enabled_path
+            type: agent
+            agent_name: "AgentGamma"
+            depends_on: [final_switch]
+            input:
+              data: "enabled"
+
+          - id: disabled_path
+            type: agent
+            agent_name: "AgentDelta"
+            depends_on: [final_switch]
+            input:
+              data: "disabled"
+
+          # ====================================================================
+          # EXIT: Final processing
+          # ====================================================================
+          - id: exit_processor
+            type: agent
+            agent_name: "AgentEpsilon"
+            depends_on: [enabled_path, disabled_path]
+            input:
+              data: "exit"
+
+        output_mapping:
+          status: "{{exit_processor.output.result}}"
+
+        skills:
+          - id: "complex_test"
+            name: "Complex Test"
+            description: "Tests complex branching visualization"
+            tags: ["test", "visualization"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }

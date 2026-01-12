@@ -1,5 +1,4 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
-import { useGesture } from "@use-gesture/react";
 
 interface PanZoomCanvasProps {
     children: React.ReactNode;
@@ -17,6 +16,17 @@ export interface PanZoomCanvasRef {
     getTransform: () => { scale: number; x: number; y: number };
     /** Fit content to viewport, showing full width and top-aligned */
     fitToContent: (contentWidth: number, options?: { animated?: boolean; maxFitScale?: number }) => void;
+}
+
+interface PointerState {
+    x: number;
+    y: number;
+}
+
+interface GestureState {
+    centerX: number;
+    centerY: number;
+    distance: number;
 }
 
 const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(
@@ -40,6 +50,12 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(
         });
         const [isAnimating, setIsAnimating] = useState(false);
 
+        // Track active pointers for multi-touch
+        const pointersRef = useRef<Map<number, PointerState>>(new Map());
+        const lastGestureRef = useRef<GestureState | null>(null);
+        const isDraggingRef = useRef(false);
+        const lastDragPosRef = useRef<{ x: number; y: number } | null>(null);
+
         // Expose methods via ref
         React.useImperativeHandle(ref, () => ({
             resetTransform: () => {
@@ -60,9 +76,9 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(
 
                 // Calculate scale to fit width
                 // Default max is 1.0 (don't zoom in), but can be overridden
-                const maxScale = options?.maxFitScale ?? 1.0;
+                const fitMaxScale = options?.maxFitScale ?? 1.0;
                 const scaleToFitWidth = (availableWidth - padding) / contentWidth;
-                const newScale = Math.min(Math.max(scaleToFitWidth, minScale), maxScale);
+                const newScale = Math.min(Math.max(scaleToFitWidth, minScale), fitMaxScale);
 
                 // Center horizontally, align to top
                 const scaledContentWidth = contentWidth * newScale;
@@ -90,100 +106,205 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(
             [minScale, maxScale]
         );
 
-        // Handle gestures
-        useGesture(
-            {
-                // Two-finger drag / trackpad scroll -> PAN
-                onWheel: ({ delta: [dx, dy], event, ctrlKey }) => {
-                    event.preventDefault();
+        // Calculate gesture state from two pointers
+        const calculateGestureState = useCallback((pointers: Map<number, PointerState>): GestureState | null => {
+            const points = Array.from(pointers.values());
+            if (points.length < 2) return null;
 
-                    // ctrlKey is true for pinch-to-zoom on trackpad (browser sends ctrl+wheel)
-                    if (ctrlKey) {
-                        // Pinch zoom on trackpad
-                        const zoomFactor = 1 - dy * 0.01;
-                        const rect = containerRef.current?.getBoundingClientRect();
-                        if (!rect) return;
+            const [p1, p2] = points;
+            const centerX = (p1.x + p2.x) / 2;
+            const centerY = (p1.y + p2.y) / 2;
+            const distance = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
 
-                        // Zoom toward cursor position
-                        const cursorX = event.clientX - rect.left;
-                        const cursorY = event.clientY - rect.top;
+            return { centerX, centerY, distance };
+        }, []);
 
-                        setTransform((prev) => {
-                            const newScale = clampScale(prev.scale * zoomFactor);
-                            const scaleRatio = newScale / prev.scale;
+        // Handle pointer down
+        const handlePointerDown = useCallback((e: React.PointerEvent) => {
+            // Capture the pointer for tracking
+            (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
-                            // Adjust position to zoom toward cursor
-                            const newX = cursorX - (cursorX - prev.x) * scaleRatio;
-                            const newY = cursorY - (cursorY - prev.y) * scaleRatio;
+            pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-                            return { scale: newScale, x: newX, y: newY };
-                        });
-                        onUserInteraction?.();
-                    } else {
-                        // Regular scroll -> pan
-                        setTransform((prev) => ({
-                            ...prev,
-                            x: prev.x - dx,
-                            y: prev.y - dy,
-                        }));
-                        onUserInteraction?.();
-                    }
-                },
+            if (pointersRef.current.size === 1) {
+                // Single pointer - start drag
+                isDraggingRef.current = true;
+                lastDragPosRef.current = { x: e.clientX, y: e.clientY };
+            } else if (pointersRef.current.size === 2) {
+                // Two pointers - start pinch gesture
+                isDraggingRef.current = false;
+                lastDragPosRef.current = null;
+                lastGestureRef.current = calculateGestureState(pointersRef.current);
+            }
+        }, [calculateGestureState]);
 
-                // Click and drag -> PAN
-                onDrag: ({ delta: [dx, dy], event }) => {
-                    // Only pan with left mouse button or touch
-                    if (event instanceof MouseEvent && event.button !== 0) return;
+        // Handle pointer move
+        const handlePointerMove = useCallback((e: React.PointerEvent) => {
+            if (!pointersRef.current.has(e.pointerId)) return;
 
-                    setTransform((prev) => ({
-                        ...prev,
-                        x: prev.x + dx,
-                        y: prev.y + dy,
-                    }));
-                    onUserInteraction?.();
-                },
+            // Update pointer position
+            pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-                // Pinch gesture (touch devices) -> ZOOM
-                onPinch: ({ offset: [scale], origin: [ox, oy], event }) => {
-                    event?.preventDefault();
-                    const rect = containerRef.current?.getBoundingClientRect();
-                    if (!rect) return;
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (!rect) return;
 
-                    const cursorX = ox - rect.left;
-                    const cursorY = oy - rect.top;
+            if (pointersRef.current.size >= 2) {
+                // Multi-touch: calculate pan AND zoom simultaneously
+                const currentGesture = calculateGestureState(pointersRef.current);
+                const lastGesture = lastGestureRef.current;
+
+                if (currentGesture && lastGesture) {
+                    // Pan: movement of the center point (average finger displacement)
+                    const panDeltaX = currentGesture.centerX - lastGesture.centerX;
+                    const panDeltaY = currentGesture.centerY - lastGesture.centerY;
+
+                    // Zoom: change in distance between fingers
+                    const zoomFactor = currentGesture.distance / lastGesture.distance;
+
+                    // Pinch center relative to container
+                    const cursorX = currentGesture.centerX - rect.left;
+                    const cursorY = currentGesture.centerY - rect.top;
 
                     setTransform((prev) => {
-                        const newScale = clampScale(scale);
+                        const newScale = clampScale(prev.scale * zoomFactor);
                         const scaleRatio = newScale / prev.scale;
 
-                        // Adjust position to zoom toward pinch center
+                        // Apply zoom toward pinch center
+                        let newX = cursorX - (cursorX - prev.x) * scaleRatio;
+                        let newY = cursorY - (cursorY - prev.y) * scaleRatio;
+
+                        // Apply pan from finger movement (simultaneously!)
+                        newX += panDeltaX;
+                        newY += panDeltaY;
+
+                        return { scale: newScale, x: newX, y: newY };
+                    });
+
+                    onUserInteraction?.();
+                }
+
+                lastGestureRef.current = currentGesture;
+            } else if (isDraggingRef.current && lastDragPosRef.current) {
+                // Single pointer drag - pan only
+                const dx = e.clientX - lastDragPosRef.current.x;
+                const dy = e.clientY - lastDragPosRef.current.y;
+
+                setTransform((prev) => ({
+                    ...prev,
+                    x: prev.x + dx,
+                    y: prev.y + dy,
+                }));
+
+                lastDragPosRef.current = { x: e.clientX, y: e.clientY };
+                onUserInteraction?.();
+            }
+        }, [calculateGestureState, clampScale, onUserInteraction]);
+
+        // Handle pointer up/cancel
+        const handlePointerUp = useCallback((e: React.PointerEvent) => {
+            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+            pointersRef.current.delete(e.pointerId);
+
+            if (pointersRef.current.size < 2) {
+                lastGestureRef.current = null;
+            }
+
+            if (pointersRef.current.size === 1) {
+                // Went from 2 to 1 pointer - switch to drag mode
+                const remaining = Array.from(pointersRef.current.values())[0];
+                isDraggingRef.current = true;
+                lastDragPosRef.current = { x: remaining.x, y: remaining.y };
+            } else if (pointersRef.current.size === 0) {
+                isDraggingRef.current = false;
+                lastDragPosRef.current = null;
+            }
+        }, []);
+
+        // Handle wheel events (mouse wheel zoom + trackpad gestures)
+        // Must be added manually with { passive: false } to allow preventDefault()
+        useEffect(() => {
+            const container = containerRef.current;
+            if (!container) return;
+
+            const handleWheel = (e: WheelEvent) => {
+                e.preventDefault();
+
+                const rect = container.getBoundingClientRect();
+
+                const dx = e.deltaX;
+                const dy = e.deltaY;
+                const ctrlKey = e.ctrlKey || e.metaKey;
+                const shiftKey = e.shiftKey;
+
+                // Check if this looks like a trackpad 2-finger swipe (has horizontal component)
+                const isTrackpadSwipe = Math.abs(dx) > 1 && !ctrlKey;
+
+                if (shiftKey) {
+                    // Shift+scroll -> pan horizontally
+                    setTransform((prev) => ({
+                        ...prev,
+                        x: prev.x - dy,
+                    }));
+                    onUserInteraction?.();
+                } else if (ctrlKey) {
+                    // Trackpad pinch -> zoom + pan
+                    const zoomFactor = 1 - dy * 0.01;
+                    const cursorX = e.clientX - rect.left;
+                    const cursorY = e.clientY - rect.top;
+
+                    setTransform((prev) => {
+                        const newScale = clampScale(prev.scale * zoomFactor);
+                        const scaleRatio = newScale / prev.scale;
+
+                        let newX = cursorX - (cursorX - prev.x) * scaleRatio;
+                        let newY = cursorY - (cursorY - prev.y) * scaleRatio;
+                        newX -= dx;
+
+                        return { scale: newScale, x: newX, y: newY };
+                    });
+                    onUserInteraction?.();
+                } else if (isTrackpadSwipe) {
+                    // Trackpad 2-finger swipe -> pan
+                    setTransform((prev) => ({
+                        ...prev,
+                        x: prev.x - dx,
+                        y: prev.y - dy,
+                    }));
+                    onUserInteraction?.();
+                } else {
+                    // Mouse wheel -> zoom toward cursor
+                    const zoomFactor = 1 - dy * 0.005;
+                    const cursorX = e.clientX - rect.left;
+                    const cursorY = e.clientY - rect.top;
+
+                    setTransform((prev) => {
+                        const newScale = clampScale(prev.scale * zoomFactor);
+                        const scaleRatio = newScale / prev.scale;
+
                         const newX = cursorX - (cursorX - prev.x) * scaleRatio;
                         const newY = cursorY - (cursorY - prev.y) * scaleRatio;
 
                         return { scale: newScale, x: newX, y: newY };
                     });
                     onUserInteraction?.();
-                },
-            },
-            {
-                target: containerRef,
-                wheel: {
-                    eventOptions: { passive: false },
-                },
-                drag: {
-                    filterTaps: true,
-                    pointer: { mouse: true, touch: true },
-                },
-                pinch: {
-                    scaleBounds: { min: minScale, max: maxScale },
-                    eventOptions: { passive: false },
-                },
-            }
-        );
+                }
+            };
+
+            // Add with passive: false to allow preventDefault()
+            container.addEventListener("wheel", handleWheel, { passive: false });
+
+            return () => {
+                container.removeEventListener("wheel", handleWheel);
+            };
+        }, [clampScale, onUserInteraction]);
 
         return (
             <div
                 ref={containerRef}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
                 style={{
                     width: "100%",
                     height: "100%",

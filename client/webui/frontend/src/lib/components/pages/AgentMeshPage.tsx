@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { Button, EmptyState, Header } from "@/lib/components";
 import { AgentMeshCards } from "@/lib/components/agents";
@@ -11,7 +12,20 @@ type AgentMeshTab = "agents" | "workflows";
 
 export function AgentMeshPage() {
     const { agents, agentsLoading, agentsError, agentsRefetch } = useChatContext();
-    const [activeTab, setActiveTab] = useState<AgentMeshTab>("agents");
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    // Read active tab from URL, default to "agents"
+    const activeTab: AgentMeshTab = (searchParams.get("tab") as AgentMeshTab) || "agents";
+
+    const setActiveTab = (tab: AgentMeshTab) => {
+        if (tab === "agents") {
+            // Remove tab param for default tab
+            searchParams.delete("tab");
+        } else {
+            searchParams.set("tab", tab);
+        }
+        setSearchParams(searchParams);
+    };
 
     const { regularAgents, workflowAgents } = useMemo(() => {
         const regular = agents.filter(agent => !isWorkflowAgent(agent));
