@@ -7,13 +7,6 @@
  *
  * This is the frontend version that mirrors the backend Python implementation
  * for use with browser-based TTS.
- *
- * @example
- * import { markdownToSpeech } from '@/lib/utils/markdownToSpeech';
- *
- * const text = "This is **bold** and [a link](https://example.com)";
- * const speechText = markdownToSpeech(text);
- * // Result: "This is bold and a link"
  */
 
 export interface MarkdownToSpeechOptions {

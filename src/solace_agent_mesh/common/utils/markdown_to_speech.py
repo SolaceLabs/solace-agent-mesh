@@ -1,23 +1,13 @@
 """
 Markdown to Speech Preprocessor
-
 Converts markdown-formatted text to natural, speakable text suitable for
 Text-to-Speech (TTS) engines. Removes markdown syntax while preserving
 the semantic meaning of the content.
-
-Usage:
-    from solace_agent_mesh.common.utils.markdown_to_speech import markdown_to_speech
-    
-    text = "This is **bold** and [a link](https://example.com)"
-    speech_text = markdown_to_speech(text)
-    # Result: "This is bold and a link"
 """
-
 import re
 import html
 from typing import Optional
 from dataclasses import dataclass, field
-
 
 @dataclass
 class MarkdownToSpeechOptions:
@@ -48,7 +38,6 @@ class MarkdownToSpeechOptions:
 
 # Default options instance
 DEFAULT_OPTIONS = MarkdownToSpeechOptions()
-
 
 def markdown_to_speech(
     text: str,
