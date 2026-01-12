@@ -1227,6 +1227,63 @@ class TestLoadArtifactContentOrMetadata:
         assert result["status"] == "not_found"
         assert "Could not determine latest version" in result["message"]
 
+    @pytest.mark.asyncio
+    async def test_load_metadata_uses_correct_filename_for_version_check(self, mock_artifact_service):
+        """
+        Test that loading metadata checks versions using the metadata filename.
+        
+        Regression test for bug where metadata loading would check versions
+        of the content file instead of the metadata file, causing version
+        mismatches and loading incorrect/stale metadata.
+        
+        Scenario: Content file has versions [1, 2, 3, 4]
+                  Metadata file has versions [1, 2, 3, 5, 6]
+                  When requesting "latest" metadata, should load v6 (not v4)
+        """
+        metadata_dict = {
+            "filename": "report.md",
+            "mime_type": "text/markdown",
+            "size_bytes": 500,
+            "description": "Updated description from v6"
+        }
+        
+        mock_part = Mock()
+        mock_part.inline_data = Mock()
+        mock_part.inline_data.mime_type = "application/json"
+        mock_part.inline_data.data = json.dumps(metadata_dict).encode("utf-8")
+        
+        # Track which filename was used for version checking
+        list_versions_calls = []
+        
+        async def mock_list_versions(app_name, user_id, session_id, filename):
+            list_versions_calls.append(filename)
+            if filename.endswith(".metadata.json"):
+                return [1, 2, 3, 5, 6]  # Metadata versions
+            else:
+                return [1, 2, 3, 4]  # Content versions
+        
+        mock_artifact_service.list_versions = mock_list_versions
+        mock_artifact_service.load_artifact = AsyncMock(return_value=mock_part)
+        
+        # Execute: Load metadata with version="latest"
+        result = await load_artifact_content_or_metadata(
+            artifact_service=mock_artifact_service,
+            app_name="testapp",
+            user_id="user123",
+            session_id="session456",
+            filename="report.md",
+            version="latest",
+            load_metadata_only=True
+        )
+        
+        # Verify: Should have resolved to version 6 (max of metadata versions)
+        assert result["status"] == "success"
+        assert result["version"] == 6
+        assert result["metadata"]["description"] == "Updated description from v6"
+        
+        # Verify list_versions was called with the metadata filename
+        assert len(list_versions_calls) == 1
+        assert list_versions_calls[0] == "report.md.metadata.json"
 
 class TestArtifactHelpersIntegration:
     """Integration tests for artifact helper functions."""
