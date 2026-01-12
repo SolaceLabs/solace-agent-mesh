@@ -1269,6 +1269,13 @@ async def load_artifact_content_or_metadata(
         version_to_load = actual_version
         log_identifier = f"{log_identifier_prefix}:{filename}:v{version_to_load}"
 
+        log.debug(
+            "%s Attempting to load '%s' v%d (async)",
+            log_identifier,
+            target_filename,
+            version_to_load,
+        )
+
         load_artifact_method = getattr(artifact_service, "load_artifact")
         artifact_part = await load_artifact_method(
             app_name=app_name,
