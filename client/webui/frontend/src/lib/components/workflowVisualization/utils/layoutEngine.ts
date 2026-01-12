@@ -471,6 +471,25 @@ function calculateContainerContentHeight(children: LayoutNode[]): number {
 }
 
 /**
+ * Compute barycenter (average x position) of parent nodes
+ */
+function computeBarycenter(parentIds: string[], nodeById: Map<string, LayoutNode>): number {
+    if (parentIds.length === 0) return 0;
+
+    let sum = 0;
+    let count = 0;
+    for (const id of parentIds) {
+        const parent = nodeById.get(id);
+        if (parent) {
+            sum += parent.x + parent.width / 2;
+            count++;
+        }
+    }
+
+    return count > 0 ? sum / count : 0;
+}
+
+/**
  * Calculate positions for all nodes using dependency-based positioning
  * Nodes are positioned below their dependencies to maintain branch alignment
  */
@@ -563,6 +582,22 @@ function calculatePositions(nodes: LayoutNode[], nodeMap: Map<string, ProcessedN
         const levelY = levelYPositions.get(level) || 0;
         const levelHeight = levelHeights.get(level) || 0;
 
+        // Sort nodes at this level by barycenter (average x position of parents)
+        // This ensures nodes in the same branch are co-located
+        nodesAtLevel.sort((a, b) => {
+            if (a.id === "__end__") return 1; // End node goes last
+            if (b.id === "__end__") return -1;
+
+            const aProc = nodeMap.get(a.id);
+            const bProc = nodeMap.get(b.id);
+            if (!aProc || !bProc) return 0;
+
+            const aBarycenter = computeBarycenter(aProc.dependsOn, nodeById);
+            const bBarycenter = computeBarycenter(bProc.dependsOn, nodeById);
+
+            return aBarycenter - bBarycenter;
+        });
+
         // Group nodes by their parent(s) to identify siblings
         const siblingGroups = new Map<string, LayoutNode[]>();
 
@@ -580,51 +615,69 @@ function calculatePositions(nodes: LayoutNode[], nodeMap: Map<string, ProcessedN
             siblingGroups.get(parentKey)!.push(node);
         }
 
-        // Position each sibling group symmetrically around their shared parent(s)
+        // Calculate ideal center and width for each sibling group
+        const groupInfos: Array<{
+            parentKey: string;
+            siblings: LayoutNode[];
+            idealCenterX: number;
+            totalWidth: number;
+        }> = [];
+
         for (const [parentKey, siblings] of siblingGroups) {
             const parentIds = parentKey.split(",").filter(id => id.length > 0);
             const parents = parentIds
                 .map(id => nodeById.get(id))
                 .filter((n): n is LayoutNode => n !== undefined);
 
-            // Calculate the center point of parent(s)
-            let centerX: number;
+            // Calculate the ideal center point based on parent(s)
+            let idealCenterX: number;
             if (parents.length === 0) {
-                centerX = firstLevelWidth / 2;
+                idealCenterX = firstLevelWidth / 2;
             } else if (parents.length === 1) {
-                centerX = parents[0].x + parents[0].width / 2;
+                idealCenterX = parents[0].x + parents[0].width / 2;
             } else {
                 const minX = Math.min(...parents.map(p => p.x));
                 const maxX = Math.max(...parents.map(p => p.x + p.width));
-                centerX = (minX + maxX) / 2;
+                idealCenterX = (minX + maxX) / 2;
             }
 
-            if (siblings.length === 1) {
-                // Single child - center below parent(s)
-                const node = siblings[0];
-                node.x = centerX - node.width / 2;
+            // Calculate total width of this sibling group
+            const siblingsWidth = siblings.reduce((sum, s) => sum + s.width, 0);
+            const gaps = Math.max(0, siblings.length - 1) * SPACING.HORIZONTAL;
+            const totalWidth = siblingsWidth + gaps;
+
+            groupInfos.push({ parentKey, siblings, idealCenterX, totalWidth });
+        }
+
+        // Sort sibling groups by their ideal center position (left to right)
+        groupInfos.sort((a, b) => a.idealCenterX - b.idealCenterX);
+
+        // Position each sibling group, ensuring no overlap between groups
+        let nextAvailableX = -Infinity; // Track the right edge of the last positioned group
+
+        for (const groupInfo of groupInfos) {
+            const { siblings, idealCenterX, totalWidth } = groupInfo;
+
+            // Calculate the ideal start position (centered below parents)
+            let idealStartX = idealCenterX - totalWidth / 2;
+
+            // Ensure this group doesn't overlap with the previous group
+            const actualStartX = Math.max(idealStartX, nextAvailableX);
+
+            // Position siblings within the group
+            let currentX = actualStartX;
+            for (const node of siblings) {
+                node.x = currentX;
                 node.y = levelY + (levelHeight - node.height) / 2;
+                currentX += node.width + SPACING.HORIZONTAL;
 
                 if (node.children.length > 0) {
                     positionContainerChildren(node);
                 }
-            } else {
-                // Multiple siblings - spread symmetrically around center
-                const siblingsWidth = siblings.reduce((sum, s) => sum + s.width, 0);
-                const gaps = (siblings.length - 1) * SPACING.HORIZONTAL;
-                const totalWidth = siblingsWidth + gaps;
-
-                let startX = centerX - totalWidth / 2;
-                for (const node of siblings) {
-                    node.x = startX;
-                    node.y = levelY + (levelHeight - node.height) / 2;
-                    startX += node.width + SPACING.HORIZONTAL;
-
-                    if (node.children.length > 0) {
-                        positionContainerChildren(node);
-                    }
-                }
             }
+
+            // Update the next available x position (right edge of this group + gap)
+            nextAvailableX = actualStartX + totalWidth + SPACING.HORIZONTAL;
         }
 
         // Handle end node separately
@@ -665,6 +718,48 @@ function calculatePositions(nodes: LayoutNode[], nodeMap: Map<string, ProcessedN
 
     // Normalize positions (ensure no negative x values)
     let minX = Infinity;
+    for (const node of nodes) {
+        minX = Math.min(minX, node.x);
+    }
+    if (minX < 0) {
+        for (const node of nodes) {
+            node.x -= minX;
+        }
+    }
+
+    // Fourth pass: Center each level horizontally
+    // Find the total width of the layout (widest level)
+    let maxLayoutWidth = 0;
+    for (const level of sortedLevels) {
+        const nodesAtLevel = levelMap.get(level)!;
+        if (nodesAtLevel.length === 0) continue;
+
+        const levelMinX = Math.min(...nodesAtLevel.map(n => n.x));
+        const levelMaxX = Math.max(...nodesAtLevel.map(n => n.x + n.width));
+        const levelWidth = levelMaxX - levelMinX;
+        maxLayoutWidth = Math.max(maxLayoutWidth, levelWidth);
+    }
+
+    // Center each level relative to the widest level
+    for (const level of sortedLevels) {
+        const nodesAtLevel = levelMap.get(level)!;
+        if (nodesAtLevel.length === 0) continue;
+
+        const levelMinX = Math.min(...nodesAtLevel.map(n => n.x));
+        const levelMaxX = Math.max(...nodesAtLevel.map(n => n.x + n.width));
+        const levelWidth = levelMaxX - levelMinX;
+        const levelCenterX = levelMinX + levelWidth / 2;
+        const targetCenterX = maxLayoutWidth / 2;
+        const shiftX = targetCenterX - levelCenterX;
+
+        // Shift all nodes at this level to center them
+        for (const node of nodesAtLevel) {
+            node.x += shiftX;
+        }
+    }
+
+    // Final normalization to ensure no negative x values after centering
+    minX = Infinity;
     for (const node of nodes) {
         minX = Math.min(minX, node.x);
     }
