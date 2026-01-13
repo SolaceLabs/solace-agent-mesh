@@ -3,8 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label, DialogDescription } from "@/lib/components/ui";
-import { MessageBanner, FileUpload } from "@/lib/components/common";
+import { Input, Label } from "@/lib/components/ui";
+import { MessageBanner, FileUpload, ConfirmationDialog, ErrorLabel } from "@/lib/components/common";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { promptImportSchema, PROMPT_FIELD_LIMITS, formatZodErrors, hasPathError, getPathErrorMessage, detectTruncationWarnings, type PromptImportData, type TruncationWarning } from "@/lib/schemas";
 
@@ -241,14 +241,19 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                 preserveCategory: true, // Always preserve category
             });
 
-            // Reset state and close dialog
+            // Reset state on success
             handleReset();
-            onOpenChange(false);
         } catch (err) {
             setFileError(err instanceof Error ? err.message : "Failed to import prompt");
+            throw err; // Re-throw to prevent dialog from closing on import errors
         } finally {
             setIsImporting(false);
         }
+    };
+
+    const handleConfirm = async () => {
+        // Trigger form validation and submission
+        await handleSubmit(onSubmit)();
     };
 
     const handleReset = () => {
@@ -269,153 +274,136 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         }
     };
 
-    return (
-        <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
-                <DialogHeader>
-                    <DialogTitle>Import Prompt</DialogTitle>
-                    <DialogDescription>Import a prompt from an exported prompt JSON file.</DialogDescription>
-                </DialogHeader>
+    const handleCancel = () => {
+        if (!isImporting) {
+            handleClose();
+        }
+    };
 
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 overflow-x-hidden pt-4">
-                    {/* File Upload */}
-                    <FileUpload name="promptFile" accept=".json" multiple={false} disabled={isImporting} value={selectedFiles} onChange={handleFileChange} onValidate={handleFileValidation} />
+    const dialogContent = (
+        <div className="mt-2 py-2">
+            {/* File Upload */}
+            <FileUpload name="promptFile" accept=".json" multiple={false} disabled={isImporting} value={selectedFiles} onChange={handleFileChange} onValidate={handleFileValidation} />
 
-                    {/* Error Display */}
-                    {fileError && (
-                        <div className="space-y-2">
-                            <MessageBanner variant="error" message={fileError} />
-                            {validationErrors.length > 0 && (
-                                <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/30">
-                                    <ul className="list-inside list-disc space-y-1 text-sm text-red-800 dark:text-red-200">
-                                        {validationErrors.map((err, idx) => (
-                                            <li key={idx}>{err}</li>
+            {/* Error Display */}
+            {fileError && (
+                <div className="space-y-2">
+                    <MessageBanner variant="error" message={fileError} />
+                    {validationErrors.length > 0 && (
+                        <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/30">
+                            <ul className="list-inside list-disc space-y-1 text-sm text-red-800 dark:text-red-200">
+                                {validationErrors.map((err, idx) => (
+                                    <li key={idx}>{err}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Preview */}
+            {importData && !fileError && (
+                <div className="mt-2 py-2">
+                    {/* Truncation Warnings */}
+                    {truncationWarnings.length > 0 && !hasConflicts && (
+                        <MessageBanner
+                            variant="warning"
+                            message={
+                                <div className="space-y-2">
+                                    <p className="font-medium">Some fields exceed the maximum length and will be truncated:</p>
+                                    <ul className="list-inside list-disc space-y-1 text-sm">
+                                        {truncationWarnings.map((warning, idx) => (
+                                            <li key={idx}>{warning.message}</li>
                                         ))}
                                     </ul>
                                 </div>
-                            )}
-                        </div>
+                            }
+                        />
                     )}
 
-                    {/* Preview */}
-                    {importData && !fileError && (
-                        <div className="space-y-4">
-                            {/* Conflict Error Banner */}
-                            {hasConflicts && (
-                                <MessageBanner
-                                    variant="error"
-                                    message={
-                                        <>
-                                            <span className="font-medium">Conflicts found: </span>
-                                            {conflicts.hasNameConflict && <span className="font-semibold">{watchedName}</span>}
-                                            {conflicts.hasNameConflict && conflicts.hasCommandConflict && " name and "}
-                                            {conflicts.hasCommandConflict && (
-                                                <>
-                                                    <span className="font-semibold">{watchedCommand}</span>
-                                                    {" chat shortcut"}
-                                                </>
-                                            )}
-                                            {conflicts.hasNameConflict && !conflicts.hasCommandConflict && " name"}
-                                            {conflicts.hasNameConflict && conflicts.hasCommandConflict ? " already exist." : " already exists."}
-                                        </>
-                                    }
-                                />
+                    {/* Review Prompt Section */}
+                    <div className="flex flex-col gap-4">
+                        <h3 className="text-sm font-semibold">Review Prompt</h3>
+
+                        {/* Name Field - Editable when there's a conflict or was initially in conflict */}
+                        <div className="space-y-1">
+                            <Label htmlFor="import-name" className="text-muted-foreground text-xs">
+                                Name{conflicts.hasNameConflict && <span className="text-destructive">*</span>}
+                            </Label>
+                            {initialNameConflict ? (
+                                <div className="space-y-2">
+                                    <Input id="import-name" {...register("name")} className={`${errors.name || conflicts.hasNameConflict ? "border-(--color-error-w100)" : ""}`} maxLength={PROMPT_FIELD_LIMITS.NAME_MAX} />
+
+                                    {conflicts.hasNameConflict && !errors.name && <ErrorLabel message="Conflict: Already exists. Change name." />}
+                                    {errors.name && <ErrorLabel message={errors.name.message} />}
+                                </div>
+                            ) : (
+                                <p className="overflow-wrap-anywhere text-sm break-words">{watchedName}</p>
                             )}
-
-                            {/* Truncation Warnings */}
-                            {truncationWarnings.length > 0 && !hasConflicts && (
-                                <MessageBanner
-                                    variant="warning"
-                                    message={
-                                        <div className="space-y-2">
-                                            <p className="font-medium">Some fields exceed the maximum length and will be truncated:</p>
-                                            <ul className="list-inside list-disc space-y-1 text-sm">
-                                                {truncationWarnings.map((warning, idx) => (
-                                                    <li key={idx}>{warning.message}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    }
-                                />
-                            )}
-
-                            {/* Review Prompt Section */}
-                            <div className="flex flex-col gap-4">
-                                <h3 className="text-sm font-semibold">Review Prompt</h3>
-
-                                {/* Name Field - Editable when there's a conflict or was initially in conflict */}
-                                <div className="space-y-1">
-                                    <Label htmlFor="import-name" className="text-muted-foreground text-xs">
-                                        Name{conflicts.hasNameConflict && <span className="text-destructive">*</span>}
-                                    </Label>
-                                    {initialNameConflict ? (
-                                        <div className="space-y-2">
-                                            <Input id="import-name" {...register("name")} className={`${errors.name || conflicts.hasNameConflict ? "border-red-500 focus-visible:ring-red-500" : ""}`} maxLength={PROMPT_FIELD_LIMITS.NAME_MAX} />
-                                            {conflicts.hasNameConflict && !errors.name && <MessageBanner variant="error" message="Already exists. Change name." />}
-                                            {errors.name && <p className="text-xs text-[#647481] dark:text-[#B1B9C0]">{errors.name.message}</p>}
-                                        </div>
-                                    ) : (
-                                        <p className="overflow-wrap-anywhere text-sm break-words">{watchedName}</p>
-                                    )}
-                                </div>
-
-                                {/* Description - Always read-only */}
-                                <div className="space-y-1">
-                                    <Label className="text-muted-foreground text-xs">Description</Label>
-                                    {importData.prompt.description ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.description}</p> : <p className="text-muted-foreground text-sm italic">No description</p>}
-                                </div>
-
-                                {/* Tag - Always read-only */}
-                                <div className="space-y-1">
-                                    <Label className="text-muted-foreground text-xs">Tag</Label>
-                                    {importData.prompt.category ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.category}</p> : <p className="text-muted-foreground text-sm italic">No tag</p>}
-                                </div>
-
-                                {/* Chat Shortcut Field - Editable when there's a conflict or was initially in conflict */}
-                                <div className="space-y-1">
-                                    <Label htmlFor="import-command" className="text-muted-foreground text-xs">
-                                        Chat Shortcut{conflicts.hasCommandConflict && <span className="text-destructive">*</span>}
-                                    </Label>
-                                    {initialCommandConflict ? (
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-muted-foreground text-sm">/</span>
-                                                <Input
-                                                    id="import-command"
-                                                    {...register("command")}
-                                                    placeholder="e.g., code-review"
-                                                    className={`flex-1 ${errors.command || conflicts.hasCommandConflict ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-                                                    maxLength={PROMPT_FIELD_LIMITS.COMMAND_MAX}
-                                                />
-                                            </div>
-                                            {conflicts.hasCommandConflict && !errors.command && <MessageBanner variant="error" message="Already exists. Change chat shortcut." />}
-                                            {errors.command && <p className="text-xs text-[#647481] dark:text-[#B1B9C0]">{errors.command.message}</p>}
-                                        </div>
-                                    ) : watchedCommand ? (
-                                        <p className="font-mono text-sm break-all">{watchedCommand}</p>
-                                    ) : (
-                                        <p className="text-muted-foreground text-sm italic">No chat shortcut</p>
-                                    )}
-                                </div>
-
-                                {/* Original Author - Always read-only */}
-                                <div className="space-y-1">
-                                    <Label className="text-muted-foreground text-xs">Original Author</Label>
-                                    {importData.prompt.metadata?.authorName ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.metadata.authorName}</p> : <p className="text-muted-foreground text-sm italic">No author</p>}
-                                </div>
-                            </div>
                         </div>
-                    )}
-                    <DialogFooter>
-                        <Button type="button" variant="ghost" onClick={handleClose} disabled={isImporting}>
-                            Cancel
-                        </Button>
-                        <Button data-testid="importPromptButton" type="submit" disabled={isImporting || !importData || hasConflicts}>
-                            Import
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
+
+                        {/* Description - Always read-only */}
+                        <div className="space-y-1">
+                            <Label className="text-muted-foreground text-xs">Description</Label>
+                            {importData.prompt.description ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.description}</p> : <p className="text-muted-foreground text-sm italic">No description</p>}
+                        </div>
+
+                        {/* Tag - Always read-only */}
+                        <div className="space-y-1">
+                            <Label className="text-muted-foreground text-xs">Tag</Label>
+                            {importData.prompt.category ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.category}</p> : <p className="text-muted-foreground text-sm italic">No tag</p>}
+                        </div>
+
+                        {/* Chat Shortcut Field - Editable when there's a conflict or was initially in conflict */}
+                        <div className="space-y-1">
+                            <Label htmlFor="import-command" className="text-muted-foreground text-xs">
+                                Chat Shortcut{conflicts.hasCommandConflict && <span className="text-destructive">*</span>}
+                            </Label>
+                            {initialCommandConflict ? (
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-muted-foreground text-sm">/</span>
+                                        <Input
+                                            id="import-command"
+                                            {...register("command")}
+                                            placeholder="e.g., code-review"
+                                            className={`flex-1 ${errors.command || conflicts.hasCommandConflict ? "border-(--color-error-w100)" : ""}`}
+                                            maxLength={PROMPT_FIELD_LIMITS.COMMAND_MAX}
+                                        />
+                                    </div>
+                                    {conflicts.hasCommandConflict && !errors.command && <ErrorLabel message="Conflict: Already exists. Change chat shortcut." />}
+                                    {errors.command && <ErrorLabel message={errors.command.message} />}
+                                </div>
+                            ) : watchedCommand ? (
+                                <p className="font-mono text-sm break-all">{watchedCommand}</p>
+                            ) : (
+                                <p className="text-muted-foreground text-sm italic">No chat shortcut</p>
+                            )}
+                        </div>
+
+                        {/* Original Author - Always read-only */}
+                        <div className="space-y-1">
+                            <Label className="text-muted-foreground text-xs">Original Author</Label>
+                            {importData.prompt.metadata?.authorName ? <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.metadata.authorName}</p> : <p className="text-muted-foreground text-sm italic">No author</p>}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
+    return (
+        <ConfirmationDialog
+            open={open}
+            onOpenChange={open => !open && handleClose()}
+            title="Import Prompt"
+            description="Import a prompt from an exported prompt JSON file."
+            content={dialogContent}
+            actionLabels={{ confirm: "Import", cancel: "Cancel" }}
+            onConfirm={handleConfirm}
+            onCancel={handleCancel}
+            isLoading={isImporting}
+            isEnabled={!!importData && !hasConflicts}
+        />
     );
 };
