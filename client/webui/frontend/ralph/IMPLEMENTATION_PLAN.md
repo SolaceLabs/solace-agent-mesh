@@ -6,8 +6,6 @@
 
 ### Medium Priority - Polish & Validation
 
-- **Run Storybook validation tests for ShareDialog** - Execute `npx vitest --project=storybook src/stories/ShareDialog.stories.tsx` to validate ShareDialog stories render without errors. Fix any rendering errors or test failures immediately (required per AGENTS.md testing strategy).
-
 ### Low Priority - Documentation & Cleanup
 
 - **Remove spec file after implementation** - Delete `ralph/specs/project-sharing-dropdown.md` once feature is fully implemented and tested (per Ralph pattern of removing completed specs from planning directory).
