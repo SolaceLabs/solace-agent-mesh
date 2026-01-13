@@ -231,6 +231,8 @@ async def _inject_project_context(
                     db=db,
                     log_prefix=log_prefix,
                 )
+                log.info(f"{log_prefix} Artifacts copied: {artifacts_copied}, New artifact names: {new_artifact_names}")
+                # artifacts_copied: 2, new_artifact_names: ['sagemaker-ug.pdf', 'sagemaker-ug.pdf.bm25_index']
 
                 if inject_full_context and artifacts_copied > 0:
                     # need to clear the pending flags even if injection fails
@@ -246,39 +248,68 @@ async def _inject_project_context(
                         app_name=project_service.app_name,
                         user_id=source_user_id,
                         session_id=project_artifacts_session_id,
+                        skip_bm25_index=False,
                     )
+                    log.info(f"{log_prefix} Retrieved project artifacts for context injection: {[artifact_info.model_dump() for artifact_info in project_artifacts]}")
 
                     if project_artifacts:
                         # For new sessions - all files
-                        all_artifact_descriptions = []
+                        all_file_descriptions = []
+                        all_bm25_index_descriptions = []
                         # For existing sessions - only new files
-                        new_artifact_descriptions = []
+                        new_file_descriptions = []
+                        new_bm25_index_descriptions = []
 
                         for artifact_info in project_artifacts:
                             # Build description for all artifacts (for new sessions)
                             desc_str = f"- {artifact_info.filename}"
                             if artifact_info.description:
                                 desc_str += f": {artifact_info.description}"
-                            all_artifact_descriptions.append(desc_str)
+                            
+                            # Track all artifacts for new sessions
+                            if artifact_info.filename.endswith(".bm25_index"):
+                                all_bm25_index_descriptions.append(desc_str)
+                            else:
+                                all_file_descriptions.append(desc_str)
 
                             # Track new artifacts for existing sessions
                             if artifact_info.filename in new_artifact_names:
-                                new_artifact_descriptions.append(desc_str)
+                                if artifact_info.filename.endswith(".bm25_index"):
+                                    new_bm25_index_descriptions.append(desc_str)
+                                else:
+                                    new_file_descriptions.append(desc_str)
 
-                        # Add artifact descriptions to context
+                        # Separate headers for files and BM25 indexes
                         files_added_header = (
                             "\nNew Files Added to Session:\n"
                             "The following files have been added to your session (in addition to any files already present):\n"
                         )
+                        bm25_indexes_added_header = (
+                            "\nBM25 Search Indexes Added to Session:\n"
+                            "The following BM25 search indexes have been added to your session (in addition to any indexes already present):\n"
+                        )
 
-                        if inject_full_context and all_artifact_descriptions:
+                        # Add files context
+                        if inject_full_context and all_file_descriptions:
                             # New session: show all project files
-                            artifacts_context = files_added_header + "\n".join(all_artifact_descriptions)
+                            artifacts_context = files_added_header + "\n".join(all_file_descriptions)
                             context_parts.append(artifacts_context)
-                        elif not inject_full_context and new_artifact_descriptions:
+                        elif not inject_full_context and new_file_descriptions:
                             # Existing session: notify about newly added files
-                            new_files_context = files_added_header + "\n".join(new_artifact_descriptions)
+                            new_files_context = files_added_header + "\n".join(new_file_descriptions)
                             context_parts.append(new_files_context)
+
+                        # Add BM25 indexes context
+                        if inject_full_context and all_bm25_index_descriptions:
+                            # New session: show all BM25 indexes
+                            indexes_context = bm25_indexes_added_header + "\n".join(all_bm25_index_descriptions)
+                            context_parts.append(indexes_context)
+                        elif not inject_full_context and new_bm25_index_descriptions:
+                            # Existing session: notify about newly added BM25 indexes
+                            new_indexes_context = bm25_indexes_added_header + "\n".join(new_bm25_index_descriptions)
+                            context_parts.append(new_indexes_context)
+
+                        log.info(f"{log_prefix} Injected artifacts context for llm: {context_parts}")
 
             except Exception as e:
                 log.warning(

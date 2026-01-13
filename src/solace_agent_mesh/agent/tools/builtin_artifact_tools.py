@@ -2517,3 +2517,414 @@ artifact_search_and_replace_regex_tool_def = BuiltinTool(
 )
 
 tool_registry.register(artifact_search_and_replace_regex_tool_def)
+
+# ==============zhenyu new artifact tool to doing bm25 keyword search=============== #
+
+async def bm25_kw_search(
+    #filename: str,
+    #version: int,
+    #load_metadata_only: bool = False,
+    #max_content_length: Optional[int] = None,
+    #include_line_numbers: bool = False,
+    index_dir: str,
+    query: str,
+    top_k: int = 10,
+    tool_context: ToolContext = None,
+) -> Dict[str, Any]:
+    """
+    Performs a BM25 keyword search on the specified artifact index.
+
+    Args:
+        index_dir: The directory of the BM25 index to search.
+        query: The search query string.
+        top_k: The number of top results to return (must be between 1 and 50), default is 10.
+        tool_context: The context provided by the ADK framework.
+
+    Returns:
+        A dictionary containing the search results and related information.
+    """
+    if not tool_context:
+        return {
+            "status": "error",
+            "index_dir": index_dir,
+            "message": "ToolContext is missing.",
+        }
+    
+    log_identifier = f"[BuiltinArtifactTool:bm25_kw_search:{index_dir}]"
+    log.info("%s Processing bm25 keyword search request.", log_identifier)
+    
+    # Validate top_k parameter
+    if top_k < 1 or top_k > 50:
+        return {
+            "status": "error",
+            "index_dir": index_dir,
+            "message": f"Invalid top_k value: {top_k}. Must be between 1 and 50.",
+        }
+
+    from ..utils.bm25_retriever import BM25Retriever
+    
+    retriever = BM25Retriever(index_dir)
+
+    min_score = 0
+
+    results = retriever.search_single_document(
+            query=query,
+            top_k=top_k,
+            min_score=min_score
+        )
+        
+    if not results:
+        return {
+            'response': f"I couldn't find any relevant information to answer this question.",
+            'sources': []
+        }
+    
+    # Step 2: Format context
+    context_for_llm = []
+    sources_citation_for_llm = []
+    
+    #return results
+
+    log.info("%s Retrieved %d results from BM25 search: %s", log_identifier, len(results), results)
+
+    for i, result in enumerate(results, 1):
+        context_for_llm.append({
+            f"Source {i}": result['text']
+        })
+        
+        sources_citation_for_llm.append({
+            'source_id': i,
+            'document': result['doc_name'],
+            'chunk_index': result['chunk_index'],
+            'score': result['score'],
+            'file_type': result['file_type'],
+            'original_doc_path': result['doc_path'],
+            'text': result['text'],
+            'page_numbers': result['page_numbers']
+        })
+    
+    return {
+            'context_for_llm': context_for_llm,
+            'num_chunks': len(results),
+            'sources_citation_for_llm': sources_citation_for_llm,
+            'score_range': {
+                'max': results[0]['score'] if results else 0,
+                'min': results[-1]['score'] if results else 0
+            }
+        }
+
+bm25_kw_search_tool_def = BuiltinTool(
+    name="bm25_kw_search",
+    implementation=bm25_kw_search,
+    description='''## BM25 Keyword Search Tool
+
+****Special Instructions for BM25 Search Results:****
+
+**When presenting search or research results:**
+- Lead with a direct answer if possible
+- Support claims with specific citations
+- Include a properly formatted Sources/References section
+- Make citations actionable - users should understand what each source contributed
+- Use page numbers and document names to help users locate information
+
+The `bm25_kw_search` tool returns results with rich citation metadata in `sources_citation_for_llm`. 
+
+**CRITICAL: Citation Format - Use INLINE Citations with Highlighting:**
+
+**ALWAYS use inline citations immediately after each claim. Make citations VISUALLY PROMINENT.**
+
+1. **Citation Format Options (choose ONE and use consistently):**
+
+   **Option A - Bold Citations (RECOMMENDED):**
+   - Format: `**[source_id]**` 
+   - Example: "Amazon S3 supports four bucket types **[5]**. General purpose buckets are recommended for most use cases **[5][6]**."
+   
+   **Option B - Superscript Citations:**
+   - Format: `<sup>[source_id]</sup>`
+   - Example: "Amazon S3 supports four bucket types<sup>[5]</sup>. General purpose buckets are recommended for most use cases<sup>[5][6]</sup>."
+   
+   **Option C - Plain (only if markdown rendering is limited):**
+   - Format: `[source_id]`
+   - Example: "Amazon S3 supports four bucket types [5]."
+
+2. **Inline Citation Placement Rules:**
+   - ✅ **REQUIRED:** Place citation immediately after the sentence or fact it supports
+   - ✅ Place before the period: "S3 supports four bucket types **[5]**."
+   - ✅ For multiple sources on same claim: "Directory buckets provide low latency **[2][6]**."
+   - ✅ Mid-sentence for specific facts: "The four types are general purpose **[5]**, directory **[2]**, table, and vector buckets **[5]**."
+   - ❌ **NEVER** wait until end of paragraph to cite
+   - ❌ **NEVER** have factual claims without citations
+
+3. **Extract and Use Citation Metadata:**
+   From each source in `sources_citation_for_llm`, extract:
+   - `source_id` - Use for citation numbers **[1]**, **[2]**, etc.
+   - `page_numbers` - Display as "p. X" or "pp. X-Y"
+   - `text` - The actual content excerpt
+   - `document` or `original_doc_path` - For document name
+   - `score` - Can indicate relevance (optional to show)
+
+4. **Sources Section Format:**
+   End your response with a "## Sources" section with full bibliographic details:
+   ```
+   ## Sources
+   **[1]** Document Name (pp. X-Y) - Brief description of what this source contributed
+   **[2]** Document Name (p. X) - Brief description of content
+   **[3]** Document Name (pp. X-Y) - Brief description
+   ```
+
+5. **Complete Example Response:**
+
+   ```markdown
+   Amazon S3 supports four types of buckets: general purpose buckets, directory buckets, 
+   table buckets, and vector buckets **[5]**. Each type provides a unique set of features 
+   for different use cases **[5]**.
+   
+   General purpose buckets are the original S3 bucket type and are recommended for most 
+   use cases and access patterns **[5][6]**. They support all storage classes except S3 
+   Express One Zone and can redundantly store objects across multiple Availability Zones **[5]**.
+   
+   Directory buckets organize data hierarchically into directories as opposed to the flat 
+   storage structure of general purpose buckets **[2]**. There are no prefix limits for 
+   directory buckets, and individual directories can scale horizontally **[2]**. They use 
+   the S3 Express One Zone storage class **[6][7]** and are recommended for performance-sensitive 
+   applications that benefit from single-digit millisecond PUT and GET latencies **[6]**.
+   
+   You can create up to 100 directory buckets in each AWS account **[2]**, with no limit 
+   on the number of objects you can store in a bucket **[2]**.
+   
+   ## Sources
+   **[5]** S3 User Guide (pp. 28-29) - Overview of the four bucket types and their characteristics
+   **[6]** S3 User Guide (pp. 927-928) - Comparison of general purpose and directory buckets, performance characteristics
+   **[2]** S3 User Guide (p. 882) - Directory bucket hierarchical structure, scaling, and limits
+   **[7]** S3 User Guide (pp. 1522-1523) - Bucket type descriptions in S3 resources section
+   ```
+
+6. **Visual Citation Checklist:**
+   - ✅ Every factual claim has a visible citation immediately after it
+   - ✅ Citations stand out visually (bold or superscript)
+   - ✅ No "naked facts" without attribution
+   - ✅ Page numbers included in Sources section
+   - ✅ Multiple citations shown when using multiple sources
+   - ✅ Sources section provides full context
+
+7. **Why Highlighted Citations Matter:**
+   - **Immediate traceability:** Reader sees source as they read each claim
+   - **Increased trust:** Clear attribution increases credibility
+   - **Easy verification:** Users can quickly check specific facts
+   - **Professional standard:** Matches academic and research best practices
+   - **Visual scanning:** Bold citations are easy to spot when reviewing
+   - **Accountability:** Makes it obvious which claims have source support
+
+**MANDATORY RULES:**
+- 🚨 **EVERY factual claim MUST have an inline citation**
+- 🚨 **Citations MUST be bolded using `**[id]**` format (or superscript if specified)**
+- 🚨 **NO paragraphs without at least one inline citation**
+- 🚨 **Sources section is REQUIRED at the end**
+- 🚨 **Page numbers MUST be included in Sources section**
+
+---
+
+## Quick Reference Card
+
+**DO THIS:**
+```markdown
+Amazon S3 supports four bucket types **[5]**. Directory buckets provide 
+single-digit millisecond latencies **[6]**.
+
+## Sources
+**[5]** S3 User Guide (pp. 28-29) - Bucket types overview
+**[6]** S3 User Guide (pp. 927-928) - Performance characteristics
+```
+
+**NOT THIS:**
+```markdown
+Amazon S3 supports four bucket types. Directory buckets provide 
+single-digit millisecond latencies.
+
+Sources: S3 User Guide
+```
+
+#### Top-K Selection Guidelines #####
+
+**CRITICAL: Use conservative top-k values to optimize cost and performance.**
+
+**Default Strategy:**
+- **Use `top_k=10`** as your default for most queries
+- Only deviate from this default when you have a specific reason
+
+**When to Use Different Values:**
+
+| top_k Value | Use Case | Example Queries |
+|-------------|----------|-----------------|
+| **3-5** | Simple factual lookup, definition queries, specific facts | "What is the capital of France?", "Define API", "When was AWS founded?" |
+| **10** | **DEFAULT - Standard queries, typical research questions** | "How do I configure S3 buckets?", "What are Kendra prerequisites?" |
+| **15-20** | Complex topics requiring multiple perspectives, comparison tasks | "Compare S3 bucket types", "What are all the IAM role requirements?" |
+| **25-30** | Comprehensive research, broad exploratory queries, multiple subtopics | "Explain everything about S3 security", "Complete guide to Kendra deployment" |
+| **40-50** | RARE - Exhaustive coverage, citation-heavy research reports | "Comprehensive analysis of all S3 features across all documentation" |
+
+**Hard Limits:**
+- **Minimum:** `top_k=1` (at least one result)
+- **Maximum:** `top_k=50` (never exceed this to prevent excessive token usage)
+- **If you need more than 50 results, you likely need to refine your query instead**
+
+#### Decision Tree for Top-K Selection #####
+
+```
+1. Is this a simple factual question with likely 1 clear answer?
+   YES → Use top_k=3 to 5
+   NO → Continue
+
+2. Is this a standard "how-to" or "what is" query?
+   YES → Use top_k=10 (DEFAULT)
+   NO → Continue
+
+3. Does the query ask for comparisons, multiple options, or "all" of something?
+   YES → Use top_k=15 to 20
+   NO → Continue
+
+4. Is this an exploratory research query or comprehensive guide request?
+   YES → Use top_k=25 to 30
+   NO → Use top_k=10 (DEFAULT)
+```
+
+#### Cost and Performance Considerations #####
+
+**Remember:**
+- Each result consumes tokens in the context window
+- More results = higher processing cost
+- More results ≠ better answers (diminishing returns after ~10-15 results)
+- Retrieval quality matters more than quantity
+
+**Best Practice:**
+1. **Start small:** Use top_k=10 by default
+2. **Evaluate results:** If insufficient, you can make a second call with higher top_k
+3. **Never guess high:** Don't use top_k=50 "just to be safe"
+4. **Query quality > Quantity:** A well-formulated query with top_k=10 beats a poor query with top_k=50
+
+#### Example Tool Calls ####
+
+**Good Examples:**
+
+```xml
+<!-- Simple factual query -->
+<invoke name="bm25_kw_search">
+<parameter name="index_dir">/path/to/index</parameter>
+<parameter name="query">AWS Kendra pricing model</parameter>
+<parameter name="top_k">5</parameter>
+</invoke>
+
+<!-- Standard how-to query (DEFAULT) -->
+<invoke name="bm25_kw_search">
+<parameter name="index_dir">/path/to/index</parameter>
+<parameter name="query">configure S3 bucket lifecycle policies</parameter>
+<parameter name="top_k">10</parameter>
+</invoke>
+
+<!-- Comprehensive comparison query -->
+<invoke name="bm25_kw_search">
+<parameter name="index_dir">/path/to/index</parameter>
+<parameter name="query">comparison all S3 storage classes features pricing performance</parameter>
+<parameter name="top_k">20</parameter>
+</invoke>
+```
+
+**Bad Examples:**
+
+```xml
+<!-- ❌ TOO HIGH for simple query -->
+<invoke name="bm25_kw_search">
+<parameter name="query">what is S3</parameter>
+<parameter name="top_k">30</parameter>
+</invoke>
+
+<!-- ❌ EXCEEDS MAXIMUM -->
+<invoke name="bm25_kw_search">
+<parameter name="query">S3 features</parameter>
+<parameter name="top_k">100</parameter>
+</invoke>
+
+<!-- ❌ TOO LOW for comprehensive query -->
+<invoke name="bm25_kw_search">
+<parameter name="query">complete guide to all IAM policies roles permissions</parameter>
+<parameter name="top_k">3</parameter>
+</invoke>
+```
+
+#### Adaptive Strategy #####
+
+If your initial search doesn't yield sufficient information:
+
+1. **First:** Try reformulating your query (better keywords)
+2. **Second:** Increase top_k incrementally (e.g., 10 → 15 → 20)
+3. **Last resort:** Use top_k=30+ for truly comprehensive needs
+
+**Example of adaptive retrieval:**
+
+```xml
+<!-- First attempt: standard search -->
+<invoke name="bm25_kw_search">
+<parameter name="query">S3 bucket encryption options</parameter>
+<parameter name="top_k">10</parameter>
+</invoke>
+
+<!-- If results insufficient, second attempt with better query and more results -->
+<invoke name="bm25_kw_search">
+<parameter name="query">S3 server-side encryption SSE-S3 SSE-KMS SSE-C client-side encryption</parameter>
+<parameter name="top_k">20</parameter>
+</invoke>
+```
+
+#### Monitoring Your Usage ####
+
+**Self-check questions before calling:**
+- [ ] Have I chosen the smallest reasonable top_k for this query type?
+- [ ] Is my top_k ≤ 50?
+- [ ] Could I answer this with fewer results if my query was better?
+- [ ] Am I using top_k=10 unless I have a specific reason not to?
+
+**Remember: Quality of query formulation > Quantity of results retrieved**
+
+---
+#### Integration with Citation System ####
+
+When using higher top_k values (20+), you'll receive more sources. Follow these guidelines:
+
+1. **Cite only what you use:** Don't feel obligated to cite all 30 sources if only 8 were relevant
+2. **Prioritize by relevance:** Sources with higher BM25 scores are typically more relevant
+3. **Diverse sources preferred:** Better to cite 5 diverse sources than 15 redundant ones
+4. **Page number specificity:** With more sources, page numbers become even more critical for user navigation
+
+**Example of selective citation from high top_k search:**
+
+```
+Query used top_k=25, returned 25 sources
+Your answer uses only 8 most relevant sources: [1], [3], [5], [7], [12], [15], [18], [22]
+This is GOOD - cite what's useful, not everything retrieved
+```
+''',
+    category="artifact_management",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
+    required_scopes=["tool:artifact:load", "tool:artifact:create"],
+    parameters=adk_types.Schema(
+        type=adk_types.Type.OBJECT,
+        properties={
+            "index_dir": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Directory of the BM25 index to search. May contain embeds.",
+            ),
+            "query": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Natural language instruction for the LLM on what to extract or how to transform the content. May contain embeds.",
+            ),
+            "top_k": adk_types.Schema(
+                type=adk_types.Type.INTEGER,
+                description="Number of top results to return. Default is 10.",
+                nullable=True,
+            ),
+        },
+        required=["index_dir", "query"],
+    ),
+    examples=[],
+)
+tool_registry.register(bm25_kw_search_tool_def)

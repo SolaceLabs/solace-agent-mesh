@@ -3,8 +3,11 @@ Utility functions for copying project artifacts to sessions.
 """
 
 import logging
+import shutil
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session as DbSession
 
@@ -230,6 +233,7 @@ async def copy_project_artifacts_to_session(
             app_name=project_service.app_name,
             user_id=source_user_id,
             session_id=project_artifacts_session_id,
+            skip_bm25_index=False,
         )
 
         if not project_artifacts:
@@ -249,6 +253,7 @@ async def copy_project_artifacts_to_session(
                 app_name=project_service.app_name,
                 user_id=user_id,
                 session_id=session_id,
+                skip_bm25_index=False,
             )
             session_artifact_names = {art.filename for art in session_artifacts}
             log.debug(
@@ -368,3 +373,165 @@ async def copy_project_artifacts_to_session(
     except Exception as e:
         log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)
         return 0, []
+
+
+async def copy_bm25_index_to_session( #rewerite to conform to standard of copy_project_artifacts_to_session
+    project_id: str,
+    user_id: str,
+    session_id: str,
+    project_service: "ProjectService",
+    component: "WebUIBackendComponent",
+    db: "DbSession",
+    log_prefix: str = "",
+):
+    """
+    Copy the BM25 index directory from a project to a session.
+    
+    This function:
+    - Locates the project's bm25_index directory using artifact canonical_uri
+    - Copies the entire directory tree to the session storage
+    - Uses filesystem operations (only works with filesystem-based storage)
+    
+    Args:
+        project_id: ID of the project containing the BM25 index
+        user_id: ID of the user (for session artifact storage)
+        session_id: ID of the session to copy the index to
+        project_service: ProjectService instance for accessing projects
+        component: WebUIBackendComponent for accessing artifact service
+        db: Database session to use for queries
+        log_prefix: Optional prefix for log messages
+    
+    Returns:
+        True if BM25 index was copied successfully, False otherwise
+    """
+    log.info("here !")
+    if not project_id:
+        log.debug("%sNo project_id provided, skipping BM25 index copy", log_prefix)
+        return False
+    
+    try:
+        project = project_service.get_project(db, project_id, user_id)
+        if not project:
+            log.warning("%sProject %s not found for user %s", log_prefix, project_id, user_id)
+            return False
+        
+        artifact_service = component.get_shared_artifact_service()
+        if not artifact_service:
+            log.warning("%sArtifact service not available", log_prefix)
+            return False
+        
+        source_user_id = project.user_id
+        project_session_id = f"project-{project.id}"
+        
+        # Get project artifacts to extract the project root path
+        project_artifacts = await get_artifact_info_list(
+            artifact_service=artifact_service,
+            app_name=project_service.app_name,
+            user_id=source_user_id,
+            session_id=project_session_id,
+        )
+
+        log.info("here !!")
+        
+        if not project_artifacts:
+            log.debug("%sNo artifacts in project, cannot determine project root path", log_prefix)
+            return False
+        
+        # Get canonical_uri from first artifact to extract project root
+        first_artifact = project_artifacts[0]
+        source_artifact_version = await artifact_service.get_artifact_version(
+            app_name=project_service.app_name,
+            user_id=source_user_id,
+            session_id=project_session_id,
+            filename=first_artifact.filename,
+            version=first_artifact.version if first_artifact.version else 0,
+        )
+        
+        if not source_artifact_version or not source_artifact_version.canonical_uri:
+            log.warning("%sCannot get canonical_uri for project artifacts", log_prefix)
+            return False
+        
+        # Extract project root from canonical_uri
+        parsed_uri = urlparse(source_artifact_version.canonical_uri)
+        source_artifact_path = Path(parsed_uri.path)
+        source_project_root = source_artifact_path.parent.parent
+        source_bm25_dir = source_project_root / "bm25_index"
+        
+        # Check if source BM25 index exists
+        if not source_bm25_dir.exists():
+            log.debug("%sNo BM25 index directory found at %s", log_prefix, source_bm25_dir)
+            return False
+        
+        if not source_bm25_dir.is_dir():
+            log.warning("%sBM25 index path is not a directory: %s", log_prefix, source_bm25_dir)
+            return False
+        
+        # Get session artifacts to determine session root path
+        session_artifacts = await get_artifact_info_list(
+            artifact_service=artifact_service,
+            app_name=project_service.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        
+        if not session_artifacts:
+            log.warning(
+                "%sNo artifacts in target session yet, cannot determine session root path. "
+                "Copy artifacts first before copying BM25 index.",
+                log_prefix,
+            )
+            return False
+        
+        log.info("here !!")
+        
+        # Get canonical_uri of first session artifact
+        target_artifact_version = await artifact_service.get_artifact_version(
+            app_name=project_service.app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=session_artifacts[0].filename,
+            version=session_artifacts[0].version if session_artifacts[0].version else 0,
+        )
+        
+        if not target_artifact_version or not target_artifact_version.canonical_uri:
+            log.warning("%sCannot get canonical_uri for session artifacts", log_prefix)
+            return False
+        
+        # Extract session root from canonical_uri
+        target_parsed_uri = urlparse(target_artifact_version.canonical_uri)
+        target_artifact_path = Path(target_parsed_uri.path)
+        target_session_root = target_artifact_path.parent.parent
+        target_bm25_dir = target_session_root / "bm25_index"
+        
+        # If target already exists, remove it first to ensure we get the latest index
+        if target_bm25_dir.exists():
+            log.info(
+                "%sBM25 index directory already exists in session, removing old version: %s",
+                log_prefix,
+                target_bm25_dir,
+            )
+            shutil.rmtree(target_bm25_dir)
+        
+        log.info("here !!!!")
+
+        # Create parent directory if needed
+        target_bm25_dir.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Copy the entire directory tree
+        log.info(
+            "%sCopying BM25 index directory:\n  From: %s\n  To: %s",
+            log_prefix,
+            source_bm25_dir,
+            target_bm25_dir,
+        )
+        
+        shutil.copytree(source_bm25_dir, target_bm25_dir)
+        
+        log.info("%sSuccessfully copied BM25 index directory to session", log_prefix)
+        # return source_bm25_dir, target_bm25_dir
+
+        return True
+        
+    except Exception as e:
+        log.error("%sError copying BM25 index directory: %s", log_prefix, e)
+        return None

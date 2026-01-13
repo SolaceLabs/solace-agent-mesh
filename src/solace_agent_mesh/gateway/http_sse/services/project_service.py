@@ -5,17 +5,24 @@ Business service for project-related operations.
 from typing import List, Optional, TYPE_CHECKING
 import logging
 import json
+import os
+import asyncio
 import zipfile
+import tempfile
+import shutil
 from io import BytesIO
+from pathlib import Path
 from fastapi import UploadFile
 from datetime import datetime, timezone
 
-from ....agent.utils.artifact_helpers import get_artifact_info_list, save_artifact_with_metadata, get_artifact_counts_batch
+from ....agent.utils.artifact_helpers import get_artifact_info_list, save_artifact_with_metadata, get_artifact_counts_batch, save_bm25_index_with_metadata
 
 # Default max upload size (50MB) - matches gateway_max_upload_size_bytes default
 DEFAULT_MAX_UPLOAD_SIZE_BYTES = 52428800
 # Default max ZIP upload size (100MB) - for project import ZIP files
 DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 104857600
+
+BM25_INDEX_SUFFIX = ".bm25_index"
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -319,13 +326,16 @@ class ProjectService:
         """
         Get a list of artifacts for a given project.
         
+       # Filters out BM25 index artifacts (files ending with .bm25_index) as these
+        # are internal indexing artifacts not meant for direct user interaction.
+        
         Args:
             db: The database session
             project_id: The project ID
             user_id: The requesting user ID
             
         Returns:
-            List[ArtifactInfo]: A list of artifacts
+            List[ArtifactInfo]: A list of user-facing artifacts (excludes BM25 indexes)
             
         Raises:
             ValueError: If project not found or access denied
@@ -349,7 +359,21 @@ class ProjectService:
             user_id=storage_user_id,
             session_id=storage_session_id,
         )
+
+        #self.logger.debug(
+        #    f"Filtered artifacts for project {project.id}: "
+        #    f"{len(artifacts)} total, {len(user_artifacts)} user-facing, "
+        #    f"{len(artifacts) - len(user_artifacts)} BM25 indexes hidden"
+        #)
         return artifacts
+        
+        # Filter out BM25 index artifacts - these are internal and not user-facing
+        #user_artifacts = [
+        #    artifact for artifact in artifacts 
+        #    if not artifact.filename.endswith('.bm25_index')
+        #]
+        
+        #return user_artifacts
 
     async def add_artifacts_to_project(
         self,
@@ -737,7 +761,7 @@ class ProjectService:
     async def import_project_from_zip(
         self, db, zip_file: UploadFile, user_id: str,
         preserve_name: bool = False, custom_name: Optional[str] = None
-    ) -> tuple[Project, int, List[str]]:
+    ) -> tuple[Project, int, List[str], List]:
         """
         Import project from ZIP file.
         
@@ -831,6 +855,9 @@ class ProjectService:
                 
                 # Import artifacts
                 artifacts_imported = 0
+                ### zhenyu add####
+                results = []
+                ##################
                 if self.artifact_service:
                     storage_session_id = f"project-{project.id}"
                     artifact_files = [
@@ -864,10 +891,10 @@ class ProjectService:
                             
                             metadata = artifact_meta.get('metadata', {}) if artifact_meta else {}
                             mime_type = artifact_meta.get('mimeType', 'application/octet-stream') if artifact_meta else 'application/octet-stream'
+                            description = metadata.get('description', "") if metadata else "" #zhenyu add
                             
-                            # Save artifact
-                            from ....agent.utils.artifact_helpers import save_artifact_with_metadata
-                            await save_artifact_with_metadata(
+                            ## zhenyu add results to collect the save results
+                            result = await save_artifact_with_metadata(
                                 artifact_service=self.artifact_service,
                                 app_name=self.app_name,
                                 user_id=project.user_id,
@@ -878,6 +905,8 @@ class ProjectService:
                                 metadata_dict=metadata,
                                 timestamp=datetime.now(timezone.utc),
                             )
+                            result['description'] = description # zhenyu add
+                            results.append(result)
                             artifacts_imported += 1
                         except Exception as e:
                             self.logger.warning(
@@ -888,7 +917,7 @@ class ProjectService:
                 self.logger.info(
                     f"Successfully imported project {project.id} with {artifacts_imported} artifacts"
                 )
-                return project, artifacts_imported, warnings
+                return project, artifacts_imported, warnings, results #zhenyu modify add return results
                 
         except zipfile.BadZipFile:
             raise ValueError("Invalid ZIP file")
@@ -928,3 +957,153 @@ class ProjectService:
             counter += 1
             if counter > 100:  # Safety limit
                 raise ValueError("Unable to resolve name conflict")
+
+    async def create_bm25_index_to_project(
+        self,
+        source_filename: str,
+        source_version: int,
+        source_mime_type: str,
+        source_description: str,
+        user_id: str,
+        project_id: str,
+    ) -> Optional[int]:
+        """
+        Create a versioned BM25 index for a source document in a project.
+        
+        This method retrieves the source document, creates a BM25 index from it,
+        and stores the index as a versioned ZIP artifact. The index is stored
+        alongside the source document in the project's artifact storage.
+        
+        Storage structure:
+        The BM25 index is stored as a single ZIP file artifact with the naming pattern:
+          {source_filename}.bm25_index
+        
+        For example, if the source file is "kendra-dg.pdf", the index will be stored as:
+          kendra-dg.pdf.bm25_index (ZIP file containing index files)
+          kendra-dg.pdf.bm25_index.metadata.json (metadata about the index)
+        
+        The ZIP file contains the BM25 index files created by the BM25DocumentIndexer:
+          - bm25_index.pkl: The BM25 index data
+          - metadata.json: Index metadata (chunks, etc.)
+          - corpus.pkl: The document corpus
+          - Other index-related files
+        
+        Each time the source document is re-indexed, a new version of the ZIP file
+        is created, allowing version tracking of the index.
+        
+        Args:
+            source_filename: Name of the source file to index (e.g., "kendra-dg.pdf")
+            source_version: Version of the source document to use for indexing
+            source_mime_type: MIME type of the source document
+            source_description: Description from the source file metadata
+            user_id: User ID (owner of the project)
+            project_id: Project ID where the index will be stored
+        
+        Returns:
+            Optional[int]: The version number of the created index ZIP file, or None if creation failed
+        """
+        if not self.artifact_service:
+            self.logger.warning("Cannot create BM25 index: artifact service not configured")
+            return None
+        
+        session_id = f"project-{project_id}"
+        #index_artifact_name = f"{source_filename}.bm25_index"
+        
+        self.logger.info(f"Creating versioned BM25 index for {source_filename} v{source_version}")
+        
+        # Create temporary directory for index creation
+        temp_index_dir = Path(tempfile.mkdtemp())
+        
+        try:
+            # First, retrieve the source artifact to create the index
+            artifact_part = await self.artifact_service.load_artifact(
+                app_name=self.app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=source_filename,
+                version=source_version,
+            )
+            
+            if not artifact_part or not artifact_part.inline_data:
+                self.logger.warning(f"Source artifact '{source_filename}' v{source_version} not found")
+                return None
+            
+            # Write source file to temporary location for indexing
+            temp_source_file_path = os.path.join(temp_index_dir, source_filename)
+            with open(temp_source_file_path, 'wb') as f:
+                f.write(artifact_part.inline_data.data)
+            self.logger.info(f"Retrieved source artifact '{source_filename}' v{source_version} and wrote to temporary file '{temp_source_file_path}'")
+            
+            result = await save_bm25_index_with_metadata(
+                artifact_service=self.artifact_service,
+                app_name=self.app_name,
+                user_id=user_id,
+                session_id=session_id,
+                source_filename=source_filename,
+                source_version=source_version,
+                temp_source_file_path=temp_source_file_path,
+                temp_index_dir=temp_index_dir,
+                source_mime_type=source_mime_type,
+                source_description=source_description,
+                timestamp=datetime.now(timezone.utc)
+            )
+        except Exception as e:
+            self.logger.error(f"Error creating versioned BM25 index for {source_filename}: {e}", exc_info=True)
+            return None
+        finally:
+            # Clean up temporary directory
+            if temp_index_dir.exists():
+                shutil.rmtree(temp_index_dir, ignore_errors=True)
+
+    async def delete_bm25_index_from_project(
+        self,
+        db,
+        source_filename: str,
+        user_id: str,
+        project_id: str,
+    ) -> bool:
+        """
+        Delete all versions of a BM25 index directory for a source document.
+        
+        This removes the entire index directory including:
+        - All version folders (0_data/, 1_data/, etc.)
+        - All version marker files (0, 1, etc.)
+        - All metadata files (0.meta, 1.meta, etc.)
+        
+        For filesystem: Deletes the entire directory
+        For S3: Deletes all objects with the index prefix
+        
+        Args:
+            db: Database session
+            source_filename: Name of the source file whose index should be deleted (e.g., "kendra-dg.pdf")
+            user_id: User ID (requesting user, must have access to the project)
+            project_id: Project ID where the index is stored
+        
+        Returns:
+            bool: True if deletion was successful, False if project not found or access denied
+            
+        Raises:
+            ValueError: If artifact service is not configured
+        """
+        project = self.get_project(db, project_id, user_id)
+        if not project:
+            return False
+
+        if not self.artifact_service:
+            self.logger.warning(f"Attempted to delete index artifact from project {project_id} but no artifact service is configured.")
+            raise ValueError("Artifact service is not configured")
+
+        storage_session_id = f"project-{project.id}"
+        
+        # The BM25 index is stored with .bm25_index suffix
+        index_artifact_name = f"{source_filename}{BM25_INDEX_SUFFIX}"
+        
+        self.logger.info(f"Deleting index artifact '{index_artifact_name}' from project {project_id} for user {user_id}")
+        
+        await self.artifact_service.delete_artifact(
+            app_name=self.app_name,
+            user_id=project.user_id, # Always use project owner's ID for storage
+            session_id=storage_session_id,
+            filename=index_artifact_name,
+        )
+        return True
