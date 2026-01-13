@@ -4,8 +4,6 @@
 
 ### High Priority - Core Typeahead Functionality
 
-- **Create PeopleService API module** - Create `src/lib/api/people/` directory with `service.ts` (searchPeople function), `keys.ts` (React Query cache keys), `hooks.ts` (useSearchPeople hook), and `index.ts` (exports). Follow existing pattern from `src/lib/api/projects/`. API endpoint: `GET /api/v1/people/search?q={query}&limit={limit}`.
-
 - **Add mode toggle UI to ShareDialog** - Add Switch component at top of invite section to toggle between "Manual Email Entry" (default) and "Search Users" modes. Toggle should reset to email mode when dialog opens and clear search/pending state when switching modes.
 
 - **Implement typeahead search input with debouncing** - Add search input field with search icon, loading spinner, and debounced search using existing `useDebounce` hook (300ms delay). Minimum 2 characters required before triggering search. Use `useSearchPeople` hook for API integration.

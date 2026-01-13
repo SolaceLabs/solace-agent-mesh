@@ -5,6 +5,7 @@ import { Input } from "@/lib/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/lib/components/ui/table";
 import { Badge } from "@/lib/components/ui/badge";
+import { Switch } from "@/lib/components/ui/switch";
 import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import { canShareProject } from "@/lib/utils/permissions";
 import type { Project, ProjectRole, Collaborator } from "@/lib/types/projects";
@@ -23,6 +24,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
     const [role, setRole] = useState<ProjectRole>("viewer");
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [useTypeahead, setUseTypeahead] = useState(false);
 
     // React Query hooks
     const { data: collaborators = [], isLoading: loading } = useCollaborators(open ? project.id : null);
@@ -43,8 +45,19 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
             setRole("viewer");
             setError(null);
             setSuccess(null);
+            setUseTypeahead(false);
         }
     }, [open]);
+
+    // Handle mode toggle change
+    const handleModeToggle = (checked: boolean) => {
+        setUseTypeahead(checked);
+        // Clear state when switching modes
+        setEmail("");
+        setError(null);
+        setSuccess(null);
+        // TODO: Clear searchQuery, searchResults, pendingUsers, selectedIndex when typeahead functionality is implemented
+    };
 
     const handleShare = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -137,33 +150,47 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                     {error && <MessageBanner variant="error" message={error} dismissible onDismiss={() => setError(null)} />}
                     {success && <MessageBanner variant="success" message={success} dismissible onDismiss={() => setSuccess(null)} />}
 
-                    {/* Invite Form */}
-                    <form onSubmit={handleShare} className="flex items-end gap-2">
-                        <div className="grid flex-1 gap-2">
-                            <label htmlFor="email" className="text-sm font-medium">
-                                Email address
-                            </label>
-                            <Input id="email" type="email" placeholder="colleague@example.com" value={email} onChange={e => setEmail(e.target.value)} required disabled={isAnyOperationInProgress} />
+                    {/* Mode Toggle */}
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                            <div className="text-sm font-medium">{useTypeahead ? "Search Users" : "Manual Email Entry"}</div>
+                            <p className="text-muted-foreground text-xs">{useTypeahead ? "Search and select users from the directory" : "Invite users by entering their email address"}</p>
                         </div>
-                        <div className="grid w-[110px] gap-2">
-                            <label htmlFor="role" className="text-sm font-medium">
-                                Role
-                            </label>
-                            <Select value={role} onValueChange={val => setRole(val as ProjectRole)} disabled={isAnyOperationInProgress}>
-                                <SelectTrigger id="role">
-                                    <SelectValue placeholder="Role" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="viewer">Viewer</SelectItem>
-                                    <SelectItem value="editor">Editor</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <Button type="submit" disabled={isAnyOperationInProgress}>
-                            {shareProjectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-                            <span className="sr-only">Invite</span>
-                        </Button>
-                    </form>
+                        <Switch checked={useTypeahead} onCheckedChange={handleModeToggle} disabled={isAnyOperationInProgress} />
+                    </div>
+
+                    {/* Invite Form - Only show in email mode */}
+                    {!useTypeahead && (
+                        <form onSubmit={handleShare} className="flex items-end gap-2">
+                            <div className="grid flex-1 gap-2">
+                                <label htmlFor="email" className="text-sm font-medium">
+                                    Email address
+                                </label>
+                                <Input id="email" type="email" placeholder="colleague@example.com" value={email} onChange={e => setEmail(e.target.value)} required disabled={isAnyOperationInProgress} />
+                            </div>
+                            <div className="grid w-[110px] gap-2">
+                                <label htmlFor="role" className="text-sm font-medium">
+                                    Role
+                                </label>
+                                <Select value={role} onValueChange={val => setRole(val as ProjectRole)} disabled={isAnyOperationInProgress}>
+                                    <SelectTrigger id="role">
+                                        <SelectValue placeholder="Role" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="viewer">Viewer</SelectItem>
+                                        <SelectItem value="editor">Editor</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <Button type="submit" disabled={isAnyOperationInProgress}>
+                                {shareProjectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                                <span className="sr-only">Invite</span>
+                            </Button>
+                        </form>
+                    )}
+
+                    {/* Typeahead Search - Only show in typeahead mode */}
+                    {useTypeahead && <div className="text-muted-foreground py-8 text-center text-sm">Typeahead search functionality will be implemented in the next task.</div>}
 
                     {/* Collaborators List */}
                     <div className="space-y-2">
