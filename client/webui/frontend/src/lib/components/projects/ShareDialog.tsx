@@ -9,8 +9,8 @@ import { Switch } from "@/lib/components/ui/switch";
 import { Popover, PopoverContent, PopoverAnchor } from "@/lib/components/ui/popover";
 import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import { canShareProject } from "@/lib/utils/permissions";
-import type { Project, ProjectRole, Collaborator } from "@/lib/types/projects";
-import { Share2, Trash2, UserPlus, Users, Loader2, Search } from "lucide-react";
+import type { Project, ProjectRole, Collaborator, PendingCollaborator } from "@/lib/types/projects";
+import { Share2, Trash2, UserPlus, Users, Loader2, Search, X } from "lucide-react";
 import { useCollaborators, useShareProject, useUpdateCollaborator, useRemoveCollaborator } from "@/lib/api/projects/hooks";
 import { useSearchPeople } from "@/lib/api/people/hooks";
 import { useDebounce } from "@/lib/hooks/useDebounce";
@@ -33,6 +33,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedIndex, setSelectedIndex] = useState(-1);
     const [popoverOpen, setPopoverOpen] = useState(false);
+    const [pendingUsers, setPendingUsers] = useState<PendingCollaborator[]>([]);
 
     // Debounce search query (300ms delay)
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -65,6 +66,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
             setSearchQuery("");
             setSelectedIndex(-1);
             setPopoverOpen(false);
+            setPendingUsers([]);
         }
     }, [open]);
 
@@ -78,6 +80,31 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
         setSearchQuery("");
         setSelectedIndex(-1);
         setPopoverOpen(false);
+        setPendingUsers([]);
+    };
+
+    // Add user to pending list from search results
+    const handleAddToPending = (user: { id: string; name: string; email: string }) => {
+        // Create pending collaborator
+        const pendingUser: PendingCollaborator = {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: "viewer",
+        };
+
+        // Add to pending list
+        setPendingUsers(prev => [...prev, pendingUser]);
+
+        // Clear search
+        setSearchQuery("");
+        setSelectedIndex(-1);
+        setPopoverOpen(false);
+    };
+
+    // Remove user from pending list
+    const handleRemovePending = (userId: string) => {
+        setPendingUsers(prev => prev.filter(u => u.id !== userId));
     };
 
     const handleShare = async (e: React.FormEvent) => {
@@ -166,8 +193,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
             case "Enter":
                 e.preventDefault();
                 if (selectedIndex >= 0 && selectedIndex < searchResults.length) {
-                    // TODO: Add selected user to pending list (next task)
-                    console.log("Selected user:", searchResults[selectedIndex]);
+                    handleAddToPending(searchResults[selectedIndex]);
                 }
                 break;
             case "Escape":
@@ -287,10 +313,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                                                     key={user.id}
                                                     type="button"
                                                     className={`hover:bg-accent flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm ${index === selectedIndex ? "bg-accent" : ""}`}
-                                                    onClick={() => {
-                                                        // TODO: Add selected user to pending list (next task)
-                                                        console.log("Clicked user:", user);
-                                                    }}
+                                                    onClick={() => handleAddToPending(user)}
                                                     onMouseEnter={() => setSelectedIndex(index)}
                                                 >
                                                     <div className="font-medium">{user.name}</div>
@@ -311,6 +334,33 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                                     ) : null}
                                 </PopoverContent>
                             </Popover>
+                        </div>
+                    )}
+
+                    {/* Pending Users List - Only show in typeahead mode when there are pending users */}
+                    {useTypeahead && pendingUsers.length > 0 && (
+                        <div className="space-y-2">
+                            <h4 className="flex items-center gap-2 text-sm font-medium">
+                                <UserPlus size={16} />
+                                Pending Invitations ({pendingUsers.length})
+                            </h4>
+                            <div className="space-y-2 rounded-md border p-3">
+                                {pendingUsers.map(user => (
+                                    <div key={user.id} className="bg-muted/50 flex items-center justify-between gap-3 rounded-md p-2">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="truncate text-sm font-medium">{user.name}</div>
+                                            <div className="text-muted-foreground truncate text-xs">{user.email}</div>
+                                        </div>
+                                        <Badge variant="secondary" className="shrink-0">
+                                            Viewer
+                                        </Badge>
+                                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0" onClick={() => handleRemovePending(user.id)} disabled={isAnyOperationInProgress}>
+                                            <X className="h-4 w-4" />
+                                            <span className="sr-only">Remove {user.name}</span>
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 

@@ -4,10 +4,6 @@
 
 ### High Priority - Core Typeahead Functionality
 
-- **Implement typeahead search input with debouncing** - Add search input field with search icon, loading spinner, and debounced search using existing `useDebounce` hook (300ms delay). Minimum 2 characters required before triggering search. Use `useSearchPeople` hook for API integration.
-
-- **Create search results dropdown with keyboard navigation** - Implement Popover dropdown below search input showing user results (name on line 1, email + title on line 2). Support arrow key navigation (up/down), Enter to select, Escape to clear. Highlight selected result with background color. Show "No users found" message when search returns empty.
-
 - **Implement pending users list UI** - Add section between search input and collaborators list showing pending users (not yet shared). Display user name, email, "Viewer" badge, and remove button (X icon). Section only visible when `pendingUsers.length > 0`. Header shows "Pending Invitations (X)".
 
 - **Add duplicate prevention logic** - Before adding user to pending list, check against: (1) existing pending users by id/email, (2) current collaborators by email, (3) project owner by email. Show appropriate error notification for each case using `addNotification()` from ChatContext.
