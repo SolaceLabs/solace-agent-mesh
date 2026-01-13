@@ -58,7 +58,7 @@ class BaseRegistry:
             card: AgentCard representing the entity
 
         Returns:
-            True if this is a new entity, False if updating existing
+            True if this is a new entity, False if updating existing or if card is invalid
         """
         if not card or not card.name:
             log.warning(
@@ -192,11 +192,9 @@ class BaseRegistry:
                 int(current_time - last_seen_time) if last_seen_time else "unknown"
             )
 
-            log.warning(
-                "%s DE-REGISTRATION: Removing %s '%s' from registry. "
-                "Last seen: %s seconds ago",
-                self._entity_name.upper(),
-                self._entity_name,
+            log.info(
+                "%s '%s' removed from registry (last seen: %s seconds ago)",
+                self._entity_name.capitalize(),
                 item_id,
                 time_since_last_seen,
             )
@@ -204,13 +202,6 @@ class BaseRegistry:
             del self._items[item_id]
             if item_id in self._last_seen:
                 del self._last_seen[item_id]
-
-            log.info(
-                "%s '%s' successfully removed from registry",
-                self._entity_name.capitalize(),
-                item_id,
-            )
-            removed = True
 
         if self._on_removed:
             try:
@@ -224,13 +215,16 @@ class BaseRegistry:
                     exc_info=True,
                 )
 
-        return removed
+        return True
 
     def clear(self):
         """Clears all registered entities."""
         with self._lock:
+            count = len(self._items)
             self._items.clear()
             self._last_seen.clear()
+        if count > 0:
+            log.info("Cleared %d %s(s) from registry", count, self._entity_name)
 
     def __len__(self) -> int:
         """Returns the number of entities in the registry."""

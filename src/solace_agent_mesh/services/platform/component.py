@@ -18,6 +18,7 @@ from solace_agent_mesh.common.constants import (
     HEALTH_CHECK_INTERVAL_SECONDS,
     HEALTH_CHECK_TTL_SECONDS,
 )
+from solace_agent_mesh.common.a2a.utils import is_gateway_card
 from a2a.types import AgentCard
 
 log = logging.getLogger(__name__)
@@ -460,8 +461,6 @@ class PlatformServiceComponent(SamComponentBase):
             True if processed successfully, False otherwise
         """
         try:
-            from solace_agent_mesh.common.a2a.utils import is_gateway_card
-
             agent_card = AgentCard(**payload)
 
             # Route to appropriate registry based on card type
