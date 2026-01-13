@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { FileText, FolderOpen, MoreHorizontal, Download, Trash2 } from "lucide-react";
+import { FileText, FolderOpen, MoreHorizontal, Download, Trash2, Users } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger, Menu } from "@/lib/components/ui";
 import type { MenuAction } from "@/lib/components/ui/menu";
 import type { Project } from "@/lib/types/projects";
 import { formatTimestamp } from "@/lib/utils/format";
+import { canDeleteProject } from "@/lib/utils/permissions";
 
 interface ProjectCardProps {
     project: Project;
@@ -16,6 +17,7 @@ interface ProjectCardProps {
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport }) => {
     const [menuOpen, setMenuOpen] = useState(false);
+    const canDelete = onDelete && canDeleteProject(project);
 
     const menuActions: MenuAction[] = [
         ...(onExport
@@ -31,18 +33,30 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                   },
               ]
             : []),
-        {
-            id: "delete",
-            label: "Delete",
-            icon: <Trash2 size={14} />,
-            onClick: () => {
-                setMenuOpen(false);
-                if (onDelete) {
-                    onDelete(project);
-                }
-            },
-        },
+        ...(canDelete
+            ? [
+                  {
+                      id: "delete",
+                      label: "Delete",
+                      icon: <Trash2 size={14} />,
+                      onClick: () => {
+                          setMenuOpen(false);
+                          onDelete(project);
+                      },
+                  },
+              ]
+            : []),
     ];
+
+    const getRoleLabel = () => {
+        if (!project.role || project.role === "owner") return null;
+        return (
+            <Badge variant="outline" className="ml-2 flex h-5 items-center gap-1 border-[var(--color-info-w10)] text-[10px] text-[var(--color-info-wMain)]">
+                <Users className="h-3 w-3" />
+                <span className="capitalize">{project.role}</span>
+            </Badge>
+        );
+    };
 
     return (
         <GridCard onClick={onClick}>
@@ -51,9 +65,10 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                     <CardTitle className="flex min-w-0 flex-1 items-center gap-2" title={project.name}>
                         <FolderOpen className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
                         <div className="text-foreground max-w-[250px] min-w-0 truncate text-lg font-semibold">{project.name}</div>
+                        {getRoleLabel()}
                     </CardTitle>
                     <div className="flex shrink-0 items-center gap-1">
-                        {onDelete && (
+                        {menuActions.length > 0 && (
                             <Popover open={menuOpen} onOpenChange={setMenuOpen}>
                                 <PopoverTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8" tooltip="More options" onClick={e => e.stopPropagation()}>
