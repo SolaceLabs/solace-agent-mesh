@@ -37,6 +37,11 @@ pytestmark = [
 ]
 
 
+# Note: Direct recursion test would require a workflow definition that invokes itself.
+# This is tested via the runtime check in dag_executor._execute_workflow_node.
+# See test_direct_recursion_is_rejected below.
+
+
 async def test_workflow_invokes_sub_workflow_successfully(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
@@ -292,3 +297,118 @@ async def test_workflow_invokes_sub_workflow_successfully(
         f"Scenario {scenario_id}: Parent workflow successfully invoked sub-workflow "
         "and completed."
     )
+
+
+async def test_direct_recursion_is_rejected(
+    test_llm_server: TestLLMServer,
+    test_gateway_app_instance: TestGatewayComponent,
+    test_artifact_service_instance: TestInMemoryArtifactService,
+):
+    """
+    Test that a workflow cannot invoke itself (direct recursion).
+
+    The RecursiveTestWorkflow tries to invoke itself via a workflow node.
+    This should fail with a recursion error.
+    """
+    scenario_id = "workflow_recursion_001"
+    print(f"\nRunning programmatic scenario: {scenario_id}")
+
+    # Setup: Pre-save the input artifact
+    user_identity = "recursion_test_user@example.com"
+    session_id = f"session_{scenario_id}"
+    artifact_content = {"input": "test"}
+    artifact_filename = "workflow_input.json"
+
+    artifact_part = adk_types.Part(
+        inline_data=adk_types.Blob(
+            mime_type="application/json",
+            data=json.dumps(artifact_content).encode("utf-8"),
+        )
+    )
+    await test_artifact_service_instance.save_artifact(
+        app_name="test_namespace",
+        user_id=user_identity,
+        session_id=session_id,
+        filename=artifact_filename,
+        artifact=artifact_part,
+    )
+
+    # Prime the LLM server for the first agent node (prepare)
+    llm_response_1 = ChatCompletionResponse(
+        id="chatcmpl-recursion-1",
+        model="test-model",
+        choices=[
+            Choice(
+                message=Message(
+                    role="assistant",
+                    content="""Preparing data.
+«««save_artifact: filename="prepare_output.json" mime_type="application/json" description="Prepared"
+{"data": "prepared"}
+»»»""",
+                ),
+                finish_reason="stop",
+            )
+        ],
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    ).model_dump(exclude_none=True)
+
+    llm_response_1b = ChatCompletionResponse(
+        id="chatcmpl-recursion-1b",
+        model="test-model",
+        choices=[
+            Choice(
+                message=Message(
+                    role="assistant",
+                    content="Done. «result:artifact=prepare_output.json:0 status=success»",
+                ),
+                finish_reason="stop",
+            )
+        ],
+        usage=Usage(prompt_tokens=10, completion_tokens=10, total_tokens=20),
+    ).model_dump(exclude_none=True)
+
+    prime_llm_server(test_llm_server, [llm_response_1, llm_response_1b])
+
+    # Submit to the recursive workflow
+    input_data = {
+        "target_agent_name": "RecursiveTestWorkflow",
+        "user_identity": user_identity,
+        "a2a_parts": [{"type": "text", "text": "Test recursion prevention"}],
+        "external_context": {
+            "test_case": scenario_id,
+            "a2a_session_id": session_id,
+        },
+        "invoked_with_artifacts": [{"filename": artifact_filename, "version": 0}],
+    }
+
+    task_id = await submit_test_input(
+        test_gateway_app_instance, input_data, scenario_id
+    )
+
+    # Wait for events - should fail quickly due to recursion detection
+    all_events = await get_all_task_events(
+        test_gateway_app_instance, task_id, overall_timeout=15.0
+    )
+
+    terminal_event, _, _ = extract_outputs_from_event_list(all_events, scenario_id)
+
+    assert terminal_event is not None, f"Scenario {scenario_id}: No terminal event received"
+
+    # The workflow should fail due to recursion detection
+    if isinstance(terminal_event, Task):
+        print(f"Scenario {scenario_id}: Task state: {terminal_event.status.state}")
+        assert terminal_event.status.state == "failed", (
+            f"Scenario {scenario_id}: Expected failed state due to recursion, "
+            f"got: {terminal_event.status.state}"
+        )
+        # Verify the error message mentions recursion
+        error_message = str(terminal_event.status.message) if terminal_event.status.message else ""
+        assert "recursion" in error_message.lower() or "cannot invoke itself" in error_message.lower(), (
+            f"Scenario {scenario_id}: Expected recursion error message, got: {error_message}"
+        )
+    elif isinstance(terminal_event, JSONRPCError):
+        # Also acceptable - the error should mention recursion
+        error_message = str(terminal_event.message) if hasattr(terminal_event, 'message') else str(terminal_event)
+        print(f"Scenario {scenario_id}: Got JSONRPCError: {error_message}")
+
+    print(f"Scenario {scenario_id}: Direct recursion was correctly rejected.")

@@ -451,6 +451,14 @@ class SamAgentAppConfig(SamConfigBase):
         default=20,
         description="Maximum number of LLM calls allowed for a single A2A task.",
     )
+    max_call_depth: int = Field(
+        default=10,
+        ge=1,
+        description=(
+            "Maximum allowed call depth for incoming requests. "
+            "Prevents infinite recursion in agent-to-agent or workflow-to-agent calls."
+        ),
+    )
     data_tools_config: DataToolsConfig = Field(
         default_factory=DataToolsConfig,
         description="Runtime configuration parameters for built-in data analysis tools.",

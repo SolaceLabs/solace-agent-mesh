@@ -462,12 +462,16 @@ This is MANDATORY for the workflow to continue.
             self.host.namespace, self.host.workflow_name, sub_task_id
         )
 
+        # Get current call depth and increment for outgoing request
+        current_depth = workflow_context.a2a_context.get("call_depth", 0)
+
         # User properties
         user_properties = {
             "replyTo": reply_to_topic,
             "a2aStatusTopic": status_topic,
             "userId": workflow_context.a2a_context["user_id"],
             "a2aUserConfig": workflow_context.a2a_context.get("a2a_user_config", {}),
+            "callDepth": current_depth + 1,
         }
 
         # Publish request

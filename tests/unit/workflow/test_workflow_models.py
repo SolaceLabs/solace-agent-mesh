@@ -384,3 +384,66 @@ class TestWorkflowInvokeNodeValidation:
         assert workflow.nodes[1].type == "workflow"
         assert workflow.nodes[2].type == "agent"
         assert workflow.nodes[2].depends_on == ["analyze"]
+
+
+class TestMaxCallDepthValidation:
+    """Tests for max_call_depth configuration validation."""
+
+    def test_max_call_depth_default_value(self):
+        """max_call_depth defaults to 10."""
+        workflow = WorkflowDefinition(
+            description="Workflow with default depth",
+            nodes=[
+                AgentNode(id="step1", type="agent", agent_name="Agent1"),
+            ],
+            output_mapping={"result": "{{step1.output}}"},
+        )
+        assert workflow.max_call_depth == 10
+
+    def test_max_call_depth_custom_value(self):
+        """max_call_depth can be set to a custom value."""
+        workflow = WorkflowDefinition(
+            description="Workflow with custom depth",
+            max_call_depth=5,
+            nodes=[
+                AgentNode(id="step1", type="agent", agent_name="Agent1"),
+            ],
+            output_mapping={"result": "{{step1.output}}"},
+        )
+        assert workflow.max_call_depth == 5
+
+    def test_max_call_depth_camel_case_alias(self):
+        """maxCallDepth alias works for max_call_depth."""
+        workflow = WorkflowDefinition(
+            description="Workflow with camelCase alias",
+            maxCallDepth=15,
+            nodes=[
+                AgentNode(id="step1", type="agent", agent_name="Agent1"),
+            ],
+            output_mapping={"result": "{{step1.output}}"},
+        )
+        assert workflow.max_call_depth == 15
+
+    def test_max_call_depth_minimum_value(self):
+        """max_call_depth must be at least 1."""
+        with pytest.raises(ValidationError, match="greater than or equal to 1"):
+            WorkflowDefinition(
+                description="Invalid depth",
+                max_call_depth=0,
+                nodes=[
+                    AgentNode(id="step1", type="agent", agent_name="Agent1"),
+                ],
+                output_mapping={"result": "{{step1.output}}"},
+            )
+
+    def test_max_call_depth_rejects_negative(self):
+        """max_call_depth rejects negative values."""
+        with pytest.raises(ValidationError, match="greater than or equal to 1"):
+            WorkflowDefinition(
+                description="Invalid depth",
+                max_call_depth=-5,
+                nodes=[
+                    AgentNode(id="step1", type="agent", agent_name="Agent1"),
+                ],
+                output_mapping={"result": "{{step1.output}}"},
+            )

@@ -265,6 +265,16 @@ class WorkflowExecutorComponent(SamComponentBase):
                     node_dict["condition"] = node.condition
                 if node.max_iterations:
                     node_dict["max_iterations"] = node.max_iterations
+            elif node.type == "workflow":
+                node_dict["workflow_name"] = node.workflow_name
+                if node.input:
+                    node_dict["input"] = node.input
+                if node.instruction:
+                    node_dict["instruction"] = node.instruction
+                if node.input_schema_override:
+                    node_dict["input_schema_override"] = node.input_schema_override
+                if node.output_schema_override:
+                    node_dict["output_schema_override"] = node.output_schema_override
 
             nodes_json.append(node_dict)
 

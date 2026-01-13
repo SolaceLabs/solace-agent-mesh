@@ -427,6 +427,16 @@ class WorkflowDefinition(BaseModel):
         alias="failFast",
     )
 
+    max_call_depth: int = Field(
+        default=10,
+        ge=1,
+        description=(
+            "Maximum allowed call depth for sub-workflow/agent invocations. "
+            "Prevents infinite recursion."
+        ),
+        alias="maxCallDepth",
+    )
+
     retry_strategy: Optional[RetryStrategy] = Field(
         default=None,
         description="Default retry strategy for all nodes (can be overridden per-node).",

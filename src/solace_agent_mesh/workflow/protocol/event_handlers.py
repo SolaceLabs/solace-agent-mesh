@@ -107,6 +107,15 @@ async def handle_task_request(
         client_id = user_properties.get("clientId")
         reply_to = user_properties.get("replyTo")
 
+        # Extract and validate call depth
+        call_depth = user_properties.get("callDepth", 0)
+        max_call_depth = component.workflow_definition.max_call_depth
+        if call_depth > max_call_depth:
+            raise ValueError(
+                f"Call depth {call_depth} exceeds maximum allowed depth of {max_call_depth}. "
+                "This may indicate infinite recursion in workflow/agent calls."
+            )
+
         # Create A2A context
         # The gateway/client is the source of truth for the task ID.
         # The workflow adopts the ID from the JSON-RPC request envelope.
@@ -123,6 +132,7 @@ async def handle_task_request(
             "a2a_user_config": user_config,
             "jsonrpc_request_id": request_id,
             "replyToTopic": reply_to,
+            "call_depth": call_depth,
         }
         # Note: original_solace_message is NOT stored in a2a_context to avoid
         # serialization issues when a2a_context is stored in ADK session state.

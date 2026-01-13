@@ -94,6 +94,18 @@
       "default": true,
       "description": "Alias for failFast (snake_case)."
     },
+    "maxCallDepth": {
+      "type": "integer",
+      "default": 10,
+      "minimum": 1,
+      "description": "Maximum allowed call depth for sub-workflow/agent invocations. Prevents infinite recursion."
+    },
+    "max_call_depth": {
+      "type": "integer",
+      "default": 10,
+      "minimum": 1,
+      "description": "Alias for maxCallDepth (snake_case)."
+    },
     "retryStrategy": {
       "$ref": "#/$defs/retryStrategy",
       "description": "Default retry strategy for all nodes (can be overridden per-node)."

@@ -506,6 +506,15 @@ class DAGExecutor:
         """Execute a workflow node by calling the sub-workflow."""
         log_id = f"{self.host.log_identifier}[Workflow:{node.id}]"
 
+        # Check for direct recursion (workflow invoking itself)
+        if node.workflow_name == self.host.workflow_name:
+            error_msg = (
+                f"Direct recursion detected: workflow '{self.host.workflow_name}' "
+                f"cannot invoke itself via node '{node.id}'"
+            )
+            log.error(f"{log_id} {error_msg}")
+            raise WorkflowExecutionError(error_msg)
+
         # Check 'when' clause if present (Argo-style conditional)
         if node.when:
             from .flow_control.conditional import evaluate_condition

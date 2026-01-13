@@ -333,6 +333,17 @@ async def handle_a2a_request(component, message: SolaceMessage):
             log.warning("a2aUserConfig is not a dict, using empty dict instead")
             a2a_user_config = {}
 
+        # Extract and validate call depth
+        call_depth = message.get_user_properties().get("callDepth", 0)
+        max_call_depth = component.get_config("max_call_depth", 10)
+        if call_depth > max_call_depth:
+            error_msg = (
+                f"Call depth {call_depth} exceeds maximum allowed depth of {max_call_depth}. "
+                "This may indicate infinite recursion in workflow/agent calls."
+            )
+            log.error("%s %s", component.log_identifier, error_msg)
+            raise ValueError(error_msg)
+
         # The concept of logical_task_id changes. For Cancel, it's in params.id.
         # For Send, we will generate it.
         logical_task_id = None
@@ -455,6 +466,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     "replyToTopic": reply_topic_from_peer,
                     "a2a_user_config": a2a_user_config,
                     "statusTopic": status_topic_from_peer,
+                    "call_depth": call_depth,
                 }
                 # Note: original_solace_message is NOT stored in a2a_context to avoid
                 # serialization issues when a2a_context is stored in ADK session state.
@@ -820,6 +832,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 "system_purpose": system_purpose,
                 "response_format": response_format,
                 "host_agent_name": agent_name,
+                "call_depth": call_depth,
             }
 
             # Store verified user identity claims in a2a_context (not the raw token)

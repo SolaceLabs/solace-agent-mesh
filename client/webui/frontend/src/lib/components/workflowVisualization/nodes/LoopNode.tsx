@@ -1,6 +1,6 @@
 import React from "react";
 import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
-import { NODE_HIGHLIGHT_CLASSES, NODE_ID_BADGE_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 interface LoopNodeProps extends NodeProps {
     renderChildren?: (children: NodeProps["node"]["children"]) => React.ReactNode;
@@ -65,9 +65,6 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                         <Maximize2 className="h-4 w-4" />
                     </button>
                 )}
-
-                {/* Node ID badge - fades in/out on hover */}
-                <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
             </div>
         );
     }
@@ -135,9 +132,6 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                         </div>
                     </div>
                 )}
-
-                {/* Node ID badge - fades in/out on hover */}
-                <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
             </div>
         </div>
     );

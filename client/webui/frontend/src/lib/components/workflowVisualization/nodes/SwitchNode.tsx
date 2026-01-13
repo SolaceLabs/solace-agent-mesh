@@ -1,6 +1,6 @@
 import React from "react";
 import { GitBranch } from "lucide-react";
-import { NODE_HIGHLIGHT_CLASSES, NODE_ID_BADGE_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 /**
  * Switch node - Shows conditional branching with case rows inside
@@ -69,9 +69,6 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCl
                     </div>
                 </div>
             )}
-
-            {/* Node ID badge - fades in/out on hover */}
-            <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
         </div>
     );
 };

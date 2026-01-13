@@ -3132,13 +3132,17 @@ class SamAgentComponent(SamComponentBase):
         if isinstance(user_config, dict):
             user_properties["a2aUserConfig"] = user_config
 
-        # Retrieve and propagate authentication token from parent task context
+        # Retrieve call depth and auth token from parent task context
         parent_task_id = a2a_message.metadata.get("parentTaskId")
+        current_depth = 0
         if parent_task_id:
             with self.active_tasks_lock:
                 parent_task_context = self.active_tasks.get(parent_task_id)
 
             if parent_task_context:
+                # Get current call depth from parent context
+                current_depth = parent_task_context.a2a_context.get("call_depth", 0)
+
                 auth_token = parent_task_context.get_security_data("auth_token")
                 if auth_token:
                     user_properties["authToken"] = auth_token
@@ -3160,6 +3164,9 @@ class SamAgentComponent(SamComponentBase):
                     log_identifier_helper,
                     parent_task_id,
                 )
+
+        # Add call depth to user properties (increment for outgoing call)
+        user_properties["callDepth"] = current_depth + 1
 
         self.publish_a2a_message(
             payload=a2a_request.model_dump(by_alias=True, exclude_none=True),

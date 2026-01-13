@@ -1,6 +1,6 @@
 import React from "react";
 import { Repeat2, Maximize2, Minimize2 } from "lucide-react";
-import { NODE_HIGHLIGHT_CLASSES, NODE_ID_BADGE_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 interface MapNodeProps extends NodeProps {
     renderChildren?: (children: NodeProps["node"]["children"]) => React.ReactNode;
@@ -56,9 +56,6 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
                         <Maximize2 className="h-4 w-4" />
                     </button>
                 )}
-
-                {/* Node ID badge - fades in/out on hover */}
-                <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
             </div>
         );
     }
@@ -103,9 +100,6 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
                 >
                     <Minimize2 className="h-4 w-4" />
                 </button>
-
-                {/* Node ID badge - fades in/out on hover */}
-                <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
             </div>
         </div>
     );
