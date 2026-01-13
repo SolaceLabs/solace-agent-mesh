@@ -4,8 +4,6 @@
 
 ### High Priority - Core Typeahead Functionality
 
-- **Add TypeScript types for people search to `src/lib/types/projects.ts`** - Add `PersonSearchResult`, `PeopleSearchResponse`, and `PendingCollaborator` interfaces as specified in the spec to support the new typeahead feature. These are required before API service can be created.
-
 - **Create PeopleService API module** - Create `src/lib/api/people/` directory with `service.ts` (searchPeople function), `keys.ts` (React Query cache keys), `hooks.ts` (useSearchPeople hook), and `index.ts` (exports). Follow existing pattern from `src/lib/api/projects/`. API endpoint: `GET /api/v1/people/search?q={query}&limit={limit}`.
 
 - **Add mode toggle UI to ShareDialog** - Add Switch component at top of invite section to toggle between "Manual Email Entry" (default) and "Search Users" modes. Toggle should reset to email mode when dialog opens and clear search/pending state when switching modes.
