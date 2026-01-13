@@ -335,3 +335,214 @@ export const WithCustomTrigger: Story = {
         },
     },
 };
+
+export const TypeaheadMode: Story = {
+    args: {
+        project: mockProject,
+    },
+    parameters: {
+        msw: { handlers: defaultHandlers },
+        docs: {
+            description: {
+                story: "ShareDialog in typeahead mode with empty search input. Toggle the switch to enable typeahead mode.",
+            },
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const user = userEvent.setup({ pointerEventsCheck: 0 });
+
+        // Open dialog
+        const shareButton = await canvas.findByRole("button", { name: /share/i });
+        await user.click(shareButton);
+
+        const dialog = await within(document.body).findByRole("dialog");
+        const dialogContent = within(dialog);
+
+        // Find and toggle the switch to enable typeahead mode
+        const switchElement = dialogContent.getByRole("switch");
+        await user.click(switchElement);
+
+        // Verify typeahead mode is active
+        await dialogContent.findByText("Search Users");
+        await dialogContent.findByPlaceholderText("Search by name or email...");
+    },
+};
+
+export const TypeaheadWithResults: Story = {
+    args: {
+        project: mockProject,
+    },
+    parameters: {
+        msw: {
+            handlers: [
+                http.get("*/api/v1/projects/p123/collaborators", () => {
+                    return HttpResponse.json({ collaborators: [] });
+                }),
+                http.get("*/api/v1/people/search*", () => {
+                    return HttpResponse.json({
+                        data: [
+                            { id: "user4", name: "Alice Johnson", email: "alice.johnson@example.com", title: "Software Engineer" },
+                            { id: "user5", name: "Bob Smith", email: "bob.smith@example.com", title: "Product Manager" },
+                            { id: "user6", name: "Carol White", email: "carol.white@example.com", title: "Designer" },
+                            { id: "user7", name: "David Brown", email: "david.brown@example.com", title: null },
+                        ],
+                    });
+                }),
+            ],
+        },
+        docs: {
+            description: {
+                story: "ShareDialog in typeahead mode showing search results. Type in the search box to see users.",
+            },
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const user = userEvent.setup({ pointerEventsCheck: 0 });
+
+        // Open dialog
+        const shareButton = await canvas.findByRole("button", { name: /share/i });
+        await user.click(shareButton);
+
+        const dialog = await within(document.body).findByRole("dialog");
+        const dialogContent = within(dialog);
+
+        // Toggle to typeahead mode
+        const switchElement = dialogContent.getByRole("switch");
+        await user.click(switchElement);
+
+        // Wait for typeahead mode to be active
+        const searchInput = await dialogContent.findByPlaceholderText("Search by name or email...");
+
+        // Type to trigger search
+        await user.click(searchInput);
+        await user.keyboard("ali");
+
+        // Wait for search results to appear
+        await waitFor(async () => {
+            await within(document.body).findByText("Alice Johnson");
+        });
+    },
+};
+
+export const TypeaheadWithPending: Story = {
+    args: {
+        project: mockProject,
+    },
+    parameters: {
+        msw: {
+            handlers: [
+                http.get("*/api/v1/projects/p123/collaborators", () => {
+                    return HttpResponse.json({ collaborators: [] });
+                }),
+                http.get("*/api/v1/people/search*", () => {
+                    return HttpResponse.json({
+                        data: [
+                            { id: "user4", name: "Alice Johnson", email: "alice.johnson@example.com", title: "Software Engineer" },
+                            { id: "user5", name: "Bob Smith", email: "bob.smith@example.com", title: "Product Manager" },
+                            { id: "user6", name: "Carol White", email: "carol.white@example.com", title: "Designer" },
+                        ],
+                    });
+                }),
+            ],
+        },
+        docs: {
+            description: {
+                story: "ShareDialog in typeahead mode with pending users ready to be invited.",
+            },
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const user = userEvent.setup({ pointerEventsCheck: 0 });
+
+        // Open dialog
+        const shareButton = await canvas.findByRole("button", { name: /share/i });
+        await user.click(shareButton);
+
+        const dialog = await within(document.body).findByRole("dialog");
+        const dialogContent = within(dialog);
+
+        // Toggle to typeahead mode
+        const switchElement = dialogContent.getByRole("switch");
+        await user.click(switchElement);
+
+        // Wait for typeahead mode to be active
+        const searchInput = await dialogContent.findByPlaceholderText("Search by name or email...");
+
+        // Search and add first user
+        await user.click(searchInput);
+        await user.keyboard("ali");
+
+        // Wait for results and click first user
+        await waitFor(async () => {
+            const aliceButton = await within(document.body).findByText("Alice Johnson");
+            await user.click(aliceButton);
+        });
+
+        // Search and add second user
+        await user.click(searchInput);
+        await user.keyboard("bob");
+
+        await waitFor(async () => {
+            const bobButton = await within(document.body).findByText("Bob Smith");
+            await user.click(bobButton);
+        });
+
+        // Verify pending users section appears
+        await dialogContent.findByText(/Pending Invitations \(2\)/);
+        await dialogContent.findByText("Alice Johnson");
+        await dialogContent.findByText("Bob Smith");
+    },
+};
+
+export const TypeaheadNoResults: Story = {
+    args: {
+        project: mockProject,
+    },
+    parameters: {
+        msw: {
+            handlers: [
+                http.get("*/api/v1/projects/p123/collaborators", () => {
+                    return HttpResponse.json({ collaborators: [] });
+                }),
+                http.get("*/api/v1/people/search*", () => {
+                    return HttpResponse.json({ data: [] });
+                }),
+            ],
+        },
+        docs: {
+            description: {
+                story: "ShareDialog in typeahead mode showing 'No users found' message when search returns no results.",
+            },
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const user = userEvent.setup({ pointerEventsCheck: 0 });
+
+        // Open dialog
+        const shareButton = await canvas.findByRole("button", { name: /share/i });
+        await user.click(shareButton);
+
+        const dialog = await within(document.body).findByRole("dialog");
+        const dialogContent = within(dialog);
+
+        // Toggle to typeahead mode
+        const switchElement = dialogContent.getByRole("switch");
+        await user.click(switchElement);
+
+        // Wait for typeahead mode to be active
+        const searchInput = await dialogContent.findByPlaceholderText("Search by name or email...");
+
+        // Type to trigger search
+        await user.click(searchInput);
+        await user.keyboard("xyz123");
+
+        // Wait for "No users found" message
+        await waitFor(async () => {
+            await within(document.body).findByText("No users found");
+        });
+    },
+};

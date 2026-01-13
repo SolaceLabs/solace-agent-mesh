@@ -6,8 +6,6 @@
 
 ### Medium Priority - Polish & Validation
 
-- **Add error handling for search failures** - Wrap `PeopleService.searchPeople()` call in try/catch. On error, show notification "Failed to search users" and set `searchResults` to empty array. Set `isSearching` to false in finally block.
-
 - **Update Storybook stories for ShareDialog** - Add new stories to `src/stories/ShareDialog.stories.tsx`: TypeaheadMode (empty search), TypeaheadWithResults (3-4 mock users), TypeaheadWithPending (2-3 pending users), TypeaheadNoResults ("No users found" message). Mock `PeopleService.searchPeople` with MSW handlers returning fixture data.
 
 - **Run build validation tests** - Execute `npm run build-package && npm run lint` to ensure TypeScript strict mode compliance and no linting errors. Fix any type errors or linting issues before marking task complete.
