@@ -158,7 +158,9 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 // Cancel any ongoing speech
                 synth.cancel();
 
-                // Preprocess markdown for natural speech (browser TTS doesn't have backend preprocessing)
+                // Preprocess markdown for natural speech.
+                // This is only needed for browser TTS as external TTS providers
+                // have their markdown preprocessing handled server-side.
                 const processedText = markdownToSpeech(text);
 
                 const utterance = new SpeechSynthesisUtterance(processedText);
