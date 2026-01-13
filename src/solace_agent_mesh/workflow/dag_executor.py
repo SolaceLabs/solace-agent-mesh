@@ -20,6 +20,7 @@ from .app import (
     SwitchNode,
     LoopNode,
     MapNode,
+    WorkflowInvokeNode,
 )
 from .workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
 from ..common.data_parts import (
@@ -373,9 +374,9 @@ class DAGExecutor:
         try:
             node = self.nodes[node_id]
 
-            # Generate sub-task ID for agent nodes to link events
+            # Generate sub-task ID for agent and workflow nodes to link events
             sub_task_id = None
-            if node.type == "agent":
+            if node.type in ("agent", "workflow"):
                 sub_task_id = f"wf_{workflow_state.execution_id}_{node.id}_{uuid.uuid4().hex[:8]}"
 
             # Publish start event
@@ -383,12 +384,12 @@ class DAGExecutor:
                 "type": "workflow_node_execution_start",
                 "node_id": node_id,
                 "node_type": node.type,
-                "agent_name": getattr(node, "agent_name", None),
+                "agent_name": getattr(node, "agent_name", None) or getattr(node, "workflow_name", None),
                 "sub_task_id": sub_task_id,
             }
 
-            # Include implicit parallel group ID and branch index for agent nodes (used for visualization)
-            if implicit_parallel_group_id and node.type == "agent":
+            # Include implicit parallel group ID and branch index for agent and workflow nodes (used for visualization)
+            if implicit_parallel_group_id and node.type in ("agent", "workflow"):
                 start_data_args["parallel_group_id"] = implicit_parallel_group_id
                 if implicit_branch_index is not None:
                     start_data_args["iteration_index"] = implicit_branch_index
@@ -420,6 +421,8 @@ class DAGExecutor:
             # Handle different node types
             if node.type == "agent":
                 await self._execute_agent_node(node, workflow_state, workflow_context, sub_task_id)
+            elif node.type == "workflow":
+                await self._execute_workflow_node(node, workflow_state, workflow_context, sub_task_id)
             elif node.type == "switch":
                 await self._execute_switch_node(node, workflow_state, workflow_context)
             elif node.type == "loop":
@@ -490,6 +493,58 @@ class DAGExecutor:
                 return
 
         await self.host.agent_caller.call_agent(
+            node, workflow_state, workflow_context, sub_task_id
+        )
+
+    async def _execute_workflow_node(
+        self,
+        node: WorkflowInvokeNode,
+        workflow_state: WorkflowExecutionState,
+        workflow_context: WorkflowExecutionContext,
+        sub_task_id: Optional[str] = None,
+    ):
+        """Execute a workflow node by calling the sub-workflow."""
+        log_id = f"{self.host.log_identifier}[Workflow:{node.id}]"
+
+        # Check 'when' clause if present (Argo-style conditional)
+        if node.when:
+            from .flow_control.conditional import evaluate_condition
+
+            try:
+                should_execute = evaluate_condition(node.when, workflow_state)
+            except Exception as e:
+                log.warning(f"{log_id} 'when' clause evaluation failed: {e}")
+                should_execute = False
+
+            if not should_execute:
+                log.info(
+                    f"{log_id} Skipping workflow node due to 'when' clause: {node.when}"
+                )
+                # Mark as skipped
+                workflow_state.skipped_nodes[node.id] = f"when_clause_false: {node.when}"
+                workflow_state.completed_nodes[node.id] = "SKIPPED_BY_WHEN"
+                workflow_state.node_outputs[node.id] = {
+                    "output": None,
+                    "skipped": True,
+                    "skip_reason": "when_clause_false",
+                }
+
+                # Publish skipped event
+                result_data = WorkflowNodeExecutionResultData(
+                    type="workflow_node_execution_result",
+                    node_id=node.id,
+                    status="skipped",
+                    metadata={"skip_reason": "when_clause_false", "when": node.when},
+                )
+                await self.host.publish_workflow_event(workflow_context, result_data)
+
+                # Continue workflow
+                await self.execute_workflow(workflow_state, workflow_context)
+                return
+
+        # Call the sub-workflow using the agent caller
+        # Workflows register as agents, so we use call_workflow which adapts the invocation
+        await self.host.agent_caller.call_workflow(
             node, workflow_state, workflow_context, sub_task_id
         )
 

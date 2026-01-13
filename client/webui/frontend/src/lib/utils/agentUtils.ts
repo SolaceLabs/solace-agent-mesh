@@ -18,9 +18,10 @@ export interface WorkflowConfig {
 
 export interface WorkflowNodeConfig {
     id: string;
-    type: "agent" | "switch" | "map" | "loop";
+    type: "agent" | "switch" | "map" | "loop" | "workflow";
     depends_on?: string[];
     agent_name?: string;
+    workflow_name?: string; // For workflow node type
     input?: Record<string, unknown>;
     instruction?: string;
     input_schema_override?: Record<string, unknown>;

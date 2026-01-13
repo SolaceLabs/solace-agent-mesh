@@ -582,15 +582,39 @@ class WorkflowExecutorComponent(SamComponentBase):
         else:
             response_text = "Workflow completed successfully"
 
+        # Check if this workflow was invoked by another workflow (structured invocation)
+        # This is indicated by replyToTopic containing '/agent/response/'
+        reply_to_topic = workflow_context.a2a_context.get("replyToTopic", "")
+        is_sub_workflow_invocation = "/agent/response/" in reply_to_topic
+
+        # Build message parts
+        message_parts = []
+
+        if is_sub_workflow_invocation and artifact_version is not None:
+            # When invoked as a sub-workflow, include StructuredInvocationResult
+            # so the parent workflow can process the response
+            from ..common.data_parts import StructuredInvocationResult
+            invocation_result = StructuredInvocationResult(
+                type="structured_invocation_result",
+                status="success",
+                output=final_output,
+                output_artifact=ArtifactRef(
+                    name=output_artifact_name,
+                    version=artifact_version,
+                ),
+            )
+            message_parts.append(a2a.create_data_part(data=invocation_result.model_dump()))
+
+        # Add text part
+        message_parts.append(a2a.create_text_part(text=response_text))
+
         # Create final task response
         final_task = a2a.create_final_task(
             task_id=workflow_context.a2a_context["logical_task_id"],
             context_id=workflow_context.a2a_context["session_id"],
             final_status=a2a.create_task_status(
                 state=TaskState.completed,
-                message=a2a.create_agent_text_message(
-                    text=response_text
-                ),
+                message=a2a.create_agent_parts_message(parts=message_parts),
             ),
             metadata={
                 "workflow_name": self.workflow_name,

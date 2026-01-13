@@ -1641,6 +1641,70 @@ def shared_solace_connector(
             "app_module": "solace_agent_mesh.workflow.app",
         },
         {
+            "name": "TestSubWorkflowInvokeApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "agent_name": "SubWorkflowInvokeTestWorkflow",
+                "display_name": "Sub-Workflow Invoke Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow that invokes another workflow as a sub-workflow",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "input_text": {"type": "string"},
+                        },
+                        "required": ["input_text"],
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "final_result": {"type": "string"},
+                            "from_parent": {"type": "string"},
+                        },
+                    },
+                    "nodes": [
+                        {
+                            "id": "prepare_data",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentA",
+                            "input": {
+                                "task": "Prepare data for sub-workflow: {{workflow.input.input_text}}",
+                            },
+                        },
+                        {
+                            "id": "invoke_sub_workflow",
+                            "type": "workflow",
+                            "workflow_name": "SimpleTestWorkflow",
+                            "depends_on": ["prepare_data"],
+                            "input": {
+                                "input_text": "{{prepare_data.output.processed_data}}",
+                            },
+                        },
+                        {
+                            "id": "finalize",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentB",
+                            "depends_on": ["invoke_sub_workflow"],
+                            "input": {
+                                "sub_workflow_result": "{{invoke_sub_workflow.output.final_result}}",
+                            },
+                        },
+                    ],
+                    "output_mapping": {
+                        "final_result": "{{finalize.output.result}}",
+                        "from_parent": "{{prepare_data.output.parent_marker}}",
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
             "name": "TestA2AProxyApp",
             "app_config": {
                 "namespace": "test_namespace",

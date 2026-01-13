@@ -324,16 +324,24 @@ function createLayoutNode(
     const config = procNode.config;
     const isCollapsed = collapsedNodes.has(procNode.id);
 
-    // Determine if this agent is actually a workflow
-    const isWorkflowRef = config.type === "agent" && !!config.agent_name && knownWorkflows.has(config.agent_name);
+    // Determine if this is a workflow node
+    // Either explicit type: "workflow" or an agent that's a known workflow
+    const isWorkflowRef =
+        config.type === "workflow" ||
+        (config.type === "agent" && !!config.agent_name && knownWorkflows.has(config.agent_name));
+
+    // Get the workflow name from either workflow_name or agent_name
+    const workflowName = config.type === "workflow"
+        ? config.workflow_name
+        : (isWorkflowRef ? config.agent_name : undefined);
 
     const baseNode: LayoutNode = {
         id: procNode.id,
         type: getVisualNodeType(config.type, isWorkflowRef),
         data: {
             label: config.id,
-            agentName: config.agent_name,
-            workflowName: isWorkflowRef ? config.agent_name : undefined,
+            agentName: config.agent_name || config.workflow_name,
+            workflowName: workflowName,
             originalConfig: config,
         },
         x: 0,
@@ -348,6 +356,11 @@ function createLayoutNode(
     switch (config.type) {
         case "agent":
             baseNode.width = isWorkflowRef ? NODE_WIDTHS.WORKFLOW : NODE_WIDTHS.AGENT;
+            baseNode.height = NODE_HEIGHTS.AGENT;
+            break;
+
+        case "workflow":
+            baseNode.width = NODE_WIDTHS.WORKFLOW;
             baseNode.height = NODE_HEIGHTS.AGENT;
             break;
 
@@ -423,6 +436,11 @@ function createLayoutNode(
  * Get visual node type from config type
  */
 function getVisualNodeType(configType: WorkflowNodeConfig["type"], isWorkflow: boolean): WorkflowVisualNodeType {
+    // Explicit workflow type
+    if (configType === "workflow") {
+        return "workflow";
+    }
+    // Agent that is actually a workflow (detected via knownWorkflows)
     if (configType === "agent" && isWorkflow) {
         return "workflow";
     }

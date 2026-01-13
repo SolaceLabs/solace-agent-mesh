@@ -109,7 +109,8 @@
         { "$ref": "#/$defs/agentNode" },
         { "$ref": "#/$defs/switchNode" },
         { "$ref": "#/$defs/loopNode" },
-        { "$ref": "#/$defs/mapNode" }
+        { "$ref": "#/$defs/mapNode" },
+        { "$ref": "#/$defs/workflowInvokeNode" }
       ]
     },
     "baseNode": {
@@ -340,6 +341,60 @@
         { "required": ["withParam"] },
         { "required": ["withItems"] }
       ],
+      "additionalProperties": false
+    },
+    "workflowInvokeNode": {
+      "type": "object",
+      "description": "Workflow invocation node. Calls another workflow as a sub-workflow.",
+      "allOf": [{ "$ref": "#/$defs/baseNode" }],
+      "properties": {
+        "id": { "$ref": "#/$defs/baseNode/properties/id" },
+        "type": {
+          "const": "workflow",
+          "description": "Node type identifier."
+        },
+        "workflow_name": {
+          "type": "string",
+          "description": "Name of the workflow to invoke. Must match a registered workflow in the namespace."
+        },
+        "input": {
+          "type": "object",
+          "description": "Input mapping for the sub-workflow. Supports template expressions like '{{workflow.input.field}}' or '{{other_node.output.field}}'. If omitted, inferred from dependencies.",
+          "additionalProperties": true
+        },
+        "instruction": {
+          "type": "string",
+          "description": "Optional instruction/guidance text sent to the target workflow. Supports template expressions."
+        },
+        "input_schema_override": {
+          "$ref": "#/$defs/jsonSchema",
+          "description": "Override the sub-workflow's default input schema for this invocation."
+        },
+        "output_schema_override": {
+          "$ref": "#/$defs/jsonSchema",
+          "description": "Override the sub-workflow's default output schema for this invocation."
+        },
+        "when": {
+          "type": "string",
+          "description": "Conditional execution expression (Argo-style). Node only executes if expression evaluates to true. Example: '{{previous_node.output.status}} == \"success\"'"
+        },
+        "retryStrategy": {
+          "$ref": "#/$defs/retryStrategy",
+          "description": "Retry configuration for this node (overrides workflow-level default)."
+        },
+        "retry_strategy": {
+          "$ref": "#/$defs/retryStrategy",
+          "description": "Alias for retryStrategy (snake_case)."
+        },
+        "timeout": {
+          "type": "string",
+          "description": "Node-specific timeout. Format: '30s', '5m', '1h'.",
+          "pattern": "^\\d+[smh]$"
+        },
+        "depends_on": { "$ref": "#/$defs/baseNode/properties/depends_on" },
+        "dependencies": { "$ref": "#/$defs/baseNode/properties/dependencies" }
+      },
+      "required": ["id", "type", "workflow_name"],
       "additionalProperties": false
     },
     "retryStrategy": {

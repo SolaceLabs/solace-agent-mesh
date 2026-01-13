@@ -299,12 +299,67 @@ class MapNode(WorkflowNode):
         return self.with_items
 
 
+class WorkflowInvokeNode(WorkflowNode):
+    """
+    Workflow invocation node.
+
+    Calls another workflow as a sub-workflow.
+    Since workflows register as agents, this reuses the agent calling mechanism.
+
+    Argo-aligned features:
+    - `when`: Conditional execution clause (Argo-style)
+    - `retryStrategy`: Retry configuration
+    - `timeout`: Node-specific timeout override
+    - `instruction`: Optional guidance text sent to the target workflow
+    """
+
+    type: Literal["workflow"] = "workflow"
+    workflow_name: str = Field(..., description="Name of workflow to invoke")
+    input: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Input mapping. If omitted, inferred from dependencies.",
+    )
+    instruction: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional instruction/guidance text sent to the target workflow. "
+            "Supports template expressions like '{{workflow.input.context}}'."
+        ),
+    )
+
+    # Optional schema overrides
+    input_schema_override: Optional[Dict[str, Any]] = None
+    output_schema_override: Optional[Dict[str, Any]] = None
+
+    # Argo-aligned fields
+    when: Optional[str] = Field(
+        default=None,
+        description=(
+            "Conditional execution expression (Argo-style). "
+            "Node only executes if expression evaluates to true."
+        ),
+    )
+    retry_strategy: Optional[RetryStrategy] = Field(
+        default=None,
+        description="Retry configuration for this node.",
+        alias="retryStrategy",
+    )
+    timeout: Optional[str] = Field(
+        default=None,
+        description="Node-specific timeout. Format: '30s', '5m', '1h'.",
+    )
+
+    class Config:
+        populate_by_name = True
+
+
 # Union type for polymorphic node list
 WorkflowNodeUnion = Union[
     AgentNode,
     SwitchNode,
     LoopNode,
     MapNode,
+    WorkflowInvokeNode,
 ]
 
 
