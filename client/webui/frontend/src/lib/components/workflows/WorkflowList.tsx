@@ -140,16 +140,16 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
     }
 
     return (
-        <div ref={containerRef} className="relative flex h-full flex-col">
+        <div ref={containerRef} className="bg-muted relative flex h-full flex-col dark:bg-[var(--color-bg-wMain)]">
             <WorkflowOnboardingBanner />
-            <div className="bg-muted min-h-0 flex-1 overflow-auto px-6 pt-6 dark:bg-[var(--color-bg-wMain)]">
+            <div className="flex min-h-0 flex-1 flex-col px-6 pt-6">
                 <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="workflowSearchInput" className="mb-4 w-xs" />
 
                 {filteredWorkflows.length === 0 && searchQuery ? (
                     <EmptyState variant="notFound" title="No Workflows Match Your Filter" subtitle="Try adjusting your filter terms." buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchQuery("") }]} />
                 ) : (
-                    <div className="flex flex-col">
-                        <div className="rounded-sm border">
+                    <div className="flex min-h-0 flex-1 flex-col pb-6">
+                        <div className="bg-background flex min-h-0 flex-1 flex-col overflow-auto rounded-sm border">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
