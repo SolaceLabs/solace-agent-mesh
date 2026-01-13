@@ -108,7 +108,7 @@ The Solace Agent Mesh is a distributed AI agent communication system built on th
 ### Architectural Principles
 
 Built on three primary technologies:
-- **Solace PubSub+ Event Broker**: Messaging fabric for all asynchronous communication using topic-based routing for A2A protocol
+- **Solace Event Broker**: Messaging fabric for all asynchronous communication using topic-based routing for A2A protocol
 - **Solace AI Connector (SAC)**: Runtime environment for hosting and managing lifecycle of all system components (Agents and Gateways)  
 - **Google Agent Development Kit (ADK)**: Core logic for individual agents, including LLM interaction, tool execution, and state management
 
@@ -119,7 +119,7 @@ Key architectural principles:
 
 ### Core System Components
 
-#### 1. Solace PubSub+ Event Broker
+#### 1. Solace Event Broker
 **Purpose**: Central messaging fabric routing A2A protocol messages between components using hierarchical topic structure.
 
 **A2A Protocol Topics**:

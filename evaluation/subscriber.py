@@ -414,7 +414,7 @@ class BrokerConnectionService:
             self.connection_state = ConnectionState.CONNECTING
 
             try:
-                log.info("Connecting to Solace PubSub+ Broker...")
+                log.info("Connecting to Solace Broker...")
 
                 broker_props = self.config.to_solace_properties()
                 self.messaging_service = (
