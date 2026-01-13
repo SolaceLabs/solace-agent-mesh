@@ -10,6 +10,7 @@ import { MockProjectProvider } from "./MockProjectProvider";
 import type { ProjectContextValue } from "@/lib/types/projects";
 import { MockTextSelectionProvider } from "./MockTextSelectionProvider";
 import { MockAudioSettingsProvider } from "./MockAudioSettingsProvider";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 interface RouterValues {
     initialPath?: string;
@@ -57,21 +58,36 @@ export const StoryProvider: React.FC<StoryProviderProps> = ({
     taskContextValues = {},
     configContextValues = {},
 }) => {
+    // Create a new QueryClient instance for each story to ensure test isolation
+    const queryClient = new QueryClient({
+        defaultOptions: {
+            queries: {
+                retry: false,
+                gcTime: 0,
+            },
+            mutations: {
+                retry: false,
+            },
+        },
+    });
+
     return (
-        <ThemeProvider>
-            <MockConfigProvider mockValues={configContextValues}>
-                <MockAuthProvider mockValues={authContextValues}>
-                    <MockAudioSettingsProvider mockValues={audioSettingsContextValues}>
-                        <MockProjectProvider mockValues={projectContextValues}>
-                            <MockTextSelectionProvider mockValues={textSelectionContextValues}>
-                                <MockTaskProvider mockValues={taskContextValues}>
-                                    <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
-                                </MockTaskProvider>
-                            </MockTextSelectionProvider>
-                        </MockProjectProvider>
-                    </MockAudioSettingsProvider>
-                </MockAuthProvider>
-            </MockConfigProvider>
-        </ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+            <ThemeProvider>
+                <MockConfigProvider mockValues={configContextValues}>
+                    <MockAuthProvider mockValues={authContextValues}>
+                        <MockAudioSettingsProvider mockValues={audioSettingsContextValues}>
+                            <MockProjectProvider mockValues={projectContextValues}>
+                                <MockTextSelectionProvider mockValues={textSelectionContextValues}>
+                                    <MockTaskProvider mockValues={taskContextValues}>
+                                        <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
+                                    </MockTaskProvider>
+                                </MockTextSelectionProvider>
+                            </MockProjectProvider>
+                        </MockAudioSettingsProvider>
+                    </MockAuthProvider>
+                </MockConfigProvider>
+            </ThemeProvider>
+        </QueryClientProvider>
     );
 };
