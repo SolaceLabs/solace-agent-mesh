@@ -4,8 +4,6 @@
 
 ### High Priority - Core Typeahead Functionality
 
-- **Add duplicate prevention logic** - Before adding user to pending list, check against: (1) existing pending users by id/email, (2) current collaborators by email, (3) project owner by email. Show appropriate error notification for each case using `addNotification()` from ChatContext.
-
 - **Implement sequential batch submission** - Add "Share with X user(s)" button (disabled when no pending users). On click, iterate through pending users and call `shareProject` API sequentially (one at a time, not parallel). Collect errors for failed submissions. Show success notification on completion or error notification with failed user names. Clear pending list on full success. Refresh collaborators list after submission.
 
 - **Update ShareDialog to conditionally render email vs typeahead mode** - Refactor ShareDialog JSX to show either email input form (existing) or typeahead search UI based on `useTypeahead` state. Preserve all existing email mode functionality unchanged.

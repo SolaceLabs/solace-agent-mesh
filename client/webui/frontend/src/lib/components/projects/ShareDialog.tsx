@@ -131,6 +131,45 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
         setPendingUsers(prev => prev.filter(u => u.id !== userId));
     };
 
+    // Handle batch submission of pending users
+    const handleBatchShare = async () => {
+        if (pendingUsers.length === 0) return;
+
+        setError(null);
+        setSuccess(null);
+
+        const failedUsers: string[] = [];
+
+        // Sequential submission (one at a time)
+        for (const user of pendingUsers) {
+            try {
+                await shareProjectMutation.mutateAsync({
+                    projectId: project.id,
+                    email: user.email,
+                    role: user.role,
+                });
+            } catch (err) {
+                console.error(`Failed to share with ${user.email}:`, err);
+                failedUsers.push(user.name);
+            }
+        }
+
+        // Handle results
+        if (failedUsers.length === 0) {
+            // Full success
+            addNotification(`Successfully shared project with ${pendingUsers.length} user(s)`, "success");
+            setPendingUsers([]);
+        } else if (failedUsers.length === pendingUsers.length) {
+            // All failed
+            addNotification(`Failed to share project with all users`, "warning");
+        } else {
+            // Partial success
+            addNotification(`Failed to share with: ${failedUsers.join(", ")}`, "warning");
+            // Remove successful users from pending list
+            setPendingUsers(prev => prev.filter(u => failedUsers.includes(u.name)));
+        }
+    };
+
     const handleShare = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -385,6 +424,19 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                                     </div>
                                 ))}
                             </div>
+                            <Button onClick={handleBatchShare} disabled={pendingUsers.length === 0 || isAnyOperationInProgress} className="w-full">
+                                {shareProjectMutation.isPending ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Sharing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <UserPlus className="mr-2 h-4 w-4" />
+                                        Share with {pendingUsers.length} user{pendingUsers.length !== 1 ? "s" : ""}
+                                    </>
+                                )}
+                            </Button>
                         </div>
                     )}
 
