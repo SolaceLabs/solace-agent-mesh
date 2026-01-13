@@ -14,6 +14,7 @@ import { Share2, Trash2, UserPlus, Users, Loader2, Search, X } from "lucide-reac
 import { useCollaborators, useShareProject, useUpdateCollaborator, useRemoveCollaborator } from "@/lib/api/projects/hooks";
 import { useSearchPeople } from "@/lib/api/people/hooks";
 import { useDebounce } from "@/lib/hooks/useDebounce";
+import { useChatContext } from "@/lib/hooks";
 
 interface ShareDialogProps {
     project: Project;
@@ -37,6 +38,9 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
 
     // Debounce search query (300ms delay)
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+    // Chat context for notifications
+    const { addNotification } = useChatContext();
 
     // React Query hooks
     const { data: collaborators = [], isLoading: loading } = useCollaborators(open ? project.id : null);
@@ -85,6 +89,26 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
 
     // Add user to pending list from search results
     const handleAddToPending = (user: { id: string; name: string; email: string }) => {
+        // Check 1: Is user already in pending list? (by id or email)
+        const isInPending = pendingUsers.some(pending => pending.id === user.id || pending.email.toLowerCase() === user.email.toLowerCase());
+        if (isInPending) {
+            addNotification("This user is already in your pending invitations list", "warning");
+            return;
+        }
+
+        // Check 2: Is user already a collaborator? (by email)
+        const isCollaborator = collaborators.some(collab => collab.email.toLowerCase() === user.email.toLowerCase());
+        if (isCollaborator) {
+            addNotification("This user is already a collaborator on this project", "warning");
+            return;
+        }
+
+        // Check 3: Is user the project owner? (by userId)
+        if (user.id === project.userId) {
+            addNotification("You cannot add the project owner as a collaborator", "warning");
+            return;
+        }
+
         // Create pending collaborator
         const pendingUser: PendingCollaborator = {
             id: user.id,

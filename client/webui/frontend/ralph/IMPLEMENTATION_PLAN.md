@@ -4,8 +4,6 @@
 
 ### High Priority - Core Typeahead Functionality
 
-- **Implement pending users list UI** - Add section between search input and collaborators list showing pending users (not yet shared). Display user name, email, "Viewer" badge, and remove button (X icon). Section only visible when `pendingUsers.length > 0`. Header shows "Pending Invitations (X)".
-
 - **Add duplicate prevention logic** - Before adding user to pending list, check against: (1) existing pending users by id/email, (2) current collaborators by email, (3) project owner by email. Show appropriate error notification for each case using `addNotification()` from ChatContext.
 
 - **Implement sequential batch submission** - Add "Share with X user(s)" button (disabled when no pending users). On click, iterate through pending users and call `shareProject` API sequentially (one at a time, not parallel). Collect errors for failed submissions. Show success notification on completion or error notification with failed user names. Clear pending list on full success. Refresh collaborators list after submission.
