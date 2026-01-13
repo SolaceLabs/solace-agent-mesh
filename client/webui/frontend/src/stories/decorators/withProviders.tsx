@@ -52,6 +52,11 @@ export const withProviders: Decorator = (Story: StoryFn, context: StoryContext) 
         ...(context.args.configContext || {}),
     };
 
+    const projectContextValues = {
+        ...(context.parameters.projectContext || {}),
+        ...(context.args.projectContext || {}),
+    };
+
     // Always provide router context with sensible defaults
     const routerValues = {
         initialPath: "/",
@@ -64,7 +69,7 @@ export const withProviders: Decorator = (Story: StoryFn, context: StoryContext) 
         {
             path: "*",
             element: (
-                <StoryProvider authContextValues={authContextValues} chatContextValues={chatContextValues} taskContextValues={taskContextValues} configContextValues={configContextValues} routerValues={routerValues}>
+                <StoryProvider authContextValues={authContextValues} chatContextValues={chatContextValues} taskContextValues={taskContextValues} configContextValues={configContextValues} projectContextValues={projectContextValues} routerValues={routerValues}>
                     <div style={{ height: "100vh", width: "100vw" }}>{Story(context.args, context)}</div>
                 </StoryProvider>
             ),
