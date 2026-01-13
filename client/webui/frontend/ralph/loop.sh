@@ -57,7 +57,7 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
   echo "🤖 Running Claude..."
   echo "   📝 Log file: iteration_$((ITERATION + 1)).log"
   echo "   ⏰ Start time: $(date '+%Y-%m-%d %H:%M:%S')"
-  echo "   🔧 Model: sonnet"
+  echo "   🔧 Model: default (vertex-claude-4-5-sonnet)"
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
@@ -65,10 +65,9 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
   # Run claude from the project root, but use prompt file from ralph directory
   cd "$PROJECT_ROOT"
 
-  # Run with verbose output
+  # Run with verbose output (no --model flag, uses default)
   cat "$PROMPT_FILE" | claude --print \
     --dangerously-skip-permissions \
-    --model sonnet \
     --verbose \
     2>&1 | tee "$LOG_FILE"
 
