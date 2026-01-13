@@ -985,21 +985,21 @@ const AgentToolsStep: React.FC<StepProps> = ({
   - tool_type: mcp
     connection_params:
       type: sse
-      url: https://mcp.atlassian.com/v1/sse
+      url: https://mcp.example.com/v1/sse
     auth:
       type: oauth2
     manifest:
-      - id: getJiraIssue
-        name: getJiraIssue
-        description: Get details of a Jira issue
+      - id: searchDocuments
+        name: searchDocuments
+        description: Search through documents
         inputSchema:
           type: object
           properties:
-            cloudId:
+            query:
               type: string
-            issueIdOrKey:
-              type: string
-          required: [cloudId, issueIdOrKey]`}</code>
+            maxResults:
+              type: number
+          required: [query]`}</code>
                         </InfoBox>
                         <FormField
                           label="Client ID (Optional)"
