@@ -6,11 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/lib/components/ui/table";
 import { Badge } from "@/lib/components/ui/badge";
 import { Switch } from "@/lib/components/ui/switch";
+import { Popover, PopoverContent, PopoverAnchor } from "@/lib/components/ui/popover";
 import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import { canShareProject } from "@/lib/utils/permissions";
 import type { Project, ProjectRole, Collaborator } from "@/lib/types/projects";
-import { Share2, Trash2, UserPlus, Users, Loader2 } from "lucide-react";
+import { Share2, Trash2, UserPlus, Users, Loader2, Search } from "lucide-react";
 import { useCollaborators, useShareProject, useUpdateCollaborator, useRemoveCollaborator } from "@/lib/api/projects/hooks";
+import { useSearchPeople } from "@/lib/api/people/hooks";
+import { useDebounce } from "@/lib/hooks/useDebounce";
 
 interface ShareDialogProps {
     project: Project;
@@ -26,11 +29,24 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
     const [success, setSuccess] = useState<string | null>(null);
     const [useTypeahead, setUseTypeahead] = useState(false);
 
+    // Typeahead search state
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedIndex, setSelectedIndex] = useState(-1);
+    const [popoverOpen, setPopoverOpen] = useState(false);
+
+    // Debounce search query (300ms delay)
+    const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
     // React Query hooks
     const { data: collaborators = [], isLoading: loading } = useCollaborators(open ? project.id : null);
     const shareProjectMutation = useShareProject();
     const updateCollaboratorMutation = useUpdateCollaborator();
     const removeCollaboratorMutation = useRemoveCollaborator();
+
+    // Search people hook (only trigger if query is 2+ characters and in typeahead mode)
+    const shouldSearch = debouncedSearchQuery.length >= 2 && useTypeahead && open;
+    const { data: searchData, isLoading: isSearching } = useSearchPeople(shouldSearch ? debouncedSearchQuery : null, 10, shouldSearch);
+    const searchResults = searchData?.data || [];
 
     // Combined loading state for disabling buttons
     const isAnyOperationInProgress = loading || shareProjectMutation.isPending || updateCollaboratorMutation.isPending || removeCollaboratorMutation.isPending;
@@ -46,6 +62,9 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
             setError(null);
             setSuccess(null);
             setUseTypeahead(false);
+            setSearchQuery("");
+            setSelectedIndex(-1);
+            setPopoverOpen(false);
         }
     }, [open]);
 
@@ -56,7 +75,9 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
         setEmail("");
         setError(null);
         setSuccess(null);
-        // TODO: Clear searchQuery, searchResults, pendingUsers, selectedIndex when typeahead functionality is implemented
+        setSearchQuery("");
+        setSelectedIndex(-1);
+        setPopoverOpen(false);
     };
 
     const handleShare = async (e: React.FormEvent) => {
@@ -121,6 +142,52 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
             }
         );
     };
+
+    // Handle keyboard navigation in search results
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (!popoverOpen || searchResults.length === 0) {
+            if (e.key === "Escape") {
+                setSearchQuery("");
+                setSelectedIndex(-1);
+                setPopoverOpen(false);
+            }
+            return;
+        }
+
+        switch (e.key) {
+            case "ArrowDown":
+                e.preventDefault();
+                setSelectedIndex(prev => (prev < searchResults.length - 1 ? prev + 1 : prev));
+                break;
+            case "ArrowUp":
+                e.preventDefault();
+                setSelectedIndex(prev => (prev > 0 ? prev - 1 : -1));
+                break;
+            case "Enter":
+                e.preventDefault();
+                if (selectedIndex >= 0 && selectedIndex < searchResults.length) {
+                    // TODO: Add selected user to pending list (next task)
+                    console.log("Selected user:", searchResults[selectedIndex]);
+                }
+                break;
+            case "Escape":
+                e.preventDefault();
+                setSearchQuery("");
+                setSelectedIndex(-1);
+                setPopoverOpen(false);
+                break;
+        }
+    };
+
+    // Update popover open state based on search results
+    useEffect(() => {
+        if (searchQuery.length >= 2 && useTypeahead) {
+            setPopoverOpen(true);
+        } else {
+            setPopoverOpen(false);
+            setSelectedIndex(-1);
+        }
+    }, [searchQuery, useTypeahead]);
 
     // If user can't share, don't show the dialog/trigger at all?
     // Or maybe show it but in read-only mode?
@@ -190,7 +257,62 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                     )}
 
                     {/* Typeahead Search - Only show in typeahead mode */}
-                    {useTypeahead && <div className="text-muted-foreground py-8 text-center text-sm">Typeahead search functionality will be implemented in the next task.</div>}
+                    {useTypeahead && (
+                        <div className="space-y-2">
+                            <label htmlFor="search" className="text-sm font-medium">
+                                Search for users
+                            </label>
+                            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                                <PopoverAnchor asChild>
+                                    <div className="relative">
+                                        <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+                                        <Input
+                                            id="search"
+                                            type="text"
+                                            placeholder="Search by name or email..."
+                                            value={searchQuery}
+                                            onChange={e => setSearchQuery(e.target.value)}
+                                            onKeyDown={handleSearchKeyDown}
+                                            className="pr-9 pl-9"
+                                            disabled={isAnyOperationInProgress}
+                                        />
+                                        {isSearching && <Loader2 className="text-muted-foreground absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 animate-spin" />}
+                                    </div>
+                                </PopoverAnchor>
+                                <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-0" onOpenAutoFocus={e => e.preventDefault()}>
+                                    {searchResults.length > 0 ? (
+                                        <div className="max-h-[300px] overflow-y-auto">
+                                            {searchResults.map((user, index) => (
+                                                <button
+                                                    key={user.id}
+                                                    type="button"
+                                                    className={`hover:bg-accent flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm ${index === selectedIndex ? "bg-accent" : ""}`}
+                                                    onClick={() => {
+                                                        // TODO: Add selected user to pending list (next task)
+                                                        console.log("Clicked user:", user);
+                                                    }}
+                                                    onMouseEnter={() => setSelectedIndex(index)}
+                                                >
+                                                    <div className="font-medium">{user.name}</div>
+                                                    <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                                                        <span>{user.email}</span>
+                                                        {user.title && (
+                                                            <>
+                                                                <span>•</span>
+                                                                <span>{user.title}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : debouncedSearchQuery.length >= 2 && !isSearching ? (
+                                        <div className="text-muted-foreground px-3 py-6 text-center text-sm">No users found</div>
+                                    ) : null}
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                    )}
 
                     {/* Collaborators List */}
                     <div className="space-y-2">

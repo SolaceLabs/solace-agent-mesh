@@ -4,8 +4,6 @@
 
 ### High Priority - Core Typeahead Functionality
 
-- **Add mode toggle UI to ShareDialog** - Add Switch component at top of invite section to toggle between "Manual Email Entry" (default) and "Search Users" modes. Toggle should reset to email mode when dialog opens and clear search/pending state when switching modes.
-
 - **Implement typeahead search input with debouncing** - Add search input field with search icon, loading spinner, and debounced search using existing `useDebounce` hook (300ms delay). Minimum 2 characters required before triggering search. Use `useSearchPeople` hook for API integration.
 
 - **Create search results dropdown with keyboard navigation** - Implement Popover dropdown below search input showing user results (name on line 1, email + title on line 2). Support arrow key navigation (up/down), Enter to select, Escape to clear. Highlight selected result with background color. Show "No users found" message when search returns empty.
