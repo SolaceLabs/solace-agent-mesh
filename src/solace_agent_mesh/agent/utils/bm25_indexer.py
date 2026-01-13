@@ -27,6 +27,28 @@ from pdfminer.layout import LTTextContainer
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Supported file extensions with their MIME types
+SUPPORTED_BINARY_DICT = {
+    '.pdf': 'application/pdf',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.doc': 'application/msword',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.ppt': 'application/vnd.ms-powerpoint'
+}
+SUPPORTED_TEXT_DICT = {
+    '.txt': 'text/plain',
+    '.md': 'text/markdown',
+    '.csv': 'text/csv',
+    '.html': 'text/html',
+    '.htm': 'text/html',
+    '.json': 'application/json',
+    '.xml': 'application/xml'
+}
+supported_binary_extensions_list = list(SUPPORTED_BINARY_DICT.keys())
+supported_binary_mime_types_list = list(SUPPORTED_BINARY_DICT.values())
+supported_text_extensions_list = list(SUPPORTED_TEXT_DICT.keys())
+supported_text_mime_types_list = list(SUPPORTED_TEXT_DICT.values())
+
 class DocumentChunker:
     """
     Handles intelligent document chunking for BM25 indexing.
@@ -195,8 +217,6 @@ class BM25DocumentIndexer:
     
     def __init__(
         self,
-        #doc_path: str,
-        #index_base_dir: str,
         chunk_size: int = 1024,
         chunk_overlap: int = 128
     ):
@@ -204,26 +224,15 @@ class BM25DocumentIndexer:
         Initialize the BM25 indexer.
         
         Args:
-            doc_path: Path to the document to index
-            index_base_dir: Base directory to store individual indexes
             chunk_size: Size of text chunks for indexing
             chunk_overlap: Overlap between chunks
         """
-        #self.doc_path = Path(doc_path)
-        #self.index_base_dir = Path(index_base_dir)
-        #self.index_base_dir.mkdir(parents=True, exist_ok=True)
         
         self.chunker = DocumentChunker(chunk_size, chunk_overlap)
         self.converter = MarkItDown()
         
         # Initialize stemmer for better keyword matching
         self.stemmer = Stemmer.Stemmer("english")
-        
-        # Supported file extensions
-        self.supported_extensions = {
-            '.txt', '.md', '.pdf', '.docx', '.doc', 
-            '.csv', '.html', '.htm', '.json', '.xml'
-        }
     
     def extract_pdf_with_pages(self, file_path: Path) -> Tuple[str, List[Tuple[int, int, int]], int]:
         """
@@ -276,14 +285,21 @@ class BM25DocumentIndexer:
             logger.error(f"Error extracting PDF pages from {file_path.name}: {e}")
             return "", [], 0
     
-    def convert_to_text(self, file_path: Path, mime_type: Optional[str] = None) -> Tuple[str, str, Optional[List[Tuple[int, int, int]]], Optional[int]]:
+    def convert_to_text(
+        self, 
+        file_path: Path, 
+        supported_type: str,
+        file_ext: Optional[str] = None,
+        mime_type: Optional[str] = None
+    ) -> Tuple[str, str, Optional[List[Tuple[int, int, int]]], Optional[int]]:
         """
         Convert a file to text using MarkItDown.
         
         Args:
             file_path: Path to the file
+            file_ext: Optional file extension (used when MIME type is not available)
             mime_type: Optional MIME type of the file (used when file extension is not available)
-            
+            supported_type: The supported type of the file ('text' or 'binary')
         Returns:
             Tuple of (text_content, file_type, page_map, total_pages) where:
             - text_content: The extracted text
@@ -291,26 +307,19 @@ class BM25DocumentIndexer:
             - page_map: Optional page mapping for PDFs (list of (page_num, char_start, char_end))
             - total_pages: Optional total page count for PDFs
         """
-        file_ext = file_path.suffix.lower()
-        
-        # Determine if this is a PDF based on extension or MIME type
-        is_pdf = (file_ext == '.pdf') or (mime_type and mime_type.lower() == 'application/pdf')
-        
-        # Determine if this is a text file based on extension or MIME type
-        is_text = (file_ext in {'.txt', '.md', '.csv'}) or (
-            mime_type and mime_type.lower() in {'text/plain', 'text/markdown', 'text/csv'}
-        )
-        
+        is_pdf = False
+
         # For text files, read directly
-        if is_text:
+        if supported_type == 'text':
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 return f.read(), file_ext or mime_type, None, None
-        
-        # For PDFs, try to extract with page information
-        if is_pdf:
-            text_content, page_map, total_pages = self.extract_pdf_with_pages(file_path)
-            if text_content:
-                return text_content, file_ext or mime_type, page_map, total_pages
+        elif supported_type == 'binary':
+            is_pdf = (file_ext == '.pdf' or mime_type == 'application/pdf')
+            # For PDFs, try to extract with page information
+            if is_pdf:
+                text_content, page_map, total_pages = self.extract_pdf_with_pages(file_path)
+                if text_content:
+                    return text_content, file_ext or mime_type, page_map, total_pages
         
         # For binary files (or PDF fallback), use MarkItDown
         try:
@@ -321,8 +330,47 @@ class BM25DocumentIndexer:
         except Exception as e:
             logger.error(f"Error converting {file_path.name}: {e}")
             return "", file_ext or mime_type, None, None
-    
-    def create_document_index(self, file_path: Path, index_dir: Path, description: str, mime_type: Optional[str] = None) -> Dict[str, Any]:
+        
+    def validate_doc_type(self, 
+        file_path: Path, 
+        mime_type: Optional[str] = None
+    ) -> Dict[str, Optional[str]]:
+        """
+        Validate the document type based on file extension and MIME type.
+
+        Args:
+            file_path: Path to the file
+            mime_type: Optional MIME type of the file
+
+        Returns:
+            Dictionary with supported type, file extension, and MIME type
+        """
+
+        file_ext = file_path.suffix.lower()
+        mime_type = mime_type.lower() if mime_type else None
+        
+        supported_type = 'unsupported'
+        
+        if file_ext in supported_text_extensions_list or mime_type in supported_text_mime_types_list:
+            supported_type = 'text'
+        elif file_ext in supported_binary_extensions_list or mime_type in supported_binary_mime_types_list:
+            supported_type = 'binary'
+        else:
+            logger.warning(f"Unsupported file type for conversion: {file_path.name} ({file_ext}, {mime_type})")
+        
+        return {
+            'supported_type': supported_type,
+            'file_ext': file_ext,
+            'mime_type': mime_type
+        }
+
+    def create_document_index(
+        self, 
+        file_path: Path, 
+        index_dir: Path, 
+        description: str, 
+        mime_type: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Create a BM25 index for a single document.
         
@@ -337,12 +385,23 @@ class BM25DocumentIndexer:
         """
         logger.info(f"Processing document: {file_path.name}")
         
+        # Validate document type
+        validation_result = self.validate_doc_type(file_path, mime_type)
+        if validation_result['supported_type'] == 'unsupported':
+            logger.warning(f"Cannot create index for unsupported file type: {file_path.name}")
+            return {"message": "unsupported file type for indexing."}
+
         # Convert to text (with page tracking for PDFs)
-        text_content, file_type, page_map, total_pages = self.convert_to_text(file_path, mime_type)
+        text_content, file_type, page_map, total_pages = self.convert_to_text(
+            file_path, 
+            validation_result['supported_type'],
+            validation_result['file_ext'], 
+            validation_result['mime_type'],
+        )
         
         if not text_content:
             logger.warning(f"No content extracted from {file_path.name}")
-            return None
+            return {"message": "no content extracted from file."}
         
         # Create metadata
         doc_metadata = {
@@ -364,7 +423,7 @@ class BM25DocumentIndexer:
         
         if not chunks:
             logger.warning(f"No chunks created from {file_path.name}")
-            return None
+            return {"message": "no chunks created from file."}
         
         # Extract text from chunks for indexing
         corpus_texts = [chunk['text'] for chunk in chunks]
@@ -404,36 +463,3 @@ class BM25DocumentIndexer:
         logger.info(f"Index saved to: {index_dir}")
         
         return metadata
-
-def main():
-    """
-    Main function to demonstrate document indexing.
-    """
-    # Configuration
-    __DIR__ = os.path.dirname(os.path.abspath(__file__))
-    doc_path = os.path.join(__DIR__, "docs/bedrock-ug.pdf")
-    index_dir = os.path.join(__DIR__, "indexes/bedrock-ug")
-    
-    # Create indexer
-    indexer = BM25DocumentIndexer(
-        #doc_path=doc_path,
-        #index_base_dir=index_dir,
-        chunk_size=1024,
-        chunk_overlap=128
-    )
-    
-    # Index all documents
-    # results = indexer.index_all_documents()
-
-    # Index single document
-    meta_data = indexer.create_document_index(Path(doc_path), Path(index_dir), description="")
-
-    print("\n" + "="*80)
-    print("INDEXING COMPLETE")
-    print("="*80)
-    print(f"\nTotal chunks indexed: {meta_data['num_chunks']}")
-    print(f"Index saved to: {index_dir}")
-
-
-if __name__ == "__main__":
-    main()

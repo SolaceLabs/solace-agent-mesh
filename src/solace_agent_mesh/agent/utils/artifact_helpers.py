@@ -1583,10 +1583,37 @@ async def save_bm25_index_with_metadata(
             description=source_description,
             mime_type=source_mime_type
         )
-        
-        if not index_result:
+
+        # Check if indexing failed or returned an error message
+        if not index_result or not isinstance(index_result, dict):
             status = "error"
-            status_message = f"Failed to create BM25 index for {source_filename}"
+            status_message = f"Failed to create BM25 index for '{source_filename}': Invalid result"
+            log.warning("%s %s", log_identifier, status_message)
+            return {
+                "status": status,
+                "index_path_name": index_path_name,
+                "index_version": None,
+                "metadata_path_name": metadata_path_name,
+                "metadata_version": None,
+                "message": status_message,
+            }
+        
+        # Check for error messages in the result
+        error_message = index_result.get('message')
+        if error_message:
+            if error_message == 'unsupported file type for indexing.':
+                status = "warning"
+                status_message = f"Unsupported file '{source_filename}' for indexing: {source_mime_type}"
+            elif error_message == 'no content extracted from file.':
+                status = "warning"
+                status_message = f"No content extracted from '{source_filename}'"
+            elif error_message == 'no chunks created from file.':
+                status = "warning"
+                status_message = f"No chunks created from '{source_filename}'"
+            else:
+                status = "error"
+                status_message = f"Failed to create BM25 index for '{source_filename}': {error_message}"
+            
             log.warning("%s %s", log_identifier, status_message)
             return {
                 "status": status,
@@ -1739,24 +1766,3 @@ async def save_bm25_index_with_metadata(
         "num_chunks": num_chunks,
         "saved_files": saved_files,
     }
-
-async def prepare_bm25_index_for_retrieval( # use dependency injection ???? unzip to temp dir? after retrieval, delete temp dir?
-    artifact_service: BaseArtifactService,
-    app_name: str,
-    user_id: str,
-    session_id: str,
-    index_filename: str,
-    query: str,
-    top_k: int = 5,
-) -> Dict[str, Any]:
-    """
-    Prepares BM25 index retrieval results formatted for LLM consumption.
-    
-    Args:
-        artifact_service: The artifact service instance
-        app_name: Application name
-        user_id: User ID
-        session_id: Session ID
-        index_filename: Name of the BM25 index artifact
-        query: The query string for retrieval
-        top_k: Number of top results to retrieve (default: 5)

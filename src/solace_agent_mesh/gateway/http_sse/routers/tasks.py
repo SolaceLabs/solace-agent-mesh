@@ -51,6 +51,8 @@ from ..utils.stim_utils import create_stim_from_task_data
 if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
 
+BM25_INDEX_SUFFIX = ".bm25_index"
+
 router = APIRouter()
 
 log = logging.getLogger(__name__)
@@ -253,28 +255,34 @@ async def _inject_project_context(
                     log.info(f"{log_prefix} Retrieved project artifacts for context injection: {[artifact_info.model_dump() for artifact_info in project_artifacts]}")
 
                     if project_artifacts:
-                        # For new sessions - all files
+                        # For new sessions - all artifacts
                         all_file_descriptions = []
                         all_bm25_index_descriptions = []
-                        # For existing sessions - only new files
+                        # For existing sessions - only new artifacts
                         new_file_descriptions = []
                         new_bm25_index_descriptions = []
 
                         for artifact_info in project_artifacts:
+                            desc_str = ""
                             # Build description for all artifacts (for new sessions)
-                            desc_str = f"- {artifact_info.filename}"
-                            if artifact_info.description:
-                                desc_str += f": {artifact_info.description}"
+                            if artifact_info.filename.endswith(BM25_INDEX_SUFFIX):
+                                desc_str = f"- bm25 index name: {artifact_info.filename}"
+                                if artifact_info.description:
+                                    desc_str += f"\n  bm25 index description: {artifact_info.description}\n"
+                            else:
+                                desc_str = f"- file name: {artifact_info.filename}"
+                                if artifact_info.description:
+                                    desc_str += f"\n  file description: {artifact_info.description}\n"
                             
                             # Track all artifacts for new sessions
-                            if artifact_info.filename.endswith(".bm25_index"):
+                            if artifact_info.filename.endswith(BM25_INDEX_SUFFIX):
                                 all_bm25_index_descriptions.append(desc_str)
                             else:
                                 all_file_descriptions.append(desc_str)
 
                             # Track new artifacts for existing sessions
                             if artifact_info.filename in new_artifact_names:
-                                if artifact_info.filename.endswith(".bm25_index"):
+                                if artifact_info.filename.endswith(BM25_INDEX_SUFFIX):
                                     new_bm25_index_descriptions.append(desc_str)
                                 else:
                                     new_file_descriptions.append(desc_str)

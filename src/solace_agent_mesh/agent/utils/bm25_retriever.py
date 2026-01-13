@@ -145,40 +145,6 @@ class BM25Retriever:
         filtered_results = [r for r in search_results if r['score'] >= min_score]
         
         return filtered_results
-    
-    def explain_bm25_scores(self, results: List[Dict[str, Any]]) -> str:
-        """
-        Generate a human-readable explanation of BM25 scores.
-        
-        Args:
-            results: Search results with scores
-            
-        Returns:
-            Explanation string
-        """
-        if not results:
-            return "No results to explain."
-        
-        scores = [r['score'] for r in results]
-        
-        explanation = f"""
-BM25 Score Explanation:
------------------------
-Total Results: {len(results)}
-Score Range: {min(scores):.2f} to {max(scores):.2f}
-Average Score: {np.mean(scores):.2f}
-
-Score Interpretation:
-- Scores > 10: Highly relevant (multiple query terms, good frequency)
-- Scores 5-10: Moderately relevant (some query terms present)
-- Scores 1-5: Weakly relevant (few query terms or low frequency)
-- Scores < 1: Marginally relevant (rare terms or poor match)
-
-Note: BM25 scores are relative rankings, not probabilities.
-Higher scores indicate better keyword matches with the query.
-"""
-        return explanation
-
 
 def retrieve(index_base_dir: str, query: str, top_k: int =10, min_score: float=0.0):
 
@@ -233,27 +199,3 @@ def retrieve(index_base_dir: str, query: str, top_k: int =10, min_score: float=0
             }
         }
 
-if __name__ == "__main__":
-    
-    # Configuration
-    __DIR__ = os.path.dirname(os.path.abspath(__file__))
-    doc_path = os.path.join(__DIR__, "docs/bedrock-ug.pdf")
-    index_base_dir = os.path.join(__DIR__, "indexes/bedrock-ug")
-    query = "what are the prerequisites for using amazon bedrock?"
-    
-    results = retrieve(index_base_dir, query)
-    pprint.pprint(f"results: {results}")
-    
-    # Save results to JSON file
-    output_path = os.path.join(__DIR__, "retrieval_results.json")
-    
-    # Ensure output directory exists
-    output_dir = os.path.dirname(output_path)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
-    
-    # Save to JSON with nice formatting
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(results, f, indent=2, ensure_ascii=False)
-
-    print(f"\n✓ Results saved to: {output_path}")

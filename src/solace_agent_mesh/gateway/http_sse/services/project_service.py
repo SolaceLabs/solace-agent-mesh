@@ -1007,7 +1007,6 @@ class ProjectService:
             return None
         
         session_id = f"project-{project_id}"
-        #index_artifact_name = f"{source_filename}.bm25_index"
         
         self.logger.info(f"Creating versioned BM25 index for {source_filename} v{source_version}")
         
