@@ -2576,51 +2576,32 @@ def _extract_openapi_base_url(tool: BaseTool) -> Optional[str]:
     return None
 
 
-def _extract_openapi_http_method(tool: BaseTool, args: Dict[str, Any]) -> Optional[str]:
-    """Extract HTTP method from OpenAPI tool or args."""
-    # First try to get from tool's endpoint (RestApiTool)
+def _extract_openapi_http_method(tool: BaseTool) -> Optional[str]:
+    """Extract HTTP method from OpenAPI tool."""
+    # Get from tool's endpoint (RestApiTool)
     if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "method"):
         return str(tool.endpoint.method).upper()
-
-    if not args:
-        return None
-
-    # Try common patterns for HTTP method in args
-    return (
-        args.get("http_method")
-        or args.get("method")
-        or args.get("request_method")
-        or args.get("verb")
-    )
+    return None
 
 
-def _extract_openapi_operation_id(tool: BaseTool, args: Dict[str, Any]) -> Optional[str]:
-    """Extract operation ID from OpenAPI tool or args."""
-    # First try to get from tool's operation (RestApiTool)
+def _extract_openapi_operation_id(tool: BaseTool) -> Optional[str]:
+    """Extract operation ID from OpenAPI tool."""
+    # Get from tool's operation (RestApiTool)
     if hasattr(tool, "operation") and hasattr(tool.operation, "operationId"):
         return tool.operation.operationId
-
-    if not args:
-        return None
-
-    return (
-        args.get("operation_id")
-        or args.get("operationId")
-        or args.get("operation")
-        or str(args.get("function_name", ""))
-    )
+    return None
 
 
-def _extract_openapi_metadata(tool: BaseTool, args: Dict[str, Any]) -> Dict[str, Optional[str]]:
+def _extract_openapi_metadata(tool: BaseTool) -> Dict[str, Optional[str]]:
     """
     Extract all OpenAPI metadata from tool in one pass.
 
     Returns:
         Dict with keys: operation_id, base_url, http_method, endpoint_path, tool_uri
     """
-    operation_id = _extract_openapi_operation_id(tool, args)
+    operation_id = _extract_openapi_operation_id(tool)
     base_url = _extract_openapi_base_url(tool)
-    http_method = _extract_openapi_http_method(tool, args)
+    http_method = _extract_openapi_http_method(tool)
 
     # Extract endpoint path template (safe, non-sensitive)
     endpoint_path = None
@@ -2672,7 +2653,7 @@ def audit_log_openapi_tool_invocation_start(
         user_id = invocation_context.session.user_id
 
     # Extract all OpenAPI metadata
-    metadata = _extract_openapi_metadata(tool, args)
+    metadata = _extract_openapi_metadata(tool)
 
     # Build action field and correlation tag
     action = f"{metadata['http_method']}: {metadata['operation_id']}" if metadata['http_method'] and metadata['operation_id'] else (metadata['operation_id'] or "unknown")
@@ -2734,7 +2715,7 @@ async def audit_log_openapi_tool_execution_result(
         user_id = invocation_context.session.user_id
 
     # Extract all OpenAPI metadata
-    metadata = _extract_openapi_metadata(tool, args)
+    metadata = _extract_openapi_metadata(tool)
 
     # Check if request failed or is pending auth
     has_error = False
