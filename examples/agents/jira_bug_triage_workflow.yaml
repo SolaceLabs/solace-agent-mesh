@@ -498,14 +498,15 @@ apps:
                   - "random"
 
           # ============================================
-          # Node 2: Check if Duplicate
+          # Node 2: Check if Duplicate (Switch node)
           # ============================================
           - id: check_duplicate
-            type: conditional
+            type: switch
             depends_on: [detect_duplicates]
-            condition: "{{detect_duplicates.output.is_duplicate}} == false"
-            true_branch: analyze_code
-            false_branch: create_duplicate_comment
+            cases:
+              - condition: "{{detect_duplicates.output.is_duplicate}} == false"
+                node: analyze_code
+            default: create_duplicate_comment
 
           # ============================================
           # Node 3A: Code Analysis (if not duplicate)

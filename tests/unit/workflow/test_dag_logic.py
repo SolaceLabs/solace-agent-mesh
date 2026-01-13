@@ -14,7 +14,6 @@ from solace_agent_mesh.workflow.workflow_execution_context import WorkflowExecut
 from solace_agent_mesh.workflow.app import (
     WorkflowDefinition,
     AgentNode,
-    ConditionalNode,
     MapNode,
 )
 

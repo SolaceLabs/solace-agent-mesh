@@ -11,7 +11,6 @@ from pydantic import ValidationError
 from solace_agent_mesh.workflow.app import (
     WorkflowDefinition,
     AgentNode,
-    ConditionalNode,
     SwitchNode,
     SwitchCase,
     LoopNode,
@@ -60,29 +59,6 @@ class TestValidWorkflowParsing:
         assert workflow.input_schema is not None
         assert workflow.output_schema is not None
 
-    def test_workflow_with_conditional_node(self):
-        """Workflow with properly configured conditional node parses."""
-        workflow = WorkflowDefinition(
-            description="Conditional workflow",
-            nodes=[
-                AgentNode(id="step1", type="agent", agent_name="Agent1"),
-                ConditionalNode(
-                    id="branch",
-                    type="conditional",
-                    condition="'{{step1.output.status}}' == 'success'",
-                    true_branch="success_path",
-                    false_branch="failure_path",
-                    depends_on=["step1"],
-                ),
-                AgentNode(id="success_path", type="agent", agent_name="Agent2", depends_on=["branch"]),
-                AgentNode(id="failure_path", type="agent", agent_name="Agent3", depends_on=["branch"]),
-            ],
-            output_mapping={"result": "done"},
-        )
-
-        assert workflow.nodes[1].type == "conditional"
-        assert workflow.nodes[1].true_branch == "success_path"
-
     def test_workflow_with_map_node(self):
         """Workflow with map node parses correctly."""
         workflow = WorkflowDefinition(
@@ -118,90 +94,6 @@ class TestInvalidDependencyReference:
                     AgentNode(id="step2", type="agent", agent_name="Agent2", depends_on=["missing"]),
                 ],
                 output_mapping={"result": "{{step2.output}}"},
-            )
-
-
-class TestConditionalNodeValidation:
-    """Tests for ConditionalNode validation."""
-
-    def test_conditional_requires_true_branch(self):
-        """ConditionalNode without true_branch raises ValidationError."""
-        with pytest.raises(ValidationError, match="true_branch|trueBranch"):
-            ConditionalNode(
-                id="branch",
-                type="conditional",
-                condition="true",
-                # Missing true_branch
-            )
-
-    def test_conditional_requires_condition(self):
-        """ConditionalNode without condition raises ValidationError."""
-        with pytest.raises(ValidationError, match="condition"):
-            ConditionalNode(
-                id="branch",
-                type="conditional",
-                true_branch="next",
-                # Missing condition
-            )
-
-    def test_conditional_true_branch_must_depend_on_conditional(self):
-        """true_branch target must depend on the conditional node."""
-        with pytest.raises(ValidationError, match="does not list.*depends_on"):
-            WorkflowDefinition(
-                description="Invalid conditional",
-                nodes=[
-                    AgentNode(id="step1", type="agent", agent_name="Agent1"),
-                    ConditionalNode(
-                        id="branch",
-                        type="conditional",
-                        condition="true",
-                        true_branch="step2",
-                        depends_on=["step1"],
-                    ),
-                    # step2 doesn't list 'branch' in depends_on - this is an error
-                    AgentNode(id="step2", type="agent", agent_name="Agent2", depends_on=["step1"]),
-                ],
-                output_mapping={"result": "{{step2.output}}"},
-            )
-
-    def test_conditional_false_branch_must_depend_on_conditional(self):
-        """false_branch target (if provided) must depend on the conditional node."""
-        with pytest.raises(ValidationError, match="does not list.*depends_on"):
-            WorkflowDefinition(
-                description="Invalid conditional",
-                nodes=[
-                    AgentNode(id="step1", type="agent", agent_name="Agent1"),
-                    ConditionalNode(
-                        id="branch",
-                        type="conditional",
-                        condition="true",
-                        true_branch="success",
-                        false_branch="failure",
-                        depends_on=["step1"],
-                    ),
-                    AgentNode(id="success", type="agent", agent_name="Agent2", depends_on=["branch"]),
-                    # failure doesn't depend on branch - error
-                    AgentNode(id="failure", type="agent", agent_name="Agent3", depends_on=["step1"]),
-                ],
-                output_mapping={"result": "done"},
-            )
-
-    def test_conditional_nonexistent_true_branch_rejected(self):
-        """ConditionalNode referencing non-existent true_branch node is rejected."""
-        with pytest.raises(ValidationError, match="non-existent.*true_branch"):
-            WorkflowDefinition(
-                description="Invalid conditional",
-                nodes=[
-                    AgentNode(id="step1", type="agent", agent_name="Agent1"),
-                    ConditionalNode(
-                        id="branch",
-                        type="conditional",
-                        condition="true",
-                        true_branch="nonexistent",
-                        depends_on=["step1"],
-                    ),
-                ],
-                output_mapping={"result": "done"},
             )
 
 
