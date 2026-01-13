@@ -33,9 +33,9 @@ class TestLiteLlmCacheStrategyInitialization:
     """Test cache strategy initialization and validation."""
 
     def test_init_with_default_cache_strategy(self):
-        """Test LiteLlm initializes with default 5m cache strategy."""
+        """Test LiteLlm initializes with default none cache strategy."""
         llm = LiteLlm(model="test-model")
-        assert llm._cache_strategy == "5m"
+        assert llm._cache_strategy == "none"
 
     def test_init_with_explicit_5m_strategy(self):
         """Test LiteLlm initializes with explicit 5m strategy."""
@@ -52,13 +52,13 @@ class TestLiteLlmCacheStrategyInitialization:
         llm = LiteLlm(model="test-model", cache_strategy="none")
         assert llm._cache_strategy == "none"
 
-    def test_init_with_invalid_strategy_defaults_to_5m(self):
-        """Test invalid cache strategy falls back to 5m with warning."""
+    def test_init_with_invalid_strategy_defaults_to_none(self):
+        """Test invalid cache strategy falls back to none with warning."""
         with patch("solace_agent_mesh.agent.adk.models.lite_llm.logger") as mock_logger:
             llm = LiteLlm(model="test-model", cache_strategy="invalid")
 
-            # Should default to 5m
-            assert llm._cache_strategy == "5m"
+            # Should default to none
+            assert llm._cache_strategy == "none"
 
             # Should log warning
             mock_logger.warning.assert_called_once()

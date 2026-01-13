@@ -131,7 +131,7 @@ Agent Mesh provides three cache strategies that you can configure per model to o
 | `"1h"` | 1-hour extended cache | 1 hour | Burst patterns with gaps (3-10 calls/hour) |
 | `"none"` | Disable caching | N/A | Rarely-used agents (less than 2 calls/hour) |
 
-The default strategy is `"5m"` when not explicitly specified, providing optimal performance for most use cases without requiring configuration changes.
+The default strategy is `"none"` when not explicitly specified. To enable prompt caching for cost optimization, configure the appropriate strategy based on your agent's usage patterns.
 
 ### Configuration Examples
 

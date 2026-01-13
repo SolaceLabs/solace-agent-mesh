@@ -531,7 +531,7 @@ def _message_to_generate_content_response(
 
 def _get_completion_inputs(
     llm_request: LlmRequest,
-    cache_strategy: str = "5m",
+    cache_strategy: str = "none",
 ) -> Tuple[
     List[Message],
     Optional[List[Dict]],
@@ -735,15 +735,15 @@ class LiteLlm(BaseLlm):
 
     _additional_args: Dict[str, Any] = None
     _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = None
-    _cache_strategy: str = "5m"  # Default to 5-minute ephemeral cache
+    _cache_strategy: str = "none"  # Default to no caching
 
-    def __init__(self, model: str, cache_strategy: str = "5m", **kwargs):
+    def __init__(self, model: str, cache_strategy: str = "none", **kwargs):
         """Initializes the LiteLlm class.
 
         Args:
           model: The name of the LiteLlm model.
           cache_strategy: Cache strategy to use. Options: "none", "5m" (ephemeral), "1h" (extended).
-                         Defaults to "5m" for backward compatibility.
+                         Defaults to "none" (caching disabled).
           **kwargs: Additional arguments to pass to the litellm completion api.
                    Can include OAuth configuration parameters.
         """
@@ -759,11 +759,11 @@ class LiteLlm(BaseLlm):
         valid_strategies = ["none", "5m", "1h"]
         if cache_strategy not in valid_strategies:
             logger.warning(
-                "Invalid cache_strategy '%s'. Valid options are: %s. Defaulting to '5m'.",
+                "Invalid cache_strategy '%s'. Valid options are: %s. Defaulting to 'none'.",
                 cache_strategy,
                 valid_strategies,
             )
-            cache_strategy = "5m"
+            cache_strategy = "none"
         self._cache_strategy = cache_strategy
         logger.info("LiteLlm initialized with cache strategy: %s", self._cache_strategy)
 

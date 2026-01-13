@@ -53,7 +53,7 @@ shared_config:
       # Enable parallel tool calls for planning model
       parallel_tool_calls: true
       # Prompt Caching Strategy
-      cache_strategy: "5m" # none, 5m, 1h
+      cache_strategy: ${LLM_CACHE_STRATEGY, "none"} # none, 5m, 1h
       # max_tokens: ${MAX_TOKENS, 16000} # Set a reasonable max token limit for planning
       # temperature: 0.1 # Lower temperature for more deterministic planning
     
@@ -132,7 +132,7 @@ Authentication typically requires an API key, but some providers use alternative
 | `api_base` | `LLM_SERVICE_ENDPOINT` | The base URL of the LLM provider's API endpoint. |
 | `api_key` | `LLM_SERVICE_API_KEY` | The API key for authenticating with the service. |
 | `parallel_tool_calls` |  | Enable parallel tool calls for the model. |
-| `cache_strategy` |  | Set the prompt caching strategy (one of: `none`, `5m`, `1h`). For more details check [LLM Configuration](./large_language_models.md#prompt-caching) page. |
+| `cache_strategy` | `LLM_CACHE_STRATEGY` | Set the prompt caching strategy (one of: `none`, `5m`, `1h`). For more details check [LLM Configuration](./large_language_models.md#prompt-caching) page. |
 | `max_tokens` | `MAX_TOKENS` | Set a reasonable max token limit for the model. |
 | `temperature` | `TEMPERATURE` | Lower temperature for more deterministic planning. |
 
