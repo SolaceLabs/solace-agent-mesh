@@ -4,15 +4,7 @@
 
 ### High Priority - Core Typeahead Functionality
 
-- **Implement sequential batch submission** - Add "Share with X user(s)" button (disabled when no pending users). On click, iterate through pending users and call `shareProject` API sequentially (one at a time, not parallel). Collect errors for failed submissions. Show success notification on completion or error notification with failed user names. Clear pending list on full success. Refresh collaborators list after submission.
-
-- **Update ShareDialog to conditionally render email vs typeahead mode** - Refactor ShareDialog JSX to show either email input form (existing) or typeahead search UI based on `useTypeahead` state. Preserve all existing email mode functionality unchanged.
-
-- **Fix addNotification calls to match function signature** - The spec uses object parameter `{ type: "error", message: "..." }` but actual implementation is `addNotification(message, type)`. Update all new notification calls to use correct signature: `addNotification("message", "success")`.
-
 ### Medium Priority - Polish & Validation
-
-- **Add reset logic for dialog open state** - In `useEffect` hook that runs when dialog opens, reset: `useTypeahead` to false, `searchQuery` to empty, `searchResults` to empty array, `pendingUsers` to empty array, `selectedIndex` to -1. Ensures clean state each time dialog is opened.
 
 - **Add error handling for search failures** - Wrap `PeopleService.searchPeople()` call in try/catch. On error, show notification "Failed to search users" and set `searchResults` to empty array. Set `isSearching` to false in finally block.
 

@@ -50,7 +50,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
 
     // Search people hook (only trigger if query is 2+ characters and in typeahead mode)
     const shouldSearch = debouncedSearchQuery.length >= 2 && useTypeahead && open;
-    const { data: searchData, isLoading: isSearching } = useSearchPeople(shouldSearch ? debouncedSearchQuery : null, 10, shouldSearch);
+    const { data: searchData, isLoading: isSearching, isError: isSearchError } = useSearchPeople(shouldSearch ? debouncedSearchQuery : null, 10, shouldSearch);
     const searchResults = searchData?.data || [];
 
     // Combined loading state for disabling buttons
@@ -277,6 +277,13 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
             setSelectedIndex(-1);
         }
     }, [searchQuery, useTypeahead]);
+
+    // Handle search errors
+    useEffect(() => {
+        if (isSearchError) {
+            addNotification("Failed to search users", "warning");
+        }
+    }, [isSearchError, addNotification]);
 
     // If user can't share, don't show the dialog/trigger at all?
     // Or maybe show it but in read-only mode?
