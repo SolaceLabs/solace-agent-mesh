@@ -61,10 +61,6 @@ This ensures your coding agent is correctly set up to leverage the Solace Agent 
 
 Once configured, you can interact with your coding assistant through natural language prompts.
 
-:::note
-You need to specify the library at least once in your chat session to activate the Context7 integration.
-:::
-
 ### Example Prompts
 
 **Getting Information About Solace Agent Mesh:**
@@ -92,7 +88,8 @@ Using the `solacelabs/solace-agent-mesh` context7 library, command line and buil
 Using the `solacelabs/solace-agent-mesh` context7 library and command line, create a Discord gateway that enables message exchange with the Discord chat application.
 ```
 
-
+:::note
+You need to specify the library at least once in your chat session to activate the Context7 integration.
 To avoid mentioning `solacelabs/solace-agent-mesh` context7 library in every prompt, configure your MCP client with a rule that automatically triggers the library for any code-related request.
 
 ```
@@ -104,6 +101,8 @@ Example rule:
 ```
 Automatically use `solacelabs/solace-agent-mesh` context7 library without requiring me to explicitly request it.
 ```
+:::
+
 
 
 ## Troubleshooting
