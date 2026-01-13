@@ -12,6 +12,17 @@ export interface Project {
     artifactCount?: number | null;
     createdAt: string; // ISO string
     updatedAt: string; // ISO string
+    role?: ProjectRole;
+    collaboratorCount?: number;
+}
+
+export type ProjectRole = "owner" | "editor" | "viewer";
+
+export interface Collaborator {
+    userId: string;
+    email: string;
+    role: ProjectRole;
+    addedAt: string; // ISO string
 }
 
 export interface CreateProjectRequest {
