@@ -82,6 +82,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 // Clear tokens from localStorage - set in authCallback.tsx
                 localStorage.removeItem("access_token");
                 localStorage.removeItem("refresh_token");
+
+                // Force redirect to login - prevents token refresh
+                window.location.href = configAuthLoginUrl;
             }
         } catch (error) {
             console.error("Error calling logout endpoint:", error);

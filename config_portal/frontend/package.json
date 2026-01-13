@@ -11,8 +11,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@remix-run/node": "^2.16.2",
-    "@remix-run/react": "^2.16.2",
+    "@remix-run/node": "2.17.4",
+    "@remix-run/react": "2.17.4",
     "isbot": "^4",
     "lucide-react": "^0.542.0",
     "react": "^18.2.0",
@@ -20,7 +20,7 @@
     "react-markdown": "^10.1.0"
   },
   "devDependencies": {
-    "@remix-run/dev": "^2.16.2",
+    "@remix-run/dev": "2.17.4",
     "@types/react": "^18.2.20",
     "@types/react-dom": "^18.2.7",
     "@typescript-eslint/eslint-plugin": "^6.7.4",

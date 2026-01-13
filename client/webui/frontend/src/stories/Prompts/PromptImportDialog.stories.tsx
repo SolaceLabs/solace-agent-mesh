@@ -33,7 +33,7 @@ export const Default: Story = {
         const dialog = await screen.findByRole("dialog");
         const dialogContent = within(dialog);
 
-        const importButton = await dialogContent.findByTestId("importPromptButton");
+        const importButton = await dialogContent.findByTestId("dialogConfirmButton");
         expect(importButton).toBeInTheDocument();
     },
 };
