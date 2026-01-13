@@ -68,7 +68,7 @@ You need to specify the library at least once in your chat session to activate t
 
 **Getting Information About Solace Agent Mesh:**
 ```
-Using `solacelabs/solace-agent-mesh` context7 library, give me a list of built-in tools.
+Using `solacelabs/solace-agent-mesh` context7 library, provide a list of built-in tools.
 ```
 
 **Creating a New Solace Agent Mesh Project:**
@@ -78,17 +78,17 @@ Using `solacelabs/solace-agent-mesh` context7 library, initialize a Solace Agent
 
 **Creating a New Agent:**
 ```
-Using `solacelabs/solace-agent-mesh` context7 library, create a calculator agent that sums two numbers.
+Using `solacelabs/solace-agent-mesh` context7 library and command line, create a calculator agent that sums two numbers.
 ```
 
 **Creating a New Plugin Using Built-in Tools:**
 ```
-Using the `solacelabs/solace-agent-mesh` context7 library and built-in tools, create an image analysis plugin that can generate images and describe images.
+Using the `solacelabs/solace-agent-mesh` context7 library, command line and built-in tools, create an image analysis plugin that can generate images and describe images.
 ```
 
 **Creating a New Gateway:**
 ```
-Using the `solacelabs/solace-agent-mesh` context7 library, create a Discord gateway that enables message exchange with the Discord chat application.
+Using the `solacelabs/solace-agent-mesh` context7 library and command line, create a Discord gateway that enables message exchange with the Discord chat application.
 ```
 
 
