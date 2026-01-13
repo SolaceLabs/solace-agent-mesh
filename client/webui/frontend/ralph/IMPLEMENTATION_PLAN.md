@@ -2,10 +2,6 @@
 
 ## Priority Tasks (Sorted by Priority)
 
-- [ ] **Permission Utilities**: Create `src/lib/utils/permissions.ts` with helper functions (`canShareProject`, `canEditProject`, `canDeleteProject`).
-    - **Why**: Centralizes logic for UI permission checks; prevents duplicated logic.
-    - **Acceptance Criteria**: Unit tests pass for all role combinations (owner, editor, viewer, undefined).
-
 - [ ] **API Service Layer**: Create `src/lib/api/projects/sharing.ts` with methods for `shareProject`, `getCollaborators`, `updateCollaborator`, and `removeCollaborator`.
     - **Why**: Encapsulates API calls; handles FormData conversion required by backend.
     - **Acceptance Criteria**: Methods correctly handle FormData for write operations and return typed responses.
