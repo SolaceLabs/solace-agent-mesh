@@ -767,6 +767,23 @@ async def _load_openapi_tool(component: "SamAgentComponent", tool_config: Dict) 
             )
             openapi_toolset.origin = "openapi"
 
+            # Set origin on individual tools within the toolset for audit logging
+            try:
+                individual_tools = await openapi_toolset.get_tools()
+                for tool in individual_tools:
+                    tool.origin = "openapi"
+                    log.debug(
+                        "%s Set origin='openapi' on tool: %s",
+                        component.log_identifier,
+                        tool.name if hasattr(tool, 'name') else 'unknown',
+                    )
+            except Exception as e:
+                log.warning(
+                    "%s Failed to set origin on individual OpenAPI tools: %s",
+                    component.log_identifier,
+                    e,
+                )
+
             log.info(
                 "%s Loaded OpenAPI toolset via enterprise configurator",
                 component.log_identifier,

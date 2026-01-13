@@ -20,10 +20,13 @@ def mock_component():
 
 @pytest.fixture
 def mock_openapi_tool():
-    """Create a mock OpenAPI RestApiTool with operation attribute."""
+    """Create a mock OpenAPI RestApiTool with origin attribute."""
     tool = Mock()
     tool.__class__.__name__ = "RestApiTool"
     tool.name = "test_api_operation"
+
+    # SAM sets the 'origin' attribute at initialization for OpenAPI tools
+    tool.origin = "openapi"
 
     # RestApiTool has an 'operation' attribute when created from OpenAPI specs
     tool.operation = Mock()
@@ -40,10 +43,14 @@ def mock_openapi_tool():
 
 @pytest.fixture
 def mock_non_openapi_tool():
-    """Create a mock non-OpenAPI tool (no operation attribute)."""
+    """Create a mock non-OpenAPI tool (no origin='openapi')."""
     tool = Mock()
     tool.__class__.__name__ = "RegularTool"
     tool.name = "regular_tool"
+
+    # Non-OpenAPI tools either have no origin or a different origin value
+    tool.origin = "builtin"  # Or could be None, "mcp", etc.
+
     tool.operation = None  # No operation attribute
     delattr(tool, 'specification_url')  # No specification_url either
 

@@ -2539,19 +2539,16 @@ def _is_openapi_tool(tool: BaseTool) -> bool:
     """
     Check if a tool is an OpenAPI-based RestApiTool.
 
-    tool.operation is ALWAYS present on RestApiTool created from OpenAPI specs
-
     Args:
         tool: The tool to check
 
     Returns:
         True if the tool is OpenAPI-based, False otherwise
     """
-    # This is set by RestApiTool.__init__() when created from OpenAPI specs
-    if hasattr(tool, "operation") and tool.operation is not None:
-        return True
-
-    return False
+    # Check the origin attribute set by SAM at initialization
+    tool_origin = getattr(tool, "origin", None)
+    is_openapi = tool_origin == "openapi"
+    return is_openapi
 
 
 def _extract_openapi_base_url(tool: BaseTool) -> Optional[str]:
