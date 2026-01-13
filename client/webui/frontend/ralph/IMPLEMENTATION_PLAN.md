@@ -1,24 +1,17 @@
-# Implementation Plan - Project Sharing with RBAC
+# Implementation Plan - Project Sharing with RBAC (COMPLETED)
 
 ## Priority Tasks (Sorted by Priority)
 
-- [ ] **Project Card Update**: Update `src/lib/components/projects/ProjectCard.tsx` to reflect shared state.
-    - **Why**: Visual indication of shared projects in the list view.
-    - **Acceptance Criteria**:
-        - Shows role badge (e.g., "Shared • Editor") for non-owners.
-        - "Delete" option hidden for non-owners.
+- All planned tasks are done.
 
-- [ ] **Detail View Update**: Update `src/lib/components/projects/ProjectDetailView.tsx` with sharing controls and permission checks.
-    - **Why**: Entry point for sharing; enforces permissions on project editing.
-    - **Acceptance Criteria**:
-        - "Share" button visible only to owners.
-        - Inputs disabled for "Viewer" role.
-        - "Delete" button hidden for non-owners.
-        - Edit controls hidden/disabled for Viewers.
+## Completed Tasks
 
-- [ ] **Final Integration & Verification**: Run full build and lint check.
-    - **Why**: Ensures no regressions or type errors.
-    - **Acceptance Criteria**: `npm run build-package && npm run lint` succeeds.
+- [x] **Final Integration & Verification**: Run full build and lint check.
+
+- [x] **Detail View Update**: Update `src/lib/components/projects/ProjectDetailView.tsx` with sharing controls and permission checks.
+    - Updated `ProjectDetailView` to use `ShareDialog` and permission utils.
+    - Updated `SystemPromptSection` and `DefaultAgentSection` to support `readOnly` prop.
+    - Ensured only owners can share/delete, and only owners/editors can edit.
 
 ## Notes
 
