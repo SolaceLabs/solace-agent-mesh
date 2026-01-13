@@ -10,7 +10,11 @@ interface CreateProjectCardProps {
 
 export const CreateProjectCard: React.FC<CreateProjectCardProps> = ({ onClick }) => {
     return (
-        <GridCard className="border border-dashed border-[var(--color-primary-wMain)]" onClick={onClick}>
+        <GridCard
+            className="border border-dashed border-[var(--color-primary-wMain)]"
+            onClick={onClick}
+            data-testid="createProjectCard"
+        >
             <CardContent className="flex h-full items-center justify-center">
                 <div className="text-center">
                     <div className="mb-4 flex justify-center">
