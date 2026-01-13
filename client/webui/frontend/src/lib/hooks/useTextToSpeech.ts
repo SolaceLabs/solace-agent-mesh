@@ -158,8 +158,6 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 synth.cancel();
 
                 // Preprocess markdown for natural speech using the backend endpoint.
-                // This ensures the preprocessing logic is maintained in one place (Python backend)
-                // rather than duplicating it in the frontend.
                 let processedText = text;
                 try {
                     const response = await api.webui.post("/api/v1/speech/preprocess", {
