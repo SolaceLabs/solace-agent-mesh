@@ -466,7 +466,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                 card_to_publish.url = (
                     f"solace:{a2a.get_agent_request_topic(self.namespace, agent_alias)}"
                 )
-                discovery_topic = a2a.get_discovery_topic(self.namespace)
+                discovery_topic = a2a.get_agent_discovery_topic(self.namespace)
                 self._publish_a2a_message(
                     card_to_publish.model_dump(exclude_none=True), discovery_topic
                 )
@@ -714,7 +714,7 @@ class BaseProxyComponent(ComponentBase, ABC):
             card_to_publish.url = (
                 f"solace:{a2a.get_agent_request_topic(self.namespace, agent_alias)}"
             )
-            discovery_topic = a2a.get_discovery_topic(self.namespace)
+            discovery_topic = a2a.get_agent_discovery_topic(self.namespace)
             self._publish_a2a_message(
                 card_to_publish.model_dump(exclude_none=True), discovery_topic
             )
