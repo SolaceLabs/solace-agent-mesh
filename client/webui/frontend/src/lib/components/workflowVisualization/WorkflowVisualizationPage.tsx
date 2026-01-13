@@ -6,6 +6,7 @@ import { Button, EmptyState } from "@/lib/components";
 import { useChatContext } from "@/lib/hooks";
 import { isWorkflowAgent, getWorkflowConfig } from "@/lib/utils/agentUtils";
 import type { LayoutNode } from "./utils/types";
+import { extractNodeIdsFromConfig } from "./utils/expressionParser";
 import WorkflowDiagram from "./WorkflowDiagram";
 import WorkflowNodeDetailPanel from "./WorkflowNodeDetailPanel";
 import WorkflowDetailsSidePanel, { type WorkflowPanelView } from "./WorkflowDetailsSidePanel";
@@ -26,6 +27,7 @@ export function WorkflowVisualizationPage() {
     const [workflowPanelView, setWorkflowPanelView] = useState<WorkflowPanelView | null>(null);
     const [panelWidth, setPanelWidth] = useState<number>(DETAIL_PANEL_WIDTHS.default);
     const [shouldAnimate, setShouldAnimate] = useState(false);
+    const [highlightedNodeIds, setHighlightedNodeIds] = useState<Set<string>>(new Set());
     const prevSelectedRef = useRef<LayoutNode | null>(null);
     const prevWorkflowPanelRef = useRef<WorkflowPanelView | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -90,6 +92,17 @@ export function WorkflowVisualizationPage() {
             knownWorkflows: knownWorkflowNames,
         };
     }, [agents, workflowName]);
+
+    // Compute known node IDs from config for expression parsing
+    const knownNodeIds = useMemo(() => {
+        if (!config) return new Set<string>();
+        return extractNodeIdsFromConfig(config);
+    }, [config]);
+
+    // Handle highlighting nodes when hovering over expressions
+    const handleHighlightNodes = useCallback((nodeIds: string[]) => {
+        setHighlightedNodeIds(new Set(nodeIds));
+    }, []);
 
     // Handle node selection
     const handleNodeSelect = useCallback((node: LayoutNode | null) => {
@@ -172,6 +185,9 @@ export function WorkflowVisualizationPage() {
                     config={config}
                     knownWorkflows={knownWorkflows}
                     onNodeSelect={handleNodeSelect}
+                    highlightedNodeIds={highlightedNodeIds}
+                    onHighlightNodes={handleHighlightNodes}
+                    knownNodeIds={knownNodeIds}
                 />
 
                 {/* Detail panel overlay (shown when node selected) */}
@@ -192,6 +208,8 @@ export function WorkflowVisualizationPage() {
                                 workflowConfig={config}
                                 agents={agents}
                                 onClose={handleCloseDetail}
+                                onHighlightNodes={handleHighlightNodes}
+                                knownNodeIds={knownNodeIds}
                             />
                         </div>
                     </div>

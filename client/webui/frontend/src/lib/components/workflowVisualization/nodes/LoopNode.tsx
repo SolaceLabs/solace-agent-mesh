@@ -1,6 +1,6 @@
 import React from "react";
 import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
-import type { NodeProps } from "../utils/types";
+import { NODE_HIGHLIGHT_CLASSES, NODE_ID_BADGE_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 interface LoopNodeProps extends NodeProps {
     renderChildren?: (children: NodeProps["node"]["children"]) => React.ReactNode;
@@ -9,8 +9,9 @@ interface LoopNodeProps extends NodeProps {
 /**
  * Loop node - Container with dotted border for iterative execution
  * Shows condition, max iterations, expand/collapse icon, and renders child nodes when expanded
+ * Supports highlighting when referenced in expressions
  */
-const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, onClick, onExpand, onCollapse, renderChildren }) => {
+const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick, onExpand, onCollapse, renderChildren }) => {
     const isCollapsed = node.isCollapsed;
     const hasChildren = node.children && node.children.length > 0;
     // Check if node can have children (even when collapsed and children aren't loaded)
@@ -35,8 +36,8 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, onClick, onExpand
     return (
         <div
             className={`relative rounded-lg border-2 border-dashed border-teal-400 bg-teal-50/30 transition-all duration-200 dark:border-teal-600 dark:bg-teal-900/20 ${
-                isSelected ? "ring-2 ring-teal-500 ring-offset-2 dark:ring-offset-gray-900" : ""
-            }`}
+                isSelected ? NODE_SELECTED_CLASSES.TEAL : ""
+            } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
             style={{
                 width: `${node.width}px`,
                 minHeight: `${node.height}px`,
@@ -66,10 +67,8 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, onClick, onExpand
                     </button>
                 )}
 
-                {/* Node ID badge - fades in fast (150ms), fades out slow (3s ease-in) */}
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded bg-gray-700 px-2 py-0.5 font-mono text-xs text-gray-100 opacity-0 transition-opacity duration-[1500ms] ease-in group-hover:opacity-100 group-hover:duration-150 group-hover:ease-out dark:bg-gray-600">
-                    {node.id}
-                </div>
+                {/* Node ID badge - fades in/out on hover */}
+                <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
             </div>
 
             {/* Condition display */}

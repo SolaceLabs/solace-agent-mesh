@@ -1,6 +1,6 @@
 import React from "react";
 import { Repeat2, Maximize2, Minimize2 } from "lucide-react";
-import type { NodeProps } from "../utils/types";
+import { NODE_HIGHLIGHT_CLASSES, NODE_ID_BADGE_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 interface MapNodeProps extends NodeProps {
     renderChildren?: (children: NodeProps["node"]["children"]) => React.ReactNode;
@@ -9,8 +9,9 @@ interface MapNodeProps extends NodeProps {
 /**
  * Map node - Container with dotted border for parallel execution over a collection
  * Shows expand/collapse icon and renders child nodes when expanded
+ * Supports highlighting when referenced in expressions
  */
-const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, onClick, onExpand, onCollapse, renderChildren }) => {
+const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, onExpand, onCollapse, renderChildren }) => {
     const isCollapsed = node.isCollapsed;
     const hasChildren = node.children && node.children.length > 0;
     // Check if node can have children (even when collapsed and children aren't loaded)
@@ -28,8 +29,8 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, onClick, onExpand, 
     return (
         <div
             className={`relative rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/30 transition-all duration-200 dark:border-indigo-600 dark:bg-indigo-900/20 ${
-                isSelected ? "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-gray-900" : ""
-            }`}
+                isSelected ? NODE_SELECTED_CLASSES.INDIGO : ""
+            } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
             style={{
                 width: `${node.width}px`,
                 minHeight: `${node.height}px`,
@@ -59,10 +60,8 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, onClick, onExpand, 
                     </button>
                 )}
 
-                {/* Node ID badge - fades in fast (150ms), fades out slow (3s ease-in) */}
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded bg-gray-700 px-2 py-0.5 font-mono text-xs text-gray-100 opacity-0 transition-opacity duration-[1500ms] ease-in group-hover:opacity-100 group-hover:duration-150 group-hover:ease-out dark:bg-gray-600">
-                    {node.id}
-                </div>
+                {/* Node ID badge - fades in/out on hover */}
+                <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
             </div>
 
             {/* Children container */}

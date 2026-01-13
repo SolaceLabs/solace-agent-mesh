@@ -23,12 +23,17 @@ import type { AgentCardInfo } from "@/lib/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui/tabs";
 import { Button } from "@/lib/components/ui/button";
 import { JSONViewer } from "@/lib/components/jsonViewer";
+import InputMappingViewer from "./InputMappingViewer";
 
 interface WorkflowNodeDetailPanelProps {
     node: LayoutNode | null;
     workflowConfig: WorkflowConfig | null;
     agents: AgentCardInfo[];
     onClose: () => void;
+    /** Callback to highlight nodes when hovering over expressions */
+    onHighlightNodes?: (nodeIds: string[]) => void;
+    /** Set of known node IDs for validating expression references */
+    knownNodeIds?: Set<string>;
 }
 
 /**
@@ -40,6 +45,8 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
     workflowConfig: _workflowConfig,
     agents,
     onClose,
+    onHighlightNodes,
+    knownNodeIds,
 }) => {
     // workflowConfig is available for future use (e.g., accessing workflow-level output_mapping)
     void _workflowConfig;
@@ -471,12 +478,11 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                                         <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
                                                             Mapping
                                                         </label>
-                                                        <div className="max-h-48 overflow-auto rounded-lg border">
-                                                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                                            <JSONViewer
-                                                                data={getInputMapping() as any}
-                                                                maxDepth={3}
-                                                                className="border-none text-xs"
+                                                        <div className="max-h-48 overflow-auto">
+                                                            <InputMappingViewer
+                                                                mapping={getInputMapping() as Record<string, unknown>}
+                                                                onHighlightNodes={onHighlightNodes}
+                                                                knownNodeIds={knownNodeIds}
                                                             />
                                                         </div>
                                                     </div>

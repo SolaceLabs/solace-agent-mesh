@@ -91,10 +91,44 @@ export interface LayoutResult {
 export interface NodeProps {
     node: LayoutNode;
     isSelected?: boolean;
+    isHighlighted?: boolean;
     onClick?: (node: LayoutNode) => void;
     onExpand?: (nodeId: string) => void;
     onCollapse?: (nodeId: string) => void;
+    onHighlightNodes?: (nodeIds: string[]) => void;
+    knownNodeIds?: Set<string>;
 }
+
+/**
+ * Shared CSS classes for node highlighting when referenced in expressions
+ * Used by all node components to ensure consistent highlight styling
+ */
+export const NODE_HIGHLIGHT_CLASSES =
+    "ring-2 ring-amber-400 ring-offset-2 shadow-lg shadow-amber-200/50 dark:ring-amber-500 dark:ring-offset-gray-900 dark:shadow-amber-500/30";
+
+/**
+ * Shared CSS classes for node ID badge that appears on hover
+ * Shows the node's ID at the bottom center with fade in/out animation
+ */
+export const NODE_ID_BADGE_CLASSES =
+    "absolute -bottom-2 left-1/2 -translate-x-1/2 rounded bg-gray-700 px-2 py-0.5 font-mono text-xs text-gray-100 opacity-0 transition-opacity duration-[750ms] ease-in group-hover:opacity-100 group-hover:duration-75 group-hover:ease-out dark:bg-gray-600";
+
+/**
+ * Shared CSS classes for node selection styling
+ * Each node type has its own color to match its theme
+ */
+export const NODE_SELECTED_CLASSES = {
+    /** Blue selection ring for agent nodes, start/end nodes */
+    BLUE: "ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900",
+    /** Blue selection ring with smaller offset for condition pills */
+    BLUE_COMPACT: "ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-gray-900",
+    /** Purple selection ring for workflow ref nodes and switch nodes */
+    PURPLE: "ring-2 ring-purple-500 ring-offset-2 dark:ring-offset-gray-900",
+    /** Teal selection ring for loop nodes */
+    TEAL: "ring-2 ring-teal-500 ring-offset-2 dark:ring-offset-gray-900",
+    /** Indigo selection ring for map nodes */
+    INDIGO: "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-gray-900",
+};
 
 /**
  * Layout constants for consistent sizing

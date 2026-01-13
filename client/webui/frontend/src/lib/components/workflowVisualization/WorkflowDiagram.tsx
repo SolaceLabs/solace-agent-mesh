@@ -19,6 +19,12 @@ interface WorkflowDiagramProps {
     knownWorkflows?: Set<string>;
     sidePanelWidth?: number;
     onNodeSelect?: (node: LayoutNode | null) => void;
+    /** Controlled highlighted node IDs (from parent) */
+    highlightedNodeIds?: Set<string>;
+    /** Callback when highlight changes (for controlled mode) */
+    onHighlightNodes?: (nodeIds: string[]) => void;
+    /** Set of known node IDs (optional, will be computed if not provided) */
+    knownNodeIds?: Set<string>;
 }
 
 /**
@@ -30,6 +36,9 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     knownWorkflows = new Set(),
     sidePanelWidth = 0,
     onNodeSelect,
+    highlightedNodeIds: controlledHighlightedNodeIds,
+    onHighlightNodes: controlledOnHighlightNodes,
+    knownNodeIds: controlledKnownNodeIds,
 }) => {
     const canvasRef = useRef<PanZoomCanvasRef>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -38,11 +47,42 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
     const [hasUserInteracted, setHasUserInteracted] = useState(false);
     const [measuredEdges, setMeasuredEdges] = useState<Edge[]>([]);
+    const [internalHighlightedNodeIds, setInternalHighlightedNodeIds] = useState<Set<string>>(new Set());
 
     // Calculate layout whenever config or collapsed state changes
     const layout = useMemo(() => {
         return processWorkflowConfig(config, collapsedNodes, knownWorkflows);
     }, [config, collapsedNodes, knownWorkflows]);
+
+    // Build a set of all known node IDs for validating expression references
+    // Use controlled prop if provided, otherwise compute from layout
+    const computedKnownNodeIds = useMemo(() => {
+        const ids = new Set<string>();
+        const collectNodeIds = (nodes: LayoutNode[]) => {
+            for (const node of nodes) {
+                ids.add(node.id);
+                if (node.children && node.children.length > 0) {
+                    collectNodeIds(node.children);
+                }
+            }
+        };
+        collectNodeIds(layout.nodes);
+        return ids;
+    }, [layout.nodes]);
+
+    const knownNodeIds = controlledKnownNodeIds ?? computedKnownNodeIds;
+
+    // Use controlled highlighted node IDs if provided, otherwise use internal state
+    const highlightedNodeIds = controlledHighlightedNodeIds ?? internalHighlightedNodeIds;
+
+    // Handle highlighting nodes when hovering over expressions
+    const handleHighlightNodes = useCallback((nodeIds: string[]) => {
+        if (controlledOnHighlightNodes) {
+            controlledOnHighlightNodes(nodeIds);
+        } else {
+            setInternalHighlightedNodeIds(new Set(nodeIds));
+        }
+    }, [controlledOnHighlightNodes]);
 
     // Function to measure nodes and calculate edges
     const measureAndCalculateEdges = useCallback(() => {
@@ -180,9 +220,12 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
                     <WorkflowNodeRenderer
                         nodes={layout.nodes}
                         selectedNodeId={selectedNodeId || undefined}
+                        highlightedNodeIds={highlightedNodeIds}
                         onNodeClick={handleNodeClick}
                         onExpand={handleExpand}
                         onCollapse={handleCollapse}
+                        onHighlightNodes={handleHighlightNodes}
+                        knownNodeIds={knownNodeIds}
                         nodeRefs={nodeRefs}
                     />
                 </div>

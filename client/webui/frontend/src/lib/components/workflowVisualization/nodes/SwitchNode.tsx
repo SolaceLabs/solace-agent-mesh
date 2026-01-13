@@ -1,12 +1,13 @@
 import React from "react";
 import { GitBranch } from "lucide-react";
-import type { NodeProps } from "../utils/types";
+import { NODE_HIGHLIGHT_CLASSES, NODE_ID_BADGE_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 /**
  * Switch node - Shows conditional branching
  * Conditions are displayed in separate pill nodes above each branch
+ * Supports highlighting when referenced in expressions
  */
-const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, onClick }) => {
+const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) => {
     const cases = node.data.cases || [];
     const hasDefault = !!node.data.defaultCase;
     const totalCases = cases.length + (hasDefault ? 1 : 0);
@@ -14,8 +15,8 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, onClick }) => {
     return (
         <div
             className={`group relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-purple-500 bg-white px-3 py-2 shadow-sm transition-all duration-200 hover:shadow-md dark:border-purple-400 dark:bg-gray-800 ${
-                isSelected ? "ring-2 ring-purple-500 ring-offset-2 dark:ring-offset-gray-900" : ""
-            }`}
+                isSelected ? NODE_SELECTED_CLASSES.PURPLE : ""
+            } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
             style={{
                 width: `${node.width}px`,
             }}
@@ -34,10 +35,8 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, onClick }) => {
                     Switch
                 </span>
             </div>
-            {/* Node ID badge - fades in fast (150ms), fades out slow (3s ease-in) */}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded bg-gray-700 px-2 py-0.5 font-mono text-xs text-gray-100 opacity-0 transition-opacity duration-[1500ms] ease-in group-hover:opacity-100 group-hover:duration-150 group-hover:ease-out dark:bg-gray-600">
-                {node.id}
-            </div>
+            {/* Node ID badge - fades in/out on hover */}
+            <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
         </div>
     );
 };
