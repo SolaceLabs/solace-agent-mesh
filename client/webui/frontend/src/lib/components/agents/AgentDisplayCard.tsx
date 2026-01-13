@@ -1,12 +1,10 @@
-import React, { useState } from "react";
+import React from "react";
 import type { ReactNode } from "react";
 
-import { GitMerge, Info, Book, Link, Paperclip, Box, Wrench, Key, Bot, Code, Workflow, Eye } from "lucide-react";
+import { GitMerge, Info, Book, Link, Paperclip, Box, Wrench, Key, Bot, Code, Workflow } from "lucide-react";
 
 import type { AgentCardInfo, AgentSkill } from "@/lib/types";
-import { isWorkflowAgent, getMermaidSource, getWorkflowNodeCount } from "@/lib/utils/agentUtils";
-import { MermaidDiagramModal } from "./MermaidDiagramModal";
-import { Button } from "@/lib/components/ui";
+import { isWorkflowAgent, getWorkflowNodeCount } from "@/lib/utils/agentUtils";
 
 interface DetailItemProps {
     label: string;
@@ -37,17 +35,8 @@ const DetailItem: React.FC<DetailItemProps> = ({ label, value, icon, fullWidthVa
 };
 
 export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExpanded, onToggleExpand }) => {
-    const [showDiagramModal, setShowDiagramModal] = useState(false);
-
     const isWorkflow = isWorkflowAgent(agent);
-    const mermaidSource = isWorkflow ? getMermaidSource(agent) : null;
-    const nodeCount = mermaidSource ? getWorkflowNodeCount(mermaidSource) : 0;
-
-    const handleViewDiagram = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        console.log('[AgentDisplayCard] Opening diagram modal with source:', mermaidSource);
-        setShowDiagramModal(true);
-    };
+    const nodeCount = isWorkflow ? getWorkflowNodeCount(agent) : 0;
 
     const renderCapabilities = (capabilities?: { [key: string]: unknown } | null) => {
         if (!capabilities || Object.keys(capabilities).length === 0) return <span className="text-sm">N/A</span>;
@@ -169,17 +158,6 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                             <div className="mt-3 border-t pt-3">
                                 <h4 className="mb-2 text-xs font-semibold">Workflow Information</h4>
                                 <DetailItem label="Nodes" value={`${nodeCount} nodes`} icon={<Workflow size={14} />} />
-                                {mermaidSource && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="mt-2 w-full"
-                                        onClick={handleViewDiagram}
-                                    >
-                                        <Eye className="mr-2 h-4 w-4" />
-                                        View Workflow Diagram
-                                    </Button>
-                                )}
                             </div>
                         )}
                         <div className="text-2xs mt-1.5 pt-1.5">
@@ -189,16 +167,6 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                     <div className="text-accent-foreground border-t p-2 text-center text-sm">Click for summary</div>
                 </div>
             </div>
-
-            {/* Mermaid Diagram Modal */}
-            {mermaidSource && (
-                <MermaidDiagramModal
-                    isOpen={showDiagramModal}
-                    onClose={() => setShowDiagramModal(false)}
-                    mermaidSource={mermaidSource}
-                    title={`${agent.displayName || agent.name} - Workflow Diagram`}
-                />
-            )}
         </div>
     );
 };

@@ -4,6 +4,30 @@ const EXTENSION_URI_WORKFLOW_VISUALIZATION = "https://solace.com/a2a/extensions/
 const EXTENSION_URI_AGENT_TYPE = "https://solace.com/a2a/extensions/agent-type";
 
 /**
+ * Workflow configuration JSON structure
+ */
+export interface WorkflowConfig {
+    description?: string;
+    nodes: WorkflowNodeConfig[];
+    input_schema?: Record<string, unknown>;
+    output_schema?: Record<string, unknown>;
+}
+
+export interface WorkflowNodeConfig {
+    id: string;
+    type: "agent" | "switch" | "map" | "loop";
+    depends_on?: string[];
+    agent_name?: string;
+    input?: Record<string, unknown>;
+    cases?: { condition: string; node: string }[];
+    default?: string;
+    node?: string;
+    items?: string;
+    condition?: string;
+    max_iterations?: number;
+}
+
+/**
  * Extract agent type from agent card extensions
  */
 export function getAgentType(agent: AgentCardInfo): "workflow" | "agent" | null {
@@ -27,34 +51,26 @@ export function isWorkflowAgent(agent: AgentCardInfo): boolean {
 }
 
 /**
- * Extract mermaid diagram source from workflow agent card
+ * Extract workflow configuration from workflow agent card
  */
-export function getMermaidSource(agent: AgentCardInfo): string | null {
+export function getWorkflowConfig(agent: AgentCardInfo): WorkflowConfig | null {
     const extensions = agent.capabilities?.extensions;
     if (!extensions || extensions.length === 0) return null;
 
     const vizExtension = extensions.find((ext: AgentExtension) => ext.uri === EXTENSION_URI_WORKFLOW_VISUALIZATION);
     if (!vizExtension?.params) return null;
 
-    const mermaidSource = vizExtension.params.mermaid_source;
-    return typeof mermaidSource === 'string' ? mermaidSource : null;
+    const workflowConfig = vizExtension.params.workflow_config;
+    if (!workflowConfig || typeof workflowConfig !== 'object') return null;
+
+    return workflowConfig as WorkflowConfig;
 }
 
 /**
- * Count workflow nodes from mermaid source
- * This is a simple heuristic based on mermaid node definitions
+ * Count workflow nodes from workflow configuration
  */
-export function getWorkflowNodeCount(mermaidSource: string): number {
-    if (!mermaidSource) return 0;
-
-    // Count node definitions in mermaid syntax
-    // Nodes are typically defined as: nodeId[...] or nodeId{...} or nodeId(...)
-    const nodeMatches = mermaidSource.match(/\w+[\[\{\(]/g);
-
-    if (!nodeMatches) return 0;
-
-    // Create a set to count unique nodes (avoid counting edges)
-    const uniqueNodes = new Set(nodeMatches.map(match => match.replace(/[\[\{\(]/, '')));
-
-    return uniqueNodes.size;
+export function getWorkflowNodeCount(agent: AgentCardInfo): number {
+    const config = getWorkflowConfig(agent);
+    if (!config || !config.nodes) return 0;
+    return config.nodes.length;
 }
