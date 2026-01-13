@@ -23,6 +23,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
     const [loading, setLoading] = useState(false);
     const [shareLoading, setShareLoading] = useState(false);
     const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+    console.log("Collaborators:", collaborators);
     const [email, setEmail] = useState("");
     const [role, setRole] = useState<ProjectRole>("viewer");
     const [error, setError] = useState<string | null>(null);
@@ -87,6 +88,8 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
     };
 
     const handleUpdateRole = async (userId: string, newRole: ProjectRole) => {
+        console.log("userId:", userId, "newRole:", newRole);
+        console.log("projectId:", project.id);
         try {
             setError(null);
             const updated = await updateCollaborator(project.id, userId, newRole);
@@ -159,8 +162,6 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                                 <SelectContent>
                                     <SelectItem value="viewer">Viewer</SelectItem>
                                     <SelectItem value="editor">Editor</SelectItem>
-                                    {/* Usually don't allow sharing as owner directly, but including if needed */}
-                                    <SelectItem value="owner">Owner</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -204,7 +205,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                                             <TableRow key={collaborator.userId}>
                                                 <TableCell className="font-medium">
                                                     <div className="flex flex-col">
-                                                        <span>{collaborator.email}</span>
+                                                        <span>{collaborator.email || collaborator.userId}</span>
                                                         <span className="text-muted-foreground text-xs">Added {new Date(collaborator.addedAt).toLocaleDateString()}</span>
                                                     </div>
                                                 </TableCell>
@@ -219,7 +220,6 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                                                             <SelectContent>
                                                                 <SelectItem value="viewer">Viewer</SelectItem>
                                                                 <SelectItem value="editor">Editor</SelectItem>
-                                                                <SelectItem value="owner">Owner</SelectItem>
                                                             </SelectContent>
                                                         </Select>
                                                     )}

@@ -5,8 +5,8 @@ import type { Collaborator, ProjectRole } from "@/lib/types/projects";
  * Get all collaborators for a project
  */
 export const getCollaborators = async (projectId: string) => {
-    const response = await api.webui.get<Collaborator[]>(`/api/v1/projects/${projectId}/collaborators`);
-    return response;
+    const response = await api.webui.get<{ projectId: string; owner: Collaborator; collaborators: Collaborator[] }>(`/api/v1/projects/${projectId}/collaborators`);
+    return response.collaborators;
 };
 
 /**
