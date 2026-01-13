@@ -324,6 +324,8 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             log.info(
                 "%s Authenticated user: %s", log_id_prefix, user_identity.get("id")
             )
+            # Add user_id to external_input so adapter can use it for permission checks.
+            external_input["user_id"] = user_identity.get("id")
 
             # 2. Task Preparation
             sam_task = await self.adapter.prepare_task(external_input, endpoint_context)
