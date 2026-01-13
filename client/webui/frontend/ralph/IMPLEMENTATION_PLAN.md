@@ -2,26 +2,6 @@
 
 ## Priority Tasks (Sorted by Priority)
 
-- [ ] **API Service Layer**: Create `src/lib/api/projects/sharing.ts` with methods for `shareProject`, `getCollaborators`, `updateCollaborator`, and `removeCollaborator`.
-    - **Why**: Encapsulates API calls; handles FormData conversion required by backend.
-    - **Acceptance Criteria**: Methods correctly handle FormData for write operations and return typed responses.
-
-- [ ] **Provider Extension**: Extend `ProjectProvider.tsx` to expose sharing capabilities via context.
-    - **Why**: Makes sharing functionality available to components; handles global state updates (e.g., refreshing project list).
-    - **Acceptance Criteria**: `useProjectContext` exposes new sharing methods; error handling follows existing provider patterns.
-
-- [ ] **Share Dialog Component**: Create `src/lib/components/projects/ShareDialog.tsx`.
-    - **Why**: Main interface for managing project access.
-    - **Acceptance Criteria**:
-        - Top section allows inviting by email (validated) with role.
-        - Bottom section lists collaborators with "Owner" badge for creator.
-        - Updating role and removing collaborators works for owner.
-        - Loading/error states are handled correctly.
-
-- [ ] **Storybook for ShareDialog**: Create `src/stories/ShareDialog.stories.tsx`.
-    - **Why**: Validates UI states (empty, populated, loading) without backend dependency.
-    - **Acceptance Criteria**: Stories exist for "Default" (owner view) and "Loading" states.
-
 - [ ] **Project Card Update**: Update `src/lib/components/projects/ProjectCard.tsx` to reflect shared state.
     - **Why**: Visual indication of shared projects in the list view.
     - **Acceptance Criteria**:
