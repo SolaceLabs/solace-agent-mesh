@@ -9,6 +9,10 @@ Agent Mesh is an open-source framework for building event-driven multi-agent AI 
 
 Whether you're building intelligent automation systems, creating sophisticated AI workflows, or integrating AI capabilities across your enterprise, Agent Mesh provides the foundation you need. The framework handles agent communication automatically, so you can focus on building powerful AI experiences that scale with your needs.
 
+:::info
+Agent Mesh is built for modern development workflows. Whether you're using Claude, GitHub Copilot, or another AI coding assistant, our documentation is optimized to help you quickly understand the framework and build your projects faster. See our [Vibe Coding guide](vibe_coding.md) to learn more.
+:::
+
 ## Understanding Agent Mesh
 
 Before diving into implementation, it's helpful to understand what makes Agent Mesh unique. The framework combines the power of Google's Agent Development Kit with Solace's event-driven messaging platform, creating a robust foundation for multi-agent AI systems. To learn about the core concepts and architectural principles that drive the framework's design, see [What is Agent Mesh?](./introduction.md)
@@ -24,8 +28,6 @@ The fastest way to experience Agent Mesh is through our pre-configured Docker se
 Once you've explored the basic functionality and want to set up your own development environment, you'll need to install the CLI and framework tools. The installation process supports multiple approaches including pip, uv, and Docker, making it easy to integrate with your existing workflow. For complete setup instructions, see [Installation](../installing-and-configuring/installation.md)
 
 For those ready to build their own projects from scratch, comprehensive guidance is available for creating and configuring custom deployments with full control over your agent mesh. This approach provides the flexibility needed for serious development work and production environments. To learn about project creation and configuration, see [Creating and Running an Agent Mesh Project](../installing-and-configuring/run-project.md)
-
-Vibe coding is an alternative approach for learning and building projects from scratch with minimal prior knowledge of Solace Agent Mesh. To learn more about vibe coding, see [Vibe Coding](vibe_coding.md)
 
 ## Building with Agent Mesh
 
