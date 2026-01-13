@@ -1019,6 +1019,8 @@ async def get_artifact_info_list(
     app_name: str,
     user_id: str,
     session_id: str,
+    skip_metadata_files: bool = True,
+    skip_bm25_index: bool = True,
 ) -> List[ArtifactInfo]:
     """
     Retrieves detailed information for all artifacts using the artifact service.
@@ -1045,13 +1047,13 @@ async def get_artifact_info_list(
         )
 
         for filename in keys:
-            # Skip artifact metadata files
-            if filename.endswith(METADATA_SUFFIX):
+            # Optionally Skip artifact metadata files
+            if skip_metadata_files and filename.endswith(METADATA_SUFFIX):
                 log.debug("%s Skipping artifact metadata files: %s", log_prefix, filename)
                 continue
             
-            # Skip bm25_index directory and all its contents
-            if filename.endswith(BM25_INDEX_SUFFIX):
+            # Optionally Skip bm25_index directory and all its contents
+            if skip_bm25_index and filename.endswith(BM25_INDEX_SUFFIX):
                 log.debug("%s Skipping BM25 index artifact contents: %s", log_prefix, filename)
                 continue
 
@@ -1094,7 +1096,8 @@ async def get_artifact_info_list(
                 mime_type = metadata.get("mime_type", "application/data")
                 size = metadata.get("size_bytes", 0)
                 schema_definition = metadata.get("schema", {})
-                description = metadata.get("description", "No description provided")
+                # For BM25 index files, use source_description as fallback
+                description = metadata.get("description") or metadata.get("source_description", "No description provided")
                 loaded_version_num = data.get("version", latest_version_num)
 
                 last_modified_ts = metadata.get("timestamp_utc")
@@ -1736,3 +1739,24 @@ async def save_bm25_index_with_metadata(
         "num_chunks": num_chunks,
         "saved_files": saved_files,
     }
+
+async def prepare_bm25_index_for_retrieval( # use dependency injection ???? unzip to temp dir? after retrieval, delete temp dir?
+    artifact_service: BaseArtifactService,
+    app_name: str,
+    user_id: str,
+    session_id: str,
+    index_filename: str,
+    query: str,
+    top_k: int = 5,
+) -> Dict[str, Any]:
+    """
+    Prepares BM25 index retrieval results formatted for LLM consumption.
+    
+    Args:
+        artifact_service: The artifact service instance
+        app_name: Application name
+        user_id: User ID
+        session_id: Session ID
+        index_filename: Name of the BM25 index artifact
+        query: The query string for retrieval
+        top_k: Number of top results to retrieve (default: 5)

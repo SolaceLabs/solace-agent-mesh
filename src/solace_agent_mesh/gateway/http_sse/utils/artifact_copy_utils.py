@@ -173,7 +173,6 @@ async def copy_project_artifacts_to_session(
     component: "WebUIBackendComponent",
     db: "DbSession",
     log_prefix: str = "",
-    include_bm25_index: bool = True,
 ) -> tuple[int, list[str]]:
     """
     Copy all artifacts from a project to a session.
@@ -182,7 +181,6 @@ async def copy_project_artifacts_to_session(
     - Loading artifacts from the project storage
     - Checking which artifacts already exist in the session
     - Copying new artifacts to the session
-    - Copying BM25 index directory (if include_bm25_index=True)
     - Setting the 'source' metadata field to 'project'
 
     Args:
@@ -193,7 +191,6 @@ async def copy_project_artifacts_to_session(
         component: WebUIBackendComponent for accessing artifact service
         db: Database session to use for queries
         log_prefix: Optional prefix for log messages
-        include_bm25_index: If True, also copies the bm25_index directory
 
     Returns:
         Tuple of (artifacts_copied_count, list_of_new_artifact_names)
@@ -236,6 +233,7 @@ async def copy_project_artifacts_to_session(
             app_name=project_service.app_name,
             user_id=source_user_id,
             session_id=project_artifacts_session_id,
+            skip_bm25_index=False,
         )
 
         if not project_artifacts:
@@ -255,6 +253,7 @@ async def copy_project_artifacts_to_session(
                 app_name=project_service.app_name,
                 user_id=user_id,
                 session_id=session_id,
+                skip_bm25_index=False,
             )
             session_artifact_names = {art.filename for art in session_artifacts}
             log.debug(
@@ -376,7 +375,7 @@ async def copy_project_artifacts_to_session(
         return 0, []
 
 
-async def copy_bm25_index_to_session(
+async def copy_bm25_index_to_session( #rewerite to conform to standard of copy_project_artifacts_to_session
     project_id: str,
     user_id: str,
     session_id: str,
