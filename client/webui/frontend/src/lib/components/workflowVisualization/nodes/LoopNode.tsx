@@ -44,7 +44,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, onClick, onExpand
         >
             {/* Header */}
             <div
-                className="flex cursor-pointer items-center justify-between rounded-t-md px-3 py-2"
+                className="group flex cursor-pointer items-center justify-between rounded-t-md px-3 py-2"
                 onClick={e => {
                     e.stopPropagation();
                     onClick?.(node);
@@ -52,10 +52,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, onClick, onExpand
             >
                 <div className="flex items-center gap-2">
                     <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                    <span className="text-sm font-medium text-teal-900 dark:text-teal-100">{node.data.label}</span>
-                    <span className="rounded bg-teal-100 px-1.5 py-0.5 text-xs font-medium text-teal-700 dark:bg-teal-800/50 dark:text-teal-300">
-                        Loop
-                    </span>
+                    <span className="text-sm font-medium text-teal-900 dark:text-teal-100">Loop</span>
                 </div>
 
                 {/* Expand/Collapse button */}
@@ -68,6 +65,11 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, onClick, onExpand
                         {isCollapsed ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
                     </button>
                 )}
+
+                {/* Node ID badge - fades in fast (150ms), fades out slow (3s ease-in) */}
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded bg-gray-700 px-2 py-0.5 font-mono text-xs text-gray-100 opacity-0 transition-opacity duration-[1500ms] ease-in group-hover:opacity-100 group-hover:duration-150 group-hover:ease-out dark:bg-gray-600">
+                    {node.id}
+                </div>
             </div>
 
             {/* Condition display */}

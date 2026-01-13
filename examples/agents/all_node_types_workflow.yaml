@@ -791,6 +791,7 @@ apps:
       display_name: "Complete Order Processing Workflow"
 
       workflow:
+        version: "1.2.0"
         description: |
           A comprehensive order processing workflow that demonstrates ALL workflow node types:
 
@@ -858,9 +859,41 @@ apps:
           - id: validate_order
             type: agent
             agent_name: "OrderValidator"
+            instruction: |
+              Validate this order as the first step in the order processing pipeline.
+              Ensure the order_id is valid and all items have required fields.
+              Flag any issues for downstream processing.
             input:
               order_id: "{{workflow.input.order_id}}"
               items: "{{workflow.input.items}}"
+            # Override input schema to add workflow-specific validation requirements
+            input_schema_override:
+              type: object
+              properties:
+                order_id:
+                  type: string
+                  description: "The unique order identifier to validate"
+                  minLength: 3
+                items:
+                  type: array
+                  description: "Array of items to validate"
+                  minItems: 1
+              required: [order_id, items]
+            # Override output schema to include workflow-specific fields
+            output_schema_override:
+              type: object
+              properties:
+                valid:
+                  type: boolean
+                  description: "Whether the order passed validation"
+                order_id:
+                  type: string
+                validation_errors:
+                  type: array
+                  items:
+                    type: string
+                  description: "List of validation errors if any"
+              required: [valid, order_id]
 
           # ====================================================================
           # STEP 2: PARALLEL AGENTS - Customer enrichment and inventory check
@@ -892,8 +925,24 @@ apps:
             type: agent
             agent_name: "InventoryChecker"
             depends_on: [validate_order]
+            instruction: |
+              Check inventory levels for all items in this order.
+              This runs in parallel with customer enrichment for efficiency.
+              Report any items that are out of stock or have insufficient quantity.
             input:
               items: "{{workflow.input.items}}"
+            input_schema_override:
+              type: object
+              properties:
+                items:
+                  type: array
+                  description: "Items to check inventory for"
+                  items:
+                    type: object
+                    properties:
+                      item_id: {type: string}
+                      quantity: {type: integer, minimum: 1}
+              required: [items]
 
           # ====================================================================
           # STEP 3: MAP NODE - Process each item individually
@@ -910,10 +959,29 @@ apps:
           - id: process_single_item
             type: agent
             agent_name: "ItemProcessor"
+            instruction: |
+              Process this individual line item from the order.
+              Calculate the line total and validate item data.
+              This node is called once per item in the order via the map node.
             input:
               item_id: "{{_map_item.item_id}}"
               quantity: "{{_map_item.quantity}}"
               price: "{{_map_item.price}}"
+            input_schema_override:
+              type: object
+              properties:
+                item_id:
+                  type: string
+                  description: "Unique identifier for the item"
+                quantity:
+                  type: integer
+                  minimum: 1
+                  description: "Number of units ordered"
+                price:
+                  type: number
+                  minimum: 0
+                  description: "Price per unit"
+              required: [item_id, quantity, price]
 
           # ====================================================================
           # STEP 4: AGENT NODE - Calculate total price
@@ -922,9 +990,32 @@ apps:
             type: agent
             agent_name: "PriceCalculator"
             depends_on: [process_items]
+            instruction: |
+              Calculate the final order total including all applicable discounts.
+              The subtotal comes from processed items, and the discount percentage
+              is based on the customer's tier level determined earlier in the workflow.
             input:
               subtotal: 100.00
               discount_pct: "{{customer_enrichment.output.discount_pct}}"
+            output_schema_override:
+              type: object
+              properties:
+                subtotal:
+                  type: number
+                  description: "Pre-discount total"
+                discount_pct:
+                  type: integer
+                  description: "Discount percentage applied"
+                discount_amount:
+                  type: number
+                  description: "Dollar amount of discount"
+                final_total:
+                  type: number
+                  description: "Final total after discount"
+                currency:
+                  type: string
+                  default: "USD"
+              required: [subtotal, final_total]
 
           # ====================================================================
           # STEP 5: SWITCH NODE - Approval routing
@@ -977,6 +1068,9 @@ apps:
             type: agent
             agent_name: "ExpressShipper"
             depends_on: [shipping_selection]
+            instruction: |
+              Process express shipping for this high-priority order.
+              Generate tracking information and ensure 1-day delivery commitment.
             input:
               order_id: "{{workflow.input.order_id}}"
 
@@ -1036,6 +1130,10 @@ apps:
             type: agent
             agent_name: "OrderFinalizer"
             depends_on: [send_notification]
+            instruction: |
+              Create the final order summary combining all processing results.
+              This is the last step in the workflow - ensure all data is captured
+              accurately for the order record and customer communication.
             input:
               order_id: "{{workflow.input.order_id}}"
               customer_name: "{{customer_enrichment.output.customer_name}}"

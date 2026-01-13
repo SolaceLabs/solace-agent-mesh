@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Workflow } from "lucide-react";
 
@@ -8,6 +8,10 @@ import { isWorkflowAgent, getWorkflowConfig } from "@/lib/utils/agentUtils";
 import type { LayoutNode } from "./utils/types";
 import WorkflowDiagram from "./WorkflowDiagram";
 import WorkflowNodeDetailPanel from "./WorkflowNodeDetailPanel";
+import WorkflowDetailsSidePanel, { type WorkflowPanelView } from "./WorkflowDetailsSidePanel";
+
+// Panel width configuration (pixels)
+const DETAIL_PANEL_WIDTHS = { default: 400, min: 280, max: 800 };
 
 /**
  * WorkflowVisualizationPage - Main page for viewing workflow node diagrams
@@ -19,6 +23,55 @@ export function WorkflowVisualizationPage() {
     const { agents, agentsLoading, agentsError } = useChatContext();
 
     const [selectedNode, setSelectedNode] = useState<LayoutNode | null>(null);
+    const [workflowPanelView, setWorkflowPanelView] = useState<WorkflowPanelView | null>(null);
+    const [panelWidth, setPanelWidth] = useState<number>(DETAIL_PANEL_WIDTHS.default);
+    const [shouldAnimate, setShouldAnimate] = useState(false);
+    const prevSelectedRef = useRef<LayoutNode | null>(null);
+    const prevWorkflowPanelRef = useRef<WorkflowPanelView | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const isResizing = useRef(false);
+
+    // Track when panel opens to trigger animation only on initial open
+    useEffect(() => {
+        const nodeJustOpened = selectedNode && !prevSelectedRef.current;
+        const workflowPanelJustOpened = workflowPanelView && !prevWorkflowPanelRef.current;
+
+        // Update refs immediately so switching views doesn't re-trigger animation
+        prevSelectedRef.current = selectedNode;
+        prevWorkflowPanelRef.current = workflowPanelView;
+
+        if (nodeJustOpened || workflowPanelJustOpened) {
+            setShouldAnimate(true);
+            const timer = setTimeout(() => setShouldAnimate(false), 300);
+            return () => clearTimeout(timer);
+        }
+    }, [selectedNode, workflowPanelView]);
+
+    // Handle resize drag
+    const handleResizeStart = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        isResizing.current = true;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizing.current || !containerRef.current) return;
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const newWidth = containerRect.right - e.clientX;
+            setPanelWidth(Math.max(DETAIL_PANEL_WIDTHS.min, Math.min(DETAIL_PANEL_WIDTHS.max, newWidth)));
+        };
+
+        const handleMouseUp = () => {
+            isResizing.current = false;
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+            document.removeEventListener("mousemove", handleMouseMove);
+            document.removeEventListener("mouseup", handleMouseUp);
+        };
+
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+    }, []);
 
     // Find the workflow and extract config
     const { workflow, config, knownWorkflows } = useMemo(() => {
@@ -40,6 +93,7 @@ export function WorkflowVisualizationPage() {
 
     // Handle node selection
     const handleNodeSelect = useCallback((node: LayoutNode | null) => {
+        setWorkflowPanelView(null); // Close workflow panel if open
         setSelectedNode(node);
     }, []);
 
@@ -53,8 +107,21 @@ export function WorkflowVisualizationPage() {
         navigate("/agents?tab=workflows");
     }, [navigate]);
 
-    // Calculate side panel width for layout
-    const sidePanelWidth = selectedNode ? 320 : 0;
+    // Handle opening workflow details panel
+    const handleOpenWorkflowDetails = useCallback(() => {
+        setSelectedNode(null); // Close node panel if open
+        setWorkflowPanelView("details");
+    }, []);
+
+    // Handle closing workflow panel
+    const handleCloseWorkflowPanel = useCallback(() => {
+        setWorkflowPanelView(null);
+    }, []);
+
+    // Handle switching panel view (details <-> code)
+    const handleSwitchPanelView = useCallback((view: WorkflowPanelView) => {
+        setWorkflowPanelView(view);
+    }, []);
 
     // Loading state
     if (agentsLoading) {
@@ -96,21 +163,63 @@ export function WorkflowVisualizationPage() {
                 workflowName={workflow.displayName || workflow.name}
                 workflowVersion={config.version}
                 onBack={handleBack}
+                onOpenDetails={handleOpenWorkflowDetails}
             />
 
-            <div className="relative flex flex-1 overflow-hidden">
-                {/* Diagram area */}
-                <div className="flex-1">
-                    <WorkflowDiagram
-                        config={config}
-                        knownWorkflows={knownWorkflows}
-                        sidePanelWidth={sidePanelWidth}
-                        onNodeSelect={handleNodeSelect}
-                    />
-                </div>
+            {/* Body container - panels overlay this area only */}
+            <div ref={containerRef} className="relative min-h-0 flex-1">
+                <WorkflowDiagram
+                    config={config}
+                    knownWorkflows={knownWorkflows}
+                    onNodeSelect={handleNodeSelect}
+                />
 
-                {/* Detail panel (shown when node selected) */}
-                {selectedNode && <WorkflowNodeDetailPanel node={selectedNode} onClose={handleCloseDetail} />}
+                {/* Detail panel overlay (shown when node selected) */}
+                {selectedNode && (
+                    <div
+                        className={`absolute top-0 right-0 bottom-0 z-10 flex ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`}
+                        style={{ width: panelWidth }}
+                    >
+                        {/* Resize handle - matches ResizableHandle styling */}
+                        <div
+                            className="bg-border relative flex w-px cursor-col-resize items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2"
+                            onMouseDown={handleResizeStart}
+                        />
+                        {/* Panel content */}
+                        <div className="bg-background min-w-0 flex-1">
+                            <WorkflowNodeDetailPanel
+                                node={selectedNode}
+                                workflowConfig={config}
+                                agents={agents}
+                                onClose={handleCloseDetail}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Workflow Details / Raw Code Side Panel */}
+                {workflowPanelView && (
+                    <div
+                        className={`absolute top-0 right-0 bottom-0 z-10 flex ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`}
+                        style={{ width: panelWidth }}
+                    >
+                        {/* Resize handle - matches ResizableHandle styling */}
+                        <div
+                            className="bg-border relative flex w-px cursor-col-resize items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2"
+                            onMouseDown={handleResizeStart}
+                        />
+                        {/* Panel content */}
+                        <div className="bg-background min-w-0 flex-1">
+                            <WorkflowDetailsSidePanel
+                                workflow={workflow}
+                                config={config}
+                                view={workflowPanelView}
+                                onClose={handleCloseWorkflowPanel}
+                                onViewChange={handleSwitchPanelView}
+                            />
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -123,9 +232,15 @@ interface PageHeaderProps {
     workflowName: string;
     workflowVersion?: string;
     onBack: () => void;
+    onOpenDetails?: () => void;
 }
 
-const PageHeader: React.FC<PageHeaderProps> = ({ workflowName, workflowVersion, onBack }) => {
+const PageHeader: React.FC<PageHeaderProps> = ({
+    workflowName,
+    workflowVersion,
+    onBack,
+    onOpenDetails,
+}) => {
     return (
         <div className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
             <div className="flex items-center gap-3">
@@ -142,6 +257,14 @@ const PageHeader: React.FC<PageHeaderProps> = ({ workflowName, workflowVersion, 
                     )}
                 </div>
             </div>
+            {onOpenDetails && (
+                <button
+                    onClick={onOpenDetails}
+                    className="text-sm text-[var(--color-brand-wMain)] hover:underline"
+                >
+                    Open Workflow Details
+                </button>
+            )}
         </div>
     );
 };

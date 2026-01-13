@@ -334,6 +334,7 @@ function createLayoutNode(
             label: config.id,
             agentName: config.agent_name,
             workflowName: isWorkflowRef ? config.agent_name : undefined,
+            originalConfig: config,
         },
         x: 0,
         y: 0,

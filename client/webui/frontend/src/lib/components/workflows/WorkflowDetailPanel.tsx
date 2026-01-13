@@ -3,42 +3,18 @@ import { useNavigate } from "react-router-dom";
 
 import type { AgentCardInfo } from "@/lib/types";
 import { getWorkflowConfig, getWorkflowNodeCount } from "@/lib/utils/agentUtils";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/lib/components/ui/sheet";
 import { Button } from "@/lib/components/ui/button";
 import { MarkdownHTMLConverter } from "@/lib/components/common";
 import { JSONViewer } from "@/lib/components/jsonViewer";
-import { Workflow, GitMerge, Box, FileJson } from "lucide-react";
+import { Workflow, GitMerge, FileJson, X, ExternalLink } from "lucide-react";
 
 interface WorkflowDetailPanelProps {
-    workflow: AgentCardInfo | null;
+    workflow: AgentCardInfo;
     onClose: () => void;
 }
 
-interface DetailItemProps {
-    label: string;
-    value: React.ReactNode;
-    icon?: React.ReactNode;
-}
-
-const DetailItem: React.FC<DetailItemProps> = ({ label, value, icon }) => {
-    if (value === undefined || value === null || value === "") return null;
-    return (
-        <div className="mb-4">
-            <div className="text-muted-foreground mb-2 flex items-center text-sm font-medium">
-                {icon && <span className="mr-2">{icon}</span>}
-                {label}
-            </div>
-            <div className="text-sm">{value}</div>
-        </div>
-    );
-};
-
 export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workflow, onClose }) => {
     const navigate = useNavigate();
-
-    if (!workflow) {
-        return null;
-    }
 
     const config = getWorkflowConfig(workflow);
     const nodeCount = getWorkflowNodeCount(workflow);
@@ -46,88 +22,133 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
 
     const handleOpenWorkflow = () => {
         navigate(`/agents/workflows/${encodeURIComponent(workflow.name)}`);
-        onClose();
     };
 
     return (
-        <Sheet open={!!workflow} onOpenChange={open => !open && onClose()}>
-            <SheetContent side="right" className="flex w-[480px] flex-col p-0 sm:max-w-[480px]">
-                <SheetHeader className="border-b px-6 py-5">
-                    <SheetTitle className="flex items-center gap-3 text-lg">
-                        <Workflow className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
-                        <span className="truncate">{workflow.displayName || workflow.name}</span>
-                    </SheetTitle>
-                </SheetHeader>
+        <div className="flex h-full flex-col bg-white dark:bg-gray-800">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                <div className="flex items-center gap-2">
+                    <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                        {workflow.displayName || workflow.name}
+                    </span>
+                </div>
+                <button
+                    onClick={onClose}
+                    className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                >
+                    <X className="h-5 w-5" />
+                </button>
+            </div>
 
-                <div className="scrollbar-themed flex-1 space-y-6 overflow-y-auto px-6 py-6">
-                    {description && (
-                        <div className="mb-6">
-                            <div className="text-muted-foreground mb-2 text-sm font-medium">Description</div>
-                            <div className="prose prose-sm dark:prose-invert max-w-none">
-                                <MarkdownHTMLConverter>{description}</MarkdownHTMLConverter>
-                            </div>
+            {/* Content */}
+            <div className="scrollbar-themed flex-1 overflow-y-auto p-4">
+                {/* Version and Node Count */}
+                <div className="mb-4 flex items-center gap-4">
+                    <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                            Version
+                        </label>
+                        <div className="flex items-center gap-1 text-sm text-gray-900 dark:text-gray-100">
+                            <GitMerge size={14} className="text-gray-400" />
+                            {workflow.version || "N/A"}
                         </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <DetailItem label="Version" value={workflow.version || "N/A"} icon={<GitMerge size={14} />} />
-                        <DetailItem label="Nodes" value={nodeCount > 0 ? `${nodeCount} nodes` : "N/A"} icon={<Workflow size={14} />} />
                     </div>
-
-                    {config?.input_schema && (
-                        <div className="mb-4">
-                            <div className="text-muted-foreground mb-2 flex items-center text-sm font-medium">
-                                <FileJson size={14} className="mr-2" />
-                                Input Schema
-                            </div>
-                            <div className="max-h-48 overflow-auto rounded-lg border">
-                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                <JSONViewer data={config.input_schema as any} maxDepth={2} className="border-none text-xs" />
-                            </div>
+                    <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                            Nodes
+                        </label>
+                        <div className="flex items-center gap-1 text-sm text-gray-900 dark:text-gray-100">
+                            <Workflow size={14} className="text-gray-400" />
+                            {nodeCount > 0 ? nodeCount : "N/A"}
                         </div>
-                    )}
-
-                    {config?.output_schema && (
-                        <div className="mb-4">
-                            <div className="text-muted-foreground mb-2 flex items-center text-sm font-medium">
-                                <Box size={14} className="mr-2" />
-                                Output Schema
-                            </div>
-                            <div className="max-h-48 overflow-auto rounded-lg border">
-                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                <JSONViewer data={config.output_schema as any} maxDepth={2} className="border-none text-xs" />
-                            </div>
-                        </div>
-                    )}
-
-                    {workflow.provider && (
-                        <div className="border-t pt-4">
-                            <div className="text-muted-foreground mb-3 text-sm font-medium">Provider</div>
-                            <div className="space-y-2 text-sm">
-                                {workflow.provider.organization && (
-                                    <div>
-                                        <span className="text-muted-foreground">Organization:</span> {workflow.provider.organization}
-                                    </div>
-                                )}
-                                {workflow.provider.url && (
-                                    <div>
-                                        <span className="text-muted-foreground">URL:</span>{" "}
-                                        <a href={workflow.provider.url} target="_blank" rel="noopener noreferrer" className="text-[var(--color-brand-wMain)] hover:underline">
-                                            {workflow.provider.url}
-                                        </a>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
+                    </div>
                 </div>
 
-                <SheetFooter className="border-t px-6 py-4">
-                    <Button onClick={handleOpenWorkflow} className="w-full" variant="outline">
+                {/* Description */}
+                {description && (
+                    <div className="mb-4">
+                        <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                            Description
+                        </label>
+                        <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300">
+                            <MarkdownHTMLConverter>{description}</MarkdownHTMLConverter>
+                        </div>
+                    </div>
+                )}
+
+                {/* Open Workflow button */}
+                <div className="mb-4">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleOpenWorkflow}
+                        className="w-full"
+                    >
+                        <ExternalLink className="mr-2 h-4 w-4" />
                         Open Workflow
                     </Button>
-                </SheetFooter>
-            </SheetContent>
-        </Sheet>
+                </div>
+
+                {/* Input Schema */}
+                {config?.input_schema && (
+                    <div className="mb-4">
+                        <label className="mb-2 flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                            <FileJson size={14} className="mr-1" />
+                            Input Schema
+                        </label>
+                        <div className="max-h-48 overflow-auto rounded-lg border">
+                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                            <JSONViewer data={config.input_schema as any} maxDepth={2} className="border-none text-xs" />
+                        </div>
+                    </div>
+                )}
+
+                {/* Output Schema */}
+                {config?.output_schema && (
+                    <div className="mb-4">
+                        <label className="mb-2 flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                            <FileJson size={14} className="mr-1" />
+                            Output Schema
+                        </label>
+                        <div className="max-h-48 overflow-auto rounded-lg border">
+                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                            <JSONViewer data={config.output_schema as any} maxDepth={2} className="border-none text-xs" />
+                        </div>
+                    </div>
+                )}
+
+                {/* Provider */}
+                {workflow.provider && (
+                    <div className="border-t pt-4">
+                        <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                            Provider
+                        </label>
+                        <div className="space-y-2 text-sm">
+                            {workflow.provider.organization && (
+                                <div className="text-gray-700 dark:text-gray-300">
+                                    <span className="text-gray-500 dark:text-gray-400">Organization:</span>{" "}
+                                    {workflow.provider.organization}
+                                </div>
+                            )}
+                            {workflow.provider.url && (
+                                <div className="text-gray-700 dark:text-gray-300">
+                                    <span className="text-gray-500 dark:text-gray-400">URL:</span>{" "}
+                                    <a
+                                        href={workflow.provider.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[var(--color-brand-wMain)] hover:underline"
+                                    >
+                                        {workflow.provider.url}
+                                    </a>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
     );
 };

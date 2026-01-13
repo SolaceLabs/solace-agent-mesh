@@ -25,7 +25,7 @@ const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, onClick }) => 
 
     return (
         <div
-            className={`group flex cursor-pointer items-center justify-between rounded-lg border-2 border-purple-600 bg-white px-4 py-3 shadow-sm transition-all duration-200 ease-in-out hover:shadow-md dark:border-purple-500 dark:bg-gray-800 ${
+            className={`group relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-purple-600 bg-white px-4 py-3 shadow-sm transition-all duration-200 ease-in-out hover:shadow-md dark:border-purple-500 dark:bg-gray-800 ${
                 isSelected ? "ring-2 ring-purple-500 ring-offset-2 dark:ring-offset-gray-900" : ""
             }`}
             style={{
@@ -49,6 +49,10 @@ const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, onClick }) => 
                 >
                     <ExternalLink className="h-3.5 w-3.5" />
                 </button>
+            </div>
+            {/* Node ID badge - fades in fast (150ms), fades out slow (3s ease-in) */}
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded bg-gray-700 px-2 py-0.5 font-mono text-xs text-gray-100 opacity-0 transition-opacity duration-[1500ms] ease-in group-hover:opacity-100 group-hover:duration-150 group-hover:ease-out dark:bg-gray-600">
+                {node.id}
             </div>
         </div>
     );

@@ -2,6 +2,8 @@
  * Type definitions for Workflow Visualization components
  */
 
+import type { WorkflowNodeConfig } from "@/lib/utils/agentUtils";
+
 /**
  * Visual node types for workflow diagram
  */
@@ -36,6 +38,8 @@ export interface LayoutNode {
         switchNodeId?: string; // The parent switch node ID
         targetNodeId?: string; // The node this condition leads to
         isDefaultCase?: boolean; // Whether this is the default case
+        // Original workflow config for detail panel
+        originalConfig?: WorkflowNodeConfig;
     };
     // Layout properties
     x: number;
