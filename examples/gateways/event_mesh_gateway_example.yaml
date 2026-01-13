@@ -1,7 +1,7 @@
 # Plugin Metadata:
 # Name: sam-event-mesh-gateway
 # Version: 0.1.0
-# Description: Solace Agent Mesh Gateway plugin for integrating with Solace PubSub+ event brokers.
+# Description: Solace Agent Mesh Gateway plugin for integrating with Solace event brokers.
 # Author: SolaceLabs <solacelabs@solace.com>
 
 log:
