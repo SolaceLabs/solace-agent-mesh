@@ -26,6 +26,14 @@ class TTSRequest(BaseModel):
     preprocess_markdown: bool = True  # Strip markdown syntax for natural speech
 
 
+class PreprocessRequest(BaseModel):
+    """Request model for markdown preprocessing"""
+    text: str
+    read_code_blocks: bool = False
+    read_images: bool = True
+    read_citations: bool = True
+
+
 class StreamTTSRequest(BaseModel):
     """Request model for streaming text-to-speech"""
     input: str
@@ -302,6 +310,79 @@ async def get_speech_config(
     except Exception as e:
         log.exception("[SpeechAPI] Error getting config: %s", e)
         raise HTTPException(500, f"Failed to get config: {str(e)}")
+
+
+@router.post("/preprocess")
+async def preprocess_markdown(
+    request: PreprocessRequest,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Preprocess markdown text for natural speech.
+    
+    This endpoint converts markdown-formatted text to plain text suitable for
+    Text-to-Speech engines. It removes markdown syntax while preserving the
+    semantic meaning of the content.
+    
+    This is useful for browser-based TTS which doesn't go through the backend
+    TTS pipeline that normally handles preprocessing.
+    
+    Args:
+        request: Preprocess request with text and options
+        user: Current authenticated user
+    
+    Returns:
+        JSON with preprocessed text:
+        {
+            "text": "preprocessed plain text",
+            "original_length": 150,
+            "processed_length": 120
+        }
+    
+    Raises:
+        HTTPException: If preprocessing fails
+    """
+    log.debug(
+        "[SpeechAPI] Preprocess request from user=%s, text_len=%d",
+        user.get("user_id"),
+        len(request.text)
+    )
+    
+    try:
+        # Validate input
+        if not request.text:
+            return {
+                "text": "",
+                "original_length": 0,
+                "processed_length": 0
+            }
+        
+        # Import and use the backend markdown_to_speech utility
+        from solace_agent_mesh.common.utils.markdown_to_speech import (
+            markdown_to_speech,
+            MarkdownToSpeechOptions
+        )
+        
+        original_length = len(request.text)
+        
+        # Create options object with the request parameters
+        options = MarkdownToSpeechOptions(
+            read_code_blocks=request.read_code_blocks,
+            read_images=request.read_images,
+            read_citations=request.read_citations
+        )
+        
+        processed_text = markdown_to_speech(request.text, options=options)
+        
+        return {
+            "text": processed_text,
+            "original_length": original_length,
+            "processed_length": len(processed_text)
+        }
+        
+    except Exception as e:
+        log.exception("[SpeechAPI] Preprocess error: %s", e)
+        raise HTTPException(500, f"Preprocessing failed: {str(e)}")
 
 
 @router.post("/voice-sample")

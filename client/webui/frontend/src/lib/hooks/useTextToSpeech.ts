@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAudioSettings } from "./useAudioSettings";
 import { api } from "@/lib/api";
-import { markdownToSpeech } from "@/lib/utils/markdownToSpeech";
 
 interface UseTextToSpeechOptions {
     messageId?: string;
@@ -158,10 +157,22 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                 // Cancel any ongoing speech
                 synth.cancel();
 
-                // Preprocess markdown for natural speech.
-                // This is only needed for browser TTS as external TTS providers
-                // have their markdown preprocessing handled server-side.
-                const processedText = markdownToSpeech(text);
+                // Preprocess markdown for natural speech using the backend endpoint.
+                // This ensures the preprocessing logic is maintained in one place (Python backend)
+                // rather than duplicating it in the frontend.
+                let processedText = text;
+                try {
+                    const response = await api.webui.post("/api/v1/speech/preprocess", {
+                        text,
+                        read_code_blocks: false,
+                        read_images: true,
+                        read_citations: true,
+                    });
+                    processedText = response.text || text;
+                } catch (preprocessError) {
+                    // If preprocessing fails, fall back to using the original text
+                    console.warn("[TTS] Markdown preprocessing failed, using original text:", preprocessError);
+                }
 
                 const utterance = new SpeechSynthesisUtterance(processedText);
                 utterance.rate = settings.playbackRate || 1.0;
