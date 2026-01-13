@@ -3,6 +3,10 @@ title: OpenAPI Connectors
 sidebar_position: 1
 ---
 
+:::info Coming Soon
+OpenAPI connectors will be available in an upcoming release.
+:::
+
 OpenAPI connectors allow agents to interact with REST APIs that use OpenAPI specifications.
 
 ## Overview
