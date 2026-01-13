@@ -157,12 +157,10 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
         }
     };
 
-    // Get agent status badge based on last_seen timestamp
+    // Get agent status badge - consider online if we have agent info (agent responded to discovery)
     const renderStatusBadge = () => {
-        if (!agentInfo) return null;
-        // Consider agent online if last_seen within last 60 seconds
-        const lastSeen = agentInfo.last_seen ? new Date(agentInfo.last_seen) : null;
-        const isOnline = lastSeen ? Date.now() - lastSeen.getTime() < 60000 : false;
+        // If we have agent info, the agent is online (it responded to discovery)
+        const isOnline = !!agentInfo;
         return (
             <span
                 className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -310,7 +308,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                         </div>
 
                         {/* Status (for agent nodes) */}
-                        {node.type === "agent" && agentInfo && (
+                        {node.type === "agent" && (
                             <div className="mb-4 flex items-center gap-3">
                                 <div>
                                     <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
