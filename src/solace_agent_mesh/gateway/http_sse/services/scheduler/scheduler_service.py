@@ -2,13 +2,18 @@
 Core scheduler service for managing and executing scheduled tasks.
 Integrates with APScheduler for cron/interval scheduling and coordinates
 with leader election for distributed operation.
+
+Supports two modes:
+1. Default mode: Uses APScheduler with in-memory result tracking (ResultHandler)
+2. K8s mode: Uses StatelessResultCollector for horizontal scaling and optionally
+   K8SCronJobManager for native Kubernetes CronJob scheduling
 """
 
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Callable, Dict, Optional, Union
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -29,6 +34,8 @@ from ...repository.models import (
 from ...shared import now_epoch_ms
 from .leader_election import LeaderElection
 from .result_handler import ResultHandler
+from .stateless_result_collector import StatelessResultCollector
+from .notification_service import NotificationService
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +54,7 @@ class SchedulerService:
         publish_func: Callable,
         core_a2a_service: CoreA2AService,
         config: Optional[Dict[str, Any]] = None,
+        sse_manager: Optional[Any] = None,
     ):
         """
         Initialize the scheduler service.
@@ -58,6 +66,7 @@ class SchedulerService:
             publish_func: Function to publish messages to the broker
             core_a2a_service: Service for A2A protocol operations
             config: Optional configuration dictionary
+            sse_manager: Optional SSE manager for notifications
         """
         self.session_factory = session_factory
         self.namespace = namespace
@@ -69,6 +78,13 @@ class SchedulerService:
         config = config or {}
         self.default_timeout_seconds = config.get("default_timeout_seconds", 3600)
         self.max_concurrent_executions = config.get("max_concurrent_executions", 10)
+        self.stale_execution_timeout_seconds = config.get("stale_execution_timeout_seconds", 7200)
+        self.stale_cleanup_interval_seconds = config.get("stale_cleanup_interval_seconds", 3600)
+        
+        # K8s mode configuration
+        self.use_stateless_collector = config.get("use_stateless_collector", False)
+        self.k8s_enabled = config.get("k8s_enabled", False)
+        self.k8s_config = config.get("k8s", {})
 
         # Leader election configuration
         leader_config = config.get("leader_election", {})
@@ -92,16 +108,81 @@ class SchedulerService:
 
         # Track running executions
         self.running_executions: Dict[str, asyncio.Task] = {}
+        
+        # Lock for concurrent execution tracking
+        self._execution_lock = asyncio.Lock()
 
-        # Initialize result handler
-        self.result_handler = ResultHandler(
+        # Initialize result handler (stateless or in-memory based on config)
+        self.result_handler: Union[ResultHandler, StatelessResultCollector]
+        if self.use_stateless_collector:
+            log.info(
+                f"[SchedulerService:{instance_id}] Using StatelessResultCollector for K8s horizontal scaling"
+            )
+            self.result_handler = StatelessResultCollector(
+                session_factory=session_factory,
+                namespace=namespace,
+                instance_id=instance_id,
+            )
+        else:
+            self.result_handler = ResultHandler(
+                session_factory=session_factory,
+                namespace=namespace,
+                instance_id=instance_id,
+            )
+        
+        # Initialize K8s CronJob manager if enabled
+        self.k8s_manager = None
+        if self.k8s_enabled:
+            try:
+                from .k8s_manager import K8SCronJobManager
+                
+                k8s_namespace = self.k8s_config.get("namespace", "default")
+                executor_image = self.k8s_config.get("executor_image")
+                database_url_secret = self.k8s_config.get("database_url_secret", "sam-scheduler-db")
+                broker_config_secret = self.k8s_config.get("broker_config_secret", "sam-scheduler-broker")
+                
+                if not executor_image:
+                    log.warning(
+                        f"[SchedulerService:{instance_id}] K8s enabled but no executor_image configured. "
+                        "K8s CronJob management will be disabled."
+                    )
+                else:
+                    self.k8s_manager = K8SCronJobManager(
+                        namespace=k8s_namespace,
+                        executor_image=executor_image,
+                        database_url_secret=database_url_secret,
+                        broker_config_secret=broker_config_secret,
+                        a2a_namespace=namespace,
+                    )
+                    log.info(
+                        f"[SchedulerService:{instance_id}] K8s CronJob manager initialized "
+                        f"(namespace: {k8s_namespace}, image: {executor_image})"
+                    )
+            except ImportError as e:
+                log.warning(
+                    f"[SchedulerService:{instance_id}] K8s enabled but kubernetes package not installed: {e}"
+                )
+            except Exception as e:
+                log.error(
+                    f"[SchedulerService:{instance_id}] Failed to initialize K8s manager: {e}",
+                    exc_info=True,
+                )
+        
+        # Initialize notification service
+        self.notification_service = NotificationService(
             session_factory=session_factory,
+            sse_manager=sse_manager,
+            publish_func=publish_func,
             namespace=namespace,
             instance_id=instance_id,
         )
+        
+        # Stale cleanup task
+        self._stale_cleanup_task: Optional[asyncio.Task] = None
 
         log.info(
-            f"[SchedulerService:{instance_id}] Initialized for namespace '{namespace}'"
+            f"[SchedulerService:{instance_id}] Initialized for namespace '{namespace}' "
+            f"(stateless_collector={self.use_stateless_collector}, k8s_enabled={self.k8s_enabled})"
         )
 
     async def start(self):
@@ -117,6 +198,10 @@ class SchedulerService:
 
         # Monitor leadership and load tasks when we become leader
         asyncio.create_task(self._monitor_leadership())
+        
+        # Start stale execution cleanup task
+        self._stale_cleanup_task = asyncio.create_task(self._stale_cleanup_loop())
+        log.info(f"[SchedulerService:{self.instance_id}] Stale cleanup task started")
 
     async def stop(self):
         """Stop the scheduler service."""
@@ -127,6 +212,15 @@ class SchedulerService:
 
         # Shutdown APScheduler
         self.scheduler.shutdown(wait=False)
+        
+        # Cancel stale cleanup task
+        if self._stale_cleanup_task and not self._stale_cleanup_task.done():
+            self._stale_cleanup_task.cancel()
+            try:
+                await self._stale_cleanup_task
+            except asyncio.CancelledError:
+                pass
+            log.info(f"[SchedulerService:{self.instance_id}] Stale cleanup task stopped")
 
         # Cancel running executions
         for execution_id, task in list(self.running_executions.items()):
@@ -134,8 +228,78 @@ class SchedulerService:
                 f"[SchedulerService:{self.instance_id}] Cancelling execution {execution_id}"
             )
             task.cancel()
+        
+        # Cleanup notification service
+        await self.notification_service.cleanup()
 
         log.info(f"[SchedulerService:{self.instance_id}] Stopped")
+    
+    async def _stale_cleanup_loop(self):
+        """Periodically clean up stale executions."""
+        while True:
+            try:
+                await asyncio.sleep(self.stale_cleanup_interval_seconds)
+                
+                # Only run cleanup if we're the leader
+                if await self.leader_election.is_leader():
+                    log.info(f"[SchedulerService:{self.instance_id}] Running stale execution cleanup")
+                    await self._cleanup_stale_executions()
+                    
+            except asyncio.CancelledError:
+                log.info(f"[SchedulerService:{self.instance_id}] Stale cleanup loop cancelled")
+                break
+            except Exception as e:
+                log.error(
+                    f"[SchedulerService:{self.instance_id}] Error in stale cleanup loop: {e}",
+                    exc_info=True,
+                )
+                await asyncio.sleep(60)  # Back off on error
+    
+    async def _cleanup_stale_executions(self):
+        """Clean up executions that have been running too long."""
+        try:
+            # Use the result handler's cleanup method if it's a StatelessResultCollector
+            if self.use_stateless_collector and hasattr(self.result_handler, 'cleanup_stale_executions'):
+                await self.result_handler.cleanup_stale_executions(self.stale_execution_timeout_seconds)
+                return
+            
+            cutoff_time = now_epoch_ms() - (self.stale_execution_timeout_seconds * 1000)
+            
+            with self.session_factory() as session:
+                # Find running executions older than cutoff
+                stmt = select(ScheduledTaskExecutionModel).where(
+                    ScheduledTaskExecutionModel.status == ExecutionStatus.RUNNING,
+                    ScheduledTaskExecutionModel.started_at < cutoff_time,
+                )
+                stale_executions = session.execute(stmt).scalars().all()
+                
+                for execution in stale_executions:
+                    log.warning(
+                        f"[SchedulerService:{self.instance_id}] Found stale execution {execution.id}, marking as timeout"
+                    )
+                    execution.status = ExecutionStatus.TIMEOUT
+                    execution.completed_at = now_epoch_ms()
+                    execution.error_message = f"Execution exceeded stale timeout of {self.stale_execution_timeout_seconds} seconds"
+                    
+                    # Remove from pending in result handler (only for non-stateless mode)
+                    if not self.use_stateless_collector and execution.a2a_task_id:
+                        if hasattr(self.result_handler, 'pending_executions_lock'):
+                            async with self.result_handler.pending_executions_lock:
+                                if execution.a2a_task_id in self.result_handler.pending_executions:
+                                    del self.result_handler.pending_executions[execution.a2a_task_id]
+                
+                session.commit()
+                
+                if stale_executions:
+                    log.info(
+                        f"[SchedulerService:{self.instance_id}] Cleaned up {len(stale_executions)} stale executions"
+                    )
+                    
+        except Exception as e:
+            log.error(
+                f"[SchedulerService:{self.instance_id}] Error cleaning up stale executions: {e}",
+                exc_info=True,
+            )
 
     async def _monitor_leadership(self):
         """Monitor leadership status and react to changes."""
@@ -246,7 +410,7 @@ class SchedulerService:
 
     async def _schedule_task(self, task: ScheduledTaskModel):
         """
-        Schedule a single task in APScheduler.
+        Schedule a single task in APScheduler or K8s CronJob.
 
         Args:
             task: The scheduled task model to schedule
@@ -258,6 +422,28 @@ class SchedulerService:
         )
 
         try:
+            # If K8s manager is enabled, sync to K8s CronJob
+            if self.k8s_manager:
+                log.info(
+                    f"[SchedulerService:{self.instance_id}] Syncing task '{task.name}' to K8s CronJob"
+                )
+                success = await self.k8s_manager.sync_task(task)
+                if success:
+                    self.active_tasks[task.id] = {
+                        "job": None,  # K8s manages the job
+                        "task_name": task.name,
+                        "schedule_type": task.schedule_type,
+                        "k8s_managed": True,
+                    }
+                    log.info(
+                        f"[SchedulerService:{self.instance_id}] Task '{task.name}' synced to K8s"
+                    )
+                    return
+                else:
+                    log.warning(
+                        f"[SchedulerService:{self.instance_id}] Failed to sync task '{task.name}' to K8s, falling back to APScheduler"
+                    )
+            
             # Create appropriate trigger based on schedule type
             trigger = self._create_trigger(task)
 
@@ -275,6 +461,7 @@ class SchedulerService:
                 "job": job,
                 "task_name": task.name,
                 "schedule_type": task.schedule_type,
+                "k8s_managed": False,
             }
 
             # Update next_run_at in database
@@ -299,7 +486,7 @@ class SchedulerService:
 
     async def _unschedule_task(self, task_id: str):
         """
-        Remove a task from APScheduler.
+        Remove a task from APScheduler or K8s CronJob.
 
         Args:
             task_id: ID of the task to unschedule
@@ -307,6 +494,25 @@ class SchedulerService:
         job_id = f"scheduled_task_{task_id}"
 
         if task_id in self.active_tasks:
+            task_info = self.active_tasks[task_id]
+            
+            # If K8s managed, delete from K8s
+            if task_info.get("k8s_managed") and self.k8s_manager:
+                try:
+                    schedule_type = task_info.get("schedule_type")
+                    await self.k8s_manager.delete_cronjob(task_id, schedule_type)
+                    del self.active_tasks[task_id]
+                    log.info(
+                        f"[SchedulerService:{self.instance_id}] Deleted K8s CronJob for task {task_id}"
+                    )
+                    return
+                except Exception as e:
+                    log.error(
+                        f"[SchedulerService:{self.instance_id}] Failed to delete K8s CronJob for task {task_id}: {e}",
+                        exc_info=True,
+                    )
+            
+            # Remove from APScheduler
             try:
                 self.scheduler.remove_job(job_id)
                 del self.active_tasks[task_id]
@@ -380,22 +586,49 @@ class SchedulerService:
             # Assume seconds if no unit
             return int(interval_str)
 
-    async def _execute_scheduled_task(self, task_id: str):
+    async def _execute_scheduled_task(self, task_id: str, retry_count: int = 0):
         """
         Execute a scheduled task by submitting it to the agent mesh.
 
         Args:
             task_id: ID of the scheduled task to execute
+            retry_count: Current retry attempt (0 = first attempt)
         """
         log.info(
-            f"[SchedulerService:{self.instance_id}] Executing scheduled task: {task_id}"
+            f"[SchedulerService:{self.instance_id}] Executing scheduled task: {task_id} (attempt {retry_count + 1})"
         )
 
         execution_id = None
         timeout_seconds = self.default_timeout_seconds
+        max_retries = 0
+        retry_delay_seconds = 60
+        task_name = None
 
         try:
-            # Load task from database and get timeout
+            # Check max concurrent executions limit
+            async with self._execution_lock:
+                current_running = len(self.running_executions)
+                if current_running >= self.max_concurrent_executions:
+                    log.warning(
+                        f"[SchedulerService:{self.instance_id}] Max concurrent executions ({self.max_concurrent_executions}) reached, skipping task {task_id}"
+                    )
+                    # Record skipped execution
+                    with self.session_factory() as session:
+                        task = session.get(ScheduledTaskModel, task_id)
+                        if task:
+                            execution = ScheduledTaskExecutionModel(
+                                id=str(uuid.uuid4()),
+                                scheduled_task_id=task.id,
+                                status=ExecutionStatus.SKIPPED,
+                                scheduled_for=now_epoch_ms(),
+                                completed_at=now_epoch_ms(),
+                                error_message=f"Skipped: max concurrent executions ({self.max_concurrent_executions}) reached",
+                            )
+                            session.add(execution)
+                            session.commit()
+                    return
+
+            # Load task from database and get configuration
             with self.session_factory() as session:
                 task = session.get(ScheduledTaskModel, task_id)
                 if not task or not task.enabled or task.deleted_at:
@@ -404,8 +637,11 @@ class SchedulerService:
                     )
                     return
 
-                # Get timeout before session closes
+                # Get configuration before session closes
                 timeout_seconds = task.timeout_seconds
+                max_retries = task.max_retries or 0
+                retry_delay_seconds = task.retry_delay_seconds or 60
+                task_name = task.name
 
                 # Create execution record
                 execution_id = str(uuid.uuid4())
@@ -416,6 +652,7 @@ class SchedulerService:
                     scheduled_task_id=task.id,
                     status=ExecutionStatus.PENDING,
                     scheduled_for=current_time,
+                    retry_count=retry_count,
                 )
                 session.add(execution)
 
@@ -427,22 +664,68 @@ class SchedulerService:
             execution_task = asyncio.create_task(
                 self._submit_task_to_agent_mesh(task_id, execution_id)
             )
-            self.running_executions[execution_id] = execution_task
+            
+            async with self._execution_lock:
+                self.running_executions[execution_id] = execution_task
 
             # Wait for completion (with timeout)
+            execution_failed = False
+            error_message = None
             try:
                 await asyncio.wait_for(
                     execution_task,
                     timeout=timeout_seconds,
                 )
+                
+                # Check if execution completed successfully
+                with self.session_factory() as session:
+                    execution = session.get(ScheduledTaskExecutionModel, execution_id)
+                    task = session.get(ScheduledTaskModel, task_id)
+                    if execution and execution.status == ExecutionStatus.FAILED:
+                        execution_failed = True
+                        error_message = execution.error_message
+                    elif execution and execution.status == ExecutionStatus.COMPLETED:
+                        # Send success notification
+                        if task:
+                            await self.notification_service.notify_execution_complete(
+                                execution=execution,
+                                task=task,
+                            )
+                        
             except asyncio.TimeoutError:
                 log.error(
                     f"[SchedulerService:{self.instance_id}] Execution {execution_id} timed out"
                 )
                 await self._handle_execution_timeout(execution_id)
+                execution_failed = True
+                error_message = "Execution timed out"
             finally:
-                if execution_id in self.running_executions:
-                    del self.running_executions[execution_id]
+                async with self._execution_lock:
+                    if execution_id in self.running_executions:
+                        del self.running_executions[execution_id]
+
+            # Handle retry logic if execution failed
+            if execution_failed and retry_count < max_retries:
+                log.info(
+                    f"[SchedulerService:{self.instance_id}] Scheduling retry {retry_count + 1}/{max_retries} for task {task_id} in {retry_delay_seconds}s"
+                )
+                # Schedule retry after delay
+                await asyncio.sleep(retry_delay_seconds)
+                await self._execute_scheduled_task(task_id, retry_count + 1)
+            elif execution_failed:
+                # All retries exhausted, send failure notification
+                log.error(
+                    f"[SchedulerService:{self.instance_id}] Task {task_id} failed after {retry_count + 1} attempts"
+                )
+                # Send failure notification
+                with self.session_factory() as session:
+                    execution = session.get(ScheduledTaskExecutionModel, execution_id)
+                    task = session.get(ScheduledTaskModel, task_id)
+                    if execution and task:
+                        await self.notification_service.notify_execution_complete(
+                            execution=execution,
+                            task=task,
+                        )
 
         except Exception as e:
             log.error(
@@ -451,6 +734,24 @@ class SchedulerService:
             )
             if execution_id:
                 await self._handle_execution_failure(execution_id, str(e))
+                
+                # Attempt retry on exception
+                if retry_count < max_retries:
+                    log.info(
+                        f"[SchedulerService:{self.instance_id}] Scheduling retry {retry_count + 1}/{max_retries} for task {task_id} after exception"
+                    )
+                    await asyncio.sleep(retry_delay_seconds)
+                    await self._execute_scheduled_task(task_id, retry_count + 1)
+                else:
+                    # Send failure notification
+                    with self.session_factory() as session:
+                        execution = session.get(ScheduledTaskExecutionModel, execution_id)
+                        task = session.get(ScheduledTaskModel, task_id)
+                        if execution and task:
+                            await self.notification_service.notify_execution_complete(
+                                execution=execution,
+                                task=task,
+                            )
 
     async def _submit_task_to_agent_mesh(self, task_id: str, execution_id: str):
         """
@@ -532,7 +833,9 @@ class SchedulerService:
                     session.commit()
 
                 # Register execution with result handler (pass session_id for artifact URIs)
-                await self.result_handler.register_execution(execution_id, a2a_task_id, context_id)
+                # Note: StatelessResultCollector doesn't need registration (uses DB lookup)
+                if hasattr(self.result_handler, 'register_execution'):
+                    await self.result_handler.register_execution(execution_id, a2a_task_id, context_id)
 
                 # Publish to broker
                 self.publish_func(topic, payload, user_props)
@@ -601,13 +904,27 @@ class SchedulerService:
         Returns:
             Dictionary with status information
         """
+        # Get pending count (only available for non-stateless mode)
+        pending_count = 0
+        if hasattr(self.result_handler, 'get_pending_count'):
+            pending_count = self.result_handler.get_pending_count()
+        
+        # Count K8s managed vs APScheduler managed tasks
+        k8s_managed_count = sum(1 for t in self.active_tasks.values() if t.get("k8s_managed", False))
+        apscheduler_managed_count = len(self.active_tasks) - k8s_managed_count
+        
         return {
             "instance_id": self.instance_id,
             "namespace": self.namespace,
             "is_leader": getattr(self.leader_election, '_is_leader', False),
             "active_tasks_count": len(self.active_tasks),
+            "k8s_managed_tasks_count": k8s_managed_count,
+            "apscheduler_managed_tasks_count": apscheduler_managed_count,
             "running_executions_count": len(self.running_executions),
-            "pending_results_count": self.result_handler.get_pending_count() if self.result_handler else 0,
+            "pending_results_count": pending_count,
             "scheduler_running": self.scheduler.running if self.scheduler else False,
             "leader_info": self.leader_election.get_leader_info() if self.leader_election else None,
+            "use_stateless_collector": self.use_stateless_collector,
+            "k8s_enabled": self.k8s_enabled,
+            "k8s_manager_active": self.k8s_manager is not None,
         }

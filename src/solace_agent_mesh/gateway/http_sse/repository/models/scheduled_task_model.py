@@ -35,6 +35,7 @@ class ExecutionStatus(str, Enum):
     FAILED = "failed"
     TIMEOUT = "timeout"
     CANCELLED = "cancelled"
+    SKIPPED = "skipped"  # Skipped due to max concurrent executions limit
 
 
 class ScheduledTaskModel(Base):

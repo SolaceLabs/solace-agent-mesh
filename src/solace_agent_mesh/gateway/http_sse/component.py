@@ -1543,6 +1543,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     publish_func=self.publish_a2a,
                     core_a2a_service=self.core_a2a_service,
                     config=scheduler_config,
+                    sse_manager=self.sse_manager,  # Pass SSE manager for notifications
                 )
                 log.info(
                     "%s Scheduler service initialized with instance_id: %s",
