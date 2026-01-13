@@ -2546,9 +2546,7 @@ def _is_openapi_tool(tool: BaseTool) -> bool:
         True if the tool is OpenAPI-based, False otherwise
     """
     # Check the origin attribute set by SAM at initialization
-    tool_origin = getattr(tool, "origin", None)
-    is_openapi = tool_origin == "openapi"
-    return is_openapi
+    return getattr(tool, "origin", None) == "openapi"
 
 
 def _extract_openapi_base_url(tool: BaseTool) -> Optional[str]:
