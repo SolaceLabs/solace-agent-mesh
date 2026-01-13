@@ -3,329 +3,226 @@
  */
 
 import { useState, useCallback } from "react";
-import { authenticatedFetch } from "@/lib/utils/api";
-import { useConfigContext } from "./useConfigContext";
+import { api } from "@/lib/api/client";
 import type { ScheduledTask, ScheduledTaskListResponse, CreateScheduledTaskRequest, UpdateScheduledTaskRequest, ExecutionListResponse, SchedulerStatus } from "@/lib/types/scheduled-tasks";
 import { transformApiTask, transformApiExecution, transformTaskToApi, transformUpdateToApi } from "@/lib/types/scheduled-tasks";
 
 export function useScheduledTasks() {
-    const { configServerUrl } = useConfigContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    const apiPrefix = `${configServerUrl}/api/v1`;
 
     /**
      * Fetch all scheduled tasks
      */
-    const fetchTasks = useCallback(
-        async (pageNumber: number = 1, pageSize: number = 20, enabledOnly: boolean = false, includeNamespaceTasks: boolean = true): Promise<ScheduledTaskListResponse | null> => {
-            setIsLoading(true);
-            setError(null);
+    const fetchTasks = useCallback(async (pageNumber: number = 1, pageSize: number = 20, enabledOnly: boolean = false, includeNamespaceTasks: boolean = true): Promise<ScheduledTaskListResponse | null> => {
+        setIsLoading(true);
+        setError(null);
 
-            try {
-                const params = new URLSearchParams({
-                    pageNumber: pageNumber.toString(),
-                    pageSize: pageSize.toString(),
-                    enabledOnly: enabledOnly.toString(),
-                    includeNamespaceTasks: includeNamespaceTasks.toString(),
-                });
+        try {
+            const params = new URLSearchParams({
+                pageNumber: pageNumber.toString(),
+                pageSize: pageSize.toString(),
+                enabledOnly: enabledOnly.toString(),
+                includeNamespaceTasks: includeNamespaceTasks.toString(),
+            });
 
-                const response = await authenticatedFetch(`${apiPrefix}/scheduled-tasks/?${params.toString()}`, { credentials: "include" });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch tasks: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                // Transform API response from snake_case to camelCase
-                return {
-                    ...data,
-                    tasks: data.tasks.map(transformApiTask),
-                };
-            } catch (err) {
-                const errorMsg = err instanceof Error ? err.message : "Failed to fetch tasks";
-                setError(errorMsg);
-                console.error("Error fetching scheduled tasks:", err);
-                return null;
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [apiPrefix]
-    );
+            const data = await api.webui.get(`/api/v1/scheduled-tasks/?${params.toString()}`);
+            // Transform API response from snake_case to camelCase
+            return {
+                ...data,
+                tasks: data.tasks.map(transformApiTask),
+            };
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : "Failed to fetch tasks";
+            setError(errorMsg);
+            console.error("Error fetching scheduled tasks:", err);
+            return null;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     /**
      * Fetch a single scheduled task
      */
-    const fetchTask = useCallback(
-        async (taskId: string): Promise<ScheduledTask | null> => {
-            setIsLoading(true);
-            setError(null);
+    const fetchTask = useCallback(async (taskId: string): Promise<ScheduledTask | null> => {
+        setIsLoading(true);
+        setError(null);
 
-            try {
-                const response = await authenticatedFetch(`${apiPrefix}/scheduled-tasks/${taskId}`, { credentials: "include" });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch task: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                // Transform API response from snake_case to camelCase
-                return transformApiTask(data);
-            } catch (err) {
-                const errorMsg = err instanceof Error ? err.message : "Failed to fetch task";
-                setError(errorMsg);
-                console.error("Error fetching scheduled task:", err);
-                return null;
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [apiPrefix]
-    );
+        try {
+            const data = await api.webui.get(`/api/v1/scheduled-tasks/${taskId}`);
+            // Transform API response from snake_case to camelCase
+            return transformApiTask(data);
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : "Failed to fetch task";
+            setError(errorMsg);
+            console.error("Error fetching scheduled task:", err);
+            return null;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     /**
      * Create a new scheduled task
      */
-    const createTask = useCallback(
-        async (taskData: CreateScheduledTaskRequest): Promise<ScheduledTask | null> => {
-            setIsLoading(true);
-            setError(null);
+    const createTask = useCallback(async (taskData: CreateScheduledTaskRequest): Promise<ScheduledTask | null> => {
+        setIsLoading(true);
+        setError(null);
 
-            try {
-                // Transform request from camelCase to snake_case for API
-                const apiData = transformTaskToApi(taskData);
+        try {
+            // Transform request from camelCase to snake_case for API
+            const apiData = transformTaskToApi(taskData);
 
-                const response = await authenticatedFetch(`${apiPrefix}/scheduled-tasks/`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(apiData),
-                    credentials: "include",
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || `Failed to create task: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                // Transform API response from snake_case to camelCase
-                return transformApiTask(data);
-            } catch (err) {
-                const errorMsg = err instanceof Error ? err.message : "Failed to create task";
-                setError(errorMsg);
-                console.error("Error creating scheduled task:", err);
-                return null;
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [apiPrefix]
-    );
+            const data = await api.webui.post(`/api/v1/scheduled-tasks/`, apiData);
+            // Transform API response from snake_case to camelCase
+            return transformApiTask(data);
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : "Failed to create task";
+            setError(errorMsg);
+            console.error("Error creating scheduled task:", err);
+            return null;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     /**
      * Update a scheduled task
      */
-    const updateTask = useCallback(
-        async (taskId: string, updates: UpdateScheduledTaskRequest): Promise<ScheduledTask | null> => {
-            setIsLoading(true);
-            setError(null);
+    const updateTask = useCallback(async (taskId: string, updates: UpdateScheduledTaskRequest): Promise<ScheduledTask | null> => {
+        setIsLoading(true);
+        setError(null);
 
-            try {
-                // Transform request from camelCase to snake_case for API
-                const apiData = transformUpdateToApi(updates);
+        try {
+            // Transform request from camelCase to snake_case for API
+            const apiData = transformUpdateToApi(updates);
 
-                const response = await authenticatedFetch(`${apiPrefix}/scheduled-tasks/${taskId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(apiData),
-                    credentials: "include",
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || `Failed to update task: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                // Transform API response from snake_case to camelCase
-                return transformApiTask(data);
-            } catch (err) {
-                const errorMsg = err instanceof Error ? err.message : "Failed to update task";
-                setError(errorMsg);
-                console.error("Error updating scheduled task:", err);
-                return null;
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [apiPrefix]
-    );
+            const data = await api.webui.patch(`/api/v1/scheduled-tasks/${taskId}`, apiData);
+            // Transform API response from snake_case to camelCase
+            return transformApiTask(data);
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : "Failed to update task";
+            setError(errorMsg);
+            console.error("Error updating scheduled task:", err);
+            return null;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     /**
      * Delete a scheduled task
      */
-    const deleteTask = useCallback(
-        async (taskId: string): Promise<boolean> => {
-            setIsLoading(true);
-            setError(null);
+    const deleteTask = useCallback(async (taskId: string): Promise<boolean> => {
+        setIsLoading(true);
+        setError(null);
 
-            try {
-                const response = await authenticatedFetch(`${apiPrefix}/scheduled-tasks/${taskId}`, {
-                    method: "DELETE",
-                    credentials: "include",
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to delete task: ${response.statusText}`);
-                }
-
-                return true;
-            } catch (err) {
-                const errorMsg = err instanceof Error ? err.message : "Failed to delete task";
-                setError(errorMsg);
-                console.error("Error deleting scheduled task:", err);
-                return false;
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [apiPrefix]
-    );
+        try {
+            await api.webui.delete(`/api/v1/scheduled-tasks/${taskId}`);
+            return true;
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : "Failed to delete task";
+            setError(errorMsg);
+            console.error("Error deleting scheduled task:", err);
+            return false;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     /**
      * Enable a scheduled task
      */
-    const enableTask = useCallback(
-        async (taskId: string): Promise<boolean> => {
-            setIsLoading(true);
-            setError(null);
+    const enableTask = useCallback(async (taskId: string): Promise<boolean> => {
+        setIsLoading(true);
+        setError(null);
 
-            try {
-                const response = await authenticatedFetch(`${apiPrefix}/scheduled-tasks/${taskId}/enable`, {
-                    method: "POST",
-                    credentials: "include",
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to enable task: ${response.statusText}`);
-                }
-
-                return true;
-            } catch (err) {
-                const errorMsg = err instanceof Error ? err.message : "Failed to enable task";
-                setError(errorMsg);
-                console.error("Error enabling scheduled task:", err);
-                return false;
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [apiPrefix]
-    );
+        try {
+            await api.webui.post(`/api/v1/scheduled-tasks/${taskId}/enable`);
+            return true;
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : "Failed to enable task";
+            setError(errorMsg);
+            console.error("Error enabling scheduled task:", err);
+            return false;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     /**
      * Disable a scheduled task
      */
-    const disableTask = useCallback(
-        async (taskId: string): Promise<boolean> => {
-            setIsLoading(true);
-            setError(null);
+    const disableTask = useCallback(async (taskId: string): Promise<boolean> => {
+        setIsLoading(true);
+        setError(null);
 
-            try {
-                const response = await authenticatedFetch(`${apiPrefix}/scheduled-tasks/${taskId}/disable`, {
-                    method: "POST",
-                    credentials: "include",
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to disable task: ${response.statusText}`);
-                }
-
-                return true;
-            } catch (err) {
-                const errorMsg = err instanceof Error ? err.message : "Failed to disable task";
-                setError(errorMsg);
-                console.error("Error disabling scheduled task:", err);
-                return false;
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [apiPrefix]
-    );
+        try {
+            await api.webui.post(`/api/v1/scheduled-tasks/${taskId}/disable`);
+            return true;
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : "Failed to disable task";
+            setError(errorMsg);
+            console.error("Error disabling scheduled task:", err);
+            return false;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     /**
      * Fetch execution history for a task
      */
-    const fetchExecutions = useCallback(
-        async (taskId: string, pageNumber: number = 1, pageSize: number = 20): Promise<ExecutionListResponse | null> => {
-            setIsLoading(true);
-            setError(null);
+    const fetchExecutions = useCallback(async (taskId: string, pageNumber: number = 1, pageSize: number = 20): Promise<ExecutionListResponse | null> => {
+        setIsLoading(true);
+        setError(null);
 
-            try {
-                const params = new URLSearchParams({
-                    pageNumber: pageNumber.toString(),
-                    pageSize: pageSize.toString(),
-                });
+        try {
+            const params = new URLSearchParams({
+                pageNumber: pageNumber.toString(),
+                pageSize: pageSize.toString(),
+            });
 
-                const response = await authenticatedFetch(`${apiPrefix}/scheduled-tasks/${taskId}/executions?${params.toString()}`, { credentials: "include" });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch executions: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                // Transform API response from snake_case to camelCase
-                return {
-                    ...data,
-                    executions: data.executions.map(transformApiExecution),
-                };
-            } catch (err) {
-                const errorMsg = err instanceof Error ? err.message : "Failed to fetch executions";
-                setError(errorMsg);
-                console.error("Error fetching executions:", err);
-                return null;
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [apiPrefix]
-    );
+            const data = await api.webui.get(`/api/v1/scheduled-tasks/${taskId}/executions?${params.toString()}`);
+            // Transform API response from snake_case to camelCase
+            return {
+                ...data,
+                executions: data.executions.map(transformApiExecution),
+            };
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : "Failed to fetch executions";
+            setError(errorMsg);
+            console.error("Error fetching executions:", err);
+            return null;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     /**
      * Fetch recent executions across all tasks
      */
-    const fetchRecentExecutions = useCallback(
-        async (limit: number = 50): Promise<ExecutionListResponse | null> => {
-            setIsLoading(true);
-            setError(null);
+    const fetchRecentExecutions = useCallback(async (limit: number = 50): Promise<ExecutionListResponse | null> => {
+        setIsLoading(true);
+        setError(null);
 
-            try {
-                const response = await authenticatedFetch(`${apiPrefix}/scheduled-tasks/executions/recent?limit=${limit}`, { credentials: "include" });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch recent executions: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                // Transform API response from snake_case to camelCase
-                return {
-                    ...data,
-                    executions: data.executions.map(transformApiExecution),
-                };
-            } catch (err) {
-                const errorMsg = err instanceof Error ? err.message : "Failed to fetch recent executions";
-                setError(errorMsg);
-                console.error("Error fetching recent executions:", err);
-                return null;
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [apiPrefix]
-    );
+        try {
+            const data = await api.webui.get(`/api/v1/scheduled-tasks/executions/recent?limit=${limit}`);
+            // Transform API response from snake_case to camelCase
+            return {
+                ...data,
+                executions: data.executions.map(transformApiExecution),
+            };
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : "Failed to fetch recent executions";
+            setError(errorMsg);
+            console.error("Error fetching recent executions:", err);
+            return null;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     /**
      * Fetch scheduler status
@@ -335,13 +232,7 @@ export function useScheduledTasks() {
         setError(null);
 
         try {
-            const response = await authenticatedFetch(`${apiPrefix}/scheduled-tasks/scheduler/status`, { credentials: "include" });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch scheduler status: ${response.statusText}`);
-            }
-
-            const data = await response.json();
+            const data = await api.webui.get(`/api/v1/scheduled-tasks/scheduler/status`);
             // Transform API response from snake_case to camelCase
             return {
                 instanceId: data.instance_id,
@@ -371,7 +262,7 @@ export function useScheduledTasks() {
         } finally {
             setIsLoading(false);
         }
-    }, [apiPrefix]);
+    }, []);
 
     return {
         isLoading,

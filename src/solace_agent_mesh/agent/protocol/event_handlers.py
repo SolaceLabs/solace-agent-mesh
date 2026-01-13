@@ -8,6 +8,8 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Dict
 
+from litellm.exceptions import BadRequestError
+
 from a2a.types import (
     A2ARequest,
     AgentCapabilities,
@@ -31,6 +33,7 @@ from ...agent.adk.callbacks import _publish_data_part_status_update
 from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common import a2a
+from ...common.error_handlers import get_error_message
 from ...common.utils.embeds.constants import (
     EMBED_DELIMITER_OPEN,
     EMBED_DELIMITER_CLOSE,
@@ -758,7 +761,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 "system_purpose": system_purpose,
                 "response_format": response_format,
                 "host_agent_name": agent_name,
-                "task_metadata": task_metadata,  # Store full task metadata for access by finalization
+                "original_message_metadata": task_metadata,  # Store original message metadata for tools
             }
 
             # Store verified user identity claims in a2a_context (not the raw token)
@@ -969,6 +972,51 @@ async def handle_a2a_request(component, message: SolaceMessage):
         except Exception as nack_e:
             log.error(
                 "%s Failed to NACK message after pre-start error: %s",
+                component.log_identifier,
+                nack_e,
+            )
+
+        component.handle_error(e, Event(EventType.MESSAGE, message))
+        return None
+
+    except BadRequestError as e:
+        log.error(
+            "%s Bad Request error handling A2A request: %s", component.log_identifier, e
+        )
+        
+        # Use centralized error handler
+        error_message, is_context_limit = get_error_message(e)
+        
+        if is_context_limit:
+            log.error(
+                "%s Context limit exceeded for task %s",
+                component.log_identifier,
+                logical_task_id,
+            )
+        
+        error_response = a2a.create_invalid_request_error_response(
+            message=error_message,
+            request_id=jsonrpc_request_id,
+            data={"taskId": logical_task_id},
+        )
+        target_topic = reply_topic_from_peer or (
+            get_client_response_topic(namespace, client_id) if client_id else None
+        )
+        if target_topic:
+            component.publish_a2a_message(
+                error_response.model_dump(exclude_none=True),
+                target_topic,
+            )
+
+        try:
+            message.call_negative_acknowledgements()
+            log.warning(
+                "%s NACKed original A2A request due to bad request error.",
+                component.log_identifier,
+            )
+        except Exception as nack_e:
+            log.error(
+                "%s Failed to NACK message after bad request error: %s",
                 component.log_identifier,
                 nack_e,
             )
@@ -1352,6 +1400,8 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                         peer_agent_name=peer_agent_name,
                                         message=message,
                                     )
+                                    # Reset the timeout since we received a status update
+                                    await component.reset_peer_timeout(sub_task_id)
                                     return
 
                                 # Filter out artifact creation progress from peer agents.
@@ -1359,15 +1409,41 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                 # agent boundaries. Artifacts are properly bubbled up in the
                                 # final Task response metadata.
                                 filtered_data_parts = []
+                                has_deep_research_report = False
                                 for data_part in data_parts:
-                                    if isinstance(data_part.data, dict) and data_part.data.get("type") == "artifact_creation_progress":
-                                        log.debug(
-                                            "%s Filtered out artifact_creation_progress DataPart from peer sub-task %s. Not forwarding to user.",
-                                            component.log_identifier,
-                                            sub_task_id,
-                                        )
-                                        continue
+                                    if isinstance(data_part.data, dict):
+                                        data_type = data_part.data.get("type")
+                                        if data_type == "artifact_creation_progress":
+                                            log.debug(
+                                                "%s Filtered out artifact_creation_progress DataPart from peer sub-task %s. Not forwarding to user.",
+                                                component.log_identifier,
+                                                sub_task_id,
+                                            )
+                                            continue
+                                        if data_type == "deep_research_report":
+                                            # Track that we've seen a deep research report
+                                            # This will be used to suppress text content in the final response
+                                            has_deep_research_report = True
+                                            log.info(
+                                                "%s Detected deep_research_report DataPart from peer sub-task %s. Will suppress text in final response.",
+                                                component.log_identifier,
+                                                sub_task_id,
+                                            )
                                     filtered_data_parts.append(data_part)
+                                
+                                # Store the deep research report flag in correlation data for later use
+                                if has_deep_research_report:
+                                    main_logical_task_id_for_flag = original_task_context.get("logical_task_id")
+                                    with component.active_tasks_lock:
+                                        task_context_for_flag = component.active_tasks.get(main_logical_task_id_for_flag)
+                                        if task_context_for_flag:
+                                            # Store flag in task context to suppress text in final response
+                                            task_context_for_flag.set_flag("peer_sent_deep_research_report", True)
+                                            log.info(
+                                                "%s Set peer_sent_deep_research_report flag for task %s",
+                                                component.log_identifier,
+                                                main_logical_task_id_for_flag,
+                                            )
 
                                 # Only forward if there are non-filtered data parts
                                 if filtered_data_parts:
@@ -1405,6 +1481,8 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                             peer_agent_name=peer_agent_name,
                                             message=message,
                                         )
+                                    # Reset the timeout since we received a status update
+                                    await component.reset_peer_timeout(sub_task_id)
                                     return
                                 else:
                                     log.debug(
@@ -1722,9 +1800,28 @@ async def handle_a2a_response(component, message: SolaceMessage):
             else:
                 final_text = str(payload_to_queue)
 
-            full_response_text = final_text
-            if artifact_summary:
-                full_response_text = f"{artifact_summary}\n---\n\nPeer Agent Response:\n\n{full_response_text}"
+            # Check if a deep research report was sent by the peer agent
+            # If so, suppress the verbose text but keep artifact info to use
+            peer_sent_deep_research = task_context.get_flag("peer_sent_deep_research_report", False)
+            if peer_sent_deep_research:
+                # Clear the flag after using it
+                task_context.set_flag("peer_sent_deep_research_report", False)
+                if artifact_summary:
+                    full_response_text = (
+                        f"{artifact_summary}\n---\n\n"
+                        "SUCCESS: Deep research task completed. The report has been delivered to the user "
+                        "and is being displayed. Use artifact_return to include the artifact reference "
+                        "in your response so users can click on it."
+                    )
+                else:
+                    full_response_text = (
+                        "SUCCESS: Deep research task completed successfully. "
+                        "The research report has been delivered to the user."
+                    )
+            else:
+                full_response_text = final_text
+                if artifact_summary:
+                    full_response_text = f"{artifact_summary}\n---\n\nPeer Agent Response:\n\n{full_response_text}"
 
             await _publish_peer_tool_result_notification(
                 component=component,

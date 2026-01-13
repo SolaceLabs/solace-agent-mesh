@@ -5,10 +5,10 @@ Session repository implementation using SQLAlchemy.
 from sqlalchemy import or_, func
 from sqlalchemy.orm import Session as DBSession, joinedload
 
-from ..shared.base_repository import PaginatedRepository
-from ..shared.pagination import PaginationParams
-from ..shared.types import SessionId, UserId
-from ..shared import now_epoch_ms
+from solace_agent_mesh.shared.database.base_repository import PaginatedRepository
+from solace_agent_mesh.shared.api.pagination import PaginationParams
+from solace_agent_mesh.shared.utils.types import SessionId, UserId
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from .entities import Session
 from .interfaces import ISessionRepository
 from .models import CreateSessionModel, SessionModel, UpdateSessionModel

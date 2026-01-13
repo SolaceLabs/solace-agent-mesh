@@ -1,9 +1,12 @@
 import React from "react";
 
-import { CheckCircle, FileText, HardDrive, Link, MessageSquare, Share2, Terminal, User, XCircle, Zap } from "lucide-react";
+import { CheckCircle, FileText, HardDrive, Link, MessageSquare, Share2, Terminal, User, XCircle, Zap, ExternalLink } from "lucide-react";
 
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
+import { useChatContext } from "@/lib/hooks";
+import { ImageSearchGrid } from "@/lib/components/research";
 import type { ArtifactNotificationData, LLMCallData, LLMResponseToAgentData, ToolDecisionData, ToolInvocationStartData, ToolResultData, VisualizerStep } from "@/lib/types";
+import { isString } from "@/lib/utils";
 
 interface VisualizerStepCardProps {
     step: VisualizerStep;
@@ -13,6 +16,8 @@ interface VisualizerStepCardProps {
 }
 
 const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlighted, onClick, variant = "list" }) => {
+    const { artifacts, setPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed, navigateArtifactVersion } = useChatContext();
+
     const getStepIcon = () => {
         switch (step.type) {
             case "USER_REQUEST":
@@ -143,37 +148,124 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         </div>
     );
 
-    const renderToolResultData = (data: ToolResultData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-            <p>
-                <strong>Tool:</strong> {data.toolName}
-            </p>
-            <p className="mt-1">
-                <strong>Result:</strong>
-            </p>
-            <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
-                {typeof data.resultData === "object" ? <JSONViewer data={data.resultData} /> : <pre className="font-mono text-xs break-all whitespace-pre-wrap">{String(data.resultData)}</pre>}
-            </div>
-        </div>
-    );
-    const renderArtifactNotificationData = (data: ArtifactNotificationData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-            <p>
-                <strong>Artifact:</strong> {data.artifactName}
-                {data.version !== undefined && <span className="text-gray-500 dark:text-gray-400"> (v{data.version})</span>}
-            </p>
-            {data.mimeType && (
+    /**
+     * Renders result data as either a JSON viewer (for objects) or a preformatted text block (for primitives).
+     * Abstracts the common pattern of displaying tool result data.
+     */
+    const renderResultData = (resultData: unknown): React.ReactNode => {
+        if (typeof resultData === "object") {
+            // Cast is safe here as JSONViewer handles null and object types
+            return <JSONViewer data={resultData as Parameters<typeof JSONViewer>[0]["data"]} />;
+        }
+        return <pre className="font-mono text-xs break-all whitespace-pre-wrap">{String(resultData)}</pre>;
+    };
+
+    const renderToolResultData = (data: ToolResultData) => {
+        // Check if this is a web search result with images
+        let parsedResult = null;
+        let hasImages = false;
+
+        try {
+            // Try to parse the result if it's a string
+            if (isString(data.resultData)) {
+                parsedResult = JSON.parse(data.resultData);
+            } else if (typeof data.resultData === "object") {
+                parsedResult = data.resultData;
+            }
+
+            // Check if the result has an images array (from web search tools)
+            if (parsedResult?.result) {
+                const innerResult = isString(parsedResult.result) ? JSON.parse(parsedResult.result) : parsedResult.result;
+
+                if (innerResult?.images && Array.isArray(innerResult.images) && innerResult.images.length > 0) {
+                    hasImages = true;
+                }
+            }
+        } catch {
+            // Not JSON or parsing failed, will display as normal
+        }
+
+        return (
+            <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
                 <p>
-                    <strong>Type:</strong> {data.mimeType}
+                    <strong>Tool:</strong> {data.toolName}
                 </p>
-            )}
-            {data.description && (
-                <p className="mt-1">
-                    <strong>Description:</strong> {data.description}
-                </p>
-            )}
-        </div>
-    );
+
+                {hasImages && parsedResult?.result ? (
+                    <>
+                        <p className="mt-1">
+                            <strong>Image Results:</strong>
+                        </p>
+                        <ImageSearchGrid images={isString(parsedResult.result) ? JSON.parse(parsedResult.result).images : parsedResult.result.images} />
+                        <details className="mt-2">
+                            <summary className="cursor-pointer text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">Show full result data</summary>
+                            <div className="mt-2 max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">{renderResultData(data.resultData)}</div>
+                        </details>
+                    </>
+                ) : (
+                    <>
+                        <p className="mt-1">
+                            <strong>Result:</strong>
+                        </p>
+                        <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">{renderResultData(data.resultData)}</div>
+                    </>
+                )}
+            </div>
+        );
+    };
+    const renderArtifactNotificationData = (data: ArtifactNotificationData) => {
+        const handleViewFile = async (e: React.MouseEvent) => {
+            e.stopPropagation();
+
+            // Find the artifact by filename
+            const artifact = artifacts.find(a => a.filename === data.artifactName);
+
+            if (artifact) {
+                // Switch to Files tab
+                setActiveSidePanelTab("files");
+
+                // Expand side panel if collapsed
+                setIsSidePanelCollapsed(false);
+
+                // Set preview artifact to open the file (loads latest by default)
+                setPreviewArtifact(artifact);
+
+                // If a specific version is indicated in the workflow data, navigate to it
+                if (data.version !== undefined && data.version !== artifact.version) {
+                    // Wait a bit for the file to load, then navigate to the specific version
+                    setTimeout(() => {
+                        navigateArtifactVersion(artifact.filename, data.version!);
+                    }, 100);
+                }
+            }
+            // If artifact not found, do nothing (silent failure)
+        };
+
+        return (
+            <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                <div className="flex items-center justify-between">
+                    <p>
+                        <strong>Artifact:</strong> {data.artifactName}
+                        {data.version !== undefined && <span className="text-gray-500 dark:text-gray-400"> (v{data.version})</span>}
+                    </p>
+                    <button onClick={handleViewFile} className="flex items-center gap-1 text-blue-600 transition-colors hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300" title="View in Files tab">
+                        <span className="text-xs">View File</span>
+                        <ExternalLink size={12} />
+                    </button>
+                </div>
+                {data.mimeType && (
+                    <p>
+                        <strong>Type:</strong> {data.mimeType}
+                    </p>
+                )}
+                {data.description && (
+                    <p className="mt-1">
+                        <strong>Description:</strong> {data.description}
+                    </p>
+                )}
+            </div>
+        );
+    };
 
     // Calculate indentation based on nesting level - only apply in list variant
     const indentationStyle =

@@ -1,0 +1,112 @@
+test_case_id: "notification_artifact_saved_fenced_001"
+description: |
+  Tests that an artifact_saved notification is sent when an artifact is created via
+  LLM-generated fenced block (save_artifact). This validates that the ArtifactSavedData
+  signal is properly emitted for fenced artifacts with a synthetic function_call_id.
+expected_completion_timeout_seconds: 15
+tags: ["all", "agent", "notification", "artifacts"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "fenced_artifact_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Create a markdown file called 'notes.md' with a heading 'My Notes' and some text."
+  external_context:
+    a2a_session_id: "session_fenced_artifact_saved_001"
+
+llm_interactions:
+  # Step 1: LLM generates artifact using fenced block syntax
+  # The callback will parse this, save the artifact, and inject a _notify_artifact_save tool call
+  - step_id: "llm_creates_fenced_artifact"
+    static_response:
+      id: "chatcmpl-fenced-create"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              I'll create your notes file.
+              «««save_artifact: filename="notes.md" mime_type="text/markdown" description="User notes file"
+              # My Notes
+              This is a test note.
+              »»»
+          finish_reason: "stop"
+      usage: {prompt_tokens: 25, completion_tokens: 60, total_tokens: 85}
+
+  # Step 2: The system runs _notify_artifact_save tool and calls LLM again with the result
+  # This is the LLM's final response acknowledging the artifact creation
+  - step_id: "llm_acknowledges_fenced_artifact"
+    expected_request:
+      # Assert that the prompt contains the response from the internal _notify_artifact_save tool
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_notify_artifact_save"
+          response_json_matches:
+            filename: "notes.md"
+            version: 0
+            status: "success"
+    static_response:
+      id: "chatcmpl-fenced-ack"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Your notes file has been created successfully."
+          finish_reason: "stop"
+      usage: {prompt_tokens: 90, completion_tokens: 15, total_tokens: 105}
+
+expected_gateway_output:
+  # Expect status_update with artifact_saved event
+  # For fenced blocks, the function_call_id will be synthetic (host-notify-{uuid})
+  - type: "status_update"
+    kind: task
+    id: '*'
+    contextId: "session_fenced_artifact_saved_001"
+    status:
+      state: unknown
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+    event_purpose: "artifact_saved"
+    expected_artifact_saved_data_contains:
+      filename: "notes.md"
+      version: 0
+      mime_type: "text/markdown"
+      description: "User notes file"
+      # Note: function_call_id for fenced blocks is synthetic (starts with "host-notify-")
+      # We don't assert on it since it's a UUID
+    final_flag: false
+
+  # Expect final response
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_fenced_artifact_saved_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "I'll create your notes file."
+              - "Your notes file has been created successfully."
+
+    # Verify artifact state
+    assert_artifact_state:
+      - filename: "notes.md"
+        user_id: "fenced_artifact_tester@example.com"
+        session_id: "session_fenced_artifact_saved_001"
+        version: 0
+        expected_content_text: |
+          # My Notes
+          This is a test note.
+        expected_metadata_contains:
+          description: "User notes file"
+          mime_type: "text/markdown"

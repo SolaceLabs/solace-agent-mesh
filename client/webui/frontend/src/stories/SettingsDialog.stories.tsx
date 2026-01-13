@@ -40,14 +40,14 @@ const meta = {
         msw: { handlers },
         configContext: {
             persistenceEnabled: false,
-            frontend_use_authorization: false,
+            configUseAuthorization: false,
             configFeatureEnablement: {
                 speechToText: false,
                 textToSpeech: false,
             },
         },
         authContext: {
-            userInfo: { username: "Story Username" },
+            userInfo: { username: "Story Username With a Very Long Name" },
         },
     },
     decorators: [
@@ -122,7 +122,7 @@ export const TextToSpeech = {
     parameters: {
         configContext: {
             persistenceEnabled: false,
-            frontend_use_authorization: true,
+            configUseAuthorization: true,
             configFeatureEnablement: {
                 speechToText: false,
                 textToSpeech: true,
@@ -164,7 +164,7 @@ export const Logout = {
     parameters: {
         configContext: {
             persistenceEnabled: false,
-            frontend_use_authorization: true,
+            configUseAuthorization: true,
             configFeatureEnablement: {
                 speechToText: false,
                 textToSpeech: false,
@@ -191,7 +191,7 @@ export const Logout = {
         await within(document.body).findByRole("menuitem", { name: "Settings" });
 
         // Verify user name  and logout menu item
-        await within(document.body).findByText("Story Username");
+        await within(document.body).findByText(/Story Username/i);
         const logoutButton = await within(document.body).findByRole("menuitem", { name: "Log Out" });
         await expect(logoutButton).toBeInTheDocument();
     },
@@ -201,7 +201,7 @@ export const All = {
     parameters: {
         configContext: {
             persistenceEnabled: false,
-            frontend_use_authorization: true,
+            configUseAuthorization: true,
             configFeatureEnablement: {
                 speechToText: true,
                 textToSpeech: true,

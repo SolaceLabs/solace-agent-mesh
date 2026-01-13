@@ -23,7 +23,7 @@ handlers:
   rotatingFileHandler:
     class: logging.handlers.RotatingFileHandler
     formatter: simpleFormatter
-    filename: sam.log
+    filename: ${LOGGING_FILE_NAME, sam.log}
     mode: a
     maxBytes: 52428800
     backupCount: 10

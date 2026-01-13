@@ -1,7 +1,7 @@
 """
 Community platform routers for Platform Service.
 
-Currently empty - no community endpoints yet.
+Provides foundational platform service endpoints available to all deployments.
 """
 
 
@@ -9,16 +9,25 @@ def get_community_platform_routers() -> list:
     """
     Return list of community platform routers.
 
+    Format:
     [
         {
             "router": router_instance,
-            "prefix": "/api/v1/platform",
             "tags": ["Platform"]
         },
         ...
     ]
 
+    Note: The prefix "/api/v1/platform" is applied by main.py when mounting these routers.
+
     Returns:
         Community platform routers list.
     """
-    return []
+    from .health_router import router as health_router
+
+    return [
+        {
+            "router": health_router,
+            "tags": ["Health"],
+        }
+    ]

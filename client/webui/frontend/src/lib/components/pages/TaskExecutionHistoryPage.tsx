@@ -10,7 +10,7 @@ import { Header } from "@/lib/components/header";
 import { Button, Label } from "@/lib/components/ui";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import { useChatContext } from "@/lib/hooks";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { api } from "@/lib/api/client";
 import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
 import { getRenderType } from "@/lib/components/chat/preview/previewUtils";
 
@@ -34,29 +34,21 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
     const fetchExecutions = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await authenticatedFetch(`/api/v1/scheduled-tasks/${task.id}/executions`, {
-                credentials: "include",
-            });
+            const data = await api.webui.get(`/api/v1/scheduled-tasks/${task.id}/executions`);
+            // API returns { executions: [], total: number, skip: number, limit: number }
+            // Transform from snake_case to camelCase
+            const executionsList = (data.executions || []).map(transformApiExecution);
+            setExecutions(executionsList);
 
-            if (response.ok) {
-                const data = await response.json();
-                // API returns { executions: [], total: number, skip: number, limit: number }
-                // Transform from snake_case to camelCase
-                const executionsList = (data.executions || []).map(transformApiExecution);
-                setExecutions(executionsList);
-
-                // Auto-select the first execution on initial load
-                if (executionsList.length > 0 && !hasInitializedRef.current) {
-                    hasInitializedRef.current = true;
-                    setSelectedExecution(executionsList[0]);
-                }
-            } else {
-                console.error("Failed to fetch executions:", response.status, response.statusText);
-                addNotification(`Failed to load execution history: ${response.statusText}`, "warning");
+            // Auto-select the first execution on initial load
+            if (executionsList.length > 0 && !hasInitializedRef.current) {
+                hasInitializedRef.current = true;
+                setSelectedExecution(executionsList[0]);
             }
         } catch (error) {
             console.error("Failed to fetch executions:", error);
-            addNotification("Failed to load execution history", "warning");
+            const errorMsg = error instanceof Error ? error.message : "Failed to load execution history";
+            addNotification(errorMsg, "warning");
         } finally {
             setIsLoading(false);
         }
@@ -137,19 +129,14 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
         if (artifact.uri) {
             setLoadingArtifact(true);
             try {
-                const response = await authenticatedFetch(artifact.uri, {
-                    credentials: "include",
-                });
+                const response = await api.webui.get(artifact.uri, { fullResponse: true });
 
-                if (response.ok) {
-                    const content = await response.text();
-                    setArtifactContent(content);
-                } else {
-                    addNotification(`Failed to load artifact: ${response.statusText}`, "warning");
-                }
+                const content = await response.text();
+                setArtifactContent(content);
             } catch (error) {
                 console.error("Failed to load artifact:", error);
-                addNotification("Failed to load artifact content", "warning");
+                const errorMsg = error instanceof Error ? error.message : "Failed to load artifact content";
+                addNotification(errorMsg, "warning");
             } finally {
                 setLoadingArtifact(false);
             }

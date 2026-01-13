@@ -13,6 +13,10 @@ import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+from litellm.exceptions import BadRequestError
+
+from ...common.error_handlers import get_error_message
+
 from a2a.types import (
     AgentCard,
     MessageSendParams,
@@ -74,7 +78,8 @@ from ...common.constants import (
     HEALTH_CHECK_INTERVAL_SECONDS,
     HEALTH_CHECK_TTL_SECONDS,
 )
-from ...common.data_parts import AgentProgressUpdateData
+from ...common.a2a.types import ArtifactInfo
+from ...common.data_parts import AgentProgressUpdateData, ArtifactSavedData
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
 from ...common.utils.rbac_utils import validate_agent_access
@@ -778,7 +783,9 @@ class SamAgentComponent(SamComponentBase):
                 log_retrigger,
                 len(new_response_parts),
             )
-            new_tool_response_content = adk_types.Content(role="tool", parts=new_response_parts)
+            new_tool_response_content = adk_types.Content(
+                role="tool", parts=new_response_parts
+            )
 
             # Always use SSE streaming mode for the ADK runner, even on re-trigger.
             # This ensures that real-time callbacks for status updates and artifact
@@ -796,7 +803,12 @@ class SamAgentComponent(SamComponentBase):
             )
             try:
                 await run_adk_async_task_thread_wrapper(
-                    self, session, new_tool_response_content, run_config, original_task_context, append_context_event=False
+                    self,
+                    session,
+                    new_tool_response_content,
+                    run_config,
+                    original_task_context,
+                    append_context_event=False,
                 )
             finally:
                 log.info(
@@ -1012,6 +1024,9 @@ class SamAgentComponent(SamComponentBase):
                 "- Provide a clear and detailed `task_description` for the peer agent\n"
                 "- **Important:** The peer agent does not have access to your session history, "
                 "so you must provide all required context necessary to fulfill the request\n\n"
+                "IMPORTANT: When a peer agent's response contains citation markers like [[cite:search0]], [[cite:file1]], etc., "
+                "you MUST preserve these markers in your response to the user. These markers link to source references and are "
+                "essential for proper attribution. Include them exactly as they appear in the peer's response. DO NOT repeat them without markers.\n\n"
                 "## Available Peer Agents\n"
                 f"{peer_list_str}"
             )
@@ -1525,6 +1540,70 @@ class SamAgentComponent(SamComponentBase):
                 e,
             )
             return False
+
+    async def notify_artifact_saved(
+        self,
+        artifact_info: ArtifactInfo,
+        a2a_context: Dict[str, Any],
+        function_call_id: Optional[str] = None,
+    ) -> None:
+        """
+        Publishes an artifact saved notification signal.
+
+        This is a separate event from ArtifactCreationProgressData and does not
+        follow the start->updates->end protocol. It's a single notification that
+        an artifact has been successfully saved to storage.
+
+        Args:
+            artifact_info: Information about the saved artifact
+            a2a_context: The A2A context dictionary for the current task
+            function_call_id: Optional function call ID if artifact was created by a tool
+        """
+        log_identifier = (
+            f"{self.log_identifier}[ArtifactSaved:{artifact_info.filename}]"
+        )
+
+        try:
+            # Create artifact saved signal
+            artifact_signal = ArtifactSavedData(
+                type="artifact_saved",
+                filename=artifact_info.filename,
+                version=artifact_info.version,
+                mime_type=artifact_info.mime_type or "application/octet-stream",
+                size_bytes=artifact_info.size,
+                description=artifact_info.description,
+                function_call_id=function_call_id,
+            )
+
+            # Create and publish status update event
+            logical_task_id = a2a_context.get("logical_task_id")
+            context_id = a2a_context.get("contextId")
+
+            status_update_event = a2a.create_data_signal_event(
+                task_id=logical_task_id,
+                context_id=context_id,
+                signal_data=artifact_signal,
+                agent_name=self.agent_name,
+            )
+
+            await self._publish_status_update_with_buffer_flush(
+                status_update_event,
+                a2a_context,
+                skip_buffer_flush=False,
+            )
+
+            log.debug(
+                "%s Published artifact saved notification for '%s' v%s.",
+                log_identifier,
+                artifact_info.filename,
+                artifact_info.version,
+            )
+        except Exception as e:
+            log.error(
+                "%s Failed to publish artifact saved notification: %s",
+                log_identifier,
+                e,
+            )
 
     async def _publish_status_update_with_buffer_flush(
         self,
@@ -2245,6 +2324,19 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                     len(task_context.produced_artifacts),
                 )
+            else:
+                if not task_context:
+                    log.warning(
+                        "%s TaskExecutionContext not found for task %s during finalization, cannot attach produced artifacts.",
+                        self.log_identifier,
+                        logical_task_id,
+                    )
+                else:
+                    log.debug(
+                        "%s No produced artifacts to attach for task %s.",
+                        self.log_identifier,
+                        logical_task_id,
+                    )
 
             # Add token usage summary
             if task_context:
@@ -2682,11 +2774,24 @@ class SamAgentComponent(SamComponentBase):
             peer_reply_topic = a2a_context.get("replyToTopic")
             namespace = self.get_config("namespace")
 
+            # Detect context limit errors and provide user-friendly message
+            error_message = "An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
+
+            if isinstance(exception, BadRequestError):
+                # Use centralized error handler
+                error_message, is_context_limit = get_error_message(exception)
+
+                if is_context_limit:
+                    log.error(
+                        "%s Context limit exceeded for task %s. Error: %s",
+                        self.log_identifier,
+                        logical_task_id,
+                        exception,
+                    )
+
             failed_status = a2a.create_task_status(
                 state=TaskState.failed,
-                message=a2a.create_agent_text_message(
-                    text="An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
-                ),
+                message=a2a.create_agent_text_message(text=error_message),
             )
 
             final_task = a2a.create_final_task(
@@ -3368,6 +3473,80 @@ class SamAgentComponent(SamComponentBase):
     def get_async_loop(self) -> Optional[asyncio.AbstractEventLoop]:
         """Returns the dedicated asyncio event loop for this component's async tasks."""
         return self._async_loop
+
+    def publish_data_signal_from_thread(
+        self,
+        a2a_context: Dict[str, Any],
+        signal_data: BaseModel,
+        skip_buffer_flush: bool = False,
+        log_identifier: Optional[str] = None,
+    ) -> bool:
+        """
+        Publishes a data signal status update from any thread by scheduling it on the async loop.
+
+        This is a convenience method for tools and callbacks that need to publish status updates
+        but are not running in an async context. It handles:
+        1. Extracting task_id and context_id from a2a_context
+        2. Creating the status update event
+        3. Checking if the async loop is available and running
+        4. Scheduling the publish operation on the async loop
+
+        Args:
+            a2a_context: The A2A context dictionary containing logical_task_id and contextId
+            signal_data: A Pydantic BaseModel instance (e.g., AgentProgressUpdateData,
+                        DeepResearchProgressData, ArtifactCreationProgressData)
+            skip_buffer_flush: If True, skip buffer flushing before publishing
+            log_identifier: Optional log identifier for debugging
+
+        Returns:
+            bool: True if the publish was successfully scheduled, False otherwise
+        """
+        from ...common import a2a
+
+        log_id = log_identifier or f"{self.log_identifier}[PublishDataSignal]"
+
+        if not a2a_context:
+            log.error("%s No a2a_context provided. Cannot publish data signal.", log_id)
+            return False
+
+        logical_task_id = a2a_context.get("logical_task_id")
+        context_id = a2a_context.get("contextId")
+
+        if not logical_task_id:
+            log.error("%s No logical_task_id in a2a_context. Cannot publish data signal.", log_id)
+            return False
+
+        # Create status update event using the standard data signal pattern
+        status_update_event = a2a.create_data_signal_event(
+            task_id=logical_task_id,
+            context_id=context_id,
+            signal_data=signal_data,
+            agent_name=self.agent_name,
+        )
+
+        # Get the async loop and schedule the publish
+        loop = self.get_async_loop()
+        if loop and loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                self._publish_status_update_with_buffer_flush(
+                    status_update_event,
+                    a2a_context,
+                    skip_buffer_flush=skip_buffer_flush,
+                ),
+                loop,
+            )
+            log.debug(
+                "%s Scheduled data signal status update (type: %s).",
+                log_id,
+                type(signal_data).__name__,
+            )
+            return True
+        else:
+            log.error(
+                "%s Async loop not available or not running. Cannot publish data signal.",
+                log_id,
+            )
+            return False
 
     def set_agent_system_instruction_string(self, instruction_string: str) -> None:
         """

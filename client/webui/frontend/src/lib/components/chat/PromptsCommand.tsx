@@ -9,7 +9,7 @@ import { Search, NotepadText, Plus } from "lucide-react";
 import type { MessageFE, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { VariableDialog } from "./VariableDialog";
-import { fetchJsonWithError } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 
 export type ChatCommand = "create-template";
 
@@ -59,7 +59,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
         const fetchPromptGroups = async () => {
             setIsLoading(true);
             try {
-                const data = await fetchJsonWithError("/api/v1/prompts/groups/all");
+                const data = await api.webui.get("/api/v1/prompts/groups/all");
                 setPromptGroups(data);
             } catch (error) {
                 console.error("Failed to fetch prompt groups:", error);
@@ -102,11 +102,13 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
             .filter(m => !m.isStatusBubble && !m.isError && !m.authenticationLink)
             .map(m => {
                 const role = m.isUser ? "User" : "Assistant";
+                // Join text parts with empty string to preserve streaming text continuity
+                // (streaming text is stored as multiple text parts, one per chunk)
                 const text =
                     m.parts
                         ?.filter(p => p.kind === "text")
                         .map(p => (p as { text: string }).text)
-                        .join("\n") || "";
+                        .join("") || "";
                 return `${role}: ${text}`;
             })
             .join("\n\n");

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Loader2, Sparkles } from "lucide-react";
 import { AudioRecorder, Button, MessageBanner, Textarea } from "@/lib/components";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { api } from "@/lib/api/client";
 
 interface Message {
     role: "user" | "assistant";
@@ -85,8 +85,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
 
         const initChat = async () => {
             try {
-                const response = await authenticatedFetch("/api/v1/scheduled-tasks/builder/greeting");
-                const data = await response.json();
+                const data = await api.webui.get("/api/v1/scheduled-tasks/builder/greeting");
 
                 setMessages([
                     {
@@ -110,55 +109,35 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
 
                     // Send the message to the API
                     try {
-                        const chatResponse = await authenticatedFetch("/api/v1/scheduled-tasks/builder/chat", {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            credentials: "include",
-                            body: JSON.stringify({
-                                message: initialMessage,
-                                conversation_history: [
-                                    {
-                                        role: "assistant",
-                                        content: data.message,
-                                    },
-                                ],
-                                current_task: currentConfig,
-                                available_agents: availableAgents.map(a => a.name),
-                            }),
+                        const apiData: ApiChatResponse = await api.webui.post("/api/v1/scheduled-tasks/builder/chat", {
+                            message: initialMessage,
+                            conversation_history: [
+                                {
+                                    role: "assistant",
+                                    content: data.message,
+                                },
+                            ],
+                            current_task: currentConfig,
+                            available_agents: availableAgents.map(a => a.name),
                         });
 
-                        if (chatResponse.ok) {
-                            const apiData: ApiChatResponse = await chatResponse.json();
-                            const chatData = transformChatResponse(apiData);
+                        const chatData = transformChatResponse(apiData);
 
-                            const assistantMessage: Message = {
-                                role: "assistant",
-                                content: chatData.message,
-                                timestamp: new Date(),
-                            };
-                            setMessages(prev => [...prev, assistantMessage]);
+                        const assistantMessage: Message = {
+                            role: "assistant",
+                            content: chatData.message,
+                            timestamp: new Date(),
+                        };
+                        setMessages(prev => [...prev, assistantMessage]);
 
-                            if (Object.keys(chatData.taskUpdates).length > 0) {
-                                onConfigUpdate(chatData.taskUpdates);
-                            }
-
-                            onReadyToSave(chatData.readyToSave);
-
-                            // Scroll to bottom after AI response
-                            setTimeout(() => scrollToBottom(), 100);
-                        } else {
-                            const errorData = await chatResponse.json().catch(() => ({}));
-                            console.error("Task builder API error:", errorData);
-
-                            const errorMessage: Message = {
-                                role: "assistant",
-                                content: "I encountered an error processing your request. Please try describing your task again.",
-                                timestamp: new Date(),
-                            };
-                            setMessages(prev => [...prev, errorMessage]);
+                        if (Object.keys(chatData.taskUpdates).length > 0) {
+                            onConfigUpdate(chatData.taskUpdates);
                         }
+
+                        onReadyToSave(chatData.readyToSave);
+
+                        // Scroll to bottom after AI response
+                        setTimeout(() => scrollToBottom(), 100);
                     } catch (error) {
                         console.error("Error sending initial message:", error);
                         const errorMessage: Message = {
@@ -246,30 +225,18 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
         setHasUserMessage(true);
 
         try {
-            const response = await authenticatedFetch("/api/v1/scheduled-tasks/builder/chat", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                credentials: "include",
-                body: JSON.stringify({
-                    message: userMessage.content,
-                    conversation_history: messages
-                        .filter(m => m.content && m.content.trim().length > 0)
-                        .map(m => ({
-                            role: m.role,
-                            content: m.content,
-                        })),
-                    current_task: currentConfig,
-                    available_agents: availableAgents.map(a => a.name),
-                }),
+            const apiData: ApiChatResponse = await api.webui.post("/api/v1/scheduled-tasks/builder/chat", {
+                message: userMessage.content,
+                conversation_history: messages
+                    .filter(m => m.content && m.content.trim().length > 0)
+                    .map(m => ({
+                        role: m.role,
+                        content: m.content,
+                    })),
+                current_task: currentConfig,
+                available_agents: availableAgents.map(a => a.name),
             });
 
-            if (!response.ok) {
-                throw new Error("Failed to get response");
-            }
-
-            const apiData: ApiChatResponse = await response.json();
             const data = transformChatResponse(apiData);
 
             // Add assistant response

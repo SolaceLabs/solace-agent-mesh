@@ -4,20 +4,30 @@ import { useNavigate } from "react-router-dom";
 
 import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Loader2 } from "lucide-react";
 
+import { api } from "@/lib/api";
 import { useChatContext, useConfigContext } from "@/lib/hooks";
-import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
-import { formatTimestamp } from "@/lib/utils/format";
-import { Button } from "@/lib/components/ui/button";
-import { Badge } from "@/lib/components/ui/badge";
-import { Spinner } from "@/lib/components/ui/spinner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
-import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
-import { SessionSearch } from "@/lib/components/chat/SessionSearch";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/lib/components/ui/dropdown-menu";
 import type { Project, Session } from "@/lib/types";
+import { formatTimestamp, getErrorMessage } from "@/lib/utils";
+import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    Spinner,
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from "@/lib/components/ui";
 
-interface PaginatedSessionsResponse {
+export interface PaginatedSessionsResponse {
     data: Session[];
     meta: {
         pagination: {
@@ -37,7 +47,7 @@ interface SessionListProps {
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError } = useChatContext();
-    const { configServerUrl, persistenceEnabled } = useConfigContext();
+    const { persistenceEnabled } = useConfigContext();
     const inputRef = useRef<HTMLInputElement>(null);
 
     const [sessions, setSessions] = useState<Session[]>([]);
@@ -55,31 +65,27 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         triggerOnce: false,
     });
 
-    const fetchSessions = useCallback(
-        async (pageNumber: number = 1, append: boolean = false) => {
-            setIsLoading(true);
-            const url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`;
+    const fetchSessions = useCallback(async (pageNumber: number = 1, append: boolean = false) => {
+        setIsLoading(true);
 
-            try {
-                const result: PaginatedSessionsResponse = await fetchJsonWithError(url);
+        try {
+            const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`);
 
-                if (append) {
-                    setSessions(prev => [...prev, ...result.data]);
-                } else {
-                    setSessions(result.data);
-                }
-
-                // Use metadata to determine if there are more pages
-                setHasMore(result.meta.pagination.nextPage !== null);
-                setCurrentPage(pageNumber);
-            } catch (error) {
-                console.error("An error occurred while fetching sessions:", error);
-            } finally {
-                setIsLoading(false);
+            if (append) {
+                setSessions(prev => [...prev, ...result.data]);
+            } else {
+                setSessions(result.data);
             }
-        },
-        [configServerUrl]
-    );
+
+            // Use metadata to determine if there are more pages
+            setHasMore(result.meta.pagination.nextPage !== null);
+            setCurrentPage(pageNumber);
+        } catch (error) {
+            console.error("An error occurred while fetching sessions:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         fetchSessions(1, false);
@@ -184,11 +190,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         if (!sessionToMove) return;
 
         try {
-            await fetchWithError(`${configServerUrl}/api/v1/sessions/${sessionToMove.id}/project`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ projectId: targetProjectId }),
-            });
+            await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
 
             // Update local state
             setSessions(prevSessions =>
@@ -317,7 +319,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     <ul>
                         {filteredSessions.map(session => (
                             <li key={session.id} className="group my-2 pr-4">
-                                <div className={`flex items-center gap-2 rounded px-2 py-2 ${session.id === sessionId ? "bg-muted" : ""}`}>
+                                <div className={`flex items-center gap-2 rounded-sm px-2 py-2 ${session.id === sessionId ? "bg-muted dark:bg-muted/50" : ""}`}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}
@@ -349,16 +351,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     </div>
                                                     <span className="text-muted-foreground truncate text-xs">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
-                                                {session.projectName && (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary max-w-[120px] flex-shrink-0 justify-start px-2 py-0.5 text-xs font-semibold shadow-sm">
-                                                                <span className="block truncate">{session.projectName}</span>
-                                                            </Badge>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>{session.projectName}</TooltipContent>
-                                                    </Tooltip>
-                                                )}
+                                                {session.projectName && <ProjectBadge text={session.projectName} />}
                                             </div>
                                         </button>
                                     )}

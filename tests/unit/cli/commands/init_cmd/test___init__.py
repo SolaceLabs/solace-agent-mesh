@@ -18,18 +18,20 @@ class TestRunInitFlow:
         mock_files = mocker.patch("cli.commands.init_cmd.create_project_files", return_value=True)
         mock_orch = mocker.patch("cli.commands.init_cmd.create_orchestrator_config", return_value=True)
         mock_webui = mocker.patch("cli.commands.init_cmd.create_webui_gateway_config", return_value=True)
+        mock_platform = mocker.patch("cli.commands.init_cmd.create_platform_service_config", return_value=True)
         mock_env = mocker.patch("cli.commands.init_cmd.create_env_file", return_value=True)
-        
+
         mocker.patch("pathlib.Path.cwd", return_value=temp_project_dir)
-        
+
         run_init_flow(skip_interactive=True, use_web_based_init_flag=False)
-        
+
         # Verify all steps were called
         mock_broker.assert_called_once()
         mock_dirs.assert_called_once()
         mock_files.assert_called_once()
         mock_orch.assert_called_once()
         mock_webui.assert_called_once()
+        mock_platform.assert_called_once()
         mock_env.assert_called_once()
 
     def test_init_flow_with_web_init(self, temp_project_dir, mocker):
@@ -44,12 +46,13 @@ class TestRunInitFlow:
         mock_files = mocker.patch("cli.commands.init_cmd.create_project_files", return_value=True)
         mock_orch = mocker.patch("cli.commands.init_cmd.create_orchestrator_config", return_value=True)
         mock_webui = mocker.patch("cli.commands.init_cmd.create_webui_gateway_config", return_value=True)
+        mock_platform = mocker.patch("cli.commands.init_cmd.create_platform_service_config", return_value=True)
         mock_env = mocker.patch("cli.commands.init_cmd.create_env_file", return_value=True)
-        
+
         mocker.patch("pathlib.Path.cwd", return_value=temp_project_dir)
-        
+
         run_init_flow(skip_interactive=False, use_web_based_init_flag=True)
-        
+
         # Verify web init was called
         mock_web_init.assert_called_once()
 
@@ -62,12 +65,13 @@ class TestRunInitFlow:
         mock_files = mocker.patch("cli.commands.init_cmd.create_project_files", return_value=True)
         mock_orch = mocker.patch("cli.commands.init_cmd.create_orchestrator_config", return_value=True)
         mock_webui = mocker.patch("cli.commands.init_cmd.create_webui_gateway_config", return_value=True)
+        mock_platform = mocker.patch("cli.commands.init_cmd.create_platform_service_config", return_value=True)
         mock_env = mocker.patch("cli.commands.init_cmd.create_env_file", return_value=True)
-        
+
         mocker.patch("pathlib.Path.cwd", return_value=temp_project_dir)
-        
+
         run_init_flow(skip_interactive=False, use_web_based_init_flag=False)
-        
+
         # Verify user was asked about web init
         mock_ask_yes_no.assert_called_once()
 
@@ -79,12 +83,13 @@ class TestRunInitFlow:
         mock_files = mocker.patch("cli.commands.init_cmd.create_project_files", return_value=True)
         mock_orch = mocker.patch("cli.commands.init_cmd.create_orchestrator_config", return_value=True)
         mock_webui = mocker.patch("cli.commands.init_cmd.create_webui_gateway_config", return_value=True)
+        mock_platform = mocker.patch("cli.commands.init_cmd.create_platform_service_config", return_value=True)
         mock_env = mocker.patch("cli.commands.init_cmd.create_env_file", return_value=True)
-        
+
         mocker.patch("pathlib.Path.cwd", return_value=temp_project_dir)
-        
+
         run_init_flow(skip_interactive=True, use_web_based_init_flag=True)
-        
+
         # Verify warning was shown
         echo_calls = [str(call) for call in mock_echo.call_args_list]
         assert any("not compatible with --skip" in call for call in echo_calls)

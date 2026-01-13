@@ -1,15 +1,16 @@
 import React, { useState, useEffect, type ReactNode } from "react";
 
-import { authenticatedFetch } from "@/lib/utils/api";
+import { api } from "@/lib/api";
 import { AuthContext } from "@/lib/contexts/AuthContext";
 import { useConfigContext, useCsrfContext } from "@/lib/hooks";
+import { EmptyState } from "../components";
 
 interface AuthProviderProps {
     children: ReactNode;
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-    const { frontend_use_authorization: useAuthorization, configAuthLoginUrl: authLoginUrl } = useConfigContext();
+    const { configUseAuthorization, configAuthLoginUrl } = useConfigContext();
     const { fetchCsrfToken, clearCsrfToken } = useCsrfContext();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -19,7 +20,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         let isMounted = true;
 
         const checkAuthStatus = async () => {
-            if (!useAuthorization) {
+            if (!configUseAuthorization) {
                 if (isMounted) {
                     setIsAuthenticated(true);
                     setIsLoading(false);
@@ -28,34 +29,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
 
             try {
-                const userResponse = await authenticatedFetch("/api/v1/users/me", {
-                    credentials: "include",
-                    headers: { Accept: "application/json" },
-                });
+                const userData = await api.webui.get<Record<string, unknown>>("/api/v1/users/me");
+                console.log("User is authenticated:", userData);
 
-                if (userResponse.ok) {
-                    const userData = await userResponse.json();
-                    console.log("User is authenticated:", userData);
-
-                    if (isMounted) {
-                        setUserInfo(userData);
-                        setIsAuthenticated(true);
-                    }
-
-                    // Get CSRF token for authenticated requests if not already cached
-                    console.log("Fetching CSRF token for authenticated requests...");
-                    await fetchCsrfToken();
-                } else if (userResponse.status === 401) {
-                    console.log("User is not authenticated");
-                    if (isMounted) {
-                        setIsAuthenticated(false);
-                    }
-                } else {
-                    console.error("Unexpected response from /users/me:", userResponse.status);
-                    if (isMounted) {
-                        setIsAuthenticated(false);
-                    }
+                if (isMounted) {
+                    setUserInfo(userData);
+                    setIsAuthenticated(true);
                 }
+
+                console.log("Fetching CSRF token for authenticated requests...");
+                await fetchCsrfToken();
             } catch (authError) {
                 console.error("Error checking authentication:", authError);
                 if (isMounted) {
@@ -82,34 +65,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             isMounted = false;
             window.removeEventListener("storage", handleStorageChange);
         };
-    }, [useAuthorization, authLoginUrl, fetchCsrfToken]);
+    }, [configUseAuthorization, configAuthLoginUrl, fetchCsrfToken]);
 
     const login = () => {
-        window.location.href = authLoginUrl;
+        window.location.href = configAuthLoginUrl;
     };
 
-    const logout = () => {
-        setIsAuthenticated(false);
-        setUserInfo(null);
-        clearCsrfToken();
+    const logout = async () => {
+        try {
+            if (configUseAuthorization) {
+                await api.webui.post("/api/v1/auth/logout");
+                setIsAuthenticated(false);
+                setUserInfo(null);
+                clearCsrfToken();
+
+                // Clear tokens from localStorage - set in authCallback.tsx
+                localStorage.removeItem("access_token");
+                localStorage.removeItem("refresh_token");
+
+                // Force redirect to login - prevents token refresh
+                window.location.href = configAuthLoginUrl;
+            }
+        } catch (error) {
+            console.error("Error calling logout endpoint:", error);
+        }
     };
 
     if (isLoading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
-                <div className="text-center">
-                    <div className="border-solace-green mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2"></div>
-                    <h1 className="text-2xl text-black dark:text-white">Checking Authentication...</h1>
-                </div>
-            </div>
-        );
+        return <EmptyState variant="loading" title="Checking Authentication..." className="h-screen w-screen" />;
     }
 
     return (
         <AuthContext.Provider
             value={{
                 isAuthenticated,
-                useAuthorization,
+                useAuthorization: configUseAuthorization,
                 login,
                 logout,
                 userInfo,

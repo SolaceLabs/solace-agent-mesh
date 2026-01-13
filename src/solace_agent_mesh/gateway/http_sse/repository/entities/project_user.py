@@ -5,7 +5,7 @@ Project user access domain entity.
 from typing import Optional
 from pydantic import BaseModel, Field
 
-from ...shared import now_epoch_ms
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 
 class ProjectUser(BaseModel):

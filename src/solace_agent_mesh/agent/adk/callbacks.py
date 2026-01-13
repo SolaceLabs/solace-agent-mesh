@@ -33,6 +33,7 @@ from ...agent.utils.context_helpers import (
     get_session_from_callback_context,
 )
 from ..tools.tool_definition import BuiltinTool
+from ..tools.peer_agent_tool import PEER_TOOL_PREFIX
 
 from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
@@ -47,6 +48,7 @@ from ...common.utils.embeds.types import ResolutionMode
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
 from ...common import a2a
+from ...common.a2a.types import ArtifactInfo
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
@@ -73,7 +75,9 @@ from ...agent.adk.stream_parser import (
     TemplateBlockCompletedEvent,
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
+    TEMPLATE_LIQUID_START_SEQUENCE,
 )
+
 
 log = logging.getLogger(__name__)
 
@@ -88,32 +92,17 @@ async def _publish_data_part_status_update(
     a2a_context: Dict[str, Any],
     data_part_model: BaseModel,
 ):
-    """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart."""
-    logical_task_id = a2a_context.get("logical_task_id")
-    context_id = a2a_context.get("contextId")
+    """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart.
 
-    status_update_event = a2a.create_data_signal_event(
-        task_id=logical_task_id,
-        context_id=context_id,
+    This function delegates to the host component's publish_data_signal_from_thread method,
+    which handles the async loop check and scheduling internally.
+    """
+    host_component.publish_data_signal_from_thread(
+        a2a_context=a2a_context,
         signal_data=data_part_model,
-        agent_name=host_component.agent_name,
+        skip_buffer_flush=False,
+        log_identifier=host_component.log_identifier,
     )
-
-    loop = host_component.get_async_loop()
-    if loop and loop.is_running():
-        asyncio.run_coroutine_threadsafe(
-            host_component._publish_status_update_with_buffer_flush(
-                status_update_event,
-                a2a_context,
-                skip_buffer_flush=False,
-            ),
-            loop,
-        )
-    else:
-        log.error(
-            "%s Async loop not available. Cannot publish status update.",
-            host_component.log_identifier,
-        )
 
 
 async def _resolve_early_embeds_in_chunk(
@@ -141,12 +130,17 @@ async def _resolve_early_embeds_in_chunk(
         # Build resolution context from callback_context (pattern from EmbedResolvingMCPToolset)
         invocation_context = callback_context._invocation_context
         if not invocation_context:
-            log.warning("%s No invocation context available for embed resolution", log_identifier)
+            log.warning(
+                "%s No invocation context available for embed resolution",
+                log_identifier,
+            )
             return chunk
 
         session_context = invocation_context.session
         if not session_context:
-            log.warning("%s No session context available for embed resolution", log_identifier)
+            log.warning(
+                "%s No session context available for embed resolution", log_identifier
+            )
             return chunk
 
         resolution_context = {
@@ -183,7 +177,9 @@ async def _resolve_early_embeds_in_chunk(
         return resolved_text
 
     except Exception as e:
-        log.error("%s Error resolving embeds in chunk: %s", log_identifier, e, exc_info=True)
+        log.error(
+            "%s Error resolving embeds in chunk: %s", log_identifier, e, exc_info=True
+        )
         return chunk  # Return original chunk on error
 
 
@@ -208,7 +204,9 @@ async def process_artifact_blocks_callback(
         session.state[parser_state_key] = parser
         session.state["completed_artifact_blocks_list"] = []
         session.state["completed_template_blocks_list"] = []
-        session.state["artifact_chars_sent"] = 0  # Reset character tracking for new turn
+        session.state["artifact_chars_sent"] = (
+            0  # Reset character tracking for new turn
+        )
 
     stream_chunks_were_processed = callback_context.state.get(
         A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY, False
@@ -317,7 +315,9 @@ async def process_artifact_blocks_callback(
 
                             # Track the cumulative character count of what we've sent
                             # We need character count (not bytes) to slice correctly later
-                            previous_char_count = session.state.get("artifact_chars_sent", 0)
+                            previous_char_count = session.state.get(
+                                "artifact_chars_sent", 0
+                            )
                             new_char_count = previous_char_count + len(event.chunk)
                             session.state["artifact_chars_sent"] = new_char_count
 
@@ -423,6 +423,13 @@ async def process_artifact_blocks_callback(
                                             version_for_tool,
                                             logical_task_id,
                                         )
+                                    else:
+                                        log.warning(
+                                            "%s TaskExecutionContext not found for task %s, cannot register inline artifact '%s'.",
+                                            log_identifier,
+                                            logical_task_id,
+                                            filename,
+                                        )
                                 else:
                                     log.warning(
                                         "%s No logical_task_id, cannot register inline artifact.",
@@ -439,7 +446,9 @@ async def process_artifact_blocks_callback(
                             if a2a_context:
                                 # Check if there's unsent content (content after last progress event)
                                 total_bytes = len(event.content.encode("utf-8"))
-                                chars_already_sent = session.state.get("artifact_chars_sent", 0)
+                                chars_already_sent = session.state.get(
+                                    "artifact_chars_sent", 0
+                                )
 
                                 if chars_already_sent < len(event.content):
                                     # There's unsent content - send it as a final progress update
@@ -475,7 +484,6 @@ async def process_artifact_blocks_callback(
                                     mime_type=params.get("mime_type"),
                                     version=version_for_tool,
                                 )
-
                                 await _publish_data_part_status_update(
                                     host_component, a2a_context, progress_data
                                 )
@@ -499,6 +507,9 @@ async def process_artifact_blocks_callback(
                                 "filename": filename,
                                 "version": version_for_tool,
                                 "status": status_for_tool,
+                                "description": params.get("description"),
+                                "mime_type": params.get("mime_type"),
+                                "bytes_transferred": len(event.content),
                                 "original_text": original_text,
                             }
                         )
@@ -552,8 +563,37 @@ async def process_artifact_blocks_callback(
                                 template_id,
                             )
 
-                        # Store template_id in session for potential future use
-                        # (Gateway will handle the actual resolution)
+                        # Reconstruct the original template block text for peer-to-peer responses
+                        # Peer agents don't receive TemplateBlockData signals, so they need
+                        # the original block text to pass templates through to the gateway
+                        params_str = " ".join([f'{k}="{v}"' for k, v in params.items()])
+                        original_template_text = (
+                            f"{TEMPLATE_LIQUID_START_SEQUENCE} {params_str}\n"
+                            f"{event.template_content}"
+                            f"{ARTIFACT_BLOCK_DELIMITER_CLOSE}"
+                        )
+
+                        # For RUN_BASED sessions (peer-to-peer agent requests), preserve the
+                        # template block in the response text at its original position.
+                        # This allows the calling agent to forward it to the gateway.
+                        # Gateway requests use streaming sessions and receive TemplateBlockData
+                        # signals instead.
+                        is_run_based = a2a_context and a2a_context.get(
+                            "is_run_based_session", False
+                        )
+                        if is_run_based and llm_response.partial:
+                            processed_parts.append(
+                                adk_types.Part(text=original_template_text)
+                            )
+                            log.debug(
+                                "%s Preserved template block in RUN_BASED peer response. Template ID: %s",
+                                log_identifier,
+                                template_id,
+                            )
+
+                        # Store template_id and original text in session for potential future use
+                        # (Gateway will handle the actual resolution via signals,
+                        # but peer agents need the original text in their responses)
                         if (
                             "completed_template_blocks_list" not in session.state
                             or session.state["completed_template_blocks_list"] is None
@@ -563,6 +603,7 @@ async def process_artifact_blocks_callback(
                             {
                                 "template_id": template_id,
                                 "data_artifact": data_artifact,
+                                "original_text": original_template_text,
                             }
                         )
 
@@ -651,8 +692,12 @@ async def process_artifact_blocks_callback(
                 len(completed_blocks_list),
             )
 
+            # Get a2a_context for sending signals
+            a2a_context = callback_context.state.get("a2a_context")
+
             tool_call_parts = []
             for block_info in completed_blocks_list:
+                function_call_id = f"host-notify-{uuid.uuid4()}"
                 notify_tool_call = adk_types.FunctionCall(
                     name="_notify_artifact_save",
                     args={
@@ -660,9 +705,40 @@ async def process_artifact_blocks_callback(
                         "version": block_info["version"],
                         "status": block_info["status"],
                     },
-                    id=f"host-notify-{uuid.uuid4()}",
+                    id=function_call_id,
                 )
                 tool_call_parts.append(adk_types.Part(function_call=notify_tool_call))
+
+                # Send artifact saved notification now that we have the function_call_id
+                # This ensures the signal and tool call arrive together
+                if block_info["status"] == "success" and a2a_context:
+                    try:
+                        artifact_info = ArtifactInfo(
+                            filename=block_info["filename"],
+                            version=block_info["version"],
+                            mime_type=block_info.get("mime_type")
+                            or "application/octet-stream",
+                            size=block_info.get("bytes_transferred", 0),
+                            description=block_info.get("description"),
+                            version_count=None,  # Count not available in save context
+                        )
+                        await host_component.notify_artifact_saved(
+                            artifact_info=artifact_info,
+                            a2a_context=a2a_context,
+                            function_call_id=function_call_id,
+                        )
+                        log.debug(
+                            "%s Published artifact saved notification for fenced block: %s (function_call_id=%s)",
+                            log_identifier,
+                            block_info["filename"],
+                            function_call_id,
+                        )
+                    except Exception as signal_err:
+                        log.warning(
+                            "%s Failed to publish artifact saved notification: %s",
+                            log_identifier,
+                            signal_err,
+                        )
 
             existing_parts = llm_response.content.parts if llm_response.content else []
             final_existing_parts = existing_parts
@@ -931,26 +1007,24 @@ async def manage_large_mcp_tool_responses_callback(
     message_parts_for_llm: list[str] = []
 
     if needs_truncation_for_llm:
-        truncation_suffix = "... [Response truncated due to size limit.]"
-        adjusted_max_bytes = llm_max_bytes - len(truncation_suffix.encode("utf-8"))
-        if adjusted_max_bytes < 0:
-            adjusted_max_bytes = 0
-
-        truncated_bytes = serialized_original_response_str.encode("utf-8")[
-            :adjusted_max_bytes
-        ]
-        truncated_preview_str = (
-            truncated_bytes.decode("utf-8", "ignore") + truncation_suffix
-        )
-
+        # ALL-OR-NOTHING APPROACH: Do not include truncated data to prevent LLM hallucination.
+        # When LLMs receive partial data, they tend to confidently fill in gaps with
+        # hallucinated information. By withholding partial data entirely, we force the LLM
+        # to use reliable mechanisms (template_liquid, load_artifact) to access the full data.
         final_llm_response_dict["mcp_tool_output"] = {
-            "type": "truncated_json_string",
-            "content": truncated_preview_str,
+            "type": "data_in_artifact_only",
+            "message": "Data exceeds size limit. Full data saved as artifact - use template_liquid, load_artifact or other artifact analysis tools to process and access.",
         }
         message_parts_for_llm.append(
-            f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) for direct display and has been truncated."
+            f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) to display directly. "
+            "The data has NOT been included here to prevent incomplete information. "
+            "You MUST use template_liquid (for displaying to users) or load_artifact or other "
+            "artifact analysis tools (for processing) to access the full data."
         )
-        log.debug("%s MCP tool output truncated for LLM.", log_identifier)
+        log.debug(
+            "%s MCP tool output withheld from LLM (all-or-nothing approach).",
+            log_identifier,
+        )
 
     if needs_saving_as_artifact:
         if save_result and save_result.status in [
@@ -967,19 +1041,27 @@ async def manage_large_mcp_tool_responses_callback(
                 filename = first_artifact.data_filename
                 version = first_artifact.data_version
                 if total_artifacts > 1:
-                    message_parts_for_llm.append(
-                        f"The full response has been saved as {total_artifacts} artifacts, starting with '{filename}' (version {version})."
-                    )
+                    artifact_msg = f"The full response has been saved as {total_artifacts} artifacts, starting with '{filename}' (version {version})."
                 else:
-                    message_parts_for_llm.append(
-                        f"The full response has been saved as artifact '{filename}' (version {version})."
+                    artifact_msg = f"The full response has been saved as artifact '{filename}' (version {version})."
+
+                # When data was too large and truncated, provide explicit guidance
+                if needs_truncation_for_llm:
+                    artifact_msg += (
+                        f' To display this data to the user, use template_liquid with data="{filename}". '
+                        f'To process the data yourself, use load_artifact("{filename}").'
                     )
+                message_parts_for_llm.append(artifact_msg)
             elif save_result.fallback_artifact:
                 filename = save_result.fallback_artifact.data_filename
                 version = save_result.fallback_artifact.data_version
-                message_parts_for_llm.append(
-                    f"The full response has been saved as artifact '{filename}' (version {version})."
-                )
+                artifact_msg = f"The full response has been saved as artifact '{filename}' (version {version})."
+                if needs_truncation_for_llm:
+                    artifact_msg += (
+                        f' To display this data to the user, use template_liquid with data="{filename}". '
+                        f'To process the data yourself, use load_artifact("{filename}").'
+                    )
+                message_parts_for_llm.append(artifact_msg)
 
             log.debug(
                 "%s Added saved artifact details to LLM response.", log_identifier
@@ -1004,16 +1086,18 @@ async def manage_large_mcp_tool_responses_callback(
         and save_result.status in [McpSaveStatus.SUCCESS, McpSaveStatus.PARTIAL_SUCCESS]
     ):
         if needs_truncation_for_llm:
-            final_llm_response_dict["status"] = "processed_saved_and_truncated"
+            # Data was too large - withheld from LLM, only available via artifact
+            final_llm_response_dict["status"] = "processed_saved_artifact_only"
         else:
             final_llm_response_dict["status"] = "processed_and_saved"
     elif needs_saving_as_artifact:
         if needs_truncation_for_llm:
-            final_llm_response_dict["status"] = "processed_truncated_save_failed"
+            final_llm_response_dict["status"] = "processed_artifact_only_save_failed"
         else:
             final_llm_response_dict["status"] = "processed_save_failed"
     elif needs_truncation_for_llm:
-        final_llm_response_dict["status"] = "processed_truncated"
+        # This case shouldn't happen (truncation implies saving), but handle it
+        final_llm_response_dict["status"] = "processed_data_withheld"
     else:
         final_llm_response_dict["status"] = "processed"
 
@@ -1124,6 +1208,11 @@ Example - CSV Table:
 {{% for row in data_rows %}}| {{% for cell in row %}}{{{{ cell }}}} | {{% endfor %}}{{% endfor %}}
 {close_delim}
 
+**IMPORTANT - Pipe Characters in Markdown Tables:**
+Text data may contain "|" characters which will break markdown table rendering by pushing data into wrong columns. For text fields that might contain pipes, use the `replace` filter to escape them:
+`{{{{ item.summary | replace: "|", "&#124;" }}}}`
+Only apply this to text fields that might contain pipes - numerical columns don't need it.
+
 Negative Examples
 Use {{ issues.size }} instead of {{ issues|length }}
 Use {{ forloop.index }} instead of {{ loop.index }} (Liquid uses forloop not loop)
@@ -1209,6 +1298,21 @@ def _generate_examples_instruction() -> str:
         + f"""{close_delim}
 
     Example 4:
+    - User: "Show me the Jira issues as a table"
+    <note>There is a JSON artifact jira_issues.json with items containing key, summary, status, type, assignee, updated fields</note>
+    - OrchestratorAgent:
+    {embed_open_delim}status_update:Rendering Jira issues table...{embed_close_delim}
+    {open_delim}template_liquid: data="jira_issues.json" limit="10"
+    """
+        + """| Key | Summary | Status | Type | Assignee | Updated |
+    |-----|---------|--------|------|----------|---------|
+    {% for item in items %}| [{{ item.key }}](https://jira.example.com/browse/{{ item.key }}) | {{ item.summary | replace: "|", "&#124;" }} | {{ item.status }} | {{ item.type }} | {{ item.assignee }} | {{ item.updated }} |
+    {% endfor %}"""
+        + f"""
+    {close_delim}
+    <note>The replace filter on item.summary escapes any pipe characters that would break the markdown table. Only apply to text fields that might contain pipes.</note>
+
+    Example 5:
     - User: "Search the database for all orders from last month"
     - OrchestratorAgent:
     {embed_open_delim}status_update:Querying order database...{embed_close_delim}
@@ -1216,7 +1320,7 @@ def _generate_examples_instruction() -> str:
     [After getting results:]
     Found 247 orders from last month totaling $45,231.
 
-    Example 5:
+    Example 6:
     - User: "Create an HTML with the chart image you just generated with the customer data."
     - OrchestratorAgent:
     {embed_open_delim}status_update:Generating HTML report with chart...{embed_close_delim}
@@ -1284,7 +1388,30 @@ Examples:
 - `The result of 23.5 * 4.2 is {open_delim}math:23.5 * 4.2 | .2f{close_delim}` (Embeds calculated result with 2 decimal places)
 
 The following embeds are resolved *late* (by the gateway before final display):
-- `{open_delim}artifact_return:filename[:version]{close_delim}`: This is the primary way to return an artifact to the user. It attaches the specified artifact to the message. The embed itself is removed from the text. Use this instead of describing a file and expecting the user to download it. Note: artifact_return is not necessary if the artifact was just created by you in this same response, since newly created artifacts are automatically attached to your message.
+- `{open_delim}artifact_return:filename[:version]{close_delim}`: Attaches an artifact to your message so the user receives the file. The embed itself is removed from the text.
+
+  **CRITICAL - Returning Artifacts to Users:**
+  Only artifacts created with the `{open_delim}save_artifact:...{close_delim}` fenced block syntax are automatically sent to the user.
+
+  **You MUST use artifact_return for:**
+  - Artifacts created by tools (e.g., image generation, chart creation, file conversion)
+  - Artifacts created by other agents you called
+  - Artifacts from MCP servers
+
+  **When deciding whether to return an artifact:**
+  - Return artifacts the user explicitly requested or that answer their question
+  - Return final outputs (charts, reports, images, documents)
+  - Do NOT return intermediate/temporary artifacts (e.g., temp files, internal data)
+
+  **Example - Tool creates an image:**
+  User: "Create a chart of sales data"
+  [You call a charting tool that creates sales_chart.png]
+  Your response: "Here's the sales chart. {open_delim}artifact_return:sales_chart.png{close_delim}"
+
+  **Example - Agent creates a report:**
+  User: "Generate a quarterly report"
+  [You call ReportAgent which creates quarterly_report.pdf]
+  Your response: "The quarterly report is ready. {open_delim}artifact_return:quarterly_report.pdf{close_delim}"
 """
 
     artifact_content_instruction = f"""
@@ -1458,6 +1585,14 @@ Examples:
  - BEST: "{open_delim}status_update:Searching database...{close_delim}" [then calls tool, NO visible text]
  - BAD: "Let me search for that information." [then calls tool]
  - BAD: "Searching for information..." [then calls tool]
+
+**CRITICAL - No Links From Training Data**:
+- DO NOT include URLs, links, or markdown links from your training data in responses
+- NEVER include markdown links like [text](url) or raw URLs like https://example.com unless they came from a tool result
+- If a delegated agent's response contains [[cite:searchN]] citations, those are properly formatted - preserve them exactly
+- If a delegated agent's response has no links, do NOT add any links yourself
+- The ONLY acceptable links are those returned by tools (web search, deep research, etc.) with proper citation format
+- Your role is to coordinate and present results, not to augment them with links from your training data
 
 Embeds in responses from agents:
 To be efficient, peer agents may respond with artifact_content in their responses. These will not be resolved until they are sent back to a gateway. If it makes
@@ -2143,9 +2278,11 @@ def notify_tool_invocation_start_callback(
             tool_args=serializable_args,
             function_call_id=tool_context.function_call_id,
         )
-        asyncio.run_coroutine_threadsafe(
-            _publish_data_part_status_update(host_component, a2a_context, tool_data),
-            host_component.get_async_loop(),
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=tool_data,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
         )
         log.debug(
             "%s Scheduled tool_invocation_start notification.",
@@ -2216,9 +2353,11 @@ def notify_tool_execution_result_callback(
             result_data=serializable_response,
             function_call_id=tool_context.function_call_id,
         )
-        asyncio.run_coroutine_threadsafe(
-            _publish_data_part_status_update(host_component, a2a_context, tool_data),
-            host_component.get_async_loop(),
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=tool_data,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
         )
         log.debug(
             "%s Scheduled tool_result notification for function call ID %s.",
@@ -2316,3 +2455,76 @@ def auto_continue_on_max_tokens_callback(
     )
 
     return hijacked_response
+
+
+def preregister_long_running_tools_callback(
+    callback_context: CallbackContext,
+    llm_response: LlmResponse,
+    host_component: "SamAgentComponent",
+) -> Optional[LlmResponse]:
+    """
+    ADK after_model_callback to pre-register all long-running tool calls
+    before any tool execution begins. This prevents race conditions where
+    one tool completes before another has registered.
+
+    The race condition occurs because tools are executed via asyncio.gather
+    (non-deterministic order) and each tool calls register_parallel_call_sent()
+    inside its run_async(). If Tool A completes before Tool B even registers,
+    the system thinks all calls are done (completed=1, total=1).
+
+    By pre-registering all long-running tools in this callback (which runs
+    BEFORE tool execution), we ensure the total count is set correctly upfront.
+    """
+    log_identifier = "[Callback:PreregisterLongRunning]"
+
+    # Only process non-partial responses with function calls
+    if llm_response.partial:
+        return None
+
+    if not llm_response.content or not llm_response.content.parts:
+        return None
+
+    # Find all long-running tool calls (identified by peer_ prefix)
+    long_running_calls = []
+    for part in llm_response.content.parts:
+        if part.function_call:
+            tool_name = part.function_call.name
+            if tool_name.startswith(PEER_TOOL_PREFIX):
+                long_running_calls.append(part.function_call)
+
+    if not long_running_calls:
+        return None
+
+    # Get task context
+    a2a_context = callback_context.state.get("a2a_context")
+    if not a2a_context:
+        log.warning("%s No a2a_context, cannot pre-register tools", log_identifier)
+        return None
+
+    logical_task_id = a2a_context.get("logical_task_id")
+    invocation_id = callback_context._invocation_context.invocation_id
+
+    with host_component.active_tasks_lock:
+        task_context = host_component.active_tasks.get(logical_task_id)
+
+    if not task_context:
+        log.warning(
+            "%s TaskContext not found for %s, cannot pre-register",
+            log_identifier,
+            logical_task_id,
+        )
+        return None
+
+    # Pre-register ALL long-running calls atomically
+    for fc in long_running_calls:
+        task_context.register_parallel_call_sent(invocation_id)
+
+    log.info(
+        "%s Pre-registered %d long-running tool call(s) for invocation %s (task %s)",
+        log_identifier,
+        len(long_running_calls),
+        invocation_id,
+        logical_task_id,
+    )
+
+    return None  # Don't alter the response
