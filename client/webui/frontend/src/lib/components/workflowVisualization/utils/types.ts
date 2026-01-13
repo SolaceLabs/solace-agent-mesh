@@ -38,6 +38,7 @@ export interface LayoutNode {
         switchNodeId?: string; // The parent switch node ID
         targetNodeId?: string; // The node this condition leads to
         isDefaultCase?: boolean; // Whether this is the default case
+        caseNumber?: number; // The case number (1-indexed) for condition pills
         // Original workflow config for detail panel
         originalConfig?: WorkflowNodeConfig;
     };

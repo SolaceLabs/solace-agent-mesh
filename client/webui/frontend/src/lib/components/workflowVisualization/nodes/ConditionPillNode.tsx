@@ -3,13 +3,14 @@ import { NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 import { getValidNodeReferences } from "../utils/expressionParser";
 
 /**
- * Condition pill node - Small pill showing a switch case condition
+ * Condition pill node - Small pill showing a switch case condition with case number
  * Positioned above the target node with curved edge from switch and straight edge to target
  * Supports highlighting source nodes on hover by parsing expression references
  */
 const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onHighlightNodes, knownNodeIds }) => {
     const isDefault = node.data.isDefaultCase;
     const label = node.data.conditionLabel || node.data.label;
+    const caseNumber = node.data.caseNumber;
 
     // Handle mouse enter - extract node references and highlight them
     const handleMouseEnter = useCallback(() => {
@@ -25,9 +26,13 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
         onHighlightNodes?.([]);
     }, [onHighlightNodes]);
 
+    // Format display text with case number prefix
+    const displayText = isDefault ? "Default" : label;
+    const fullText = isDefault ? "Default" : `${caseNumber} ${label}`;
+
     return (
         <div
-            className={`flex cursor-pointer items-center justify-center rounded-full border px-2 py-1 text-xs font-medium shadow-sm transition-all duration-200 ${
+            className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium shadow-sm transition-all duration-200 ${
                 isDefault
                     ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500 dark:bg-amber-900/30 dark:text-amber-300"
                     : "border-purple-400 bg-purple-50 text-purple-700 dark:border-purple-500 dark:bg-purple-900/30 dark:text-purple-300"
@@ -42,9 +47,14 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
             }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            title={label}
+            title={fullText}
         >
-            <span className="block w-full overflow-hidden text-ellipsis whitespace-nowrap text-center">{label}</span>
+            {!isDefault && caseNumber && (
+                <span className="flex-shrink-0 font-semibold">{caseNumber}</span>
+            )}
+            <span className="block flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+                {displayText}
+            </span>
         </div>
     );
 };
