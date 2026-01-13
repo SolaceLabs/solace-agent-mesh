@@ -19,7 +19,8 @@ Vibe Coding is ideal for:
 Before you begin, ensure you have:
 
 - A standard IDE (such as VS Code)
-- A coding assistant with MCP support (such as Claude Code). See the [list of supported clients](https://context7.com/docs/resources/all-clients).
+- A coding assistant with MCP support (recommended Claude Code). See the [list of supported clients](https://context7.com/docs/resources/all-clients).
+- LLM model (recommended Claude Opus 4.5 model)
 - Python V3.10.6 to V3.13
 - (Optional) A Context7 API key (free for anyone)
 
