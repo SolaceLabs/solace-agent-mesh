@@ -184,7 +184,7 @@ jobs:
         id: prep
         uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-prep@main
         with:
-          version: ${{ github.event.inputs.exact_version != '' && github.event.inputs.exact_version || github.event.inputs.version }}
+          version: ${{ github.event.inputs.exact_version || github.event.inputs.version }}
 
       # Publish using Trusted Publishing - must be directly in workflow, not in composite action
       # See: https://docs.pypi.org/trusted-publishers/using-a-publisher/
