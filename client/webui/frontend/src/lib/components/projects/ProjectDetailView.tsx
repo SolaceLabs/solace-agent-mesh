@@ -6,12 +6,14 @@ import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
+import { canEditProject, canDeleteProject } from "@/lib/utils/permissions";
 
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
 import { KnowledgeSection } from "./KnowledgeSection";
 import { ProjectChatsSection } from "./ProjectChatsSection";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
+import { ShareDialog } from "./ShareDialog";
 
 interface ProjectDetailViewProps {
     project: Project;
@@ -118,6 +120,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
         }
     };
 
+    const userCanEdit = canEditProject(project);
+    const userCanDelete = canDeleteProject(project);
+
     return (
         <div className="flex h-full flex-col">
             {/* Header with breadcrumbs and actions */}
@@ -125,23 +130,28 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 title={project.name}
                 breadcrumbs={[{ label: "Projects", onClick: onBack }, { label: project.name }]}
                 buttons={[
-                    <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
-                        <Pencil className="h-4 w-4" />
-                        Edit Details
-                    </Button>,
-                    <DropdownMenu key="more">
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={handleDeleteClick}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>,
+                    <ShareDialog key="share" project={project} />,
+                    userCanEdit && (
+                        <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
+                            <Pencil className="h-4 w-4" />
+                            Edit Details
+                        </Button>
+                    ),
+                    userCanDelete && (
+                        <DropdownMenu key="more">
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={handleDeleteClick}>
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ),
                 ]}
             />
 
@@ -160,9 +170,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
 
                 {/* Right Panel - Metadata Sidebar */}
                 <div className="flex min-h-0 w-[40%] flex-col">
-                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
+                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} readOnly={!userCanEdit} />
 
-                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />
+                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} readOnly={!userCanEdit} />
 
                     <KnowledgeSection project={project} />
                 </div>

@@ -9,9 +9,10 @@ interface DefaultAgentSectionProps {
     project: Project;
     onSave: (defaultAgentId: string | null) => Promise<void>;
     isSaving: boolean;
+    readOnly?: boolean;
 }
 
-export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ project, onSave, isSaving }) => {
+export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ project, onSave, isSaving, readOnly }) => {
     const { agents, agentsLoading, agentNameDisplayNameMap } = useChatContext();
     const [isEditing, setIsEditing] = useState(false);
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(project.defaultAgentId || null);
@@ -37,9 +38,11 @@ export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ projec
             <div className="mb-6">
                 <div className="mb-3 flex items-center justify-between px-4">
                     <h3 className="text-foreground text-sm font-semibold">Default Agent</h3>
-                    <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} disabled={agentsLoading} className="h-8 w-8 p-0" tooltip="Edit">
-                        <Pencil className="h-4 w-4" />
-                    </Button>
+                    {!readOnly && (
+                        <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} disabled={agentsLoading} className="h-8 w-8 p-0" tooltip="Edit">
+                            <Pencil className="h-4 w-4" />
+                        </Button>
+                    )}
                 </div>
 
                 <div className="px-4">
