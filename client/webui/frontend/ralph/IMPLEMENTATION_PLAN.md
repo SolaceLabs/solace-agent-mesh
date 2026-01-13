@@ -6,10 +6,6 @@
 
 ### Medium Priority - Polish & Validation
 
-- **Update Storybook stories for ShareDialog** - Add new stories to `src/stories/ShareDialog.stories.tsx`: TypeaheadMode (empty search), TypeaheadWithResults (3-4 mock users), TypeaheadWithPending (2-3 pending users), TypeaheadNoResults ("No users found" message). Mock `PeopleService.searchPeople` with MSW handlers returning fixture data.
-
-- **Run build validation tests** - Execute `npm run build-package && npm run lint` to ensure TypeScript strict mode compliance and no linting errors. Fix any type errors or linting issues before marking task complete.
-
 - **Run Storybook validation tests for ShareDialog** - Execute `npx vitest --project=storybook src/stories/ShareDialog.stories.tsx` to validate ShareDialog stories render without errors. Fix any rendering errors or test failures immediately (required per AGENTS.md testing strategy).
 
 ### Low Priority - Documentation & Cleanup
