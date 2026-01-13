@@ -75,13 +75,13 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
             setError(null);
             setSuccess(null);
 
-            const newCollaborator = await shareProject(project.id, email, role);
+            await shareProject(project.id, email, role);
 
             // Refresh collaborators list to reflect the new addition
             await fetchCollaborators();
             setEmail("");
             setRole("viewer");
-            setSuccess(`Invitation sent to ${newCollaborator.email}`);
+            setSuccess(`Invitation sent to ${email}`);
 
             // Clear success message after 3 seconds
             setTimeout(() => setSuccess(null), 3000);
