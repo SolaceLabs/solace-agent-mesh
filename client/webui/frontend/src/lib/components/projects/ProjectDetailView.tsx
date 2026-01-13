@@ -25,7 +25,6 @@ interface ProjectDetailViewProps {
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
     const { updateProject, projects, deleteProject, getCollaboratorsWithOwner } = useProjectContext();
     const { userInfo } = useAuthContext();
-    console.log("userInfo:", userInfo);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
