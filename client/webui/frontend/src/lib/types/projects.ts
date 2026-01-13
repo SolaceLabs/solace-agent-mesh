@@ -95,3 +95,23 @@ export interface ProjectContextValue extends UseProjectsReturn {
     updateCollaborator: (projectId: string, userId: string, role: ProjectRole) => Promise<Collaborator>;
     removeCollaborator: (projectId: string, userId: string) => Promise<void>;
 }
+
+// People search API types
+export interface PersonSearchResult {
+    id: string;
+    name: string;
+    email: string;
+    title: string | null;
+}
+
+export interface PeopleSearchResponse {
+    data: PersonSearchResult[];
+}
+
+// Pending user (before submission)
+export interface PendingCollaborator {
+    id: string;
+    name: string;
+    email: string;
+    role: "viewer"; // Always viewer for this POC
+}
