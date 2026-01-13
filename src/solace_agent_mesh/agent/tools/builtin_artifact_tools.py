@@ -2521,12 +2521,7 @@ tool_registry.register(artifact_search_and_replace_regex_tool_def)
 # ==============zhenyu new artifact tool to doing bm25 keyword search=============== #
 
 async def bm25_kw_search(
-    #filename: str,
-    #version: int,
-    #load_metadata_only: bool = False,
-    #max_content_length: Optional[int] = None,
-    #include_line_numbers: bool = False,
-    index_dir: str,
+    index_artifact_name: str,
     query: str,
     top_k: int = 10,
     tool_context: ToolContext = None,
@@ -2535,7 +2530,7 @@ async def bm25_kw_search(
     Performs a BM25 keyword search on the specified artifact index.
 
     Args:
-        index_dir: The directory of the BM25 index to search.
+        index_artifact_name: The name of the BM25 index artifact (e.g., "document.pdf.bm25_index").
         query: The search query string.
         top_k: The number of top results to return (must be between 1 and 50), default is 10.
         tool_context: The context provided by the ADK framework.
@@ -2543,75 +2538,234 @@ async def bm25_kw_search(
     Returns:
         A dictionary containing the search results and related information.
     """
+    import tempfile
+    import zipfile
+    import shutil
+    from datetime import datetime, timezone
+    from ...common.rag_dto import create_rag_source, create_rag_search_result
+    from ...agent.utils.artifact_helpers import load_artifact_content_or_metadata
+    from ...agent.utils.context_helpers import get_original_session_id
+    
     if not tool_context:
         return {
             "status": "error",
-            "index_dir": index_dir,
+            "index_artifact_name": index_artifact_name,
             "message": "ToolContext is missing.",
         }
     
-    log_identifier = f"[BuiltinArtifactTool:bm25_kw_search:{index_dir}]"
+    log_identifier = f"[BuiltinArtifactTool:bm25_kw_search:{index_artifact_name}]"
     log.info("%s Processing bm25 keyword search request.", log_identifier)
     
     # Validate top_k parameter
     if top_k < 1 or top_k > 50:
         return {
             "status": "error",
-            "index_dir": index_dir,
+            "index_artifact_name": index_artifact_name,
             "message": f"Invalid top_k value: {top_k}. Must be between 1 and 50.",
         }
 
-    from ..utils.bm25_retriever import BM25Retriever
-    
-    retriever = BM25Retriever(index_dir)
+    # Get artifact service context
+    try:
+        inv_context = tool_context._invocation_context
+        artifact_service = inv_context.artifact_service
+        if not artifact_service:
+            raise ValueError("ArtifactService is not available in the context.")
+        
+        app_name = inv_context.app_name
+        user_id = inv_context.user_id
+        session_id = get_original_session_id(inv_context)
+        agent = getattr(inv_context, "agent", None)
+        host_component = getattr(agent, "host_component", None) if agent else None
+    except Exception as ctx_err:
+        log.error("%s Failed to get artifact service context: %s", log_identifier, ctx_err)
+        return {
+            "status": "error",
+            "index_artifact_name": index_artifact_name,
+            "message": f"Failed to get artifact service context: {ctx_err}",
+        }
 
-    min_score = 0
+    # Create temporary directory for extracting the index
+    temp_dir = None
+    try:
+        temp_dir = tempfile.mkdtemp(prefix="bm25_index_")
+        log.debug("%s Created temporary directory: %s", log_identifier, temp_dir)
+        
+        # Load the BM25 index ZIP artifact
+        log.info("%s Loading BM25 index artifact '%s'", log_identifier, index_artifact_name)
+        load_result = await load_artifact_content_or_metadata(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=index_artifact_name,
+            version="latest",
+            return_raw_bytes=True,
+            component=host_component,
+            log_identifier_prefix=log_identifier,
+        )
+        
+        if load_result.get("status") != "success":
+            error_msg = load_result.get("message", "Failed to load BM25 index artifact")
+            log.error("%s %s", log_identifier, error_msg)
+            return {
+                "status": "error",
+                "index_artifact_name": index_artifact_name,
+                "message": error_msg,
+            }
+        
+        zip_bytes = load_result.get("raw_bytes")
+        if not zip_bytes:
+            return {
+                "status": "error",
+                "index_artifact_name": index_artifact_name,
+                "message": "BM25 index artifact is empty",
+            }
+        
+        # Extract the ZIP file to the temporary directory
+        log.debug("%s Extracting ZIP archive (%d bytes) to %s",
+                  log_identifier, len(zip_bytes), temp_dir)
+        
+        import io
+        with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as zip_ref:
+            zip_ref.extractall(temp_dir)
+        
+        log.info("%s Successfully extracted BM25 index to %s", log_identifier, temp_dir)
+        
+        # Now use the BM25Retriever with the extracted directory
+        from ..utils.bm25_retriever import BM25Retriever
+        
+        retriever = BM25Retriever(temp_dir)
+        min_score = 0
 
-    results = retriever.search_single_document(
+        results = retriever.search_single_document(
             query=query,
             top_k=top_k,
             min_score=min_score
         )
         
-    if not results:
-        return {
-            'response': f"I couldn't find any relevant information to answer this question.",
-            'sources': []
-        }
-    
-    # Step 2: Format context
-    context_for_llm = []
-    sources_citation_for_llm = []
-    
-    #return results
-
-    log.info("%s Retrieved %d results from BM25 search: %s", log_identifier, len(results), results)
-
-    for i, result in enumerate(results, 1):
-        context_for_llm.append({
-            f"Source {i}": result['text']
-        })
+        if not results:
+            return {
+                'response': f"I couldn't find any relevant information to answer this question.",
+                'sources': [],
+                'rag_metadata': create_rag_search_result(
+                    query=query,
+                    search_type="artifact_search",
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    sources=[],
+                    title=f"Artifact Search: {query[:50]}..." if len(query) > 50 else f"Artifact Search: {query}"
+                )
+            }
         
-        sources_citation_for_llm.append({
-            'source_id': i,
-            'document': result['doc_name'],
-            'chunk_index': result['chunk_index'],
-            'score': result['score'],
-            'file_type': result['file_type'],
-            'original_doc_path': result['doc_path'],
-            'text': result['text'],
-            'page_numbers': result['page_numbers']
-        })
-    
-    return {
+        # Step 2: Format context and build RAG sources
+        context_for_llm = []
+        sources_citation_for_llm = []
+        rag_sources = []
+        valid_citation_ids = []
+
+        log.info("%s Retrieved %d results from BM25 search", log_identifier, len(results))
+
+        # Normalize BM25 scores to 0-1 range for relevance_score
+        max_score = results[0]['score'] if results else 1.0
+        
+        for i, result in enumerate(results):
+            # Use 0-indexed citation IDs like web_search: s0r0, s0r1, etc.
+            citation_id = f"s0r{i}"
+            valid_citation_ids.append(citation_id)
+            
+            context_for_llm.append({
+                f"Source [{citation_id}]": result['text']
+            })
+            
+            # Format page numbers for display
+            page_info = ""
+            if result.get('page_numbers'):
+                pages = result['page_numbers']
+                if len(pages) == 1:
+                    page_info = f"p. {pages[0]}"
+                elif len(pages) > 1:
+                    page_info = f"pp. {pages[0]}-{pages[-1]}"
+            
+            sources_citation_for_llm.append({
+                'source_id': i + 1,
+                'citation_id': citation_id,
+                'document': result['doc_name'],
+                'chunk_index': result['chunk_index'],
+                'score': result['score'],
+                'file_type': result['file_type'],
+                'original_doc_path': result['doc_path'],
+                'text': result['text'],
+                'page_numbers': result['page_numbers'],
+                'page_info': page_info
+            })
+            
+            # Create RAG source for the citation system
+            # Normalize score to 0-1 range
+            normalized_score = result['score'] / max_score if max_score > 0 else 0.0
+            
+            rag_source = create_rag_source(
+                citation_id=citation_id,
+                content_preview=result['text'][:500] if len(result['text']) > 500 else result['text'],
+                relevance_score=normalized_score,
+                filename=result['doc_name'],
+                title=result['doc_name'],
+                source_type="artifact",
+                source_url=f"artifact://{result['doc_path']}",
+                metadata={
+                    "type": "artifact_search",
+                    "file_type": result['file_type'],
+                    "chunk_index": result['chunk_index'],
+                    "page_numbers": result.get('page_numbers', []),
+                    "page_info": page_info,
+                    "bm25_score": result['score'],
+                    "doc_path": result['doc_path']
+                }
+            )
+            rag_sources.append(rag_source)
+        
+        # Create RAG metadata for the citation system
+        rag_metadata = create_rag_search_result(
+            query=query,
+            search_type="artifact_search",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            sources=rag_sources,
+            title=f"Artifact Search: {query[:50]}..." if len(query) > 50 else f"Artifact Search: {query}"
+        )
+        
+        return {
             'context_for_llm': context_for_llm,
             'num_chunks': len(results),
             'sources_citation_for_llm': sources_citation_for_llm,
             'score_range': {
                 'max': results[0]['score'] if results else 0,
                 'min': results[-1]['score'] if results else 0
-            }
+            },
+            'rag_metadata': rag_metadata,
+            'valid_citation_ids': valid_citation_ids
         }
+        
+    except zipfile.BadZipFile as zip_err:
+        log.error("%s Invalid ZIP file for BM25 index: %s", log_identifier, zip_err)
+        return {
+            "status": "error",
+            "index_artifact_name": index_artifact_name,
+            "message": f"Invalid BM25 index artifact (not a valid ZIP file): {zip_err}",
+        }
+    except Exception as e:
+        log.exception("%s Error during BM25 search: %s", log_identifier, e)
+        return {
+            "status": "error",
+            "index_artifact_name": index_artifact_name,
+            "message": f"Error during BM25 search: {e}",
+        }
+    finally:
+        # Clean up temporary directory
+        if temp_dir:
+            try:
+                shutil.rmtree(temp_dir)
+                log.debug("%s Cleaned up temporary directory: %s", log_identifier, temp_dir)
+            except Exception as cleanup_err:
+                log.warning("%s Failed to clean up temporary directory %s: %s",
+                           log_identifier, temp_dir, cleanup_err)
 
 bm25_kw_search_tool_def = BuiltinTool(
     name="bm25_kw_search",
@@ -2909,21 +3063,21 @@ This is GOOD - cite what's useful, not everything retrieved
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
         properties={
-            "index_dir": adk_types.Schema(
+            "index_artifact_name": adk_types.Schema(
                 type=adk_types.Type.STRING,
-                description="Directory of the BM25 index to search. May contain embeds.",
+                description="The name of the BM25 index artifact to search (e.g., 'document.pdf.bm25_index'). The artifact should be a ZIP file containing the BM25 index files.",
             ),
             "query": adk_types.Schema(
                 type=adk_types.Type.STRING,
-                description="Natural language instruction for the LLM on what to extract or how to transform the content. May contain embeds.",
+                description="The search query string to find relevant content in the indexed artifact.",
             ),
             "top_k": adk_types.Schema(
                 type=adk_types.Type.INTEGER,
-                description="Number of top results to return. Default is 10.",
+                description="Number of top results to return (1-50). Default is 10.",
                 nullable=True,
             ),
         },
-        required=["index_dir", "query"],
+        required=["index_artifact_name", "query"],
     ),
     examples=[],
 )

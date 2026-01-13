@@ -1740,7 +1740,7 @@ async def save_bm25_index_with_metadata(
         "saved_files": saved_files,
     }
 
-async def prepare_bm25_index_for_retrieval( # use dependency injection ???? unzip to temp dir? after retrieval, delete temp dir?
+async def prepare_bm25_index_for_retrieval(
     artifact_service: BaseArtifactService,
     app_name: str,
     user_id: str,
@@ -1760,3 +1760,22 @@ async def prepare_bm25_index_for_retrieval( # use dependency injection ???? unzi
         index_filename: Name of the BM25 index artifact
         query: The query string for retrieval
         top_k: Number of top results to retrieve (default: 5)
+    
+    Returns:
+        Dict with retrieval results or error information
+    """
+    # TODO: Implement BM25 index retrieval
+    # This function should:
+    # 1. Load the BM25 index ZIP artifact
+    # 2. Extract to a temporary directory
+    # 3. Use BM25Retriever to search
+    # 4. Clean up temporary files
+    # 5. Return formatted results
+    log_identifier = f"[ArtifactHelper:prepare_bm25_retrieval:{index_filename}]"
+    log.warning("%s Function not yet implemented", log_identifier)
+    return {
+        "status": "error",
+        "message": "BM25 index retrieval not yet implemented",
+        "index_filename": index_filename,
+        "query": query,
+    }
