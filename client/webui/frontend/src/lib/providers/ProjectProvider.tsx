@@ -1,9 +1,15 @@
 import React, { createContext, useCallback, useContext, useEffect, useState, useMemo } from "react";
 
 import { useConfigContext } from "@/lib/hooks";
-import type { Project, ProjectContextValue, ProjectListResponse, UpdateProjectData, Collaborator, ProjectRole } from "@/lib/types/projects";
+import type { Project, ProjectContextValue, ProjectListResponse, UpdateProjectData, Collaborator, ProjectRole, CollaboratorsResponse } from "@/lib/types/projects";
 import { api } from "@/lib/api";
-import { shareProject as apiShareProject, getCollaborators as apiGetCollaborators, updateCollaborator as apiUpdateCollaborator, removeCollaborator as apiRemoveCollaborator } from "@/lib/api/projects/sharing";
+import {
+    shareProject as apiShareProject,
+    getCollaborators as apiGetCollaborators,
+    getCollaboratorsWithOwner as apiGetCollaboratorsWithOwner,
+    updateCollaborator as apiUpdateCollaborator,
+    removeCollaborator as apiRemoveCollaborator,
+} from "@/lib/api/projects/sharing";
 
 const LAST_VIEWED_PROJECT_KEY = "lastViewedProjectId";
 
@@ -258,6 +264,16 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         [projectsEnabled]
     );
 
+    const getCollaboratorsWithOwner = useCallback(
+        async (projectId: string): Promise<CollaboratorsResponse> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+            return await apiGetCollaboratorsWithOwner(projectId);
+        },
+        [projectsEnabled]
+    );
+
     const shareProject = useCallback(
         async (projectId: string, email: string, role: ProjectRole): Promise<Collaborator> => {
             if (!projectsEnabled) {
@@ -316,6 +332,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSearchQuery,
         filteredProjects,
         getCollaborators,
+        getCollaboratorsWithOwner,
         shareProject,
         updateCollaborator,
         removeCollaborator,

@@ -1,12 +1,20 @@
 import { api } from "@/lib/api";
-import type { Collaborator, ProjectRole } from "@/lib/types/projects";
+import type { Collaborator, ProjectRole, CollaboratorsResponse } from "@/lib/types/projects";
 
 /**
- * Get all collaborators for a project
+ * Get all collaborators for a project (returns only collaborators array)
  */
 export const getCollaborators = async (projectId: string) => {
-    const response = await api.webui.get<{ projectId: string; owner: Collaborator; collaborators: Collaborator[] }>(`/api/v1/projects/${projectId}/collaborators`);
+    const response = await api.webui.get<CollaboratorsResponse>(`/api/v1/projects/${projectId}/collaborators`);
     return response.collaborators;
+};
+
+/**
+ * Get full collaborators response including owner
+ */
+export const getCollaboratorsWithOwner = async (projectId: string) => {
+    const response = await api.webui.get<CollaboratorsResponse>(`/api/v1/projects/${projectId}/collaborators`);
+    return response;
 };
 
 /**

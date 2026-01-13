@@ -25,6 +25,12 @@ export interface Collaborator {
     addedAt: string; // ISO string
 }
 
+export interface CollaboratorsResponse {
+    projectId: string;
+    owner: Collaborator;
+    collaborators: Collaborator[];
+}
+
 export interface CreateProjectRequest {
     name: string;
     description?: string;
@@ -84,6 +90,7 @@ export interface ProjectContextValue extends UseProjectsReturn {
     filteredProjects: Project[];
     // Sharing methods
     getCollaborators: (projectId: string) => Promise<Collaborator[]>;
+    getCollaboratorsWithOwner: (projectId: string) => Promise<CollaboratorsResponse>;
     shareProject: (projectId: string, email: string, role: ProjectRole) => Promise<Collaborator>;
     updateCollaborator: (projectId: string, userId: string, role: ProjectRole) => Promise<Collaborator>;
     removeCollaborator: (projectId: string, userId: string) => Promise<void>;

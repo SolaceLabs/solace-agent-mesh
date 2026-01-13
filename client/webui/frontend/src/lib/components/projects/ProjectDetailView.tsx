@@ -1,12 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
 
 import { Button, Input, Textarea, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
-import type { Project, UpdateProjectData } from "@/lib/types/projects";
-import { canEditProject, canDeleteProject } from "@/lib/utils/permissions";
+import { useAuthContext } from "@/lib/hooks";
+import type { Project, UpdateProjectData, ProjectRole } from "@/lib/types/projects";
 
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
@@ -23,7 +23,9 @@ interface ProjectDetailViewProps {
 }
 
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
-    const { updateProject, projects, deleteProject } = useProjectContext();
+    const { updateProject, projects, deleteProject, getCollaboratorsWithOwner } = useProjectContext();
+    const { userInfo } = useAuthContext();
+    console.log("userInfo:", userInfo);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -32,6 +34,38 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     const [nameError, setNameError] = useState<string | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [userRole, setUserRole] = useState<ProjectRole | null>(null);
+    const [, setIsLoadingRole] = useState(true);
+
+    // Fetch user's role for this project
+    useEffect(() => {
+        const fetchUserRole = async () => {
+            try {
+                setIsLoadingRole(true);
+                const response = await getCollaboratorsWithOwner(project.id);
+
+                // Get current user's username from userInfo
+                const currentUserId = (userInfo as { username?: string })?.username;
+
+                // Check if user is the owner
+                if (response.owner.userId === currentUserId) {
+                    setUserRole("owner");
+                } else {
+                    // Check if user is in collaborators list
+                    const collaborator = response.collaborators.find(c => c.userId === currentUserId);
+                    setUserRole(collaborator?.role || null);
+                }
+            } catch (err) {
+                console.error("Failed to fetch user role:", err);
+                // Fallback to existing permission checks if API fails
+                setUserRole(null);
+            } finally {
+                setIsLoadingRole(false);
+            }
+        };
+
+        fetchUserRole();
+    }, [project.id, getCollaboratorsWithOwner, userInfo]);
 
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
         setError(null);
@@ -120,8 +154,13 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
         }
     };
 
-    const userCanEdit = canEditProject(project);
-    const userCanDelete = canDeleteProject(project);
+    // Role-based permissions
+    // Owner: full access (edit, delete, share)
+    // Editor: can edit but not share or delete
+    // Viewer: read-only (cannot edit, delete, or share)
+    const userCanEdit = userRole === "owner" || userRole === "editor";
+    const userCanDelete = userRole === "owner";
+    const userCanShare = userRole === "owner";
 
     return (
         <div className="flex h-full flex-col">
@@ -130,7 +169,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 title={project.name}
                 breadcrumbs={[{ label: "Projects", onClick: onBack }, { label: project.name }]}
                 buttons={[
-                    <ShareDialog key="share" project={project} />,
+                    userCanShare && <ShareDialog key="share" project={project} />,
                     userCanEdit && (
                         <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
                             <Pencil className="h-4 w-4" />
