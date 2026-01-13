@@ -82,4 +82,9 @@ export interface ProjectContextValue extends UseProjectsReturn {
     searchQuery: string;
     setSearchQuery: (query: string) => void;
     filteredProjects: Project[];
+    // Sharing methods
+    getCollaborators: (projectId: string) => Promise<Collaborator[]>;
+    shareProject: (projectId: string, email: string, role: ProjectRole) => Promise<Collaborator>;
+    updateCollaborator: (projectId: string, userId: string, role: ProjectRole) => Promise<Collaborator>;
+    removeCollaborator: (projectId: string, userId: string) => Promise<void>;
 }
