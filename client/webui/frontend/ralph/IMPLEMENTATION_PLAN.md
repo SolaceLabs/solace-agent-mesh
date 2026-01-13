@@ -2,10 +2,6 @@
 
 ## Priority Tasks (Sorted by Priority)
 
-- [ ] **Type Definitions**: Update `src/lib/types/projects.ts` with `ProjectRole`, `Collaborator` interfaces, and extend `Project` type with `role` and `collaboratorCount`.
-    - **Why**: Foundation for all other tasks; ensures type safety across the application.
-    - **Acceptance Criteria**: Types match backend API contract (snake_case vs camelCase mapping handled by client/service layer).
-
 - [ ] **Permission Utilities**: Create `src/lib/utils/permissions.ts` with helper functions (`canShareProject`, `canEditProject`, `canDeleteProject`).
     - **Why**: Centralizes logic for UI permission checks; prevents duplicated logic.
     - **Acceptance Criteria**: Unit tests pass for all role combinations (owner, editor, viewer, undefined).

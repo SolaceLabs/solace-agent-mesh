@@ -12,7 +12,7 @@ This file contains operational learnings for Ralph. Keep it LEAN - only operatio
 
 ## Patterns That Work
 
-[Ralph will update this as needed]
+- **Type Validation**: Type changes should be validated with both build and lint to ensure strict type safety and code quality.
 
 ## Patterns That Don't Work
 
