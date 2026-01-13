@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/lib/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/lib/components/ui/dialog";
 import { Button } from "@/lib/components/ui/button";
 import { Input } from "@/lib/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui/select";
@@ -24,8 +24,8 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
     const [shareLoading, setShareLoading] = useState(false);
     const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
     const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+    const [collaboratorToDelete, setCollaboratorToDelete] = useState<Collaborator | null>(null);
     const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
-    console.log("Collaborators:", collaborators);
     const [email, setEmail] = useState("");
     const [role, setRole] = useState<ProjectRole>("viewer");
     const [error, setError] = useState<string | null>(null);
@@ -77,7 +77,8 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
 
             const newCollaborator = await shareProject(project.id, email, role);
 
-            setCollaborators(prev => [...prev, newCollaborator]);
+            // Refresh collaborators list to reflect the new addition
+            await fetchCollaborators();
             setEmail("");
             setRole("viewer");
             setSuccess(`Invitation sent to ${newCollaborator.email}`);
@@ -110,15 +111,16 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
         }
     };
 
-    const handleRemoveCollaborator = async (userId: string) => {
-        if (!confirm("Are you sure you want to remove this collaborator?")) return;
+    const handleRemoveCollaborator = async () => {
+        if (!collaboratorToDelete) return;
 
         try {
-            setRemovingUserId(userId);
+            setRemovingUserId(collaboratorToDelete.userId);
             setError(null);
-            await removeCollaborator(project.id, userId);
+            await removeCollaborator(project.id, collaboratorToDelete.userId);
 
-            setCollaborators(prev => prev.filter(c => c.userId !== userId));
+            setCollaborators(prev => prev.filter(c => c.userId !== collaboratorToDelete.userId));
+            setCollaboratorToDelete(null);
         } catch (err) {
             console.error("Failed to remove collaborator:", err);
             setError("Failed to remove collaborator");
@@ -238,13 +240,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                                                 </TableCell>
                                                 <TableCell>
                                                     {collaborator.role !== "owner" && (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="text-muted-foreground hover:text-destructive h-8 w-8"
-                                                            onClick={() => handleRemoveCollaborator(collaborator.userId)}
-                                                            disabled={isAnyOperationInProgress}
-                                                        >
+                                                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive h-8 w-8" onClick={() => setCollaboratorToDelete(collaborator)} disabled={isAnyOperationInProgress}>
                                                             {removingUserId === collaborator.userId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                                             <span className="sr-only">Remove</span>
                                                         </Button>
@@ -259,6 +255,33 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                     </div>
                 </div>
             </DialogContent>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={!!collaboratorToDelete} onOpenChange={isOpen => !isOpen && setCollaboratorToDelete(null)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Remove Collaborator</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to remove <strong>{collaboratorToDelete?.email || collaboratorToDelete?.userId}</strong> from this project? They will lose access immediately.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button variant="outline" onClick={() => setCollaboratorToDelete(null)} disabled={removingUserId !== null}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={handleRemoveCollaborator} disabled={removingUserId !== null}>
+                            {removingUserId ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Removing...
+                                </>
+                            ) : (
+                                "Remove"
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Dialog>
     );
 }
