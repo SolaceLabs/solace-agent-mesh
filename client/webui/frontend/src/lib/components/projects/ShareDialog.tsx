@@ -22,12 +22,17 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [shareLoading, setShareLoading] = useState(false);
+    const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+    const [removingUserId, setRemovingUserId] = useState<string | null>(null);
     const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
     console.log("Collaborators:", collaborators);
     const [email, setEmail] = useState("");
     const [role, setRole] = useState<ProjectRole>("viewer");
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+
+    // Combined loading state for disabling buttons
+    const isAnyOperationInProgress = loading || shareLoading || updatingUserId !== null || removingUserId !== null;
 
     // Permission check
     const isOwner = canShareProject(project);
@@ -91,13 +96,17 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
         console.log("userId:", userId, "newRole:", newRole);
         console.log("projectId:", project.id);
         try {
+            setUpdatingUserId(userId);
             setError(null);
-            const updated = await updateCollaborator(project.id, userId, newRole);
+            await updateCollaborator(project.id, userId, newRole);
 
-            setCollaborators(prev => prev.map(c => (c.userId === userId ? updated : c)));
+            // Refresh collaborators list to reflect the updated role
+            await fetchCollaborators();
         } catch (err) {
             console.error("Failed to update role:", err);
             setError("Failed to update collaborator role");
+        } finally {
+            setUpdatingUserId(null);
         }
     };
 
@@ -105,6 +114,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
         if (!confirm("Are you sure you want to remove this collaborator?")) return;
 
         try {
+            setRemovingUserId(userId);
             setError(null);
             await removeCollaborator(project.id, userId);
 
@@ -112,6 +122,8 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
         } catch (err) {
             console.error("Failed to remove collaborator:", err);
             setError("Failed to remove collaborator");
+        } finally {
+            setRemovingUserId(null);
         }
     };
 
@@ -149,13 +161,13 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                             <label htmlFor="email" className="text-sm font-medium">
                                 Email address
                             </label>
-                            <Input id="email" type="email" placeholder="colleague@example.com" value={email} onChange={e => setEmail(e.target.value)} required disabled={shareLoading} />
+                            <Input id="email" type="email" placeholder="colleague@example.com" value={email} onChange={e => setEmail(e.target.value)} required disabled={isAnyOperationInProgress} />
                         </div>
                         <div className="grid w-[110px] gap-2">
                             <label htmlFor="role" className="text-sm font-medium">
                                 Role
                             </label>
-                            <Select value={role} onValueChange={val => setRole(val as ProjectRole)} disabled={shareLoading}>
+                            <Select value={role} onValueChange={val => setRole(val as ProjectRole)} disabled={isAnyOperationInProgress}>
                                 <SelectTrigger id="role">
                                     <SelectValue placeholder="Role" />
                                 </SelectTrigger>
@@ -165,7 +177,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <Button type="submit" disabled={shareLoading}>
+                        <Button type="submit" disabled={isAnyOperationInProgress}>
                             {shareLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
                             <span className="sr-only">Invite</span>
                         </Button>
@@ -213,7 +225,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                                                     {collaborator.role === "owner" ? (
                                                         <Badge variant="secondary">Owner</Badge>
                                                     ) : (
-                                                        <Select defaultValue={collaborator.role} onValueChange={val => handleUpdateRole(collaborator.userId, val as ProjectRole)}>
+                                                        <Select value={collaborator.role} onValueChange={val => handleUpdateRole(collaborator.userId, val as ProjectRole)} disabled={isAnyOperationInProgress}>
                                                             <SelectTrigger className="h-8 w-full">
                                                                 <SelectValue />
                                                             </SelectTrigger>
@@ -226,8 +238,14 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                                                 </TableCell>
                                                 <TableCell>
                                                     {collaborator.role !== "owner" && (
-                                                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive h-8 w-8" onClick={() => handleRemoveCollaborator(collaborator.userId)}>
-                                                            <Trash2 className="h-4 w-4" />
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="text-muted-foreground hover:text-destructive h-8 w-8"
+                                                            onClick={() => handleRemoveCollaborator(collaborator.userId)}
+                                                            disabled={isAnyOperationInProgress}
+                                                        >
+                                                            {removingUserId === collaborator.userId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                                             <span className="sr-only">Remove</span>
                                                         </Button>
                                                     )}
