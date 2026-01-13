@@ -213,7 +213,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
 
                     <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} readOnly={!userCanEdit} />
 
-                    <KnowledgeSection project={project} />
+                    <KnowledgeSection project={project} readOnly={!userCanEdit} />
                 </div>
             </div>
 
