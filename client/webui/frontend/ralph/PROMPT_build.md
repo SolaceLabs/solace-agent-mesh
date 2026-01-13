@@ -72,13 +72,23 @@ Implement one task from `ralph/IMPLEMENTATION_PLAN.md`, validate it with tests, 
 
 7. **Validate with tests** (CRITICAL BACKPRESSURE):
 
+    **Always run**:
+
     ```bash
     npm run build-package && npm run lint
     ```
 
-    - Tests MUST pass before proceeding
+    **If you created or modified ShareDialog.stories.tsx specifically**:
+
+    ```bash
+    npx vitest --project=storybook src/stories/ShareDialog.stories.tsx
+    ```
+
+    - All tests MUST pass before proceeding
     - If tests fail, FIX them immediately
-    - Do not skip this step
+    - Do not skip validation steps
+    - Only run the specific story test to save tokens
+    - For other stories, skip Storybook tests (to save tokens)
 
 8. **Commit your changes**:
    Once tests pass, create a git commit:
@@ -125,16 +135,25 @@ Implement one task from `ralph/IMPLEMENTATION_PLAN.md`, validate it with tests, 
 
 ## Project-Specific Commands
 
-Build and validate:
+**Build and validate** (always required):
 
 ```bash
 npm run build-package && npm run lint
 ```
 
-Run tests (if available):
+**Storybook tests** (required only for ShareDialog.stories.tsx):
 
 ```bash
-npm test
+npx vitest --project=storybook src/stories/ShareDialog.stories.tsx
+```
+
+**Available test commands**:
+
+```bash
+npm run build-package && npm run lint                                    # Always required
+npx vitest --project=storybook src/stories/ShareDialog.stories.tsx     # ShareDialog story only
+npm run test:unit                                                        # Unit tests (if needed)
+npm run test:storybook                                                   # All storybook tests (avoid - uses tokens)
 ```
 
 ## After Implementation
@@ -143,7 +162,9 @@ Once you've:
 
 1. Implemented the task completely (in the project root, not ralph/)
 2. Written Storybook story (if new UI component)
-3. Tests pass (build + lint)
+3. Tests pass:
+    - ✅ Build + lint: `npm run build-package && npm run lint`
+    - ✅ Storybook tests: `npm run test:storybook` (if story was created/modified)
 4. Created a git commit with clear message
 5. Updated `ralph/IMPLEMENTATION_PLAN.md` (removed completed item)
 6. Updated `ralph/AGENTS.md` if needed

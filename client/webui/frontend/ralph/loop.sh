@@ -146,9 +146,16 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
     break
   fi
 
+  # Check if ShareDialog story was changed
+  CHANGED_FILES=$(git status --short)
+  if echo "$CHANGED_FILES" | grep -q "ShareDialog\.stories\.tsx"; then
+    echo "📚 ShareDialog.stories.tsx detected in changes"
+    echo "   ⚠️  Reminder: npx vitest --project=storybook src/stories/ShareDialog.stories.tsx should have run"
+    echo ""
+  fi
+
   # Show what changed
   echo "📝 Changes made this iteration:"
-  CHANGED_FILES=$(git status --short)
   if [ -n "$CHANGED_FILES" ]; then
     echo "$CHANGED_FILES" | head -10 | while read -r line; do
       echo "   $line"

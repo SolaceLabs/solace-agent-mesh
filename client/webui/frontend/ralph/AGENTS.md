@@ -26,15 +26,23 @@ This file contains operational learnings for Ralph. Keep it LEAN - only operatio
 
 ## Testing Strategy
 
-- **Build Validation**: Always run `npm run build-package && npm run lint` after changes
+- **Build Validation** (ALWAYS REQUIRED): Run `npm run build-package && npm run lint` after every change
+- **Storybook Tests** (REQUIRED only for ShareDialog.stories.tsx):
+    - Run `npx vitest --project=storybook src/stories/ShareDialog.stories.tsx` when creating or updating ShareDialog story
+    - Validates that the ShareDialog story renders without errors
+    - Must pass before task is considered complete
+    - Fix any rendering errors or test failures immediately
+    - Skip Storybook tests for other stories to save tokens
 - **Storybook Stories**: Write `.stories.tsx` files for new UI components (Dialogs, Sections, Cards, etc.)
     - Keep stories simple - 1-2 basic variants (Default + one other state)
     - Follow pattern from `src/stories/Button.stories.tsx`
     - Use mock data (no real API calls)
+    - Mock contexts/providers as needed (e.g., ProjectProvider, AuthContext)
     - Generic visual verification, not comprehensive testing
     - Skip stories for: API services, types, utilities, hooks, or updates to existing components
-- TypeScript strict mode is enabled - types must be correct
-- Build must succeed before task is considered complete
+- **TypeScript**: Strict mode is enabled - types must be correct
+- **Test Updates**: If a task modifies behavior, update relevant tests before considering task complete
+- All tests (build, lint, storybook) must pass before task is considered complete
 
 ## Important Reminders
 
