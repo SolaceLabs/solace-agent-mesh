@@ -280,7 +280,7 @@ jobs:
 
       - name: "Automated Version Bump"
         id: bump
-        uses: "phips28/gh-action-bump-version@master"
+        uses: "phips28/gh-action-bump-version@71473b25295fe3907df2ff87cce295a0dce1b20b" # master
         with:
           minor-wording: "feat,minor"
           major-wording: "BREAKING CHANGE,major"
