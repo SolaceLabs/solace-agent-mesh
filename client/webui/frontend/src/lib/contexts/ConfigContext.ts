@@ -58,6 +58,13 @@ export interface ConfigContextValue {
      * When false, platform-dependent features (agent builder, connectors, etc.) are unavailable.
      */
     platformConfigured: boolean;
+
+    /**
+     * Whether artifact search citations are enabled.
+     * When false, citations from BM25 artifact search are hidden in the UI.
+     * Default: false (disabled)
+     */
+    artifactSearchCitationsEnabled?: boolean;
 }
 
 export const ConfigContext = createContext<ConfigContextValue | null>(null);

@@ -76,6 +76,7 @@ apps:
       #   projects: true
       #   promptLibrary: true
         background_tasks: true  # NOTE: task_logging must also be enabled for background tasks to work
+        artifactSearchCitations: ${ARTIFACT_SEARCH_CITATIONS_ENABLED, false}  # Enable artifact search citations in sources panel
 
       # --- Background Tasks Configuration ---
       background_tasks:

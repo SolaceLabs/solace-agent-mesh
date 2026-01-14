@@ -267,6 +267,15 @@ async def get_app_config(
         else:
             log.debug("%s Background tasks feature flag is disabled.", log_prefix)
         
+        # Determine if artifact search citations should be enabled
+        # Default to False (disabled) - can be enabled via frontend_feature_enablement.artifactSearchCitations
+        artifact_search_citations_enabled = feature_enablement.get("artifactSearchCitations", False)
+        feature_enablement["artifactSearchCitations"] = artifact_search_citations_enabled
+        if artifact_search_citations_enabled:
+            log.debug("%s Artifact search citations feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Artifact search citations feature flag is disabled.", log_prefix)
+        
         # Check tool configuration status
         tool_config_status = {}
         
