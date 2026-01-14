@@ -767,6 +767,23 @@ async def _load_openapi_tool(component: "SamAgentComponent", tool_config: Dict) 
             )
             openapi_toolset.origin = "openapi"
 
+            # Set origin on individual tools within the toolset for audit logging
+            try:
+                individual_tools = await openapi_toolset.get_tools()
+                for tool in individual_tools:
+                    tool.origin = "openapi"
+                    log.debug(
+                        "%s Set origin='openapi' on tool: %s",
+                        component.log_identifier,
+                        tool.name if hasattr(tool, 'name') else 'unknown',
+                    )
+            except Exception as e:
+                log.warning(
+                    "%s Failed to set origin on individual OpenAPI tools: %s",
+                    component.log_identifier,
+                    e,
+                )
+
             log.info(
                 "%s Loaded OpenAPI toolset via enterprise configurator",
                 component.log_identifier,
@@ -1167,13 +1184,31 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
+        # Prepare callback partials with component injected
         tool_invocation_start_cb_with_component = functools.partial(
             adk_callbacks.notify_tool_invocation_start_callback,
             host_component=component,
         )
-        agent.before_tool_callback = tool_invocation_start_cb_with_component
+
+        openapi_audit_start_cb_with_component = functools.partial(
+            adk_callbacks.audit_log_openapi_tool_invocation_start,
+            host_component=component,
+        )
+
+        # Chain both callbacks: notify + audit
+        def chained_before_tool_callback(
+            tool: BaseTool,
+            args: Dict,
+            tool_context: ToolContext,
+        ) -> None:
+            # First: Notify UI about tool invocation
+            tool_invocation_start_cb_with_component(tool, args, tool_context)
+            # Second: Log OpenAPI audit (if OpenAPI tool and enabled)
+            openapi_audit_start_cb_with_component(tool, args, tool_context)
+
+        agent.before_tool_callback = chained_before_tool_callback
         log.debug(
-            "%s Assigned notify_tool_invocation_start_callback as before_tool_callback.",
+            "%s Assigned chained before_tool_callback (notify + OpenAPI audit).",
             component.log_identifier,
         )
 
@@ -1189,6 +1224,10 @@ def initialize_adk_agent(
         )
         notify_tool_result_cb_with_component = functools.partial(
             adk_callbacks.notify_tool_execution_result_callback,
+            host_component=component,
+        )
+        openapi_audit_result_cb_with_component = functools.partial(
+            adk_callbacks.audit_log_openapi_tool_execution_result,
             host_component=component,
         )
 
@@ -1209,6 +1248,12 @@ def initialize_adk_agent(
                 # First, notify the UI about the raw result.
                 # This is a fire-and-forget notification that does not modify the response.
                 notify_tool_result_cb_with_component(
+                    tool, args, tool_context, tool_response
+                )
+
+                # Log OpenAPI audit on RAW response (before any processing).
+                # This ensures audit logs reflect the actual API response.
+                await openapi_audit_result_cb_with_component(
                     tool, args, tool_context, tool_response
                 )
 

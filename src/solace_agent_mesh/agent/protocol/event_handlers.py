@@ -39,11 +39,12 @@ from ...common.utils.embeds.constants import (
     EMBED_DELIMITER_CLOSE,
 )
 from ...common.a2a import (
+    get_agent_discovery_topic,
     get_agent_request_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
     get_client_response_topic,
-    get_discovery_topic,
+    get_discovery_subscription_topic,
     get_sam_events_subscription_topic,
     get_text_from_message,
     topic_matches_subscription,
@@ -163,7 +164,7 @@ async def process_event(component, event: Event):
             namespace = component.get_config("namespace")
             agent_name = component.get_config("agent_name")
             agent_request_topic = get_agent_request_topic(namespace, agent_name)
-            discovery_topic = get_discovery_topic(namespace)
+            discovery_subscription = get_discovery_subscription_topic(namespace)
             agent_response_sub_prefix = (
                 get_agent_response_subscription_topic(namespace, agent_name)[:-2] + "/"
             )
@@ -173,7 +174,7 @@ async def process_event(component, event: Event):
             sam_events_topic = get_sam_events_subscription_topic(namespace, "session")
             if topic == agent_request_topic:
                 await handle_a2a_request(component, message)
-            elif topic == discovery_topic:
+            elif topic_matches_subscription(topic, discovery_subscription):
                 payload = message.get_payload()
                 if isinstance(payload, dict) and payload.get("name") != agent_name:
                     handle_agent_card_message(component, message)
@@ -2023,7 +2024,7 @@ def publish_agent_card(component):
             provider=card_config.get("provider"),
         )
 
-        discovery_topic = get_discovery_topic(namespace)
+        discovery_topic = get_agent_discovery_topic(namespace)
 
         component.publish_a2a_message(
             agent_card.model_dump(exclude_none=True), discovery_topic
