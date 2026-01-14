@@ -136,6 +136,8 @@ const AgentReviewSubmitStep: React.FC<StepProps> = ({
               cleanTool.component_base_path = toolInstance.component_base_path;
             if (toolInstance.connection_params)
               cleanTool.connection_params = toolInstance.connection_params;
+            if (toolInstance.auth)
+              cleanTool.auth = toolInstance.auth;
             if (toolInstance.environment_variables)
               cleanTool.environment_variables =
                 toolInstance.environment_variables;
