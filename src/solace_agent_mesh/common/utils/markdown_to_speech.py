@@ -40,6 +40,10 @@ class MarkdownToSpeechOptions:
     # Prefix for code blocks when read_code_blocks is True
     code_block_prefix: str = "Code block."
 
+    # Placeholder for code blocks when read_code_blocks is False
+    # Set to empty string to completely remove code blocks
+    code_block_placeholder: str = "Code omitted."
+
     # Prefix for images when read_images is True
     image_prefix: str = "Image:"
 
@@ -161,13 +165,40 @@ def _handle_code_blocks_pre(text: str, opts: MarkdownToSpeechOptions) -> str:
     Pre-process code blocks before markdown parsing.
     This ensures we have control over how they're handled.
     """
-    # Match fenced code blocks: ```language\ncode\n```
-    pattern = r"```\w*\n?.*?```"
-
     if opts.read_code_blocks:
-        return re.sub(pattern, f" {opts.code_block_prefix} ", text, flags=re.DOTALL)
+        replacement = f" {opts.code_block_prefix} "
+    elif opts.code_block_placeholder:
+        replacement = f" {opts.code_block_placeholder} "
     else:
-        return re.sub(pattern, " ", text, flags=re.DOTALL)
+        replacement = " "
+    result = []
+    i = 0
+    text_len = len(text)
+
+    while i < text_len:
+        # Look for opening ```
+        if text[i : i + 3] == "```":
+            # Find the closing ```
+            # Skip past the opening ``` and any language identifier
+            start = i + 3
+            # Skip language identifier (word characters until newline or space)
+            while start < text_len and text[start] not in "\n \t`":
+                start += 1
+            # Find closing ```
+            close_pos = text.find("```", start)
+            if close_pos != -1:
+                # Found a complete code block, replace it
+                result.append(replacement)
+                i = close_pos + 3
+            else:
+                # No closing ```, treat as regular text
+                result.append(text[i])
+                i += 1
+        else:
+            result.append(text[i])
+            i += 1
+
+    return "".join(result)
 
 
 def _handle_ordered_lists_pre(text: str) -> str:
