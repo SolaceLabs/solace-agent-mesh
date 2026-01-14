@@ -104,57 +104,51 @@ def markdown_to_speech(
 
 
 def _markdown_to_html(text: str) -> str:
-    """Convert markdown to HTML using markdown-it-py."""
-    try:
-        from markdown_it import MarkdownIt
+    """Convert markdown to HTML using markdown-it-py.
+    """
+    from markdown_it import MarkdownIt
 
-        # Create parser with GFM-like features
-        md = MarkdownIt("gfm-like")
-        return md.render(text)
-    except ImportError:
-        # Fallback: if markdown-it-py is not available, use basic regex stripping
-        return _fallback_markdown_strip(text)
+    # Create parser with GFM-like features
+    md = MarkdownIt("gfm-like")
+    return md.render(text)
 
 
 def _html_to_text(html_content: str, opts: MarkdownToSpeechOptions) -> str:
-    """Extract plain text from HTML using BeautifulSoup."""
-    try:
-        from bs4 import BeautifulSoup
+    """Extract plain text from HTML using BeautifulSoup.
 
-        soup = BeautifulSoup(html_content, "html.parser")
+    """
+    from bs4 import BeautifulSoup
 
-        # Handle images - either announce them or remove them
-        for img in soup.find_all("img"):
-            alt_text = img.get("alt", "").strip()
-            if opts.read_images and alt_text:
-                img.replace_with(f" {opts.image_prefix} {alt_text}. ")
-            else:
-                img.decompose()
+    soup = BeautifulSoup(html_content, "html.parser")
 
-        # Handle code blocks
-        for code in soup.find_all("pre"):
-            if opts.read_code_blocks:
-                code.replace_with(f" {opts.code_block_prefix} ")
-            else:
-                code.decompose()
+    # Handle images - either announce them or remove them
+    for img in soup.find_all("img"):
+        alt_text = img.get("alt", "").strip()
+        if opts.read_images and alt_text:
+            img.replace_with(f" {opts.image_prefix} {alt_text}. ")
+        else:
+            img.decompose()
 
-        # Add periods after headers for natural pauses
-        if opts.add_header_pauses:
-            for header in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
-                header_text = header.get_text().strip()
-                header.replace_with(f"{header_text}. ")
+    # Handle code blocks
+    for code in soup.find_all("pre"):
+        if opts.read_code_blocks:
+            code.replace_with(f" {opts.code_block_prefix} ")
+        else:
+            code.decompose()
 
-        # Get text content
-        text = soup.get_text(separator=" ")
+    # Add periods after headers for natural pauses
+    if opts.add_header_pauses:
+        for header in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
+            header_text = header.get_text().strip()
+            header.replace_with(f"{header_text}. ")
 
-        # Decode any remaining HTML entities
-        text = html.unescape(text)
+    # Get text content
+    text = soup.get_text(separator=" ")
 
-        return text
+    # Decode any remaining HTML entities
+    text = html.unescape(text)
 
-    except ImportError:
-        # Fallback: if BeautifulSoup is not available, use basic regex stripping
-        return _fallback_html_strip(html_content)
+    return text
 
 
 def _handle_code_blocks_pre(text: str, opts: MarkdownToSpeechOptions) -> str:
@@ -163,12 +157,12 @@ def _handle_code_blocks_pre(text: str, opts: MarkdownToSpeechOptions) -> str:
     This ensures we have control over how they're handled.
     """
     # Match fenced code blocks: ```language\ncode\n```
-    pattern = r"```[\w]*\n?[\s\S]*?```"
+    pattern = r"```\w*\n?.*?```"
 
     if opts.read_code_blocks:
-        return re.sub(pattern, f" {opts.code_block_prefix} ", text)
+        return re.sub(pattern, f" {opts.code_block_prefix} ", text, flags=re.DOTALL)
     else:
-        return re.sub(pattern, " ", text)
+        return re.sub(pattern, " ", text, flags=re.DOTALL)
 
 
 def _handle_sam_citations(text: str, opts: MarkdownToSpeechOptions) -> str:
@@ -275,65 +269,24 @@ def _handle_bare_urls(text: str) -> str:
 
 
 def _normalize_whitespace(text: str) -> str:
-    """Normalize whitespace for natural speech."""
-    # Replace multiple newlines/spaces with single space
-    text = re.sub(r"[\n\r]+", " ", text)
-    text = re.sub(r" {2,}", " ", text)
+    """
+    Normalize whitespace for natural speech.
 
-    # Clean up punctuation spacing
-    text = re.sub(r"\s+([.,!?;:])", r"\1", text)
+    """
+    # Replace newlines/carriage returns with single space
+    text = text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+
+    # Replace multiple spaces with single space using split/join
+    # This is more efficient than regex for this simple case
+    text = " ".join(text.split())
+
+    # Clean up punctuation spacing - remove spaces before punctuation
+    # Using character-by-character replacement to avoid regex quantifiers
+    for punct in ".,!?;:":
+        text = text.replace(f" {punct}", punct)
 
     # Remove duplicate commas from citation handling
-    text = re.sub(r",\s*,", ",", text)
-
-    return text
-
-
-# Fallback functions when libraries are not available
-
-
-def _fallback_markdown_strip(text: str) -> str:
-    """Basic markdown stripping using regex (fallback)."""
-    # Bold/italic
-    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
-    text = re.sub(r"__([^_]+)__", r"\1", text)
-    text = re.sub(r"\*([^*]+)\*", r"\1", text)
-    text = re.sub(r"(?<!\w)_([^_]+)_(?!\w)", r"\1", text)
-
-    # Strikethrough
-    text = re.sub(r"~~([^~]+)~~", r"\1", text)
-
-    # Links
-    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
-
-    # Headers
-    text = re.sub(r"^#{1,6}\s+(.+)$", r"\1. ", text, flags=re.MULTILINE)
-
-    # Blockquotes
-    text = re.sub(r"^>\s*", "", text, flags=re.MULTILINE)
-
-    # Lists
-    text = re.sub(r"^[\s]*[-*+]\s+", "", text, flags=re.MULTILINE)
-    text = re.sub(r"^[\s]*(\d+)\.\s+", r"\1, ", text, flags=re.MULTILINE)
-
-    # Inline code
-    text = re.sub(r"`([^`]+)`", r"\1", text)
-
-    # Horizontal rules
-    text = re.sub(r"^[-*_]{3,}\s*$", " ", text, flags=re.MULTILINE)
-
-    return text
-
-
-def _fallback_html_strip(html_content: str) -> str:
-    """Basic HTML stripping using regex (fallback)."""
-    # Remove HTML comments
-    text = re.sub(r"<!--[\s\S]*?-->", "", html_content)
-
-    # Remove HTML tags
-    text = re.sub(r"<[^>]+>", " ", text)
-
-    # Decode entities
-    text = html.unescape(text)
+    while ",," in text or ", ," in text:
+        text = text.replace(",,", ",").replace(", ,", ",")
 
     return text
