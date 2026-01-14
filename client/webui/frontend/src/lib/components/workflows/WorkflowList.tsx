@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 
 import type { AgentCardInfo } from "@/lib/types";
 import { getWorkflowConfig } from "@/lib/utils/agentUtils";
@@ -10,6 +11,9 @@ import { Workflow } from "lucide-react";
 import { WorkflowDetailPanel } from "./WorkflowDetailPanel";
 import { WorkflowOnboardingBanner } from "./WorkflowOnboardingBanner";
 
+// Panel width configuration (pixels)
+const DETAIL_PANEL_WIDTHS = { default: 400, min: 280, max: 800 };
+
 const WorkflowImage = <Workflow className="text-muted-foreground" size={64} />;
 
 const ITEMS_PER_PAGE = 20;
@@ -19,9 +23,52 @@ interface WorkflowListProps {
 }
 
 export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
+    const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [currentPage, setCurrentPage] = useState<number>(1);
     const [selectedWorkflow, setSelectedWorkflow] = useState<AgentCardInfo | null>(null);
+    const [panelWidth, setPanelWidth] = useState<number>(DETAIL_PANEL_WIDTHS.default);
+    const [shouldAnimate, setShouldAnimate] = useState(false);
+    const prevSelectedRef = useRef<AgentCardInfo | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const isResizing = useRef(false);
+
+    // Track when panel opens to trigger animation only on initial open
+    useEffect(() => {
+        if (selectedWorkflow && !prevSelectedRef.current) {
+            // Panel just opened
+            setShouldAnimate(true);
+            const timer = setTimeout(() => setShouldAnimate(false), 300);
+            return () => clearTimeout(timer);
+        }
+        prevSelectedRef.current = selectedWorkflow;
+    }, [selectedWorkflow]);
+
+    // Handle resize drag
+    const handleResizeStart = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        isResizing.current = true;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizing.current || !containerRef.current) return;
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const newWidth = containerRect.right - e.clientX;
+            setPanelWidth(Math.max(DETAIL_PANEL_WIDTHS.min, Math.min(DETAIL_PANEL_WIDTHS.max, newWidth)));
+        };
+
+        const handleMouseUp = () => {
+            isResizing.current = false;
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+            document.removeEventListener("mousemove", handleMouseMove);
+            document.removeEventListener("mouseup", handleMouseUp);
+        };
+
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+    }, []);
 
     const filteredWorkflows = useMemo(() => {
         return workflows.filter(workflow => (workflow.displayName || workflow.name)?.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -34,6 +81,11 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
 
     const handleRowClick = (workflow: AgentCardInfo) => {
         setSelectedWorkflow(workflow);
+    };
+
+    const handleNameClick = (e: React.MouseEvent, workflow: AgentCardInfo) => {
+        e.stopPropagation(); // Prevent row click from selecting workflow
+        navigate(`/agents/workflows/${encodeURIComponent(workflow.name)}`);
     };
 
     const handleClosePanel = () => {
@@ -95,41 +147,62 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
     }
 
     return (
-        <>
-            <div className="flex h-full flex-col">
+        <div ref={containerRef} className="bg-muted flex h-full dark:bg-[var(--color-bg-wMain)]">
+            {/* Left side: banner + table - shrinks when panel opens */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <WorkflowOnboardingBanner />
-                <div className="bg-muted flex-1 px-6 pt-6 dark:bg-[var(--color-bg-wMain)]">
+                {/* Table section */}
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col px-6 pt-6">
                     <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="workflowSearchInput" className="mb-4 w-xs" />
 
                     {filteredWorkflows.length === 0 && searchQuery ? (
                         <EmptyState variant="notFound" title="No Workflows Match Your Filter" subtitle="Try adjusting your filter terms." buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchQuery("") }]} />
                     ) : (
-                        <div className="flex flex-col">
-                            <div className="rounded-sm border">
+                        <div className="flex min-h-0 flex-1 flex-col pb-6">
+                            <div className="bg-background flex min-h-0 flex-1 flex-col overflow-auto rounded-sm border">
                                 <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[250px]">Name</TableHead>
-                                        <TableHead className="w-[100px]">Version</TableHead>
-                                        <TableHead className="w-[100px]">Status</TableHead>
-                                        <TableHead>Description</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {paginatedWorkflows.map(workflow => (
-                                        <TableRow key={workflow.name} onClick={() => handleRowClick(workflow)} className="cursor-pointer">
-                                            <TableCell className="font-medium">{workflow.displayName || workflow.name}</TableCell>
-                                            <TableCell className="text-muted-foreground">{workflow.version || "N/A"}</TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="h-2 w-2 rounded-full bg-[var(--color-success-wMain)]"></div>
-                                                    <span>Online</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="max-w-md truncate">{getWorkflowDescription(workflow)}</TableCell>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[250px]">Name</TableHead>
+                                            <TableHead className="w-[100px]">Version</TableHead>
+                                            <TableHead className="w-[100px]">Status</TableHead>
+                                            <TableHead>Description</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {paginatedWorkflows.map(workflow => (
+                                            <TableRow
+                                                key={workflow.name}
+                                                onClick={() => handleRowClick(workflow)}
+                                                className={`cursor-pointer ${selectedWorkflow?.name === workflow.name ? "bg-gray-100 dark:bg-gray-700" : ""}`}
+                                            >
+                                                <TableCell className="font-medium">
+                                                    <span
+                                                        onClick={e => handleNameClick(e, workflow)}
+                                                        className="cursor-pointer text-[var(--color-brand-wMain)] hover:underline"
+                                                        role="link"
+                                                        tabIndex={0}
+                                                        onKeyDown={e => {
+                                                            if (e.key === "Enter" || e.key === " ") {
+                                                                e.preventDefault();
+                                                                handleNameClick(e as unknown as React.MouseEvent, workflow);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {workflow.displayName || workflow.name}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-muted-foreground">{workflow.version || "N/A"}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="h-2 w-2 rounded-full bg-[var(--color-success-wMain)]"></div>
+                                                        <span>Running</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="max-w-md truncate">{getWorkflowDescription(workflow)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
                                 </Table>
                             </div>
 
@@ -153,7 +226,25 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
                 </div>
             </div>
 
-            <WorkflowDetailPanel workflow={selectedWorkflow} onClose={handleClosePanel} />
-        </>
+            {/* Detail panel (side-by-side, full height) */}
+            {selectedWorkflow && (
+                <div
+                    className={`bg-background flex flex-shrink-0 ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`}
+                    style={{ width: panelWidth }}
+                >
+                    {/* Resize handle */}
+                    <div
+                        className="relative flex w-1 cursor-col-resize items-center justify-center"
+                        onMouseDown={handleResizeStart}
+                    >
+                        <div className="absolute inset-y-0 left-0 w-px bg-border" />
+                    </div>
+                    {/* Panel content */}
+                    <div className="min-w-0 flex-1">
+                        <WorkflowDetailPanel workflow={selectedWorkflow} onClose={handleClosePanel} />
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };

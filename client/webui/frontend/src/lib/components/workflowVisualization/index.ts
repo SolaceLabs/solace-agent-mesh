@@ -3,6 +3,8 @@ export { WorkflowVisualizationPage } from "./WorkflowVisualizationPage";
 export { default as WorkflowDiagram } from "./WorkflowDiagram";
 export { default as WorkflowNodeRenderer } from "./WorkflowNodeRenderer";
 export { default as WorkflowNodeDetailPanel } from "./WorkflowNodeDetailPanel";
+export { default as WorkflowDetailsSidePanel } from "./WorkflowDetailsSidePanel";
+export type { WorkflowPanelView } from "./WorkflowDetailsSidePanel";
 
 // Node Components
 export { default as StartNode } from "./nodes/StartNode";

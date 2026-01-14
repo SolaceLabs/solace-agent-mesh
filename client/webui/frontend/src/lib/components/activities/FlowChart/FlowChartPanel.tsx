@@ -102,11 +102,13 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
         prevStepCount.current = currentCount;
     }, [processedSteps.length]);
 
-    // Re-fit when showDetail changes - allow zooming in up to 2.5x for collapsed views
+    // Re-fit when showDetail changes - only if user hasn't manually adjusted the view
     useEffect(() => {
-        setTimeout(() => {
-            canvasRef.current?.fitToContent(contentWidthRef.current, { animated: true, maxFitScale: 2.5 });
-        }, 150); // Longer delay to let content measurement update
+        if (!hasUserInteracted.current) {
+            setTimeout(() => {
+                canvasRef.current?.fitToContent(contentWidthRef.current, { animated: true, maxFitScale: 2.5 });
+            }, 150); // Longer delay to let content measurement update
+        }
     }, [showDetail]);
 
     // Re-fit when side panel visibility changes (if user hasn't interacted)

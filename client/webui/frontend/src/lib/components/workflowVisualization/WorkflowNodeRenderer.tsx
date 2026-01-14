@@ -12,9 +12,12 @@ import ConditionPillNode from "./nodes/ConditionPillNode";
 interface WorkflowNodeRendererProps {
     nodes: LayoutNode[];
     selectedNodeId?: string;
+    highlightedNodeIds?: Set<string>;
     onNodeClick?: (node: LayoutNode) => void;
     onExpand?: (nodeId: string) => void;
     onCollapse?: (nodeId: string) => void;
+    onHighlightNodes?: (nodeIds: string[]) => void;
+    knownNodeIds?: Set<string>;
     nodeRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
 }
 
@@ -25,9 +28,12 @@ interface WorkflowNodeRendererProps {
 const WorkflowNodeRenderer: React.FC<WorkflowNodeRendererProps> = ({
     nodes,
     selectedNodeId,
+    highlightedNodeIds,
     onNodeClick,
     onExpand,
     onCollapse,
+    onHighlightNodes,
+    knownNodeIds,
     nodeRefs,
 }) => {
     // Track mounted node IDs for cleanup
@@ -79,12 +85,16 @@ const WorkflowNodeRenderer: React.FC<WorkflowNodeRendererProps> = ({
      */
     const renderNode = (node: LayoutNode) => {
         const isSelected = node.id === selectedNodeId;
+        const isHighlighted = highlightedNodeIds?.has(node.id) ?? false;
         const commonProps = {
             node,
             isSelected,
+            isHighlighted,
             onClick: onNodeClick,
             onExpand,
             onCollapse,
+            onHighlightNodes,
+            knownNodeIds,
         };
 
         switch (node.type) {

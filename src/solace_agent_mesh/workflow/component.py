@@ -243,6 +243,12 @@ class WorkflowExecutorComponent(SamComponentBase):
                 node_dict["agent_name"] = node.agent_name
                 if node.input:
                     node_dict["input"] = node.input
+                if node.instruction:
+                    node_dict["instruction"] = node.instruction
+                if node.input_schema_override:
+                    node_dict["input_schema_override"] = node.input_schema_override
+                if node.output_schema_override:
+                    node_dict["output_schema_override"] = node.output_schema_override
             elif node.type == "switch":
                 node_dict["cases"] = [
                     {"condition": c.condition, "node": c.node}
@@ -274,6 +280,8 @@ class WorkflowExecutorComponent(SamComponentBase):
             config["output_schema"] = self.workflow_definition.output_schema
         if self.workflow_definition.version:
             config["version"] = self.workflow_definition.version
+        if self.workflow_definition.output_mapping:
+            config["output_mapping"] = self.workflow_definition.output_mapping
 
         return config
 

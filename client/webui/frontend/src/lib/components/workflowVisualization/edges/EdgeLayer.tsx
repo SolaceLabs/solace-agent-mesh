@@ -13,6 +13,7 @@ interface EdgeLayerProps {
 const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, width, height }) => {
     /**
      * Generate SVG path for an edge (bezier curve or straight line)
+     * Ends with a short vertical segment so arrowhead always points down
      */
     const generatePath = (edge: Edge): string => {
         const { sourceX, sourceY, targetX, targetY, isStraight } = edge;
@@ -22,11 +23,15 @@ const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, width, height }) => {
             return `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`;
         }
 
-        // Calculate control points for smooth bezier curve
-        const controlOffset = Math.min(Math.abs(targetY - sourceY) * 0.5, 40);
+        // Add a short vertical landing segment so arrow always points down
+        const landingLength = 12;
+        const landingY = targetY - landingLength;
 
-        // Use cubic bezier for smooth curves
-        return `M ${sourceX} ${sourceY} C ${sourceX} ${sourceY + controlOffset}, ${targetX} ${targetY - controlOffset}, ${targetX} ${targetY}`;
+        // Calculate control points for smooth bezier curve to the landing point
+        const controlOffset = Math.min(Math.abs(landingY - sourceY) * 0.5, 40);
+
+        // Cubic bezier to landing point, then straight down to target
+        return `M ${sourceX} ${sourceY} C ${sourceX} ${sourceY + controlOffset}, ${targetX} ${landingY - controlOffset}, ${targetX} ${landingY} L ${targetX} ${targetY}`;
     };
 
     return (
@@ -40,14 +45,14 @@ const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, width, height }) => {
             <defs>
                 <marker
                     id="arrowhead"
-                    markerWidth="8"
-                    markerHeight="8"
-                    refX="6"
-                    refY="4"
+                    markerWidth="12"
+                    markerHeight="12"
+                    refX="9"
+                    refY="6"
                     orient="auto"
                     markerUnits="userSpaceOnUse"
                 >
-                    <path d="M 0 0 L 8 4 L 0 8 z" className="fill-gray-400 dark:fill-gray-500" />
+                    <path d="M 0 0 L 12 6 L 0 12 z" className="fill-gray-400 dark:fill-gray-500" />
                 </marker>
             </defs>
 

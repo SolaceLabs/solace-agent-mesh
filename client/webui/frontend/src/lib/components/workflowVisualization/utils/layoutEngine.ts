@@ -334,6 +334,7 @@ function createLayoutNode(
             label: config.id,
             agentName: config.agent_name,
             workflowName: isWorkflowRef ? config.agent_name : undefined,
+            originalConfig: config,
         },
         x: 0,
         y: 0,
@@ -355,9 +356,16 @@ function createLayoutNode(
             baseNode.data.defaultCase = config.default;
             baseNode.branches = createSwitchBranches(config);
 
-            // Switch node is now compact - conditions shown in pills
+            // Calculate switch node height based on number of cases
+            const numCases = (config.cases?.length || 0) + (config.default ? 1 : 0);
+            const switchHeaderHeight = 44; // Header row height
+            const caseRowHeight = 28; // Height per case row including gap
+            const casesSectionPadding = 16; // py-2 top and bottom padding for cases section
+
             baseNode.width = NODE_WIDTHS.SWITCH_COLLAPSED;
-            baseNode.height = NODE_HEIGHTS.AGENT; // Same height as agent nodes
+            baseNode.height = numCases > 0
+                ? switchHeaderHeight + casesSectionPadding + (numCases * caseRowHeight) - 6 // -6 for last row gap
+                : NODE_HEIGHTS.AGENT;
             break;
 
         case "map":
@@ -374,9 +382,12 @@ function createLayoutNode(
             }
 
             // Calculate container dimensions
-            baseNode.width = Math.max(NODE_WIDTHS.MAP_MIN, calculateContainerWidth(baseNode.children));
+            // When collapsed, only the header is shown (no dotted container)
+            baseNode.width = isCollapsed
+                ? NODE_WIDTHS.SWITCH_COLLAPSED // Use standard node width when collapsed
+                : Math.max(NODE_WIDTHS.MAP_MIN, calculateContainerWidth(baseNode.children));
             baseNode.height = isCollapsed
-                ? NODE_HEIGHTS.CONTAINER_COLLAPSED
+                ? NODE_HEIGHTS.CONTAINER_HEADER
                 : NODE_HEIGHTS.CONTAINER_HEADER + calculateContainerContentHeight(baseNode.children);
             break;
 
@@ -395,10 +406,17 @@ function createLayoutNode(
             }
 
             // Calculate container dimensions
-            baseNode.width = Math.max(NODE_WIDTHS.LOOP_MIN, calculateContainerWidth(baseNode.children));
+            // When collapsed, only the header is shown (no dotted container)
+            // Loop nodes with condition or max_iterations have an extra row
+            const hasConditionRow = !!(config.condition || config.max_iterations);
+            const loopHeaderHeight = NODE_HEIGHTS.CONTAINER_HEADER + (hasConditionRow ? NODE_HEIGHTS.LOOP_CONDITION_ROW : 0);
+
+            baseNode.width = isCollapsed
+                ? NODE_WIDTHS.SWITCH_COLLAPSED // Use standard node width when collapsed
+                : Math.max(NODE_WIDTHS.LOOP_MIN, calculateContainerWidth(baseNode.children));
             baseNode.height = isCollapsed
-                ? NODE_HEIGHTS.CONTAINER_COLLAPSED
-                : NODE_HEIGHTS.CONTAINER_HEADER + calculateContainerContentHeight(baseNode.children);
+                ? loopHeaderHeight
+                : loopHeaderHeight + calculateContainerContentHeight(baseNode.children);
             break;
     }
 
@@ -802,15 +820,17 @@ function insertConditionPills(nodes: LayoutNode[], nodeMap: Map<string, Processe
             label: string;
             isDefault: boolean;
             condition: string;
+            caseNumber: number;
         }> = [];
 
-        // Add cases with actual condition text
-        cases.forEach(caseItem => {
+        // Add cases with actual condition text and case number
+        cases.forEach((caseItem, index) => {
             caseTargets.push({
                 targetId: caseItem.node,
                 label: caseItem.condition,
                 isDefault: false,
                 condition: caseItem.condition,
+                caseNumber: index + 1,
             });
         });
 
@@ -821,6 +841,7 @@ function insertConditionPills(nodes: LayoutNode[], nodeMap: Map<string, Processe
                 label: "default",
                 isDefault: true,
                 condition: "default",
+                caseNumber: cases.length + 1,
             });
         }
 
@@ -851,6 +872,7 @@ function insertConditionPills(nodes: LayoutNode[], nodeMap: Map<string, Processe
                     targetNodeId: caseTarget.targetId,
                     isDefaultCase: caseTarget.isDefault,
                     condition: caseTarget.condition,
+                    caseNumber: caseTarget.caseNumber,
                 },
                 x: pillX,
                 y: pillY,

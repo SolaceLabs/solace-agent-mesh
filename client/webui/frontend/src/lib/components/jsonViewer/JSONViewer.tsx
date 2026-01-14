@@ -41,9 +41,11 @@ interface JSONViewerProps {
     data: JSONValue;
     maxDepth?: number;
     className?: string;
+    /** Root name label. Set to empty string to hide. Defaults to empty (hidden). */
+    rootName?: string;
 }
 
-export const JSONViewer: React.FC<JSONViewerProps> = ({ data, maxDepth = 2, className = "" }) => {
+export const JSONViewer: React.FC<JSONViewerProps> = ({ data, maxDepth = 2, className = "", rootName = "" }) => {
     const { currentTheme } = useThemeContext();
 
     const jsonEditorTheme = useMemo(() => {
@@ -78,7 +80,7 @@ export const JSONViewer: React.FC<JSONViewerProps> = ({ data, maxDepth = 2, clas
 
     return (
         <div className={containerClasses}>
-            <JsonEditor data={processedData as object | unknown[]} theme={jsonEditorTheme} viewOnly={true} collapse={collapseProp} showStringQuotes={true} showCollectionCount="when-closed" />
+            <JsonEditor data={processedData as object | unknown[]} theme={jsonEditorTheme} viewOnly={true} collapse={collapseProp} showStringQuotes={true} showCollectionCount="when-closed" rootName={rootName} />
         </div>
     );
 };

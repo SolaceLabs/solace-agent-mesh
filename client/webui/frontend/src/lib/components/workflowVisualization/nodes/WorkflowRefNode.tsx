@@ -1,13 +1,14 @@
 import React from "react";
 import { Workflow, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import type { NodeProps } from "../utils/types";
+import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 /**
  * Workflow reference node - Rectangle with workflow icon, name, and "Workflow" badge
  * Clicking navigates to the referenced workflow's visualization
+ * Supports highlighting when referenced in expressions
  */
-const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, onClick }) => {
+const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) => {
     const navigate = useNavigate();
     const workflowName = node.data.workflowName || node.data.agentName || node.data.label;
 
@@ -25,9 +26,9 @@ const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, onClick }) => 
 
     return (
         <div
-            className={`group flex cursor-pointer items-center justify-between rounded-lg border-2 border-purple-600 bg-white px-4 py-3 shadow-sm transition-all duration-200 ease-in-out hover:shadow-md dark:border-purple-500 dark:bg-gray-800 ${
-                isSelected ? "ring-2 ring-purple-500 ring-offset-2 dark:ring-offset-gray-900" : ""
-            }`}
+            className={`group relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-purple-600 bg-white px-4 py-3 shadow-sm transition-all duration-200 ease-in-out hover:shadow-md dark:border-purple-500 dark:bg-gray-800 ${
+                isSelected ? NODE_SELECTED_CLASSES.PURPLE : ""
+            } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
             style={{
                 width: `${node.width}px`,
                 height: `${node.height}px`,
