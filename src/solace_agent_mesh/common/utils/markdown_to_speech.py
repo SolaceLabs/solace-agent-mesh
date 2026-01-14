@@ -108,8 +108,9 @@ def _markdown_to_html(text: str) -> str:
     """
     from markdown_it import MarkdownIt
 
-    # Create parser with GFM-like features
-    md = MarkdownIt("gfm-like")
+    # Create parser with commonmark preset 
+    # and enable tables and strikethrough for better markdown support
+    md = MarkdownIt("commonmark").enable(["table", "strikethrough"])
     return md.render(text)
 
 
