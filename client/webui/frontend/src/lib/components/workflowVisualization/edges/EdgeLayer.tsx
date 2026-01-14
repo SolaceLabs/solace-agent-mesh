@@ -8,25 +8,24 @@ interface EdgeLayerProps {
 }
 
 /**
- * EdgeLayer - SVG layer for rendering bezier curve edges between nodes
+ * EdgeLayer - SVG layer for rendering orthogonal edges between nodes
  */
 const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, width, height }) => {
     /**
-     * Generate SVG path for an edge (bezier curve or straight line)
+     * Generate SVG path for an edge (orthogonal with 90° bends)
      */
     const generatePath = (edge: Edge): string => {
         const { sourceX, sourceY, targetX, targetY, isStraight } = edge;
 
-        // Straight line for pill -> target edges
-        if (isStraight) {
+        // Straight line for pill -> target edges or when source/target are vertically aligned
+        if (isStraight || Math.abs(sourceX - targetX) < 1) {
             return `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`;
         }
 
-        // Calculate control points for smooth bezier curve
-        const controlOffset = Math.min(Math.abs(targetY - sourceY) * 0.5, 40);
-
-        // Use cubic bezier for smooth curves
-        return `M ${sourceX} ${sourceY} C ${sourceX} ${sourceY + controlOffset}, ${targetX} ${targetY - controlOffset}, ${targetX} ${targetY}`;
+        // Orthogonal path with 90° bends
+        // Go down from source, then horizontal, then down to target
+        const midY = (sourceY + targetY) / 2;
+        return `M ${sourceX} ${sourceY} L ${sourceX} ${midY} L ${targetX} ${midY} L ${targetX} ${targetY}`;
     };
 
     return (

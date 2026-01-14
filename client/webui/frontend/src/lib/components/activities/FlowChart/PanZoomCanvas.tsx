@@ -16,6 +16,14 @@ export interface PanZoomCanvasRef {
     getTransform: () => { scale: number; x: number; y: number };
     /** Fit content to viewport, showing full width and top-aligned */
     fitToContent: (contentWidth: number, options?: { animated?: boolean; maxFitScale?: number }) => void;
+    /** Zoom in by 10% (rounded to nearest 10%), centered on viewport */
+    zoomIn: (options?: { animated?: boolean }) => void;
+    /** Zoom out by 10% (rounded to nearest 10%), centered on viewport */
+    zoomOut: (options?: { animated?: boolean }) => void;
+    /** Zoom to a specific scale, centered on viewport or specified point */
+    zoomTo: (scale: number, options?: { animated?: boolean; centerX?: number; centerY?: number }) => void;
+    /** Pan to center a point (in content coordinates) in the viewport */
+    panToPoint: (contentX: number, contentY: number, options?: { animated?: boolean }) => void;
 }
 
 interface PointerState {
@@ -56,6 +64,12 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(
         const isDraggingRef = useRef(false);
         const lastDragPosRef = useRef<{ x: number; y: number } | null>(null);
 
+        // Clamp scale within bounds (defined early for use in ref methods)
+        const clampScale = useCallback(
+            (scale: number) => Math.min(Math.max(scale, minScale), maxScale),
+            [minScale, maxScale]
+        );
+
         // Expose methods via ref
         React.useImperativeHandle(ref, () => ({
             resetTransform: () => {
@@ -93,18 +107,115 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(
 
                 setTransform({ scale: newScale, x: newX, y: newY });
             },
+            zoomIn: (options?: { animated?: boolean }) => {
+                const container = containerRef.current;
+                if (!container) return;
+
+                const rect = container.getBoundingClientRect();
+                // Zoom toward center of viewport (accounting for side panel)
+                const centerX = (rect.width - sidePanelWidth) / 2;
+                const centerY = rect.height / 2;
+
+                setTransform(prev => {
+                    // Round to nearest 10% and add 10%
+                    const currentPercent = Math.round(prev.scale * 100);
+                    const roundedPercent = Math.round(currentPercent / 10) * 10;
+                    const targetPercent = Math.min(roundedPercent + 10, maxScale * 100);
+                    const newScale = clampScale(targetPercent / 100);
+                    const scaleRatio = newScale / prev.scale;
+
+                    // Zoom toward center
+                    const newX = centerX - (centerX - prev.x) * scaleRatio;
+                    const newY = centerY - (centerY - prev.y) * scaleRatio;
+
+                    return { scale: newScale, x: newX, y: newY };
+                });
+
+                if (options?.animated) {
+                    setIsAnimating(true);
+                    setTimeout(() => setIsAnimating(false), 300);
+                }
+            },
+            zoomOut: (options?: { animated?: boolean }) => {
+                const container = containerRef.current;
+                if (!container) return;
+
+                const rect = container.getBoundingClientRect();
+                // Zoom toward center of viewport (accounting for side panel)
+                const centerX = (rect.width - sidePanelWidth) / 2;
+                const centerY = rect.height / 2;
+
+                setTransform(prev => {
+                    // Round to nearest 10% and subtract 10%
+                    const currentPercent = Math.round(prev.scale * 100);
+                    const roundedPercent = Math.round(currentPercent / 10) * 10;
+                    const targetPercent = Math.max(roundedPercent - 10, minScale * 100);
+                    const newScale = clampScale(targetPercent / 100);
+                    const scaleRatio = newScale / prev.scale;
+
+                    // Zoom toward center
+                    const newX = centerX - (centerX - prev.x) * scaleRatio;
+                    const newY = centerY - (centerY - prev.y) * scaleRatio;
+
+                    return { scale: newScale, x: newX, y: newY };
+                });
+
+                if (options?.animated) {
+                    setIsAnimating(true);
+                    setTimeout(() => setIsAnimating(false), 300);
+                }
+            },
+            zoomTo: (targetScale: number, options?: { animated?: boolean; centerX?: number; centerY?: number }) => {
+                const container = containerRef.current;
+                if (!container) return;
+
+                const rect = container.getBoundingClientRect();
+                // Use provided center or viewport center
+                const centerX = options?.centerX ?? (rect.width - sidePanelWidth) / 2;
+                const centerY = options?.centerY ?? rect.height / 2;
+
+                const newScale = clampScale(targetScale);
+
+                setTransform(prev => {
+                    const scaleRatio = newScale / prev.scale;
+                    const newX = centerX - (centerX - prev.x) * scaleRatio;
+                    const newY = centerY - (centerY - prev.y) * scaleRatio;
+                    return { scale: newScale, x: newX, y: newY };
+                });
+
+                if (options?.animated) {
+                    setIsAnimating(true);
+                    setTimeout(() => setIsAnimating(false), 300);
+                }
+            },
+            panToPoint: (contentX: number, contentY: number, options?: { animated?: boolean }) => {
+                const container = containerRef.current;
+                if (!container) return;
+
+                const rect = container.getBoundingClientRect();
+                // Calculate viewport center (accounting for side panel)
+                const viewportCenterX = (rect.width - sidePanelWidth) / 2;
+                const viewportCenterY = rect.height / 2;
+
+                setTransform(prev => {
+                    // Convert content coordinates to screen coordinates at current scale
+                    // Then calculate the offset needed to center that point
+                    const newX = viewportCenterX - contentX * prev.scale;
+                    const newY = viewportCenterY - contentY * prev.scale;
+                    return { ...prev, x: newX, y: newY };
+                });
+
+                if (options?.animated) {
+                    setIsAnimating(true);
+                    setTimeout(() => setIsAnimating(false), 300);
+                }
+            },
         }));
 
         // Notify parent of transform changes
         useEffect(() => {
             onTransformChange?.(transform);
         }, [transform, onTransformChange]);
-
-        // Clamp scale within bounds
-        const clampScale = useCallback(
-            (scale: number) => Math.min(Math.max(scale, minScale), maxScale),
-            [minScale, maxScale]
-        );
 
         // Calculate gesture state from two pointers
         const calculateGestureState = useCallback((pointers: Map<number, PointerState>): GestureState | null => {
@@ -298,6 +409,36 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(
             };
         }, [clampScale, onUserInteraction]);
 
+        // Handle double-click to zoom in at click location
+        const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+            // Only handle if clicking on the container background (not on nodes)
+            if (e.target !== containerRef.current) return;
+
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (!rect) return;
+
+            const cursorX = e.clientX - rect.left;
+            const cursorY = e.clientY - rect.top;
+
+            // Zoom in by 10% toward click location
+            setTransform(prev => {
+                const currentPercent = Math.round(prev.scale * 100);
+                const roundedPercent = Math.round(currentPercent / 10) * 10;
+                const targetPercent = Math.min(roundedPercent + 10, maxScale * 100);
+                const newScale = clampScale(targetPercent / 100);
+                const scaleRatio = newScale / prev.scale;
+
+                const newX = cursorX - (cursorX - prev.x) * scaleRatio;
+                const newY = cursorY - (cursorY - prev.y) * scaleRatio;
+
+                return { scale: newScale, x: newX, y: newY };
+            });
+
+            setIsAnimating(true);
+            setTimeout(() => setIsAnimating(false), 300);
+            onUserInteraction?.();
+        }, [clampScale, maxScale, onUserInteraction]);
+
         return (
             <div
                 ref={containerRef}
@@ -305,6 +446,7 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerCancel={handlePointerUp}
+                onDoubleClick={handleDoubleClick}
                 style={{
                     width: "100%",
                     height: "100%",

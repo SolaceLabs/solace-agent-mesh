@@ -63,6 +63,12 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
         );
     }
 
+    // Calculate header height for straddling effect
+    // Header row: py-2 (16px) + icon line (~20px) ≈ 36px
+    // Dotted border should be at half the header height for straddling
+    const headerHeightPx = 36;
+    const headerTopOffsetPx = headerHeightPx / 2;
+
     // When expanded with children, render with straddling header and dotted container
     return (
         <div
@@ -73,8 +79,12 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
             }}
         >
             {/* Dotted Children Container */}
-            <div className="absolute inset-0 top-5 rounded-lg border-2 border-dashed border-indigo-300 bg-indigo-50/30 dark:border-indigo-600/50 dark:bg-indigo-900/10">
-                <div className="pt-8 pb-3 px-3">
+            <div
+                className="absolute inset-0 rounded-lg border-2 border-dashed border-indigo-300 bg-indigo-50/30 dark:border-indigo-600/50 dark:bg-indigo-900/10"
+                style={{ top: `${headerTopOffsetPx}px` }}
+            >
+                {/* Top padding clears the header portion below the dotted border plus gap */}
+                <div className="pt-6 pb-3 px-3">
                     <div className="flex flex-col items-center gap-2">
                         {renderChildren ? renderChildren(node.children) : null}
                     </div>

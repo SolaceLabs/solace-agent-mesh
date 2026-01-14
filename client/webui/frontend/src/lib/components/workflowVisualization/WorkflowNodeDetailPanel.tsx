@@ -34,6 +34,8 @@ interface WorkflowNodeDetailPanelProps {
     onHighlightNodes?: (nodeIds: string[]) => void;
     /** Set of known node IDs for validating expression references */
     knownNodeIds?: Set<string>;
+    /** Callback to navigate/pan to a node when clicking the navigation icon */
+    onNavigateToNode?: (nodeId: string) => void;
 }
 
 /**
@@ -47,6 +49,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
     onClose,
     onHighlightNodes,
     knownNodeIds,
+    onNavigateToNode,
 }) => {
     // workflowConfig is available for future use (e.g., accessing workflow-level output_mapping)
     void _workflowConfig;
@@ -363,6 +366,21 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                             </div>
                         )}
 
+                        {/* Open Agent button (for agent nodes) */}
+                        {node.type === "agent" && node.data.agentName && (
+                            <div className="mb-4">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => navigate(`/agents/${encodeURIComponent(node.data.agentName!)}`)}
+                                    className="w-full"
+                                >
+                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                    Open Agent
+                                </Button>
+                            </div>
+                        )}
+
                         {/* Open Workflow button (for workflow ref nodes) */}
                         {node.type === "workflow" && node.data.workflowName && (
                             <div className="mb-4">
@@ -481,6 +499,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                                                 mapping={getInputMapping() as Record<string, unknown>}
                                                                 onHighlightNodes={onHighlightNodes}
                                                                 knownNodeIds={knownNodeIds}
+                                                                onNavigateToNode={onNavigateToNode}
                                                             />
                                                         </div>
                                                     </div>

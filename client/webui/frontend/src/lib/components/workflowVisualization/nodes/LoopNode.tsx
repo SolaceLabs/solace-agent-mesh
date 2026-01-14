@@ -72,8 +72,12 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
         );
     }
 
-    // Calculate header height offset for straddling effect
-    const headerTopOffset = hasConditionRow ? 8 : 5;
+    // Calculate header height for straddling effect
+    // Header row: py-2 (16px) + icon line (~20px) ≈ 36px
+    // Condition row adds: border + py-1.5 (12px) + text (~16px) ≈ 28px
+    // Dotted border should be at half the header height for straddling
+    const headerHeightPx = hasConditionRow ? 64 : 36;
+    const headerTopOffsetPx = headerHeightPx / 2;
 
     // When expanded with children, render with straddling header and dotted container
     return (
@@ -87,9 +91,10 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
             {/* Dotted Children Container */}
             <div
                 className="absolute inset-0 rounded-lg border-2 border-dashed border-teal-300 bg-teal-50/30 dark:border-teal-600/50 dark:bg-teal-900/10"
-                style={{ top: `${headerTopOffset * 4}px` }}
+                style={{ top: `${headerTopOffsetPx}px` }}
             >
-                <div className={`pb-3 px-3 ${hasConditionRow ? 'pt-12' : 'pt-8'}`}>
+                {/* Top padding clears the header portion below the dotted border plus gap */}
+                <div className={`pb-3 px-3 ${hasConditionRow ? 'pt-10' : 'pt-6'}`}>
                     <div className="flex flex-col items-center gap-2">
                         {renderChildren ? renderChildren(node.children) : null}
                     </div>

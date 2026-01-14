@@ -25,6 +25,12 @@ interface WorkflowDiagramProps {
     onHighlightNodes?: (nodeIds: string[]) => void;
     /** Set of known node IDs (optional, will be computed if not provided) */
     knownNodeIds?: Set<string>;
+    /** Callback when canvas transform (zoom/pan) changes */
+    onTransformChange?: (transform: { scale: number; x: number; y: number }) => void;
+    /** Ref to access canvas control methods (zoom, fit, etc.) */
+    canvasRef?: React.RefObject<PanZoomCanvasRef | null>;
+    /** Callback when content size changes (for fit-to-view calculations) */
+    onContentSizeChange?: (width: number, height: number) => void;
 }
 
 /**
@@ -39,8 +45,12 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     highlightedNodeIds: controlledHighlightedNodeIds,
     onHighlightNodes: controlledOnHighlightNodes,
     knownNodeIds: controlledKnownNodeIds,
+    onTransformChange,
+    canvasRef: externalCanvasRef,
+    onContentSizeChange,
 }) => {
-    const canvasRef = useRef<PanZoomCanvasRef>(null);
+    const internalCanvasRef = useRef<PanZoomCanvasRef>(null);
+    const canvasRef = externalCanvasRef || internalCanvasRef;
     const containerRef = useRef<HTMLDivElement>(null);
     const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -53,6 +63,13 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     const layout = useMemo(() => {
         return processWorkflowConfig(config, collapsedNodes, knownWorkflows);
     }, [config, collapsedNodes, knownWorkflows]);
+
+    // Notify parent of content size changes
+    useEffect(() => {
+        if (layout.totalWidth > 0 && layout.totalHeight > 0) {
+            onContentSizeChange?.(layout.totalWidth, layout.totalHeight);
+        }
+    }, [layout.totalWidth, layout.totalHeight, onContentSizeChange]);
 
     // Build a set of all known node IDs for validating expression references
     // Use controlled prop if provided, otherwise compute from layout
@@ -129,20 +146,22 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
             return;
         }
 
-        // Initial measurement on next frame
+        // Measure at multiple points to catch various transition timings
+        // This ensures edges stay aligned during expand/collapse animations
         const rafId = requestAnimationFrame(() => {
             measureAndCalculateEdges();
         });
 
-        // Also measure after CSS transitions complete (200ms + buffer)
-        // This handles container expand/collapse animations
-        const timeoutId = setTimeout(() => {
-            measureAndCalculateEdges();
-        }, 250);
+        // Multiple measurement points to handle different transition durations
+        const timeout100 = setTimeout(() => measureAndCalculateEdges(), 100);
+        const timeout200 = setTimeout(() => measureAndCalculateEdges(), 200);
+        const timeout350 = setTimeout(() => measureAndCalculateEdges(), 350);
 
         return () => {
             cancelAnimationFrame(rafId);
-            clearTimeout(timeoutId);
+            clearTimeout(timeout100);
+            clearTimeout(timeout200);
+            clearTimeout(timeout350);
         };
     }, [layout, collapsedNodes, measureAndCalculateEdges]);
 
@@ -204,6 +223,7 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
                 maxScale={2}
                 sidePanelWidth={sidePanelWidth}
                 onUserInteraction={handleUserInteraction}
+                onTransformChange={onTransformChange}
             >
                 <div
                     ref={containerRef}

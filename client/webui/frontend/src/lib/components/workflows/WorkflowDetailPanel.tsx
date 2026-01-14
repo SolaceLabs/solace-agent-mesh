@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 import type { AgentCardInfo } from "@/lib/types";
@@ -6,7 +6,7 @@ import { getWorkflowConfig, getWorkflowNodeCount } from "@/lib/utils/agentUtils"
 import { Button } from "@/lib/components/ui/button";
 import { MarkdownHTMLConverter } from "@/lib/components/common";
 import { JSONViewer } from "@/lib/components/jsonViewer";
-import { Workflow, GitMerge, FileJson, X, ExternalLink } from "lucide-react";
+import { Workflow, GitMerge, FileJson, X, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 
 interface WorkflowDetailPanelProps {
     workflow: AgentCardInfo;
@@ -15,10 +15,29 @@ interface WorkflowDetailPanelProps {
 
 export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workflow, onClose }) => {
     const navigate = useNavigate();
+    const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+    const [showExpandButton, setShowExpandButton] = useState(false);
+    const descriptionRef = useRef<HTMLDivElement>(null);
 
     const config = getWorkflowConfig(workflow);
     const nodeCount = getWorkflowNodeCount(workflow);
     const description = config?.description || workflow.description;
+
+    // Reset expansion state when workflow changes
+    useEffect(() => {
+        setIsDescriptionExpanded(false);
+    }, [workflow.name]);
+
+    // Check if description needs truncation (more than 5 lines)
+    useEffect(() => {
+        if (descriptionRef.current) {
+            const element = descriptionRef.current;
+            // Check if content is taller than 5 lines (approximately 5 * line-height)
+            const lineHeight = parseInt(getComputedStyle(element).lineHeight) || 20;
+            const maxHeight = lineHeight * 5;
+            setShowExpandButton(element.scrollHeight > maxHeight + 5); // +5 for tolerance
+        }
+    }, [description]);
 
     const handleOpenWorkflow = () => {
         navigate(`/agents/workflows/${encodeURIComponent(workflow.name)}`);
@@ -72,9 +91,32 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
                         <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
                             Description
                         </label>
-                        <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300">
+                        <div
+                            ref={descriptionRef}
+                            className={`prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 ${
+                                !isDescriptionExpanded && showExpandButton ? "line-clamp-5" : ""
+                            }`}
+                        >
                             <MarkdownHTMLConverter>{description}</MarkdownHTMLConverter>
                         </div>
+                        {showExpandButton && (
+                            <button
+                                onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                                className="mt-2 flex items-center gap-1 text-sm text-[var(--color-brand-wMain)] hover:underline"
+                            >
+                                {isDescriptionExpanded ? (
+                                    <>
+                                        <ChevronUp className="h-4 w-4" />
+                                        Show Less
+                                    </>
+                                ) : (
+                                    <>
+                                        <ChevronDown className="h-4 w-4" />
+                                        Show More
+                                    </>
+                                )}
+                            </button>
+                        )}
                     </div>
                 )}
 

@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { Crosshair } from "lucide-react";
 import { getValidNodeReferences } from "./utils/expressionParser";
 
 interface InputMappingViewerProps {
@@ -8,6 +9,8 @@ interface InputMappingViewerProps {
     onHighlightNodes?: (nodeIds: string[]) => void;
     /** Set of known node IDs for validating expression references */
     knownNodeIds?: Set<string>;
+    /** Callback to navigate/pan to a node when clicking the navigation icon */
+    onNavigateToNode?: (nodeId: string) => void;
 }
 
 /**
@@ -17,8 +20,9 @@ const MappingValue: React.FC<{
     value: unknown;
     onHighlightNodes?: (nodeIds: string[]) => void;
     knownNodeIds?: Set<string>;
+    onNavigateToNode?: (nodeId: string) => void;
     depth?: number;
-}> = ({ value, onHighlightNodes, knownNodeIds, depth = 0 }) => {
+}> = ({ value, onHighlightNodes, knownNodeIds, onNavigateToNode, depth = 0 }) => {
     // Extract node references from a string value
     const getNodeRefs = useCallback(
         (str: string): string[] => {
@@ -60,18 +64,40 @@ const MappingValue: React.FC<{
 
     if (typeof value === "string") {
         const hasExprs = hasExpressions(value);
+        const nodeRefs = hasExprs ? getNodeRefs(value) : [];
+        const hasNodeRefs = nodeRefs.length > 0;
+
+        // Handle navigation to the first referenced node
+        const handleNavigate = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            if (hasNodeRefs && onNavigateToNode) {
+                onNavigateToNode(nodeRefs[0]);
+            }
+        };
+
         return (
-            <span
-                className={`font-mono text-green-700 dark:text-green-400 ${
-                    hasExprs
-                        ? `cursor-pointer rounded px-0.5 transition-all duration-150 hover:bg-amber-100 dark:hover:bg-amber-900/30`
-                        : ""
-                }`}
-                onMouseEnter={hasExprs ? () => handleMouseEnter(value) : undefined}
-                onMouseLeave={hasExprs ? handleMouseLeave : undefined}
-                title={hasExprs ? "Hover to highlight source nodes" : undefined}
-            >
-                "{value}"
+            <span className="inline-flex items-center gap-1">
+                <span
+                    className={`font-mono text-green-700 dark:text-green-400 ${
+                        hasExprs
+                            ? `cursor-pointer rounded px-0.5 transition-all duration-150 hover:bg-amber-100 dark:hover:bg-amber-900/30`
+                            : ""
+                    }`}
+                    onMouseEnter={hasExprs ? () => handleMouseEnter(value) : undefined}
+                    onMouseLeave={hasExprs ? handleMouseLeave : undefined}
+                    title={hasExprs ? "Hover to highlight source nodes" : undefined}
+                >
+                    "{value}"
+                </span>
+                {hasNodeRefs && onNavigateToNode && (
+                    <button
+                        onClick={handleNavigate}
+                        className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                        title={`Navigate to ${nodeRefs[0]}`}
+                    >
+                        <Crosshair className="h-3 w-3" />
+                    </button>
+                )}
             </span>
         );
     }
@@ -97,6 +123,7 @@ const MappingValue: React.FC<{
                             value={item}
                             onHighlightNodes={onHighlightNodes}
                             knownNodeIds={knownNodeIds}
+                            onNavigateToNode={onNavigateToNode}
                             depth={depth + 1}
                         />
                         {index < value.length - 1 && <span className="text-gray-500">,</span>}
@@ -123,6 +150,7 @@ const MappingValue: React.FC<{
                             value={val}
                             onHighlightNodes={onHighlightNodes}
                             knownNodeIds={knownNodeIds}
+                            onNavigateToNode={onNavigateToNode}
                             depth={depth + 1}
                         />
                         {index < entries.length - 1 && <span className="text-gray-500">,</span>}
@@ -145,6 +173,7 @@ const InputMappingViewer: React.FC<InputMappingViewerProps> = ({
     mapping,
     onHighlightNodes,
     knownNodeIds,
+    onNavigateToNode,
 }) => {
     const entries = Object.entries(mapping);
 
@@ -166,6 +195,7 @@ const InputMappingViewer: React.FC<InputMappingViewerProps> = ({
                         value={value}
                         onHighlightNodes={onHighlightNodes}
                         knownNodeIds={knownNodeIds}
+                        onNavigateToNode={onNavigateToNode}
                     />
                 </div>
             ))}

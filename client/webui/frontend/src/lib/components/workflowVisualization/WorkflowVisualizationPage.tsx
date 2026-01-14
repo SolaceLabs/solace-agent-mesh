@@ -1,15 +1,19 @@
 import React, { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Workflow } from "lucide-react";
+import { Workflow } from "lucide-react";
 
-import { Button, EmptyState } from "@/lib/components";
+import { EmptyState } from "@/lib/components";
+import { Header, type BreadcrumbItem } from "@/lib/components/header";
 import { useChatContext } from "@/lib/hooks";
 import { isWorkflowAgent, getWorkflowConfig } from "@/lib/utils/agentUtils";
 import type { LayoutNode } from "./utils/types";
 import { extractNodeIdsFromConfig } from "./utils/expressionParser";
+import { processWorkflowConfig } from "./utils/layoutEngine";
 import WorkflowDiagram from "./WorkflowDiagram";
 import WorkflowNodeDetailPanel from "./WorkflowNodeDetailPanel";
 import WorkflowDetailsSidePanel, { type WorkflowPanelView } from "./WorkflowDetailsSidePanel";
+import CanvasControls from "./CanvasControls";
+import type { PanZoomCanvasRef } from "@/lib/components/activities/FlowChart/PanZoomCanvas";
 
 // Panel width configuration (pixels)
 const DETAIL_PANEL_WIDTHS = { default: 400, min: 280, max: 800 };
@@ -28,9 +32,12 @@ export function WorkflowVisualizationPage() {
     const [panelWidth, setPanelWidth] = useState<number>(DETAIL_PANEL_WIDTHS.default);
     const [shouldAnimate, setShouldAnimate] = useState(false);
     const [highlightedNodeIds, setHighlightedNodeIds] = useState<Set<string>>(new Set());
+    const [currentZoom, setCurrentZoom] = useState(1);
     const prevSelectedRef = useRef<LayoutNode | null>(null);
     const prevWorkflowPanelRef = useRef<WorkflowPanelView | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const canvasRef = useRef<PanZoomCanvasRef>(null);
+    const contentWidthRef = useRef(800);
     const isResizing = useRef(false);
 
     // Track when panel opens to trigger animation only on initial open
@@ -115,11 +122,6 @@ export function WorkflowVisualizationPage() {
         setSelectedNode(null);
     }, []);
 
-    // Handle back navigation - return to workflows tab
-    const handleBack = useCallback(() => {
-        navigate("/agents?tab=workflows");
-    }, [navigate]);
-
     // Handle opening workflow details panel
     const handleOpenWorkflowDetails = useCallback(() => {
         setSelectedNode(null); // Close node panel if open
@@ -136,11 +138,77 @@ export function WorkflowVisualizationPage() {
         setWorkflowPanelView(view);
     }, []);
 
+    // Handle transform changes from canvas (for zoom level display)
+    const handleTransformChange = useCallback((transform: { scale: number; x: number; y: number }) => {
+        setCurrentZoom(transform.scale);
+    }, []);
+
+    // Zoom control handlers
+    const handleZoomIn = useCallback(() => {
+        canvasRef.current?.zoomIn({ animated: true });
+    }, []);
+
+    const handleZoomOut = useCallback(() => {
+        canvasRef.current?.zoomOut({ animated: true });
+    }, []);
+
+    const handleFitToView = useCallback(() => {
+        canvasRef.current?.fitToContent(contentWidthRef.current, { animated: true });
+    }, []);
+
+    // Track content size for fit-to-view
+    const handleContentSizeChange = useCallback((width: number) => {
+        contentWidthRef.current = width;
+    }, []);
+
+    // Handle navigation to a node (pan to center it in view)
+    const handleNavigateToNode = useCallback((nodeId: string) => {
+        if (!config) return;
+
+        // Compute layout to find node position
+        const layout = processWorkflowConfig(config, new Set(), knownWorkflows);
+
+        // Find the node in the layout (search recursively)
+        const findNode = (nodes: LayoutNode[]): LayoutNode | null => {
+            for (const node of nodes) {
+                if (node.id === nodeId) return node;
+                if (node.children) {
+                    const found = findNode(node.children);
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+
+        const targetNode = findNode(layout.nodes);
+        if (targetNode) {
+            // Pan to center the node (use center of the node)
+            const centerX = targetNode.x + targetNode.width / 2;
+            const centerY = targetNode.y + targetNode.height / 2;
+            canvasRef.current?.panToPoint(centerX, centerY, { animated: true });
+        }
+    }, [config, knownWorkflows]);
+
+    // Build breadcrumbs for navigation
+    const breadcrumbs: BreadcrumbItem[] = [
+        { label: "Agents", onClick: () => navigate("/agents") },
+        { label: "Workflows", onClick: () => navigate("/agents?tab=workflows") },
+        { label: workflow?.displayName || workflow?.name || workflowName || "Workflow" },
+    ];
+
     // Loading state
     if (agentsLoading) {
         return (
             <div className="flex h-full w-full flex-col">
-                <PageHeader workflowName={workflowName || "Workflow"} onBack={handleBack} />
+                <Header
+                    title={
+                        <div className="flex items-center gap-2">
+                            <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                            <span>{workflowName || "Workflow"}</span>
+                        </div>
+                    }
+                    breadcrumbs={breadcrumbs}
+                />
                 <EmptyState title="Loading..." variant="loading" />
             </div>
         );
@@ -150,7 +218,15 @@ export function WorkflowVisualizationPage() {
     if (agentsError) {
         return (
             <div className="flex h-full w-full flex-col">
-                <PageHeader workflowName={workflowName || "Workflow"} onBack={handleBack} />
+                <Header
+                    title={
+                        <div className="flex items-center gap-2">
+                            <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                            <span>{workflowName || "Workflow"}</span>
+                        </div>
+                    }
+                    breadcrumbs={breadcrumbs}
+                />
                 <EmptyState variant="error" title="Error loading data" subtitle={agentsError} />
             </div>
         );
@@ -160,7 +236,15 @@ export function WorkflowVisualizationPage() {
     if (!workflow || !config) {
         return (
             <div className="flex h-full w-full flex-col">
-                <PageHeader workflowName={workflowName || "Workflow"} onBack={handleBack} />
+                <Header
+                    title={
+                        <div className="flex items-center gap-2">
+                            <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                            <span>{workflowName || "Workflow"}</span>
+                        </div>
+                    }
+                    breadcrumbs={breadcrumbs}
+                />
                 <EmptyState
                     variant="error"
                     title="Workflow not found"
@@ -172,11 +256,38 @@ export function WorkflowVisualizationPage() {
 
     return (
         <div className="flex h-full w-full flex-col">
-            <PageHeader
-                workflowName={workflow.displayName || workflow.name}
-                workflowVersion={config.version}
-                onBack={handleBack}
-                onOpenDetails={handleOpenWorkflowDetails}
+            <Header
+                title={
+                    <div className="flex items-center gap-2">
+                        <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                        <span>{workflow.displayName || workflow.name}</span>
+                        {config.version && (
+                            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                v{config.version}
+                            </span>
+                        )}
+                    </div>
+                }
+                breadcrumbs={breadcrumbs}
+                buttons={[
+                    <button
+                        key="details"
+                        onClick={handleOpenWorkflowDetails}
+                        className="text-sm text-[var(--color-brand-wMain)] hover:underline"
+                    >
+                        Open Workflow Details
+                    </button>,
+                ]}
+            />
+
+            {/* Canvas controls bar */}
+            <CanvasControls
+                zoomLevel={currentZoom}
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+                onFitToView={handleFitToView}
+                minZoom={0.25}
+                maxZoom={2}
             />
 
             {/* Body container - panels overlay this area only */}
@@ -188,30 +299,26 @@ export function WorkflowVisualizationPage() {
                     highlightedNodeIds={highlightedNodeIds}
                     onHighlightNodes={handleHighlightNodes}
                     knownNodeIds={knownNodeIds}
+                    onTransformChange={handleTransformChange}
+                    canvasRef={canvasRef}
+                    onContentSizeChange={handleContentSizeChange}
                 />
 
-                {/* Detail panel overlay (shown when node selected) */}
+                {/* Floating node detail popover (shown when node selected) */}
                 {selectedNode && (
                     <div
-                        className={`absolute top-0 right-0 bottom-0 z-10 flex ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`}
+                        className={`absolute top-4 right-4 z-10 max-h-[calc(100%-32px)] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`}
                         style={{ width: panelWidth }}
                     >
-                        {/* Resize handle - matches ResizableHandle styling */}
-                        <div
-                            className="bg-border relative flex w-px cursor-col-resize items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2"
-                            onMouseDown={handleResizeStart}
+                        <WorkflowNodeDetailPanel
+                            node={selectedNode}
+                            workflowConfig={config}
+                            agents={agents}
+                            onClose={handleCloseDetail}
+                            onHighlightNodes={handleHighlightNodes}
+                            knownNodeIds={knownNodeIds}
+                            onNavigateToNode={handleNavigateToNode}
                         />
-                        {/* Panel content */}
-                        <div className="bg-background min-w-0 flex-1">
-                            <WorkflowNodeDetailPanel
-                                node={selectedNode}
-                                workflowConfig={config}
-                                agents={agents}
-                                onClose={handleCloseDetail}
-                                onHighlightNodes={handleHighlightNodes}
-                                knownNodeIds={knownNodeIds}
-                            />
-                        </div>
                     </div>
                 )}
 
@@ -242,49 +349,5 @@ export function WorkflowVisualizationPage() {
         </div>
     );
 }
-
-/**
- * Page header component
- */
-interface PageHeaderProps {
-    workflowName: string;
-    workflowVersion?: string;
-    onBack: () => void;
-    onOpenDetails?: () => void;
-}
-
-const PageHeader: React.FC<PageHeaderProps> = ({
-    workflowName,
-    workflowVersion,
-    onBack,
-    onOpenDetails,
-}) => {
-    return (
-        <div className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
-            <div className="flex items-center gap-3">
-                <Button variant="ghost" size="sm" onClick={onBack}>
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div className="flex items-center gap-2">
-                    <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
-                    <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{workflowName}</h1>
-                    {workflowVersion && (
-                        <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400">
-                            v{workflowVersion}
-                        </span>
-                    )}
-                </div>
-            </div>
-            {onOpenDetails && (
-                <button
-                    onClick={onOpenDetails}
-                    className="text-sm text-[var(--color-brand-wMain)] hover:underline"
-                >
-                    Open Workflow Details
-                </button>
-            )}
-        </div>
-    );
-};
 
 export default WorkflowVisualizationPage;
