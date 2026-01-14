@@ -311,3 +311,207 @@ class TestInnerNodeTracking:
         assert "process_item" in executor.inner_nodes
         assert "map_node" not in executor.inner_nodes
         assert "prepare" not in executor.inner_nodes
+
+
+class TestResolveValue:
+    """Tests for resolve_value() - template resolution in value definitions."""
+
+    def test_simple_template_resolution(self):
+        """Simple template string is resolved correctly."""
+        executor = create_dag_executor([
+            AgentNode(id="step1", type="agent", agent_name="Agent1"),
+        ])
+
+        state = create_workflow_state()
+        state.node_outputs["step1"] = {"output": {"value": 42}}
+
+        result = executor.resolve_value("{{step1.output.value}}", state)
+        assert result == 42
+
+    def test_literal_value_passthrough(self):
+        """Non-template literal values pass through unchanged."""
+        executor = create_dag_executor([
+            AgentNode(id="step1", type="agent", agent_name="Agent1"),
+        ])
+
+        state = create_workflow_state()
+
+        # String without template
+        assert executor.resolve_value("hello", state) == "hello"
+        # Numbers
+        assert executor.resolve_value(123, state) == 123
+        assert executor.resolve_value(3.14, state) == 3.14
+        # Boolean
+        assert executor.resolve_value(True, state) is True
+        # None
+        assert executor.resolve_value(None, state) is None
+
+    def test_nested_dict_resolution(self):
+        """Templates inside nested dicts are resolved."""
+        executor = create_dag_executor([
+            AgentNode(id="step1", type="agent", agent_name="Agent1"),
+        ])
+
+        state = create_workflow_state()
+        state.node_outputs["step1"] = {
+            "output": {
+                "mean": 10.5,
+                "std_dev": 2.3,
+                "count": 100,
+            }
+        }
+
+        # Nested dict with templates
+        value_def = {
+            "statistics": {
+                "mean": "{{step1.output.mean}}",
+                "std_dev": "{{step1.output.std_dev}}",
+            },
+            "metadata": {
+                "count": "{{step1.output.count}}",
+            },
+        }
+
+        result = executor.resolve_value(value_def, state)
+
+        assert result["statistics"]["mean"] == 10.5
+        assert result["statistics"]["std_dev"] == 2.3
+        assert result["metadata"]["count"] == 100
+
+    def test_nested_list_resolution(self):
+        """Templates inside nested lists are resolved."""
+        executor = create_dag_executor([
+            AgentNode(id="step1", type="agent", agent_name="Agent1"),
+        ])
+
+        state = create_workflow_state()
+        state.node_outputs["step1"] = {
+            "output": {
+                "a": 1,
+                "b": 2,
+                "c": 3,
+            }
+        }
+
+        # List with templates
+        value_def = [
+            "{{step1.output.a}}",
+            "{{step1.output.b}}",
+            "{{step1.output.c}}",
+        ]
+
+        result = executor.resolve_value(value_def, state)
+
+        assert result == [1, 2, 3]
+
+    def test_mixed_nested_resolution(self):
+        """Templates in mixed nested structures (dicts in lists, lists in dicts)."""
+        executor = create_dag_executor([
+            AgentNode(id="step1", type="agent", agent_name="Agent1"),
+        ])
+
+        state = create_workflow_state()
+        state.node_outputs["step1"] = {
+            "output": {
+                "x": 10,
+                "y": 20,
+                "z": 30,
+            }
+        }
+
+        # Complex nested structure
+        value_def = {
+            "coordinates": [
+                {"name": "x", "value": "{{step1.output.x}}"},
+                {"name": "y", "value": "{{step1.output.y}}"},
+            ],
+            "extra": {
+                "values": ["{{step1.output.z}}", "literal"],
+            },
+        }
+
+        result = executor.resolve_value(value_def, state)
+
+        assert result["coordinates"][0]["name"] == "x"
+        assert result["coordinates"][0]["value"] == 10
+        assert result["coordinates"][1]["name"] == "y"
+        assert result["coordinates"][1]["value"] == 20
+        assert result["extra"]["values"][0] == 30
+        assert result["extra"]["values"][1] == "literal"
+
+    def test_deeply_nested_resolution(self):
+        """Templates in deeply nested structures are resolved."""
+        executor = create_dag_executor([
+            AgentNode(id="step1", type="agent", agent_name="Agent1"),
+        ])
+
+        state = create_workflow_state()
+        state.node_outputs["step1"] = {"output": {"deep_value": "found"}}
+
+        value_def = {
+            "level1": {
+                "level2": {
+                    "level3": {
+                        "level4": "{{step1.output.deep_value}}",
+                    }
+                }
+            }
+        }
+
+        result = executor.resolve_value(value_def, state)
+        assert result["level1"]["level2"]["level3"]["level4"] == "found"
+
+    def test_coalesce_operator_still_works(self):
+        """Coalesce operator works with nested resolution."""
+        executor = create_dag_executor([
+            AgentNode(id="step1", type="agent", agent_name="Agent1"),
+        ])
+
+        state = create_workflow_state()
+        state.node_outputs["step1"] = {"output": {"value": "exists"}}
+
+        # Coalesce with template
+        value_def = {"coalesce": ["{{nonexistent.output}}", "{{step1.output.value}}"]}
+
+        result = executor.resolve_value(value_def, state)
+        assert result == "exists"
+
+    def test_concat_operator_still_works(self):
+        """Concat operator works with nested resolution."""
+        executor = create_dag_executor([
+            AgentNode(id="step1", type="agent", agent_name="Agent1"),
+        ])
+
+        state = create_workflow_state()
+        state.node_outputs["step1"] = {"output": {"name": "World"}}
+
+        # Concat with template
+        value_def = {"concat": ["Hello, ", "{{step1.output.name}}", "!"]}
+
+        result = executor.resolve_value(value_def, state)
+        assert result == "Hello, World!"
+
+    def test_workflow_input_in_nested_dict(self):
+        """Workflow input references in nested dicts are resolved."""
+        executor = create_dag_executor([
+            AgentNode(id="step1", type="agent", agent_name="Agent1"),
+        ])
+
+        state = create_workflow_state()
+        state.node_outputs["workflow_input"] = {
+            "output": {
+                "data_points": [1, 2, 3, 4, 5],
+                "name": "test_data",
+            }
+        }
+
+        value_def = {
+            "input_data": {
+                "points": "{{workflow.input.data_points}}",
+                "label": "{{workflow.input.name}}",
+            }
+        }
+
+        result = executor.resolve_value(value_def, state)
+        assert result["input_data"]["points"] == [1, 2, 3, 4, 5]
+        assert result["input_data"]["label"] == "test_data"

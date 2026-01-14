@@ -394,7 +394,7 @@ class WorkflowExecutorComponent(SamComponentBase):
 
         result_data = StructuredInvocationResult(
             type="structured_invocation_result",
-            status="failure",
+            status="error",
             error_message=f"Agent timed out after {timeout_seconds} seconds",
         )
 
@@ -681,7 +681,7 @@ class WorkflowExecutorComponent(SamComponentBase):
 
         # Prepare artifact content with status and error
         artifact_content = {
-            "status": "failure",
+            "status": "error",
             "message": str(error),
         }
         content_bytes = json.dumps(artifact_content).encode("utf-8")
@@ -720,7 +720,7 @@ class WorkflowExecutorComponent(SamComponentBase):
             workflow_context,
             WorkflowExecutionResultData(
                 type="workflow_execution_result",
-                status="failure",
+                status="error",
                 error_message=str(error),
             ),
         )

@@ -225,7 +225,7 @@ class StructuredInvocationResult(BaseModel):
     type: Literal["structured_invocation_result"] = Field(
         "structured_invocation_result", description="The constant type for this data part."
     )
-    status: Literal["success", "failure"] = Field(
+    status: Literal["success", "error"] = Field(
         ..., description="Execution result status"
     )
     artifact_name: Optional[str] = Field(
@@ -234,7 +234,7 @@ class StructuredInvocationResult(BaseModel):
     artifact_version: Optional[int] = Field(
         None, description="Version of result artifact"
     )
-    error_message: Optional[str] = Field(None, description="Error message if failure")
+    error_message: Optional[str] = Field(None, description="Error message if error")
     validation_errors: Optional[List[str]] = Field(
         None, description="Schema validation errors if any"
     )
@@ -358,13 +358,13 @@ class WorkflowNodeExecutionResultData(BaseModel):
         description="The constant type for this data part.",
     )
     node_id: str = Field(..., description="ID of the node")
-    status: Literal["success", "failure", "skipped"] = Field(
+    status: Literal["success", "error", "skipped"] = Field(
         ..., description="Execution status"
     )
     output_artifact_ref: Optional[ArtifactRef] = Field(
         None, description="Reference to the output artifact"
     )
-    error_message: Optional[str] = Field(None, description="Error message if failed")
+    error_message: Optional[str] = Field(None, description="Error message if error")
     metadata: Optional[Dict[str, Any]] = Field(
         None, description="Additional metadata (e.g., condition result)"
     )
@@ -396,13 +396,13 @@ class WorkflowExecutionResultData(BaseModel):
     type: Literal["workflow_execution_result"] = Field(
         "workflow_execution_result", description="The constant type for this data part."
     )
-    status: Literal["success", "failure", "cancelled"] = Field(
+    status: Literal["success", "error", "cancelled"] = Field(
         ..., description="Final status"
     )
     output_artifact_ref: Optional[ArtifactRef] = Field(
         None, description="Reference to the final output artifact"
     )
-    error_message: Optional[str] = Field(None, description="Error message if failed")
+    error_message: Optional[str] = Field(None, description="Error message if error")
     workflow_output: Optional[Dict[str, Any]] = Field(
         None, description="Final output data of the workflow"
     )

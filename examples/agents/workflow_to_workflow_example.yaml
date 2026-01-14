@@ -696,6 +696,12 @@ apps:
                 data_points:
                   type: array
                   description: "Validated data points for statistical analysis"
+                  items:
+                    type: object
+                    properties:
+                      value:
+                        type: number
+                    required: [value]
               required: [data_points]
 
           # ====================================================================

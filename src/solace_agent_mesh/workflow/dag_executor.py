@@ -914,6 +914,7 @@ class DAGExecutor:
         - Literal values
         - Template strings: "{{...}}"
         - Operators: coalesce, concat
+        - Nested dicts and lists (recursively resolved)
         """
         # Handle template string
         if isinstance(value_def, str) and value_def.startswith("{{"):
@@ -944,6 +945,17 @@ class DAGExecutor:
                     if resolved is not None:
                         parts.append(str(resolved))
                 return "".join(parts)
+
+        # Handle nested dicts - recursively resolve all values
+        if isinstance(value_def, dict):
+            resolved_dict = {}
+            for key, value in value_def.items():
+                resolved_dict[key] = self.resolve_value(value, workflow_state)
+            return resolved_dict
+
+        # Handle nested lists - recursively resolve all items
+        if isinstance(value_def, list):
+            return [self.resolve_value(item, workflow_state) for item in value_def]
 
         # Return literal
         return value_def
@@ -1042,7 +1054,7 @@ class DAGExecutor:
         workflow_state = workflow_context.workflow_state
 
         # Check result status
-        if result.status == "failure":
+        if result.status == "error":
             log.error(f"{log_id} Node '{node_id}' failed: {result.error_message}")
 
             # Set error state

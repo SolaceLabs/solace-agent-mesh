@@ -351,7 +351,7 @@ This is MANDATORY for the workflow to continue.
             should_send_artifact = not is_single_text
 
         if should_send_artifact:
-            # Create and save input artifact
+            # Create and save input artifact, then add FilePart with URI
             filename = f"input_{node.id}_{sub_task_id}.json"
             content_bytes = json.dumps(input_data).encode("utf-8")
             user_id = workflow_context.a2a_context["user_id"]
@@ -388,7 +388,8 @@ This is MANDATORY for the workflow to continue.
                         )
                     )
                     log.info(
-                        f"{self.host.log_identifier} Created input artifact for node {node.id}: {filename}"
+                        f"{self.host.log_identifier} Created input artifact for node "
+                        f"{node.id}: {filename}"
                     )
                 else:
                     raise RuntimeError(
@@ -397,7 +398,8 @@ This is MANDATORY for the workflow to continue.
 
             except Exception as e:
                 log.error(
-                    f"{self.host.log_identifier} Error saving input artifact for node {node.id}: {e}"
+                    f"{self.host.log_identifier} Error saving input artifact for node "
+                    f"{node.id}: {e}"
                 )
                 raise e
 

@@ -14,6 +14,7 @@ from a2a.types import (
     AgentCard,
     JSONRPCResponse,
     Task,
+    TaskState,
     Message as A2AMessage,
 )
 from ...common import a2a
@@ -31,51 +32,47 @@ async def _extract_workflow_input(
     message: A2AMessage,
     a2a_context: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Extract workflow input from A2A message."""
+    """Extract workflow input from A2A message.
 
-    # 1. Check for artifact reference in metadata (Artifact Mode)
-    if message.metadata and "invoked_with_artifacts" in message.metadata:
-        artifacts = message.metadata["invoked_with_artifacts"]
-        if artifacts:
-            # Use first artifact
-            artifact_ref = artifacts[0]
-            filename = artifact_ref.get("filename")
-            version = artifact_ref.get("version")
+    Supports multiple input modes:
+    1. FilePart with artifact URI (structured invocation from workflows/agents)
+    2. DataPart (direct data, skipping StructuredInvocationRequest)
+    3. TextPart (chat mode)
+    """
+    from ...agent.utils.artifact_helpers import parse_artifact_uri
 
-            if filename:
-                # Load artifact content
-                try:
-                    # Resolve version if 'latest' or None
-                    if version == "latest" or version is None:
-                        versions = await component.artifact_service.list_versions(
-                            app_name=component.workflow_name,
-                            user_id=a2a_context["user_id"],
-                            session_id=a2a_context["session_id"],
-                            filename=filename,
-                        )
-                        version = max(versions) if versions else None
-
-                    if version is not None:
-                        artifact = await component.artifact_service.load_artifact(
-                            app_name=component.workflow_name,
-                            user_id=a2a_context["user_id"],
-                            session_id=a2a_context["session_id"],
-                            filename=filename,
-                            version=version,
-                        )
-
-                        if artifact and artifact.inline_data:
-                            return json.loads(artifact.inline_data.data.decode("utf-8"))
-
-                except Exception as e:
-                    log.warning(
-                        f"{component.log_identifier} Failed to load input artifact {filename}: {e}"
-                    )
+    # 1. Check for FilePart with artifact URI (unified structured invocation)
+    file_parts = a2a.get_file_parts_from_message(message)
+    for file_part in file_parts:
+        uri = a2a.get_uri_from_file_part(file_part)
+        if uri and uri.startswith("artifact://"):
+            try:
+                # Parse the artifact URI to get source app_name and other params
+                uri_parts = parse_artifact_uri(uri)
+                artifact = await component.artifact_service.load_artifact(
+                    app_name=uri_parts["app_name"],
+                    user_id=uri_parts["user_id"],
+                    session_id=uri_parts["session_id"],
+                    filename=uri_parts["filename"],
+                    version=uri_parts["version"],
+                )
+                if artifact and artifact.inline_data:
+                    return json.loads(artifact.inline_data.data.decode("utf-8"))
+            except Exception as e:
+                log.warning(
+                    f"{component.log_identifier} Failed to load input artifact "
+                    f"from URI {uri}: {e}"
+                )
 
     # 2. Check for DataPart (Parameter Mode via direct data)
+    # Skip StructuredInvocationRequest data parts - look for actual input data
     data_parts = a2a.get_data_parts_from_message(message)
-    if data_parts:
-        return data_parts[0].data
+    for data_part in data_parts:
+        # Skip structured invocation metadata
+        if (isinstance(data_part.data, dict) and
+                data_part.data.get("type") == "structured_invocation_request"):
+            continue
+        return data_part.data
 
     # 3. Check for TextPart (Chat Mode)
     text = a2a.get_text_from_message(message)
@@ -305,6 +302,28 @@ async def handle_agent_response(
 
                 await component.dag_executor.handle_node_completion(
                     workflow_context, sub_task_id, node_result
+                )
+            elif result.status.state == TaskState.failed:
+                # Sub-workflow or agent failed - create a failure result
+                # Remove the cache entry since we received a response
+                component.cache_service.remove_data(sub_task_id)
+
+                # Extract error message from the task status
+                error_text = a2a.get_text_from_message(task_message) if task_message else "Unknown error"
+                log.warning(
+                    f"{component.log_identifier} Sub-task {sub_task_id} failed: {error_text}"
+                )
+
+                # Create a failure StructuredInvocationResult
+                from ...common.data_parts import StructuredInvocationResult
+                failure_result = StructuredInvocationResult(
+                    type="structured_invocation_result",
+                    status="error",
+                    error_message=error_text,
+                )
+
+                await component.dag_executor.handle_node_completion(
+                    workflow_context, sub_task_id, failure_result
                 )
             else:
                 log.error(f"{component.log_identifier} Received Task response without StructuredInvocationResult")

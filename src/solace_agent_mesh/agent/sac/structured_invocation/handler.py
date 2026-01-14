@@ -153,7 +153,7 @@ class StructuredInvocationHandler:
                 # Return validation error immediately
                 result_data = StructuredInvocationResult(
                     type="structured_invocation_result",
-                    status="failure",
+                    status="error",
                     error_message=f"Input validation failed: {validation_errors}",
                 )
                 return await self._return_structured_result(
@@ -175,7 +175,7 @@ class StructuredInvocationHandler:
 
             result_data = StructuredInvocationResult(
                 type="structured_invocation_result",
-                status="failure",
+                status="error",
                 error_message=f"Node execution error: {str(e)}",
             )
             return await self._return_structured_result(
@@ -660,7 +660,7 @@ This result embed is MANDATORY. The invocation cannot proceed without it.
    IMPORTANT: Do NOT include a version number if returning the latest version - the system will automatically provide the most recent version.
 
 If you cannot complete the task, use:
-«result:artifact=<artifact_name> status=failure message="<reason>"»
+«result:artifact=<artifact_name> status=error message="<reason>"»
 """
         return workflow_instructions.strip()
 
@@ -704,16 +704,16 @@ Please retry and ensure you include this embed.
             else:
                 return StructuredInvocationResult(
                     type="structured_invocation_result",
-                    status="failure",
+                    status="error",
                     error_message=error_msg,
                     retry_count=retry_count,
                 )
 
         # Handle explicit failure status
-        if result_embed.status == "failure":
+        if result_embed.status == "error":
             return StructuredInvocationResult(
                 type="structured_invocation_result",
-                status="failure",
+                status="error",
                 error_message=result_embed.message or "Agent reported failure",
                 artifact_name=result_embed.artifact_name,
                 retry_count=retry_count,
@@ -747,7 +747,7 @@ Please retry and ensure you include this embed.
                     )
                     return StructuredInvocationResult(
                         type="structured_invocation_result",
-                        status="failure",
+                        status="error",
                         error_message=f"Artifact {result_embed.artifact_name} not found (no versions available)",
                         retry_count=retry_count,
                     )
@@ -769,7 +769,7 @@ Please retry and ensure you include this embed.
             log.error(f"{log_id} Failed to load artifact: {e}")
             return StructuredInvocationResult(
                 type="structured_invocation_result",
-                status="failure",
+                status="error",
                 error_message=f"Failed to load result artifact: {e}",
                 retry_count=retry_count,
             )
@@ -809,7 +809,7 @@ Remember to end your response with the result embed:
                     # Max retries exceeded
                     return StructuredInvocationResult(
                         type="structured_invocation_result",
-                        status="failure",
+                        status="error",
                         error_message="Output validation failed after max retries",
                         validation_errors=validation_errors,
                         retry_count=retry_count,
@@ -827,7 +827,7 @@ Remember to end your response with the result embed:
     def _parse_result_embed(self, adk_event: ADKEvent) -> Optional[ResultEmbed]:
         """
         Parse result embed from agent's final output.
-        Format: «result:artifact=<name>:v<version> status=<success|failure> message="<text>"»
+        Format: «result:artifact=<name>:v<version> status=<success|error> message="<text>"»
         """
         if not adk_event or not adk_event.content or not adk_event.content.parts:
             log.debug("Result embed parse: Event is empty or has no content.")
@@ -859,7 +859,7 @@ Remember to end your response with the result embed:
             return None
 
         # Take last result embed and parse its parameters
-        # Format: artifact=<name>:v<version> status=<success|failure> message="<text>"
+        # Format: artifact=<name>:v<version> status=<success|error> message="<text>"
         expression = result_embeds[-1]
 
         # Parse parameters from expression
@@ -969,7 +969,7 @@ Remember to end your response with the result embed:
                 log.error(f"{log_id} Could not extract logical_task_id from session ID {session.id}. Cannot retry.")
                 return StructuredInvocationResult(
                     type="structured_invocation_result",
-                    status="failure",
+                    status="error",
                     error_message="Internal error: Lost task context during retry",
                     retry_count=retry_count
                 )
@@ -981,7 +981,7 @@ Remember to end your response with the result embed:
                 log.error(f"{log_id} TaskExecutionContext not found for {logical_task_id}. Cannot retry.")
                 return StructuredInvocationResult(
                     type="structured_invocation_result",
-                    status="failure",
+                    status="error",
                     error_message="Internal error: Task context lost during retry",
                     retry_count=retry_count
                 )
@@ -1038,7 +1038,7 @@ Remember to end your response with the result embed:
             log.exception(f"{log_id} Error during retry execution: {e}")
             return StructuredInvocationResult(
                 type="structured_invocation_result",
-                status="failure",
+                status="error",
                 error_message=f"Retry execution failed: {e}",
                 retry_count=retry_count
             )
