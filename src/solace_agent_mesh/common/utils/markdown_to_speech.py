@@ -88,16 +88,20 @@ def markdown_to_speech(
     # We need to do this first because we want to control how they're rendered
     result = _handle_code_blocks_pre(result, opts)
 
-    # Step 3: Convert markdown to HTML using markdown-it-py
+    # Step 3: Handle ordered lists to preserve numbers (before markdown parsing)
+    # markdown-it renders <ol><li> which loses the original numbers
+    result = _handle_ordered_lists_pre(result)
+
+    # Step 4: Convert markdown to HTML using markdown-it-py
     result = _markdown_to_html(result)
 
-    # Step 4: Extract text from HTML using BeautifulSoup
+    # Step 5: Extract text from HTML using BeautifulSoup
     result = _html_to_text(result, opts)
 
-    # Step 5: Handle bare URLs that might have been missed
+    # Step 6: Handle bare URLs that might have been missed
     result = _handle_bare_urls(result)
 
-    # Step 6: Normalize whitespace for natural speech
+    # Step 7: Normalize whitespace for natural speech
     result = _normalize_whitespace(result)
 
     return result.strip()
@@ -164,6 +168,35 @@ def _handle_code_blocks_pre(text: str, opts: MarkdownToSpeechOptions) -> str:
         return re.sub(pattern, f" {opts.code_block_prefix} ", text, flags=re.DOTALL)
     else:
         return re.sub(pattern, " ", text, flags=re.DOTALL)
+
+
+def _handle_ordered_lists_pre(text: str) -> str:
+    """
+    Pre-process ordered lists to preserve numbers before markdown parsing.
+
+    markdown-it renders ordered lists as <ol><li> which loses the original
+    numbers. This function converts "1. Item" to "1, Item" so the numbers
+    are preserved in the final text.
+    """
+    lines = text.split("\n")
+    result_lines = []
+    for line in lines:
+        # Match ordered list items: "1. Item" or "  1. Item" (with leading spaces)
+        # Using explicit character classes to avoid regex quantifier issues
+        stripped = line.lstrip(" \t")
+        if stripped and len(stripped) > 2:
+            # Check if line starts with digit(s) followed by ". "
+            dot_pos = stripped.find(". ")
+            if dot_pos > 0 and dot_pos <= 10:  # Reasonable limit for list numbers
+                prefix = stripped[:dot_pos]
+                if prefix.isdigit():
+                    # Replace "N. " with "N, " to preserve the number
+                    leading_space = line[: len(line) - len(stripped)]
+                    rest = stripped[dot_pos + 2 :]
+                    result_lines.append(f"{leading_space}{prefix}, {rest}")
+                    continue
+        result_lines.append(line)
+    return "\n".join(result_lines)
 
 
 def _handle_sam_citations(text: str, opts: MarkdownToSpeechOptions) -> str:
