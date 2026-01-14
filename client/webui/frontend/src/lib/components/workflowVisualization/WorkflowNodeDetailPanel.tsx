@@ -14,6 +14,7 @@ import {
     Check,
     Code,
     ExternalLink,
+    FileText,
 } from "lucide-react";
 
 import type { LayoutNode } from "./utils/types";
@@ -175,7 +176,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                 <span
                     className={`h-1.5 w-1.5 rounded-full ${isOnline ? "bg-green-500" : "bg-gray-400"}`}
                 />
-                {isOnline ? "Online" : "Offline"}
+                {isOnline ? "Running" : "Offline"}
             </span>
         );
     };
@@ -242,23 +243,31 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                     <span className="font-medium text-gray-900 dark:text-gray-100">{title}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    {showCodeView ? (
+                    {/* View toggle */}
+                    <div className="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-600">
                         <button
                             onClick={handleShowDetails}
-                            className="flex items-center gap-1.5 text-sm text-[var(--color-brand-wMain)] hover:underline"
+                            className={`flex items-center justify-center px-3 py-1.5 ${
+                                !showCodeView
+                                    ? "bg-[var(--color-brand-wMain)]/10 text-gray-700 dark:text-gray-200"
+                                    : "bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+                            }`}
+                            title="Details view"
                         >
-                            {getNodeIcon()}
-                            Show Details
+                            <FileText className="h-4 w-4" />
                         </button>
-                    ) : (
                         <button
                             onClick={handleInspectCode}
-                            className="flex items-center gap-1.5 text-sm text-[var(--color-brand-wMain)] hover:underline"
+                            className={`flex items-center justify-center border-l border-gray-300 px-3 py-1.5 dark:border-gray-600 ${
+                                showCodeView
+                                    ? "bg-[var(--color-brand-wMain)]/10 text-gray-700 dark:text-gray-200"
+                                    : "bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+                            }`}
+                            title="Code view"
                         >
                             <Code className="h-4 w-4" />
-                            Inspect Code
                         </button>
-                    )}
+                    </div>
                     <button
                         onClick={onClose}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"

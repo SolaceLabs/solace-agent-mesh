@@ -411,8 +411,20 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(
 
         // Handle double-click to zoom in at click location
         const handleDoubleClick = useCallback((e: React.MouseEvent) => {
-            // Only handle if clicking on the container background (not on nodes)
-            if (e.target !== containerRef.current) return;
+            // Prevent text selection on double-click
+            e.preventDefault();
+
+            // Only handle if clicking on the container background (not on interactive nodes)
+            // Check if the click target is a button, link, or has data-no-zoom attribute
+            const target = e.target as HTMLElement;
+            if (
+                target.closest("button") ||
+                target.closest("a") ||
+                target.closest("[data-no-zoom]") ||
+                target.closest("[role='button']")
+            ) {
+                return;
+            }
 
             const rect = containerRef.current?.getBoundingClientRect();
             if (!rect) return;
@@ -453,6 +465,7 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(
                     overflow: "hidden",
                     touchAction: "none",
                     cursor: "grab",
+                    userSelect: "none",
                 }}
             >
                 <div

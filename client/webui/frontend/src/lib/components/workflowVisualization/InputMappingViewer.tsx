@@ -76,7 +76,7 @@ const MappingValue: React.FC<{
         };
 
         return (
-            <span className="inline-flex items-center gap-1">
+            <span className="inline-flex items-end gap-1">
                 <span
                     className={`font-mono text-green-700 dark:text-green-400 ${
                         hasExprs
@@ -92,6 +92,8 @@ const MappingValue: React.FC<{
                 {hasNodeRefs && onNavigateToNode && (
                     <button
                         onClick={handleNavigate}
+                        onMouseEnter={() => onHighlightNodes?.([nodeRefs[0]])}
+                        onMouseLeave={() => onHighlightNodes?.([])}
                         className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
                         title={`Navigate to ${nodeRefs[0]}`}
                     >

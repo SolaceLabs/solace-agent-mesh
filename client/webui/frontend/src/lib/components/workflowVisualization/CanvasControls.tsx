@@ -36,7 +36,7 @@ export const CanvasControls: React.FC<CanvasControlsProps> = ({
     const isAtMaxZoom = zoomLevel >= maxZoom;
 
     return (
-        <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex items-center justify-end gap-2 border-b border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-800">
             {/* Fit to view / Center button */}
             <button
                 onClick={onFitToView}

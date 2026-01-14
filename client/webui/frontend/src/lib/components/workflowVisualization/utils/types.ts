@@ -153,12 +153,13 @@ export const LAYOUT_CONSTANTS = {
         CONTAINER_HEADER: 44,
         CONTAINER_COLLAPSED: 80, // Full collapsed height including "Content hidden" text
         CONDITION_PILL: 28, // Smaller height for condition pills
+        LOOP_CONDITION_ROW: 28, // Extra height for loop condition/max iterations row
     },
     SPACING: {
         VERTICAL: 60,
         VERTICAL_BRANCH: 100, // Extra spacing when there are condition pills (switch branches)
         HORIZONTAL: 32,
-        CONTAINER_PADDING: 16,
+        CONTAINER_PADDING: 24, // Padding inside container nodes (Map/Loop)
         BRANCH_GAP: 24,
     },
     COLLAPSE_THRESHOLDS: {

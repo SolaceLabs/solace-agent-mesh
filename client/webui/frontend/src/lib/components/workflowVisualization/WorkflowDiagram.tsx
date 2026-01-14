@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
+import React, { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import type { WorkflowConfig } from "@/lib/utils/agentUtils";
 import PanZoomCanvas, { type PanZoomCanvasRef } from "@/lib/components/activities/FlowChart/PanZoomCanvas";
 import { processWorkflowConfig } from "./utils/layoutEngine";
@@ -6,12 +6,42 @@ import type { LayoutNode, Edge } from "./utils/types";
 import WorkflowNodeRenderer from "./WorkflowNodeRenderer";
 import EdgeLayer from "./edges/EdgeLayer";
 
-/** Measured node position and dimensions from DOM */
-interface NodeMeasurement {
+/** Node position and dimensions */
+interface NodePosition {
     x: number;
     y: number;
     width: number;
     height: number;
+}
+
+/**
+ * Build a flat map of all node positions from the layout tree
+ * Traverses nested children and accumulates offsets for absolute positions
+ */
+function buildNodePositionMap(nodes: LayoutNode[], offsetX = 0, offsetY = 0): Map<string, NodePosition> {
+    const positions = new Map<string, NodePosition>();
+
+    for (const node of nodes) {
+        const absoluteX = node.x + offsetX;
+        const absoluteY = node.y + offsetY;
+
+        positions.set(node.id, {
+            x: absoluteX,
+            y: absoluteY,
+            width: node.width,
+            height: node.height,
+        });
+
+        // Recursively process children (for Map/Loop containers)
+        if (node.children && node.children.length > 0) {
+            const childPositions = buildNodePositionMap(node.children, absoluteX, absoluteY);
+            for (const [childId, childPos] of childPositions) {
+                positions.set(childId, childPos);
+            }
+        }
+    }
+
+    return positions;
 }
 
 interface WorkflowDiagramProps {
@@ -56,7 +86,6 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
     const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
     const [hasUserInteracted, setHasUserInteracted] = useState(false);
-    const [measuredEdges, setMeasuredEdges] = useState<Edge[]>([]);
     const [internalHighlightedNodeIds, setInternalHighlightedNodeIds] = useState<Set<string>>(new Set());
 
     // Calculate layout whenever config or collapsed state changes
@@ -101,69 +130,33 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
         }
     }, [controlledOnHighlightNodes]);
 
-    // Function to measure nodes and calculate edges
-    const measureAndCalculateEdges = useCallback(() => {
-        if (!containerRef.current) return;
+    // Calculate edges from layout positions (not DOM measurements)
+    // This avoids issues with pan/zoom transforms affecting edge positions
+    const calculatedEdges = useMemo(() => {
+        if (layout.nodes.length === 0) return [];
 
-        const containerRect = containerRef.current.getBoundingClientRect();
+        // Build flat map of all node positions from layout tree
+        const nodePositions = buildNodePositionMap(layout.nodes);
 
-        // Measure all nodes
-        const measurements = new Map<string, NodeMeasurement>();
-        for (const [nodeId, element] of nodeRefs.current) {
-            const rect = element.getBoundingClientRect();
-            measurements.set(nodeId, {
-                x: rect.left - containerRect.left,
-                y: rect.top - containerRect.top,
-                width: rect.width,
-                height: rect.height,
-            });
-        }
-
-        // Calculate edges based on measured positions
+        // Calculate edges based on layout positions
         const edges: Edge[] = [];
         for (const edge of layout.edges) {
-            const sourceMeasurement = measurements.get(edge.source);
-            const targetMeasurement = measurements.get(edge.target);
+            const sourcePos = nodePositions.get(edge.source);
+            const targetPos = nodePositions.get(edge.target);
 
-            if (sourceMeasurement && targetMeasurement) {
+            if (sourcePos && targetPos) {
                 edges.push({
                     ...edge,
-                    sourceX: sourceMeasurement.x + sourceMeasurement.width / 2,
-                    sourceY: sourceMeasurement.y + sourceMeasurement.height,
-                    targetX: targetMeasurement.x + targetMeasurement.width / 2,
-                    targetY: targetMeasurement.y,
+                    sourceX: sourcePos.x + sourcePos.width / 2,
+                    sourceY: sourcePos.y + sourcePos.height,
+                    targetX: targetPos.x + targetPos.width / 2,
+                    targetY: targetPos.y,
                 });
             }
         }
 
-        setMeasuredEdges(edges);
-    }, [layout.edges]);
-
-    // Measure nodes and calculate edges after render
-    useLayoutEffect(() => {
-        if (!containerRef.current || layout.nodes.length === 0) {
-            setMeasuredEdges([]);
-            return;
-        }
-
-        // Measure at multiple points to catch various transition timings
-        // This ensures edges stay aligned during expand/collapse animations
-        const rafId = requestAnimationFrame(() => {
-            measureAndCalculateEdges();
-        });
-
-        // Multiple measurement points to handle different transition durations
-        const timeout100 = setTimeout(() => measureAndCalculateEdges(), 100);
-        const timeout200 = setTimeout(() => measureAndCalculateEdges(), 200);
-        const timeout350 = setTimeout(() => measureAndCalculateEdges(), 350);
-
-        return () => {
-            cancelAnimationFrame(rafId);
-            clearTimeout(timeout100);
-            clearTimeout(timeout200);
-            clearTimeout(timeout350);
-        };
-    }, [layout, collapsedNodes, measureAndCalculateEdges]);
+        return edges;
+    }, [layout.nodes, layout.edges]);
 
     // Auto-fit on initial load (once)
     useEffect(() => {
@@ -233,8 +226,8 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
                         height: `${layout.totalHeight}px`,
                     }}
                 >
-                    {/* Edge layer (behind nodes) - uses measured positions */}
-                    <EdgeLayer edges={measuredEdges} width={layout.totalWidth} height={layout.totalHeight} />
+                    {/* Edge layer (behind nodes) - uses layout positions */}
+                    <EdgeLayer edges={calculatedEdges} width={layout.totalWidth} height={layout.totalHeight} />
 
                     {/* Node layer */}
                     <WorkflowNodeRenderer

@@ -1,6 +1,6 @@
 import React from "react";
 import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
-import { NODE_HIGHLIGHT_CLASSES, NODE_ID_BADGE_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 interface LoopNodeProps extends NodeProps {
     renderChildren?: (children: NodeProps["node"]["children"]) => React.ReactNode;
@@ -66,8 +66,6 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                     </button>
                 )}
 
-                {/* Node ID badge - fades in/out on hover */}
-                <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
             </div>
         );
     }
@@ -75,9 +73,9 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
     // Calculate header height for straddling effect
     // Header row: py-2 (16px) + icon line (~20px) ≈ 36px
     // Condition row adds: border + py-1.5 (12px) + text (~16px) ≈ 28px
-    // Dotted border should be at half the header height for straddling
+    // Dotted border starts closer to top for better visual balance
     const headerHeightPx = hasConditionRow ? 64 : 36;
-    const headerTopOffsetPx = headerHeightPx / 2;
+    const headerTopOffsetPx = headerHeightPx / 3;
 
     // When expanded with children, render with straddling header and dotted container
     return (
@@ -94,7 +92,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                 style={{ top: `${headerTopOffsetPx}px` }}
             >
                 {/* Top padding clears the header portion below the dotted border plus gap */}
-                <div className={`pb-3 px-3 ${hasConditionRow ? 'pt-10' : 'pt-6'}`}>
+                <div className={`pb-4 px-3 ${hasConditionRow ? 'pt-16' : 'pt-12'}`}>
                     <div className="flex flex-col items-center gap-2">
                         {renderChildren ? renderChildren(node.children) : null}
                     </div>
@@ -141,8 +139,6 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                     </div>
                 )}
 
-                {/* Node ID badge - fades in/out on hover */}
-                <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
             </div>
         </div>
     );

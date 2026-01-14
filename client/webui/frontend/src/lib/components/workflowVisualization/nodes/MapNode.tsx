@@ -1,6 +1,6 @@
 import React from "react";
 import { Repeat2, Maximize2, Minimize2 } from "lucide-react";
-import { NODE_HIGHLIGHT_CLASSES, NODE_ID_BADGE_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 interface MapNodeProps extends NodeProps {
     renderChildren?: (children: NodeProps["node"]["children"]) => React.ReactNode;
@@ -57,17 +57,15 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
                     </button>
                 )}
 
-                {/* Node ID badge - fades in/out on hover */}
-                <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
             </div>
         );
     }
 
     // Calculate header height for straddling effect
     // Header row: py-2 (16px) + icon line (~20px) ≈ 36px
-    // Dotted border should be at half the header height for straddling
+    // Dotted border starts closer to top for better visual balance
     const headerHeightPx = 36;
-    const headerTopOffsetPx = headerHeightPx / 2;
+    const headerTopOffsetPx = headerHeightPx / 3;
 
     // When expanded with children, render with straddling header and dotted container
     return (
@@ -84,7 +82,7 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
                 style={{ top: `${headerTopOffsetPx}px` }}
             >
                 {/* Top padding clears the header portion below the dotted border plus gap */}
-                <div className="pt-6 pb-3 px-3">
+                <div className="pt-12 pb-4 px-3">
                     <div className="flex flex-col items-center gap-2">
                         {renderChildren ? renderChildren(node.children) : null}
                     </div>
@@ -114,8 +112,6 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
                     <Minimize2 className="h-4 w-4" />
                 </button>
 
-                {/* Node ID badge - fades in/out on hover */}
-                <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
             </div>
         </div>
     );

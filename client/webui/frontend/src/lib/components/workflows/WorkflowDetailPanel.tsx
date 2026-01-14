@@ -1,27 +1,52 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import yaml from "js-yaml";
 
 import type { AgentCardInfo } from "@/lib/types";
 import { getWorkflowConfig, getWorkflowNodeCount } from "@/lib/utils/agentUtils";
 import { Button } from "@/lib/components/ui/button";
 import { MarkdownHTMLConverter } from "@/lib/components/common";
 import { JSONViewer } from "@/lib/components/jsonViewer";
-import { Workflow, GitMerge, FileJson, X, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { Workflow, GitMerge, FileJson, X, ExternalLink, ChevronDown, ChevronUp, FileText, Code, Copy, Check } from "lucide-react";
 
 interface WorkflowDetailPanelProps {
     workflow: AgentCardInfo;
+    /** Optional config - if not provided, will be computed from workflow */
+    config?: ReturnType<typeof getWorkflowConfig>;
     onClose: () => void;
+    /** Whether to show the "Open Workflow" button (default: true) */
+    showOpenButton?: boolean;
 }
 
-export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workflow, onClose }) => {
+export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
+    workflow,
+    config: providedConfig,
+    onClose,
+    showOpenButton = true,
+}) => {
     const navigate = useNavigate();
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
     const [showExpandButton, setShowExpandButton] = useState(false);
+    const [showCodeView, setShowCodeView] = useState(false);
+    const [isCopied, setIsCopied] = useState(false);
     const descriptionRef = useRef<HTMLDivElement>(null);
 
-    const config = getWorkflowConfig(workflow);
+    const config = providedConfig ?? getWorkflowConfig(workflow);
     const nodeCount = getWorkflowNodeCount(workflow);
     const description = config?.description || workflow.description;
+
+    // Handle copy to clipboard
+    const handleCopy = useCallback(() => {
+        if (!config) return;
+        try {
+            const yamlStr = yaml.dump(config, { indent: 2, lineWidth: -1 });
+            navigator.clipboard.writeText(yamlStr);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        } catch (err) {
+            console.error("Failed to copy:", err);
+        }
+    }, [config]);
 
     // Reset expansion state when workflow changes
     useEffect(() => {
@@ -53,18 +78,69 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
                         {workflow.displayName || workflow.name}
                     </span>
                 </div>
-                <button
-                    onClick={onClose}
-                    className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-                >
-                    <X className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                    {/* View toggle */}
+                    <div className="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-600">
+                        <button
+                            onClick={() => setShowCodeView(false)}
+                            className={`flex items-center justify-center px-3 py-1.5 ${
+                                !showCodeView
+                                    ? "bg-[var(--color-brand-wMain)]/10 text-gray-700 dark:text-gray-200"
+                                    : "bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+                            }`}
+                            title="Details view"
+                        >
+                            <FileText className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={() => setShowCodeView(true)}
+                            className={`flex items-center justify-center border-l border-gray-300 px-3 py-1.5 dark:border-gray-600 ${
+                                showCodeView
+                                    ? "bg-[var(--color-brand-wMain)]/10 text-gray-700 dark:text-gray-200"
+                                    : "bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+                            }`}
+                            title="Code view"
+                        >
+                            <Code className="h-4 w-4" />
+                        </button>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
             </div>
+
+            {/* Toolbar (only for code view) */}
+            {showCodeView && (
+                <div className="flex items-center justify-end gap-1 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+                    <button
+                        onClick={handleCopy}
+                        className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                        title="Copy YAML"
+                    >
+                        {isCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                </div>
+            )}
 
             {/* Content */}
             <div className="scrollbar-themed flex-1 overflow-y-auto p-4">
-                {/* Version and Node Count */}
-                <div className="mb-4 flex items-center gap-4">
+                {showCodeView ? (
+                    // Code view - show YAML
+                    config ? (
+                        <pre className="scrollbar-themed overflow-auto rounded-lg bg-gray-100 p-3 font-mono text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                            {yaml.dump(config, { indent: 2, lineWidth: -1 })}
+                        </pre>
+                    ) : (
+                        <div className="text-muted-foreground text-sm">No configuration available</div>
+                    )
+                ) : (
+                    <>
+                        {/* Version and Node Count */}
+                        <div className="mb-4 flex items-center gap-4">
                     <div>
                         <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
                             Version
@@ -121,17 +197,19 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
                 )}
 
                 {/* Open Workflow button */}
-                <div className="mb-4">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleOpenWorkflow}
-                        className="w-full"
-                    >
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        Open Workflow
-                    </Button>
-                </div>
+                {showOpenButton && (
+                    <div className="mb-4">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleOpenWorkflow}
+                            className="w-full"
+                        >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Open Workflow
+                        </Button>
+                    </div>
+                )}
 
                 {/* Input Schema */}
                 {config?.input_schema && (
@@ -157,6 +235,23 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
                         <div className="max-h-48 overflow-auto rounded-lg border">
                             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                             <JSONViewer data={config.output_schema as any} maxDepth={2} className="border-none text-xs" />
+                        </div>
+                    </div>
+                )}
+
+                {/* Output Mapping */}
+                {config?.output_mapping && (
+                    <div className="mb-4">
+                        <label className="mb-1 flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                            <FileJson size={14} className="mr-1" />
+                            Output Mapping
+                        </label>
+                        <div className="text-muted-foreground mb-2 text-xs">
+                            Defines how the final agent output is mapped to the workflow output schema.
+                        </div>
+                        <div className="max-h-48 overflow-auto rounded-lg border">
+                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                            <JSONViewer data={config.output_mapping as any} maxDepth={2} className="border-none text-xs" />
                         </div>
                     </div>
                 )}
@@ -189,6 +284,8 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
                             )}
                         </div>
                     </div>
+                )}
+                    </>
                 )}
             </div>
         </div>

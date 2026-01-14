@@ -1,6 +1,6 @@
 import React from "react";
 import { Bot } from "lucide-react";
-import { NODE_HIGHLIGHT_CLASSES, NODE_ID_BADGE_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 /**
  * Agent node - Rectangle with robot icon, agent name, and "Agent" badge
@@ -30,8 +30,6 @@ const AgentNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCli
             <span className="ml-2 flex-shrink-0 rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
                 Agent
             </span>
-            {/* Node ID badge - fades in/out on hover */}
-            <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
         </div>
     );
 };

@@ -1,7 +1,7 @@
 import React from "react";
 import { Workflow, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { NODE_HIGHLIGHT_CLASSES, NODE_ID_BADGE_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 /**
  * Workflow reference node - Rectangle with workflow icon, name, and "Workflow" badge
@@ -51,8 +51,6 @@ const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted,
                     <ExternalLink className="h-3.5 w-3.5" />
                 </button>
             </div>
-            {/* Node ID badge - fades in/out on hover */}
-            <div className={NODE_ID_BADGE_CLASSES}>{node.id}</div>
         </div>
     );
 };

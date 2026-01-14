@@ -147,10 +147,10 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
     }
 
     return (
-        <div className="bg-muted flex h-full flex-col dark:bg-[var(--color-bg-wMain)]">
-            <WorkflowOnboardingBanner />
-            {/* Main content row - table shrinks when panel opens */}
-            <div ref={containerRef} className="flex min-h-0 flex-1">
+        <div ref={containerRef} className="bg-muted flex h-full dark:bg-[var(--color-bg-wMain)]">
+            {/* Left side: banner + table - shrinks when panel opens */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <WorkflowOnboardingBanner />
                 {/* Table section */}
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col px-6 pt-6">
                     <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="workflowSearchInput" className="mb-4 w-xs" />
@@ -224,27 +224,27 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
                         </div>
                     )}
                 </div>
-
-                {/* Detail panel (side-by-side, not overlay) */}
-                {selectedWorkflow && (
-                    <div
-                        className={`bg-background flex flex-shrink-0 border-l ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`}
-                        style={{ width: panelWidth }}
-                    >
-                        {/* Resize handle */}
-                        <div
-                            className="group relative flex w-2 cursor-col-resize items-center justify-center hover:bg-[var(--color-primary-wMain)]/10"
-                            onMouseDown={handleResizeStart}
-                        >
-                            <div className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-[var(--color-secondary-w40)] group-hover:bg-[var(--color-primary-wMain)] dark:bg-[var(--color-secondary-w70)]" />
-                        </div>
-                        {/* Panel content */}
-                        <div className="min-w-0 flex-1">
-                            <WorkflowDetailPanel workflow={selectedWorkflow} onClose={handleClosePanel} />
-                        </div>
-                    </div>
-                )}
             </div>
+
+            {/* Detail panel (side-by-side, full height) */}
+            {selectedWorkflow && (
+                <div
+                    className={`bg-background flex flex-shrink-0 ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`}
+                    style={{ width: panelWidth }}
+                >
+                    {/* Resize handle */}
+                    <div
+                        className="relative flex w-1 cursor-col-resize items-center justify-center"
+                        onMouseDown={handleResizeStart}
+                    >
+                        <div className="absolute inset-y-0 left-0 w-px bg-border" />
+                    </div>
+                    {/* Panel content */}
+                    <div className="min-w-0 flex-1">
+                        <WorkflowDetailPanel workflow={selectedWorkflow} onClose={handleClosePanel} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
