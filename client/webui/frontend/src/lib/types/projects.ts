@@ -20,9 +20,11 @@ export type ProjectRole = "owner" | "editor" | "viewer";
 
 export interface Collaborator {
     userId: string;
-    email: string;
+    userEmail: string | null;
+    userName: string | null;
     role: ProjectRole;
-    addedAt: string; // ISO string
+    addedAt: string | number; // ISO string or timestamp
+    addedByUserId?: string;
 }
 
 export interface CollaboratorsResponse {

@@ -19,15 +19,19 @@ const mockProject: Project = {
 const mockCollaborators: Collaborator[] = [
     {
         userId: "user2",
-        email: "alice@example.com",
+        userEmail: "alice@example.com",
+        userName: "Alice",
         role: "editor",
         addedAt: new Date("2024-01-15").toISOString(),
+        addedByUserId: "user1",
     },
     {
         userId: "user3",
-        email: "bob@example.com",
+        userEmail: "bob@example.com",
+        userName: "Bob",
         role: "viewer",
         addedAt: new Date("2024-01-20").toISOString(),
+        addedByUserId: "user1",
     },
 ];
 
@@ -165,9 +169,11 @@ export const ShareProjectSuccess: Story = {
                 http.post("*/api/v1/projects/p123/share", async () => {
                     return HttpResponse.json({
                         userId: "user4",
-                        email: "charlie@example.com",
+                        userEmail: "charlie@example.com",
+                        userName: "Charlie",
                         role: "editor",
                         addedAt: new Date().toISOString(),
+                        addedByUserId: "user1",
                     });
                 }),
             ],

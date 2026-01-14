@@ -28,7 +28,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
     const [role, setRole] = useState<ProjectRole>("viewer");
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-    const [useTypeahead, setUseTypeahead] = useState(true);
+    const [useTypeahead, setUseTypeahead] = useState(false);
 
     // Typeahead search state
     const [searchQuery, setSearchQuery] = useState("");
@@ -66,7 +66,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
             setRole("viewer");
             setError(null);
             setSuccess(null);
-            setUseTypeahead(true);
+            setUseTypeahead(false);
             setSearchQuery("");
             setSelectedIndex(-1);
             setPopoverOpen(false);
@@ -97,7 +97,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
         }
 
         // Check 2: Is user already a collaborator? (by email)
-        const isCollaborator = collaborators.some(collab => collab.email.toLowerCase() === user.email.toLowerCase());
+        const isCollaborator = collaborators.some(collab => collab.userEmail?.toLowerCase() === user.email.toLowerCase());
         if (isCollaborator) {
             addNotification("This user is already a collaborator on this project", "warning");
             return;
@@ -475,7 +475,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                                             <TableRow key={collaborator.userId}>
                                                 <TableCell className="font-medium">
                                                     <div className="flex flex-col">
-                                                        <span>{collaborator.email || collaborator.userId}</span>
+                                                        <span>{collaborator.userEmail || collaborator.userId}</span>
                                                         <span className="text-muted-foreground text-xs">Added {new Date(collaborator.addedAt).toLocaleDateString()}</span>
                                                     </div>
                                                 </TableCell>
@@ -518,7 +518,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                     <DialogHeader>
                         <DialogTitle>Remove Collaborator</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to remove <strong>{collaboratorToDelete?.email || collaboratorToDelete?.userId}</strong> from this project? They will lose access immediately.
+                            Are you sure you want to remove <strong>{collaboratorToDelete?.userEmail || collaboratorToDelete?.userId}</strong> from this project? They will lose access immediately.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter className="gap-2 sm:gap-0">
