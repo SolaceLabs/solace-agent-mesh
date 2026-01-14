@@ -23,6 +23,7 @@ class MiddlewareRegistry:
     """
 
     _config_resolver: Optional[Type] = None
+    _resource_sharing_service: Optional[Type] = None
     _initialization_callbacks: List[callable] = []
 
     @classmethod
@@ -54,6 +55,36 @@ class MiddlewareRegistry:
         from .config_resolver import ConfigResolver
 
         return ConfigResolver
+
+    @classmethod
+    def bind_resource_sharing_service(cls, service_class: Type):
+        """
+        Bind a custom resource sharing service implementation.
+
+        Args:
+            service_class: Class that implements the ResourceSharingService interface
+        """
+        cls._resource_sharing_service = service_class
+        log.info(
+            "%s Bound custom resource sharing service: %s",
+            LOG_IDENTIFIER,
+            service_class.__name__,
+        )
+
+    @classmethod
+    def get_resource_sharing_service(cls) -> Type:
+        """
+        Get the current resource sharing service implementation.
+
+        Returns:
+            The bound resource sharing service class, or the default DefaultResourceSharingService if none bound.
+        """
+        if cls._resource_sharing_service:
+            return cls._resource_sharing_service
+
+        from ..services.default_resource_sharing_service import DefaultResourceSharingService
+
+        return DefaultResourceSharingService
 
     @classmethod
     def register_initialization_callback(cls, callback: callable):
@@ -107,6 +138,7 @@ class MiddlewareRegistry:
         middleware configurations.
         """
         cls._config_resolver = None
+        cls._resource_sharing_service = None
         cls._initialization_callbacks = []
         log.info("%s Reset all middleware bindings", LOG_IDENTIFIER)
 
@@ -122,6 +154,9 @@ class MiddlewareRegistry:
             "config_resolver": (
                 cls._config_resolver.__name__ if cls._config_resolver else "default"
             ),
+            "resource_sharing_service": (
+                cls._resource_sharing_service.__name__ if cls._resource_sharing_service else "default"
+            ),
             "initialization_callbacks": len(cls._initialization_callbacks),
-            "has_custom_bindings": cls._config_resolver is not None,
+            "has_custom_bindings": cls._config_resolver is not None or cls._resource_sharing_service is not None,
         }

@@ -2,7 +2,7 @@
 Business service for project-related operations.
 """
 
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING, Dict
 import logging
 import json
 import zipfile
@@ -26,6 +26,8 @@ except ImportError:
 
 
 from ....common.a2a.types import ArtifactInfo
+from ....common.middleware.registry import MiddlewareRegistry
+from ....services.resource_sharing_service import ResourceSharingService, ResourceType, SharingRole
 from ..repository.interfaces import IProjectRepository
 from ..repository.entities.project import Project
 
@@ -39,11 +41,26 @@ class ProjectService:
     def __init__(
         self,
         component: "WebUIBackendComponent" = None,
+        resource_sharing_service: ResourceSharingService = None,
     ):
         self.component = component
         self.artifact_service = component.get_shared_artifact_service() if component else None
         self.app_name = component.get_config("name", "WebUIBackendApp") if component else "WebUIBackendApp"
         self.logger = logging.getLogger(__name__)
+        
+        # Initialize resource sharing service
+        if resource_sharing_service:
+            self._resource_sharing_service = resource_sharing_service
+        else:
+            # Get from registry if component available, otherwise use default no-op implementation
+            if component:
+                registry = component.get_middleware_registry()
+                from ....common.services.default_resource_sharing_service import DefaultResourceSharingService
+                self._resource_sharing_service = registry.get(ResourceSharingService, DefaultResourceSharingService())
+            else:
+                from ....common.services.default_resource_sharing_service import DefaultResourceSharingService
+                self._resource_sharing_service = DefaultResourceSharingService()
+        
         # Get max upload size from component config, with fallback to default
         # Ensure values are integers for proper formatting
         max_upload_config = (
@@ -381,6 +398,10 @@ class ProjectService:
         if not project:
             raise ValueError("Project not found or access denied")
 
+        # Check edit artifacts permission (Owner + Administrator + Editor)
+        if not self._can_edit_artifacts(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to modify artifacts")
+
         if not self.artifact_service:
             self.logger.warning(f"Attempted to add artifacts to project {project_id} but no artifact service is configured.")
             raise ValueError("Artifact service is not configured")
@@ -446,6 +467,10 @@ class ProjectService:
         """
         project = self.get_project(db, project_id, user_id)
         if not project:
+            return False
+
+        # Check edit artifacts permission (Owner + Administrator + Editor)
+        if not self._can_edit_artifacts(db, project_id, user_id):
             return False
 
         if not self.artifact_service:
@@ -514,6 +539,10 @@ class ProjectService:
         if not project:
             return False
 
+        # Check delete artifacts permission (Owner + Administrator only)
+        if not self._can_delete_artifacts(db, project_id, user_id):
+            return False
+
         if not self.artifact_service:
             self.logger.warning(f"Attempted to delete artifact from project {project_id} but no artifact service is configured.")
             raise ValueError("Artifact service is not configured")
@@ -567,6 +596,10 @@ class ProjectService:
             # Nothing to update - get existing project
             return self.get_project(db, project_id, user_id)
 
+        # Check edit permission (Owner + Administrator + Editor)
+        if not self._can_edit_project(db, project_id, user_id):
+            return None
+
         project_repository = self._get_repositories(db)
         self.logger.info(f"Updating project {project_id} for user {user_id}")
         updated_project = project_repository.update(project_id, user_id, update_data)
@@ -591,6 +624,10 @@ class ProjectService:
         # First verify the project exists and user has access
         existing_project = self.get_project(db, project_id, user_id)
         if not existing_project:
+            return False
+
+        # Check delete permission (Owner + Administrator only)
+        if not self._can_delete_project(db, project_id, user_id):
             return False
 
         project_repository = self._get_repositories(db)
@@ -619,6 +656,10 @@ class ProjectService:
         existing_project = self.get_project(db, project_id, user_id)
         if not existing_project:
             self.logger.warning(f"Attempted to soft delete non-existent project {project_id} by user {user_id}")
+            return False
+
+        # Check delete permission (Owner + Administrator only)
+        if not self._can_delete_project(db, project_id, user_id):
             return False
 
         self.logger.info(f"Soft deleting project {project_id} and its associated sessions for user {user_id}")
@@ -929,9 +970,9 @@ class ProjectService:
             if counter > 100:  # Safety limit
                 raise ValueError("Unable to resolve name conflict")
 
-    def _get_user_role(self, db, project_id: str, user_id: str) -> Optional[str]:
+    def _is_project_owner(self, db, project_id: str, user_id: str) -> bool:
         """
-        Get user's role on a project.
+        Check if user is the owner of the project.
 
         Args:
             db: Database session
@@ -939,22 +980,90 @@ class ProjectService:
             user_id: The user ID
 
         Returns:
-            Optional[str]: "owner", "editor", "viewer", or None if no access
+            bool: True if user is the project owner, False otherwise
         """
         from ..repository.models import ProjectModel
-        from ..repository.project_user_repository import ProjectUserRepository
 
         # Check if user is the owner
         project = db.query(ProjectModel).filter_by(
             id=project_id, user_id=user_id, deleted_at=None
         ).first()
-        if project:
+        return project is not None
+
+    def _get_shared_access_role(self, db, project_id: str, user_id: str) -> Optional[str]:
+        """
+        Get user's shared access role for the project.
+        
+        Args:
+            db: Database session
+            project_id: The project ID
+            user_id: The user ID to check
+            
+        Returns:
+            Optional[str]: "administrator", "editor", "viewer", or None if no shared access
+        """
+        shared_resources = self._resource_sharing_service.get_shared_resources(
+            session=db, user_id=user_id, resource_type=ResourceType.PROJECT
+        )
+        for resource in shared_resources:
+            if resource['resource_id'] == project_id:
+                return resource['role']
+        return None
+
+    def _get_user_role(self, db, project_id: str, user_id: str) -> Optional[str]:
+        """
+        Get user's role on a project (for backward compatibility).
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            user_id: The user ID
+
+        Returns:
+            Optional[str]: "owner", "administrator", "editor", "viewer", or None if no access
+        """
+        # Check if user is the owner first
+        if self._is_project_owner(db, project_id, user_id):
             return "owner"
 
-        # Check if user has shared access
-        pu_repo = ProjectUserRepository(db)
-        access = pu_repo.get_user_project_access(project_id, user_id)
-        return access.role if access else None
+        # Check shared access role
+        return self._get_shared_access_role(db, project_id, user_id)
+
+    def _can_view_project(self, db, project_id: str, user_id: str) -> bool:
+        return (
+            self._is_project_owner(db, project_id, user_id) or
+            self._get_shared_access_role(db, project_id, user_id) is not None
+        )
+
+    def _can_edit_project(self, db, project_id: str, user_id: str) -> bool:
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+        role = self._get_shared_access_role(db, project_id, user_id)
+        return role in ["administrator", "editor"]
+
+    def _can_delete_project(self, db, project_id: str, user_id: str) -> bool:
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+        role = self._get_shared_access_role(db, project_id, user_id)
+        return role == "administrator"
+
+    def _can_share_project(self, db, project_id: str, user_id: str) -> bool:
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+        role = self._get_shared_access_role(db, project_id, user_id)
+        return role == "administrator"
+
+    def _can_edit_artifacts(self, db, project_id: str, user_id: str) -> bool:
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+        role = self._get_shared_access_role(db, project_id, user_id)
+        return role in ["administrator", "editor"]
+
+    def _can_delete_artifacts(self, db, project_id: str, user_id: str) -> bool:
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+        role = self._get_shared_access_role(db, project_id, user_id)
+        return role == "administrator"
 
     async def share_project(
         self, db, project_id: str, target_email: str, role: str, sharing_user_id: str
@@ -976,16 +1085,14 @@ class ProjectService:
             ValueError: If user is not owner, role is invalid, user not found, or already has access
             HTTPException: If identity service not configured (501)
         """
-        from ..repository.project_user_repository import ProjectUserRepository
         from fastapi import HTTPException
 
-        # Verify the sharing user is the owner
-        user_role = self._get_user_role(db, project_id, sharing_user_id)
-        if user_role != "owner":
-            raise ValueError("Only project owner can share")
+        # Verify the sharing user can share (Owner + Administrator)
+        if not self._can_share_project(db, project_id, sharing_user_id):
+            raise ValueError("Only project owner or administrator can share")
 
-        # Validate role
-        if role not in ["editor", "viewer"]:
+        # Validate role - allow administrator role as well
+        if role not in ["administrator", "editor", "viewer"]:
             raise ValueError(f"Invalid role: {role}")
 
         # Look up user by email using identity service
@@ -999,14 +1106,19 @@ class ProjectService:
 
         target_user_id = results[0]["id"]
 
-        # Check if user already has access
-        pu_repo = ProjectUserRepository(db)
-        existing_access = pu_repo.get_user_project_access(project_id, target_user_id)
-        if existing_access:
+        # Check if user already has access via ResourceSharingService
+        if self._resource_sharing_service.can_access_resource(
+            session=db, resource_id=project_id, resource_type=ResourceType.PROJECT, user_id=target_user_id
+        ):
             raise ValueError("User already has access to this project")
 
-        # Add the collaborator
-        pu_repo.add_user_to_project(project_id, target_user_id, role, sharing_user_id)
+        # Add the collaborator via ResourceSharingService
+        success = self._resource_sharing_service.share_resource(
+            session=db, resource_id=project_id, resource_type=ResourceType.PROJECT, 
+            shared_with_user_id=target_user_id, role=SharingRole(role), shared_by_user_id=sharing_user_id
+        )
+        if not success:
+            raise ValueError("Failed to share project")
 
         self.logger.info(
             f"Shared project {project_id} with {target_email} as {role} by user {sharing_user_id}"
@@ -1028,12 +1140,10 @@ class ProjectService:
         Raises:
             ValueError: If user doesn't have access or project doesn't exist
         """
-        from ..repository.project_user_repository import ProjectUserRepository
         from ..repository.models import ProjectModel
 
         # Verify user has access to this project
-        user_role = self._get_user_role(db, project_id, requesting_user_id)
-        if not user_role:
+        if not self._can_view_project(db, project_id, requesting_user_id):
             raise ValueError("Access denied")
 
         # Get the project to find the owner
@@ -1043,9 +1153,20 @@ class ProjectService:
         if not project:
             raise ValueError("Project not found")
 
-        # Get all collaborators from project_users table
-        pu_repo = ProjectUserRepository(db)
-        collaborators = pu_repo.get_project_users(project_id)
+        # Get all collaborators from ResourceSharingService
+        shared_resources = self._resource_sharing_service.get_shared_resources(
+            session=db, user_id=None, resource_type=ResourceType.PROJECT  # Get all shared resources for this project type
+        )
+        # Filter for this specific project
+        collaborators = []
+        for resource in shared_resources:
+            if resource['resource_id'] == project_id:
+                collaborators.append({
+                    "user_id": resource['shared_with_user_id'],
+                    "role": resource['role'],
+                    "added_at": resource['created_at'],
+                    "added_by_user_id": resource['shared_by_user_id'],
+                })
 
         return {
             "project_id": project_id,
@@ -1055,15 +1176,7 @@ class ProjectService:
                 "added_at": project.created_at,
                 "added_by_user_id": project.user_id,
             },
-            "collaborators": [
-                {
-                    "user_id": c.user_id,
-                    "role": c.role,
-                    "added_at": c.added_at,
-                    "added_by_user_id": c.added_by_user_id,
-                }
-                for c in collaborators
-            ],
+            "collaborators": collaborators,
         }
 
     def update_collaborator_role(
@@ -1085,22 +1198,28 @@ class ProjectService:
         Raises:
             ValueError: If user is not owner, role is invalid, or collaborator not found
         """
-        from ..repository.project_user_repository import ProjectUserRepository
 
-        # Verify requesting user is the owner
-        user_role = self._get_user_role(db, project_id, requesting_user_id)
-        if user_role != "owner":
-            raise ValueError("Only owner can update roles")
+        # Verify requesting user can manage collaborators (Owner + Administrator)
+        if not self._can_share_project(db, project_id, requesting_user_id):
+            raise ValueError("Only owner or administrator can update roles")
 
-        # Validate new role
-        if new_role not in ["editor", "viewer"]:
+        # Validate new role - allow administrator as well
+        if new_role not in ["administrator", "editor", "viewer"]:
             raise ValueError(f"Invalid role: {new_role}")
 
-        # Update the role
-        pu_repo = ProjectUserRepository(db)
-        result = pu_repo.update_user_role(project_id, target_user_id, new_role)
-        if not result:
+        # Check if target user currently has access
+        if not self._resource_sharing_service.can_access_resource(
+            session=db, resource_id=project_id, resource_type=ResourceType.PROJECT, user_id=target_user_id
+        ):
             raise ValueError("Collaborator not found")
+
+        # Update the role by re-sharing with new role
+        success = self._resource_sharing_service.share_resource(
+            session=db, resource_id=project_id, resource_type=ResourceType.PROJECT, shared_with_user_id=target_user_id,
+            role=SharingRole(new_role), shared_by_user_id=requesting_user_id
+        )
+        if not success:
+            raise ValueError("Failed to update collaborator role")
 
         self.logger.info(
             f"Updated user {target_user_id} to {new_role} on project {project_id}"
@@ -1125,17 +1244,16 @@ class ProjectService:
         Raises:
             ValueError: If user is not owner or collaborator not found
         """
-        from ..repository.project_user_repository import ProjectUserRepository
 
-        # Verify requesting user is the owner
-        user_role = self._get_user_role(db, project_id, requesting_user_id)
-        if user_role != "owner":
-            raise ValueError("Only owner can remove collaborators")
+        # Verify requesting user can manage collaborators (Owner + Administrator)
+        if not self._can_share_project(db, project_id, requesting_user_id):
+            raise ValueError("Only owner or administrator can remove collaborators")
 
-        # Remove the collaborator
-        pu_repo = ProjectUserRepository(db)
-        result = pu_repo.remove_user_from_project(project_id, target_user_id)
-        if not result:
+        # Remove the collaborator via ResourceSharingService
+        success = self._resource_sharing_service.unshare_resource(
+            session=db, resource_id=project_id, resource_type=ResourceType.PROJECT, shared_with_user_id=target_user_id
+        )
+        if not success:
             raise ValueError("Collaborator not found")
 
         self.logger.info(
