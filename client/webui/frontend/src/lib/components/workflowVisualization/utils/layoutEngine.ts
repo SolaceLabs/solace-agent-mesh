@@ -420,12 +420,16 @@ function createLayoutNode(
 
             // Calculate container dimensions
             // When collapsed, only the header is shown (no dotted container)
+            // Loop nodes with condition or max_iterations have an extra row
+            const hasConditionRow = !!(config.condition || config.max_iterations);
+            const loopHeaderHeight = NODE_HEIGHTS.CONTAINER_HEADER + (hasConditionRow ? NODE_HEIGHTS.LOOP_CONDITION_ROW : 0);
+
             baseNode.width = isCollapsed
                 ? NODE_WIDTHS.SWITCH_COLLAPSED // Use standard node width when collapsed
                 : Math.max(NODE_WIDTHS.LOOP_MIN, calculateContainerWidth(baseNode.children));
             baseNode.height = isCollapsed
-                ? NODE_HEIGHTS.CONTAINER_HEADER
-                : NODE_HEIGHTS.CONTAINER_HEADER + calculateContainerContentHeight(baseNode.children);
+                ? loopHeaderHeight
+                : loopHeaderHeight + calculateContainerContentHeight(baseNode.children);
             break;
     }
 
