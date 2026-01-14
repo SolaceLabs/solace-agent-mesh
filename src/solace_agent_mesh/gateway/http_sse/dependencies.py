@@ -607,5 +607,43 @@ def get_user_display_name(
         user_info = request.state.user
         # Try email first, then name, then fall back to user_id
         return user_info.get("email") or user_info.get("name") or user_id
-    
+
     return user_id
+
+
+def get_authorization_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    config_resolver: ConfigResolver = Depends(get_config_resolver),
+) -> Any | None:
+    """
+    FastAPI dependency to get the authorization service.
+
+    Returns the authorization service initialized by enterprise features
+    via the ConfigResolver, or None if not configured or enterprise not loaded.
+
+    The authorization service is managed by the enterprise ConfigResolver
+    and provides role/scope resolution for authenticated users.
+
+    Returns:
+        AuthorizationService instance from enterprise, or None if not available
+    """
+    log.debug("get_authorization_service called")
+
+    # Check if this is the enterprise config resolver with authorization support
+    if not hasattr(config_resolver, 'get_authorization_service'):
+        log.debug("Base config resolver - no authorization service available")
+        return None
+
+    gateway_id = getattr(component, "gateway_id", None)
+    app_config = component.component_config.get("app_config", {})
+
+    try:
+        auth_service = config_resolver.get_authorization_service(gateway_id, app_config)
+        if auth_service:
+            log.debug(f"Retrieved authorization service for gateway: {gateway_id}")
+        else:
+            log.debug(f"No authorization service configured for gateway: {gateway_id}")
+        return auth_service
+    except Exception as e:
+        log.warning(f"Failed to get authorization service: {e}")
+        return None
