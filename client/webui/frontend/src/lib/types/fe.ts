@@ -237,7 +237,7 @@ export interface RAGSource {
 export interface RAGSearchResult {
     query: string;
     title?: string; // LLM-generated human-readable title for deep research
-    searchType: "file_search" | "kb_search" | "deep_research" | "web_search";
+    searchType: "file_search" | "kb_search" | "deep_research" | "web_search" | "artifact_search";
     turnNumber?: number; // Turn number for citation tracking
     timestamp: string;
     sources: RAGSource[];

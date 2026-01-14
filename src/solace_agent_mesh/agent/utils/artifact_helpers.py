@@ -1601,13 +1601,13 @@ async def save_bm25_index_with_metadata(
         # Check for error messages in the result
         error_message = index_result.get('message')
         if error_message:
-            if error_message == 'unsupported file type for indexing.':
+            if error_message == 'unsupported file type for indexing':
                 status = "warning"
                 status_message = f"Unsupported file '{source_filename}' for indexing: {source_mime_type}"
-            elif error_message == 'no content extracted from file.':
+            elif error_message == 'no content extracted from file':
                 status = "warning"
                 status_message = f"No content extracted from '{source_filename}'"
-            elif error_message == 'no chunks created from file.':
+            elif error_message == 'no chunks created from file':
                 status = "warning"
                 status_message = f"No chunks created from '{source_filename}'"
             else:

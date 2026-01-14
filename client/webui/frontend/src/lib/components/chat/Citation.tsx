@@ -9,7 +9,7 @@ import type { Citation as CitationType } from "@/lib/utils/citations";
 import { getCitationTooltip, INDIVIDUAL_CITATION_PATTERN } from "@/lib/utils/citations";
 import { MarkdownHTMLConverter } from "@/lib/components";
 import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
-import { getSourceUrl } from "@/lib/utils/sourceUrlHelpers";
+import { getSourceUrl, hasClickableExternalUrl } from "@/lib/utils/sourceUrlHelpers";
 import { Popover, PopoverContent, PopoverTrigger } from "@/lib/components/ui/popover";
 import { ExternalLink } from "lucide-react";
 
@@ -61,9 +61,29 @@ function extractFilename(filename: string): string {
 }
 
 /**
+ * Check if a citation is an artifact citation (from BM25 search)
+ */
+function isArtifactCitation(citation: CitationType): boolean {
+    const sourceType = citation.source?.sourceType;
+    const metadataType = citation.source?.metadata?.type;
+    return sourceType === "artifact" || metadataType === "artifact_search";
+}
+
+/**
  * Get display text for citation (filename or URL)
  */
 function getCitationDisplayText(citation: CitationType, maxLength: number = 30): string {
+    // For artifact citations, show the filename
+    if (isArtifactCitation(citation)) {
+        if (citation.source?.filename) {
+            return truncateText(citation.source.filename, maxLength);
+        }
+        if (citation.source?.title) {
+            return truncateText(citation.source.title, maxLength);
+        }
+        return `Artifact ${citation.sourceId + 1}`;
+    }
+
     // For web search citations, try to extract domain name even without full source data
     const isWebSearch = citation.source?.metadata?.type === "web_search" || citation.type === "search";
 
@@ -127,27 +147,54 @@ function getCitationDisplayText(citation: CitationType, maxLength: number = 30):
     return `Source ${citation.sourceId + 1}`;
 }
 
+/**
+ * Get page info string for a citation
+ */
+function getCitationPageInfo(citation: CitationType): string {
+    const pageNumbers = citation.source?.metadata?.page_numbers;
+    if (!Array.isArray(pageNumbers) || pageNumbers.length === 0) {
+        // Also check page_info field
+        const pageInfo = citation.source?.metadata?.page_info;
+        if (pageInfo && typeof pageInfo === "string") {
+            return pageInfo;
+        }
+        return "";
+    }
+
+    const uniquePages = [...new Set(pageNumbers)].sort((a, b) => a - b);
+
+    if (uniquePages.length === 1) {
+        return `p.${uniquePages[0]}`;
+    } else if (uniquePages.length <= 3) {
+        return `pp.${uniquePages.join(",")}`;
+    } else {
+        return `pp.${uniquePages[0]}-${uniquePages[uniquePages.length - 1]}`;
+    }
+}
+
 export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
     const displayText = getCitationDisplayText(citation, maxLength);
     const tooltip = getCitationTooltip(citation);
 
-    // Check if this is a web search or deep research citation with a URL
-    const { url: sourceUrl, sourceType } = getSourceUrl(citation.source);
-    const isWebSearch = sourceType === "web_search" || citation.type === "search";
-    const isDeepResearch = sourceType === "deep_research" || citation.type === "research";
-    const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
+    // Use the helper function to check if this is a web-based source with clickable URL
+    const hasClickableUrl = hasClickableExternalUrl(citation.source);
+    const { url: sourceUrl } = getSourceUrl(citation.source);
+
+    // Get page info for artifact citations
+    const isArtifact = isArtifactCitation(citation);
+    const pageInfo = isArtifact ? getCitationPageInfo(citation) : "";
 
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
 
         // For web search and deep research citations with URLs, open the URL directly
-        if (hasClickableUrl) {
+        if (hasClickableUrl && sourceUrl) {
             window.open(sourceUrl, "_blank", "noopener,noreferrer");
             return;
         }
 
-        // For RAG citations, use onClick handler (to open RAG panel)
+        // For RAG citations (including artifacts), use onClick handler (to open RAG panel)
         if (onClick) {
             onClick(citation);
         }
@@ -156,22 +203,89 @@ export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
     return (
         <button
             onClick={handleClick}
-            className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-0.5 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+            className="citation-badge mx-0.5 inline-flex max-w-[200px] cursor-pointer items-center gap-0.5 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
             title={tooltip}
             aria-label={`Citation: ${tooltip}`}
             type="button"
         >
-            <span className="max-w-[200px] truncate">{displayText}</span>
+            <span className="truncate">{displayText}</span>
+            {pageInfo && <span className="flex-shrink-0 text-[10px] opacity-70">{pageInfo}</span>}
             {hasClickableUrl && <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />}
         </button>
     );
 }
 
 /**
+ * Group artifact citations by filename and aggregate page numbers
+ */
+interface GroupedArtifactCitation {
+    filename: string;
+    citations: CitationType[];
+    allPageNumbers: number[];
+    pageInfo: string;
+}
+
+function groupArtifactCitationsByFilename(citations: CitationType[]): {
+    artifactGroups: GroupedArtifactCitation[];
+    otherCitations: CitationType[];
+} {
+    const artifactGroups: Map<string, GroupedArtifactCitation> = new Map();
+    const otherCitations: CitationType[] = [];
+
+    for (const citation of citations) {
+        if (isArtifactCitation(citation)) {
+            const filename = citation.source?.filename || citation.source?.title || `Artifact ${citation.sourceId + 1}`;
+
+            if (!artifactGroups.has(filename)) {
+                artifactGroups.set(filename, {
+                    filename,
+                    citations: [],
+                    allPageNumbers: [],
+                    pageInfo: "",
+                });
+            }
+
+            const group = artifactGroups.get(filename)!;
+            group.citations.push(citation);
+
+            // Collect page numbers from metadata
+            const pageNumbers = citation.source?.metadata?.page_numbers;
+            if (Array.isArray(pageNumbers)) {
+                group.allPageNumbers.push(...pageNumbers);
+            }
+        } else {
+            otherCitations.push(citation);
+        }
+    }
+
+    // Sort and deduplicate page numbers, then format page info
+    for (const group of artifactGroups.values()) {
+        const uniquePages = [...new Set(group.allPageNumbers)].sort((a, b) => a - b);
+        group.allPageNumbers = uniquePages;
+
+        if (uniquePages.length === 0) {
+            group.pageInfo = "";
+        } else if (uniquePages.length === 1) {
+            group.pageInfo = `p.${uniquePages[0]}`;
+        } else if (uniquePages.length <= 3) {
+            group.pageInfo = `pp.${uniquePages.join(",")}`;
+        } else {
+            // Show range for many pages
+            group.pageInfo = `pp.${uniquePages[0]}-${uniquePages[uniquePages.length - 1]}`;
+        }
+    }
+
+    return {
+        artifactGroups: Array.from(artifactGroups.values()),
+        otherCitations,
+    };
+}
+
+/**
  * Bundled Citations Component
  * Displays multiple citations grouped together at the end of a paragraph
- * If only one citation, shows it as a regular citation badge
- * If multiple, shows first citation name with "+X" in the same bubble
+ * For artifact citations: groups by filename and shows aggregated page numbers
+ * For web citations: shows first citation name with "+X" in the same bubble
  */
 interface BundledCitationsProps {
     citations: CitationType[];
@@ -254,17 +368,48 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
         return <Citation citation={uniqueCitations[0]} onClick={onCitationClick} />;
     }
 
-    // Multiple citations - show first citation name + "+X" in same bubble
+    // Group artifact citations by filename
+    const { artifactGroups, otherCitations } = groupArtifactCitationsByFilename(uniqueCitations);
+
+    // If all citations are from the same artifact file, show a single grouped badge
+    if (artifactGroups.length === 1 && otherCitations.length === 0) {
+        const group = artifactGroups[0];
+        const displayText = truncateText(group.filename, 20);
+        const pageInfo = group.pageInfo;
+        const firstCitation = group.citations[0];
+        const tooltip = getCitationTooltip(firstCitation);
+
+        const handleClick = (e: React.MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (onCitationClick) {
+                onCitationClick(firstCitation);
+            }
+        };
+
+        return (
+            <button
+                onClick={handleClick}
+                className="citation-badge mx-0.5 inline-flex max-w-[200px] cursor-pointer items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                title={tooltip}
+                aria-label={`Citation: ${tooltip}`}
+                type="button"
+            >
+                <span className="truncate">{displayText}</span>
+                {pageInfo && <span className="flex-shrink-0 text-[10px] opacity-70">{pageInfo}</span>}
+            </button>
+        );
+    }
+
+    // Multiple different sources - show first citation name + "+X" in same bubble
     const firstCitation = uniqueCitations[0];
     const remainingCount = uniqueCitations.length - 1;
     const firstDisplayText = getCitationDisplayText(firstCitation, 20);
     const tooltip = getCitationTooltip(firstCitation);
 
-    // Check if this is a web search or deep research citation
-    const { url: sourceUrl, sourceType } = getSourceUrl(firstCitation.source);
-    const isWebSearch = sourceType === "web_search" || firstCitation.type === "search";
-    const isDeepResearch = sourceType === "deep_research" || firstCitation.type === "research";
-    const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
+    // Check if this is a web-based source with clickable URL
+    const hasClickableUrl = hasClickableExternalUrl(firstCitation.source);
+    const { url: sourceUrl } = getSourceUrl(firstCitation.source);
 
     const handleFirstCitationClick = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -276,7 +421,7 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
             return;
         }
 
-        // For RAG citations, use onClick handler (to open RAG panel)
+        // For RAG citations (including artifacts), use onClick handler (to open RAG panel)
         if (onCitationClick) {
             onCitationClick(firstCitation);
         }
@@ -289,14 +434,14 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                     onClick={handleFirstCitationClick}
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
-                    className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                    className="citation-badge mx-0.5 inline-flex max-w-[200px] cursor-pointer items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
                     title={tooltip}
                     aria-label={`Citation: ${tooltip}`}
                     type="button"
                 >
-                    <span className="max-w-[200px] truncate">{firstDisplayText}</span>
+                    <span className="truncate">{firstDisplayText}</span>
                     {hasClickableUrl && <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />}
-                    <span className="text-[10px] opacity-70">+{remainingCount}</span>
+                    <span className="flex-shrink-0 text-[10px] opacity-70">+{remainingCount}</span>
                 </button>
             </PopoverTrigger>
             <PopoverContent
@@ -314,16 +459,51 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                     <div className="mb-3 border-b pb-2" style={{ borderColor: isDark ? "#4b5563" : "#e5e7eb" }}>
                         <h3 className="text-sm font-semibold">All Sources · {uniqueCitations.length}</h3>
                     </div>
-                    {uniqueCitations.map((citation, index) => {
-                        const displayText = getCitationDisplayText(citation, 50);
-                        const { url: sourceUrl, sourceType } = getSourceUrl(citation.source);
-                        const isWebSearch = sourceType === "web_search" || citation.type === "search";
-                        const isDeepResearch = sourceType === "deep_research" || citation.type === "research";
-                        const hasClickableUrl = (isWebSearch || isDeepResearch) && sourceUrl;
 
-                        // Get favicon for web sources (both web search and deep research)
+                    {/* Show grouped artifact citations first */}
+                    {artifactGroups.map((group, groupIndex) => {
+                        const firstCitation = group.citations[0];
+                        const displayText = truncateText(group.filename, 50);
+
+                        const handleClick = (e: React.MouseEvent) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (onCitationClick) {
+                                onCitationClick(firstCitation);
+                            }
+                        };
+
+                        return (
+                            <button
+                                key={`artifact-group-${groupIndex}`}
+                                onClick={handleClick}
+                                className="group flex w-full cursor-pointer items-start gap-2 rounded-md p-2 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                                type="button"
+                            >
+                                <div className="flex-1 overflow-hidden">
+                                    <div className="flex items-center gap-1">
+                                        <span className="truncate text-sm font-medium text-[var(--color-primary-wMain)] group-hover:text-[var(--color-primary-w60)] dark:text-[var(--color-primary-w60)] dark:group-hover:text-[var(--color-white)]">
+                                            {displayText}
+                                        </span>
+                                    </div>
+                                    <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                                        {group.pageInfo && <span>{group.pageInfo}</span>}
+                                        {group.citations.length > 1 && <span className="opacity-70">({group.citations.length} chunks)</span>}
+                                    </div>
+                                </div>
+                            </button>
+                        );
+                    })}
+
+                    {/* Show other (web) citations */}
+                    {otherCitations.map((citation, index) => {
+                        const displayText = getCitationDisplayText(citation, 50);
+                        const hasClickableUrl = hasClickableExternalUrl(citation.source);
+                        const { url: sourceUrl } = getSourceUrl(citation.source);
+
+                        // Get favicon for web sources
                         let favicon = null;
-                        if ((isWebSearch || isDeepResearch) && sourceUrl) {
+                        if (hasClickableUrl && sourceUrl) {
                             try {
                                 const url = new URL(sourceUrl);
                                 const domain = url.hostname;

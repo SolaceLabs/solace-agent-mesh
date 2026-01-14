@@ -389,7 +389,7 @@ class BM25DocumentIndexer:
         validation_result = self.validate_doc_type(file_path, mime_type)
         if validation_result['supported_type'] == 'unsupported':
             logger.warning(f"Cannot create index for unsupported file type: {file_path.name}")
-            return {"message": "unsupported file type for indexing."}
+            return {"message": "unsupported file type for indexing"}
 
         # Convert to text (with page tracking for PDFs)
         text_content, file_type, page_map, total_pages = self.convert_to_text(
@@ -401,7 +401,7 @@ class BM25DocumentIndexer:
         
         if not text_content:
             logger.warning(f"No content extracted from {file_path.name}")
-            return {"message": "no content extracted from file."}
+            return {"message": "no content extracted from file"}
         
         # Create metadata
         doc_metadata = {
@@ -423,7 +423,7 @@ class BM25DocumentIndexer:
         
         if not chunks:
             logger.warning(f"No chunks created from {file_path.name}")
-            return {"message": "no chunks created from file."}
+            return {"message": "no chunks created from file"}
         
         # Extract text from chunks for indexing
         corpus_texts = [chunk['text'] for chunk in chunks]

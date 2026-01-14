@@ -1,5 +1,5 @@
 import React from "react";
-import { FileText, TrendingUp, Search, Link2, ChevronDown, ChevronUp, Brain, Globe, ExternalLink } from "lucide-react";
+import { FileText, TrendingUp, Search, Link2, ChevronDown, ChevronUp, Brain, Globe, ExternalLink, File, BookOpen } from "lucide-react";
 // Web-only version - enterprise icons removed
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/lib/components/ui/tabs";
 import type { RAGSearchResult } from "@/lib/types";
@@ -142,6 +142,73 @@ const SourceCard: React.FC<{
     );
 };
 
+// Artifact source card component for BM25 search results
+const ArtifactSourceCard: React.FC<{
+    source: RAGSearchResult["sources"][0];
+}> = ({ source }) => {
+    const [isExpanded, setIsExpanded] = React.useState(false);
+    const contentPreview = source.contentPreview;
+
+    // Extract document name and page info from metadata
+    const documentName = source.metadata?.document || source.filename || source.title || "Unknown Document";
+    const pageNumbers = source.metadata?.page_numbers as number[] | undefined;
+    const chunkIndex = source.metadata?.chunk_index as number | undefined;
+
+    // Format page numbers display
+    const pageDisplay = pageNumbers && pageNumbers.length > 0 ? (pageNumbers.length === 1 ? `p. ${pageNumbers[0]}` : `pp. ${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`) : chunkIndex !== undefined ? `Chunk ${chunkIndex}` : null;
+
+    // Don't show content preview if it's just "Reading..." placeholder
+    const hasRealContent = contentPreview && contentPreview !== "Reading...";
+    const shouldTruncate = hasRealContent && contentPreview.length > 200;
+    const displayContent = shouldTruncate && !isExpanded ? contentPreview.substring(0, 200) + "..." : contentPreview;
+
+    // Show score if available and meaningful
+    const showScore = source.relevanceScore !== undefined && source.relevanceScore !== 1.0;
+
+    return (
+        <div className="bg-muted/50 border-border/50 flex flex-col rounded border p-3">
+            {/* Source Header */}
+            <div className="mb-2 flex flex-shrink-0 items-center justify-between">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <File className="text-muted-foreground h-4 w-4 flex-shrink-0" />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-xs font-medium" title={documentName}>
+                            {documentName}
+                        </span>
+                        {pageDisplay && <span className="text-muted-foreground text-xs">{pageDisplay}</span>}
+                    </div>
+                </div>
+                {showScore && (
+                    <div className="ml-2 flex flex-shrink-0 items-center gap-1 text-xs font-medium">
+                        <TrendingUp className="h-3 w-3" />
+                        <span>Score: {source.relevanceScore.toFixed(2)}</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Content Preview */}
+            {hasRealContent && <div className={`text-muted-foreground overflow-hidden text-xs leading-relaxed break-words whitespace-pre-wrap ${isExpanded ? "" : "h-[72px]"}`}>{displayContent}</div>}
+
+            {/* Expand/Collapse Button */}
+            {shouldTruncate && (
+                <button onClick={() => setIsExpanded(!isExpanded)} className="text-primary mt-2 flex flex-shrink-0 items-center gap-1 text-xs hover:underline">
+                    {isExpanded ? (
+                        <>
+                            <ChevronUp className="h-3 w-3" />
+                            Show less
+                        </>
+                    ) : (
+                        <>
+                            <ChevronDown className="h-3 w-3" />
+                            Show more
+                        </>
+                    )}
+                </button>
+            )}
+        </div>
+    );
+};
+
 export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) => {
     if (!enabled) {
         return (
@@ -167,6 +234,9 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
             </div>
         );
     }
+
+    // Check if this is artifact search data
+    const isArtifactSearch = ragData.some(search => search.searchType === "artifact_search");
 
     const isAllDeepResearch = ragData.every(search => search.searchType === "deep_research" || search.searchType === "web_search");
 
@@ -335,9 +405,49 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
     // Check if research is complete by looking for sources with fetched metadata
     const hasAnyFetchedSources = isDeepResearch && ragData.some(search => search.sources.some(s => s.metadata?.fetched === true || s.metadata?.fetch_status === "success"));
 
+    // Calculate total artifact sources
+    const totalArtifactSources = isArtifactSearch ? ragData.reduce((sum, search) => sum + search.sources.length, 0) : 0;
+
     return (
         <div className="flex h-full flex-col overflow-hidden">
-            {isAllDeepResearch ? (
+            {isArtifactSearch ? (
+                // Artifact search: Show document sources with page numbers
+                <div className="flex flex-1 flex-col overflow-hidden">
+                    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                        {/* Header */}
+                        <div className="border-border/50 mb-4 border-b pb-3">
+                            <div className="flex items-center gap-2">
+                                <BookOpen className="text-muted-foreground h-5 w-5" />
+                                <h2 className="text-foreground text-base font-semibold">Project Documents</h2>
+                            </div>
+                            <p className="text-muted-foreground mt-1 text-sm">
+                                {totalArtifactSources} relevant passage{totalArtifactSources !== 1 ? "s" : ""} found
+                            </p>
+                        </div>
+
+                        {/* Search queries */}
+                        {ragData.map((search, searchIdx) => (
+                            <div key={searchIdx} className="mb-4">
+                                {search.query && (
+                                    <div className="mb-3 flex items-center gap-2">
+                                        <Search className="text-muted-foreground h-3 w-3" />
+                                        <span className="text-muted-foreground text-xs">
+                                            Searched: <span className="text-foreground font-medium">{search.query}</span>
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* Source cards */}
+                                <div className="space-y-2">
+                                    {search.sources.map((source, sourceIdx) => (
+                                        <ArtifactSourceCard key={`${searchIdx}-${sourceIdx}`} source={source} />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : isAllDeepResearch ? (
                 // Deep research: Show sources grouped by fully read vs snippets (only when complete)
                 <div className="flex flex-1 flex-col overflow-hidden">
                     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
