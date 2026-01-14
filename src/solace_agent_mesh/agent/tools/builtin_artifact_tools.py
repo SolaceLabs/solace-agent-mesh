@@ -2776,126 +2776,100 @@ bm25_kw_search_tool_def = BuiltinTool(
 
 **When presenting search or research results:**
 - Lead with a direct answer if possible
-- Support claims with specific citations
-- Include a properly formatted Sources/References section
-- Make citations actionable - users should understand what each source contributed
+- Support claims with specific citations using the EXACT citation format below
+- The UI will automatically render citations as clickable bubbles with source details
 - Use page numbers and document names to help users locate information
 
-The `bm25_kw_search` tool returns results with rich citation metadata in `sources_citation_for_llm`. 
+The `bm25_kw_search` tool returns results with rich citation metadata in `sources_citation_for_llm`.
 
-**CRITICAL: Citation Format - Use INLINE Citations with Highlighting:**
+**CRITICAL: Citation Format - Use the EXACT [[cite:ID]] Format:**
 
-**ALWAYS use inline citations immediately after each claim. Make citations VISUALLY PROMINENT.**
+**ALWAYS use the citation_id from sources_citation_for_llm in the format `[[cite:citation_id]]`**
 
-1. **Citation Format Options (choose ONE and use consistently):**
+1. **Citation Format (MANDATORY - use EXACTLY this format):**
 
-   **Option A - Bold Citations (RECOMMENDED):**
-   - Format: `**[source_id]**` 
-   - Example: "Amazon S3 supports four bucket types **[5]**. General purpose buckets are recommended for most use cases **[5][6]**."
+   - Format: `[[cite:citation_id]]` where citation_id comes from the search results
+   - The citation_id values are like: `s0r0`, `s0r1`, `s0r2`, etc.
+   - Example: "Amazon S3 supports four bucket types [[cite:s0r0]]. General purpose buckets are recommended for most use cases [[cite:s0r0]][[cite:s0r1]]."
    
-   **Option B - Superscript Citations:**
-   - Format: `<sup>[source_id]</sup>`
-   - Example: "Amazon S3 supports four bucket types<sup>[5]</sup>. General purpose buckets are recommended for most use cases<sup>[5][6]</sup>."
-   
-   **Option C - Plain (only if markdown rendering is limited):**
-   - Format: `[source_id]`
-   - Example: "Amazon S3 supports four bucket types [5]."
+   **⚠️ DO NOT use these formats - they will NOT render as citations:**
+   - ❌ `**[1]**` - Wrong format
+   - ❌ `[1]` - Wrong format
+   - ❌ `<sup>[1]</sup>` - Wrong format
+   - ❌ `[[cite:1]]` - Wrong format (must use citation_id like s0r0)
 
 2. **Inline Citation Placement Rules:**
    - ✅ **REQUIRED:** Place citation immediately after the sentence or fact it supports
-   - ✅ Place before the period: "S3 supports four bucket types **[5]**."
-   - ✅ For multiple sources on same claim: "Directory buckets provide low latency **[2][6]**."
-   - ✅ Mid-sentence for specific facts: "The four types are general purpose **[5]**, directory **[2]**, table, and vector buckets **[5]**."
+   - ✅ Place before the period: "S3 supports four bucket types [[cite:s0r0]]."
+   - ✅ For multiple sources on same claim: "Directory buckets provide low latency [[cite:s0r1]][[cite:s0r2]]."
+   - ✅ Mid-sentence for specific facts: "The four types are general purpose [[cite:s0r0]], directory [[cite:s0r1]], table, and vector buckets [[cite:s0r0]]."
    - ❌ **NEVER** wait until end of paragraph to cite
    - ❌ **NEVER** have factual claims without citations
 
 3. **Extract and Use Citation Metadata:**
    From each source in `sources_citation_for_llm`, extract:
-   - `source_id` - Use for citation numbers **[1]**, **[2]**, etc.
-   - `page_numbers` - Display as "p. X" or "pp. X-Y"
+   - `citation_id` - Use for citations: `[[cite:s0r0]]`, `[[cite:s0r1]]`, etc.
+   - `page_numbers` - Display as "p. X" or "pp. X-Y" in your text
    - `text` - The actual content excerpt
    - `document` or `original_doc_path` - For document name
    - `score` - Can indicate relevance (optional to show)
 
-4. **Sources Section Format:**
-   End your response with a "## Sources" section with full bibliographic details:
-   ```
-   ## Sources
-   **[1]** Document Name (pp. X-Y) - Brief description of what this source contributed
-   **[2]** Document Name (p. X) - Brief description of content
-   **[3]** Document Name (pp. X-Y) - Brief description
-   ```
+4. **Complete Example Response:**
 
-5. **Complete Example Response:**
+   Given search results with citation_ids: s0r0, s0r1, s0r2, s0r3...
 
    ```markdown
-   Amazon S3 supports four types of buckets: general purpose buckets, directory buckets, 
-   table buckets, and vector buckets **[5]**. Each type provides a unique set of features 
-   for different use cases **[5]**.
+   Amazon S3 supports four types of buckets: general purpose buckets, directory buckets,
+   table buckets, and vector buckets [[cite:s0r0]]. Each type provides a unique set of features
+   for different use cases [[cite:s0r0]].
    
-   General purpose buckets are the original S3 bucket type and are recommended for most 
-   use cases and access patterns **[5][6]**. They support all storage classes except S3 
-   Express One Zone and can redundantly store objects across multiple Availability Zones **[5]**.
+   General purpose buckets are the original S3 bucket type and are recommended for most
+   use cases and access patterns [[cite:s0r0]][[cite:s0r1]]. They support all storage classes except S3
+   Express One Zone and can redundantly store objects across multiple Availability Zones [[cite:s0r0]].
    
-   Directory buckets organize data hierarchically into directories as opposed to the flat 
-   storage structure of general purpose buckets **[2]**. There are no prefix limits for 
-   directory buckets, and individual directories can scale horizontally **[2]**. They use 
-   the S3 Express One Zone storage class **[6][7]** and are recommended for performance-sensitive 
-   applications that benefit from single-digit millisecond PUT and GET latencies **[6]**.
+   Directory buckets organize data hierarchically into directories as opposed to the flat
+   storage structure of general purpose buckets [[cite:s0r2]]. There are no prefix limits for
+   directory buckets, and individual directories can scale horizontally [[cite:s0r2]]. They use
+   the S3 Express One Zone storage class [[cite:s0r1]][[cite:s0r3]] and are recommended for performance-sensitive
+   applications that benefit from single-digit millisecond PUT and GET latencies [[cite:s0r1]].
    
-   You can create up to 100 directory buckets in each AWS account **[2]**, with no limit 
-   on the number of objects you can store in a bucket **[2]**.
-   
-   ## Sources
-   **[5]** S3 User Guide (pp. 28-29) - Overview of the four bucket types and their characteristics
-   **[6]** S3 User Guide (pp. 927-928) - Comparison of general purpose and directory buckets, performance characteristics
-   **[2]** S3 User Guide (p. 882) - Directory bucket hierarchical structure, scaling, and limits
-   **[7]** S3 User Guide (pp. 1522-1523) - Bucket type descriptions in S3 resources section
+   You can create up to 100 directory buckets in each AWS account [[cite:s0r2]], with no limit
+   on the number of objects you can store in a bucket [[cite:s0r2]].
    ```
 
-6. **Visual Citation Checklist:**
-   - ✅ Every factual claim has a visible citation immediately after it
-   - ✅ Citations stand out visually (bold or superscript)
+5. **Citation Checklist:**
+   - ✅ Every factual claim has a `[[cite:sXrY]]` citation immediately after it
+   - ✅ Citations use the EXACT citation_id from sources_citation_for_llm
    - ✅ No "naked facts" without attribution
-   - ✅ Page numbers included in Sources section
    - ✅ Multiple citations shown when using multiple sources
-   - ✅ Sources section provides full context
+   - ✅ The UI will automatically render these as clickable citation bubbles
 
-7. **Why Highlighted Citations Matter:**
+6. **Why This Format Matters:**
+   - **Automatic rendering:** The UI parses `[[cite:sXrY]]` and renders beautiful citation bubbles
+   - **Clickable sources:** Users can click citations to see source details, page numbers, and content
    - **Immediate traceability:** Reader sees source as they read each claim
-   - **Increased trust:** Clear attribution increases credibility
-   - **Easy verification:** Users can quickly check specific facts
-   - **Professional standard:** Matches academic and research best practices
-   - **Visual scanning:** Bold citations are easy to spot when reviewing
-   - **Accountability:** Makes it obvious which claims have source support
+   - **Professional appearance:** Citations appear as polished, styled badges
 
 **MANDATORY RULES:**
-- 🚨 **EVERY factual claim MUST have an inline citation**
-- 🚨 **Citations MUST be bolded using `**[id]**` format (or superscript if specified)**
+- 🚨 **EVERY factual claim MUST have an inline citation using `[[cite:citation_id]]` format**
+- 🚨 **Use the EXACT citation_id from sources_citation_for_llm (e.g., s0r0, s0r1, s0r2)**
 - 🚨 **NO paragraphs without at least one inline citation**
-- 🚨 **Sources section is REQUIRED at the end**
-- 🚨 **Page numbers MUST be included in Sources section**
+- 🚨 **DO NOT use [1], **[1]**, or any other format - ONLY [[cite:sXrY]]**
 
 ---
 
 ## Quick Reference Card
 
-**DO THIS:**
+**DO THIS (correct format):**
 ```markdown
-Amazon S3 supports four bucket types **[5]**. Directory buckets provide 
-single-digit millisecond latencies **[6]**.
-
-## Sources
-**[5]** S3 User Guide (pp. 28-29) - Bucket types overview
-**[6]** S3 User Guide (pp. 927-928) - Performance characteristics
+Amazon S3 supports four bucket types [[cite:s0r0]]. Directory buckets provide
+single-digit millisecond latencies [[cite:s0r1]].
 ```
 
-**NOT THIS:**
+**NOT THIS (wrong formats - will NOT render as citations):**
 ```markdown
-Amazon S3 supports four bucket types. Directory buckets provide 
-single-digit millisecond latencies.
-
-Sources: S3 User Guide
+Amazon S3 supports four bucket types **[1]**. Directory buckets provide
+single-digit millisecond latencies [2].
 ```
 
 #### Top-K Selection Guidelines #####

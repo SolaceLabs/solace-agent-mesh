@@ -9,7 +9,7 @@ import type { Citation as CitationType } from "@/lib/utils/citations";
 /**
  * Supported source types for RAG and citation sources.
  */
-export type SourceType = "web" | "image" | "file" | "web_search" | "deep_research" | "kb_search" | "file_search";
+export type SourceType = "web" | "image" | "file" | "web_search" | "deep_research" | "kb_search" | "file_search" | "artifact_search" | "artifact";
 
 /**
  * Result of URL extraction from a source.
