@@ -254,6 +254,33 @@ const AgentToolsStep: React.FC<StepProps> = ({
     return Object.keys(errors).length === 0;
   };
 
+  const buildMcpAuth = (): { auth?: Record<string, string>; headers?: Record<string, string> } => {
+    const result: { auth?: Record<string, string>; headers?: Record<string, string> } = {};
+
+    if (currentTool.auth_type === "oauth2") {
+      const mcp_auth: Record<string, string> = { type: "oauth2" };
+      if (currentTool.oauth_client_id) {
+        mcp_auth.client_id = currentTool.oauth_client_id;
+      }
+      if (currentTool.oauth_client_secret) {
+        mcp_auth.client_secret = currentTool.oauth_client_secret;
+      }
+      result.auth = mcp_auth;
+    } else if (currentTool.auth_type === "bearer" || currentTool.auth_type === "api_key") {
+      const headers: Record<string, string> = {};
+      if (currentTool.auth_type === "bearer" && currentTool.auth_token) {
+        headers.Authorization = `Bearer ${currentTool.auth_token}`;
+      } else if (currentTool.auth_type === "api_key" && currentTool.auth_token && currentTool.auth_header_name) {
+        headers[currentTool.auth_header_name] = currentTool.auth_token;
+      }
+      if (Object.keys(headers).length > 0) {
+        result.headers = headers;
+      }
+    }
+
+    return result;
+  };
+
   const handleSaveTool = () => {
     if (!validateToolForm()) return;
 
@@ -305,25 +332,12 @@ const AgentToolsStep: React.FC<StepProps> = ({
           };
 
           // Build authentication
-          if (currentTool.auth_type === "oauth2") {
-            mcp_auth = { type: "oauth2" };
-            if (currentTool.oauth_client_id) {
-              mcp_auth.client_id = currentTool.oauth_client_id;
-            }
-            if (currentTool.oauth_client_secret) {
-              mcp_auth.client_secret = currentTool.oauth_client_secret;
-            }
-          } else if (currentTool.auth_type === "bearer" || currentTool.auth_type === "api_key") {
-            // Build headers with authentication
-            const headers: Record<string, string> = {};
-            if (currentTool.auth_type === "bearer" && currentTool.auth_token) {
-              headers.Authorization = `Bearer ${currentTool.auth_token}`;
-            } else if (currentTool.auth_type === "api_key" && currentTool.auth_token && currentTool.auth_header_name) {
-              headers[currentTool.auth_header_name] = currentTool.auth_token;
-            }
-            if (Object.keys(headers).length > 0) {
-              connection_params.headers = headers;
-            }
+          const authResult = buildMcpAuth();
+          if (authResult.auth) {
+            mcp_auth = authResult.auth;
+          }
+          if (authResult.headers) {
+            connection_params.headers = authResult.headers;
           }
         } else if (currentTool.transport_type === "streamable-http") {
           connection_params = {
@@ -333,25 +347,12 @@ const AgentToolsStep: React.FC<StepProps> = ({
           };
 
           // Build authentication
-          if (currentTool.auth_type === "oauth2") {
-            mcp_auth = { type: "oauth2" };
-            if (currentTool.oauth_client_id) {
-              mcp_auth.client_id = currentTool.oauth_client_id;
-            }
-            if (currentTool.oauth_client_secret) {
-              mcp_auth.client_secret = currentTool.oauth_client_secret;
-            }
-          } else if (currentTool.auth_type === "bearer" || currentTool.auth_type === "api_key") {
-            // Build headers with authentication
-            const headers: Record<string, string> = {};
-            if (currentTool.auth_type === "bearer" && currentTool.auth_token) {
-              headers.Authorization = `Bearer ${currentTool.auth_token}`;
-            } else if (currentTool.auth_type === "api_key" && currentTool.auth_token && currentTool.auth_header_name) {
-              headers[currentTool.auth_header_name] = currentTool.auth_token;
-            }
-            if (Object.keys(headers).length > 0) {
-              connection_params.headers = headers;
-            }
+          const authResult = buildMcpAuth();
+          if (authResult.auth) {
+            mcp_auth = authResult.auth;
+          }
+          if (authResult.headers) {
+            connection_params.headers = authResult.headers;
           }
         }
 
