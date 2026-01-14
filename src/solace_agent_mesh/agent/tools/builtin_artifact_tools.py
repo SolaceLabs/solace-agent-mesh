@@ -2784,7 +2784,7 @@ index_kw_search_tool_def = BuiltinTool(
 - The UI will automatically render citations as clickable bubbles with source details
 - Use page numbers and document names to help users locate information
 
-The `bm25_kw_search` tool returns results with rich citation metadata in `sources_citation_for_llm`.
+The `index_kw_search` tool returns results with rich citation metadata in `sources_citation_for_llm`.
 
 **CRITICAL: Citation Format - Use the EXACT [[cite:ID]] Format:**
 
@@ -2939,22 +2939,22 @@ single-digit millisecond latencies [2].
 
 ```xml
 <!-- Simple factual query -->
-<invoke name="bm25_kw_search">
-<parameter name="index_dir">/path/to/index</parameter>
+<invoke name="index_kw_search">
+<parameter name="index_name">my_documents</parameter>
 <parameter name="query">AWS Kendra pricing model</parameter>
 <parameter name="top_k">5</parameter>
 </invoke>
 
 <!-- Standard how-to query (DEFAULT) -->
-<invoke name="bm25_kw_search">
-<parameter name="index_dir">/path/to/index</parameter>
+<invoke name="index_kw_search">
+<parameter name="index_name">my_documents</parameter>
 <parameter name="query">configure S3 bucket lifecycle policies</parameter>
 <parameter name="top_k">10</parameter>
 </invoke>
 
 <!-- Comprehensive comparison query -->
-<invoke name="bm25_kw_search">
-<parameter name="index_dir">/path/to/index</parameter>
+<invoke name="index_kw_search">
+<parameter name="index_name">my_documents</parameter>
 <parameter name="query">comparison all S3 storage classes features pricing performance</parameter>
 <parameter name="top_k">20</parameter>
 </invoke>
@@ -2964,19 +2964,22 @@ single-digit millisecond latencies [2].
 
 ```xml
 <!-- ❌ TOO HIGH for simple query -->
-<invoke name="bm25_kw_search">
+<invoke name="index_kw_search">
+<parameter name="index_name">my_documents</parameter>
 <parameter name="query">what is S3</parameter>
 <parameter name="top_k">30</parameter>
 </invoke>
 
 <!-- ❌ EXCEEDS MAXIMUM -->
-<invoke name="bm25_kw_search">
+<invoke name="index_kw_search">
+<parameter name="index_name">my_documents</parameter>
 <parameter name="query">S3 features</parameter>
 <parameter name="top_k">100</parameter>
 </invoke>
 
 <!-- ❌ TOO LOW for comprehensive query -->
-<invoke name="bm25_kw_search">
+<invoke name="index_kw_search">
+<parameter name="index_name">my_documents</parameter>
 <parameter name="query">complete guide to all IAM policies roles permissions</parameter>
 <parameter name="top_k">3</parameter>
 </invoke>
@@ -2994,13 +2997,15 @@ If your initial search doesn't yield sufficient information:
 
 ```xml
 <!-- First attempt: standard search -->
-<invoke name="bm25_kw_search">
+<invoke name="index_kw_search">
+<parameter name="index_name">my_documents</parameter>
 <parameter name="query">S3 bucket encryption options</parameter>
 <parameter name="top_k">10</parameter>
 </invoke>
 
 <!-- If results insufficient, second attempt with better query and more results -->
-<invoke name="bm25_kw_search">
+<invoke name="index_kw_search">
+<parameter name="index_name">my_documents</parameter>
 <parameter name="query">S3 server-side encryption SSE-S3 SSE-KMS SSE-C client-side encryption</parameter>
 <parameter name="top_k">20</parameter>
 </invoke>
