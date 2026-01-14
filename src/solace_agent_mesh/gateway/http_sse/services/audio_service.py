@@ -1268,10 +1268,6 @@ class AudioService:
         
         # Add speech tab settings if configured
         if speech_tab:
-            config.update({
-                "advancedMode": speech_tab.get("advancedMode", False),
-            })
-            
             # STT settings
             stt_settings = speech_tab.get("speechToText", {})
             if stt_settings:
@@ -1288,9 +1284,6 @@ class AudioService:
                     "engineSTT": stt_settings.get("engineSTT", "browser"),
                     "sttProvider": stt_provider,
                     "languageSTT": stt_settings.get("languageSTT", "en-US"),
-                    "autoSendText": stt_settings.get("autoSendText", -1),
-                    "autoTranscribeAudio": stt_settings.get("autoTranscribeAudio", True),
-                    "decibelValue": stt_settings.get("decibelValue", -45),
                 })
             
             # TTS settings

@@ -7,9 +7,6 @@ export interface SpeechSettings {
     engineSTT: "browser" | "external";
     sttProvider: "browser" | "openai" | "azure";
     languageSTT: string;
-    autoSendText: number;
-    autoTranscribeAudio: boolean;
-    decibelThreshold: number;
 
     // TTS Settings
     textToSpeech: boolean;
@@ -23,7 +20,6 @@ export interface SpeechSettings {
 
     // Advanced
     conversationMode: boolean;
-    advancedMode: boolean;
 }
 
 export interface AudioSettingsContextValue {
@@ -47,9 +43,6 @@ const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
     engineSTT: "engineSTT",
     sttProvider: "sttProvider",
     languageSTT: "languageSTT",
-    autoSendText: "autoSendText",
-    autoTranscribeAudio: "autoTranscribeAudio",
-    decibelThreshold: "decibelThreshold",
 
     textToSpeech: "textToSpeech",
     engineTTS: "engineTTS",
@@ -61,7 +54,6 @@ const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
     cloudBrowserVoices: "cloudBrowserVoices",
 
     conversationMode: "conversationMode",
-    advancedMode: "advancedMode",
 };
 
 const DEFAULT_SETTINGS: SpeechSettings = {
@@ -69,9 +61,6 @@ const DEFAULT_SETTINGS: SpeechSettings = {
     engineSTT: "browser",
     sttProvider: "browser",
     languageSTT: "en-US",
-    autoSendText: -1,
-    autoTranscribeAudio: true,
-    decibelThreshold: -45,
 
     textToSpeech: true, // Enable by default for browser TTS
     engineTTS: "browser", // Use browser TTS by default (no backend needed)
@@ -83,7 +72,6 @@ const DEFAULT_SETTINGS: SpeechSettings = {
     cloudBrowserVoices: false,
 
     conversationMode: false,
-    advancedMode: false,
 };
 
 function loadSettingsFromStorage(): SpeechSettings {
@@ -141,9 +129,6 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
                         engineSTT: speechConfig.engineSTT,
                         sttProvider: speechConfig.sttProvider,
                         languageSTT: speechConfig.languageSTT,
-                        autoSendText: speechConfig.autoSendText,
-                        autoTranscribeAudio: speechConfig.autoTranscribeAudio,
-                        decibelThreshold: speechConfig.decibelValue,
                         // TTS settings
                         textToSpeech: speechConfig.textToSpeech,
                         engineTTS: speechConfig.engineTTS,
@@ -155,7 +140,6 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
                         cloudBrowserVoices: speechConfig.cloudBrowserVoices,
                         // Advanced
                         conversationMode: speechConfig.conversationMode,
-                        advancedMode: speechConfig.advancedMode,
                     };
                 } catch (error) {
                     console.error("Error fetching speech config:", error);
