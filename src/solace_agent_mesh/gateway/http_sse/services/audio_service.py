@@ -1275,9 +1275,18 @@ class AudioService:
             # STT settings
             stt_settings = speech_tab.get("speechToText", {})
             if stt_settings:
+                # Determine STT provider from config
+                stt_provider_from_config = stt_config.get("provider", "openai") if stt_config else "browser"
+                # Map to frontend provider format
+                if stt_settings.get("engineSTT", "browser") == "external":
+                    stt_provider = stt_provider_from_config  # Use configured provider (openai, azure)
+                else:
+                    stt_provider = "browser"
+                
                 config.update({
                     "speechToText": stt_settings.get("speechToText", True),
                     "engineSTT": stt_settings.get("engineSTT", "browser"),
+                    "sttProvider": stt_provider,
                     "languageSTT": stt_settings.get("languageSTT", "en-US"),
                     "autoSendText": stt_settings.get("autoSendText", -1),
                     "autoTranscribeAudio": stt_settings.get("autoTranscribeAudio", True),
@@ -1287,10 +1296,43 @@ class AudioService:
             # TTS settings
             tts_settings = speech_tab.get("textToSpeech", {})
             if tts_settings:
+                # Determine TTS provider from config
+                tts_provider_from_config = tts_config.get("provider", "gemini") if tts_config else "browser"
+                # Map to frontend provider format
+                if tts_settings.get("engineTTS", "browser") == "external":
+                    tts_provider = tts_provider_from_config  # Use configured provider (gemini, azure, polly)
+                else:
+                    tts_provider = "browser"
+                
+                # Get the default voice from the provider's config
+                voice_from_settings = tts_settings.get("voice")
+                if tts_provider == "azure":
+                    azure_tts_config = tts_config.get("azure", {})
+                    default_voice = azure_tts_config.get("default_voice", "en-US-JennyNeural")
+                    # Only use settings voice if it's a valid Azure voice
+                    if voice_from_settings and ("Neural" in voice_from_settings or "DragonHD" in voice_from_settings):
+                        default_voice = voice_from_settings
+                elif tts_provider == "polly":
+                    polly_tts_config = tts_config.get("polly", {})
+                    default_voice = polly_tts_config.get("default_voice", "Joanna")
+                    # Only use settings voice if it looks like a Polly voice (simple name)
+                    if voice_from_settings and voice_from_settings.isalpha():
+                        default_voice = voice_from_settings
+                elif tts_provider == "gemini":
+                    gemini_tts_config = tts_config.get("gemini", tts_config)
+                    default_voice = gemini_tts_config.get("default_voice", "Kore")
+                    # Use settings voice for Gemini (simple names like Kore, Puck)
+                    if voice_from_settings:
+                        default_voice = voice_from_settings
+                else:
+                    # Browser mode - use whatever is configured
+                    default_voice = voice_from_settings or "Kore"
+                
                 config.update({
                     "textToSpeech": tts_settings.get("textToSpeech", True),
                     "engineTTS": tts_settings.get("engineTTS", "browser"),
-                    "voice": tts_settings.get("voice", tts_config.get("default_voice", "Kore")),
+                    "ttsProvider": tts_provider,
+                    "voice": default_voice,
                     "playbackRate": tts_settings.get("playbackRate", 1.0),
                     "automaticPlayback": tts_settings.get("automaticPlayback", False),
                     "cacheTTS": tts_settings.get("cacheTTS", True),
