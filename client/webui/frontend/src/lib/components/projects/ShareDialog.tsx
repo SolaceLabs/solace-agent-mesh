@@ -28,7 +28,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
     const [role, setRole] = useState<ProjectRole>("viewer");
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-    const [useTypeahead, setUseTypeahead] = useState(false);
+    const [useTypeahead, setUseTypeahead] = useState(true);
 
     // Typeahead search state
     const [searchQuery, setSearchQuery] = useState("");
@@ -66,7 +66,7 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
             setRole("viewer");
             setError(null);
             setSuccess(null);
-            setUseTypeahead(false);
+            setUseTypeahead(true);
             setSearchQuery("");
             setSelectedIndex(-1);
             setPopoverOpen(false);
@@ -301,26 +301,20 @@ export function ShareDialog({ project, trigger }: ShareDialogProps) {
                 )}
             </DialogTrigger>
             <DialogContent className="sm:max-w-md md:max-w-lg">
-                <DialogHeader>
+                <DialogHeader className="relative">
                     <DialogTitle>Share Project</DialogTitle>
                     <DialogDescription>
                         Invite others to collaborate on <strong>{project.name}</strong>.
                     </DialogDescription>
+                    <div className="absolute top-0 right-0">
+                        <Switch checked={useTypeahead} onCheckedChange={handleModeToggle} disabled={isAnyOperationInProgress} />
+                    </div>
                 </DialogHeader>
 
                 <div className="space-y-6 py-4">
                     {/* Status Messages */}
                     {error && <MessageBanner variant="error" message={error} dismissible onDismiss={() => setError(null)} />}
                     {success && <MessageBanner variant="success" message={success} dismissible onDismiss={() => setSuccess(null)} />}
-
-                    {/* Mode Toggle */}
-                    <div className="flex items-center justify-between rounded-lg border p-3">
-                        <div className="space-y-0.5">
-                            <div className="text-sm font-medium">{useTypeahead ? "Search Users" : "Manual Email Entry"}</div>
-                            <p className="text-muted-foreground text-xs">{useTypeahead ? "Search and select users from the directory" : "Invite users by entering their email address"}</p>
-                        </div>
-                        <Switch checked={useTypeahead} onCheckedChange={handleModeToggle} disabled={isAnyOperationInProgress} />
-                    </div>
 
                     {/* Invite Form - Only show in email mode */}
                     {!useTypeahead && (

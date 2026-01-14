@@ -344,7 +344,7 @@ export const TypeaheadMode: Story = {
         msw: { handlers: defaultHandlers },
         docs: {
             description: {
-                story: "ShareDialog in typeahead mode with empty search input. Toggle the switch to enable typeahead mode.",
+                story: "ShareDialog in typeahead mode with empty search input. The switch in the top right toggles between modes.",
             },
         },
     },
@@ -359,12 +359,11 @@ export const TypeaheadMode: Story = {
         const dialog = await within(document.body).findByRole("dialog");
         const dialogContent = within(dialog);
 
-        // Find and toggle the switch to enable typeahead mode
+        // Find and toggle the switch to enable typeahead mode (now in the top right)
         const switchElement = dialogContent.getByRole("switch");
         await user.click(switchElement);
 
         // Verify typeahead mode is active
-        await dialogContent.findByText("Search Users");
         await dialogContent.findByPlaceholderText("Search by name or email...");
     },
 };
