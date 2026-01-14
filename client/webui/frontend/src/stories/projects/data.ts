@@ -6,7 +6,6 @@ import type { Project } from "@/lib/types/projects";
 
 /**
  * A basic project with minimal configuration.
- * Use for: Testing basic project display and interactions.
  */
 export const weatherProject: Project = {
     id: "project-1",
@@ -14,7 +13,7 @@ export const weatherProject: Project = {
     userId: "user-id",
     description: "A project for weather forecasting features",
     systemPrompt: "You are a helpful assistant for weather-related tasks.",
-    defaultAgentId: "agent-1",
+    defaultAgentId: "OrchestratorAgent",
     artifactCount: 5,
     createdAt: new Date("2024-01-10").toISOString(),
     updatedAt: new Date("2024-02-15").toISOString(),
@@ -22,7 +21,6 @@ export const weatherProject: Project = {
 
 /**
  * A project with null values for optional fields.
- * Use for: Testing how the UI handles missing data.
  */
 export const eCommerceProject: Project = {
     id: "project-2",
@@ -38,7 +36,6 @@ export const eCommerceProject: Project = {
 
 /**
  * A fully populated project with all fields set.
- * Use for: ProjectDetailView stories showing complete project data.
  */
 export const populatedProject: Project = {
     id: "project-populated",
@@ -46,7 +43,7 @@ export const populatedProject: Project = {
     userId: "user-id",
     description: "A comprehensive AI-powered chat assistant with advanced features and knowledge base integration.",
     systemPrompt: "You are a helpful AI assistant specialized in software development. Provide clear, concise answers with code examples when appropriate. Always explain your reasoning and suggest best practices.",
-    defaultAgentId: "agent-1",
+    defaultAgentId: "OrchestratorAgent",
     artifactCount: 15,
     createdAt: new Date("2024-01-15").toISOString(),
     updatedAt: new Date("2024-03-20").toISOString(),
@@ -54,7 +51,6 @@ export const populatedProject: Project = {
 
 /**
  * A newly created empty project.
- * Use for: ProjectDetailView stories showing empty state for new projects.
  */
 export const emptyProject: Project = {
     id: "project-empty",
@@ -70,7 +66,6 @@ export const emptyProject: Project = {
 
 /**
  * A project with a very long description.
- * Use for: Testing text truncation and overflow handling.
  */
 export const projectWithLongDescription: Project = {
     id: "project-long-desc",
@@ -86,7 +81,6 @@ export const projectWithLongDescription: Project = {
 
 /**
  * A project with many artifacts.
- * Use for: Testing high artifact count display.
  */
 export const projectWithManyArtifacts: Project = {
     id: "project-many-artifacts",
@@ -105,14 +99,7 @@ export const projectWithManyArtifacts: Project = {
 // ============================================================================
 
 /**
- * Default set of projects for general testing.
- * Use for: ProjectsPage default story and general project list testing.
- */
-export const defaultProjects: Project[] = [weatherProject, eCommerceProject];
-
-/**
  * All available project fixtures.
- * Use for: Testing with a larger variety of projects.
  */
 export const allProjects: Project[] = [
     weatherProject,

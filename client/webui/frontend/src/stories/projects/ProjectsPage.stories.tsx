@@ -1,7 +1,7 @@
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
-import { within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import { ProjectsPage } from "@/lib";
-import { defaultProjects } from "./data";
+import { allProjects } from "./data";
 
 const meta = {
     title: "Pages/Projects/ProjectsPage",
@@ -29,24 +29,25 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     parameters: {
         projectContext: {
-            projects: defaultProjects,
-            filteredProjects: defaultProjects,
+            projects: allProjects,
+            filteredProjects: allProjects,
         },
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await canvas.findByTestId("refreshProjects");
-        await canvas.findByTestId("createProjectCard");
-        await canvas.findByText("Weather App");
-        await canvas.findByText("E-commerce Platform");
+        expect(await canvas.findByTestId("refreshProjects")).toBeVisible();
+        expect(await canvas.findByTestId("createProjectCard")).toBeVisible();
+        for (const project of allProjects) {
+            expect(await canvas.findByText(project.name)).toBeVisible();
+        }
     },
 };
 
 export const WithSearchTerm: Story = {
     parameters: {
         projectContext: {
-            projects: defaultProjects,
-            filteredProjects: [defaultProjects[0]],
+            projects: allProjects,
+            filteredProjects: [allProjects.find(p => p.name === "Weather App")!],
             searchQuery: "Weather",
         },
     },
@@ -55,8 +56,23 @@ export const WithSearchTerm: Story = {
         const searchInput = await canvas.findByTestId("projectSearchInput");
         searchInput.focus();
 
-        await canvas.findByTestId("createProjectCard");
+        expect(await canvas.findByTestId("createProjectCard")).toBeVisible();
     },
+};
+
+export const WithNoResults: Story = {
+    parameters: {
+        projectContext: {
+            projects: allProjects,
+            filteredProjects: [],
+            searchQuery: "Nonexistent Project",
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        expect(await canvas.findByText("No Projects Match Your Filter")).toBeVisible();
+        expect(await canvas.findByTestId("Clear Filter")).toBeVisible();
+    }
 };
 
 export const NoProjects: Story = {
@@ -65,8 +81,7 @@ export const NoProjects: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await canvas.findByText("No Projects Found");
-        await canvas.findByText("Create New Project");
+        expect(await canvas.findByTestId("Create New Project")).toBeVisible();
     },
 };
 
@@ -78,6 +93,6 @@ export const Loading: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await canvas.findByText("Loading projects...");
+        expect(await canvas.findByText("Loading projects...")).toBeVisible();
     },
 };
