@@ -129,6 +129,7 @@ export interface MessageFE {
     isError?: boolean; // ADDED: True if this message represents an error/failure
     uploadedFiles?: File[]; // Array of files uploaded by the user with this message
     toolEvents?: ToolEvent[]; // --- NEW: Array to hold tool call results ---
+    displayHtml?: string; // HTML for displaying user messages with mention chips (user messages only)
     authenticationLink?: {
         url: string;
         text: string;

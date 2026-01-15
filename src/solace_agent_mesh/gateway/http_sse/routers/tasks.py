@@ -195,7 +195,6 @@ async def _inject_project_context(
 
     db = SessionLocal()
     artifact_service = None
-    should_clear_pending_flags = False
 
     try:
         project = project_service.get_project(db, project_id, user_id)
@@ -235,10 +234,6 @@ async def _inject_project_context(
                 )
                 log.info(f"{log_prefix} Artifacts copied: {artifacts_copied}, New artifact names: {new_artifact_names}")
                 # artifacts_copied: 2, new_artifact_names: ['sagemaker-ug.pdf', 'sagemaker-ug.pdf.bm25_index']
-
-                if inject_full_context and artifacts_copied > 0:
-                    # need to clear the pending flags even if injection fails
-                    should_clear_pending_flags = True
 
                 # Get artifact descriptions for context injection
                 if artifacts_copied > 0 or inject_full_context:
@@ -349,22 +344,6 @@ async def _inject_project_context(
         # Continue without injection - don't fail the request
         return message_text
     finally:
-        # Clear the pending project context flags from all artifacts
-        if should_clear_pending_flags and artifact_service:
-            from ..utils.artifact_copy_utils import clear_pending_project_context
-            try:
-                await clear_pending_project_context(
-                    user_id=user_id,
-                    session_id=session_id,
-                    artifact_service=artifact_service,
-                    app_name=project_service.app_name,
-                    db=db,
-                    log_prefix=log_prefix,
-                )
-                log.debug("%sCleared pending project context flags", log_prefix)
-            except Exception as e:
-                log.warning("%sFailed to clear pending project context flags: %s", log_prefix, e)
-
         db.close()
 
 

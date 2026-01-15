@@ -1,3 +1,4 @@
+
 """
 Helper functions for artifact management, including metadata handling and schema inference.
 """
@@ -1228,11 +1229,13 @@ async def load_artifact_content_or_metadata(
             )
             try:
                 list_versions_method = getattr(artifact_service, "list_versions")
+                # Use metadata filename when loading metadata, content filename otherwise
+                version_check_filename = f"{filename}{METADATA_SUFFIX}" if load_metadata_only else filename
                 available_versions = await list_versions_method(
                     app_name=app_name,
                     user_id=user_id,
                     session_id=session_id,
-                    filename=filename,
+                    filename=version_check_filename,
                 )
                 if not available_versions:
                     raise FileNotFoundError(
@@ -1278,7 +1281,7 @@ async def load_artifact_content_or_metadata(
         )
         version_to_load = actual_version
 
-        log_identifier = f"{log_identifier_prefix}:{filename}:{version_to_load}"
+        log_identifier = f"{log_identifier_prefix}:{filename}:v{version_to_load}"
 
         log.debug(
             "%s Attempting to load '%s' v%d (async)",
