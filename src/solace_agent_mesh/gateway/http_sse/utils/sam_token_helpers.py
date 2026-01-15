@@ -14,28 +14,12 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-
-def is_sam_token_enabled(component: Any) -> bool:
-    """
-    Check if sam_access_token feature is enabled.
-
-    STUB: Base repo always returns False. Enterprise package provides
-    the full implementation.
-
-    Args:
-        component: Gateway component with config and trust_manager
-
-    Returns:
-        False (enterprise feature not available in base repo)
-    """
-    return False
-
-
 # For backward compatibility, try to import from enterprise if available
 try:
     from solace_agent_mesh_enterprise.gateway.auth.utils import (
         SamTokenResult,
         get_sam_token_config,
+        is_sam_token_enabled,
         prepare_and_mint_sam_token,
     )
 
@@ -53,6 +37,10 @@ except ImportError:
     def get_sam_token_config(component: Any):
         """Stub: Returns None when enterprise not available."""
         return None
+
+    def is_sam_token_enabled(component: Any) -> bool:
+        """Stub: Always returns False when enterprise not available."""
+        return False
 
     async def prepare_and_mint_sam_token(*args, **kwargs):
         """Stub: Returns None when enterprise not available."""
