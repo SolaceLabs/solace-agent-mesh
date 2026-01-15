@@ -189,7 +189,7 @@ jobs:
       # Publish using Trusted Publishing - must be directly in workflow, not in composite action
       # See: https://docs.pypi.org/trusted-publishers/using-a-publisher/
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
         with:
           verbose: true
 
