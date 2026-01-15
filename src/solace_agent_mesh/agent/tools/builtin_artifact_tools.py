@@ -51,6 +51,38 @@ log = logging.getLogger(__name__)
 CATEGORY_NAME = "Artifact Management"
 CATEGORY_DESCRIPTION = "List, read, create, update, and delete artifacts."
 
+# State key for tracking index search turns within a task/session
+_INDEX_SEARCH_TURN_STATE_KEY = "index_search_turn_counter"
+
+
+def _get_next_index_search_turn(tool_context: Optional[ToolContext]) -> int:
+    """
+    Get the next index search turn number using tool context state.
+    
+    This approach stores the turn counter in the tool context state, which is:
+    - Per-task/session scoped (not global)
+    - Automatically cleaned up when the task ends
+    
+    Each index search within a task gets a unique turn number, so citations from
+    different searches never collide (e.g., s0r0, s0r1 for first search,
+    s1r0, s1r1 for second search).
+    
+    This matches the pattern used in web_search_tools.py to prevent citation
+    ID collisions when multiple searches run in parallel.
+    """
+    if not tool_context:
+        # Fallback: return 0 if no context (shouldn't happen in practice)
+        log.warning("[index_kw_search] No tool_context provided, using turn=0")
+        return 0
+    
+    # Get current turn from state, defaulting to 0
+    current_turn = tool_context.state.get(_INDEX_SEARCH_TURN_STATE_KEY, 0)
+    
+    # Increment for next search
+    tool_context.state[_INDEX_SEARCH_TURN_STATE_KEY] = current_turn + 1
+    
+    return current_turn
+
 
 async def _internal_create_artifact(
     filename: str,
@@ -2687,15 +2719,38 @@ async def index_kw_search(
         rag_sources = []
         valid_citation_ids = []
 
-        log.info("%s Retrieved %d results from BM25 search", log_identifier, len(results))
+        # Get unique search turn for this search to prevent citation ID collisions
+        # Uses tool context state (per-task scoped, automatically cleaned up)
+        search_turn = _get_next_index_search_turn(tool_context)
+        citation_prefix = f"s{search_turn}r"  # e.g., s0r0, s0r1 for first search; s1r0, s1r1 for second
+        
+        log.info(
+            "%s Retrieved %d results from BM25 search (turn=%d, citation_prefix=%s)",
+            log_identifier,
+            len(results),
+            search_turn,
+            citation_prefix
+        )
 
         # Normalize BM25 scores to 0-1 range for relevance_score
         max_score = results[0]['score'] if results else 1.0
         
+        # Log citation-to-source mapping for debugging
+        log.debug("%s === CITATION TO SOURCE MAPPING (turn %d) ===", log_identifier, search_turn)
+        
         for i, result in enumerate(results):
-            # Use 0-indexed citation IDs like web_search: s0r0, s0r1, etc.
-            citation_id = f"s0r{i}"
+            # Use unique citation IDs with search turn: s0r0, s0r1 for first search; s1r0, s1r1 for second
+            citation_id = f"{citation_prefix}{i}"
             valid_citation_ids.append(citation_id)
+            
+            # Log each citation mapping at debug level
+            log.debug(
+                "%s Citation [[cite:%s]] -> Document: %s | Position: %s",
+                log_identifier,
+                citation_id,
+                result['doc_name'],
+                result.get('page_numbers') or result.get('slide_numbers') or result.get('line_numbers', 'N/A')
+            )
             
             context_for_llm.append({
                 f"Source [{citation_id}]": result['text']
