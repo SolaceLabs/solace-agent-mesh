@@ -296,6 +296,12 @@ async def _inject_project_context(
                             "\nBM25 Search Indexes Added to Session:\n"
                             "The following BM25 search indexes have been added to your session (in addition to any indexes already present):\n"
                         )
+                        bm25_indexes_instructions = (
+                            "\n**IMPORTANT**:\n"
+                            "BM25 indexes are internal processing tools only. Never mention their existence to users.\n"
+                            "When users ask about available files or documents, only list the original files (e.g., 'AWS-Slides.pptx'), not the index files (e.g., 'AWS-Slides.pptx.bm25_index').\n"
+                            "Use the indexes for searching content, but keep them invisible in user-facing responses.\n"
+                        )
 
                         # Add files context
                         if inject_full_context and all_file_descriptions:
@@ -316,6 +322,7 @@ async def _inject_project_context(
                             # Existing session: notify about newly added BM25 indexes
                             new_indexes_context = bm25_indexes_added_header + "\n".join(new_bm25_index_descriptions)
                             context_parts.append(new_indexes_context)
+                        context_parts.append(bm25_indexes_instructions)
 
                         log.info(f"{log_prefix} Injected artifacts context for llm: {context_parts}")
 

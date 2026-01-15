@@ -2,10 +2,12 @@
 BM25 Document Indexer - Creates individual indexes for each document
 
 This module demonstrates how to:
-1. Convert binary files (PDF, DOCX) to text using MarkItDown
+1. Convert files to text with position tracking:
+   - Binary files (PDF, DOCX, PPTX) using MarkItDown
+   - Text files (TXT, MD, CSV, HTML, JSON, XML) with line number tracking
 2. Chunk documents properly for indexing
 3. Create separate BM25 indexes for each document
-4. Store metadata for retrieval and citation
+4. Store metadata for retrieval and citation (including page/slide/line numbers)
 5. Support storage-agnostic backends (filesystem, S3, etc.)
 """
 
@@ -23,6 +25,22 @@ from markitdown import MarkItDown
 # pdfminer installed from markitdown[all]
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextContainer
+
+# python-docx installed from markitdown[all]
+try:
+    from docx import Document as DocxDocument
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+    logger.warning("python-docx not available, Word page tracking will be disabled")
+
+# python-pptx installed from markitdown[all]
+try:
+    from pptx import Presentation
+    PPTX_AVAILABLE = True
+except ImportError:
+    PPTX_AVAILABLE = False
+    logger.warning("python-pptx not available, PowerPoint slide tracking will be disabled")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -81,7 +99,8 @@ class DocumentChunker:
         self, 
         text: str, 
         doc_metadata: Dict[str, Any],
-        page_map: Optional[List[Tuple[int, int, int]]] = None
+        page_map: Optional[List[Tuple[int, int, int]]] = None,
+        position_type: str = 'page'
     ) -> List[Dict[str, Any]]:
         """
         Split text into overlapping chunks with metadata.
@@ -89,8 +108,9 @@ class DocumentChunker:
         Args:
             text: The text content to chunk
             doc_metadata: Metadata about the source document
-            page_map: Optional list of (page_num, char_start, char_end) tuples mapping 
-                     character positions to page numbers
+            page_map: Optional list of (num, char_start, char_end) tuples mapping 
+                     character positions to page/slide/line numbers
+            position_type: Type of position tracking ('page', 'slide', or 'line')
             
         Returns:
             List of chunk dictionaries with text and metadata
@@ -114,8 +134,8 @@ class DocumentChunker:
                     char_start = len(''.join([c['text'] for c in chunks]))
                     char_end = char_start + len(current_chunk)
                     
-                    # Determine page number(s) for this chunk
-                    page_numbers = self._get_page_numbers(char_start, char_end, page_map)
+                    # Determine position number(s) for this chunk
+                    position_numbers = self._get_page_numbers(char_start, char_end, page_map)
                     
                     chunk_data = {
                         'text': current_chunk.strip(),
@@ -127,11 +147,20 @@ class DocumentChunker:
                         'char_end': char_end
                     }
                     
-                    # Add page number information if available
-                    if page_numbers:
-                        chunk_data['page_numbers'] = page_numbers
-                        chunk_data['page_start'] = page_numbers[0]
-                        chunk_data['page_end'] = page_numbers[-1]
+                    # Add position information with appropriate field names
+                    if position_numbers:
+                        if position_type == 'line':
+                            chunk_data['line_numbers'] = position_numbers
+                            chunk_data['line_start'] = position_numbers[0]
+                            chunk_data['line_end'] = position_numbers[-1]
+                        elif position_type == 'slide':
+                            chunk_data['slide_numbers'] = position_numbers
+                            chunk_data['slide_start'] = position_numbers[0]
+                            chunk_data['slide_end'] = position_numbers[-1]
+                        else:  # 'page' is default
+                            chunk_data['page_numbers'] = position_numbers
+                            chunk_data['page_start'] = position_numbers[0]
+                            chunk_data['page_end'] = position_numbers[-1]
                     
                     chunks.append(chunk_data)
                     chunk_index += 1
@@ -151,8 +180,8 @@ class DocumentChunker:
             char_start = len(''.join([c['text'] for c in chunks]))
             char_end = char_start + len(current_chunk)
             
-            # Determine page number(s) for this chunk
-            page_numbers = self._get_page_numbers(char_start, char_end, page_map)
+            # Determine position number(s) for this chunk
+            position_numbers = self._get_page_numbers(char_start, char_end, page_map)
             
             chunk_data = {
                 'text': current_chunk.strip(),
@@ -164,11 +193,20 @@ class DocumentChunker:
                 'char_end': char_end
             }
             
-            # Add page number information if available
-            if page_numbers:
-                chunk_data['page_numbers'] = page_numbers
-                chunk_data['page_start'] = page_numbers[0]
-                chunk_data['page_end'] = page_numbers[-1]
+            # Add position information with appropriate field names
+            if position_numbers:
+                if position_type == 'line':
+                    chunk_data['line_numbers'] = position_numbers
+                    chunk_data['line_start'] = position_numbers[0]
+                    chunk_data['line_end'] = position_numbers[-1]
+                elif position_type == 'slide':
+                    chunk_data['slide_numbers'] = position_numbers
+                    chunk_data['slide_start'] = position_numbers[0]
+                    chunk_data['slide_end'] = position_numbers[-1]
+                else:  # 'page' is default
+                    chunk_data['page_numbers'] = position_numbers
+                    chunk_data['page_start'] = position_numbers[0]
+                    chunk_data['page_end'] = position_numbers[-1]
             
             chunks.append(chunk_data)
         
@@ -209,7 +247,8 @@ class BM25DocumentIndexer:
     Creates and manages individual BM25 indexes for each document.
     
     Key Features:
-    - Converts binary files (PDF, DOCX) to text using MarkItDown
+    - Converts binary files (PDF, DOCX, PPTX) to text using MarkItDown
+    - Tracks page numbers (PDF, DOCX), slide numbers (PPTX), and line numbers (TXT, MD, etc.) for citations
     - Creates separate index for each document (isolated corpus)
     - Uses stemming for better keyword matching
     - Stores metadata for citation and source tracking
@@ -285,6 +324,167 @@ class BM25DocumentIndexer:
             logger.error(f"Error extracting PDF pages from {file_path.name}: {e}")
             return "", [], 0
     
+    def extract_docx_with_pages(self, file_path: Path) -> Tuple[str, List[Tuple[int, int, int]], int]:
+        """
+        Extract text from DOCX file page by page and create a page mapping.
+        
+        Note: Word documents don't have fixed pages like PDFs. We approximate pages
+        based on paragraph breaks and typical page length (around 3000 characters per page).
+        
+        Args:
+            file_path: Path to the DOCX file
+            
+        Returns:
+            Tuple of (full_text, page_map, total_pages) where:
+            - full_text: Combined text from all paragraphs
+            - page_map: List of (page_num, char_start, char_end) tuples
+            - total_pages: Estimated total number of pages
+        """
+        if not DOCX_AVAILABLE:
+            logger.warning(f"python-docx not available, cannot extract pages from {file_path.name}")
+            return "", [], 0
+        
+        try:
+            doc = DocxDocument(str(file_path))
+            full_text = ""
+            page_map = []
+            page_num = 1
+            
+            # Approximate characters per page (typical A4 page with standard formatting)
+            # This is an estimation since Word documents are reflowable
+            CHARS_PER_PAGE = 3000
+            
+            current_page_start = 0
+            
+            # Extract text from all paragraphs
+            for paragraph in doc.paragraphs:
+                para_text = paragraph.text
+                if para_text.strip():  # Only add non-empty paragraphs
+                    full_text += para_text + "\n\n"
+            
+            # Create page mapping based on character count
+            total_chars = len(full_text)
+            current_pos = 0
+            
+            while current_pos < total_chars:
+                char_start = current_pos
+                char_end = min(current_pos + CHARS_PER_PAGE, total_chars)
+                
+                # Try to break at paragraph boundary (look for \n\n)
+                if char_end < total_chars:
+                    # Look for the next paragraph break within a reasonable range
+                    search_start = max(char_end - 200, char_start)
+                    search_end = min(char_end + 200, total_chars)
+                    para_break = full_text.find('\n\n', search_start, search_end)
+                    if para_break != -1:
+                        char_end = para_break + 2  # Include the line breaks
+                
+                page_map.append((page_num, char_start, char_end))
+                page_num += 1
+                current_pos = char_end
+            
+            total_pages = len(page_map)
+            
+            logger.info(f"Extracted {total_pages} estimated pages from {file_path.name} with page tracking")
+            return full_text, page_map, total_pages
+            
+        except Exception as e:
+            logger.error(f"Error extracting DOCX pages from {file_path.name}: {e}")
+            return "", [], 0
+    
+    def extract_pptx_with_slides(self, file_path: Path) -> Tuple[str, List[Tuple[int, int, int]], int]:
+        """
+        Extract text from PowerPoint file slide by slide and create a slide mapping.
+        
+        Args:
+            file_path: Path to the PPTX/PPT file
+            
+        Returns:
+            Tuple of (full_text, slide_map, total_slides) where:
+            - full_text: Combined text from all slides
+            - slide_map: List of (slide_num, char_start, char_end) tuples
+            - total_slides: Total number of slides in the presentation
+        """
+        if not PPTX_AVAILABLE:
+            logger.warning(f"python-pptx not available, cannot extract slides from {file_path.name}")
+            return "", [], 0
+        
+        try:
+            prs = Presentation(str(file_path))
+            full_text = ""
+            slide_map = []
+            slide_num = 0
+            
+            for slide in prs.slides:
+                slide_num += 1
+                slide_text = ""
+                
+                # Extract text from all shapes in the slide
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text:
+                        slide_text += shape.text + "\n"
+                    
+                    # Also check for text in tables
+                    if shape.has_table:
+                        for row in shape.table.rows:
+                            for cell in row.cells:
+                                if cell.text:
+                                    slide_text += cell.text + " "
+                            slide_text += "\n"
+                
+                # Record character positions for this slide
+                char_start = len(full_text)
+                full_text += slide_text
+                char_end = len(full_text)
+                
+                # Add slide mapping (slide_num, char_start, char_end)
+                slide_map.append((slide_num, char_start, char_end))
+                
+                # Add separator between slides
+                full_text += "\n\n"
+            
+            logger.info(f"Extracted {slide_num} slides from {file_path.name} with slide tracking")
+            return full_text, slide_map, slide_num
+            
+        except Exception as e:
+            logger.error(f"Error extracting PPTX slides from {file_path.name}: {e}")
+            return "", [], 0
+    
+    def extract_text_with_lines(self, file_path: Path) -> Tuple[str, List[Tuple[int, int, int]], int]:
+        """
+        Extract text from a text file and create a line mapping.
+        
+        Args:
+            file_path: Path to the text file
+            
+        Returns:
+            Tuple of (full_text, line_map, total_lines) where:
+            - full_text: Combined text from all lines
+            - line_map: List of (line_num, char_start, char_end) tuples
+            - total_lines: Total number of lines in the file
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                full_text = ""
+                line_map = []
+                line_num = 0
+                
+                for line in f:
+                    line_num += 1
+                    char_start = len(full_text)
+                    full_text += line
+                    char_end = len(full_text)
+                    
+                    # Add line mapping (line_num, char_start, char_end)
+                    line_map.append((line_num, char_start, char_end))
+                
+                logger.info(f"Extracted {line_num} lines from {file_path.name} with line tracking")
+                return full_text, line_map, line_num
+                
+        except Exception as e:
+            logger.error(f"Error extracting lines from {file_path.name}: {e}")
+            return "", [], 0
+    
     def convert_to_text(
         self, 
         file_path: Path, 
@@ -304,24 +504,45 @@ class BM25DocumentIndexer:
             Tuple of (text_content, file_type, page_map, total_pages) where:
             - text_content: The extracted text
             - file_type: File extension or MIME type
-            - page_map: Optional page mapping for PDFs (list of (page_num, char_start, char_end))
-            - total_pages: Optional total page count for PDFs
+            - page_map: Optional page/slide/line mapping (list of (num, char_start, char_end))
+            - total_pages: Optional total page/slide/line count
         """
         is_pdf = False
+        is_docx = False
+        is_pptx = False
 
-        # For text files, read directly
+        # For text files, extract with line tracking
         if supported_type == 'text':
+            text_content, line_map, total_lines = self.extract_text_with_lines(file_path)
+            if text_content:
+                return text_content, file_ext or mime_type, line_map, total_lines
+            # Fallback if line extraction fails
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 return f.read(), file_ext or mime_type, None, None
         elif supported_type == 'binary':
             is_pdf = (file_ext == '.pdf' or mime_type == 'application/pdf')
+            is_docx = (file_ext == '.docx' or mime_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+            is_pptx = (file_ext in ['.pptx', '.ppt'] or mime_type in ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint'])
+            
             # For PDFs, try to extract with page information
             if is_pdf:
                 text_content, page_map, total_pages = self.extract_pdf_with_pages(file_path)
                 if text_content:
                     return text_content, file_ext or mime_type, page_map, total_pages
+            
+            # For DOCX files, try to extract with page information
+            if is_docx and DOCX_AVAILABLE:
+                text_content, page_map, total_pages = self.extract_docx_with_pages(file_path)
+                if text_content:
+                    return text_content, file_ext or mime_type, page_map, total_pages
+            
+            # For PPTX/PPT files, try to extract with slide information
+            if is_pptx and PPTX_AVAILABLE:
+                text_content, slide_map, total_slides = self.extract_pptx_with_slides(file_path)
+                if text_content:
+                    return text_content, file_ext or mime_type, slide_map, total_slides
         
-        # For binary files (or PDF fallback), use MarkItDown
+        # For binary files (or PDF/DOCX/PPTX fallback), use MarkItDown
         try:
             result = self.converter.convert(str(file_path))
             text_content = result.text_content if result else ""
@@ -403,6 +624,13 @@ class BM25DocumentIndexer:
             logger.warning(f"No content extracted from {file_path.name}")
             return {"message": "no content extracted from file"}
         
+        # Determine position type based on file type
+        position_type = 'page'  # default
+        if file_type in ['.pptx', '.ppt', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint']:
+            position_type = 'slide'
+        elif file_type in ['.txt', '.md', '.csv', '.html', '.htm', '.json', '.xml', 'text/plain', 'text/markdown', 'text/csv', 'text/html', 'application/json', 'application/xml']:
+            position_type = 'line'
+        
         # Create metadata
         doc_metadata = {
             'filename': file_path.name,
@@ -411,15 +639,20 @@ class BM25DocumentIndexer:
             'size_bytes': file_path.stat().st_size
         }
         
-        # Add page count if available
+        # Add count with appropriate field name based on position type
         if total_pages:
-            doc_metadata['total_pages'] = total_pages
+            if position_type == 'line':
+                doc_metadata['total_lines'] = total_pages
+            elif position_type == 'slide':
+                doc_metadata['total_slides'] = total_pages
+            else:
+                doc_metadata['total_pages'] = total_pages
         
         # Add description to document metadata - mandatory as positional argument
         doc_metadata['description'] = description
         
-        # Chunk the document (with page mapping if available)
-        chunks = self.chunker.chunk_text(text_content, doc_metadata, page_map)
+        # Chunk the document (with position mapping and type)
+        chunks = self.chunker.chunk_text(text_content, doc_metadata, page_map, position_type)
         
         if not chunks:
             logger.warning(f"No chunks created from {file_path.name}")

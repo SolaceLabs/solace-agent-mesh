@@ -62,7 +62,43 @@ class BM25Retriever:
         """
         self.index_base_dir = Path(index_base_dir)
         self.stemmer = Stemmer.Stemmer("english")
-
+    
+    def _format_location(
+        self, 
+        file_type: str, 
+        page_start: int, 
+        page_end: int, 
+        page_numbers: List[int]
+    ) -> str:
+        """
+        Format location information based on file type.
+        
+        Args:
+            file_type: File extension or MIME type
+            page_start: Starting page/slide/line number
+            page_end: Ending page/slide/line number
+            page_numbers: List of all page/slide/line numbers spanned
+            
+        Returns:
+            Human-readable location string
+        """
+        if not page_start:
+            return "Location not available"
+        
+        # Determine the type of location based on file type
+        if file_type in ['.pptx', '.ppt', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint']:
+            location_type = "slide"
+        elif file_type in ['.txt', '.md', '.csv', '.html', '.htm', '.json', '.xml', 'text/plain', 'text/markdown', 'text/csv', 'text/html', 'application/json', 'application/xml']:
+            location_type = "line"
+        else:
+            # PDF, DOCX, and other binary formats use "page"
+            location_type = "page"
+        
+        # Format the location string
+        if page_start == page_end:
+            return f"{location_type.capitalize()} {page_start}"
+        else:
+            return f"{location_type.capitalize()}s {page_start}-{page_end}"
     
     def load_document_index(self) -> Tuple[bm25s.BM25, List[str], Dict]:
         """
@@ -125,19 +161,51 @@ class BM25Retriever:
         search_results = []
         for idx, score in zip(results[0], scores[0]):
             chunk_metadata = metadata['chunks'][idx]
-            search_results.append({
+            
+            # Determine the type of position tracking based on file type
+            file_type = chunk_metadata['file_type']
+            
+            # Extract position information - check for all possible field names
+            position_numbers = (chunk_metadata.get('page_numbers') or 
+                              chunk_metadata.get('slide_numbers') or 
+                              chunk_metadata.get('line_numbers') or [])
+            position_start = (chunk_metadata.get('page_start') or 
+                            chunk_metadata.get('slide_start') or 
+                            chunk_metadata.get('line_start'))
+            position_end = (chunk_metadata.get('page_end') or 
+                          chunk_metadata.get('slide_end') or 
+                          chunk_metadata.get('line_end'))
+            
+            # Create a human-readable location string
+            location_info = self._format_location(file_type, position_start, position_end, position_numbers)
+            
+            result_data = {
                 'text': corpus[idx],
                 'score': float(score),
                 'chunk_index': chunk_metadata['chunk_index'],
                 'doc_name': chunk_metadata['doc_name'],
                 'doc_path': chunk_metadata['doc_path'],
-                'file_type': chunk_metadata['file_type'],
+                'file_type': file_type,
                 'char_start': chunk_metadata['char_start'],
                 'char_end': chunk_metadata['char_end'],
-                'page_numbers': chunk_metadata.get('page_numbers', []),
-                'page_start': chunk_metadata.get('page_start', None),
-                'page_end': chunk_metadata.get('page_end', None)
-            })
+                'location': location_info  # Human-readable location
+            }
+            
+            # Add the appropriate position fields based on what's available
+            if 'page_numbers' in chunk_metadata:
+                result_data['page_numbers'] = chunk_metadata['page_numbers']
+                result_data['page_start'] = chunk_metadata.get('page_start')
+                result_data['page_end'] = chunk_metadata.get('page_end')
+            elif 'slide_numbers' in chunk_metadata:
+                result_data['slide_numbers'] = chunk_metadata['slide_numbers']
+                result_data['slide_start'] = chunk_metadata.get('slide_start')
+                result_data['slide_end'] = chunk_metadata.get('slide_end')
+            elif 'line_numbers' in chunk_metadata:
+                result_data['line_numbers'] = chunk_metadata['line_numbers']
+                result_data['line_start'] = chunk_metadata.get('line_start')
+                result_data['line_end'] = chunk_metadata.get('line_end')
+            
+            search_results.append(result_data)
         
         logger.info(f"Found {len(search_results)} results for query: '{query}'")
         
@@ -178,7 +246,8 @@ def retrieve(index_base_dir: str, query: str, top_k: int =10, min_score: float=0
             f"Source {i}": result['text']
         })
         
-        sources_citation_for_llm.append({
+        # Build citation with appropriate position fields
+        citation = {
             'source_id': i,
             'document': result['doc_name'],
             'chunk_index': result['chunk_index'],
@@ -186,8 +255,24 @@ def retrieve(index_base_dir: str, query: str, top_k: int =10, min_score: float=0
             'file_type': result['file_type'],
             'doc_path': result['doc_path'],
             'text': result['text'],
-            'page_numbers': result['page_numbers']
-        })
+            'location': result.get('location', 'Location not available')  # Human-readable location
+        }
+        
+        # Add the appropriate position fields based on what's available
+        if 'page_numbers' in result:
+            citation['page_numbers'] = result['page_numbers']
+            citation['page_start'] = result.get('page_start')
+            citation['page_end'] = result.get('page_end')
+        elif 'slide_numbers' in result:
+            citation['slide_numbers'] = result['slide_numbers']
+            citation['slide_start'] = result.get('slide_start')
+            citation['slide_end'] = result.get('slide_end')
+        elif 'line_numbers' in result:
+            citation['line_numbers'] = result['line_numbers']
+            citation['line_start'] = result.get('line_start')
+            citation['line_end'] = result.get('line_end')
+        
+        sources_citation_for_llm.append(citation)
     
     return {
             'context_for_llm': context_for_llm,
@@ -198,4 +283,3 @@ def retrieve(index_base_dir: str, query: str, top_k: int =10, min_score: float=0
                 'min': results[-1]['score'] if results else 0
             }
         }
-

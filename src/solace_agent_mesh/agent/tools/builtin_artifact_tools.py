@@ -2635,14 +2635,39 @@ async def index_kw_search(
         
         # Perform BM25 search using the extracted index
         retriever = BM25Retriever(str(temp_dir_path))
-        
+
         min_score = 0 # No minimum score threshold for now, but should be configurable in future
-        results = retriever.search_single_document(
-            query=query,
-            top_k=top_k,
-            min_score=min_score
-        )
-        
+        try:
+            results = retriever.search_single_document(
+                query=query,
+                top_k=top_k,
+                min_score=min_score
+            )
+        except ValueError as ve:
+            log.warning(
+                "%s BM25 retrieval failed with ValueError: %s",
+                log_identifier,
+                ve,
+            )
+            return {
+                "status": "warning",
+                "index_name": index_name,
+                "query": query,
+                "message": f"Search failed: Error: {str(ve)}"
+            }
+        except Exception as search_err:
+            log.exception(
+                "%s BM25 retrieval failed with unexpected error: %s",
+                log_identifier,
+                search_err,
+            )
+            return {
+                "status": "error",
+                "index_name": index_name,
+                "query": query,
+                "message": f"Search failed with unexpected error: {str(search_err)}"
+            }
+
         if not results:
             return {
                 'response': f"I couldn't find any relevant information to answer this question.",
@@ -2676,16 +2701,30 @@ async def index_kw_search(
                 f"Source [{citation_id}]": result['text']
             })
             
-            # Format page numbers for display
-            page_info = ""
-            if result.get('page_numbers'):
-                pages = result['page_numbers']
-                if len(pages) == 1:
-                    page_info = f"p. {pages[0]}"
-                elif len(pages) > 1:
-                    page_info = f"pp. {pages[0]}-{pages[-1]}"
+            # Format position numbers for display (handles page_numbers, slide_numbers, line_numbers)
+            position_info = ""
+            position_numbers = None
             
-            sources_citation_for_llm.append({
+            # Check for all possible position field names
+            if result.get('page_numbers'):
+                position_numbers = result['page_numbers']
+                position_type = "page"
+            elif result.get('slide_numbers'):
+                position_numbers = result['slide_numbers']
+                position_type = "slide"
+            elif result.get('line_numbers'):
+                position_numbers = result['line_numbers']
+                position_type = "line"
+            
+            # Format the position info string
+            if position_numbers:
+                if len(position_numbers) == 1:
+                    position_info = f"{position_type} {position_numbers[0]}"
+                elif len(position_numbers) > 1:
+                    position_info = f"{position_type}s {position_numbers[0]}-{position_numbers[-1]}"
+            
+            # Build citation with appropriate position fields
+            citation = {
                 'source_id': i + 1,
                 'citation_id': citation_id,
                 'document': result['doc_name'],
@@ -2694,13 +2733,43 @@ async def index_kw_search(
                 'file_type': result['file_type'],
                 'original_doc_path': result['doc_path'],
                 'text': result['text'],
-                'page_numbers': result['page_numbers'],
-                'page_info': page_info
-            })
+                'position_info': position_info
+            }
+            
+            # Add the appropriate position fields based on what's available
+            if 'page_numbers' in result:
+                citation['page_numbers'] = result['page_numbers']
+            elif 'slide_numbers' in result:
+                citation['slide_numbers'] = result['slide_numbers']
+            elif 'line_numbers' in result:
+                citation['line_numbers'] = result['line_numbers']
+            
+            sources_citation_for_llm.append(citation)
             
             # Create RAG source for the citation system
             # Normalize score to 0-1 range
             normalized_score = result['score'] / max_score if max_score > 0 else 0.0
+            
+            # Build metadata with appropriate position fields
+            rag_metadata = {
+                "type": "artifact_search",
+                "file_type": result['file_type'],
+                "chunk_index": result['chunk_index'],
+                "bm25_score": result['score'],
+                "doc_path": result['doc_path']
+            }
+            
+            # Add position-specific fields based on what's available
+            if 'page_numbers' in result:
+                rag_metadata['page_numbers'] = result['page_numbers']
+            elif 'slide_numbers' in result:
+                rag_metadata['slide_numbers'] = result['slide_numbers']
+            elif 'line_numbers' in result:
+                rag_metadata['line_numbers'] = result['line_numbers']
+            
+            # Always include position_info for display
+            if position_info:
+                rag_metadata['position_info'] = position_info
             
             rag_source = create_rag_source(
                 citation_id=citation_id,
@@ -2710,15 +2779,7 @@ async def index_kw_search(
                 title=result['doc_name'],
                 source_type="artifact",
                 source_url=f"artifact://{result['doc_path']}",
-                metadata={
-                    "type": "artifact_search",
-                    "file_type": result['file_type'],
-                    "chunk_index": result['chunk_index'],
-                    "page_numbers": result.get('page_numbers', []),
-                    "page_info": page_info,
-                    "bm25_score": result['score'],
-                    "doc_path": result['doc_path']
-                }
+                metadata=rag_metadata
             )
             rag_sources.append(rag_source)
         
@@ -2751,7 +2812,7 @@ async def index_kw_search(
             "message": f"Invalid BM25 index artifact (not a valid ZIP file): {zip_err}",
         }
     except Exception as e:
-        log.exception("%s Error during BM25 search: %s", log_identifier, e)
+        log.error("%s Error during BM25 search: %s", log_identifier, e)
         return {
             "status": "error",
             "index_artifact_name": index_name,
@@ -2762,9 +2823,9 @@ async def index_kw_search(
         if temp_dir:
             try:
                 shutil.rmtree(temp_dir)
-                log.debug("%s Cleaned up temporary directory: %s", log_identifier, temp_dir)
+                log.info("%s Cleaned up temporary directory: %s", log_identifier, temp_dir)
             except Exception as cleanup_err:
-                log.warning(
+                log.error(
                     "%s Failed to clean up temporary directory %s: %s",
                     log_identifier,
                     temp_dir,
@@ -2813,12 +2874,16 @@ The `index_kw_search` tool returns results with rich citation metadata in `sourc
 3. **Extract and Use Citation Metadata:**
    From each source in `sources_citation_for_llm`, extract:
    - `citation_id` - Use for citations: `[[cite:s0r0]]`, `[[cite:s0r1]]`, etc.
-   - `page_numbers` - Display as "p. X" or "pp. X-Y" in your text
+   - `position_info` - Contains location information that varies by document type:
+     * Text files (.md, .txt): "lines X-Y" (e.g., "lines 1-25")
+     * PDF files (.pdf): "page X" or "pages X-Y" (e.g., "pages 26-27")
+     * PowerPoint files (.pptx): "slide X" or "slides X-Y" (e.g., "slides 7-11")
+     * Word files (.docx): "page X" or "pages X-Y" (e.g., "pages 2-3")
    - `text` - The actual content excerpt
    - `document` or `original_doc_path` - For document name
    - `score` - Can indicate relevance (optional to show)
 
-4. **Complete Example Response:**
+4. **Complete Example Response with Inline Citations:**
 
    Given search results with citation_ids: s0r0, s0r1, s0r2, s0r3...
 
@@ -2839,20 +2904,75 @@ The `index_kw_search` tool returns results with rich citation metadata in `sourc
    
    You can create up to 100 directory buckets in each AWS account [[cite:s0r2]], with no limit
    on the number of objects you can store in a bucket [[cite:s0r2]].
+   
+   ## Sources
+   
+   The following sources were used to compile this information:
+   
+   1. **[[cite:s0r0]]** - rds-gsg.pdf (pages 26-27)
+      - Amazon RDS DB instance storage and configuration options
+   
+   2. **[[cite:s0r1]]** - rds-gsg.pdf (pages 59-60)
+      - SSL/TLS encryption for data in transit
+   
+   3. **[[cite:s0r2]]** - AWS-Slides.pptx (slides 7-11)
+      - AWS regions, availability zones, and lab setup instructions
+   
+   4. **[[cite:s0r3]]** - agent_card_complete_guide.md (lines 833-848)
+      - Agent alias and migration support implementation
    ```
 
-5. **Citation Checklist:**
+5. **Detailed Sources Section (REQUIRED):**
+   
+   **ALWAYS include a "## Sources" section at the end of your response** that lists all sources used with their position information:
+   
+   Format for each source entry:
+   ```
+   X. **[[cite:sXrY]]** - {document_name} ({position_info})
+      - Brief description of what this source covers
+   ```
+   
+   Position info formatting by document type:
+   - **Text files** (.md, .txt): Use "lines X-Y" from position_info
+   - **PDF files** (.pdf): Use "page X" or "pages X-Y" from position_info
+   - **PowerPoint** (.pptx): Use "slide X" or "slides X-Y" from position_info
+   - **Word files** (.docx): Use "page X" or "pages X-Y" from position_info
+   
+   Example Sources section:
+   ```markdown
+   ## Sources
+   
+   The following sources were consulted for this response:
+   
+   1. **[[cite:s0r0]]** - rds-gsg.pdf (pages 26-27)
+      - Amazon RDS instance classes and public access configuration
+   
+   2. **[[cite:s0r1]]** - rds-gsg.pdf (page 60)
+      - SSL/TLS encryption setup and key management
+   
+   3. **[[cite:s0r2]]** - AWS-Slides.pptx (slides 7-11)
+      - AWS infrastructure overview and lab setup procedures
+   
+   4. **[[cite:s0r3]]** - agent_card_complete_guide.md (lines 833-848)
+      - Agent naming and alias configuration patterns
+   ```
+
+6. **Citation Checklist:**
    - ✅ Every factual claim has a `[[cite:sXrY]]` citation immediately after it
    - ✅ Citations use the EXACT citation_id from sources_citation_for_llm
    - ✅ No "naked facts" without attribution
    - ✅ Multiple citations shown when using multiple sources
+   - ✅ A "## Sources" section is included at the end listing all sources with position_info
+   - ✅ Position info uses the correct format for each document type
    - ✅ The UI will automatically render these as clickable citation bubbles
 
-6. **Why This Format Matters:**
+7. **Why This Format Matters:**
    - **Automatic rendering:** The UI parses `[[cite:sXrY]]` and renders beautiful citation bubbles
-   - **Clickable sources:** Users can click citations to see source details, page numbers, and content
+   - **Clickable sources:** Users can click citations to see source details and location information
    - **Immediate traceability:** Reader sees source as they read each claim
    - **Professional appearance:** Citations appear as polished, styled badges
+   - **Complete transparency:** Sources section provides full bibliography with precise locations
+   - **Multi-format support:** Handles text files, PDFs, PowerPoint, and Word documents seamlessly
 
 **MANDATORY RULES:**
 - 🚨 **EVERY factual claim MUST have an inline citation using `[[cite:citation_id]]` format**

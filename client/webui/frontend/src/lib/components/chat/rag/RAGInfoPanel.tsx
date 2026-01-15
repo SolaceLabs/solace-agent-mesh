@@ -151,11 +151,20 @@ const ArtifactSourceCard: React.FC<{
 
     // Extract document name and page info from metadata
     const documentName = source.metadata?.document || source.filename || source.title || "Unknown Document";
+    
+    // First check position_info (handles all document types: pages, slides, lines)
+    const positionInfo = source.metadata?.position_info as string | undefined;
+    
+    // Existing implementation below
     const pageNumbers = source.metadata?.page_numbers as number[] | undefined;
     const chunkIndex = source.metadata?.chunk_index as number | undefined;
 
-    // Format page numbers display
-    const pageDisplay = pageNumbers && pageNumbers.length > 0 ? (pageNumbers.length === 1 ? `p. ${pageNumbers[0]}` : `pp. ${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`) : chunkIndex !== undefined ? `Chunk ${chunkIndex}` : null;
+    // Format page numbers display - check position_info first, then fall back to existing logic
+    const pageDisplay = positionInfo && typeof positionInfo === "string" 
+        ? positionInfo 
+        : pageNumbers && pageNumbers.length > 0 
+            ? (pageNumbers.length === 1 ? `p. ${pageNumbers[0]}` : `pp. ${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`) 
+            : chunkIndex !== undefined ? `Chunk ${chunkIndex}` : null;
 
     // Don't show content preview if it's just "Reading..." placeholder
     const hasRealContent = contentPreview && contentPreview !== "Reading...";

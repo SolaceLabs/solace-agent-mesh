@@ -151,6 +151,13 @@ function getCitationDisplayText(citation: CitationType, maxLength: number = 30):
  * Get page info string for a citation
  */
 function getCitationPageInfo(citation: CitationType): string {
+    // First check position_info (handles all document types: pages, slides, lines)
+    const positionInfo = citation.source?.metadata?.position_info;
+    if (positionInfo && typeof positionInfo === "string") {
+        return positionInfo;
+    }
+
+    // Existing implementation below
     const pageNumbers = citation.source?.metadata?.page_numbers;
     if (!Array.isArray(pageNumbers) || pageNumbers.length === 0) {
         // Also check page_info field
