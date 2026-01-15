@@ -1,6 +1,5 @@
 """Tests for WebUIBackendComponent.get_db_engine() method."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 
@@ -12,8 +11,8 @@ class TestWebUIBackendComponentGetDbEngine:
         """When SessionLocal is initialized, get_db_engine returns the bound engine."""
         mock_init.return_value = None
 
-        from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
         from solace_agent_mesh.gateway.http_sse import dependencies
+        from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 
         # Create component without calling __init__
         component = object.__new__(WebUIBackendComponent)
@@ -35,8 +34,8 @@ class TestWebUIBackendComponentGetDbEngine:
         """When SessionLocal is None, get_db_engine returns None."""
         mock_init.return_value = None
 
-        from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
         from solace_agent_mesh.gateway.http_sse import dependencies
+        from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 
         component = object.__new__(WebUIBackendComponent)
 
