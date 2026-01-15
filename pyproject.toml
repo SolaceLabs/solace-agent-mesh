@@ -73,7 +73,7 @@ dependencies = [
     "authlib==1.6.5",  # For CVE-2025-59420: May be removed if next update to google-adk upgrades its transitive dependency on authlib
     "bm25s[full]==0.2.14",
     "PyStemmer==3.0.0",
-    "jax[cpu]==0.8.1"
+    "jax[cpu]==0.4.35"
 ]
 
 [project.optional-dependencies]
