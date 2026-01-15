@@ -69,7 +69,6 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCl
                     </div>
                 </div>
             )}
-
         </div>
     );
 };

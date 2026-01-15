@@ -15,6 +15,7 @@ from solace_agent_mesh.workflow.app import (
     SwitchCase,
     LoopNode,
     MapNode,
+    WorkflowInvokeNode,
 )
 
 
@@ -268,3 +269,181 @@ class TestArgoAliases:
         assert workflow.output_mapping == {"result": "{{step1.output}}"}
         assert workflow.input_schema == {"type": "object"}
         assert workflow.fail_fast is False
+
+
+class TestWorkflowInvokeNodeValidation:
+    """Tests for WorkflowInvokeNode validation."""
+
+    def test_workflow_node_requires_workflow_name(self):
+        """WorkflowInvokeNode without workflow_name raises ValidationError."""
+        with pytest.raises(ValidationError, match="workflow_name"):
+            WorkflowInvokeNode(
+                id="wf1",
+                type="workflow",
+                # Missing workflow_name
+            )
+
+    def test_workflow_node_valid_minimal(self):
+        """WorkflowInvokeNode with minimal fields parses correctly."""
+        node = WorkflowInvokeNode(
+            id="invoke_analysis",
+            type="workflow",
+            workflow_name="analysis_workflow",
+        )
+        assert node.workflow_name == "analysis_workflow"
+        assert node.type == "workflow"
+        assert node.id == "invoke_analysis"
+
+    def test_workflow_node_with_input_mapping(self):
+        """WorkflowInvokeNode with input mapping parses correctly."""
+        node = WorkflowInvokeNode(
+            id="invoke_analysis",
+            type="workflow",
+            workflow_name="analysis_workflow",
+            input={"data": "{{prepare_data.output}}"},
+            depends_on=["prepare_data"],
+        )
+        assert node.input == {"data": "{{prepare_data.output}}"}
+        assert node.depends_on == ["prepare_data"]
+
+    def test_workflow_node_with_when_clause(self):
+        """WorkflowInvokeNode with when clause parses correctly."""
+        node = WorkflowInvokeNode(
+            id="conditional_wf",
+            type="workflow",
+            workflow_name="optional_workflow",
+            when="{{check.output.should_run}} == true",
+        )
+        assert node.when == "{{check.output.should_run}} == true"
+
+    def test_workflow_node_with_instruction(self):
+        """WorkflowInvokeNode with instruction parses correctly."""
+        node = WorkflowInvokeNode(
+            id="invoke_wf",
+            type="workflow",
+            workflow_name="analysis_workflow",
+            instruction="Analyze using context: {{workflow.input.context}}",
+        )
+        assert node.instruction == "Analyze using context: {{workflow.input.context}}"
+
+    def test_workflow_node_with_schema_overrides(self):
+        """WorkflowInvokeNode with schema overrides parses correctly."""
+        node = WorkflowInvokeNode(
+            id="invoke_wf",
+            type="workflow",
+            workflow_name="analysis_workflow",
+            input_schema_override={"type": "object", "properties": {"data": {"type": "string"}}},
+            output_schema_override={"type": "object", "properties": {"result": {"type": "string"}}},
+        )
+        assert node.input_schema_override is not None
+        assert node.output_schema_override is not None
+
+    def test_workflow_in_workflow_definition(self):
+        """WorkflowInvokeNode can be used in WorkflowDefinition."""
+        workflow = WorkflowDefinition(
+            description="Parent workflow with sub-workflow",
+            nodes=[
+                AgentNode(id="prepare", type="agent", agent_name="DataPrep"),
+                WorkflowInvokeNode(
+                    id="run_analysis",
+                    type="workflow",
+                    workflow_name="analysis_workflow",
+                    input={"data": "{{prepare.output}}"},
+                    depends_on=["prepare"],
+                ),
+            ],
+            output_mapping={"result": "{{run_analysis.output}}"},
+        )
+        assert len(workflow.nodes) == 2
+        assert workflow.nodes[1].type == "workflow"
+        assert workflow.nodes[1].workflow_name == "analysis_workflow"
+
+    def test_workflow_node_in_chain(self):
+        """WorkflowInvokeNode can be chained with other nodes."""
+        workflow = WorkflowDefinition(
+            description="Workflow with sub-workflow in chain",
+            nodes=[
+                AgentNode(id="prepare", type="agent", agent_name="DataPrep"),
+                WorkflowInvokeNode(
+                    id="analyze",
+                    type="workflow",
+                    workflow_name="analysis_workflow",
+                    depends_on=["prepare"],
+                ),
+                AgentNode(
+                    id="summarize",
+                    type="agent",
+                    agent_name="Summarizer",
+                    depends_on=["analyze"],
+                ),
+            ],
+            output_mapping={"result": "{{summarize.output}}"},
+        )
+        assert len(workflow.nodes) == 3
+        assert workflow.nodes[0].type == "agent"
+        assert workflow.nodes[1].type == "workflow"
+        assert workflow.nodes[2].type == "agent"
+        assert workflow.nodes[2].depends_on == ["analyze"]
+
+
+class TestMaxCallDepthValidation:
+    """Tests for max_call_depth configuration validation."""
+
+    def test_max_call_depth_default_value(self):
+        """max_call_depth defaults to 10."""
+        workflow = WorkflowDefinition(
+            description="Workflow with default depth",
+            nodes=[
+                AgentNode(id="step1", type="agent", agent_name="Agent1"),
+            ],
+            output_mapping={"result": "{{step1.output}}"},
+        )
+        assert workflow.max_call_depth == 10
+
+    def test_max_call_depth_custom_value(self):
+        """max_call_depth can be set to a custom value."""
+        workflow = WorkflowDefinition(
+            description="Workflow with custom depth",
+            max_call_depth=5,
+            nodes=[
+                AgentNode(id="step1", type="agent", agent_name="Agent1"),
+            ],
+            output_mapping={"result": "{{step1.output}}"},
+        )
+        assert workflow.max_call_depth == 5
+
+    def test_max_call_depth_camel_case_alias(self):
+        """maxCallDepth alias works for max_call_depth."""
+        workflow = WorkflowDefinition(
+            description="Workflow with camelCase alias",
+            maxCallDepth=15,
+            nodes=[
+                AgentNode(id="step1", type="agent", agent_name="Agent1"),
+            ],
+            output_mapping={"result": "{{step1.output}}"},
+        )
+        assert workflow.max_call_depth == 15
+
+    def test_max_call_depth_minimum_value(self):
+        """max_call_depth must be at least 1."""
+        with pytest.raises(ValidationError, match="greater than or equal to 1"):
+            WorkflowDefinition(
+                description="Invalid depth",
+                max_call_depth=0,
+                nodes=[
+                    AgentNode(id="step1", type="agent", agent_name="Agent1"),
+                ],
+                output_mapping={"result": "{{step1.output}}"},
+            )
+
+    def test_max_call_depth_rejects_negative(self):
+        """max_call_depth rejects negative values."""
+        with pytest.raises(ValidationError, match="greater than or equal to 1"):
+            WorkflowDefinition(
+                description="Invalid depth",
+                max_call_depth=-5,
+                nodes=[
+                    AgentNode(id="step1", type="agent", agent_name="Agent1"),
+                ],
+                output_mapping={"result": "{{step1.output}}"},
+            )

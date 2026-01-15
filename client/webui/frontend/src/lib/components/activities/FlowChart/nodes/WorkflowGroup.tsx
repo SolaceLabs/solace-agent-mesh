@@ -231,6 +231,13 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                         <MapNode {...childProps} onChildClick={onChildClick} />
                     </div>
                 );
+            case 'group':
+                // Nested workflow group - render recursively
+                return (
+                    <div key={child.id} data-node-id={child.id}>
+                        <WorkflowGroup {...childProps} onChildClick={onChildClick} />
+                    </div>
+                );
             case 'parallelBlock': {
                 // Group children by iterationIndex (branch index) for proper chain visualization
                 const branches = new Map<number, LayoutNode[]>();

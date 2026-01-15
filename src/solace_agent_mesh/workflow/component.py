@@ -265,6 +265,16 @@ class WorkflowExecutorComponent(SamComponentBase):
                     node_dict["condition"] = node.condition
                 if node.max_iterations:
                     node_dict["max_iterations"] = node.max_iterations
+            elif node.type == "workflow":
+                node_dict["workflow_name"] = node.workflow_name
+                if node.input:
+                    node_dict["input"] = node.input
+                if node.instruction:
+                    node_dict["instruction"] = node.instruction
+                if node.input_schema_override:
+                    node_dict["input_schema_override"] = node.input_schema_override
+                if node.output_schema_override:
+                    node_dict["output_schema_override"] = node.output_schema_override
 
             nodes_json.append(node_dict)
 
@@ -384,7 +394,7 @@ class WorkflowExecutorComponent(SamComponentBase):
 
         result_data = StructuredInvocationResult(
             type="structured_invocation_result",
-            status="failure",
+            status="error",
             error_message=f"Agent timed out after {timeout_seconds} seconds",
         )
 
@@ -518,12 +528,9 @@ class WorkflowExecutorComponent(SamComponentBase):
         user_id = workflow_context.a2a_context["user_id"]
         session_id = workflow_context.a2a_context["session_id"]
 
-        # Prepare artifact content with status field
-        artifact_content = {
-            "status": "success",
-            "output": final_output,
-        }
-        content_bytes = json.dumps(artifact_content).encode("utf-8")
+        # Prepare artifact content - store just the output data
+        # (not wrapped in {"status": ..., "output": ...} to match agent artifact format)
+        content_bytes = json.dumps(final_output).encode("utf-8")
 
         # Get output schema from workflow definition for artifact metadata
         output_schema = self.workflow_definition.output_schema
@@ -582,15 +589,36 @@ class WorkflowExecutorComponent(SamComponentBase):
         else:
             response_text = "Workflow completed successfully"
 
+        # Check if this workflow was invoked by another workflow (structured invocation)
+        # This is indicated by replyToTopic containing '/agent/response/'
+        reply_to_topic = workflow_context.a2a_context.get("replyToTopic", "")
+        is_sub_workflow_invocation = "/agent/response/" in reply_to_topic
+
+        # Build message parts
+        message_parts = []
+
+        if is_sub_workflow_invocation and artifact_version is not None:
+            # When invoked as a sub-workflow, include StructuredInvocationResult
+            # so the parent workflow can process the response
+            from ..common.data_parts import StructuredInvocationResult
+            invocation_result = StructuredInvocationResult(
+                type="structured_invocation_result",
+                status="success",
+                artifact_name=output_artifact_name,
+                artifact_version=artifact_version,
+            )
+            message_parts.append(a2a.create_data_part(data=invocation_result.model_dump()))
+
+        # Add text part
+        message_parts.append(a2a.create_text_part(text=response_text))
+
         # Create final task response
         final_task = a2a.create_final_task(
             task_id=workflow_context.a2a_context["logical_task_id"],
             context_id=workflow_context.a2a_context["session_id"],
             final_status=a2a.create_task_status(
                 state=TaskState.completed,
-                message=a2a.create_agent_text_message(
-                    text=response_text
-                ),
+                message=a2a.create_agent_parts_message(parts=message_parts),
             ),
             metadata={
                 "workflow_name": self.workflow_name,
@@ -647,7 +675,7 @@ class WorkflowExecutorComponent(SamComponentBase):
 
         # Prepare artifact content with status and error
         artifact_content = {
-            "status": "failure",
+            "status": "error",
             "message": str(error),
         }
         content_bytes = json.dumps(artifact_content).encode("utf-8")
@@ -686,7 +714,7 @@ class WorkflowExecutorComponent(SamComponentBase):
             workflow_context,
             WorkflowExecutionResultData(
                 type="workflow_execution_result",
-                status="failure",
+                status="error",
                 error_message=str(error),
             ),
         )

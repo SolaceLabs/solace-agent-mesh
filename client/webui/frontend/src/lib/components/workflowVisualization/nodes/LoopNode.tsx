@@ -65,7 +65,6 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                         <Maximize2 className="h-4 w-4" />
                     </button>
                 )}
-
             </div>
         );
     }
@@ -138,7 +137,6 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                         </div>
                     </div>
                 )}
-
             </div>
         </div>
     );

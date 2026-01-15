@@ -278,34 +278,31 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     Workflow Agent Request
                 </h4>
                 <div className="space-y-3">
-                    <div className="flex gap-4 text-xs">
-                        <div>
-                            <span className="font-semibold text-gray-600 dark:text-gray-400">Agent:</span>{' '}
-                            <span className="text-gray-800 dark:text-gray-200">{data.agentName}</span>
+                    {data.nodeId && (
+                        <div className="text-xs">
+                            <span className="font-semibold text-gray-600 dark:text-gray-400">Node Id:</span>{' '}
+                            <span className="text-gray-800 dark:text-gray-200">{data.nodeId}</span>
                         </div>
-                        {data.nodeId && (
-                            <div>
-                                <span className="font-semibold text-gray-600 dark:text-gray-400">Node:</span>{' '}
-                                <span className="text-gray-800 dark:text-gray-200">{data.nodeId}</span>
-                            </div>
-                        )}
-                    </div>
+                    )}
 
-                    {data.inputText && (
+                    {/* Instruction from workflow node */}
+                    {data.instruction && (
                         <div>
-                            <div className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400">Input:</div>
-                            <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-gray-50 dark:bg-gray-800 rounded-md overflow-y-auto">
-                                <MarkdownHTMLConverter>{data.inputText}</MarkdownHTMLConverter>
+                            <div className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400">Instruction:</div>
+                            <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-blue-50 dark:bg-blue-900/30 rounded-md overflow-y-auto border border-blue-200 dark:border-blue-700">
+                                <MarkdownHTMLConverter>{data.instruction}</MarkdownHTMLConverter>
                             </div>
                         </div>
                     )}
 
-                    {data.inputArtifactRef && !data.inputText && (
+                    {/* Input as artifact reference */}
+                    {data.inputArtifactRef && (
                         <div>
-                            <div className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400">
-                                Input: <span className="font-normal text-gray-500">{data.inputArtifactRef.name}</span>
+                            <div className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400 flex items-baseline gap-1 min-w-0">
+                                <span className="flex-shrink-0">Input:</span>
+                                <span className="font-normal text-gray-500 truncate min-w-0" title={data.inputArtifactRef.name}>{data.inputArtifactRef.name}</span>
                                 {data.inputArtifactRef.version !== undefined && (
-                                    <span className="ml-1 text-purple-600 dark:text-purple-400">v{data.inputArtifactRef.version}</span>
+                                    <span className="ml-1 text-purple-600 dark:text-purple-400 flex-shrink-0">v{data.inputArtifactRef.version}</span>
                                 )}
                             </div>
                             <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700">
@@ -319,7 +316,38 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                         </div>
                     )}
 
-                    {!data.inputText && !data.inputArtifactRef && (
+                    {/* Input as text (for simple text schemas) */}
+                    {data.inputText && !data.inputArtifactRef && (
+                        <div>
+                            <div className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400">Input:</div>
+                            <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-gray-50 dark:bg-gray-800 rounded-md overflow-y-auto">
+                                <MarkdownHTMLConverter>{data.inputText}</MarkdownHTMLConverter>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Input Schema */}
+                    {data.inputSchema && (
+                        <div>
+                            <div className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400">Input Schema:</div>
+                            <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto">
+                                <JSONViewer data={data.inputSchema} />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Output Schema */}
+                    {data.outputSchema && (
+                        <div>
+                            <div className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400">Output Schema:</div>
+                            <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto">
+                                <JSONViewer data={data.outputSchema} />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* No input data available */}
+                    {!data.inputText && !data.inputArtifactRef && !data.instruction && (
                         <div className="text-xs text-gray-500 dark:text-gray-400 italic">
                             No input data available
                         </div>

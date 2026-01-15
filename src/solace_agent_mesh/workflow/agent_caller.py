@@ -18,7 +18,7 @@ from ..agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
     format_artifact_uri,
 )
-from .app import WorkflowNode
+from .app import WorkflowNode, WorkflowInvokeNode
 from .workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
 
 if TYPE_CHECKING:
@@ -134,6 +134,91 @@ class AgentCaller:
 
         # Track in workflow context
         workflow_context.track_agent_call(node.id, sub_task_id)
+
+        return sub_task_id
+
+    async def call_workflow(
+        self,
+        node: WorkflowInvokeNode,
+        workflow_state: WorkflowExecutionState,
+        workflow_context: WorkflowExecutionContext,
+        sub_task_id: Optional[str] = None,
+    ) -> str:
+        """
+        Invoke a sub-workflow.
+
+        Workflows register as agents, so this method adapts the workflow node
+        to use the agent calling mechanism.
+
+        Returns sub-task ID for correlation.
+        """
+        log_id = f"{self.host.log_identifier}[CallWorkflow:{node.workflow_name}]"
+
+        # Generate sub-task ID if not provided
+        if not sub_task_id:
+            sub_task_id = (
+                f"wf_{workflow_state.execution_id}_{node.id}_{uuid.uuid4().hex[:8]}"
+            )
+
+        # Create an adapter object that makes WorkflowInvokeNode compatible
+        # with the existing _resolve_node_input and _construct_agent_message methods
+        class WorkflowNodeAdapter:
+            """Adapter to make WorkflowInvokeNode work with agent calling infrastructure."""
+
+            def __init__(self, wf_node: WorkflowInvokeNode):
+                self.id = wf_node.id
+                self.type = "workflow"
+                self.agent_name = wf_node.workflow_name  # Map workflow_name to agent_name
+                self.input = wf_node.input
+                self.instruction = wf_node.instruction
+                self.input_schema_override = wf_node.input_schema_override
+                self.output_schema_override = wf_node.output_schema_override
+                self.depends_on = wf_node.depends_on
+
+        adapted_node = WorkflowNodeAdapter(node)
+
+        # Resolve input data
+        input_data = await self._resolve_node_input(adapted_node, workflow_state)
+
+        # Resolve instruction template if present
+        resolved_instruction = None
+        if node.instruction:
+            resolved_instruction = self._resolve_string_with_templates(
+                node.instruction, workflow_state
+            )
+
+        # Get schemas from agent card extensions if available
+        # Workflows publish their schemas in their agent cards
+        agent_card = self.host.agent_registry.get_agent(node.workflow_name)
+        card_input_schema, card_output_schema = get_schemas_from_agent_card(agent_card)
+
+        # Use override schemas if provided, otherwise use schemas from agent card
+        input_schema = node.input_schema_override or card_input_schema
+        output_schema = node.output_schema_override or card_output_schema
+
+        # Construct A2A message
+        message = await self._construct_agent_message(
+            adapted_node,
+            input_data,
+            input_schema,
+            output_schema,
+            workflow_state,
+            sub_task_id,
+            workflow_context,
+            resolved_instruction,
+        )
+
+        # Publish request to the sub-workflow
+        await self._publish_agent_request(
+            node.workflow_name, message, sub_task_id, workflow_context
+        )
+
+        # Track in workflow context
+        workflow_context.track_agent_call(node.id, sub_task_id)
+
+        log.info(
+            f"{log_id} Invoked sub-workflow '{node.workflow_name}' (sub_task_id: {sub_task_id})"
+        )
 
         return sub_task_id
 
@@ -266,7 +351,7 @@ This is MANDATORY for the workflow to continue.
             should_send_artifact = not is_single_text
 
         if should_send_artifact:
-            # Create and save input artifact
+            # Create and save input artifact, then add FilePart with URI
             filename = f"input_{node.id}_{sub_task_id}.json"
             content_bytes = json.dumps(input_data).encode("utf-8")
             user_id = workflow_context.a2a_context["user_id"]
@@ -303,7 +388,8 @@ This is MANDATORY for the workflow to continue.
                         )
                     )
                     log.info(
-                        f"{self.host.log_identifier} Created input artifact for node {node.id}: {filename}"
+                        f"{self.host.log_identifier} Created input artifact for node "
+                        f"{node.id}: {filename}"
                     )
                 else:
                     raise RuntimeError(
@@ -312,7 +398,8 @@ This is MANDATORY for the workflow to continue.
 
             except Exception as e:
                 log.error(
-                    f"{self.host.log_identifier} Error saving input artifact for node {node.id}: {e}"
+                    f"{self.host.log_identifier} Error saving input artifact for node "
+                    f"{node.id}: {e}"
                 )
                 raise e
 
@@ -377,12 +464,16 @@ This is MANDATORY for the workflow to continue.
             self.host.namespace, self.host.workflow_name, sub_task_id
         )
 
+        # Get current call depth and increment for outgoing request
+        current_depth = workflow_context.a2a_context.get("call_depth", 0)
+
         # User properties
         user_properties = {
             "replyTo": reply_to_topic,
             "a2aStatusTopic": status_topic,
             "userId": workflow_context.a2a_context["user_id"],
             "a2aUserConfig": workflow_context.a2a_context.get("a2a_user_config", {}),
+            "callDepth": current_depth + 1,
         }
 
         # Publish request

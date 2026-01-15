@@ -15,7 +15,11 @@ from google.genai import types as adk_types
 from ...common import a2a
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...common.exceptions import MessageSizeExceededError
-from ...agent.utils.artifact_helpers import save_artifact_with_metadata
+from ...common.data_parts import StructuredInvocationRequest
+from ...agent.utils.artifact_helpers import (
+    save_artifact_with_metadata,
+    format_artifact_uri,
+)
 
 log = logging.getLogger(__name__)
 
@@ -63,6 +67,54 @@ class WorkflowAgentTool(BaseTool):
             f"{host_component.log_identifier}[WorkflowTool:{target_agent_name}]"
         )
 
+    def _json_schema_to_adk_schema(
+        self, json_schema: Dict[str, Any], nullable: bool = False
+    ) -> adk_types.Schema:
+        """
+        Recursively converts a JSON schema to an ADK Schema, preserving nested structure.
+
+        Args:
+            json_schema: The JSON schema definition to convert.
+            nullable: Whether the schema should be nullable.
+
+        Returns:
+            An ADK Schema object representing the JSON schema.
+        """
+        json_type = json_schema.get("type", "string")
+        description = json_schema.get("description", "")
+
+        # Map JSON schema type to ADK type
+        type_mapping = {
+            "string": adk_types.Type.STRING,
+            "integer": adk_types.Type.INTEGER,
+            "number": adk_types.Type.NUMBER,
+            "boolean": adk_types.Type.BOOLEAN,
+            "array": adk_types.Type.ARRAY,
+            "object": adk_types.Type.OBJECT,
+        }
+        adk_type = type_mapping.get(json_type, adk_types.Type.STRING)
+
+        schema_kwargs = {
+            "type": adk_type,
+            "description": description,
+            "nullable": nullable,
+        }
+
+        # Handle array items
+        if json_type == "array" and "items" in json_schema:
+            schema_kwargs["items"] = self._json_schema_to_adk_schema(
+                json_schema["items"]
+            )
+
+        # Handle object properties
+        if json_type == "object" and "properties" in json_schema:
+            nested_properties = {}
+            for prop_name, prop_def in json_schema["properties"].items():
+                nested_properties[prop_name] = self._json_schema_to_adk_schema(prop_def)
+            schema_kwargs["properties"] = nested_properties
+
+        return adk_types.Schema(**schema_kwargs)
+
     def _get_declaration(self) -> adk_types.FunctionDeclaration:
         """
         Dynamically generates the FunctionDeclaration based on the workflow's input schema.
@@ -80,24 +132,8 @@ class WorkflowAgentTool(BaseTool):
         )
 
         for prop_name, prop_def in properties.items():
-            # Basic type mapping
-            json_type = prop_def.get("type", "string")
-            adk_type = adk_types.Type.STRING
-            if json_type == "integer":
-                adk_type = adk_types.Type.INTEGER
-            elif json_type == "number":
-                adk_type = adk_types.Type.NUMBER
-            elif json_type == "boolean":
-                adk_type = adk_types.Type.BOOLEAN
-            elif json_type == "array":
-                adk_type = adk_types.Type.ARRAY
-            elif json_type == "object":
-                adk_type = adk_types.Type.OBJECT
-
-            adk_properties[prop_name] = adk_types.Schema(
-                type=adk_type,
-                description=prop_def.get("description", ""),
-                nullable=True,  # Force optional
+            adk_properties[prop_name] = self._json_schema_to_adk_schema(
+                prop_def, nullable=True
             )
 
         parameters_schema = adk_types.Schema(
@@ -152,10 +188,12 @@ class WorkflowAgentTool(BaseTool):
             user_config = original_task_context.get("a2a_user_config", {})
 
             # 3. Prepare Message
+            session_id = tool_context._invocation_context.session.id
             a2a_message = self._prepare_a2a_message(
                 payload_artifact_name,
                 payload_artifact_version,
-                tool_context,
+                user_id,
+                session_id,
                 main_logical_task_id,
                 original_task_context,
             )
@@ -268,34 +306,50 @@ class WorkflowAgentTool(BaseTool):
         self,
         payload_artifact_name: str,
         payload_artifact_version: Optional[int],
-        tool_context: ToolContext,
+        user_id: str,
+        session_id: str,
         main_logical_task_id: str,
         original_task_context: Dict[str, Any],
     ) -> Any:
-        """Constructs the A2A message with metadata."""
-        a2a_message_parts = [
-            a2a.create_text_part(
-                text=f"Invoking workflow with input artifact: {payload_artifact_name}"
-            )
-        ]
+        """Constructs the A2A message with StructuredInvocationRequest and FilePart."""
+        parts = []
 
-        invoked_artifacts = []
-        if payload_artifact_name:
-            artifact_ref = {"filename": payload_artifact_name}
-            if payload_artifact_version is not None:
-                artifact_ref["version"] = payload_artifact_version
-            invoked_artifacts.append(artifact_ref)
+        # 1. Add StructuredInvocationRequest DataPart (triggers structured invocation)
+        invocation_request = StructuredInvocationRequest(
+            type="structured_invocation_request",
+            workflow_name=self.host_component.agent_name,
+            node_id=f"workflow_tool_{self.target_agent_name}",
+            input_schema=self.input_schema,
+            output_schema=None,  # Workflow defines its own output schema
+            suggested_output_filename=f"wf_{self.target_agent_name}_result.json",
+        )
+        parts.append(a2a.create_data_part(data=invocation_request.model_dump()))
+
+        # 2. Add FilePart with artifact URI (contains the input data)
+        if payload_artifact_name and payload_artifact_version is not None:
+            uri = format_artifact_uri(
+                app_name=self.host_component.agent_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=payload_artifact_name,
+                version=payload_artifact_version,
+            )
+            parts.append(
+                a2a.create_file_part_from_uri(
+                    uri=uri,
+                    name=payload_artifact_name,
+                    mime_type="application/json",
+                )
+            )
 
         a2a_metadata = {
             "sessionBehavior": "RUN_BASED",
             "parentTaskId": main_logical_task_id,
-            "function_call_id": tool_context.function_call_id,
             "agent_name": self.target_agent_name,
-            "invoked_with_artifacts": invoked_artifacts,
         }
 
         return a2a.create_user_message(
-            parts=a2a_message_parts,
+            parts=parts,
             metadata=a2a_metadata,
             context_id=original_task_context.get("contextId"),
         )
