@@ -6,7 +6,7 @@ import { Ban, Paperclip, Send, MessageSquarePlus, X } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
-import { MentionContentEditable } from "@/lib/components/ui/chat/mention-contenteditable";
+import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext } from "@/lib/hooks";
 import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
@@ -60,7 +60,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
-    const mentionsEnabled = configFeatureEnablement?.mentions ?? true;
+    const mentionsEnabled = configFeatureEnablement?.mentions ?? false;
 
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -509,16 +509,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             } else if (node.nodeType === Node.ELEMENT_NODE) {
                 const el = node as HTMLElement;
                 if (el.classList.contains("mention-chip")) {
-                    // Check if cursor is inside or after this chip
+                    // Add full internal format length
+                    const internal = el.getAttribute("data-internal") || "";
+                    position += internal.length;
+                    // Check if cursor is inside this chip
                     if (range.startContainer === el || el.contains(range.startContainer)) {
-                        // Cursor is inside the chip - position at end of internal format
-                        const internal = el.getAttribute("data-internal") || "";
-                        position += internal.length;
                         found = true;
-                    } else {
-                        // Add full internal format length
-                        const internal = el.getAttribute("data-internal") || "";
-                        position += internal.length;
                     }
                 } else if (el.tagName === "BR") {
                     position += 1; // Newline

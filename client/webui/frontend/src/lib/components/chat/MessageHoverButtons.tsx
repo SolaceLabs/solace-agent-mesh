@@ -17,7 +17,7 @@ interface MessageHoverButtonsProps {
 export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ message, className, textContentOverride }) => {
     const { addNotification } = useChatContext();
     const { configFeatureEnablement } = useConfigContext();
-    const mentionsEnabled = configFeatureEnablement?.mentions ?? true;
+    const mentionsEnabled = configFeatureEnablement?.mentions ?? false;
     const [isCopied, setIsCopied] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
 
