@@ -1318,8 +1318,8 @@ class AudioService:
                     if voice_from_settings:
                         default_voice = voice_from_settings
                 else:
-                    # Browser mode - use whatever is configured
-                    default_voice = voice_from_settings or "Kore"
+                    # Browser mode
+                    default_voice = voice_from_settings or ""
                 
                 config.update({
                     "textToSpeech": tts_settings.get("textToSpeech", True),

@@ -65,7 +65,7 @@ const DEFAULT_SETTINGS: SpeechSettings = {
     textToSpeech: true, // Enable by default for browser TTS
     engineTTS: "browser", // Use browser TTS by default (no backend needed)
     ttsProvider: "browser",
-    voice: "Kore",
+    voice: "",
     playbackRate: 1.0,
     automaticPlayback: false, // Disabled by default - doesn't work reliably due to browser autoplay policies
     cacheTTS: true,
