@@ -55,6 +55,12 @@ class GoogleSearchTool(WebSearchTool):
             SearchResult object
         """
         try:
+            # Ensure max_results is an integer (LLM may pass string)
+            try:
+                max_results = int(max_results)
+            except (TypeError, ValueError):
+                max_results = 5  
+            
             # Google CSE allows max 10 results per request
             num_results = min(max(max_results, 1), 10)
             
