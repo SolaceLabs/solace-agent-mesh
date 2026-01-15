@@ -1,31 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, within } from "storybook/test";
 import { EditFileDescriptionDialog } from "@/lib";
-import type { ArtifactInfo } from "@/lib/types";
-
-// ============================================================================
-// Mock Data
-// ============================================================================
-
-const mockArtifact: ArtifactInfo = {
-    filename: "api-documentation.pdf",
-    mime_type: "application/pdf",
-    size: 524288,
-    last_modified: new Date("2024-03-15T10:00:00Z").toISOString(),
-    description: "API reference documentation",
-};
-
-const mockArtifactNoDescription: ArtifactInfo = {
-    filename: "package.json",
-    mime_type: "application/json",
-    size: 1024,
-    last_modified: new Date("2024-03-17T09:45:00Z").toISOString(),
-    description: "",
-};
-
-// ============================================================================
-// Story Configuration
-// ============================================================================
+import { pdfArtifact, jsonArtifact } from "./data";
 
 const meta = {
     title: "Pages/Projects/EditFileDescriptionDialog",
@@ -43,17 +19,13 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// ============================================================================
-// Stories
-// ============================================================================
-
 /**
  * Default state with existing description
  */
 export const Default: Story = {
     args: {
         isOpen: true,
-        artifact: mockArtifact,
+        artifact: pdfArtifact,
         onClose: () => alert("Dialog will close."),
         onSave: async () => {},
         isSaving: false,
@@ -75,7 +47,7 @@ export const Default: Story = {
 export const Empty: Story = {
     args: {
         isOpen: true,
-        artifact: mockArtifactNoDescription,
+        artifact: jsonArtifact,
         onClose: () => alert("Dialog will close."),
         onSave: async () => {},
         isSaving: false,

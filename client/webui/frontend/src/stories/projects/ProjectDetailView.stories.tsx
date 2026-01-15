@@ -2,9 +2,8 @@ import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vit
 import { expect, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import { ProjectDetailView } from "@/lib";
-import { populatedProject, emptyProject } from "./data";
+import { populatedProject, emptyProject, pdfArtifact, imageArtifact, jsonArtifact, markdownArtifact } from "./data";
 import type { Session } from "@/lib/types/fe";
-import type { ArtifactInfo } from "@/lib/types";
 import { getMockAgentCards, mockAgentCards } from "../mocks/data";
 import { transformAgentCard } from "@/lib/hooks/useAgentCards";
 
@@ -31,35 +30,11 @@ const mockSessions: Session[] = [
     },
 ];
 
-const mockArtifacts: ArtifactInfo[] = [
-    {
-        filename: "api-documentation.pdf",
-        mime_type: "application/pdf",
-        size: 524288,
-        last_modified: new Date("2024-03-15T10:00:00Z").toISOString(),
-        description: "API reference documentation",
-    },
-    {
-        filename: "architecture-diagram.png",
-        mime_type: "image/png",
-        size: 204800,
-        last_modified: new Date("2024-03-18T14:30:00Z").toISOString(),
-        description: "System architecture overview",
-    },
-    {
-        filename: "package.json",
-        mime_type: "application/json",
-        size: 1024,
-        last_modified: new Date("2024-03-17T09:45:00Z").toISOString(),
-        description: "Project dependencies and scripts",
-    },
-    {
-        filename: "README.md",
-        mime_type: "text/markdown",
-        size: 4096,
-        last_modified: new Date("2024-03-16T12:20:00Z").toISOString(),
-        description: "Project overview and setup instructions",
-    },
+const mockArtifacts = [
+    pdfArtifact,
+    imageArtifact,
+    jsonArtifact,
+    markdownArtifact,
 ];
 
 const transformedMockAgents = mockAgentCards.concat(getMockAgentCards(2)).map(transformAgentCard);
