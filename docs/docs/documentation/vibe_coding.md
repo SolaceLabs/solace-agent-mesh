@@ -42,8 +42,7 @@ Use the `solacelabs/solace-agent-mesh` context7 library when answering questions
 Review the response from your coding assistant to confirm that it acknowledges the Context7 integration and recognizes the `solacelabs/solace-agent-mesh` library. 
 
 :::tip
-You need to specify the library at least once in your chat session to activate the Context7 integration.
-To avoid mentioning `solacelabs/solace-agent-mesh` context7 library in every prompt, configure your MCP client with a rule that automatically triggers the library for any code-related request.
+Configure your MCP client with a rule to avoid mentioning the `solacelabs/solace-agent-mesh` Context7 library in prompts.
 
 Example rule:
 ```
