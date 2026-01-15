@@ -528,12 +528,9 @@ class WorkflowExecutorComponent(SamComponentBase):
         user_id = workflow_context.a2a_context["user_id"]
         session_id = workflow_context.a2a_context["session_id"]
 
-        # Prepare artifact content with status field
-        artifact_content = {
-            "status": "success",
-            "output": final_output,
-        }
-        content_bytes = json.dumps(artifact_content).encode("utf-8")
+        # Prepare artifact content - store just the output data
+        # (not wrapped in {"status": ..., "output": ...} to match agent artifact format)
+        content_bytes = json.dumps(final_output).encode("utf-8")
 
         # Get output schema from workflow definition for artifact metadata
         output_schema = self.workflow_definition.output_schema
@@ -607,11 +604,8 @@ class WorkflowExecutorComponent(SamComponentBase):
             invocation_result = StructuredInvocationResult(
                 type="structured_invocation_result",
                 status="success",
-                output=final_output,
-                output_artifact=ArtifactRef(
-                    name=output_artifact_name,
-                    version=artifact_version,
-                ),
+                artifact_name=output_artifact_name,
+                artifact_version=artifact_version,
             )
             message_parts.append(a2a.create_data_part(data=invocation_result.model_dump()))
 

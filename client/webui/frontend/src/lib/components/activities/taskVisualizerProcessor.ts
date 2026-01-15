@@ -357,18 +357,35 @@ export const processTaskForVisualization = (
                 // This is a workflow agent invocation - create a WORKFLOW_AGENT_REQUEST step
                 const params = payload.params as any;
                 let inputText: string | undefined;
+                let instruction: string | undefined;
                 let inputArtifactRef: { name: string; version?: number; uri?: string; mimeType?: string } | undefined;
+                let inputSchema: Record<string, any> | undefined;
+                let outputSchema: Record<string, any> | undefined;
+                let suggestedOutputFilename: string | undefined;
 
                 if (params?.message?.parts) {
-                    // Extract text parts (skip the workflow_node_request data part and reminder text)
+                    // Extract structured_invocation_request data part
+                    const structuredInvocationPart = params.message.parts.find((p: any) =>
+                        p.kind === "data" && p.data?.type === "structured_invocation_request"
+                    );
+                    if (structuredInvocationPart) {
+                        const invocationData = structuredInvocationPart.data;
+                        inputSchema = invocationData.input_schema;
+                        outputSchema = invocationData.output_schema;
+                        suggestedOutputFilename = invocationData.suggested_output_filename;
+                    }
+
+                    // Extract text parts (skip the reminder text)
+                    // The first non-reminder text part is the instruction if present
                     const textParts = params.message.parts.filter((p: any) =>
                         p.kind === "text" && p.text && !p.text.includes("REMINDER:")
                     );
                     if (textParts.length > 0) {
-                        inputText = textParts[0].text;
+                        // First text part is the instruction
+                        instruction = textParts[0].text;
                     }
 
-                    // Extract file parts (artifact references)
+                    // Extract file parts (artifact references) - this is the structured input
                     const fileParts = params.message.parts.filter((p: any) =>
                         p.kind === "file" && p.file
                     );
@@ -380,6 +397,15 @@ export const processTaskForVisualization = (
                             uri: file.uri,
                             mimeType: file.mimeType,
                         };
+                    }
+
+                    // If no file part but text parts exist after instruction, that's the inputText
+                    // (for simple text schemas where input is sent as text, not artifact)
+                    if (!inputArtifactRef && textParts.length > 1) {
+                        inputText = textParts[1].text;
+                    } else if (!inputArtifactRef && textParts.length === 1 && !instruction) {
+                        // Single text part that's not instruction - it's the input
+                        inputText = textParts[0].text;
                     }
                 }
 
@@ -397,6 +423,10 @@ export const processTaskForVisualization = (
                             workflowName,
                             inputText,
                             inputArtifactRef,
+                            instruction,
+                            inputSchema,
+                            outputSchema,
+                            suggestedOutputFilename,
                         },
                     },
                     rawEventIds: [eventId],

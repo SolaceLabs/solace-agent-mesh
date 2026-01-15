@@ -181,6 +181,11 @@ export interface WorkflowAgentRequestData {
         uri?: string; // Full artifact URI for fetching content
         mimeType?: string;
     };
+    // Structured invocation fields from StructuredInvocationRequest data part
+    instruction?: string; // Resolved instruction text from workflow node
+    inputSchema?: Record<string, any>; // JSON Schema for input validation
+    outputSchema?: Record<string, any>; // JSON Schema for output validation
+    suggestedOutputFilename?: string; // Suggested filename for output artifact
 }
 
 export interface SwitchCaseInfo {
