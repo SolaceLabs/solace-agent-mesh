@@ -83,6 +83,11 @@ apps:
       frontend_collect_feedback: true
       frontend_logo_url: "${WEBUI_FRONTEND_LOGO_URL}"
 
+      identity_service:
+        type: local_file
+        file_path: ./tests/integration/test_data/people/dummy_employees.json
+        cache_ttl_seconds: 300
+
       task_logging:
         enabled: true
         log_status_updates: true
