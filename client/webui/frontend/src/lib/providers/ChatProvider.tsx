@@ -128,7 +128,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Side Panel Control State
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
-    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow">("files");
+    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "activity">("files");
 
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -774,7 +774,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id, setError]
     );
 
-    const openSidePanelTab = useCallback((tab: "files" | "workflow") => {
+    const openSidePanelTab = useCallback((tab: "files" | "activity") => {
         setIsSidePanelCollapsed(false);
         setActiveSidePanelTab(tab);
 
