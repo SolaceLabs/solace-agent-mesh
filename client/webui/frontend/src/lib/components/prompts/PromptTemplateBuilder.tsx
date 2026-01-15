@@ -339,7 +339,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                 <NavigationBlocker />
                 {/* Footer Actions */}
                 <div className="flex justify-end gap-2 border-t p-4">
-                    <Button variant="ghost" onClick={() => handleClose()} disabled={isLoading}>
+                    <Button variant="ghost" onClick={() => handleClose(isEditing)} disabled={isLoading}>
                         {isEditing ? "Discard Changes" : "Cancel"}
                     </Button>
                     {isEditing && (

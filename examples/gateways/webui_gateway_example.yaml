@@ -88,6 +88,26 @@ apps:
         file_path: ./tests/integration/test_data/people/dummy_employees.json
         cache_ttl_seconds: 300
 
+      task_logging:
+        enabled: true
+        log_status_updates: true
+        log_artifact_events: true
+        log_file_parts: true
+        max_file_part_size_bytes: 10240
+
+      feedback_publishing:
+        enabled: true
+        topic: "${NAMESPACE}/sam/feedback/v1"
+        include_task_info: "stim" # Options: "none", "summary", "stim"
+        max_payload_size_bytes: 9000000 # 9MB default, safety margin below 10MB broker limit
+
+      # --- Frontend Feature Enablement ---
+      frontend_feature_enablement:
+        background_tasks: ${BACKGROUND_TASKS_ENABLED, true} # NOTE: task_logging must also be enabled for background tasks to work
+
+      # --- Background Tasks Configuration ---
+      background_tasks:
+        default_timeout_ms: ${BACKGROUND_TASKS_TIMEOUT_MS, 3600000}  # 1 hour default timeout
 
       # # --- Speech Configuration (STT/TTS) ---
       # # Uncomment the following sections to enable STT and TTS in the UI
@@ -207,23 +227,6 @@ apps:
       #       playbackRate: 1.0
       #       cacheTTS: true
 
-      task_logging:
-        enabled: true
-        log_status_updates: true
-        log_artifact_events: true
-        log_file_parts: true
-        max_file_part_size_bytes: 10240
-
-      feedback_publishing:
-        enabled: true
-        topic: "${NAMESPACE}/sam/feedback/v1"
-        include_task_info: "stim" # Options: "none", "summary", "stim"
-        max_payload_size_bytes: 9000000 # 9MB default, safety margin below 10MB broker limit
-
-      # --- Background Tasks Configuration ---
-      background_tasks:
-        enabled: ${BACKGROUND_TASKS_ENABLED, true}  # Enable background task execution for all tasks
-        default_timeout_ms: ${BACKGROUND_TASKS_TIMEOUT_MS, 3600000}  # 1 hour default timeout
 
       # --- Data Retention Configuration ---
       # Automatically cleans up old tasks, task events, and feedback to prevent unbounded database growth

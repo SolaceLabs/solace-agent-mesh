@@ -4,7 +4,7 @@ Resolves template blocks within artifact content.
 
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .liquid_renderer import render_liquid_template
 
@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 # Regex to match template blocks: «««template: params\ncontent\n»»» or «««template_liquid: params\ncontent\n»»»
 # Supports both 'template:' (legacy) and 'template_liquid:' (new)
 TEMPLATE_BLOCK_REGEX = re.compile(
-    r'«««template(?:_liquid)?:\s*([^\n]+)\n(.*?)»»»',
+    r'«««template(?:_liquid)?:\s*([^\n]+)\n((?:(?!»»»).)*?)»»»',
     re.DOTALL
 )
 
@@ -24,7 +24,7 @@ TEMPLATE_PARAMS_REGEX = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 async def resolve_template_blocks_in_string(
     text: str,
     artifact_service: Any,
-    session_context: Dict[str, str],
+    session_context: dict[str, str],
     log_identifier: str = "[TemplateResolver]",
 ) -> str:
     """
