@@ -94,6 +94,11 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     const [hasUserInteracted, setHasUserInteracted] = useState(false);
     const [internalHighlightedNodeIds, setInternalHighlightedNodeIds] = useState<Set<string>>(new Set());
 
+    // Track mouse position to distinguish click from drag
+    const mouseDownPos = useRef<{ x: number; y: number } | null>(null);
+    const isDragging = useRef(false);
+    const lastClickTime = useRef(0);
+
     // Calculate layout whenever config or collapsed state changes
     const layout = useMemo(() => {
         return processWorkflowConfig(config, collapsedNodes, knownWorkflows);
@@ -207,14 +212,46 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
         setHasUserInteracted(true);
     }, []);
 
-    // Handle click on background (deselect)
+    // Track mouse down position to distinguish click from drag
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        mouseDownPos.current = { x: e.clientX, y: e.clientY };
+        isDragging.current = false;
+    }, []);
+
+    // Track mouse movement to detect drag
+    const handleMouseMove = useCallback((e: React.MouseEvent) => {
+        if (mouseDownPos.current) {
+            const dx = Math.abs(e.clientX - mouseDownPos.current.x);
+            const dy = Math.abs(e.clientY - mouseDownPos.current.y);
+            // Consider it a drag if mouse moved more than 5 pixels
+            if (dx > 5 || dy > 5) {
+                isDragging.current = true;
+            }
+        }
+    }, []);
+
+    // Handle click on background (deselect) - only if it was a simple single click, not a drag or double-click
     const handleBackgroundClick = useCallback(() => {
-        setSelectedNodeId(null);
-        onNodeSelect?.(null);
+        const now = Date.now();
+        const timeSinceLastClick = now - lastClickTime.current;
+        const isDoubleClick = timeSinceLastClick < 300;
+        lastClickTime.current = now;
+
+        if (!isDragging.current && !isDoubleClick) {
+            setSelectedNodeId(null);
+            onNodeSelect?.(null);
+        }
+        mouseDownPos.current = null;
+        isDragging.current = false;
     }, [onNodeSelect]);
 
     return (
-        <div className="relative h-full w-full bg-gray-50 dark:bg-gray-900" onClick={handleBackgroundClick}>
+        <div
+            className="relative h-full w-full bg-gray-50 dark:bg-gray-900"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onClick={handleBackgroundClick}
+        >
             <PanZoomCanvas
                 ref={canvasRef}
                 initialScale={1}

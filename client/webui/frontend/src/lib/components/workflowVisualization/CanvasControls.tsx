@@ -1,5 +1,5 @@
 import React from "react";
-import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { ZoomIn, ZoomOut, Home } from "lucide-react";
 
 export interface CanvasControlsProps {
     /** Current zoom level as a decimal (e.g., 0.83 for 83%) */
@@ -43,7 +43,7 @@ export const CanvasControls: React.FC<CanvasControlsProps> = ({
                 className="flex h-8 w-8 items-center justify-center rounded p-0 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
                 title="Fit diagram to view"
             >
-                <Maximize2 className="h-4 w-4" />
+                <Home className="h-4 w-4" />
             </button>
 
             {/* Separator */}
