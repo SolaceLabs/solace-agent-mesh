@@ -60,11 +60,6 @@ This ensures your coding agent is correctly set up to leverage the Solace Agent 
 You need to specify the library at least once in your chat session to activate the Context7 integration.
 To avoid mentioning `solacelabs/solace-agent-mesh` context7 library in every prompt, configure your MCP client with a rule that automatically triggers the library for any code-related request.
 
-```
-Claude Code: CLAUDE.md
-Or the equivalent configuration in your MCP client.
-```
-
 Example rule:
 ```
 Automatically use `solacelabs/solace-agent-mesh` context7 library without requiring me to explicitly request it.
