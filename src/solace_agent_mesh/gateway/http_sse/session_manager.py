@@ -53,6 +53,8 @@ class SessionManager:
         if hasattr(request.state, "user") and request.state.user:
             user_id = request.state.user.get("id")
             if user_id:
+                if isinstance(user_id, str):
+                    user_id = user_id.lower()
                 log.debug(
                     "Using authenticated user ID from request.state: %s",
                     user_id,
@@ -65,6 +67,8 @@ class SessionManager:
 
         user_id = self.get_user_id(request)
         if user_id:
+            if isinstance(user_id, str):
+                user_id = user_id.lower()
             log.debug(
                 "Using authenticated user_id from session as A2A Client ID: %s",
                 user_id,

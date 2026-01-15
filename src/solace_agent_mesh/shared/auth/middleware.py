@@ -141,6 +141,9 @@ async def _create_user_state(
         final_user_id = "sam_dev_user"
         log.warning("AuthMiddleware: Had to use fallback user ID due to invalid identifier")
 
+    if isinstance(final_user_id, str):
+        final_user_id = final_user_id.lower()
+
     return {
         "id": final_user_id,
         "email": email_from_auth or final_user_id,
@@ -274,9 +277,13 @@ def create_oauth_middleware(component):
                             "Cannot resolve scopes for sam_access_token."
                         )
 
+                    user_id = claims["sub"]
+                    if isinstance(user_id, str):
+                        user_id = user_id.lower()
+
                     request.state.user = {
-                        "id": claims["sub"],
-                        "email": claims.get("email", claims["sub"]),
+                        "id": user_id,
+                        "email": claims.get("email", user_id),
                         "name": claims.get("name", claims["sub"]),
                         "authenticated": True,
                         "auth_method": "sam_access_token",
