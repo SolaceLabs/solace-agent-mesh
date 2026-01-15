@@ -695,6 +695,22 @@ class PlatformServiceComponent(SamComponentBase):
         """
         return self.gateway_registry
 
+    def get_db_engine(self):
+        """
+        Get the SQLAlchemy database engine for health checks.
+
+        Returns the engine bound to PlatformSessionLocal if database is configured,
+        otherwise returns None.
+
+        Returns:
+            Engine or None: The SQLAlchemy engine if available.
+        """
+        from .api import dependencies
+
+        if dependencies.PlatformSessionLocal is not None:
+            return dependencies.PlatformSessionLocal.kw.get("bind")
+        return None
+
     def _schedule_agent_health_check(self):
         """
         Schedule periodic agent health checks to remove expired agents from registry.
