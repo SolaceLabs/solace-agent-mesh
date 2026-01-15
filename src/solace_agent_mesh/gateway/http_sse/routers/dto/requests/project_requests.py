@@ -51,9 +51,9 @@ class ProjectFilter(BaseModel):
 class ShareProjectRequest(BaseModel):
     """Request to share a project with another user."""
     user_email: str = Field(..., description="Email of user to share with")
-    role: Literal["editor", "viewer"] = Field(..., description="Role to assign (editor or viewer)")
+    role: Literal["administrator", "editor", "viewer"] = Field(..., description="Role to assign (administrator, editor, or viewer)")
 
 
 class UpdateCollaboratorRequest(BaseModel):
     """Request to update a collaborator's role."""
-    role: Literal["editor", "viewer"] = Field(..., description="New role to assign (editor or viewer)")
+    role: Literal["administrator", "editor", "viewer"] = Field(..., description="New role to assign (administrator, editor, or viewer)")

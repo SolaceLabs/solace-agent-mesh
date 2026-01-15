@@ -52,14 +52,9 @@ class ProjectService:
         if resource_sharing_service:
             self._resource_sharing_service = resource_sharing_service
         else:
-            # Get from registry if component available, otherwise use default no-op implementation
-            if component:
-                registry = component.get_middleware_registry()
-                from ....common.services.default_resource_sharing_service import DefaultResourceSharingService
-                self._resource_sharing_service = registry.get(ResourceSharingService, DefaultResourceSharingService())
-            else:
-                from ....common.services.default_resource_sharing_service import DefaultResourceSharingService
-                self._resource_sharing_service = DefaultResourceSharingService()
+            # Get from registry (returns class, need to instantiate)
+            service_class = MiddlewareRegistry.get_resource_sharing_service()
+            self._resource_sharing_service = service_class()
         
         # Get max upload size from component config, with fallback to default
         # Ensure values are integers for proper formatting
@@ -267,8 +262,23 @@ class ProjectService:
         Returns:
             Optional[Project]: The project if found and accessible, None otherwise
         """
+        from ..repository.models import ProjectModel
+
+        # Get project without user filter
+        project_model = db.query(ProjectModel).filter_by(
+            id=project_id, deleted_at=None
+        ).first()
+
+        if not project_model:
+            return None
+
+        # Check if user has access (owner OR shared access via resource sharing service)
+        if not self._can_view_project(db, project_id, user_id):
+            return None
+
+        # Convert to domain entity
         project_repository = self._get_repositories(db)
-        return project_repository.get_by_id(project_id, user_id)
+        return project_repository._model_to_entity(project_model)
 
     def get_user_projects(self, db, user_id: str) -> List[Project]:
         """
@@ -600,14 +610,30 @@ class ProjectService:
         if not self._can_edit_project(db, project_id, user_id):
             return None
 
+        from ..repository.models import ProjectModel
+        from ....shared.utils.timestamp_utils import now_epoch_ms
+
+        # Get project without access check
+        model = db.query(ProjectModel).filter_by(
+            id=project_id, deleted_at=None
+        ).first()
+
+        if not model:
+            return None
+
+        # Update fields
+        for field, value in update_data.items():
+            if hasattr(model, field):
+                setattr(model, field, value)
+
+        model.updated_at = now_epoch_ms()
+        db.flush()
+        db.refresh(model)
+
+        self.logger.info(f"Successfully updated project {project_id}")
+
         project_repository = self._get_repositories(db)
-        self.logger.info(f"Updating project {project_id} for user {user_id}")
-        updated_project = project_repository.update(project_id, user_id, update_data)
-
-        if updated_project:
-            self.logger.info(f"Successfully updated project {project_id}")
-
-        return updated_project
+        return project_repository._model_to_entity(model)
 
     def delete_project(self, db, project_id: str, user_id: str) -> bool:
         """
@@ -630,14 +656,18 @@ class ProjectService:
         if not self._can_delete_project(db, project_id, user_id):
             return False
 
-        project_repository = self._get_repositories(db)
-        self.logger.info(f"Deleting project {project_id} for user {user_id}")
-        success = project_repository.delete(project_id, user_id)
+        from ..repository.models import ProjectModel
 
-        if success:
+        # Delete directly without repository access check
+        result = db.query(ProjectModel).filter_by(
+            id=project_id, deleted_at=None
+        ).delete(synchronize_session=False)
+
+        if result > 0:
             self.logger.info(f"Successfully deleted project {project_id}")
+            return True
 
-        return success
+        return False
 
     def soft_delete_project(self, db, project_id: str, user_id: str) -> bool:
         """
@@ -664,17 +694,27 @@ class ProjectService:
 
         self.logger.info(f"Soft deleting project {project_id} and its associated sessions for user {user_id}")
 
-        project_repository = self._get_repositories(db)
-        # Soft delete the project
-        success = project_repository.soft_delete(project_id, user_id)
+        from ..repository.models import ProjectModel
+        from ....shared.utils.timestamp_utils import now_epoch_ms
 
-        if success:
-            from ..repository.session_repository import SessionRepository
-            session_repo = SessionRepository()
-            deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
-            self.logger.info(f"Successfully soft deleted project {project_id} and {deleted_count} associated sessions")
+        # Soft delete directly
+        model = db.query(ProjectModel).filter_by(
+            id=project_id, deleted_at=None
+        ).first()
 
-        return success
+        if not model:
+            return False
+
+        model.deleted_at = now_epoch_ms()
+        db.flush()
+
+        # Cascade to sessions
+        from ..repository.session_repository import SessionRepository
+        session_repo = SessionRepository()
+        deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
+        self.logger.info(f"Successfully soft deleted project {project_id} and {deleted_count} associated sessions")
+
+        return True
 
     async def export_project_as_zip(
         self, db, project_id: str, user_id: str
