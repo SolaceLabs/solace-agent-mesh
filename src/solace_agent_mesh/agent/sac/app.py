@@ -14,7 +14,7 @@ patch_adk()
 
 from typing import Any, Dict, List, Optional, Union, Literal
 from pydantic import Field, ValidationError, model_validator
-from solace_ai_connector.flow.app import App
+from ...common.app_base import SamAppBase
 
 from ...common.a2a import (
     get_agent_request_topic,
@@ -459,7 +459,7 @@ class SamAgentAppConfig(SamConfigBase):
     )
 
 
-class SamAgentApp(App):
+class SamAgentApp(SamAppBase):
     """
     Custom App class for SAM Agent Host that automatically generates
     the required Solace subscriptions based on namespace and agent name,
