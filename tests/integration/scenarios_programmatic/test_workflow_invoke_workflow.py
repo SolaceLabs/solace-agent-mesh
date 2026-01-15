@@ -6,7 +6,6 @@ workflows as sub-workflows.
 """
 
 import pytest
-import json
 from sam_test_infrastructure.llm_server.server import (
     TestLLMServer,
     ChatCompletionResponse,
@@ -17,11 +16,7 @@ from sam_test_infrastructure.llm_server.server import (
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from sam_test_infrastructure.artifact_service.service import (
-    TestInMemoryArtifactService,
-)
 from a2a.types import Task, JSONRPCError
-from google.genai import types as adk_types
 
 from .test_helpers import (
     prime_llm_server,
@@ -45,7 +40,6 @@ pytestmark = [
 async def test_workflow_invokes_sub_workflow_successfully(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
-    test_artifact_service_instance: TestInMemoryArtifactService,
 ):
     """
     Test that a parent workflow can successfully invoke a child workflow using
@@ -65,28 +59,11 @@ async def test_workflow_invokes_sub_workflow_successfully(
     scenario_id = "workflow_invoke_workflow_001"
     print(f"\nRunning programmatic scenario: {scenario_id}")
 
-    # Setup: Pre-save the input artifact
     user_identity = "sub_workflow_test_user@example.com"
     session_id = f"session_{scenario_id}"
-    artifact_content = {
+    workflow_input = {
         "input_text": "Test data for sub-workflow invocation",
     }
-    artifact_filename = "workflow_input.json"
-
-    artifact_part = adk_types.Part(
-        inline_data=adk_types.Blob(
-            mime_type="application/json",
-            data=json.dumps(artifact_content).encode("utf-8"),
-        )
-    )
-    await test_artifact_service_instance.save_artifact(
-        app_name="test_namespace",
-        user_id=user_identity,
-        session_id=session_id,
-        filename=artifact_filename,
-        artifact=artifact_part,
-    )
-    print(f"Scenario {scenario_id}: Setup artifact '{artifact_filename}' created.")
 
     # =========================================================================
     # Parent workflow - Node 1: prepare_data (TestPeerAgentA)
@@ -246,14 +223,11 @@ async def test_workflow_invokes_sub_workflow_successfully(
     input_data = {
         "target_agent_name": "SubWorkflowInvokeTestWorkflow",
         "user_identity": user_identity,
-        "a2a_parts": [{"type": "text", "text": "Test sub-workflow invocation"}],
+        "a2a_parts": [{"type": "data", "data": workflow_input}],
         "external_context": {
             "test_case": scenario_id,
             "a2a_session_id": session_id,
         },
-        "invoked_with_artifacts": [
-            {"filename": artifact_filename, "version": 0}
-        ],
     }
 
     task_id = await submit_test_input(
@@ -302,7 +276,6 @@ async def test_workflow_invokes_sub_workflow_successfully(
 async def test_direct_recursion_is_rejected(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
-    test_artifact_service_instance: TestInMemoryArtifactService,
 ):
     """
     Test that a workflow cannot invoke itself (direct recursion).
@@ -313,25 +286,9 @@ async def test_direct_recursion_is_rejected(
     scenario_id = "workflow_recursion_001"
     print(f"\nRunning programmatic scenario: {scenario_id}")
 
-    # Setup: Pre-save the input artifact
     user_identity = "recursion_test_user@example.com"
     session_id = f"session_{scenario_id}"
-    artifact_content = {"input": "test"}
-    artifact_filename = "workflow_input.json"
-
-    artifact_part = adk_types.Part(
-        inline_data=adk_types.Blob(
-            mime_type="application/json",
-            data=json.dumps(artifact_content).encode("utf-8"),
-        )
-    )
-    await test_artifact_service_instance.save_artifact(
-        app_name="test_namespace",
-        user_id=user_identity,
-        session_id=session_id,
-        filename=artifact_filename,
-        artifact=artifact_part,
-    )
+    workflow_input = {"input": "test"}
 
     # Prime the LLM server for the first agent node (prepare)
     llm_response_1 = ChatCompletionResponse(
@@ -373,12 +330,11 @@ async def test_direct_recursion_is_rejected(
     input_data = {
         "target_agent_name": "RecursiveTestWorkflow",
         "user_identity": user_identity,
-        "a2a_parts": [{"type": "text", "text": "Test recursion prevention"}],
+        "a2a_parts": [{"type": "data", "data": workflow_input}],
         "external_context": {
             "test_case": scenario_id,
             "a2a_session_id": session_id,
         },
-        "invoked_with_artifacts": [{"filename": artifact_filename, "version": 0}],
     }
 
     task_id = await submit_test_input(

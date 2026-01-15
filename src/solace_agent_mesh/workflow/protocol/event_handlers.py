@@ -30,7 +30,6 @@ log = logging.getLogger(__name__)
 async def _extract_workflow_input(
     component: "WorkflowExecutorComponent",
     message: A2AMessage,
-    a2a_context: Dict[str, Any],
 ) -> Dict[str, Any]:
     """Extract workflow input from A2A message.
 
@@ -142,7 +141,7 @@ async def handle_task_request(
 
         # Extract and store workflow input
         workflow_input = await _extract_workflow_input(
-            component, a2a_message, a2a_context
+            component, a2a_message
         )
         workflow_state.node_outputs["workflow_input"] = {"output": workflow_input}
         log.info(

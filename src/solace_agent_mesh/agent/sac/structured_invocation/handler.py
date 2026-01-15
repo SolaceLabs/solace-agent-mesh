@@ -35,6 +35,7 @@ from a2a.types import (
 
 from ....common import a2a
 from ....common.data_parts import (
+    ArtifactRef,
     StructuredInvocationRequest,
     StructuredInvocationResult,
 )
@@ -715,7 +716,7 @@ Please retry and ensure you include this embed.
                 type="structured_invocation_result",
                 status="error",
                 error_message=result_embed.message or "Agent reported failure",
-                artifact_name=result_embed.artifact_name,
+                output_artifact_ref=ArtifactRef(name=result_embed.artifact_name) if result_embed.artifact_name else None,
                 retry_count=retry_count,
             )
 
@@ -819,8 +820,7 @@ Remember to end your response with the result embed:
         return StructuredInvocationResult(
             type="structured_invocation_result",
             status="success",
-            artifact_name=result_embed.artifact_name,
-            artifact_version=version,
+            output_artifact_ref=ArtifactRef(name=result_embed.artifact_name, version=version),
             retry_count=retry_count,
         )
 
@@ -907,10 +907,18 @@ Remember to end your response with the result embed:
             except (ValueError, TypeError):
                 pass
 
+        # Validate: must have artifact OR explicit error status
+        status = params.get("status", "success")
+        if not artifact_name and status != "error":
+            log.debug(
+                "Result embed parse: Malformed embed - no artifact and no explicit error status"
+            )
+            return None
+
         return ResultEmbed(
             artifact_name=artifact_name,
             version=version,
-            status=params.get("status", "success"),
+            status=status,
             message=params.get("message"),
         )
 

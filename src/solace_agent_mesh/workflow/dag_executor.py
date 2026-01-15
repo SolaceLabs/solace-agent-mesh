@@ -1080,13 +1080,7 @@ class DAGExecutor:
             type="workflow_node_execution_result",
             node_id=node_id,
             status="success",
-            output_artifact_ref=(
-                ArtifactRef(
-                    name=result.artifact_name, version=result.artifact_version
-                )
-                if result.artifact_name
-                else None
-            ),
+            output_artifact_ref=result.output_artifact_ref,
         )
         await self.host.publish_workflow_event(workflow_context, result_data)
 
@@ -1116,16 +1110,17 @@ class DAGExecutor:
             )
         else:
             # Standard node completion
-            workflow_state.completed_nodes[node_id] = result.artifact_name
+            artifact_name = result.output_artifact_ref.name if result.output_artifact_ref else None
+            workflow_state.completed_nodes[node_id] = artifact_name
             if node_id in workflow_state.pending_nodes:
                 workflow_state.pending_nodes.remove(node_id)
 
             # Cache node output for value references
-            if result.artifact_name:
+            if result.output_artifact_ref and result.output_artifact_ref.name:
                 artifact_data = await self.host._load_node_output(
                     node_id,
-                    result.artifact_name,
-                    result.artifact_version,
+                    result.output_artifact_ref.name,
+                    result.output_artifact_ref.version,
                     workflow_context,
                 )
                 workflow_state.node_outputs[node_id] = {"output": artifact_data}
@@ -1165,8 +1160,8 @@ class DAGExecutor:
 
         # Update result
         completed_branch["result"] = {
-            "artifact_name": result.artifact_name,
-            "artifact_version": result.artifact_version,
+            "artifact_name": result.output_artifact_ref.name if result.output_artifact_ref else None,
+            "artifact_version": result.output_artifact_ref.version if result.output_artifact_ref else None,
         }
 
         control_node = self.nodes[control_node_id]
@@ -1177,11 +1172,11 @@ class DAGExecutor:
             log.info(f"{log_id} Loop iteration {iteration} completed")
 
             # Load result and store in node_outputs for condition evaluation
-            if result.artifact_name:
+            if result.output_artifact_ref and result.output_artifact_ref.name:
                 artifact_data = await self.host._load_node_output(
                     node_id=control_node_id,
-                    artifact_name=result.artifact_name,
-                    artifact_version=result.artifact_version,
+                    artifact_name=result.output_artifact_ref.name,
+                    artifact_version=result.output_artifact_ref.version,
                     workflow_context=workflow_context,
                     sub_task_id=sub_task_id,
                 )

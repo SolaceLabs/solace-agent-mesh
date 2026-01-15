@@ -1,3 +1,8 @@
+# Test configuration for workflow node types.
+# This file defines test agents and workflows to verify the behavior of
+# different workflow node types: agent, map, loop, switch, and workflow nodes.
+# Used for integration testing of the workflow execution engine.
+
 log:
   stdout_log_level: INFO
   log_file_level: DEBUG

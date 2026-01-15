@@ -19,12 +19,8 @@ from sam_test_infrastructure.llm_server.server import (
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from sam_test_infrastructure.artifact_service.service import (
-    TestInMemoryArtifactService,
-)
 from a2a.types import Task, JSONRPCError
 from a2a.utils.message import get_message_text
-from google.genai import types as adk_types
 
 from .test_helpers import (
     prime_llm_server,
@@ -549,7 +545,6 @@ async def test_workflow_handles_empty_agent_response(
 async def test_workflow_output_schema_validation_triggers_retry(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
-    test_artifact_service_instance: TestInMemoryArtifactService,
 ):
     """
     Test that when an agent returns output that doesn't match the output schema,
@@ -567,31 +562,14 @@ async def test_workflow_output_schema_validation_triggers_retry(
     scenario_id = "workflow_output_schema_retry_001"
     print(f"\nRunning programmatic scenario: {scenario_id}")
 
-    # Setup: Pre-save the input artifact to the artifact service
+    # Setup workflow input data (passed directly via DataPart)
     user_identity = "schema_retry_user@example.com"
     session_id = f"session_{scenario_id}"
-    artifact_content = {
+    workflow_input = {
         "customer_name": "Test Customer",
         "order_id": "ORD-123",
         "amount": 100,
     }
-    artifact_filename = "workflow_input.json"
-
-    # Save artifact like the declarative test runner does
-    artifact_part = adk_types.Part(
-        inline_data=adk_types.Blob(
-            mime_type="application/json",
-            data=json.dumps(artifact_content).encode("utf-8"),
-        )
-    )
-    await test_artifact_service_instance.save_artifact(
-        app_name="test_namespace",
-        user_id=user_identity,
-        session_id=session_id,
-        filename=artifact_filename,
-        artifact=artifact_part,
-    )
-    print(f"Scenario {scenario_id}: Setup artifact '{artifact_filename}' created.")
 
     # First response: Agent saves artifact MISSING the required 'status' field
     llm_response_1 = ChatCompletionResponse(
@@ -710,19 +688,15 @@ async def test_workflow_output_schema_validation_triggers_retry(
         ],
     )
 
-    # Submit valid input to the structured workflow (using invoked_with_artifacts pattern)
-    # Note: Use "external_context" (not "external_context_override") - this is what the test gateway reads
+    # Submit valid input to the structured workflow (using DataPart)
     input_data = {
         "target_agent_name": "StructuredTestWorkflow",
         "user_identity": user_identity,
-        "a2a_parts": [{"type": "text", "text": "Process the order data"}],
+        "a2a_parts": [{"type": "data", "data": workflow_input}],
         "external_context": {
             "test_case": scenario_id,
             "a2a_session_id": session_id,
         },
-        "invoked_with_artifacts": [
-            {"filename": artifact_filename, "version": 0}
-        ],
     }
 
     task_id = await submit_test_input(
@@ -766,7 +740,6 @@ async def test_workflow_output_schema_validation_triggers_retry(
 async def test_workflow_output_schema_multiple_retries(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
-    test_artifact_service_instance: TestInMemoryArtifactService,
 ):
     """
     Test that output schema validation can retry multiple times before succeeding.
@@ -781,29 +754,14 @@ async def test_workflow_output_schema_multiple_retries(
     scenario_id = "workflow_multiple_retries_001"
     print(f"\nRunning programmatic scenario: {scenario_id}")
 
-    # Setup: Pre-save the input artifact
+    # Setup workflow input data (passed directly via DataPart)
     user_identity = "multi_retry_user@example.com"
     session_id = f"session_{scenario_id}"
-    artifact_content = {
+    workflow_input = {
         "customer_name": "Test Customer",
         "order_id": "ORD-456",
         "amount": 200,
     }
-    artifact_filename = "workflow_input.json"
-
-    artifact_part = adk_types.Part(
-        inline_data=adk_types.Blob(
-            mime_type="application/json",
-            data=json.dumps(artifact_content).encode("utf-8"),
-        )
-    )
-    await test_artifact_service_instance.save_artifact(
-        app_name="test_namespace",
-        user_id=user_identity,
-        session_id=session_id,
-        filename=artifact_filename,
-        artifact=artifact_part,
-    )
 
     # First attempt: Save artifact MISSING 'status' field
     llm_response_1 = ChatCompletionResponse(
@@ -954,14 +912,11 @@ async def test_workflow_output_schema_multiple_retries(
     input_data = {
         "target_agent_name": "StructuredTestWorkflow",
         "user_identity": user_identity,
-        "a2a_parts": [{"type": "text", "text": "Validate and process the order"}],
+        "a2a_parts": [{"type": "data", "data": workflow_input}],
         "external_context": {
             "test_case": scenario_id,
             "a2a_session_id": session_id,
         },
-        "invoked_with_artifacts": [
-            {"filename": artifact_filename, "version": 0}
-        ],
     }
 
     task_id = await submit_test_input(
@@ -1003,7 +958,6 @@ async def test_workflow_output_schema_multiple_retries(
 async def test_workflow_missing_result_embed_triggers_retry(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
-    test_artifact_service_instance: TestInMemoryArtifactService,
 ):
     """
     Test that a missing result embed triggers a retry.
@@ -1017,29 +971,14 @@ async def test_workflow_missing_result_embed_triggers_retry(
     scenario_id = "workflow_missing_result_embed_001"
     print(f"\nRunning programmatic scenario: {scenario_id}")
 
-    # Setup: Pre-save the input artifact
+    # Setup workflow input data (passed directly via DataPart)
     user_identity = "missing_embed_user@example.com"
     session_id = f"session_{scenario_id}"
-    artifact_content = {
+    workflow_input = {
         "customer_name": "Test Customer",
         "order_id": "ORD-789",
         "amount": 150,
     }
-    artifact_filename = "workflow_input.json"
-
-    artifact_part = adk_types.Part(
-        inline_data=adk_types.Blob(
-            mime_type="application/json",
-            data=json.dumps(artifact_content).encode("utf-8"),
-        )
-    )
-    await test_artifact_service_instance.save_artifact(
-        app_name="test_namespace",
-        user_id=user_identity,
-        session_id=session_id,
-        filename=artifact_filename,
-        artifact=artifact_part,
-    )
 
     # First attempt: Agent saves artifact but DOES NOT include result embed
     llm_response_1 = ChatCompletionResponse(
@@ -1156,14 +1095,11 @@ async def test_workflow_missing_result_embed_triggers_retry(
     input_data = {
         "target_agent_name": "StructuredTestWorkflow",
         "user_identity": user_identity,
-        "a2a_parts": [{"type": "text", "text": "Validate and process the order"}],
+        "a2a_parts": [{"type": "data", "data": workflow_input}],
         "external_context": {
             "test_case": scenario_id,
             "a2a_session_id": session_id,
         },
-        "invoked_with_artifacts": [
-            {"filename": artifact_filename, "version": 0}
-        ],
     }
 
     task_id = await submit_test_input(
@@ -1204,7 +1140,6 @@ async def test_workflow_missing_result_embed_triggers_retry(
 async def test_workflow_missing_result_embed_max_retries_exceeded(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
-    test_artifact_service_instance: TestInMemoryArtifactService,
 ):
     """
     Test that workflow fails when agent repeatedly misses result embed and exhausts retries.
@@ -1217,29 +1152,14 @@ async def test_workflow_missing_result_embed_max_retries_exceeded(
     scenario_id = "workflow_missing_embed_max_retries_001"
     print(f"\nRunning programmatic scenario: {scenario_id}")
 
-    # Setup: Pre-save the input artifact
+    # Setup workflow input data (passed directly via DataPart)
     user_identity = "max_retries_user@example.com"
     session_id = f"session_{scenario_id}"
-    artifact_content = {
+    workflow_input = {
         "customer_name": "Test Customer",
         "order_id": "ORD-MAX",
         "amount": 100,
     }
-    artifact_filename = "workflow_input.json"
-
-    artifact_part = adk_types.Part(
-        inline_data=adk_types.Blob(
-            mime_type="application/json",
-            data=json.dumps(artifact_content).encode("utf-8"),
-        )
-    )
-    await test_artifact_service_instance.save_artifact(
-        app_name="test_namespace",
-        user_id=user_identity,
-        session_id=session_id,
-        filename=artifact_filename,
-        artifact=artifact_part,
-    )
 
     # All attempts will save artifacts but NEVER include the result embed
     # Attempt 1: Initial try
@@ -1356,14 +1276,11 @@ async def test_workflow_missing_result_embed_max_retries_exceeded(
     input_data = {
         "target_agent_name": "StructuredTestWorkflow",
         "user_identity": user_identity,
-        "a2a_parts": [{"type": "text", "text": "Validate the order"}],
+        "a2a_parts": [{"type": "data", "data": workflow_input}],
         "external_context": {
             "test_case": scenario_id,
             "a2a_session_id": session_id,
         },
-        "invoked_with_artifacts": [
-            {"filename": artifact_filename, "version": 0}
-        ],
     }
 
     task_id = await submit_test_input(
@@ -1415,7 +1332,6 @@ async def test_workflow_missing_result_embed_max_retries_exceeded(
 async def test_workflow_output_schema_max_retries_exceeded(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
-    test_artifact_service_instance: TestInMemoryArtifactService,
 ):
     """
     Test that workflow fails when output schema validation repeatedly fails after all retries.
@@ -1428,29 +1344,14 @@ async def test_workflow_output_schema_max_retries_exceeded(
     scenario_id = "workflow_output_schema_max_retries_001"
     print(f"\nRunning programmatic scenario: {scenario_id}")
 
-    # Setup: Pre-save the input artifact
+    # Setup workflow input data (passed directly via DataPart)
     user_identity = "schema_max_retries_user@example.com"
     session_id = f"session_{scenario_id}"
-    artifact_content = {
+    workflow_input = {
         "customer_name": "Test Customer",
         "order_id": "ORD-SCHEMA",
         "amount": 100,
     }
-    artifact_filename = "workflow_input.json"
-
-    artifact_part = adk_types.Part(
-        inline_data=adk_types.Blob(
-            mime_type="application/json",
-            data=json.dumps(artifact_content).encode("utf-8"),
-        )
-    )
-    await test_artifact_service_instance.save_artifact(
-        app_name="test_namespace",
-        user_id=user_identity,
-        session_id=session_id,
-        filename=artifact_filename,
-        artifact=artifact_part,
-    )
 
     # All attempts will include result embed but fail schema validation
     # The output_schema_override requires: customer_name, order_id, amount, status
@@ -1570,14 +1471,11 @@ async def test_workflow_output_schema_max_retries_exceeded(
     input_data = {
         "target_agent_name": "StructuredTestWorkflow",
         "user_identity": user_identity,
-        "a2a_parts": [{"type": "text", "text": "Validate the order"}],
+        "a2a_parts": [{"type": "data", "data": workflow_input}],
         "external_context": {
             "test_case": scenario_id,
             "a2a_session_id": session_id,
         },
-        "invoked_with_artifacts": [
-            {"filename": artifact_filename, "version": 0}
-        ],
     }
 
     task_id = await submit_test_input(
@@ -1614,7 +1512,6 @@ async def test_workflow_output_schema_max_retries_exceeded(
 async def test_workflow_artifact_not_found(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
-    test_artifact_service_instance: TestInMemoryArtifactService,
 ):
     """
     Test that workflow fails when agent references an artifact that doesn't exist.
@@ -1626,29 +1523,14 @@ async def test_workflow_artifact_not_found(
     scenario_id = "workflow_artifact_not_found_001"
     print(f"\nRunning programmatic scenario: {scenario_id}")
 
-    # Setup: Pre-save the input artifact
+    # Setup workflow input data (passed directly via DataPart)
     user_identity = "artifact_not_found_user@example.com"
     session_id = f"session_{scenario_id}"
-    artifact_content = {
+    workflow_input = {
         "customer_name": "Test Customer",
         "order_id": "ORD-NOTFOUND",
         "amount": 100,
     }
-    artifact_filename = "workflow_input.json"
-
-    artifact_part = adk_types.Part(
-        inline_data=adk_types.Blob(
-            mime_type="application/json",
-            data=json.dumps(artifact_content).encode("utf-8"),
-        )
-    )
-    await test_artifact_service_instance.save_artifact(
-        app_name="test_namespace",
-        user_id=user_identity,
-        session_id=session_id,
-        filename=artifact_filename,
-        artifact=artifact_part,
-    )
 
     # Agent responds with result embed referencing a NON-EXISTENT artifact
     # Note: Agent does NOT save any artifact, just references one that doesn't exist
@@ -1691,14 +1573,11 @@ async def test_workflow_artifact_not_found(
     input_data = {
         "target_agent_name": "StructuredTestWorkflow",
         "user_identity": user_identity,
-        "a2a_parts": [{"type": "text", "text": "Validate the order"}],
+        "a2a_parts": [{"type": "data", "data": workflow_input}],
         "external_context": {
             "test_case": scenario_id,
             "a2a_session_id": session_id,
         },
-        "invoked_with_artifacts": [
-            {"filename": artifact_filename, "version": 0}
-        ],
     }
 
     task_id = await submit_test_input(
@@ -1735,7 +1614,6 @@ async def test_workflow_artifact_not_found(
 async def test_workflow_input_validation_failure(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
-    test_artifact_service_instance: TestInMemoryArtifactService,
 ):
     """
     Test that workflow fails when input doesn't match the input schema.
@@ -1748,31 +1626,16 @@ async def test_workflow_input_validation_failure(
     scenario_id = "workflow_input_validation_001"
     print(f"\nRunning programmatic scenario: {scenario_id}")
 
-    # Setup: Pre-save an input artifact that's MISSING required fields
+    # Setup workflow input data - MISSING required 'amount' field
     user_identity = "input_validation_user@example.com"
     session_id = f"session_{scenario_id}"
 
     # Missing 'amount' which is required by the input schema
-    invalid_artifact_content = {
+    invalid_workflow_input = {
         "customer_name": "Test Customer",
         "order_id": "ORD-INVALID",
         # "amount" is missing - required field
     }
-    artifact_filename = "workflow_input.json"
-
-    artifact_part = adk_types.Part(
-        inline_data=adk_types.Blob(
-            mime_type="application/json",
-            data=json.dumps(invalid_artifact_content).encode("utf-8"),
-        )
-    )
-    await test_artifact_service_instance.save_artifact(
-        app_name="test_namespace",
-        user_id=user_identity,
-        session_id=session_id,
-        filename=artifact_filename,
-        artifact=artifact_part,
-    )
 
     # We don't expect any LLM calls since input validation should fail immediately
     # But prime with empty responses just in case
@@ -1781,14 +1644,11 @@ async def test_workflow_input_validation_failure(
     input_data = {
         "target_agent_name": "StructuredTestWorkflow",
         "user_identity": user_identity,
-        "a2a_parts": [{"type": "text", "text": "Validate the order"}],
+        "a2a_parts": [{"type": "data", "data": invalid_workflow_input}],
         "external_context": {
             "test_case": scenario_id,
             "a2a_session_id": session_id,
         },
-        "invoked_with_artifacts": [
-            {"filename": artifact_filename, "version": 0}
-        ],
     }
 
     task_id = await submit_test_input(
@@ -1829,7 +1689,6 @@ async def test_workflow_input_validation_failure(
 async def test_workflow_cancellation(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
-    test_artifact_service_instance: TestInMemoryArtifactService,
 ):
     """
     Test that a workflow can be cancelled while running.
@@ -1843,29 +1702,14 @@ async def test_workflow_cancellation(
     scenario_id = "workflow_cancellation_001"
     print(f"\nRunning programmatic scenario: {scenario_id}")
 
-    # Setup: Pre-save the input artifact
+    # Setup workflow input data (passed directly via DataPart)
     user_identity = "cancellation_test_user@example.com"
     session_id = f"session_{scenario_id}"
-    artifact_content = {
+    workflow_input = {
         "customer_name": "Test Customer",
         "order_id": "ORD-CANCEL",
         "amount": 100,
     }
-    artifact_filename = "workflow_input.json"
-
-    artifact_part = adk_types.Part(
-        inline_data=adk_types.Blob(
-            mime_type="application/json",
-            data=json.dumps(artifact_content).encode("utf-8"),
-        )
-    )
-    await test_artifact_service_instance.save_artifact(
-        app_name="test_namespace",
-        user_id=user_identity,
-        session_id=session_id,
-        filename=artifact_filename,
-        artifact=artifact_part,
-    )
 
     # Prime LLM with responses for first node - make it slow by including save_artifact
     # The first node will save an artifact, giving us time to send cancellation
@@ -1944,14 +1788,11 @@ async def test_workflow_cancellation(
     input_data = {
         "target_agent_name": "StructuredTestWorkflow",
         "user_identity": user_identity,
-        "a2a_parts": [{"type": "text", "text": "Process the order"}],
+        "a2a_parts": [{"type": "data", "data": workflow_input}],
         "external_context": {
             "test_case": scenario_id,
             "a2a_session_id": session_id,
         },
-        "invoked_with_artifacts": [
-            {"filename": artifact_filename, "version": 0}
-        ],
     }
 
     # Submit the workflow task
@@ -2001,7 +1842,6 @@ async def test_workflow_cancellation(
 async def test_workflow_instruction_appears_in_llm_request(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
-    test_artifact_service_instance: TestInMemoryArtifactService,
 ):
     """
     Test that the instruction field on a workflow agent node appears in the LLM request,
@@ -2023,32 +1863,16 @@ async def test_workflow_instruction_appears_in_llm_request(
     scenario_id = "workflow_instruction_llm_001"
     print(f"\nRunning programmatic scenario: {scenario_id}")
 
-    # Setup: Pre-save the input artifact with a unique context value
+    # Setup workflow input data with a unique context value
     user_identity = "instruction_test_user@example.com"
     session_id = f"session_{scenario_id}"
 
     # Use a unique context value that we can search for in the LLM request
     context_value = "RESOLVED_CONTEXT_VALUE_XYZ789"
-    artifact_content = {
+    workflow_input = {
         "input_text": "Test data for instruction validation",
         "context": context_value,
     }
-    artifact_filename = "workflow_input.json"
-
-    artifact_part = adk_types.Part(
-        inline_data=adk_types.Blob(
-            mime_type="application/json",
-            data=json.dumps(artifact_content).encode("utf-8"),
-        )
-    )
-    await test_artifact_service_instance.save_artifact(
-        app_name="test_namespace",
-        user_id=user_identity,
-        session_id=session_id,
-        filename=artifact_filename,
-        artifact=artifact_part,
-    )
-    print(f"Scenario {scenario_id}: Setup artifact '{artifact_filename}' created.")
 
     # Prime LLM for successful single-node workflow
     # Agent saves artifact and returns success
@@ -2091,14 +1915,11 @@ async def test_workflow_instruction_appears_in_llm_request(
     input_data = {
         "target_agent_name": "InstructionTestWorkflow",
         "user_identity": user_identity,
-        "a2a_parts": [{"type": "text", "text": "Process this with instructions"}],
+        "a2a_parts": [{"type": "data", "data": workflow_input}],
         "external_context": {
             "test_case": scenario_id,
             "a2a_session_id": session_id,
         },
-        "invoked_with_artifacts": [
-            {"filename": artifact_filename, "version": 0}
-        ],
     }
 
     task_id = await submit_test_input(
