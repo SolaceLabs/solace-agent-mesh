@@ -266,6 +266,15 @@ async def get_app_config(
             log.debug("%s Background tasks feature flag is enabled.", log_prefix)
         else:
             log.debug("%s Background tasks feature flag is disabled.", log_prefix)
+
+        # Determine if mentions (@user) should be enabled
+        # Mentions require identity_service to be configured for user search
+        mentions_enabled = component.identity_service is not None
+        feature_enablement["mentions"] = mentions_enabled
+        if mentions_enabled:
+            log.debug("%s Mentions feature flag is enabled (identity_service configured).", log_prefix)
+        else:
+            log.debug("%s Mentions feature flag is disabled (no identity_service configured).", log_prefix)
         
         # Check tool configuration status
         tool_config_status = {}

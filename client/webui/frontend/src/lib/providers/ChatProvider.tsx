@@ -7,6 +7,7 @@ import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/li
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { getAccessToken, getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION } from "@/lib/utils";
+import { internalToDisplayText } from "@/lib/utils/mentionUtils";
 
 import type {
     CancelTaskRequest,
@@ -266,6 +267,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 type: f.type,
             })),
             isError: message.isError,
+            displayHtml: message.displayHtml,
         };
     }, []);
 
@@ -419,6 +421,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     uploadedFiles: bubble.uploadedFiles,
                     artifactNotification: bubble.artifactNotification,
                     isError: bubble.isError,
+                    displayHtml: bubble.displayHtml, // Restore mention chip HTML for user messages
                     metadata: {
                         messageId: bubble.id,
                         sessionId: sessionId,
@@ -1726,7 +1729,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null) => {
+        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null) => {
             event.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
@@ -1745,6 +1748,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 parts: [{ kind: "text", text: currentInput }],
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
+                displayHtml: displayHtml || undefined,
                 metadata: {
                     messageId: `msg-${v4()}`,
                     sessionId: overrideSessionId || sessionId,
@@ -1936,7 +1940,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             .trim();
 
                         if (combinedText) {
-                            newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
+                            // Convert internal mention format @[Name](id) to display format @Name
+                            // Also strip backend mention format <user_id:...> from the text
+                            // The regex handles both complete (<user_id:id>) and truncated (<user_id:id) cases
+                            let displayText = internalToDisplayText(combinedText);
+                            displayText = displayText.replace(/<user_id:[^>]*>?/g, "").trim();
+                            newSessionName = displayText.length > 100 ? `${displayText.substring(0, 100)}...` : displayText;
                         } else if (currentFiles.length > 0) {
                             // No text, but files were sent - derive name from files
                             if (currentFiles.length === 1) {
