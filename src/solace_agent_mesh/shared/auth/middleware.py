@@ -11,6 +11,10 @@ from fastapi import Request as FastAPIRequest
 from fastapi.responses import JSONResponse
 from fastapi import status
 
+from solace_agent_mesh.gateway.http_sse.utils.sam_token_helpers import (
+    is_sam_token_enabled,
+)
+
 log = logging.getLogger(__name__)
 
 
@@ -252,7 +256,7 @@ def create_oauth_middleware(component):
             trust_manager = getattr(self.component, "trust_manager", None)
             authorization_service = getattr(self.component, "authorization_service", None)
 
-            if trust_manager and getattr(trust_manager, "access_token_enabled", False):
+            if trust_manager and is_sam_token_enabled(self.component):
                 try:
                     # Validate as sam_access_token using trust_manager (no task_id binding)
                     claims = trust_manager.verify_user_claims_without_task_binding(access_token)
