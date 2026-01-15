@@ -935,20 +935,22 @@ class AudioService:
         session_id: str,
         app_name: str = "webui",
         message_id: Optional[str] = None,
-        provider: Optional[str] = None  # NEW: Allow provider override from request
+        provider: Optional[str] = None,
+        preprocess_markdown: bool = True
     ) -> bytes:
         """
         Generate speech audio from text using configured TTS service.
         Routes to appropriate provider (Azure, Gemini, etc.).
         
         Args:
-            text: Text to convert to speech
+            text: Text to convert to speech (may contain markdown)
             voice: Voice name to use
             user_id: User identifier
             session_id: Session identifier
             app_name: Application name
             message_id: Optional message ID for caching
-            provider: Optional provider override (azure, gemini)
+            provider: Optional provider override (azure, gemini, polly)
+            preprocess_markdown: Whether to strip markdown syntax for natural speech (default: True)
             
         Returns:
             Audio data as bytes (MP3 format)
@@ -957,11 +959,21 @@ class AudioService:
             HTTPException: If generation fails
         """
         log.info(
-            "[AudioService] Generating speech for user=%s, session=%s, voice=%s, text_len=%d, provider=%s",
-            user_id, session_id, voice, len(text), provider
+            "[AudioService] Generating speech for user=%s, session=%s, voice=%s, text_len=%d, provider=%s, preprocess_markdown=%s",
+            user_id, session_id, voice, len(text), provider, preprocess_markdown
         )
         
-        try:            
+        try:
+            # Preprocess markdown to natural speech text if enabled
+            if preprocess_markdown:
+                from solace_agent_mesh.common.utils.markdown_to_speech import markdown_to_speech
+                original_len = len(text)
+                text = markdown_to_speech(text)
+                log.debug(
+                    "[AudioService] Preprocessed markdown: %d chars -> %d chars",
+                    original_len, len(text)
+                )
+            
             tts_config = self.speech_config.get("tts", {}) if self.speech_config else {}
             
             if not tts_config:
@@ -1005,23 +1017,34 @@ class AudioService:
         user_id: str,
         session_id: str,
         app_name: str = "webui",
-        provider: Optional[str] = None
+        provider: Optional[str] = None,
+        preprocess_markdown: bool = True
     ) -> AsyncGenerator[bytes, None]:
         """
         Stream speech audio for long text with intelligent sentence-based chunking.
-        Generates and yields audio chunks immediately for reduced latency.
+        Generates chunks in parallel for reduced latency while yielding in order.
         
         Args:
-            text: Text to convert to speech
+            text: Text to convert to speech (may contain markdown)
             voice: Voice name to use
             user_id: User identifier
             session_id: Session identifier
             app_name: Application name
             provider: Optional provider override (azure, gemini, polly)
+            preprocess_markdown: Whether to strip markdown syntax for natural speech (default: True)
             
         Yields:
             Audio data chunks as bytes
         """
+        # Preprocess markdown ONCE before chunking (not per-chunk)
+        if preprocess_markdown:
+            from solace_agent_mesh.common.utils.markdown_to_speech import markdown_to_speech
+            original_len = len(text)
+            text = markdown_to_speech(text)
+            log.debug(
+                "[AudioService] Stream: Preprocessed markdown: %d chars -> %d chars",
+                original_len, len(text)
+            )
     
         # Split text into sentence-based chunks for more natural audio boundaries
         import re
@@ -1044,30 +1067,89 @@ class AudioService:
         if current_chunk:
             chunks.append(current_chunk.strip())
         
+        if not chunks:
+            return
         
-        # Generate and yield chunks immediately (no buffering)
-        for i, chunk in enumerate(chunks):
-            log.debug("[AudioService] Generating chunk %d/%d (len=%d)", i+1, len(chunks), len(chunk))
-            
+        MAX_CONCURRENT = 3  # Limit concurrent TTS requests to avoid overwhelming the API
+        
+        async def generate_chunk(index: int, chunk_text: str) -> tuple[int, Optional[bytes]]:
+            """Generate audio for a single chunk, returning (index, audio_data)"""
             try:
+                log.debug("[AudioService] Starting generation for chunk %d/%d (len=%d)",
+                         index + 1, len(chunks), len(chunk_text))
                 audio_data = await self.generate_speech(
-                    text=chunk,
+                    text=chunk_text,
                     voice=voice,
                     user_id=user_id,
                     session_id=session_id,
                     app_name=app_name,
-                    message_id=f"chunk_{i}",
-                    provider=provider  # Pass provider to generate_speech
+                    message_id=f"chunk_{index}",
+                    provider=provider,
+                    preprocess_markdown=False  # Already preprocessed above
                 )
-                
-                if audio_data:
-                    log.debug("[AudioService] Yielding chunk %d (%d bytes)", i+1, len(audio_data))
-                    yield audio_data
-                    
+                log.debug("[AudioService] Completed generation for chunk %d (%d bytes)",
+                         index + 1, len(audio_data) if audio_data else 0)
+                return (index, audio_data)
             except Exception as e:
-                log.error("[AudioService] Error generating chunk %d: %s", i, e)
-                # Continue with next chunk instead of failing completely
-                continue
+                log.error("[AudioService] Error generating chunk %d: %s", index + 1, e)
+                return (index, None)
+        
+        # Use a dict to store results as they complete (keyed by index for ordering)
+        results: Dict[int, Optional[bytes]] = {}
+        next_to_yield = 0
+        pending_tasks: Dict[int, asyncio.Task] = {}
+        
+        # Start initial batch of tasks
+        for i in range(min(MAX_CONCURRENT, len(chunks))):
+            task = asyncio.create_task(generate_chunk(i, chunks[i]))
+            pending_tasks[i] = task
+        
+        next_to_start = min(MAX_CONCURRENT, len(chunks))
+        
+        # Process tasks as they complete, yielding in order
+        while next_to_yield < len(chunks):
+            if not pending_tasks:
+                # No more pending tasks but we haven't yielded everything
+                # This shouldn't happen, but handle gracefully
+                break
+            
+            # Wait for any task to complete
+            done, _ = await asyncio.wait(
+                pending_tasks.values(),
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            
+            # Process completed tasks
+            for completed_task in done:
+                # Find which index this task was for
+                completed_index = None
+                for idx, task in pending_tasks.items():
+                    if task == completed_task:
+                        completed_index = idx
+                        break
+                
+                if completed_index is not None:
+                    del pending_tasks[completed_index]
+                    try:
+                        index, audio_data = completed_task.result()
+                        results[index] = audio_data
+                    except Exception as e:
+                        log.error("[AudioService] Task for chunk %d failed: %s", completed_index + 1, e)
+                        results[completed_index] = None
+                    
+                    # Start next task if there are more chunks
+                    if next_to_start < len(chunks):
+                        new_task = asyncio.create_task(generate_chunk(next_to_start, chunks[next_to_start]))
+                        pending_tasks[next_to_start] = new_task
+                        next_to_start += 1
+            
+            # Yield any chunks that are ready in order
+            while next_to_yield in results:
+                audio_data = results.pop(next_to_yield)
+                if audio_data:
+                    log.debug("[AudioService] Yielding chunk %d (%d bytes)", next_to_yield + 1, len(audio_data))
+                    yield audio_data
+                next_to_yield += 1
     
     async def get_available_voices(self, provider: Optional[str] = None) -> List[str]:
         """

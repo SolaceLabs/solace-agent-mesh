@@ -18,7 +18,7 @@ from ...common.app_base import SamAppBase
 
 from ...common.a2a import (
     get_agent_request_topic,
-    get_discovery_topic,
+    get_discovery_subscription_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
     get_sam_events_subscription_topic,
@@ -502,7 +502,7 @@ class SamAgentApp(SamAppBase):
 
         required_topics = [
             get_agent_request_topic(namespace, agent_name),
-            get_discovery_topic(namespace),
+            get_discovery_subscription_topic(namespace),
             get_agent_response_subscription_topic(namespace, agent_name),
             get_agent_status_subscription_topic(namespace, agent_name),
             get_sam_events_subscription_topic(namespace, "session"),

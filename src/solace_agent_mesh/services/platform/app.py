@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 from ...common.app_base import SamAppBase
 
 from .component import PlatformServiceComponent
-from ...common.a2a import get_discovery_topic
+from ...common.a2a import get_discovery_subscription_topic
 
 log = logging.getLogger(__name__)
 
@@ -164,9 +164,9 @@ class PlatformServiceApp(SamAppBase):
         if not namespace:
             raise ValueError("Namespace is required in app_config for PlatformServiceApp")
 
-        # Create subscriptions for agent discovery
+        # Create subscriptions for agent and gateway discovery
         subscriptions = [
-            {"topic": get_discovery_topic(namespace)},
+            {"topic": get_discovery_subscription_topic(namespace)},
         ]
 
         # Create component definition with subscriptions
