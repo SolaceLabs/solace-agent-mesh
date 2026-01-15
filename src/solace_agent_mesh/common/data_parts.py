@@ -214,6 +214,13 @@ class StructuredInvocationRequest(BaseModel):
     )
 
 
+class ArtifactRef(BaseModel):
+    """Reference to an artifact."""
+
+    name: str
+    version: Optional[int] = None
+
+
 class StructuredInvocationResult(BaseModel):
     """
     Data part returned by agent after a structured invocation.
@@ -228,24 +235,14 @@ class StructuredInvocationResult(BaseModel):
     status: Literal["success", "error"] = Field(
         ..., description="Execution result status"
     )
-    artifact_name: Optional[str] = Field(
-        None, description="Name of result artifact if success"
-    )
-    artifact_version: Optional[int] = Field(
-        None, description="Version of result artifact"
+    output_artifact_ref: Optional[ArtifactRef] = Field(
+        None, description="Reference to the result artifact if success"
     )
     error_message: Optional[str] = Field(None, description="Error message if error")
     validation_errors: Optional[List[str]] = Field(
         None, description="Schema validation errors if any"
     )
     retry_count: int = Field(0, description="Number of retries attempted")
-
-
-class ArtifactRef(BaseModel):
-    """Reference to an artifact."""
-
-    name: str
-    version: Optional[int] = None
 
 
 class WorkflowExecutionStartData(BaseModel):

@@ -86,6 +86,11 @@ class ExitHandler(BaseModel):
         description="Node ID to execute only on failure.",
         alias="onFailure",
     )
+    on_cancel: Optional[str] = Field(
+        default=None,
+        description="Node ID to execute only on cancellation.",
+        alias="onCancel",
+    )
 
     class Config:
         populate_by_name = True
@@ -223,7 +228,7 @@ class LoopNode(WorkflowNode):
     )
     delay: Optional[str] = Field(
         default=None,
-        description="Delay between iterations. Format: '5s', '1m'.",
+        description="Delay between loop iterations. Format: '5s', '1m', '1h', '1d'.",
     )
 
     class Config:
@@ -413,7 +418,7 @@ class WorkflowDefinition(BaseModel):
         default=None,
         description=(
             "Exit handler configuration. Can be a node ID (string) or "
-            "ExitHandler object with on_success/on_failure/always."
+            "ExitHandler object with on_success/on_failure/on_cancel/always."
         ),
         alias="onExit",
     )
@@ -507,6 +512,7 @@ class WorkflowDefinition(BaseModel):
                     ("always", self.on_exit.always),
                     ("on_success", self.on_exit.on_success),
                     ("on_failure", self.on_exit.on_failure),
+                    ("on_cancel", self.on_exit.on_cancel),
                 ]:
                     if node_id and node_id not in node_map:
                         raise ValueError(

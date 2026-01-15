@@ -492,6 +492,8 @@ class WorkflowExecutorComponent(SamComponentBase):
                 nodes_to_run.append(on_exit.on_success)
             if outcome == "failure" and on_exit.on_failure:
                 nodes_to_run.append(on_exit.on_failure)
+            if outcome == "cancelled" and on_exit.on_cancel:
+                nodes_to_run.append(on_exit.on_cancel)
 
         # Execute each exit handler node
         for node_id in nodes_to_run:
@@ -600,12 +602,13 @@ class WorkflowExecutorComponent(SamComponentBase):
         if is_sub_workflow_invocation and artifact_version is not None:
             # When invoked as a sub-workflow, include StructuredInvocationResult
             # so the parent workflow can process the response
-            from ..common.data_parts import StructuredInvocationResult
+            from ..common.data_parts import ArtifactRef, StructuredInvocationResult
             invocation_result = StructuredInvocationResult(
                 type="structured_invocation_result",
                 status="success",
-                artifact_name=output_artifact_name,
-                artifact_version=artifact_version,
+                output_artifact_ref=ArtifactRef(
+                    name=output_artifact_name, version=artifact_version
+                ),
             )
             message_parts.append(a2a.create_data_part(data=invocation_result.model_dump()))
 
