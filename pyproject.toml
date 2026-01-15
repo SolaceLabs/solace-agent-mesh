@@ -40,6 +40,9 @@ dependencies = [
     "PyYAML==6.0.2",
     "python-multipart==0.0.20",
     "markitdown[all]==0.1.4",
+    "python-docx==1.1.2",
+    "python-pptx==1.0.2",
+    "pdfminer-six==20260107",
     "jmespath==1.0.1",
     "mermaid_cli==0.1.2",
     "playwright==1.55.0",
@@ -70,8 +73,7 @@ dependencies = [
     "authlib==1.6.5",  # For CVE-2025-59420: May be removed if next update to google-adk upgrades its transitive dependency on authlib
     "bm25s[full]==0.2.14",
     "PyStemmer==3.0.0",
-    "jax[cpu]==0.8.1",
-    "markitdown[all]==0.1.4"
+    "jax[cpu]==0.8.1"
 ]
 
 [project.optional-dependencies]
