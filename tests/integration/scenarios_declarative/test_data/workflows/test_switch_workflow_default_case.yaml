@@ -8,22 +8,15 @@ test_runner_config_overrides:
   agent_config:
     artifact_scope: "namespace"
 
-setup_artifacts:
-  - filename: "workflow_input.json"
-    content: '{"action": "unknown_action"}'
-    mime_type: "application/json"
-
 gateway_input:
   target_agent_name: "SwitchTestWorkflow"
   user_identity: "workflow_test_user@example.com"
   external_context:
     a2a_session_id: "switch_default_test_session"
-  prompt:
-    parts:
-      - text: "Route the action"
-  invoked_with_artifacts:
-    - filename: "workflow_input.json"
-      version: 0
+  parts:
+    - type: "data"
+      data:
+        action: "unknown_action"
 
 llm_interactions:
   # default_handler (TestPeerAgentA): Handle unknown action

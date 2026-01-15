@@ -8,22 +8,15 @@ test_runner_config_overrides:
   agent_config:
     artifact_scope: "namespace"
 
-setup_artifacts:
-  - filename: "workflow_input.json"
-    content: '{"input_text": "Process this test data"}'
-    mime_type: "application/json"
-
 gateway_input:
   target_agent_name: "SimpleTestWorkflow"
   user_identity: "workflow_test_user@example.com"
   external_context:
     a2a_session_id: "workflow_test_session"
-  prompt:
-    parts:
-      - text: "Run the workflow"
-  invoked_with_artifacts:
-    - filename: "workflow_input.json"
-      version: 0
+  parts:
+    - type: "data"
+      data:
+        input_text: "Process this test data"
 
 llm_interactions:
   # Step 1: TestPeerAgentA receives the workflow input
