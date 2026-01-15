@@ -89,10 +89,10 @@ Use the `--skip` option and provide the necessary options to run the command in 
 
 ### `add` - Create a New Component
 
-To add a new component, such as an agent or gateway, use the `add` command with the appropriate options.
+To add a new component, such as an agent, gateway, or proxy, use the `add` command with the appropriate options.
 
 ```sh
-sam add [agent|gateway] [OPTIONS] NAME
+sam add [agent|gateway|proxy] [OPTIONS] NAME
 ```
 
 #### Add `agent`
@@ -156,6 +156,29 @@ sam add gateway [OPTIONS] [NAME]
 
 For more information, see [Gateways](gateways.md).
 
+#### Add `proxy`
+
+Use `proxy` to add an A2A proxy component that bridges external HTTP-based agents to the Solace Agent Mesh.
+
+```sh
+sam add proxy [OPTIONS] [NAME]
+```
+
+The proxy command creates a configuration file in `configs/agents/` that you can customize to connect external agents to the mesh.
+
+##### Options:
+
+- `--skip` – Skip interactive prompts and create the proxy with default template.
+- `-h, --help` – Displays the help message and exits.
+
+##### Example:
+
+```sh
+sam add proxy myProxy --skip
+```
+
+This creates `configs/agents/my_proxy_proxy.yaml` with the default proxy configuration template.
+
 
 
 ### `run` - Run the Agent Mesh Application
@@ -212,6 +235,37 @@ If a requested page is not found, it will redirect to the main documentation pag
 -   `-h, --help` – Displays the help message and exits.
 
 
+
+### `tools` - Manage and Explore Built-in Tools
+
+The `tools` command allows you to explore and manage built-in tools available in Solace Agent Mesh.
+
+```sh
+sam tools [COMMAND] [OPTIONS]
+```
+
+#### `list` - List Built-in Tools
+
+Lists all built-in tools available in Solace Agent Mesh. By default, shows brief information with tool names and descriptions.
+
+```sh
+sam tools list [OPTIONS]
+```
+
+This command is useful for:
+- Discovering what built-in tools are available for your agents
+- Understanding tool capabilities and required parameters
+- Filtering tools by category
+- Exporting tool information in JSON format
+
+##### Options:
+
+- `-c, --category TEXT` – Filter tools by category (e.g., 'artifact_management', 'data_analysis', 'web').
+- `-d, --detailed` – Show detailed information including parameters and required scopes.
+- `--json` – Output in JSON format instead of pretty table.
+- `-h, --help` – Displays the help message.
+
+For more information about built-in tools, see [Built-in Tools](builtin-tools/)
 
 ### `plugin` - Manage Plugins
 

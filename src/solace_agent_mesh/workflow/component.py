@@ -126,7 +126,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         """
         # Determine message type based on topic
         request_topic = a2a.get_agent_request_topic(self.namespace, self.workflow_name)
-        discovery_topic = a2a.get_discovery_topic(self.namespace)
+        discovery_topic = a2a.get_discovery_subscription_topic(self.namespace)
         response_sub = a2a.get_agent_response_subscription_topic(
             self.namespace, self.workflow_name
         )
@@ -215,7 +215,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         """
         try:
             agent_card = self._create_workflow_agent_card()
-            discovery_topic = a2a.get_discovery_topic(self.namespace)
+            discovery_topic = a2a.get_agent_discovery_topic(self.namespace)
             self.publish_a2a_message(
                 payload=agent_card.model_dump(exclude_none=True), topic=discovery_topic
             )

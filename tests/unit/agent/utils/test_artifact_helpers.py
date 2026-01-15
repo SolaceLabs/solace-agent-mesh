@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from solace_agent_mesh.agent.adk.services import BaseArtifactService
 from solace_agent_mesh.agent.utils.artifact_helpers import (
     is_filename_safe,
+    sanitize_to_filename,
     ensure_correct_extension,
     format_artifact_uri,
     parse_artifact_uri,
@@ -88,6 +89,119 @@ class TestIsFilenameSafe:
         
         for filename in unsafe_filenames:
             assert not is_filename_safe(filename), f"Expected '{filename}' to be unsafe"
+
+
+class TestSanitizeToFilename:
+    """Test the sanitize_to_filename function."""
+
+    def test_basic_text_conversion(self):
+        """Test basic text to filename conversion."""
+        result = sanitize_to_filename("What is AI?")
+        assert result == "what_is_ai"
+
+    def test_special_characters_removed(self):
+        """Test that special characters are removed."""
+        result = sanitize_to_filename("Research: Deep Learning!")
+        assert result == "research_deep_learning"
+
+    def test_with_suffix(self):
+        """Test filename with suffix."""
+        result = sanitize_to_filename("Research: Deep Learning!", suffix="_report.md")
+        assert result == "research_deep_learning_report.md"
+
+    def test_max_length_limit(self):
+        """Test that max_length limit is respected."""
+        result = sanitize_to_filename("A very long research question about many topics", max_length=20)
+        assert len(result) <= 20
+        assert result == "a_very_long_research"
+
+    def test_max_length_strips_trailing_replacement_char(self):
+        """Test that trailing replacement char is stripped after truncation."""
+        # "hello world test" -> "hello_world_test" (16 chars)
+        # With max_length=12, we get "hello_world_" which should strip to "hello_world"
+        result = sanitize_to_filename("hello world test", max_length=12)
+        assert not result.endswith("_")
+        assert result == "hello_world"
+
+    def test_empty_text_returns_unnamed(self):
+        """Test that empty text returns 'unnamed'."""
+        result = sanitize_to_filename("")
+        assert result == "unnamed"
+
+    def test_empty_text_with_suffix(self):
+        """Test that empty text with suffix returns 'unnamed' + suffix."""
+        result = sanitize_to_filename("", suffix=".md")
+        assert result == "unnamed.md"
+
+    def test_none_text_returns_unnamed(self):
+        """Test that None text returns 'unnamed'."""
+        result = sanitize_to_filename(None)
+        assert result == "unnamed"
+
+    def test_whitespace_only_returns_unnamed(self):
+        """Test that whitespace-only text returns 'unnamed'."""
+        result = sanitize_to_filename("   ")
+        assert result == "unnamed"
+
+    def test_special_chars_only_returns_unnamed(self):
+        """Test that text with only special characters returns 'unnamed'."""
+        result = sanitize_to_filename("!@#$%^&*()")
+        assert result == "unnamed"
+
+    def test_custom_replacement_char(self):
+        """Test using custom replacement character."""
+        result = sanitize_to_filename("hello world", replacement_char="-")
+        assert result == "hello-world"
+
+    def test_multiple_spaces_collapsed(self):
+        """Test that multiple spaces are collapsed to single replacement char."""
+        result = sanitize_to_filename("hello    world")
+        assert result == "hello_world"
+
+    def test_hyphens_replaced(self):
+        """Test that hyphens are replaced with replacement char."""
+        result = sanitize_to_filename("hello-world-test")
+        assert result == "hello_world_test"
+
+    def test_mixed_spaces_and_hyphens(self):
+        """Test that mixed spaces and hyphens are handled."""
+        result = sanitize_to_filename("hello - world -- test")
+        assert result == "hello_world_test"
+
+    def test_leading_trailing_spaces_stripped(self):
+        """Test that leading/trailing spaces are stripped."""
+        result = sanitize_to_filename("  hello world  ")
+        assert result == "hello_world"
+
+    def test_unicode_characters(self):
+        """Test handling of unicode characters."""
+        # Python's \w includes unicode word characters, so accented chars are preserved
+        result = sanitize_to_filename("café résumé")
+        assert result == "café_résumé"
+
+    def test_numbers_preserved(self):
+        """Test that numbers are preserved."""
+        result = sanitize_to_filename("test123 file456")
+        assert result == "test123_file456"
+
+    def test_underscores_preserved(self):
+        """Test that underscores are preserved."""
+        result = sanitize_to_filename("test_file_name")
+        assert result == "test_file_name"
+
+    def test_max_length_zero_no_limit(self):
+        """Test that max_length=0 means no limit."""
+        long_text = "a" * 100
+        result = sanitize_to_filename(long_text, max_length=0)
+        assert len(result) == 100
+
+    def test_complex_research_question(self):
+        """Test with a complex research question."""
+        question = "What are the implications of AI on healthcare? (2024 study)"
+        result = sanitize_to_filename(question, max_length=40, suffix="_report.md")
+        assert result.endswith("_report.md")
+        assert len(result.replace("_report.md", "")) <= 40
+        assert "what_are_the_implications" in result
 
 
 class TestEnsureCorrectExtension:
