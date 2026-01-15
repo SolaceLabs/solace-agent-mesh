@@ -10,3 +10,4 @@ export { SystemPromptSection } from "./SystemPromptSection";
 export { DefaultAgentSection } from "./DefaultAgentSection";
 export { KnowledgeSection } from "./KnowledgeSection";
 export { DeleteProjectDialog } from "./DeleteProjectDialog";
+export { ProjectImportDialog } from "./ProjectImportDialog";
