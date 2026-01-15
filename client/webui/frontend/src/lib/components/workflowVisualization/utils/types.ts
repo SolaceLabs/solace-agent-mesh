@@ -98,6 +98,10 @@ export interface NodeProps {
     onCollapse?: (nodeId: string) => void;
     onHighlightNodes?: (nodeIds: string[]) => void;
     knownNodeIds?: Set<string>;
+    /** Current workflow name - used for building sub-workflow navigation URLs */
+    currentWorkflowName?: string;
+    /** Parent workflow path (for breadcrumb navigation) */
+    parentPath?: string[];
 }
 
 /**

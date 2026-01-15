@@ -1,5 +1,5 @@
 // Workflow Visualization Components
-export { WorkflowVisualizationPage } from "./WorkflowVisualizationPage";
+export { WorkflowVisualizationPage, buildWorkflowNavigationUrl } from "./WorkflowVisualizationPage";
 export { default as WorkflowDiagram } from "./WorkflowDiagram";
 export { default as WorkflowNodeRenderer } from "./WorkflowNodeRenderer";
 export { default as WorkflowNodeDetailPanel } from "./WorkflowNodeDetailPanel";

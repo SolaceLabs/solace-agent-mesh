@@ -19,6 +19,10 @@ interface WorkflowNodeRendererProps {
     onHighlightNodes?: (nodeIds: string[]) => void;
     knownNodeIds?: Set<string>;
     nodeRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
+    /** Current workflow name - used for building sub-workflow navigation URLs */
+    currentWorkflowName?: string;
+    /** Parent workflow path (for breadcrumb navigation) */
+    parentPath?: string[];
 }
 
 /**
@@ -35,6 +39,8 @@ const WorkflowNodeRenderer: React.FC<WorkflowNodeRendererProps> = ({
     onHighlightNodes,
     knownNodeIds,
     nodeRefs,
+    currentWorkflowName,
+    parentPath,
 }) => {
     // Track mounted node IDs for cleanup
     const mountedNodeIds = useRef<Set<string>>(new Set());
@@ -95,6 +101,8 @@ const WorkflowNodeRenderer: React.FC<WorkflowNodeRendererProps> = ({
             onCollapse,
             onHighlightNodes,
             knownNodeIds,
+            currentWorkflowName,
+            parentPath,
         };
 
         switch (node.type) {

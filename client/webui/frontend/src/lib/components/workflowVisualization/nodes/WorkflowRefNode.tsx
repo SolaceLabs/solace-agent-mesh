@@ -2,13 +2,21 @@ import React from "react";
 import { Workflow, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { buildWorkflowNavigationUrl } from "../WorkflowVisualizationPage";
 
 /**
  * Workflow reference node - Rectangle with workflow icon, name, and "Workflow" badge
  * Clicking navigates to the referenced workflow's visualization
  * Supports highlighting when referenced in expressions
  */
-const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) => {
+const WorkflowRefNode: React.FC<NodeProps> = ({
+    node,
+    isSelected,
+    isHighlighted,
+    onClick,
+    currentWorkflowName,
+    parentPath = [],
+}) => {
     const navigate = useNavigate();
     const workflowName = node.data.workflowName || node.data.agentName || node.data.label;
 
@@ -20,7 +28,11 @@ const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted,
     const handleNavigate = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (workflowName) {
-            navigate(`/agents/workflows/${encodeURIComponent(workflowName)}`);
+            // Build new parent path: current workflow becomes closest parent
+            const newParentPath = currentWorkflowName
+                ? [currentWorkflowName, ...parentPath]
+                : parentPath;
+            navigate(buildWorkflowNavigationUrl(workflowName, newParentPath));
         }
     };
 

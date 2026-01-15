@@ -25,6 +25,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui/ta
 import { Button } from "@/lib/components/ui/button";
 import { JSONViewer } from "@/lib/components/jsonViewer";
 import InputMappingViewer from "./InputMappingViewer";
+import { buildWorkflowNavigationUrl } from "./WorkflowVisualizationPage";
 
 interface WorkflowNodeDetailPanelProps {
     node: LayoutNode | null;
@@ -37,6 +38,10 @@ interface WorkflowNodeDetailPanelProps {
     knownNodeIds?: Set<string>;
     /** Callback to navigate/pan to a node when clicking the navigation icon */
     onNavigateToNode?: (nodeId: string) => void;
+    /** Current workflow name - used for building sub-workflow navigation URLs */
+    currentWorkflowName?: string;
+    /** Parent workflow path (for breadcrumb navigation) */
+    parentPath?: string[];
 }
 
 /**
@@ -51,6 +56,8 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
     onHighlightNodes,
     knownNodeIds,
     onNavigateToNode,
+    currentWorkflowName,
+    parentPath = [],
 }) => {
     // workflowConfig is available for future use (e.g., accessing workflow-level output_mapping)
     void _workflowConfig;
@@ -106,12 +113,16 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
         setShowCodeView(false);
     }, []);
 
-    // Navigate to nested workflow
+    // Navigate to nested workflow with parent path tracking for breadcrumbs
     const handleOpenWorkflow = useCallback(() => {
         if (node?.data.workflowName) {
-            navigate(`/agents/workflows/${encodeURIComponent(node.data.workflowName)}`);
+            // Build new parent path: current workflow becomes closest parent
+            const newParentPath = currentWorkflowName
+                ? [currentWorkflowName, ...parentPath]
+                : parentPath;
+            navigate(buildWorkflowNavigationUrl(node.data.workflowName, newParentPath));
         }
-    }, [navigate, node?.data.workflowName]);
+    }, [navigate, node?.data.workflowName, currentWorkflowName, parentPath]);
 
     if (!node) {
         return null;
