@@ -21,7 +21,6 @@ Before you begin, ensure you have:
 - A standard IDE (such as VS Code)
 - A coding assistant with MCP support (recommended Claude Code). See the [list of supported clients](https://context7.com/docs/resources/all-clients).
 - LLM model (recommended Claude Opus 4.5 model)
-- Python V3.10.6 to V3.13
 - (Optional) A Context7 API key (free for anyone)
 
 ## Installation
@@ -40,23 +39,9 @@ Ask your coding assistant:
 Use the `solacelabs/solace-agent-mesh` context7 library when answering questions in this chat session.
 ```
 
-Review the response from your coding assistant to confirm that it acknowledges the Context7 integration and recognizes the `solacelabs/solace-agent-mesh` library. Depending on the assistant, you might see different confirmation messages. The following shows example messages for when the MCP is connected and disconnected.
+Review the response from your coding assistant to confirm that it acknowledges the Context7 integration and recognizes the `solacelabs/solace-agent-mesh` library. 
 
-<table>
-<tr>
-<td><span style="color:green">Connected</span></td>
-<td><img src="../../static/img/doc-correct-context7-connection.png" alt="Correct Context7 connection confirmation"/></td>
-</tr>
-<tr>
-<td><span style="color:red">Disconnected</span></td>
-<td><img src="../../static/img/doc-incorrect-context7-connection.png" alt="Incorrect Context7 connection confirmation"/></td>
-</tr>
-</table>
-
-
-This ensures your coding agent is correctly set up to leverage the Solace Agent Mesh knowledge base.
-
-:::note
+:::tip
 You need to specify the library at least once in your chat session to activate the Context7 integration.
 To avoid mentioning `solacelabs/solace-agent-mesh` context7 library in every prompt, configure your MCP client with a rule that automatically triggers the library for any code-related request.
 
@@ -68,12 +53,12 @@ Automatically use `solacelabs/solace-agent-mesh` context7 library without requir
 
 ### Step 3: Setup project environment
 
-1. Ensure that the correct versions of Python (v1.10–v1.13) and [PIP package manager](https://pip.pypa.io/en/stable/installation/) are installed and properly configured.
+1. Ensure that Python and [PIP package manager](https://pip.pypa.io/en/stable/installation/) are installed and properly configured.
 
     Verify python and pip:
     ```
-    python --version
-    pip --version
+    python --help
+    pip --help
     ```
 
 2. Create a new, empty project in your IDE. Although vibe coding works in any workspace, existing files in a project may influence its behavior and results.
