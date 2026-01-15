@@ -235,7 +235,7 @@ export interface WorkflowMapProgressData {
 }
 
 export interface WorkflowExecutionResultData {
-    status: "success" | "failure";
+    status: "success" | "failure" | "error";
     outputArtifactRef?: ArtifactRef;
     errorMessage?: string;
     workflowOutput?: Record<string, any>;

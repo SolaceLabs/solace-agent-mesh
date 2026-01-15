@@ -115,6 +115,10 @@ export interface BuildContext {
 
     // Track the parallelBlock node for each parallel peer group (for adding peer agents to it)
     parallelBlockMap: Map<string, LayoutNode>;
+
+    // Track sub-workflow -> parent group relationships (for workflow node types)
+    // Maps subTaskId -> parent workflow group node
+    subWorkflowParentMap: Map<string, LayoutNode>;
 }
 
 /**

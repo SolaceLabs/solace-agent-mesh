@@ -122,17 +122,6 @@ export function WorkflowVisualizationPage() {
         setSelectedNode(null);
     }, []);
 
-    // Handle back navigation - use browser history to support workflow-to-workflow navigation
-    const handleBack = useCallback(() => {
-        // Check if there's history to go back to, otherwise go to workflows list
-        if (window.history.length > 1) {
-            navigate(-1);
-        } else {
-            navigate("/agents?tab=workflows");
-        }
-    }, [navigate]);
-
-
     // Handle opening workflow details panel
     const handleOpenWorkflowDetails = useCallback(() => {
         setSelectedNode(null); // Close node panel if open

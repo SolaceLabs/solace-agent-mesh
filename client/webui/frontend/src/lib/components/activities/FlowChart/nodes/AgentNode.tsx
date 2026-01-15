@@ -62,12 +62,18 @@ const AgentNode: React.FC<AgentNodeProps> = ({ node, isSelected, onClick, onChil
         const borderStyleClass = node.data.isSkipped ? "border-dashed" : "border-solid";
         const hasParallelBranches = node.parallelBranches && node.parallelBranches.length > 0;
         const hasChildren = node.children && node.children.length > 0;
+        const isError = node.data.status === 'error';
+
+        // Color classes based on error status
+        const pillColorClasses = isError
+            ? "border-red-500 bg-red-50 text-red-900 dark:border-red-400 dark:bg-red-900/50 dark:text-red-100"
+            : "border-indigo-500 bg-indigo-50 text-indigo-900 dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100";
 
         // If it's a simple pill (no parallel branches and no children), render compact version
         if (!hasParallelBranches && !hasChildren) {
             return (
                 <div
-                    className={`cursor-pointer rounded-full border-2 border-indigo-500 bg-indigo-50 px-4 py-2 text-indigo-900 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100 ${opacityClass} ${borderStyleClass} ${
+                    className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${opacityClass} ${borderStyleClass} ${
                         isSelected ? "ring-2 ring-blue-500" : ""
                     }`}
                     style={{
@@ -94,7 +100,7 @@ const AgentNode: React.FC<AgentNodeProps> = ({ node, isSelected, onClick, onChil
                 <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
                     {/* Pill label */}
                     <div
-                        className={`cursor-pointer rounded-full border-2 border-indigo-500 bg-indigo-50 px-4 py-2 text-indigo-900 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100 ${
+                        className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${
                             isSelected ? "ring-2 ring-blue-500" : ""
                         }`}
                         style={{
@@ -134,7 +140,7 @@ const AgentNode: React.FC<AgentNodeProps> = ({ node, isSelected, onClick, onChil
             <div className={`flex flex-col items-center ${opacityClass} ${borderStyleClass}`}>
                 {/* Pill label */}
                 <div
-                    className={`cursor-pointer rounded-full border-2 border-indigo-500 bg-indigo-50 px-4 py-2 text-indigo-900 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100 ${
+                    className={`cursor-pointer rounded-full border-2 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md ${pillColorClasses} ${
                         isSelected ? "ring-2 ring-blue-500" : ""
                     }`}
                     style={{

@@ -49,6 +49,7 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
         hasBottomUserNode: false,
         parallelPeerGroupMap: new Map(),
         parallelBlockMap: new Map(),
+        subWorkflowParentMap: new Map(),
     };
 
     // Process all steps to build tree structure
@@ -57,6 +58,26 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
         const step = steps[i];
         processStep(step, context);
     }
+
+    // DEBUG: Print tree structure
+    console.log('=== LAYOUT ENGINE DEBUG ===');
+    console.log('Steps processed:', steps.length);
+    console.log('Root nodes:', context.rootNodes.length);
+    console.log('taskToNodeMap keys:', Array.from(context.taskToNodeMap.keys()));
+    console.log('subWorkflowParentMap keys:', Array.from(context.subWorkflowParentMap.keys()));
+
+    const printTree = (node: LayoutNode, indent: string = '') => {
+        console.log(`${indent}[${node.type}] ${node.data.label} (id=${node.id}, owningTaskId=${node.owningTaskId || 'none'})`);
+        for (const child of node.children) {
+            printTree(child, indent + '  ');
+        }
+    };
+
+    console.log('Tree structure:');
+    for (const node of context.rootNodes) {
+        printTree(node);
+    }
+    console.log('=== END DEBUG ===');
 
     // Calculate layout (positions and dimensions)
     const nodes = calculateLayout(context.rootNodes);
@@ -79,6 +100,11 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
  * Process a single VisualizerStep
  */
 function processStep(step: VisualizerStep, context: BuildContext): void {
+    // Log workflow-related steps
+    if (step.type.startsWith('WORKFLOW')) {
+        console.log('[processStep]', step.type, 'owningTaskId=', step.owningTaskId, 'data=', step.data);
+    }
+
     switch (step.type) {
         case "USER_REQUEST":
             handleUserRequest(step, context);
@@ -499,10 +525,29 @@ function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void 
     const displayName = context.agentNameMap[workflowName] || workflowName;
     const executionId = step.data.workflowExecutionStart?.executionId;
 
-    // Find the calling agent (should be from parentTaskId)
-    const callingAgent = step.parentTaskId
-        ? context.taskToNodeMap.get(step.parentTaskId)
-        : context.currentAgentNode;
+    console.log('[handleWorkflowStart] workflowName=', workflowName, 'executionId=', executionId, 'owningTaskId=', step.owningTaskId, 'parentTaskId=', step.parentTaskId);
+
+    // Check if this is a sub-workflow invoked by a parent workflow's 'workflow' node type
+    // The parent relationship is recorded in subWorkflowParentMap by handleWorkflowNodeType
+    const parentFromWorkflowNode = step.owningTaskId
+        ? context.subWorkflowParentMap.get(step.owningTaskId)
+        : null;
+
+    console.log('[handleWorkflowStart] parentFromWorkflowNode=', parentFromWorkflowNode?.data.label, parentFromWorkflowNode?.id);
+
+    // Find the calling agent - prefer the recorded parent from workflow node,
+    // then try parentTaskId lookup, then fall back to current agent
+    let callingAgent: LayoutNode | null = parentFromWorkflowNode || null;
+    if (!callingAgent && step.parentTaskId) {
+        callingAgent = context.taskToNodeMap.get(step.parentTaskId) || null;
+        console.log('[handleWorkflowStart] callingAgent from parentTaskId lookup=', callingAgent?.data.label);
+    }
+    if (!callingAgent) {
+        callingAgent = context.currentAgentNode;
+        console.log('[handleWorkflowStart] callingAgent from currentAgentNode=', callingAgent?.data.label);
+    }
+
+    console.log('[handleWorkflowStart] Final callingAgent=', callingAgent?.data.label, callingAgent?.id);
 
     // Create group container
     const groupNode = createNode(
@@ -589,6 +634,12 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
         ? (parallelGroupId || `${taskId}:${parentNodeId}`)
         : null;
     const parallelContainer = parallelContainerKey ? context.parallelContainerMap.get(parallelContainerKey) : null;
+
+    // Handle workflow nodes specially - they invoke sub-workflows and need group styling
+    if (nodeType === 'workflow') {
+        handleWorkflowNodeType(step, context);
+        return;
+    }
 
     // Determine node type and variant
     let type: LayoutNode['type'] = 'agent';
@@ -724,6 +775,35 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
 }
 
 /**
+ * Handle workflow node type - records parent relationship for sub-workflow invocation
+ * The actual group creation happens in handleWorkflowStart when the sub-workflow starts
+ */
+function handleWorkflowNodeType(step: VisualizerStep, context: BuildContext): void {
+    const workflowNodeData = step.data.workflowNodeExecutionStart;
+    const subTaskId = workflowNodeData?.subTaskId;
+
+    console.log('[handleWorkflowNodeType] nodeType=workflow, subTaskId=', subTaskId, 'owningTaskId=', step.owningTaskId);
+
+    if (!subTaskId) {
+        console.log('[handleWorkflowNodeType] No subTaskId, returning');
+        return;
+    }
+
+    // Find the parent workflow group
+    const parentGroup = findAgentForStep(step, context);
+    console.log('[handleWorkflowNodeType] parentGroup=', parentGroup?.data.label, parentGroup?.id);
+    if (!parentGroup) {
+        console.log('[handleWorkflowNodeType] No parent group found, returning');
+        return;
+    }
+
+    // Record the parent relationship so handleWorkflowStart can use it
+    // This allows the sub-workflow's WORKFLOW_EXECUTION_START to find the correct parent
+    context.subWorkflowParentMap.set(subTaskId, parentGroup);
+    console.log('[handleWorkflowNodeType] Recorded mapping:', subTaskId, '->', parentGroup.data.label);
+}
+
+/**
  * Handle WORKFLOW_EXECUTION_RESULT - creates Finish node
  */
 function handleWorkflowExecutionResult(step: VisualizerStep, context: BuildContext): void {
@@ -731,7 +811,13 @@ function handleWorkflowExecutionResult(step: VisualizerStep, context: BuildConte
     const groupNode = findAgentForStep(step, context);
     if (!groupNode) return;
 
-    // Create Finish node
+    // Get the execution result to determine status
+    const resultData = step.data.workflowExecutionResult;
+    // Backend may send 'error' or 'failure' for failures, 'success' for success
+    const isError = resultData?.status === 'error' || resultData?.status === 'failure';
+    const nodeStatus = isError ? 'error' : 'completed';
+
+    // Create Finish node with status
     const finishNode = createNode(
         context,
         'agent',
@@ -739,6 +825,7 @@ function handleWorkflowExecutionResult(step: VisualizerStep, context: BuildConte
             label: 'Finish',
             variant: 'pill',
             visualizerStepId: step.id,
+            status: nodeStatus,
         },
         step.owningTaskId
     );
