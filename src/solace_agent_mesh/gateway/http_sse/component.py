@@ -691,6 +691,22 @@ class WebUIBackendComponent(BaseGatewayComponent):
         )
         return default_config
 
+    def get_db_engine(self):
+        """
+        Get the SQLAlchemy database engine for health checks.
+
+        Returns the engine bound to SessionLocal if database is configured,
+        otherwise returns None.
+
+        Returns:
+            Engine or None: The SQLAlchemy engine if available.
+        """
+        from . import dependencies
+
+        if dependencies.SessionLocal is not None:
+            return dependencies.SessionLocal.kw.get("bind")
+        return None
+
     async def _visualization_message_processor_loop(self) -> None:
         """
         Asynchronously consumes messages from the _visualization_message_queue,
