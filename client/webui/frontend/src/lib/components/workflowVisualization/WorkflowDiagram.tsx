@@ -61,6 +61,10 @@ interface WorkflowDiagramProps {
     canvasRef?: React.RefObject<PanZoomCanvasRef | null>;
     /** Callback when content size changes (for fit-to-view calculations) */
     onContentSizeChange?: (width: number, height: number) => void;
+    /** Current workflow name - used for building sub-workflow navigation URLs */
+    currentWorkflowName?: string;
+    /** Parent workflow path (for breadcrumb navigation) */
+    parentPath?: string[];
 }
 
 /**
@@ -78,6 +82,8 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     onTransformChange,
     canvasRef: externalCanvasRef,
     onContentSizeChange,
+    currentWorkflowName,
+    parentPath,
 }) => {
     const internalCanvasRef = useRef<PanZoomCanvasRef>(null);
     const canvasRef = externalCanvasRef || internalCanvasRef;
@@ -240,6 +246,8 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
                         onHighlightNodes={handleHighlightNodes}
                         knownNodeIds={knownNodeIds}
                         nodeRefs={nodeRefs}
+                        currentWorkflowName={currentWorkflowName}
+                        parentPath={parentPath}
                     />
                 </div>
             </PanZoomCanvas>

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback, useRef, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Workflow } from "lucide-react";
 
 import { EmptyState } from "@/lib/components";
@@ -22,10 +22,33 @@ const DETAIL_PANEL_WIDTHS = { default: 400, min: 280, max: 800 };
  * WorkflowVisualizationPage - Main page for viewing workflow node diagrams
  * Accessible via /agents/workflows/:workflowName
  */
+/**
+ * Builds a navigation URL to a workflow with parent path tracking.
+ * @param targetWorkflow The workflow to navigate to
+ * @param parentPath The parent workflows leading to this navigation (closest parent first)
+ */
+export function buildWorkflowNavigationUrl(targetWorkflow: string, parentPath: string[] = []): string {
+    const encodedTarget = encodeURIComponent(targetWorkflow);
+    if (parentPath.length === 0) {
+        return `/agents/workflows/${encodedTarget}`;
+    }
+    const fromParam = parentPath.map(encodeURIComponent).join(",");
+    return `/agents/workflows/${encodedTarget}?from=${fromParam}`;
+}
+
 export function WorkflowVisualizationPage() {
     const { workflowName } = useParams<{ workflowName: string }>();
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { agents, agentsLoading, agentsError } = useChatContext();
+
+    // Parse parent workflow path from URL search params
+    // Format: ?from=parent1,parent2,... (closest parent first)
+    const parentPath = useMemo(() => {
+        const fromParam = searchParams.get("from");
+        if (!fromParam) return [];
+        return fromParam.split(",").map(decodeURIComponent);
+    }, [searchParams]);
 
     const [selectedNode, setSelectedNode] = useState<LayoutNode | null>(null);
     const [workflowPanelView, setWorkflowPanelView] = useState<WorkflowPanelView | null>(null);
@@ -190,11 +213,38 @@ export function WorkflowVisualizationPage() {
     }, [config, knownWorkflows]);
 
     // Build breadcrumbs for navigation
-    const breadcrumbs: BreadcrumbItem[] = [
-        { label: "Agents", onClick: () => navigate("/agents") },
-        { label: "Workflows", onClick: () => navigate("/agents?tab=workflows") },
-        { label: workflow?.displayName || workflow?.name || workflowName || "Workflow" },
-    ];
+    // Include parent workflows from the navigation path
+    const breadcrumbs: BreadcrumbItem[] = useMemo(() => {
+        const items: BreadcrumbItem[] = [
+            { label: "Agents", onClick: () => navigate("/agents") },
+            { label: "Workflows", onClick: () => navigate("/agents?tab=workflows") },
+        ];
+
+        // Add parent workflow breadcrumbs
+        parentPath.forEach((parentName, index) => {
+            // Find the parent workflow to get display name
+            const workflowAgents = agents.filter(isWorkflowAgent);
+            const parentWorkflow = workflowAgents.find(
+                agent => agent.name === parentName || agent.displayName === parentName
+            );
+            const displayLabel = parentWorkflow?.displayName || parentWorkflow?.name || parentName;
+
+            // When clicking a parent, navigate to it with its own parent path
+            // (all parents after this one in the array)
+            const parentOfParent = parentPath.slice(index + 1);
+            items.push({
+                label: displayLabel,
+                onClick: () => navigate(buildWorkflowNavigationUrl(parentName, parentOfParent)),
+            });
+        });
+
+        // Add current workflow (not clickable)
+        items.push({
+            label: workflow?.displayName || workflow?.name || workflowName || "Workflow",
+        });
+
+        return items;
+    }, [navigate, parentPath, workflow, workflowName, agents]);
 
     // Loading state
     if (agentsLoading) {
@@ -302,6 +352,8 @@ export function WorkflowVisualizationPage() {
                     onTransformChange={handleTransformChange}
                     canvasRef={canvasRef}
                     onContentSizeChange={handleContentSizeChange}
+                    currentWorkflowName={workflow.name}
+                    parentPath={parentPath}
                 />
 
                 {/* Floating node detail popover (shown when node selected) */}
@@ -318,6 +370,8 @@ export function WorkflowVisualizationPage() {
                             onHighlightNodes={handleHighlightNodes}
                             knownNodeIds={knownNodeIds}
                             onNavigateToNode={handleNavigateToNode}
+                            currentWorkflowName={workflow.name}
+                            parentPath={parentPath}
                         />
                     </div>
                 )}
