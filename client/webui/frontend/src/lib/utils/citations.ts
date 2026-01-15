@@ -7,7 +7,7 @@
  *
  * Examples: [[cite:s0r0]], [[cite:s0r1]], [[cite:s1r0]], [[cite:s1r2]]
  *
- * Also supports [[cite:research0]] for deep research citations (legacy format)
+ * Also supports [[cite:research0]] for deep research tool citations
  */
 
 import type { RAGSource, RAGSearchResult } from "@/lib/types/fe";
@@ -17,7 +17,7 @@ export { getCleanDomain } from "./url";
 
 // Citation marker pattern for the sTrN format: [[cite:s0r0]], [[cite:s1r2]], etc.
 // Also supports single bracket [cite:xxx] in case LLM uses wrong format
-// Also supports legacy [[cite:research0]] for deep research
+// Also supports [[cite:research0]] for deep research
 export const CITATION_PATTERN = /\[?\[cite:(s\d+r\d+|research\d+)\]\]?/g;
 
 // Pattern for comma-separated citations like [[cite:s0r0, s0r1, s0r2]]
