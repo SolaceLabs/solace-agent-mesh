@@ -264,7 +264,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     const handleViewWorkflowClick = () => {
         if (message.taskId) {
             setTaskIdInSidePanel(message.taskId);
-            openSidePanelTab("workflow");
+            openSidePanelTab("activity");
         }
     };
 
