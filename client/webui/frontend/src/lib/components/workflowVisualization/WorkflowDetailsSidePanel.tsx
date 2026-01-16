@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 
 import type { AgentCardInfo } from "@/lib/types";
 import type { WorkflowConfig } from "@/lib/utils/agentUtils";
@@ -18,7 +18,7 @@ interface WorkflowDetailsSidePanelProps {
  * Side panel for showing workflow-level details on the workflow diagram page.
  * Wraps WorkflowDetailPanel with diagram-specific props.
  */
-const WorkflowDetailsSidePanel: React.FC<WorkflowDetailsSidePanelProps> = ({
+const WorkflowDetailsSidePanel: FC<WorkflowDetailsSidePanelProps> = ({
     workflow,
     config,
     view: _view,

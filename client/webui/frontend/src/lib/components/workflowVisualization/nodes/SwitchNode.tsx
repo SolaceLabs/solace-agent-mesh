@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { GitBranch } from "lucide-react";
 import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
@@ -7,7 +7,7 @@ import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from ".
  * When there are few cases, shows numbered rows with condition previews
  * Supports highlighting when referenced in expressions
  */
-const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) => {
+const SwitchNode: FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) => {
     const cases = node.data.cases || [];
     const hasDefault = !!node.data.defaultCase;
     const totalCases = cases.length + (hasDefault ? 1 : 0);

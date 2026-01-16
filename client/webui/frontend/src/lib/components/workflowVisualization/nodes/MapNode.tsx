@@ -1,9 +1,9 @@
-import React from "react";
+import type { FC, ReactNode, MouseEvent } from "react";
 import { Repeat2, Maximize2, Minimize2 } from "lucide-react";
 import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 interface MapNodeProps extends NodeProps {
-    renderChildren?: (children: NodeProps["node"]["children"]) => React.ReactNode;
+    renderChildren?: (children: NodeProps["node"]["children"]) => ReactNode;
 }
 
 /**
@@ -11,13 +11,13 @@ interface MapNodeProps extends NodeProps {
  * Shows expand/collapse icon and renders child nodes when expanded
  * Supports highlighting when referenced in expressions
  */
-const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, onExpand, onCollapse, renderChildren }) => {
+const MapNode: FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, onExpand, onCollapse, renderChildren }) => {
     const isCollapsed = node.isCollapsed;
     const hasChildren = node.children && node.children.length > 0;
     // Check if node can have children (even when collapsed and children aren't loaded)
     const canHaveChildren = hasChildren || !!node.data.childNodeId;
 
-    const handleToggle = (e: React.MouseEvent) => {
+    const handleToggle = (e: MouseEvent) => {
         e.stopPropagation();
         if (isCollapsed) {
             onExpand?.(node.id);

@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { Bot } from "lucide-react";
 import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
@@ -6,7 +6,7 @@ import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from ".
  * Agent node - Rectangle with robot icon, agent name, and "Agent" badge
  * Supports highlighting when referenced in expressions (shown with amber glow)
  */
-const AgentNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) => {
+const AgentNode: FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) => {
     const agentName = node.data.agentName || node.data.label;
 
     return (
