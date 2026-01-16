@@ -46,7 +46,7 @@ from solace_ai_connector.common.log import log
 from datetime import datetime, timezone
 
 from ....common import a2a
-from ....common.auth_headers import build_auth_headers_async
+from ....common.auth_headers import build_full_auth_headers
 from ....common.oauth import OAuth2Client, validate_https_url
 from ....common.data_parts import AgentProgressUpdateData
 from ....agent.utils.artifact_helpers import format_artifact_uri
@@ -147,7 +147,7 @@ class A2AProxyComponent(BaseProxyComponent):
             Note: For task invocations, the A2A SDK's AuthInterceptor may further
             modify authentication headers after these are set.
         """
-        return await build_auth_headers_async(
+        return await build_full_auth_headers(
             agent_name=agent_name,
             agent_config=agent_config,
             custom_headers_key=custom_headers_key,

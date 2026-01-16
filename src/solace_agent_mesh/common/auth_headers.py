@@ -23,7 +23,7 @@ def build_static_auth_headers(
     - static_bearer: Bearer token authentication
     - static_apikey: API key authentication
 
-    For OAuth2 authentication, use build_auth_headers_async() instead.
+    For OAuth2 authentication, use build_full_auth_headers() instead.
 
     Args:
         agent_name: The name of the agent
@@ -42,7 +42,7 @@ def build_static_auth_headers(
     Note:
         OAuth2 authentication types (oauth2_client_credentials,
         oauth2_authorization_code) will be skipped with a warning.
-        These require async context - use build_auth_headers_async().
+        These require async context - use build_full_auth_headers().
 
     Example:
         >>> headers = build_static_auth_headers(
@@ -90,7 +90,7 @@ def build_static_auth_headers(
                     log.warning(
                         "%s OAuth2 authentication (%s) is not supported in synchronous context. "
                         "Agent '%s' headers will not include authentication. "
-                        "Use build_auth_headers_async() for OAuth2 support.",
+                        "Use build_full_auth_headers() for OAuth2 support.",
                         log_identifier,
                         auth_type,
                         agent_name,
@@ -108,7 +108,7 @@ def build_static_auth_headers(
     return headers
 
 
-async def build_auth_headers_async(
+async def build_full_auth_headers(
     agent_name: str,
     agent_config: Dict[str, Any],
     custom_headers_key: str,
@@ -147,7 +147,7 @@ async def build_auth_headers_async(
     Example:
         >>> async def fetch_token(agent_name, auth_config):
         ...     return "oauth_token_xyz"
-        >>> headers = await build_auth_headers_async(
+        >>> headers = await build_full_auth_headers(
         ...     agent_name="my-agent",
         ...     agent_config={
         ...         "authentication": {
@@ -185,7 +185,7 @@ async def build_auth_headers_async(
                 if not oauth_token_fetcher:
                     raise ValueError(
                         f"OAuth2 authentication configured for agent '{agent_name}' "
-                        "but no oauth_token_fetcher provided to build_auth_headers_async(). "
+                        "but no oauth_token_fetcher provided to build_full_auth_headers(). "
                         "Pass the token fetcher function to enable OAuth2."
                     )
 

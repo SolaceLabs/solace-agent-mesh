@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 from solace_agent_mesh.common.auth_headers import (
     build_static_auth_headers,
-    build_auth_headers_async,
+    build_full_auth_headers,
 )
 
 
@@ -213,7 +213,7 @@ class TestBuildStaticAuthHeaders:
 
 
 class TestBuildAuthHeadersAsync:
-    """Test suite for build_auth_headers_async()."""
+    """Test suite for build_full_auth_headers()."""
 
     @pytest.mark.asyncio
     async def test_static_bearer_async(self):
@@ -222,7 +222,7 @@ class TestBuildAuthHeadersAsync:
             "authentication": {"type": "static_bearer", "token": "async_token"}
         }
 
-        headers = await build_auth_headers_async(
+        headers = await build_full_auth_headers(
             agent_name="test-agent",
             agent_config=agent_config,
             custom_headers_key="task_headers",
@@ -249,7 +249,7 @@ class TestBuildAuthHeadersAsync:
             assert auth_config["client_id"] == "client123"
             return "oauth_access_token_xyz"
 
-        headers = await build_auth_headers_async(
+        headers = await build_full_auth_headers(
             agent_name="test-agent",
             agent_config=agent_config,
             custom_headers_key="task_headers",
@@ -272,7 +272,7 @@ class TestBuildAuthHeadersAsync:
         }
 
         with pytest.raises(ValueError, match="no oauth_token_fetcher provided"):
-            await build_auth_headers_async(
+            await build_full_auth_headers(
                 agent_name="test-agent",
                 agent_config=agent_config,
                 custom_headers_key="task_headers",
@@ -297,7 +297,7 @@ class TestBuildAuthHeadersAsync:
         async def failing_fetcher(agent_name, auth_config):
             raise RuntimeError("Token service unavailable")
 
-        headers = await build_auth_headers_async(
+        headers = await build_full_auth_headers(
             agent_name="test-agent",
             agent_config=agent_config,
             custom_headers_key="task_headers",
@@ -329,7 +329,7 @@ class TestBuildAuthHeadersAsync:
         async def mock_fetcher(agent_name, auth_config):
             return "oauth_token"
 
-        headers = await build_auth_headers_async(
+        headers = await build_full_auth_headers(
             agent_name="test-agent",
             agent_config=agent_config,
             custom_headers_key="task_headers",
@@ -360,7 +360,7 @@ class TestBuildAuthHeadersAsync:
         async def mock_fetcher(agent_name, auth_config):
             return "oauth_token"
 
-        headers = await build_auth_headers_async(
+        headers = await build_full_auth_headers(
             agent_name="test-agent",
             agent_config=agent_config,
             custom_headers_key="task_headers",
@@ -386,7 +386,7 @@ class TestBuildAuthHeadersAsync:
         async def mock_fetcher(agent_name, auth_config):
             pytest.fail("Token fetcher should not be called when use_auth=False")
 
-        headers = await build_auth_headers_async(
+        headers = await build_full_auth_headers(
             agent_name="test-agent",
             agent_config=agent_config,
             custom_headers_key="task_headers",
