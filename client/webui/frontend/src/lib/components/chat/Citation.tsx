@@ -12,6 +12,7 @@ import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
 import { getSourceUrl, hasClickableExternalUrl } from "@/lib/utils/sourceUrlHelpers";
 import { Popover, PopoverContent, PopoverTrigger } from "@/lib/components/ui/popover";
 import { ExternalLink } from "lucide-react";
+import { useConfigContext } from "@/lib/hooks";
 
 interface CitationProps {
     citation: CitationType;
@@ -180,6 +181,7 @@ function getCitationPageInfo(citation: CitationType): string {
 }
 
 export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
+    const { artifactSearchCitationsEnabled } = useConfigContext();
     const displayText = getCitationDisplayText(citation, maxLength);
     const tooltip = getCitationTooltip(citation);
 
@@ -191,9 +193,18 @@ export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
     const isArtifact = isArtifactCitation(citation);
     const pageInfo = isArtifact ? getCitationPageInfo(citation) : "";
 
+    // Determine if this citation should be clickable
+    // Artifact citations are only clickable when the feature flag is enabled
+    const isClickable = !isArtifact || artifactSearchCitationsEnabled;
+
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
+
+        // If artifact citations are disabled and this is an artifact, do nothing
+        if (isArtifact && !artifactSearchCitationsEnabled) {
+            return;
+        }
 
         // For web search and deep research citations with URLs, open the URL directly
         if (hasClickableUrl && sourceUrl) {
@@ -210,7 +221,9 @@ export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
     return (
         <button
             onClick={handleClick}
-            className="citation-badge mx-0.5 inline-flex max-w-[200px] cursor-pointer items-center gap-0.5 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+            className={`citation-badge mx-0.5 inline-flex max-w-[200px] items-center gap-0.5 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal text-gray-800 transition-colors duration-150 dark:bg-gray-700 dark:text-white ${
+                isClickable ? "cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600" : "cursor-default"
+            }`}
             title={tooltip}
             aria-label={`Citation: ${tooltip}`}
             type="button"
@@ -300,6 +313,7 @@ interface BundledCitationsProps {
 }
 
 export function BundledCitations({ citations, onCitationClick }: BundledCitationsProps) {
+    const { artifactSearchCitationsEnabled } = useConfigContext();
     const [isDark, setIsDark] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -386,10 +400,14 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
         const firstCitation = group.citations[0];
         const tooltip = getCitationTooltip(firstCitation);
 
+        // Artifact citations are only clickable when the feature flag is enabled
+        const isClickable = artifactSearchCitationsEnabled;
+
         const handleClick = (e: React.MouseEvent) => {
             e.preventDefault();
             e.stopPropagation();
-            if (onCitationClick) {
+            // Only trigger click if artifact citations are enabled
+            if (artifactSearchCitationsEnabled && onCitationClick) {
                 onCitationClick(firstCitation);
             }
         };
@@ -397,7 +415,9 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
         return (
             <button
                 onClick={handleClick}
-                className="citation-badge mx-0.5 inline-flex max-w-[200px] cursor-pointer items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                className={`citation-badge mx-0.5 inline-flex max-w-[200px] items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal text-gray-800 transition-colors duration-150 dark:bg-gray-700 dark:text-white ${
+                    isClickable ? "cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600" : "cursor-default"
+                }`}
                 title={tooltip}
                 aria-label={`Citation: ${tooltip}`}
                 type="button"
@@ -418,6 +438,9 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
     const hasClickableUrl = hasClickableExternalUrl(firstCitation.source);
     const { url: sourceUrl } = getSourceUrl(firstCitation.source);
 
+    // Check if first citation is an artifact
+    const isFirstCitationArtifact = isArtifactCitation(firstCitation);
+
     const handleFirstCitationClick = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -425,6 +448,11 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
         // For web search and deep research citations, open the URL directly
         if (hasClickableUrl && sourceUrl) {
             window.open(sourceUrl, "_blank", "noopener,noreferrer");
+            return;
+        }
+
+        // If artifact citations are disabled and this is an artifact, do nothing
+        if (isFirstCitationArtifact && !artifactSearchCitationsEnabled) {
             return;
         }
 
@@ -475,7 +503,8 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                         const handleClick = (e: React.MouseEvent) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            if (onCitationClick) {
+                            // Only trigger click if artifact citations are enabled
+                            if (artifactSearchCitationsEnabled && onCitationClick) {
                                 onCitationClick(firstCitation);
                             }
                         };
@@ -484,12 +513,18 @@ export function BundledCitations({ citations, onCitationClick }: BundledCitation
                             <button
                                 key={`artifact-group-${groupIndex}`}
                                 onClick={handleClick}
-                                className="group flex w-full cursor-pointer items-start gap-2 rounded-md p-2 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                                className={`group flex w-full items-start gap-2 rounded-md p-2 text-left transition-colors ${artifactSearchCitationsEnabled ? "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800" : "cursor-default"}`}
                                 type="button"
                             >
                                 <div className="flex-1 overflow-hidden">
                                     <div className="flex items-center gap-1">
-                                        <span className="truncate text-sm font-medium text-[var(--color-primary-wMain)] group-hover:text-[var(--color-primary-w60)] dark:text-[var(--color-primary-w60)] dark:group-hover:text-[var(--color-white)]">
+                                        <span
+                                            className={`truncate text-sm font-medium ${
+                                                artifactSearchCitationsEnabled
+                                                    ? "text-[var(--color-primary-wMain)] group-hover:text-[var(--color-primary-w60)] dark:text-[var(--color-primary-w60)] dark:group-hover:text-[var(--color-white)]"
+                                                    : "text-gray-600 dark:text-gray-400"
+                                            }`}
+                                        >
                                             {displayText}
                                         </span>
                                     </div>

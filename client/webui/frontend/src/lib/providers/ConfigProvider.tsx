@@ -106,6 +106,9 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 const backgroundTasksEnabled = data.frontend_feature_enablement?.background_tasks ?? false;
                 const backgroundTasksDefaultTimeoutMs = data.background_tasks_config?.default_timeout_ms ?? 3600000;
 
+                // Extract artifact search citations flag (default: false/disabled)
+                const artifactSearchCitationsEnabled = data.frontend_feature_enablement?.artifactSearchCitations ?? false;
+
                 // Check if platform service is configured
                 const platformConfigured = Boolean(data.frontend_platform_server_url);
 
@@ -128,6 +131,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     backgroundTasksEnabled,
                     backgroundTasksDefaultTimeoutMs,
                     platformConfigured,
+                    artifactSearchCitationsEnabled,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;

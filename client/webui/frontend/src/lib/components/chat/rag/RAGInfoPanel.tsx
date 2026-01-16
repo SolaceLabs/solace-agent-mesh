@@ -3,6 +3,7 @@ import { FileText, TrendingUp, Search, Link2, ChevronDown, ChevronUp, Brain, Glo
 // Web-only version - enterprise icons removed
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/lib/components/ui/tabs";
 import type { RAGSearchResult } from "@/lib/types";
+import { useConfigContext } from "@/lib/hooks";
 
 interface TimelineEvent {
     type: "thinking" | "search" | "read";
@@ -219,6 +220,16 @@ const ArtifactSourceCard: React.FC<{
 };
 
 export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) => {
+    // Get feature flag for artifact search citations
+    const { artifactSearchCitationsEnabled } = useConfigContext();
+
+    // Filter out artifact_search data if feature flag is disabled
+    const filteredRagData = React.useMemo(() => {
+        if (!ragData) return null;
+        if (artifactSearchCitationsEnabled) return ragData;
+        return ragData.filter(search => search.searchType !== "artifact_search");
+    }, [ragData, artifactSearchCitationsEnabled]);
+
     if (!enabled) {
         return (
             <div className="flex h-full items-center justify-center p-4">
@@ -231,7 +242,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         );
     }
 
-    if (!ragData || ragData.length === 0) {
+    if (!filteredRagData || filteredRagData.length === 0) {
         return (
             <div className="flex h-full items-center justify-center p-4">
                 <div className="text-muted-foreground text-center">
@@ -244,13 +255,13 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         );
     }
 
-    // Check if this is artifact search data
-    const isArtifactSearch = ragData.some(search => search.searchType === "artifact_search");
+    // Check if this is artifact search data (use filtered data)
+    const isArtifactSearch = filteredRagData.some(search => search.searchType === "artifact_search");
 
-    const isAllDeepResearch = ragData.every(search => search.searchType === "deep_research" || search.searchType === "web_search");
+    const isAllDeepResearch = filteredRagData.every(search => search.searchType === "deep_research" || search.searchType === "web_search");
 
     // Calculate total sources across all searches (including images with valid source links)
-    const totalSources = ragData.reduce((sum, search) => {
+    const totalSources = filteredRagData.reduce((sum, search) => {
         const validSources = search.sources.filter(s => {
             const sourceType = s.sourceType || "web";
             // For images, only count if they have a source link (not just imageUrl)
@@ -325,10 +336,10 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         const snippetMap = new Map<string, RAGSearchResult["sources"][0]>();
 
         // Check if this is web_search (no fetched metadata) or deep_research (has fetched metadata)
-        const isWebSearch = ragData.some(search => search.searchType === "web_search");
-        const isDeepResearch = ragData.some(search => search.searchType === "deep_research");
+        const isWebSearch = filteredRagData.some(search => search.searchType === "web_search");
+        const isDeepResearch = filteredRagData.some(search => search.searchType === "deep_research");
 
-        ragData.forEach(search => {
+        filteredRagData.forEach(search => {
             search.sources.forEach(source => {
                 const sourceType = source.sourceType || "web";
 
@@ -380,7 +391,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         console.log("[RAGInfoPanel] Source filtering:", {
             isWebSearch,
             isDeepResearch,
-            totalSourcesBeforeFilter: ragData.reduce((sum, s) => sum + s.sources.length, 0),
+            totalSourcesBeforeFilter: filteredRagData.reduce((sum, s) => sum + s.sources.length, 0),
             fullyReadSources: fullyRead.length,
             snippetSources: snippets.length,
             sampleFullyRead: fullyRead.slice(0, 3).map(s => ({
@@ -405,17 +416,17 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
     })();
 
     // Check if we should show grouped view (only for deep_research with both types)
-    const isDeepResearch = ragData.some(search => search.searchType === "deep_research");
+    const isDeepResearch = filteredRagData.some(search => search.searchType === "deep_research");
     const showGroupedSources = isDeepResearch && (fullyReadSources.length > 0 || snippetSources.length > 0);
 
-    // Get the title from the first ragData entry (prefer LLM-generated title, fallback to query)
-    const panelTitle = ragData && ragData.length > 0 ? ragData[0].title || ragData[0].query : "";
+    // Get the title from the first filteredRagData entry (prefer LLM-generated title, fallback to query)
+    const panelTitle = filteredRagData && filteredRagData.length > 0 ? filteredRagData[0].title || filteredRagData[0].query : "";
 
     // Check if research is complete by looking for sources with fetched metadata
-    const hasAnyFetchedSources = isDeepResearch && ragData.some(search => search.sources.some(s => s.metadata?.fetched === true || s.metadata?.fetch_status === "success"));
+    const hasAnyFetchedSources = isDeepResearch && filteredRagData.some(search => search.sources.some(s => s.metadata?.fetched === true || s.metadata?.fetch_status === "success"));
 
     // Calculate total artifact sources
-    const totalArtifactSources = isArtifactSearch ? ragData.reduce((sum, search) => sum + search.sources.length, 0) : 0;
+    const totalArtifactSources = isArtifactSearch ? filteredRagData.reduce((sum, search) => sum + search.sources.length, 0) : 0;
 
     return (
         <div className="flex h-full flex-col overflow-hidden">
@@ -435,7 +446,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                         </div>
 
                         {/* Search queries */}
-                        {ragData.map((search, searchIdx) => (
+                        {filteredRagData.map((search, searchIdx) => (
                             <div key={searchIdx} className="mb-4">
                                 {search.query && (
                                     <div className="mb-3 flex items-center gap-2">
@@ -532,12 +543,12 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                         <div className="mb-3">
                             <h3 className="text-muted-foreground text-sm font-semibold tracking-wide uppercase">Timeline of Research Activity</h3>
                             <p className="text-muted-foreground mt-1 text-xs">
-                                {ragData.length} search{ragData.length !== 1 ? "es" : ""} performed
+                                {filteredRagData.length} search{filteredRagData.length !== 1 ? "es" : ""} performed
                             </p>
                         </div>
 
                         <div className="space-y-2">
-                            {ragData.map((search, searchIdx) => {
+                            {filteredRagData.map((search, searchIdx) => {
                                 // Build timeline events for this search
                                 const events: TimelineEvent[] = [];
 
@@ -634,12 +645,12 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                         <div className="mb-3">
                             <h3 className="text-muted-foreground text-sm font-semibold">All Sources</h3>
                             <p className="text-muted-foreground mt-1 text-xs">
-                                {totalSources} source{totalSources !== 1 ? "s" : ""} found across {ragData.length} search{ragData.length !== 1 ? "es" : ""}
+                                {totalSources} source{totalSources !== 1 ? "s" : ""} found across {filteredRagData.length} search{filteredRagData.length !== 1 ? "es" : ""}
                             </p>
                         </div>
 
                         <div className="space-y-2">
-                            {ragData.map((search, searchIdx) =>
+                            {filteredRagData.map((search, searchIdx) =>
                                 search.sources
                                     .filter(source => {
                                         const sourceType = source.sourceType || "web";
