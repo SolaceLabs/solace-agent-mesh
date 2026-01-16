@@ -26,6 +26,9 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/**
+ * Default state with multiple projects
+ */
 export const Default: Story = {
     parameters: {
         projectContext: {
@@ -43,6 +46,9 @@ export const Default: Story = {
     },
 };
 
+/**
+ * State with a search term filtering projects
+ */
 export const WithSearchTerm: Story = {
     parameters: {
         projectContext: {
@@ -60,6 +66,9 @@ export const WithSearchTerm: Story = {
     },
 };
 
+/**
+ * State with no projects matching the search/filter
+ */
 export const WithNoResults: Story = {
     parameters: {
         projectContext: {
@@ -75,6 +84,9 @@ export const WithNoResults: Story = {
     }
 };
 
+/**
+ * State with no projects
+ */
 export const NoProjects: Story = {
     parameters: {
         projectContext: {},
@@ -85,6 +97,9 @@ export const NoProjects: Story = {
     },
 };
 
+/**
+ * Loading state while projects are being fetched
+ */
 export const Loading: Story = {
     parameters: {
         projectContext: {

@@ -138,10 +138,6 @@ export const Empty: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        
-        /**
-         * ensure start new chat button is visible by id
-        */
         const startNewChatNoChatsButton = await canvas.findByTestId("startNewChatButtonNoChats");
         expect(startNewChatNoChatsButton).toBeVisible();
     },

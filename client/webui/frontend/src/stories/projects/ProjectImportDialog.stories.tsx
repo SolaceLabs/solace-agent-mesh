@@ -19,7 +19,6 @@ async function createValidProjectZip(projectData: {
 }): Promise<File> {
     const zip = new JSZip();
 
-    // Add project.json
     const projectJson = {
         version: "1.0",
         project: {
@@ -31,7 +30,6 @@ async function createValidProjectZip(projectData: {
         artifacts: [] as any[],
     };
 
-    // Add some mock artifacts if requested
     if (projectData.artifactCount && projectData.artifactCount > 0) {
         for (let i = 0; i < projectData.artifactCount; i++) {
             const filename = `artifact-${i + 1}.txt`;
@@ -47,11 +45,7 @@ async function createValidProjectZip(projectData: {
     }
 
     zip.file("project.json", JSON.stringify(projectJson, null, 2));
-
-    // Generate the ZIP blob
     const blob = await zip.generateAsync({ type: "blob" });
-
-    // Create a File object from the blob
     return new File([blob], `${projectData.name.replace(/\s+/g, "-")}.zip`, { type: "application/zip" });
 }
 
@@ -164,7 +158,7 @@ export const NonZipFile: Story = {
         fileInput.files = dataTransfer.files;
         fileInput.dispatchEvent(new Event('change', { bubbles: true }));
 
-        expect(await dialogContent.findByText(/Please select a ZIP file/i)).toBeVisible();
+        expect(await dialogContent.findByText("Please select a ZIP file")).toBeVisible();
         expect(await dialogContent.findByRole("button", { name: "Import" })).toBeDisabled();
     },
 };

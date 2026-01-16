@@ -2,12 +2,9 @@ import type { Project } from "@/lib/types/projects";
 import type { ArtifactInfo } from "@/lib/types";
 
 // ============================================================================
-// Individual Project Fixtures
+// Project Fixtures
 // ============================================================================
 
-/**
- * A basic project with minimal configuration.
- */
 export const weatherProject: Project = {
     id: "project-1",
     name: "Weather App",
@@ -20,9 +17,6 @@ export const weatherProject: Project = {
     updatedAt: new Date("2024-02-15").toISOString(),
 };
 
-/**
- * A project with null values for optional fields.
- */
 export const eCommerceProject: Project = {
     id: "project-2",
     name: "E-commerce Platform",
@@ -35,9 +29,6 @@ export const eCommerceProject: Project = {
     updatedAt: new Date("2024-03-01").toISOString(),
 };
 
-/**
- * A fully populated project with all fields set.
- */
 export const populatedProject: Project = {
     id: "project-populated",
     name: "AI Chat Assistant",
@@ -50,9 +41,6 @@ export const populatedProject: Project = {
     updatedAt: new Date("2024-03-20").toISOString(),
 };
 
-/**
- * A newly created empty project.
- */
 export const emptyProject: Project = {
     id: "project-empty",
     name: "New Project",
@@ -65,9 +53,6 @@ export const emptyProject: Project = {
     updatedAt: new Date().toISOString(),
 };
 
-/**
- * A project with a very long description.
- */
 export const projectWithLongDescription: Project = {
     id: "project-long-desc",
     name: "Documentation System",
@@ -80,9 +65,6 @@ export const projectWithLongDescription: Project = {
     updatedAt: new Date("2024-02-28").toISOString(),
 };
 
-/**
- * A project with many artifacts.
- */
 export const projectWithManyArtifacts: Project = {
     id: "project-many-artifacts",
     name: "Data Analysis Pipeline",
@@ -95,13 +77,6 @@ export const projectWithManyArtifacts: Project = {
     updatedAt: new Date("2024-03-15").toISOString(),
 };
 
-// ============================================================================
-// Project Collections
-// ============================================================================
-
-/**
- * All available project fixtures.
- */
 export const allProjects: Project[] = [
     weatherProject,
     eCommerceProject,
@@ -115,9 +90,6 @@ export const allProjects: Project[] = [
 // Artifact Fixtures
 // ============================================================================
 
-/**
- * A PDF artifact with description.
- */
 export const pdfArtifact: ArtifactInfo = {
     filename: "api-documentation.pdf",
     mime_type: "application/pdf",
@@ -126,9 +98,6 @@ export const pdfArtifact: ArtifactInfo = {
     description: "API reference documentation",
 };
 
-/**
- * A PNG image artifact.
- */
 export const imageArtifact: ArtifactInfo = {
     filename: "architecture-diagram.png",
     mime_type: "image/png",
@@ -137,9 +106,6 @@ export const imageArtifact: ArtifactInfo = {
     description: "System architecture overview",
 };
 
-/**
- * A JSON artifact.
- */
 export const jsonArtifact: ArtifactInfo = {
     filename: "package.json",
     mime_type: "application/json",
@@ -148,9 +114,6 @@ export const jsonArtifact: ArtifactInfo = {
     description: "",
 };
 
-/**
- * A markdown artifact.
- */
 export const markdownArtifact: ArtifactInfo = {
     filename: "README.md",
     mime_type: "text/markdown",
@@ -159,58 +122,10 @@ export const markdownArtifact: ArtifactInfo = {
     description: "Project overview and setup instructions",
 };
 
-/**
- * Artifact with longer description for display testing.
- */
 export const artifactWithLongDescription: ArtifactInfo = {
     filename: "design-spec.pdf",
     mime_type: "application/pdf",
     size: 1048576,
     last_modified: new Date("2024-03-20T11:00:00Z").toISOString(),
     description: "API reference documentation for the project endpoints including authentication, data models, and error handling patterns",
-};
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Creates a mock project with customizable properties.
- * Use for: Generating projects dynamically in tests.
- *
- * @param overrides - Partial project properties to override defaults
- * @returns A complete Project object
- */
-export const createMockProject = (overrides: Partial<Project> = {}): Project => {
-    const baseProject: Project = {
-        id: `project-${Date.now()}`,
-        name: "Mock Project",
-        userId: "user-id",
-        description: "A mock project for testing",
-        systemPrompt: null,
-        defaultAgentId: null,
-        artifactCount: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-    };
-
-    return { ...baseProject, ...overrides };
-};
-
-/**
- * Generates multiple mock projects for bulk testing.
- * Use for: Performance testing and pagination scenarios.
- *
- * @param count - Number of projects to generate
- * @returns Array of mock projects
- */
-export const generateMockProjects = (count: number): Project[] => {
-    return Array.from({ length: count }, (_, index) =>
-        createMockProject({
-            id: `project-${index}`,
-            name: `Project ${index + 1}`,
-            description: `Description for project ${index + 1}`,
-            artifactCount: Math.floor(Math.random() * 20),
-        })
-    );
 };
