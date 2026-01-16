@@ -167,9 +167,9 @@ class LocalFileIdentityService(BaseIdentityService):
                 results.append(
                     {
                         "id": user.get("id"),
-                        "name": user.get("name"),
-                        "email": user.get("email"),
-                        "title": user.get("title"),
+                        "displayName": user.get("name"),
+                        "workEmail": user.get("email"),
+                        "jobTitle": user.get("title"),
                     }
                 )
 
