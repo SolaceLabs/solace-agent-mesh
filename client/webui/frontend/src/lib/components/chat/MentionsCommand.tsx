@@ -107,9 +107,7 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
         const fetchPeople = async () => {
             setIsLoading(true);
             try {
-                const data: PeopleSearchResponse = await api.webui.get(
-                    `/api/v1/people/search?q=${encodeURIComponent(searchQuery)}&limit=10`
-                );
+                const data: PeopleSearchResponse = await api.webui.get(`/api/v1/people/search?q=${encodeURIComponent(searchQuery)}&limit=10`);
                 setPeople(data.data || []);
             } catch (error) {
                 console.error("Failed to fetch people:", error);
@@ -252,10 +250,10 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
                                                 <Clock className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">
-                                                        <span className="text-sm font-medium">{person.name}</span>
-                                                        {person.title && <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">{person.title}</span>}
+                                                        <span className="text-sm font-medium">{person.displayName}</span>
+                                                        {person.jobTitle && <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">{person.jobTitle}</span>}
                                                     </div>
-                                                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">{person.email}</p>
+                                                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">{person.workEmail}</p>
                                                 </div>
                                             </div>
                                         </button>
@@ -284,10 +282,10 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
                                                 <User className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">
-                                                        <span className="text-sm font-medium">{person.name}</span>
-                                                        {person.title && <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">{person.title}</span>}
+                                                        <span className="text-sm font-medium">{person.displayName}</span>
+                                                        {person.jobTitle && <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">{person.jobTitle}</span>}
                                                     </div>
-                                                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">{person.email}</p>
+                                                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">{person.workEmail}</p>
                                                 </div>
                                             </div>
                                         </button>
