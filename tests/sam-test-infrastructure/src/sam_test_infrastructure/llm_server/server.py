@@ -117,6 +117,10 @@ class TestLLMServer:
         self._setup_routes()
         self._stateful_responses_cache: Dict[str, List[Any]] = {}
         self._stateful_cache_lock = threading.Lock()
+        # Track request-response correlation for concurrent requests
+        self._request_response_map: Dict[str, Any] = {}
+        self._request_counter = 0
+        self._request_counter_lock = threading.Lock()
 
     def _setup_logger(self):
         """Sets up a dedicated logger for the TestLLMServer."""
@@ -297,13 +301,35 @@ class TestLLMServer:
                         )
                         return response_to_serve
 
+            # Match response to request based on content
             response_spec = None
+            request_key = self._get_request_key(request)
+            
             with self._primed_response_lock:
                 if self._primed_responses:
-                    response_spec = self._primed_responses.pop(0)
-                    self.logger.info(
-                        f"Using primed response. {len(self._primed_responses)} remaining."
-                    )
+                    # Try to find a matching response based on request content
+                    matched_response = None
+                    matched_index = None
+                    
+                    for idx, primed_resp in enumerate(self._primed_responses):
+                        if self._response_matches_request(primed_resp, request):
+                            matched_response = primed_resp
+                            matched_index = idx
+                            break
+                    
+                    if matched_response is not None:
+                        response_spec = self._primed_responses.pop(matched_index)
+                        self.logger.info(
+                            f"Using matched primed response for request '{request_key}'. "
+                            f"{len(self._primed_responses)} remaining."
+                        )
+                    else:
+                        # Fallback to FIFO if no match found
+                        response_spec = self._primed_responses.pop(0)
+                        self.logger.info(
+                            f"Using FIFO primed response (no match found). "
+                            f"{len(self._primed_responses)} remaining."
+                        )
                 elif self._static_response:
                     response_spec = self._static_response
                     self.logger.info("Using globally configured static response.")
@@ -648,6 +674,75 @@ class TestLLMServer:
                 turn_index,
             )
 
+    def _get_request_key(self, request: ChatCompletionRequest) -> str:
+        """
+        Generates a key from the request to identify it uniquely.
+        Uses the last user message content as the key.
+        """
+        if not request.messages:
+            return "empty_request"
+        
+        # Find the last user message
+        for msg in reversed(request.messages):
+            if msg.role == "user" and msg.content:
+                if isinstance(msg.content, str):
+                    # Extract a short identifier from the content
+                    return msg.content[:100]
+                elif isinstance(msg.content, list):
+                    # For multimodal content, use text parts
+                    text_parts = [
+                        part.get("text", "")
+                        for part in msg.content
+                        if isinstance(part, dict) and part.get("type") == "text"
+                    ]
+                    if text_parts:
+                        return text_parts[0][:100]
+        
+        return "unknown_request"
+
+    def _response_matches_request(
+        self,
+        response: Union[ChatCompletionResponse, Dict[str, Any]],
+        request: ChatCompletionRequest
+    ) -> bool:
+        """
+        Determines if a response matches a request by checking if the response
+        content contains keywords from the request.
+        """
+        # Get request content
+        request_key = self._get_request_key(request)
+        
+        # Get response content
+        response_content = ""
+        if isinstance(response, dict):
+            if "choices" in response and response["choices"]:
+                msg = response["choices"][0].get("message", {})
+                response_content = msg.get("content", "")
+        elif isinstance(response, ChatCompletionResponse):
+            if response.choices and response.choices[0].message.content:
+                response_content = response.choices[0].message.content
+        
+        if not response_content or not request_key:
+            return False
+        
+        # Extract identifiers from request (e.g., "Concurrent message 0")
+        # Look for patterns like "session X", "message X", "user X"
+        import re
+        request_numbers = re.findall(r'\b(\d+)\b', request_key)
+        response_numbers = re.findall(r'\b(\d+)\b', response_content)
+        
+        # If both have numbers, check if they match
+        if request_numbers and response_numbers:
+            # Check if any request number appears in response numbers
+            for req_num in request_numbers:
+                if req_num in response_numbers:
+                    self.logger.debug(
+                        f"Matched request number '{req_num}' in response"
+                    )
+                    return True
+        
+        return False
+
     def configure_static_response(
         self, response: Union[Dict[str, Any], ChatCompletionResponse]
     ):
@@ -711,6 +806,9 @@ class TestLLMServer:
         self.captured_requests = []
         with self._stateful_cache_lock:
             self._stateful_responses_cache.clear()
+        with self._request_counter_lock:
+            self._request_response_map.clear()
+            self._request_counter = 0
         self.logger.info(
             "All configurations (primed, static, captured requests) cleared."
         )
