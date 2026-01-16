@@ -87,7 +87,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 await api.webui.post("/api/v1/auth/logout");
             }
         } catch (error) {
-            console.error("Error during logout:", error);
+            console.warn("Error during logout:", error);
         } finally {
             window.location.href = configAuthLoginUrl;
         }
