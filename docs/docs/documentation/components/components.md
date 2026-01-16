@@ -11,6 +11,10 @@ This section introduces you to the key components and tools that make up the sys
 
 Agents are the intelligent processing units that perform tasks within the mesh. Each agent combines the Google Agent Development Kit (ADK) with specialized instructions, LLM configurations, and toolsets to create focused AI capabilities. Agents can work independently or collaborate with other agents to solve complex problems. You can configure agents with different personalities, expertise areas, and access permissions to match your specific use cases. For comprehensive agent configuration and development guidance, see [Agents](./agents.md).
 
+## Workflows
+
+Workflows provide an alternative to the orchestrator for coordinating multiple agents. While the orchestrator uses AI to dynamically determine how to accomplish tasks, workflows follow explicit execution paths defined in YAML configuration. You specify which agents to call, in what order, and how data flows between them. Workflows support conditional branching, parallel iteration over collections, and polling loops. They're well-suited for business processes that require predictable, auditable execution—the same input always produces the same sequence of agent calls. The UI visualizes workflow execution in real time. For workflow configuration and node types, see [Workflows](./workflows.md).
+
 ## Gateways
 
 Gateways serve as the entry and exit points for your agent mesh, translating between external protocols and the internal A2A communication standard. Whether you need REST APIs, webhooks, WebSocket connections, or integrations with platforms like Slack, gateways handle the protocol conversion and session management. They also manage authentication and authorization, ensuring that user permissions are properly enforced throughout the system. For gateway development and configuration details, see [Gateways](./gateways.md).
@@ -22,10 +26,6 @@ The Platform Service is a backend microservice responsible for management operat
 ## Orchestrator
 
 The orchestrator is a specialized agent that manages complex workflows by breaking down requests into smaller tasks and coordinating their execution across multiple agents. It understands dependencies between tasks, manages parallel execution, and aggregates results to provide comprehensive responses. The orchestrator is particularly valuable for scenarios that require multiple specialized agents to work together toward a common goal. For orchestrator configuration and workflow design patterns, see [Orchestrator](./orchestrator.md).
-
-## Workflows
-
-Workflows provide an alternative to the orchestrator for coordinating multiple agents. While the orchestrator uses AI to dynamically determine how to accomplish tasks, workflows follow explicit execution paths defined in YAML configuration. You specify which agents to call, in what order, and how data flows between them. Workflows support conditional branching, parallel iteration over collections, and polling loops. They're well-suited for business processes that require predictable, auditable execution—the same input always produces the same sequence of agent calls. The UI visualizes workflow execution in real time. For workflow configuration and node types, see [Workflows](./workflows.md).
 
 ## Plugins
 
