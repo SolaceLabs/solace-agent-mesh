@@ -1,6 +1,8 @@
 """Base App class for all SAM applications with broker and database health checks."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 
 from solace_ai_connector.common.messaging.solace_messaging import ConnectionStatus
 from solace_ai_connector.common.monitoring import Monitoring
@@ -8,6 +10,9 @@ from solace_ai_connector.flow.app import App
 from sqlalchemy import text
 
 log = logging.getLogger(__name__)
+
+# Default timeout for database health checks (in seconds)
+DB_HEALTH_CHECK_TIMEOUT_SECONDS = 5.0
 
 
 class SamAppBase(App):
@@ -49,6 +54,40 @@ class SamAppBase(App):
             return dev_mode.lower() == "true"
 
         return False
+
+    def _get_db_health_check_timeout(self) -> float:
+        """
+        Get the database health check timeout from configuration.
+
+        Reads from app_info['health_check']['database_timeout_seconds'].
+        Falls back to DB_HEALTH_CHECK_TIMEOUT_SECONDS if not configured.
+
+        Returns:
+            Timeout in seconds for database health checks.
+        """
+        health_check_config = self.app_info.get("health_check", {})
+        timeout = health_check_config.get(
+            "database_timeout_seconds", DB_HEALTH_CHECK_TIMEOUT_SECONDS
+        )
+
+        # Ensure we have a valid positive number
+        try:
+            timeout = float(timeout)
+            if timeout <= 0:
+                log.warning(
+                    "Invalid database_timeout_seconds value: %s, using default: %s",
+                    timeout,
+                    DB_HEALTH_CHECK_TIMEOUT_SECONDS,
+                )
+                return DB_HEALTH_CHECK_TIMEOUT_SECONDS
+            return timeout
+        except (TypeError, ValueError):
+            log.warning(
+                "Invalid database_timeout_seconds value: %s, using default: %s",
+                timeout,
+                DB_HEALTH_CHECK_TIMEOUT_SECONDS,
+            )
+            return DB_HEALTH_CHECK_TIMEOUT_SECONDS
 
     def _is_broker_connected(self) -> bool:
         """
@@ -122,15 +161,35 @@ class SamAppBase(App):
 
         return engines
 
-    def _is_database_connected(self) -> bool:
+    def _test_single_db_connection(self, engine) -> bool:
+        """
+        Test a single database connection.
+
+        Args:
+            engine: SQLAlchemy engine to test
+
+        Returns:
+            True if connection successful, False otherwise.
+        """
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+
+    def _is_database_connected(
+        self, timeout: float = DB_HEALTH_CHECK_TIMEOUT_SECONDS
+    ) -> bool:
         """
         Check if all configured databases are connected.
 
         Collects database engines from components and tests each connection
-        by executing a simple query. Returns True only if ALL databases
-        are reachable.
+        by executing a simple query with a timeout. Returns True only if ALL
+        databases are reachable within the timeout period.
 
         If no databases are configured, returns True.
+
+        Args:
+            timeout: Maximum time in seconds to wait for each database connection
+                     test. Defaults to DB_HEALTH_CHECK_TIMEOUT_SECONDS (5 seconds).
 
         Returns:
             True if all databases are connected (or none configured), False otherwise.
@@ -138,18 +197,28 @@ class SamAppBase(App):
         engines = self._get_db_engines_from_components()
 
         if not engines:
-            log.debug("Database health check: no databases configured, returning True")
             return True
 
         for engine in engines:
             try:
-                # Test the connection with a simple query
-                with engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))
-                log.debug("Database health check: connection successful")
+                # Use ThreadPoolExecutor to enforce timeout on the connection test
+                # Note: We use shutdown(wait=False) to avoid blocking if timeout occurs
+                executor = ThreadPoolExecutor(max_workers=1)
+                try:
+                    future = executor.submit(self._test_single_db_connection, engine)
+                    future.result(timeout=timeout)
+                finally:
+                    # Don't wait for thread to finish - just release resources
+                    executor.shutdown(wait=False)
+            except FuturesTimeoutError:
+                log.warning(
+                    "Database health check failed: timed out after %.1f seconds",
+                    timeout,
+                )
+                return False
             except Exception as e:
-                log.debug(
-                    "Database health check: connection failed - %s",
+                log.warning(
+                    "Database health check failed: %s",
                     str(e),
                 )
                 return False
@@ -171,7 +240,8 @@ class SamAppBase(App):
         Returns:
             bool: True if startup is complete, False if still initializing
         """
-        return self._is_broker_connected() and self._is_database_connected()
+        timeout = self._get_db_health_check_timeout()
+        return self._is_broker_connected() and self._is_database_connected(timeout)
 
     def is_ready(self) -> bool:
         """
@@ -188,4 +258,5 @@ class SamAppBase(App):
         Returns:
             bool: True if the app is ready, False otherwise
         """
-        return self._is_broker_connected() and self._is_database_connected()
+        timeout = self._get_db_health_check_timeout()
+        return self._is_broker_connected() and self._is_database_connected(timeout)
