@@ -43,5 +43,5 @@ except ImportError:
         return False
 
     async def prepare_and_mint_sam_token(*args, **kwargs):
-        """Stub: Returns None when enterprise not available."""
+        """Stub: Returns empty SamTokenResult when enterprise not available."""
         return SamTokenResult()

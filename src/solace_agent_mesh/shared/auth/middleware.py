@@ -260,7 +260,7 @@ def create_oauth_middleware(component):
                 try:
                     # Validate as sam_access_token using trust_manager (no task_id binding)
                     claims = trust_manager.verify_user_claims_without_task_binding(access_token)
-
+                    user_identifier = claims.get("sam_user_id")
                     # Success! It's a valid sam_access_token
                     # Extract roles from token, resolve scopes at request time
                     roles = claims.get("roles", [])
@@ -268,7 +268,7 @@ def create_oauth_middleware(component):
                     if authorization_service:
                         # Use existing get_scopes_for_user with roles param to skip role lookup
                         scopes = await authorization_service.get_scopes_for_user(
-                            user_identity=claims["sub"],
+                            user_identity=user_identifier,
                             gateway_context={},
                             roles=roles,
                         )
@@ -279,9 +279,9 @@ def create_oauth_middleware(component):
                         )
 
                     request.state.user = {
-                        "id": claims["sub"],
-                        "email": claims.get("email", claims["sub"]),
-                        "name": claims.get("name", claims["sub"]),
+                        "id": user_identifier,
+                        "email": claims.get("email"),
+                        "name": claims.get("name"),
                         "authenticated": True,
                         "auth_method": "sam_access_token",
                         "roles": roles,
