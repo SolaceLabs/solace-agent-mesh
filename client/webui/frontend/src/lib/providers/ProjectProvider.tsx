@@ -1,8 +1,9 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useEffect, useState, useMemo } from "react";
 
 import { useConfigContext } from "@/lib/hooks";
-import type { Project, ProjectContextValue, ProjectListResponse, UpdateProjectData } from "@/lib/types/projects";
-import { api } from "@/lib/api";
+import type { Project, ProjectContextValue, UpdateProjectData } from "@/lib/types/projects";
+import { useProjects, useCreateProject, useUpdateProject, useDeleteProject, useAddFilesToProject, useRemoveFileFromProject, useUpdateFileMetadata } from "@/lib/api/projects/hooks";
 
 const LAST_VIEWED_PROJECT_KEY = "lastViewedProjectId";
 
@@ -17,13 +18,29 @@ export const registerProjectDeletedCallback = (callback: OnProjectDeletedCallbac
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { projectsEnabled } = useConfigContext();
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string | null>(null);
+
+    // React Query hooks
+    const { data: projectsData, isLoading, error: queryError, refetch } = useProjects();
+    const createProjectMutation = useCreateProject();
+    const updateProjectMutation = useUpdateProject();
+    const deleteProjectMutation = useDeleteProject();
+    const addFilesMutation = useAddFilesToProject();
+    const removeFileMutation = useRemoveFileFromProject();
+    const updateFileMetadataMutation = useUpdateFileMetadata();
+
+    // UI-specific state
     const [currentProject, setCurrentProject] = useState<Project | null>(null);
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [activeProject, setActiveProject] = useState<Project | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
+
+    // Derive projects and error from React Query
+    const projects = useMemo(() => {
+        if (!projectsEnabled || !projectsData) return [];
+        return [...projectsData.projects].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+    }, [projectsData, projectsEnabled]);
+
+    const error = queryError ? (queryError instanceof Error ? queryError.message : "Could not load projects.") : null;
 
     // Computed filtered projects based on search query
     const filteredProjects = useMemo(() => {
@@ -33,29 +50,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return projects.filter(project => project.name.toLowerCase().includes(query) || (project.description?.toLowerCase().includes(query) ?? false));
     }, [projects, searchQuery]);
 
+    // Wrapper for refetch to maintain compatibility
     const fetchProjects = useCallback(async () => {
         if (!projectsEnabled) {
-            setIsLoading(false);
-            setProjects([]);
             return;
         }
-
-        setIsLoading(true);
-        setError(null);
-        try {
-            const data: ProjectListResponse = await api.webui.get("/api/v1/projects?include_artifact_count=true");
-            const sortedProjects = [...data.projects].sort((a, b) => {
-                return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-            });
-            setProjects(sortedProjects);
-        } catch (err: unknown) {
-            console.error("Error fetching projects:", err);
-            setError(err instanceof Error ? err.message : "Could not load projects.");
-            setProjects([]);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [projectsEnabled]);
+        await refetch();
+    }, [projectsEnabled, refetch]);
 
     const createProject = useCallback(
         async (projectData: FormData): Promise<Project> => {
@@ -63,18 +64,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Projects feature is disabled");
             }
 
-            const newProject: Project = await api.webui.post("/api/v1/projects", projectData);
+            const name = projectData.get("name") as string;
+            const description = projectData.get("description") as string | undefined;
 
-            setProjects(prev => {
-                const updated = [newProject, ...prev];
-                return updated.sort((a, b) => {
-                    return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-                });
-            });
-
+            const newProject = await createProjectMutation.mutateAsync({ name, description: description || undefined });
             return newProject;
         },
-        [projectsEnabled]
+        [projectsEnabled, createProjectMutation]
     );
 
     const addFilesToProject = useCallback(
@@ -83,34 +79,24 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Projects feature is disabled");
             }
 
-            const response = await api.webui.post(`/api/v1/projects/${projectId}/artifacts`, formData, { fullResponse: true });
+            // Extract files from FormData
+            const files = formData.getAll("files") as File[];
+            const fileMetadataStr = formData.get("fileMetadata") as string | null;
+            const fileMetadata = fileMetadataStr ? JSON.parse(fileMetadataStr) : undefined;
 
-            if (!response.ok) {
-                const responseText = await response.text();
-                let errorMessage = `Failed to add files: ${response.statusText}`;
-
-                try {
-                    const errorData = JSON.parse(responseText);
-                    errorMessage = errorData.detail || errorData.message || errorMessage;
-                } catch {
-                    if (responseText && responseText.length < 500) {
-                        errorMessage = responseText;
-                    }
+            try {
+                await addFilesMutation.mutateAsync({ projectId, files, fileMetadata });
+            } catch (error: unknown) {
+                // Handle 413 errors specifically
+                const err = error as { response?: { status: number }; message?: string };
+                if (err?.response?.status === 413) {
+                    const errorMessage = err.message || "One or more files exceed the maximum allowed size. Please try uploading smaller files.";
+                    throw new Error(errorMessage.includes("exceeds maximum") || errorMessage.includes("too large") ? errorMessage : "One or more files exceed the maximum allowed size. Please try uploading smaller files.");
                 }
-
-                if (response.status === 413) {
-                    if (!errorMessage.includes("exceeds maximum") && !errorMessage.includes("too large")) {
-                        errorMessage = "One or more files exceed the maximum allowed size. Please try uploading smaller files.";
-                    }
-                }
-
-                throw new Error(errorMessage);
+                throw error;
             }
-
-            setError(null);
-            await fetchProjects();
         },
-        [projectsEnabled, fetchProjects]
+        [projectsEnabled, addFilesMutation]
     );
 
     const removeFileFromProject = useCallback(
@@ -119,11 +105,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Projects feature is disabled");
             }
 
-            await api.webui.delete(`/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`);
-            setError(null);
-            await fetchProjects();
+            await removeFileMutation.mutateAsync({ projectId, filename });
         },
-        [projectsEnabled, fetchProjects]
+        [projectsEnabled, removeFileMutation]
     );
 
     const updateFileMetadata = useCallback(
@@ -132,13 +116,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Projects feature is disabled");
             }
 
-            const formData = new FormData();
-            formData.append("description", description);
-
-            await api.webui.patch(`/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, formData);
-            setError(null);
+            await updateFileMetadataMutation.mutateAsync({ projectId, filename, description });
         },
-        [projectsEnabled]
+        [projectsEnabled, updateFileMetadataMutation]
     );
 
     const updateProject = useCallback(
@@ -147,54 +127,16 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Projects feature is disabled");
             }
 
-            const response = await api.webui.put(`/api/v1/projects/${projectId}`, data, { fullResponse: true });
+            const updatedProject = await updateProjectMutation.mutateAsync({ projectId, data });
 
-            if (!response.ok) {
-                let errorMessage = `Failed to update project: ${response.statusText}`;
-
-                try {
-                    const errorData = await response.json();
-
-                    if (response.status === 422) {
-                        if (errorData.detail) {
-                            if (Array.isArray(errorData.detail)) {
-                                const validationErrors = errorData.detail
-                                    .map((err: { loc?: string[]; msg: string }) => {
-                                        const field = err.loc?.join(".") || "field";
-                                        return `${field}: ${err.msg}`;
-                                    })
-                                    .join(", ");
-                                errorMessage = `Validation error: ${validationErrors}`;
-                            } else if (typeof errorData.detail === "string") {
-                                errorMessage = errorData.detail;
-                            }
-                        }
-                    } else {
-                        errorMessage = errorData.detail || errorData.message || errorMessage;
-                    }
-                } catch {
-                    // JSON parsing failed, use default error message
-                }
-
-                throw new Error(errorMessage);
-            }
-
-            const updatedProject: Project = await response.json();
-
-            setProjects(prev => {
-                const updated = prev.map(p => (p.id === updatedProject.id ? updatedProject : p));
-                return updated.sort((a, b) => {
-                    return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-                });
-            });
+            // Update local UI state
             setCurrentProject(current => (current?.id === updatedProject.id ? updatedProject : current));
             setSelectedProject(current => (current?.id === updatedProject.id ? updatedProject : current));
             setActiveProject(current => (current?.id === updatedProject.id ? updatedProject : current));
-            setError(null);
 
             return updatedProject;
         },
-        [projectsEnabled]
+        [projectsEnabled, updateProjectMutation]
     );
 
     const deleteProject = useCallback(
@@ -203,24 +145,19 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Projects feature is disabled");
             }
 
-            await api.webui.delete(`/api/v1/projects/${projectId}`);
+            await deleteProjectMutation.mutateAsync(projectId);
 
-            setProjects(prev => prev.filter(p => p.id !== projectId));
+            // Update local UI state
             setCurrentProject(current => (current?.id === projectId ? null : current));
             setSelectedProject(selected => (selected?.id === projectId ? null : selected));
             setActiveProject(active => (active?.id === projectId ? null : active));
-            setError(null);
 
             if (onProjectDeletedCallback) {
                 onProjectDeletedCallback(projectId);
             }
         },
-        [projectsEnabled]
+        [projectsEnabled, deleteProjectMutation]
     );
-
-    useEffect(() => {
-        fetchProjects();
-    }, [fetchProjects]);
 
     // Restore last viewed project from localStorage
     useEffect(() => {
