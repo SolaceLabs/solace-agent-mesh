@@ -101,7 +101,7 @@ const ArtifactContentViewer: React.FC<ArtifactContentViewerProps> = ({ uri, name
 
         // For YAML, CSV, and other text formats, show as preformatted text
         return (
-            <pre className="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
+            <pre className="text-xs bg-(--color-secondary-w10) dark:bg-(--color-background-w100) p-2 rounded overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
                 {content}
             </pre>
         );
@@ -109,7 +109,7 @@ const ArtifactContentViewer: React.FC<ArtifactContentViewerProps> = ({ uri, name
 
     if (isLoading) {
         return (
-            <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex items-center gap-2 text-xs text-(--color-secondary-text-wMain)">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Loading artifact content...
             </div>
@@ -118,7 +118,7 @@ const ArtifactContentViewer: React.FC<ArtifactContentViewerProps> = ({ uri, name
 
     if (error) {
         return (
-            <div className="text-xs text-red-500 dark:text-red-400">
+            <div className="text-xs text-(--color-error-wMain) dark:text-(--color-error-w30)">
                 {error}
             </div>
         );
@@ -126,7 +126,7 @@ const ArtifactContentViewer: React.FC<ArtifactContentViewerProps> = ({ uri, name
 
     if (!content) {
         return (
-            <div className="text-xs text-gray-500 italic">
+            <div className="text-xs text-(--color-secondary-text-wMain) italic">
                 No content available
             </div>
         );
@@ -136,7 +136,7 @@ const ArtifactContentViewer: React.FC<ArtifactContentViewerProps> = ({ uri, name
         <div>
             {renderContent()}
             {isTruncated && (
-                <div className="text-xs text-amber-600 dark:text-amber-400 mt-1 italic">
+                <div className="text-xs text-(--color-warning-wMain) dark:text-(--color-warning-w30) mt-1 italic">
                     Content truncated (showing first {MAX_ARTIFACT_DISPLAY_LENGTH.toLocaleString()} characters)
                 </div>
             )}
@@ -167,28 +167,28 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
     const getNodeIcon = () => {
         switch (nodeDetails.nodeType) {
             case 'user':
-                return <User className="text-purple-500 dark:text-purple-400" size={20} />;
+                return <User className="text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30)" size={20} />;
             case 'agent':
-                return <Bot className="text-blue-500 dark:text-blue-400" size={20} />;
+                return <Bot className="text-(--color-info-wMain) dark:text-(--color-info-w30)" size={20} />;
             case 'llm':
-                return <Zap className="text-teal-500 dark:text-teal-400" size={20} />;
+                return <Zap className="text-(--color-accent-n2-wMain) dark:text-(--color-accent-n2-w30)" size={20} />;
             case 'tool':
-                return <Wrench className="text-cyan-500 dark:text-cyan-400" size={20} />;
+                return <Wrench className="text-(--color-accent-n7-w100) dark:text-(--color-accent-n7-wMain)" size={20} />;
             case 'switch':
-                return <GitBranch className="text-purple-500 dark:text-purple-400" size={20} />;
+                return <GitBranch className="text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30)" size={20} />;
             case 'loop':
-                return <RefreshCw className="text-teal-500 dark:text-teal-400" size={20} />;
+                return <RefreshCw className="text-(--color-accent-n2-wMain) dark:text-(--color-accent-n2-w30)" size={20} />;
             case 'group':
-                return <Workflow className="text-purple-500 dark:text-purple-400" size={20} />;
+                return <Workflow className="text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30)" size={20} />;
             default:
-                return <Terminal className="text-gray-500 dark:text-gray-400" size={20} />;
+                return <Terminal className="text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)" size={20} />;
         }
     };
 
     const renderStepContent = (step: VisualizerStep | undefined, isRequest: boolean) => {
         if (!step) {
             return (
-                <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500 italic">
+                <div className="flex items-center justify-center h-full text-(--color-secondary-text-w50) dark:text-(--color-secondary-text-wMain) italic">
                     {isRequest ? "No request data available" : "No result data available"}
                 </div>
             );
@@ -208,7 +208,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         return (
             <div className="space-y-3">
                 {/* Timestamp */}
-                <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                <div className="text-xs text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) font-mono">
                     {formattedTimestamp}
                 </div>
 
@@ -250,7 +250,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                 return renderWorkflowResult(step);
             default:
                 return (
-                    <div className="text-sm text-gray-600 dark:text-gray-300">
+                    <div className="text-sm text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">
                         {step.title}
                     </div>
                 );
@@ -259,9 +259,9 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
     const renderUserRequest = (step: VisualizerStep) => (
         <div>
-            <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">User Input</h4>
+            <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">User Input</h4>
             {step.data.text && (
-                <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-gray-50 dark:bg-gray-800 rounded-md max-h-96 overflow-y-auto">
+                <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) rounded-md max-h-96 overflow-y-auto">
                     <MarkdownHTMLConverter>{step.data.text}</MarkdownHTMLConverter>
                 </div>
             )}
@@ -274,22 +274,22 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
         return (
             <div>
-                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                     Workflow Agent Request
                 </h4>
                 <div className="space-y-3">
                     {data.nodeId && (
                         <div className="text-xs">
-                            <span className="font-semibold text-gray-600 dark:text-gray-400">Node Id:</span>{' '}
-                            <span className="text-gray-800 dark:text-gray-200">{data.nodeId}</span>
+                            <span className="font-semibold text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">Node Id:</span>{' '}
+                            <span className="text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">{data.nodeId}</span>
                         </div>
                     )}
 
                     {/* Instruction from workflow node */}
                     {data.instruction && (
                         <div>
-                            <div className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400">Instruction:</div>
-                            <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-blue-50 dark:bg-blue-900/30 rounded-md overflow-y-auto border border-blue-200 dark:border-blue-700">
+                            <div className="text-xs font-semibold mb-1 text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">Instruction:</div>
+                            <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-(--color-info-w10) dark:bg-(--color-info-w100)/30 rounded-md overflow-y-auto border border-(--color-info-w20) dark:border-(--color-info-w100)">
                                 <MarkdownHTMLConverter>{data.instruction}</MarkdownHTMLConverter>
                             </div>
                         </div>
@@ -298,14 +298,14 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     {/* Input as artifact reference */}
                     {data.inputArtifactRef && (
                         <div>
-                            <div className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400 flex items-baseline gap-1 min-w-0">
+                            <div className="text-xs font-semibold mb-1 text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) flex items-baseline gap-1 min-w-0">
                                 <span className="flex-shrink-0">Input:</span>
-                                <span className="font-normal text-gray-500 truncate min-w-0" title={data.inputArtifactRef.name}>{data.inputArtifactRef.name}</span>
+                                <span className="font-normal text-(--color-secondary-text-wMain) truncate min-w-0" title={data.inputArtifactRef.name}>{data.inputArtifactRef.name}</span>
                                 {data.inputArtifactRef.version !== undefined && (
-                                    <span className="ml-1 text-purple-600 dark:text-purple-400 flex-shrink-0">v{data.inputArtifactRef.version}</span>
+                                    <span className="ml-1 text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30) flex-shrink-0">v{data.inputArtifactRef.version}</span>
                                 )}
                             </div>
-                            <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700">
+                            <div className="bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md border border-(--color-secondary-w20) dark:border-(--color-secondary-w70)">
                                 <ArtifactContentViewer
                                     uri={data.inputArtifactRef.uri}
                                     name={data.inputArtifactRef.name}
@@ -319,8 +319,8 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     {/* Input as text (for simple text schemas) */}
                     {data.inputText && !data.inputArtifactRef && (
                         <div>
-                            <div className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400">Input:</div>
-                            <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-gray-50 dark:bg-gray-800 rounded-md overflow-y-auto">
+                            <div className="text-xs font-semibold mb-1 text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">Input:</div>
+                            <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) rounded-md overflow-y-auto">
                                 <MarkdownHTMLConverter>{data.inputText}</MarkdownHTMLConverter>
                             </div>
                         </div>
@@ -329,8 +329,8 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     {/* Input Schema */}
                     {data.inputSchema && (
                         <div>
-                            <div className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400">Input Schema:</div>
-                            <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto">
+                            <div className="text-xs font-semibold mb-1 text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">Input Schema:</div>
+                            <div className="bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md border border-(--color-secondary-w20) dark:border-(--color-secondary-w70) max-h-48 overflow-y-auto">
                                 <JSONViewer data={data.inputSchema} />
                             </div>
                         </div>
@@ -339,8 +339,8 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     {/* Output Schema */}
                     {data.outputSchema && (
                         <div>
-                            <div className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400">Output Schema:</div>
-                            <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto">
+                            <div className="text-xs font-semibold mb-1 text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">Output Schema:</div>
+                            <div className="bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md border border-(--color-secondary-w20) dark:border-(--color-secondary-w70) max-h-48 overflow-y-auto">
                                 <JSONViewer data={data.outputSchema} />
                             </div>
                         </div>
@@ -348,7 +348,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
                     {/* No input data available */}
                     {!data.inputText && !data.inputArtifactRef && !data.instruction && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                        <div className="text-xs text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) italic">
                             No input data available
                         </div>
                     )}
@@ -359,9 +359,9 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
     const renderAgentResponse = (step: VisualizerStep) => (
         <div>
-            <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">Agent Response</h4>
+            <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">Agent Response</h4>
             {step.data.text && (
-                <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-gray-50 dark:bg-gray-800 rounded-md overflow-y-auto">
+                <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) rounded-md overflow-y-auto">
                     <MarkdownHTMLConverter>{step.data.text}</MarkdownHTMLConverter>
                 </div>
             )}
@@ -374,14 +374,14 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
         return (
             <div>
-                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">LLM Request</h4>
+                <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">LLM Request</h4>
                 <div className="space-y-2">
                     <div className="text-xs">
                         <span className="font-semibold">Model:</span> {data.modelName}
                     </div>
                     <div>
                         <div className="text-xs font-semibold mb-1">Prompt:</div>
-                        <pre className="text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded-md overflow-auto max-h-80 whitespace-pre-wrap break-words">
+                        <pre className="text-xs bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md overflow-auto max-h-80 whitespace-pre-wrap break-words">
                             {data.promptPreview}
                         </pre>
                     </div>
@@ -396,7 +396,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
         return (
             <div>
-                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">LLM Response</h4>
+                <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">LLM Response</h4>
                 <div className="space-y-2">
                     {data.modelName && (
                         <div className="text-xs">
@@ -404,7 +404,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                         </div>
                     )}
                     <div>
-                        <pre className="text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded-md overflow-auto max-h-80 whitespace-pre-wrap break-words">
+                        <pre className="text-xs bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md overflow-auto max-h-80 whitespace-pre-wrap break-words">
                             {data.response || data.responsePreview}
                         </pre>
                     </div>
@@ -424,7 +424,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
         return (
             <div>
-                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                     LLM Tool Decision{data.isParallel ? " (Parallel)" : ""}
                 </h4>
                 <div className="space-y-3">
@@ -435,12 +435,12 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                                 {data.decisions.map((decision: ToolDecision, index: number) => (
                                     <div
                                         key={index}
-                                        className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700"
+                                        className="bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md border border-(--color-secondary-w20) dark:border-(--color-secondary-w70)"
                                     >
-                                        <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1">
+                                        <div className="text-xs font-semibold text-(--color-info-wMain) dark:text-(--color-info-w30) mb-1">
                                             {decision.toolName}
                                             {decision.isPeerDelegation && (
-                                                <span className="ml-2 px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs">
+                                                <span className="ml-2 px-1.5 py-0.5 bg-(--color-accent-n3-w10) dark:bg-(--color-accent-n3-w100)/30 text-(--color-accent-n3-w100) dark:text-(--color-accent-n3-w30) rounded text-xs">
                                                     {decision.toolName.startsWith('workflow_') ? 'Workflow' : 'Peer Agent'}
                                                 </span>
                                             )}
@@ -466,7 +466,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
         return (
             <div>
-                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                     {data.isPeerInvocation ? "Peer Agent Call" : "Tool Invocation"}
                 </h4>
                 <div className="space-y-2">
@@ -487,7 +487,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
         if (entries.length === 0) {
             return (
-                <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                <div className="text-xs text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) italic">
                     No arguments
                 </div>
             );
@@ -496,8 +496,8 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         return (
             <div className="space-y-3">
                 {entries.map(([key, value]) => (
-                    <div key={key} className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-                        <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1">
+                    <div key={key} className="bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md border border-(--color-secondary-w20) dark:border-(--color-secondary-w70) overflow-hidden">
+                        <div className="text-xs font-semibold text-(--color-info-wMain) dark:text-(--color-info-w30) mb-1">
                             {key}
                         </div>
                         <div className="text-xs overflow-auto max-h-60">
@@ -512,34 +512,34 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
     const renderArgumentValue = (value: any): React.ReactNode => {
         // Handle null/undefined
         if (value === null) {
-            return <span className="text-gray-500 dark:text-gray-400 italic">null</span>;
+            return <span className="text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) italic">null</span>;
         }
         if (value === undefined) {
-            return <span className="text-gray-500 dark:text-gray-400 italic">undefined</span>;
+            return <span className="text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) italic">undefined</span>;
         }
 
         // Handle primitives
         if (typeof value === 'string') {
-            return <span className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">{value}</span>;
+            return <span className="text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10) whitespace-pre-wrap break-words">{value}</span>;
         }
         if (typeof value === 'number') {
-            return <span className="text-purple-600 dark:text-purple-400">{value}</span>;
+            return <span className="text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30)">{value}</span>;
         }
         if (typeof value === 'boolean') {
-            return <span className="text-green-600 dark:text-green-400">{value.toString()}</span>;
+            return <span className="text-(--color-success-wMain) dark:text-(--color-success-w30)">{value.toString()}</span>;
         }
 
         // Handle arrays
         if (Array.isArray(value)) {
             if (value.length === 0) {
-                return <span className="text-gray-500 dark:text-gray-400 italic">[]</span>;
+                return <span className="text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) italic">[]</span>;
             }
             // For simple arrays of primitives, show inline
             if (value.every(item => typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean')) {
                 return (
                     <div className="space-y-1">
                         {value.map((item, idx) => (
-                            <div key={idx} className="pl-2 border-l-2 border-blue-300 dark:border-blue-700">
+                            <div key={idx} className="pl-2 border-l-2 border-(--color-info-w30) dark:border-(--color-info-w100)">
                                 {renderArgumentValue(item)}
                             </div>
                         ))}
@@ -566,7 +566,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     <div className="space-y-1">
                         {entries.map(([k, v]) => (
                             <div key={k} className="flex gap-2 min-w-0">
-                                <span className="font-semibold text-gray-600 dark:text-gray-400 flex-shrink-0">{k}:</span>
+                                <span className="font-semibold text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) flex-shrink-0">{k}:</span>
                                 <span className="min-w-0 break-words">{renderArgumentValue(v)}</span>
                             </div>
                         ))}
@@ -583,7 +583,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         }
 
         // Fallback
-        return <span className="text-gray-600 dark:text-gray-400">{String(value)}</span>;
+        return <span className="text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">{String(value)}</span>;
     };
 
     const renderToolResult = (step: VisualizerStep) => {
@@ -592,7 +592,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
         return (
             <div>
-                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                     {data.isPeerResponse ? "Peer Agent Result" : "Tool Result"}
                 </h4>
                 <div className="space-y-2">
@@ -604,7 +604,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                         {typeof data.resultData === "object" && data.resultData !== null ? (
                             renderFormattedArguments(data.resultData)
                         ) : (
-                            <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                            <div className="bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md border border-(--color-secondary-w20) dark:border-(--color-secondary-w70) overflow-hidden">
                                 <div className="text-xs overflow-auto max-h-60">
                                     {renderArgumentValue(data.resultData)}
                                 </div>
@@ -622,7 +622,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
         return (
             <div>
-                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                     Workflow Agent Invocation
                 </h4>
                 <div className="space-y-2">
@@ -633,27 +633,27 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                         <span className="font-semibold">Workflow Node:</span> {data.nodeId}
                     </div>
                     {(data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === 'number') && (
-                        <div className="inline-block px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs">
+                        <div className="inline-block px-2 py-1 bg-(--color-info-w10) dark:bg-(--color-info-w100)/30 text-(--color-info-w100) dark:text-(--color-info-w10) rounded text-xs">
                             Iteration #{data.iterationIndex}
                         </div>
                     )}
                     {data.inputArtifactRef && (
                         <div className="mt-2">
                             <div className="text-xs font-semibold mb-1">Input:</div>
-                            <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700">
+                            <div className="bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md border border-(--color-secondary-w20) dark:border-(--color-secondary-w70)">
                                 <div className="text-xs">
-                                    <div className="font-semibold text-blue-600 dark:text-blue-400 mb-1">
+                                    <div className="font-semibold text-(--color-info-wMain) dark:text-(--color-info-w30) mb-1">
                                         Artifact Reference
                                     </div>
                                     <div className="space-y-1">
                                         <div className="flex gap-2 min-w-0">
-                                            <span className="font-semibold text-gray-600 dark:text-gray-400 flex-shrink-0">name:</span>
-                                            <span className="text-gray-800 dark:text-gray-200 truncate" title={data.inputArtifactRef.name}>{data.inputArtifactRef.name}</span>
+                                            <span className="font-semibold text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) flex-shrink-0">name:</span>
+                                            <span className="text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10) truncate" title={data.inputArtifactRef.name}>{data.inputArtifactRef.name}</span>
                                         </div>
                                         {data.inputArtifactRef.version !== undefined && (
                                             <div className="flex gap-2">
-                                                <span className="font-semibold text-gray-600 dark:text-gray-400 flex-shrink-0">version:</span>
-                                                <span className="text-purple-600 dark:text-purple-400">{data.inputArtifactRef.version}</span>
+                                                <span className="font-semibold text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) flex-shrink-0">version:</span>
+                                                <span className="text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30)">{data.inputArtifactRef.version}</span>
                                             </div>
                                         )}
                                     </div>
@@ -661,7 +661,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                             </div>
                         </div>
                     )}
-                    <div className="text-xs text-gray-500 dark:text-gray-400 italic mt-2">
+                    <div className="text-xs text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) italic mt-2">
                         This agent was invoked by the workflow with the input specified above.
                     </div>
                 </div>
@@ -677,7 +677,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         if (data.nodeType === 'switch') {
             return (
                 <div>
-                    <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                    <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                         Switch Node
                     </h4>
                     <div className="space-y-3">
@@ -693,18 +693,18 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                                     {data.cases.map((caseItem, index) => (
                                         <div
                                             key={index}
-                                            className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700"
+                                            className="bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md border border-(--color-secondary-w20) dark:border-(--color-secondary-w70)"
                                         >
                                             <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
+                                                <span className="text-xs font-semibold text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30)">
                                                     Case {index + 1}
                                                 </span>
-                                                <ArrowRight className="h-3 w-3 text-gray-400" />
-                                                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                                                <ArrowRight className="h-3 w-3 text-(--color-secondary-text-w50)" />
+                                                <span className="text-xs font-medium text-(--color-info-wMain) dark:text-(--color-info-w30)">
                                                     {caseItem.node}
                                                 </span>
                                             </div>
-                                            <code className="block text-xs text-gray-600 dark:text-gray-300 break-all">
+                                            <code className="block text-xs text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) break-all">
                                                 {caseItem.condition}
                                             </code>
                                         </div>
@@ -715,13 +715,13 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
                         {/* Default branch */}
                         {data.defaultBranch && (
-                            <div className="bg-amber-50 dark:bg-amber-900/30 p-2 rounded-md border border-amber-200 dark:border-amber-700">
+                            <div className="bg-(--color-warning-w10) dark:bg-(--color-warning-w100)/30 p-2 rounded-md border border-(--color-warning-w20) dark:border-(--color-warning-w100)">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                    <span className="text-xs font-semibold text-(--color-warning-wMain) dark:text-(--color-warning-w30)">
                                         Default
                                     </span>
-                                    <ArrowRight className="h-3 w-3 text-gray-400" />
-                                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                                    <ArrowRight className="h-3 w-3 text-(--color-secondary-text-w50)" />
+                                    <span className="text-xs font-medium text-(--color-info-wMain) dark:text-(--color-info-w30)">
                                         {data.defaultBranch}
                                     </span>
                                 </div>
@@ -736,7 +736,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         if (data.nodeType === 'loop') {
             return (
                 <div>
-                    <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                    <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                         Loop Node
                     </h4>
                     <div className="space-y-2">
@@ -746,7 +746,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                         {data.condition && (
                             <div>
                                 <div className="text-xs font-semibold mb-1">Condition:</div>
-                                <code className="block text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded-md break-all">
+                                <code className="block text-xs bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md break-all">
                                     {data.condition}
                                 </code>
                             </div>
@@ -769,7 +769,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         // Default rendering for other node types
         return (
             <div>
-                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                     Workflow Node Start
                 </h4>
                 <div className="space-y-2">
@@ -787,13 +787,13 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     {data.condition && (
                         <div>
                             <div className="text-xs font-semibold mb-1">Condition:</div>
-                            <code className="block text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded-md break-all">
+                            <code className="block text-xs bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md break-all">
                                 {data.condition}
                             </code>
                         </div>
                     )}
                     {(data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === 'number') && (
-                        <div className="inline-block px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs">
+                        <div className="inline-block px-2 py-1 bg-(--color-info-w10) dark:bg-(--color-info-w100)/30 text-(--color-info-w100) dark:text-(--color-info-w10) rounded text-xs">
                             Iteration #{data.iterationIndex}
                         </div>
                     )}
@@ -813,16 +813,16 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
         return (
             <div>
-                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                     {isSwitch ? "Switch Result" : "Workflow Node Result"}
                 </h4>
                 <div className="space-y-2">
                     <div className="text-xs">
                         <span className="font-semibold">Status:</span>{" "}
                         <span className={
-                            data.status === "success" ? "text-green-600 dark:text-green-400" :
-                            data.status === "failure" ? "text-red-600 dark:text-red-400" :
-                            "text-gray-600 dark:text-gray-400"
+                            data.status === "success" ? "text-(--color-success-wMain) dark:text-(--color-success-w30)" :
+                            data.status === "failure" ? "text-(--color-error-wMain) dark:text-(--color-error-w30)" :
+                            "text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)"
                         }>
                             {data.status}
                         </span>
@@ -830,23 +830,23 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
                     {/* Switch node result - selected branch */}
                     {selectedBranch !== undefined && (
-                        <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/30 rounded-md border border-green-200 dark:border-green-700">
+                        <div className="mt-2 p-2 bg-(--color-success-w10) dark:bg-(--color-success-w100)/30 rounded-md border border-(--color-success-w20) dark:border-(--color-success-w100)">
                             <div className="flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                                <CheckCircle className="h-4 w-4 text-(--color-success-wMain) dark:text-(--color-success-w30)" />
+                                <span className="text-xs font-semibold text-(--color-success-w100) dark:text-(--color-success-w30)">
                                     Selected Branch:
                                 </span>
-                                <span className="text-xs font-bold text-green-800 dark:text-green-200">
+                                <span className="text-xs font-bold text-(--color-success-w100) dark:text-(--color-success-w10)">
                                     {selectedBranch}
                                 </span>
                             </div>
                             {selectedCaseIndex !== undefined && selectedCaseIndex !== null && (
-                                <div className="mt-1 text-xs text-green-600 dark:text-green-400">
+                                <div className="mt-1 text-xs text-(--color-success-wMain) dark:text-(--color-success-w30)">
                                     Matched Case #{selectedCaseIndex + 1}
                                 </div>
                             )}
                             {selectedCaseIndex === null && (
-                                <div className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                                <div className="mt-1 text-xs text-(--color-warning-wMain) dark:text-(--color-warning-w30)">
                                     (Default branch - no case matched)
                                 </div>
                             )}
@@ -856,7 +856,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     {data.conditionResult !== undefined && (
                         <div className="text-xs">
                             <span className="font-semibold">Condition Result:</span>{" "}
-                            <span className={data.conditionResult ? "text-green-600 dark:text-green-400 font-bold" : "text-orange-600 dark:text-orange-400 font-bold"}>
+                            <span className={data.conditionResult ? "text-(--color-success-wMain) dark:text-(--color-success-w30) font-bold" : "text-(--color-warning-wMain) dark:text-(--color-warning-w30) font-bold"}>
                                 {data.conditionResult ? "True" : "False"}
                             </span>
                         </div>
@@ -864,13 +864,13 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     {data.metadata?.condition && (
                         <div>
                             <div className="text-xs font-semibold mb-1">Condition:</div>
-                            <code className="block text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded-md break-all">
+                            <code className="block text-xs bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md break-all">
                                 {data.metadata.condition}
                             </code>
                         </div>
                     )}
                     {data.errorMessage && (
-                        <div className="text-xs text-red-600 dark:text-red-400">
+                        <div className="text-xs text-(--color-error-wMain) dark:text-(--color-error-w30)">
                             <span className="font-semibold">Error:</span> {data.errorMessage}
                         </div>
                     )}
@@ -885,7 +885,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
         return (
             <div>
-                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                     Workflow Start
                 </h4>
                 <div className="space-y-2">
@@ -909,13 +909,13 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
         return (
             <div>
-                <h4 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                <h4 className="text-sm font-semibold mb-2 text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                     Workflow Result
                 </h4>
                 <div className="space-y-2">
                     <div className="text-xs">
                         <span className="font-semibold">Status:</span>{" "}
-                        <span className={data.status === "success" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                        <span className={data.status === "success" ? "text-(--color-success-wMain) dark:text-(--color-success-w30)" : "text-(--color-error-wMain) dark:text-(--color-error-w30)"}>
                             {data.status}
                         </span>
                     </div>
@@ -926,7 +926,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                         </div>
                     )}
                     {data.errorMessage && (
-                        <div className="text-xs text-red-600 dark:text-red-400">
+                        <div className="text-xs text-(--color-error-wMain) dark:text-(--color-error-w30)">
                             <span className="font-semibold">Error:</span> {data.errorMessage}
                         </div>
                     )}
@@ -944,15 +944,15 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         if (!outputArtifactRef) return null;
 
         return (
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <div className="text-xs font-semibold mb-2 text-gray-600 dark:text-gray-400 flex items-baseline gap-1 min-w-0">
+            <div className="mt-4 pt-4 border-t border-(--color-secondary-w20) dark:border-(--color-secondary-w70)">
+                <div className="text-xs font-semibold mb-2 text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) flex items-baseline gap-1 min-w-0">
                     <span className="flex-shrink-0">Output Artifact:</span>
-                    <span className="font-normal text-gray-500 truncate min-w-0" title={outputArtifactRef.name}>{outputArtifactRef.name}</span>
+                    <span className="font-normal text-(--color-secondary-text-wMain) truncate min-w-0" title={outputArtifactRef.name}>{outputArtifactRef.name}</span>
                     {outputArtifactRef.version !== undefined && (
-                        <span className="ml-1 text-purple-600 dark:text-purple-400 flex-shrink-0">v{outputArtifactRef.version}</span>
+                        <span className="ml-1 text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30) flex-shrink-0">v{outputArtifactRef.version}</span>
                     )}
                 </div>
-                <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700">
+                <div className="bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) p-2 rounded-md border border-(--color-secondary-w20) dark:border-(--color-secondary-w70)">
                     <ArtifactContentViewer
                         name={outputArtifactRef.name}
                         version={outputArtifactRef.version}
@@ -995,11 +995,11 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         };
 
         return (
-            <div className={asColumn ? "" : "mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"}>
-                <div className={`flex items-center gap-2 ${asColumn ? "mb-3 pb-2 border-b border-gray-200 dark:border-gray-700" : "mb-3"}`}>
-                    <div className={`${asColumn ? "w-2 h-2 rounded-full bg-indigo-500" : ""}`}></div>
-                    <FileText className={`h-4 w-4 text-indigo-500 dark:text-indigo-400 ${asColumn ? "hidden" : ""}`} />
-                    <h4 className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
+            <div className={asColumn ? "" : "mt-4 pt-4 border-t border-(--color-secondary-w20) dark:border-(--color-secondary-w70)"}>
+                <div className={`flex items-center gap-2 ${asColumn ? "mb-3 pb-2 border-b border-(--color-secondary-w20) dark:border-(--color-secondary-w70)" : "mb-3"}`}>
+                    <div className={`${asColumn ? "w-2 h-2 rounded-full bg-(--color-accent-n1-wMain)" : ""}`}></div>
+                    <FileText className={`h-4 w-4 text-(--color-accent-n1-wMain) dark:text-(--color-accent-n1-w30) ${asColumn ? "hidden" : ""}`} />
+                    <h4 className="text-sm font-bold text-(--color-accent-n1-wMain) dark:text-(--color-accent-n1-w30)">
                         {asColumn ? "CREATED ARTIFACTS" : `Created Artifacts (${nodeDetails.createdArtifacts.length})`}
                     </h4>
                 </div>
@@ -1007,12 +1007,12 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     {nodeDetails.createdArtifacts.map((artifact, index) => (
                         <div
                             key={`${artifact.filename}-${artifact.version ?? index}`}
-                            className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-md border border-indigo-200 dark:border-indigo-700"
+                            className="bg-(--color-accent-n1-w10) dark:bg-(--color-accent-n1-w100)/30 p-3 rounded-md border border-(--color-accent-n1-w20) dark:border-(--color-accent-n1-w100)"
                         >
                             <div className="flex items-center justify-between gap-2 mb-1">
                                 <button
                                     onClick={() => handleArtifactClick(artifact.filename, artifact.version)}
-                                    className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-indigo-100 hover:underline cursor-pointer transition-colors truncate min-w-0"
+                                    className="text-sm font-semibold text-(--color-accent-n1-w100) dark:text-(--color-accent-n1-w30) hover:text-(--color-accent-n1-w100) dark:hover:text-(--color-accent-n1-w10) hover:underline cursor-pointer transition-colors truncate min-w-0"
                                     title={artifact.filename}
                                 >
                                     {artifact.filename}
@@ -1025,29 +1025,29 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                                             version: artifact.version,
                                             mimeType: artifact.mimeType
                                         })}
-                                        className="p-1 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors"
+                                        className="p-1 rounded hover:bg-(--color-accent-n1-w20) dark:hover:bg-(--color-accent-n1-w100)/50 transition-colors"
                                         title="Preview inline"
                                     >
-                                        <Eye className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                                        <Eye className="h-3.5 w-3.5 text-(--color-accent-n1-wMain) dark:text-(--color-accent-n1-w30)" />
                                     </button>
                                     {artifact.version !== undefined && (
-                                        <span className="text-xs px-1.5 py-0.5 bg-indigo-200 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-300 rounded">
+                                        <span className="text-xs px-1.5 py-0.5 bg-(--color-accent-n1-w20) dark:bg-(--color-accent-n1-w100)/50 text-(--color-accent-n1-w100) dark:text-(--color-accent-n1-w30) rounded">
                                             v{artifact.version}
                                         </span>
                                     )}
                                 </div>
                             </div>
                             {artifact.description && (
-                                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                                <p className="text-xs text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) mb-2">
                                     {artifact.description}
                                 </p>
                             )}
                             {artifact.mimeType && (
-                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                <div className="text-xs text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">
                                     <span className="font-medium">Type:</span> {artifact.mimeType}
                                 </div>
                             )}
-                            <div className="mt-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                            <div className="mt-2 bg-(--color-background-w10) dark:bg-(--color-background-wMain) rounded border border-(--color-secondary-w20) dark:border-(--color-secondary-w70)">
                                 <ArtifactContentViewer
                                     name={artifact.filename}
                                     version={artifact.version}
@@ -1065,18 +1065,18 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
     const renderMainContent = () => (
         <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
+            <div className="flex items-center gap-3 p-4 border-b border-(--color-secondary-w20) dark:border-(--color-secondary-w70) bg-(--color-secondary-w10) dark:bg-(--color-background-wMain) flex-shrink-0">
                 {getNodeIcon()}
                 <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-bold text-gray-800 dark:text-gray-100 truncate">
+                    <h3 className="text-base font-bold text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10) truncate">
                         {nodeDetails.label}
                     </h3>
                     {nodeDetails.description ? (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={nodeDetails.description}>
+                        <p className="text-xs text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) truncate" title={nodeDetails.description}>
                             {nodeDetails.description}
                         </p>
                     ) : (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                        <p className="text-xs text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) capitalize">
                             {nodeDetails.nodeType} Node
                         </p>
                     )}
@@ -1090,9 +1090,9 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     <div className={`grid grid-cols-1 ${hasCreatedArtifacts ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} divide-y lg:divide-y-0 lg:divide-x divide-gray-200 dark:divide-gray-700`}>
                         {/* Request Column */}
                         <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                                <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-(--color-secondary-w20) dark:border-(--color-secondary-w70)">
+                                <div className="w-2 h-2 rounded-full bg-(--color-info-wMain)"></div>
+                                <h4 className="text-sm font-bold text-(--color-info-wMain) dark:text-(--color-info-w30)">
                                     REQUEST
                                 </h4>
                             </div>
@@ -1101,9 +1101,9 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
 
                         {/* Result Column */}
                         <div className="p-4">
-                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
-                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                <h4 className="text-sm font-bold text-green-600 dark:text-green-400">
+                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-(--color-secondary-w20) dark:border-(--color-secondary-w70)">
+                                <div className="w-2 h-2 rounded-full bg-(--color-success-wMain)"></div>
+                                <h4 className="text-sm font-bold text-(--color-success-wMain) dark:text-(--color-success-w30)">
                                     RESULT
                                 </h4>
                             </div>
@@ -1123,9 +1123,9 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     <div className="p-4">
                         {nodeDetails.requestStep && (
                             <div className="mb-4">
-                                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
-                                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                                    <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-(--color-secondary-w20) dark:border-(--color-secondary-w70)">
+                                    <div className="w-2 h-2 rounded-full bg-(--color-info-wMain)"></div>
+                                    <h4 className="text-sm font-bold text-(--color-info-wMain) dark:text-(--color-info-w30)">
                                         REQUEST
                                     </h4>
                                 </div>
@@ -1134,9 +1134,9 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                         )}
                         {nodeDetails.resultStep && (
                             <div>
-                                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
-                                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                    <h4 className="text-sm font-bold text-green-600 dark:text-green-400">
+                                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-(--color-secondary-w20) dark:border-(--color-secondary-w70)">
+                                    <div className="w-2 h-2 rounded-full bg-(--color-success-wMain)"></div>
+                                    <h4 className="text-sm font-bold text-(--color-success-wMain) dark:text-(--color-success-w30)">
                                         RESULT
                                     </h4>
                                 </div>
@@ -1146,7 +1146,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                             </div>
                         )}
                         {!nodeDetails.requestStep && !nodeDetails.resultStep && (
-                            <div className="flex items-center justify-center h-32 text-gray-400 dark:text-gray-500 italic">
+                            <div className="flex items-center justify-center h-32 text-(--color-secondary-text-w50) dark:text-(--color-secondary-text-wMain) italic">
                                 No detailed information available for this node
                             </div>
                         )}
@@ -1161,17 +1161,17 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         if (!inlinePreviewArtifact) return null;
 
         return (
-            <div className="flex flex-col h-full overflow-hidden border-l border-gray-200 dark:border-gray-700 w-[500px]">
+            <div className="flex flex-col h-full overflow-hidden border-l border-(--color-secondary-w20) dark:border-(--color-secondary-w70) w-[500px]">
                 {/* Preview Header */}
-                <div className="flex items-center justify-between gap-3 p-4 border-b border-gray-200 dark:border-gray-700 bg-purple-50 dark:bg-purple-900/30 flex-shrink-0">
+                <div className="flex items-center justify-between gap-3 p-4 border-b border-(--color-secondary-w20) dark:border-(--color-secondary-w70) bg-(--color-accent-n3-w10) dark:bg-(--color-accent-n3-w100)/30 flex-shrink-0">
                     <div className="flex items-center gap-2 min-w-0">
-                        <FileText className="h-5 w-5 text-purple-500 dark:text-purple-400 flex-shrink-0" />
+                        <FileText className="h-5 w-5 text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30) flex-shrink-0" />
                         <div className="min-w-0">
-                            <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate" title={inlinePreviewArtifact.name}>
+                            <h3 className="text-sm font-bold text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10) truncate" title={inlinePreviewArtifact.name}>
                                 {inlinePreviewArtifact.name}
                             </h3>
                             {inlinePreviewArtifact.version !== undefined && (
-                                <p className="text-xs text-purple-600 dark:text-purple-400">
+                                <p className="text-xs text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30)">
                                     Version {inlinePreviewArtifact.version}
                                 </p>
                             )}
@@ -1179,10 +1179,10 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                     </div>
                     <button
                         onClick={() => setInlinePreviewArtifact(null)}
-                        className="p-1.5 rounded-md hover:bg-purple-100 dark:hover:bg-purple-800/50 transition-colors flex-shrink-0"
+                        className="p-1.5 rounded-md hover:bg-(--color-accent-n3-w10) dark:hover:bg-(--color-accent-n3-w100)/50 transition-colors flex-shrink-0"
                         title="Close preview"
                     >
-                        <X className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                        <X className="h-4 w-4 text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)" />
                     </button>
                 </div>
 

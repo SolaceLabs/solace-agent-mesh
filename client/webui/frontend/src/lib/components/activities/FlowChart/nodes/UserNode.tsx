@@ -11,7 +11,7 @@ interface UserNodeProps {
 const UserNode: FC<UserNodeProps> = ({ node, isSelected, onClick }) => {
     return (
         <div
-            className={`cursor-pointer rounded-md border-2 border-purple-600 bg-white px-4 py-3 text-gray-800 shadow-md transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-purple-400 dark:bg-gray-800 dark:text-gray-200 ${
+            className={`cursor-pointer rounded-md border-2 border-(--color-accent-n3-wMain) bg-(--color-background-w10) px-4 py-3 text-(--color-primary-text-wMain) shadow-md transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-(--color-accent-n3-w30) dark:bg-(--color-background-wMain) dark:text-(--color-primary-text-w10) ${
                 isSelected ? "ring-2 ring-blue-500" : ""
             }`}
             style={{
@@ -24,7 +24,7 @@ const UserNode: FC<UserNodeProps> = ({ node, isSelected, onClick }) => {
             }}
         >
             <div className="flex items-center justify-center gap-2">
-                <User className="h-4 w-4 flex-shrink-0 text-purple-600 dark:text-purple-400" />
+                <User className="h-4 w-4 flex-shrink-0 text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30)" />
                 <div className="text-sm font-bold">{node.data.label}</div>
             </div>
         </div>

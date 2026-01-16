@@ -36,18 +36,18 @@ export const CanvasControls: FC<CanvasControlsProps> = ({
     const isAtMaxZoom = zoomLevel >= maxZoom;
 
     return (
-        <div className="flex items-center justify-end gap-2 border-b border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex items-center justify-end gap-2 border-b border-(--color-secondary-w40) bg-(--color-background-w10) px-4 py-2 dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain)">
             {/* Fit to view / Center button */}
             <button
                 onClick={onFitToView}
-                className="flex h-8 w-8 items-center justify-center rounded p-0 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+                className="flex h-8 w-8 items-center justify-center rounded p-0 text-(--color-secondary-text-wMain) hover:bg-(--color-secondary-w10) hover:text-(--color-primary-text-wMain) dark:text-(--color-secondary-text-w50) dark:hover:bg-(--color-secondary-w70) dark:hover:text-(--color-primary-text-w10)"
                 title="Fit diagram to view"
             >
                 <Home className="h-4 w-4" />
             </button>
 
             {/* Separator */}
-            <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
+            <div className="h-6 w-px bg-(--color-secondary-w40) dark:bg-(--color-secondary-w70)" />
 
             {/* Zoom controls group */}
             <div className="flex items-center gap-1">
@@ -55,14 +55,14 @@ export const CanvasControls: FC<CanvasControlsProps> = ({
                 <button
                     onClick={onZoomOut}
                     disabled={isAtMinZoom}
-                    className="flex h-8 w-8 items-center justify-center rounded p-0 text-gray-600 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+                    className="flex h-8 w-8 items-center justify-center rounded p-0 text-(--color-secondary-text-wMain) hover:bg-(--color-secondary-w10) hover:text-(--color-primary-text-wMain) disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent dark:text-(--color-secondary-text-w50) dark:hover:bg-(--color-secondary-w70) dark:hover:text-(--color-primary-text-w10)"
                     title="Zoom out (10%)"
                 >
                     <ZoomOut className="h-4 w-4" />
                 </button>
 
                 {/* Zoom level display */}
-                <span className="min-w-[3.5rem] text-center text-sm font-medium text-gray-700 dark:text-gray-300">
+                <span className="min-w-[3.5rem] text-center text-sm font-medium text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">
                     {zoomPercentage}%
                 </span>
 
@@ -70,7 +70,7 @@ export const CanvasControls: FC<CanvasControlsProps> = ({
                 <button
                     onClick={onZoomIn}
                     disabled={isAtMaxZoom}
-                    className="flex h-8 w-8 items-center justify-center rounded p-0 text-gray-600 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+                    className="flex h-8 w-8 items-center justify-center rounded p-0 text-(--color-secondary-text-wMain) hover:bg-(--color-secondary-w10) hover:text-(--color-primary-text-wMain) disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent dark:text-(--color-secondary-text-w50) dark:hover:bg-(--color-secondary-w70) dark:hover:text-(--color-primary-text-w10)"
                     title="Zoom in (10%)"
                 >
                     <ZoomIn className="h-4 w-4" />

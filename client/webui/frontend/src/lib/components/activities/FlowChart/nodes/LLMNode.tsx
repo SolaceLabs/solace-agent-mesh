@@ -16,7 +16,7 @@ const LLMNode: FC<LLMNodeProps> = ({ node, isSelected, onClick }) => {
         <Tooltip>
             <TooltipTrigger asChild>
                 <div
-                    className={`relative overflow-hidden cursor-pointer rounded-full border-2 border-teal-600 bg-white px-3 py-1 text-gray-800 shadow-md transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-teal-400 dark:bg-gray-800 dark:text-gray-200 ${
+                    className={`relative overflow-hidden cursor-pointer rounded-full border-2 border-(--color-accent-n2-wMain) bg-(--color-background-w10) px-3 py-1 text-(--color-primary-text-wMain) shadow-md transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-(--color-accent-n2-w30) dark:bg-(--color-background-wMain) dark:text-(--color-primary-text-w10) ${
                         isSelected ? "ring-2 ring-blue-500" : ""
                     } ${haloClass}`}
                     style={{

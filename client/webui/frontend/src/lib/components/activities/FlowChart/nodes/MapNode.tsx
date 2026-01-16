@@ -16,13 +16,13 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
     const getStatusColor = () => {
         switch (node.data.status) {
             case "completed":
-                return "bg-indigo-100 border-indigo-500 dark:bg-indigo-900/30 dark:border-indigo-500";
+                return "bg-(--color-accent-n1-w10) border-(--color-accent-n1-wMain) dark:bg-(--color-accent-n1-w100)/30 dark:border-(--color-accent-n1-wMain)";
             case "in-progress":
-                return "bg-blue-100 border-blue-500 dark:bg-blue-900/30 dark:border-blue-500";
+                return "bg-(--color-info-w10) border-(--color-info-wMain) dark:bg-(--color-info-w100)/30 dark:border-(--color-info-wMain)";
             case "error":
-                return "bg-red-100 border-red-500 dark:bg-red-900/30 dark:border-red-500";
+                return "bg-(--color-error-w10) border-(--color-error-wMain) dark:bg-(--color-error-w100)/30 dark:border-(--color-error-wMain)";
             default:
-                return "bg-gray-100 border-gray-400 dark:bg-gray-800 dark:border-gray-600";
+                return "bg-(--color-secondary-w10) border-(--color-secondary-w40) dark:bg-(--color-background-wMain) dark:border-(--color-secondary-w70)";
         }
     };
 
@@ -44,9 +44,9 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
 
     const hasChildren = branches.length > 0;
     const label = 'Map';
-    const colorClass = "border-indigo-400 bg-indigo-50/30 dark:border-indigo-600 dark:bg-indigo-900/20";
-    const labelColorClass = "text-indigo-600 dark:text-indigo-400 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50";
-    const connectorColor = "bg-indigo-400 dark:bg-indigo-600";
+    const colorClass = "border-(--color-accent-n1-w30) bg-(--color-accent-n1-w10)/30 dark:border-(--color-accent-n1-wMain) dark:bg-(--color-accent-n1-w100)/20";
+    const labelColorClass = "text-(--color-accent-n1-wMain) dark:text-(--color-accent-n1-w60) border-(--color-accent-n1-w30) dark:border-(--color-accent-n1-w100) hover:bg-(--color-accent-n1-w10) dark:hover:bg-(--color-accent-n1-w100)/50";
+    const connectorColor = "bg-(--color-accent-n1-w30) dark:bg-(--color-accent-n1-wMain)";
 
     // Render a child node (iterations are agent nodes)
     const renderChild = (child: LayoutNode) => {
@@ -82,7 +82,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <div
-                            className={`absolute -top-3 left-4 px-2 text-xs font-bold bg-gray-50 dark:bg-gray-900 rounded-md border flex items-center gap-1.5 cursor-pointer transition-colors ${labelColorClass}`}
+                            className={`absolute -top-3 left-4 px-2 text-xs font-bold bg-(--color-secondary-w10) dark:bg-(--color-background-w100) rounded-md border flex items-center gap-1.5 cursor-pointer transition-colors ${labelColorClass}`}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onClick?.(node);
@@ -151,7 +151,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
                     >
                         {/* Parallel Icon */}
                         <svg
-                            className="absolute -top-1 -right-1 w-4 h-4 text-indigo-600 dark:text-indigo-400"
+                            className="absolute -top-1 -right-1 w-4 h-4 text-(--color-accent-n1-wMain) dark:text-(--color-accent-n1-w60)"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -166,7 +166,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
 
                         {/* Content */}
                         <div className="flex flex-col items-center justify-center text-center pointer-events-none">
-                            <div className="text-[10px] font-bold text-gray-800 dark:text-gray-200">
+                            <div className="text-[10px] font-bold text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                                 {node.data.label || label}
                             </div>
                         </div>

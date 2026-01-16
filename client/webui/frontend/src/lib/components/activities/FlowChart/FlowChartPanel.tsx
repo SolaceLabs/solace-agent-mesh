@@ -199,23 +199,23 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
     return (
         <div style={{ height: "100%", width: "100%" }} className="relative">
             {/* Controls bar - Show Detail toggle and Re-center button */}
-            <div className="absolute top-4 right-4 z-50 flex items-center gap-3 bg-white dark:bg-gray-800 px-4 py-2 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
+            <div className="absolute top-4 right-4 z-50 flex items-center gap-3 bg-(--color-background-w10) dark:bg-(--color-background-wMain) px-4 py-2 rounded-md shadow-md border border-(--color-secondary-w20) dark:border-(--color-secondary-w70)">
                 {/* Re-center button (D-6) */}
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <button
                             onClick={handleRecenter}
-                            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            className="p-1 rounded hover:bg-(--color-secondary-w10) dark:hover:bg-(--color-secondary-w70) transition-colors"
                         >
-                            <Home className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                            <Home className="h-4 w-4 text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)" />
                         </button>
                     </TooltipTrigger>
                     <TooltipContent>Re-center diagram</TooltipContent>
                 </Tooltip>
 
-                <div className="w-px h-6 bg-gray-200 dark:bg-gray-600" />
+                <div className="w-px h-6 bg-(--color-secondary-w20) dark:bg-(--color-secondary-w60)" />
 
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <span className="text-sm font-medium text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                     Show Detail
                 </span>
                 <Tooltip>
@@ -223,7 +223,7 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
                         <button
                             onClick={() => setShowDetail(!showDetail)}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                showDetail ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
+                                showDetail ? "bg-(--color-info-wMain)" : "bg-(--color-secondary-w30) dark:bg-(--color-secondary-w60)"
                             }`}
                         >
                             <span
@@ -286,7 +286,7 @@ const FlowChartPanel: React.FC<FlowChartPanelProps> = ({
                             />
                         </div>
                     )}
-                    <DialogFooter className="border-t border-gray-200 dark:border-gray-700 p-4 mt-0 flex-shrink-0">
+                    <DialogFooter className="border-t border-(--color-secondary-w20) dark:border-(--color-secondary-w70) p-4 mt-0 flex-shrink-0">
                         <Button variant="outline" onClick={handleDialogClose}>
                             Close
                         </Button>

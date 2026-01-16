@@ -12,13 +12,13 @@ const SwitchNode: FC<SwitchNodeProps> = ({ node, isSelected, onClick }) => {
     const getStatusColor = () => {
         switch (node.data.status) {
             case "completed":
-                return "bg-purple-100 border-purple-500 dark:bg-purple-900/30 dark:border-purple-500";
+                return "bg-(--color-accent-n3-w10) border-(--color-accent-n3-wMain) dark:bg-(--color-accent-n3-w100)/30 dark:border-(--color-accent-n3-wMain)";
             case "in-progress":
-                return "bg-blue-100 border-blue-500 dark:bg-blue-900/30 dark:border-blue-500";
+                return "bg-(--color-info-w10) border-(--color-info-wMain) dark:bg-(--color-info-w100)/30 dark:border-(--color-info-wMain)";
             case "error":
-                return "bg-red-100 border-red-500 dark:bg-red-900/30 dark:border-red-500";
+                return "bg-(--color-error-w10) border-(--color-error-wMain) dark:bg-(--color-error-w100)/30 dark:border-(--color-error-wMain)";
             default:
-                return "bg-gray-100 border-gray-400 dark:bg-gray-800 dark:border-gray-600";
+                return "bg-(--color-secondary-w10) border-(--color-secondary-w40) dark:bg-(--color-background-wMain) dark:border-(--color-secondary-w70)";
         }
     };
 
@@ -51,13 +51,13 @@ const SwitchNode: FC<SwitchNodeProps> = ({ node, isSelected, onClick }) => {
 
                     {/* Content (unrotated) */}
                     <div className="z-10 flex flex-col items-center justify-center text-center pointer-events-none px-1">
-                        <div className="text-[10px] font-bold text-gray-800 dark:text-gray-200 max-w-[100px] truncate">
+                        <div className="text-[10px] font-bold text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10) max-w-[100px] truncate">
                             {/* Show selected branch when completed, otherwise show label */}
                             {node.data.selectedBranch || node.data.label}
                         </div>
                         {/* Show case count only when not yet completed */}
                         {!node.data.selectedBranch && (
-                            <div className="text-[8px] text-gray-500 dark:text-gray-400">
+                            <div className="text-[8px] text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">
                                 {casesCount} case{casesCount !== 1 ? 's' : ''}
                             </div>
                         )}

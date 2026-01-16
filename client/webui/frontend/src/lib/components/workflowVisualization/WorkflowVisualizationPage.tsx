@@ -312,7 +312,7 @@ export function WorkflowVisualizationPage() {
                         <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
                         <span>{workflow.displayName || workflow.name}</span>
                         {config.version && (
-                            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                            <span className="rounded bg-(--color-secondary-w10) px-2 py-0.5 text-xs text-(--color-secondary-text-wMain) dark:bg-(--color-secondary-w70) dark:text-(--color-secondary-text-w50)">
                                 v{config.version}
                             </span>
                         )}
@@ -359,7 +359,7 @@ export function WorkflowVisualizationPage() {
                 {/* Floating node detail popover (shown when node selected) */}
                 {selectedNode && (
                     <div
-                        className={`absolute top-4 right-4 z-10 max-h-[calc(100%-32px)] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`}
+                        className={`absolute top-4 right-4 z-10 max-h-[calc(100%-32px)] overflow-hidden rounded-lg border border-(--color-secondary-w20) bg-(--color-background-w10) shadow-lg dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`}
                         style={{ width: panelWidth }}
                     >
                         <WorkflowNodeDetailPanel

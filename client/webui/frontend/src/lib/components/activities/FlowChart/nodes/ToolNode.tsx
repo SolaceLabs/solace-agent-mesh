@@ -18,7 +18,7 @@ const ToolNode: FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
         <Tooltip>
             <TooltipTrigger asChild>
                 <div
-                    className={`cursor-pointer rounded-lg border-2 border-cyan-600 bg-white px-3 py-2 text-gray-800 shadow-md transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-cyan-400 dark:bg-gray-800 dark:text-gray-200 ${
+                    className={`cursor-pointer rounded-lg border-2 border-(--color-accent-n7-w100) bg-(--color-background-w10) px-3 py-2 text-(--color-primary-text-wMain) shadow-md transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-(--color-accent-n7-wMain) dark:bg-(--color-background-wMain) dark:text-(--color-primary-text-w10) ${
                         isSelected ? "ring-2 ring-blue-500" : ""
                     } ${haloClass}`}
                     onClick={(e) => {
@@ -27,12 +27,12 @@ const ToolNode: FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
                     }}
                 >
                     <div className="flex items-center justify-center gap-2">
-                        <Wrench className="h-3.5 w-3.5 flex-shrink-0 text-cyan-600 dark:text-cyan-400" />
+                        <Wrench className="h-3.5 w-3.5 flex-shrink-0 text-(--color-accent-n7-w100) dark:text-(--color-accent-n7-wMain)" />
                         <div className="text-sm truncate">{node.data.label}</div>
                         {artifactCount > 0 && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <span className="flex items-center gap-0.5 rounded-full bg-indigo-100 px-1 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
+                                    <span className="flex items-center gap-0.5 rounded-full bg-(--color-accent-n1-w10) px-1 py-0.5 text-[10px] font-medium text-(--color-accent-n1-w100) dark:bg-(--color-accent-n1-w100)/30 dark:text-(--color-accent-n1-w30)">
                                         <FileText className="h-2.5 w-2.5" />
                                         {artifactCount}
                                     </span>

@@ -34,8 +34,8 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
         <div
             className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium shadow-sm transition-all duration-200 ${
                 isDefault
-                    ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500 dark:bg-amber-900/30 dark:text-amber-300"
-                    : "border-purple-400 bg-purple-50 text-purple-700 dark:border-purple-500 dark:bg-purple-900/30 dark:text-purple-300"
+                    ? "border-(--color-warning-wMain) bg-(--color-warning-w10) text-(--color-warning-w100) dark:border-(--color-warning-w70) dark:bg-(--color-warning-w100)/30 dark:text-(--color-warning-w30)"
+                    : "border-(--color-accent-n3-w30) bg-(--color-accent-n3-w10) text-(--color-accent-n3-w100) dark:border-(--color-accent-n3-wMain) dark:bg-(--color-accent-n3-w100)/30 dark:text-(--color-accent-n3-w30)"
             } ${isSelected ? NODE_SELECTED_CLASSES.BLUE_COMPACT : ""}`}
             style={{
                 width: `${node.width}px`,

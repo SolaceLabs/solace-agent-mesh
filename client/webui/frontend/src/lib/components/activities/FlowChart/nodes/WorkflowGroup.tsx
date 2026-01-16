@@ -275,7 +275,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                                         </div>
                                         {/* Connector line to next node in branch */}
                                         {nodeIdx < branchChildren.length - 1 && (
-                                            <div className="w-0.5 h-3 bg-gray-400 dark:bg-gray-600" />
+                                            <div className="w-0.5 h-3 bg-(--color-secondary-w40) dark:bg-(--color-secondary-w70)" />
                                         )}
                                     </React.Fragment>
                                 ))}
@@ -293,7 +293,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
     if (isCollapsed) {
         return (
             <div
-                className={`group relative rounded-md border-2 border-dashed border-purple-500 bg-white shadow-md transition-all duration-200 ease-in-out hover:shadow-xl dark:border-purple-400 dark:bg-gray-800 ${isSelected ? "ring-2 ring-blue-500" : ""
+                className={`group relative rounded-md border-2 border-dashed border-(--color-accent-n3-wMain) bg-(--color-background-w10) shadow-md transition-all duration-200 ease-in-out hover:shadow-xl dark:border-(--color-accent-n3-w30) dark:bg-(--color-background-wMain) ${isSelected ? "ring-2 ring-blue-500" : ""
                     } ${haloClass}`}
                 style={{
                     minWidth: "180px",
@@ -303,7 +303,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                 {onExpand && (
                     <span title="Expand workflow" className="absolute top-2 right-2 z-10">
                         <Maximize2
-                            className="h-3.5 w-3.5 text-purple-400 dark:text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-purple-600 dark:hover:text-purple-300"
+                            className="h-3.5 w-3.5 text-(--color-accent-n3-w30) dark:text-(--color-accent-n3-wMain) opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-(--color-accent-n3-wMain) dark:hover:text-(--color-accent-n3-w30)"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onExpand(node.id);
@@ -313,7 +313,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                 )}
                 {/* Header */}
                 <div
-                    className="cursor-pointer bg-purple-50 px-4 py-3 dark:bg-gray-700 rounded-md"
+                    className="cursor-pointer bg-(--color-accent-n3-w10) px-4 py-3 dark:bg-(--color-secondary-w70) rounded-md"
                     onClick={(e) => {
                         e.stopPropagation();
                         onClick?.(node);
@@ -321,8 +321,8 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                     title={node.data.description || "Click to view workflow details"}
                 >
                     <div className="flex items-center justify-center gap-2">
-                        <Workflow className="h-4 w-4 flex-shrink-0 text-purple-600 dark:text-purple-400" />
-                        <div className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
+                        <Workflow className="h-4 w-4 flex-shrink-0 text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30)" />
+                        <div className="text-sm font-semibold text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10) truncate">
                             {node.data.label}
                         </div>
                     </div>
@@ -335,7 +335,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
     return (
         <div
             ref={containerRef}
-            className={`group rounded-lg border-2 border-dashed border-gray-400 bg-gray-50/50 dark:border-gray-600 dark:bg-gray-900/50 ${isSelected ? "ring-2 ring-blue-500" : ""
+            className={`group rounded-lg border-2 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10)/50 dark:border-(--color-secondary-w70) dark:bg-(--color-background-w100)/50 ${isSelected ? "ring-2 ring-blue-500" : ""
                 }`}
             style={{
                 minWidth: "200px",
@@ -355,7 +355,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                             stroke="#9CA3AF"
                             strokeWidth={2}
                             fill="none"
-                            className="dark:stroke-gray-500"
+                            className="dark:stroke-(--color-secondary-wMain)"
                         />
                     ))}
                 </svg>
@@ -365,7 +365,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
             {isExpanded && onCollapse && (
                 <span title="Collapse workflow" className="absolute top-2 right-2 z-10">
                     <Minimize2
-                        className="h-3.5 w-3.5 text-purple-400 dark:text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-purple-600 dark:hover:text-purple-300"
+                        className="h-3.5 w-3.5 text-(--color-accent-n3-w30) dark:text-(--color-accent-n3-wMain) opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-(--color-accent-n3-wMain) dark:hover:text-(--color-accent-n3-w30)"
                         onClick={(e) => {
                             e.stopPropagation();
                             onCollapse(node.id);
@@ -376,7 +376,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
             {/* Label - clickable */}
             {node.data.label && (
                 <div
-                    className="absolute -top-3 left-4 px-2 text-xs font-bold text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-md border border-gray-200 dark:border-gray-700 flex items-center gap-1.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    className="absolute -top-3 left-4 px-2 text-xs font-bold text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) bg-(--color-secondary-w10) dark:bg-(--color-background-w100) rounded-md border border-(--color-secondary-w40) dark:border-(--color-secondary-w70) flex items-center gap-1.5 cursor-pointer hover:bg-(--color-secondary-w10) dark:hover:bg-(--color-background-wMain) transition-colors"
                     onClick={(e) => {
                         e.stopPropagation();
                         onClick?.(node);
@@ -404,7 +404,7 @@ const WorkflowGroup: React.FC<WorkflowGroupProps> = ({ node, isSelected, onClick
                             {index < node.children.length - 1 &&
                                 child.type !== 'parallelBlock' &&
                                 node.children[index + 1].type !== 'parallelBlock' && (
-                                    <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
+                                    <div className="w-0.5 h-4 bg-(--color-secondary-w40) dark:bg-(--color-secondary-w70) my-0" />
                                 )}
                         </React.Fragment>
                     );

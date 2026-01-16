@@ -39,7 +39,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
     if (isCollapsed || !hasChildren) {
         return (
             <div
-                className={`group relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-teal-500 bg-white px-3 py-2 shadow-sm transition-all duration-200 hover:shadow-md dark:border-teal-400 dark:bg-gray-800 ${
+                className={`group relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-(--color-accent-n2-wMain) bg-(--color-background-w10) px-3 py-2 shadow-sm transition-all duration-200 hover:shadow-md dark:border-(--color-accent-n2-w30) dark:bg-(--color-background-wMain) ${
                     isSelected ? NODE_SELECTED_CLASSES.TEAL : ""
                 } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 style={{
@@ -52,14 +52,14 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
                 }}
             >
                 <div className="flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                    <span className="text-sm font-medium text-teal-900 dark:text-teal-100">Loop</span>
+                    <RefreshCw className="h-4 w-4 text-(--color-accent-n2-wMain) dark:text-(--color-accent-n2-w30)" />
+                    <span className="text-sm font-medium text-(--color-accent-n2-w100) dark:text-(--color-accent-n2-w10)">Loop</span>
                 </div>
 
                 {canHaveChildren && (
                     <button
                         onClick={handleToggle}
-                        className="rounded p-1 text-teal-500 hover:bg-teal-100 dark:text-teal-400 dark:hover:bg-teal-800/50"
+                        className="rounded p-1 text-(--color-accent-n2-wMain) hover:bg-(--color-accent-n2-w10) dark:text-(--color-accent-n2-w30) dark:hover:bg-(--color-accent-n2-w100)/50"
                         title="Expand"
                     >
                         <Maximize2 className="h-4 w-4" />
@@ -87,7 +87,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
         >
             {/* Dotted Children Container */}
             <div
-                className="absolute inset-0 rounded-lg border-2 border-dashed border-teal-300 bg-teal-50/30 dark:border-teal-600/50 dark:bg-teal-900/10"
+                className="absolute inset-0 rounded-lg border-2 border-dashed border-(--color-accent-n2-w30) bg-(--color-accent-n2-w10)/30 dark:border-(--color-accent-n2-w100)/50 dark:bg-(--color-accent-n2-w100)/10"
                 style={{ top: `${headerTopOffsetPx}px` }}
             >
                 {/* Top padding clears the header portion below the dotted border plus gap */}
@@ -100,7 +100,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
 
             {/* Solid Header Box - straddles the dotted container border */}
             <div
-                className={`group relative mx-auto w-fit cursor-pointer rounded-lg border-2 border-teal-500 bg-white shadow-sm transition-all duration-200 hover:shadow-md dark:border-teal-400 dark:bg-gray-800 ${
+                className={`group relative mx-auto w-fit cursor-pointer rounded-lg border-2 border-(--color-accent-n2-wMain) bg-(--color-background-w10) shadow-sm transition-all duration-200 hover:shadow-md dark:border-(--color-accent-n2-w30) dark:bg-(--color-background-wMain) ${
                     isSelected ? NODE_SELECTED_CLASSES.TEAL : ""
                 } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 onClick={e => {
@@ -111,13 +111,13 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
                 {/* Header row */}
                 <div className="flex items-center justify-between gap-4 px-3 py-2">
                     <div className="flex items-center gap-2">
-                        <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                        <span className="text-sm font-medium text-teal-900 dark:text-teal-100">Loop</span>
+                        <RefreshCw className="h-4 w-4 text-(--color-accent-n2-wMain) dark:text-(--color-accent-n2-w30)" />
+                        <span className="text-sm font-medium text-(--color-accent-n2-w100) dark:text-(--color-accent-n2-w10)">Loop</span>
                     </div>
 
                     <button
                         onClick={handleToggle}
-                        className="rounded p-1 text-teal-500 hover:bg-teal-100 dark:text-teal-400 dark:hover:bg-teal-800/50"
+                        className="rounded p-1 text-(--color-accent-n2-wMain) hover:bg-(--color-accent-n2-w10) dark:text-(--color-accent-n2-w30) dark:hover:bg-(--color-accent-n2-w100)/50"
                         title="Collapse"
                     >
                         <Minimize2 className="h-4 w-4" />
@@ -126,8 +126,8 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
 
                 {/* Condition display */}
                 {hasConditionRow && (
-                    <div className="border-t border-teal-200 px-3 py-1.5 dark:border-teal-700/50">
-                        <div className="flex flex-wrap gap-2 text-xs text-teal-600 dark:text-teal-400">
+                    <div className="border-t border-(--color-accent-n2-w30) px-3 py-1.5 dark:border-(--color-accent-n2-w100)/50">
+                        <div className="flex flex-wrap gap-2 text-xs text-(--color-accent-n2-wMain) dark:text-(--color-accent-n2-w30)">
                             {node.data.condition && (
                                 <span className="truncate" title={node.data.condition}>
                                     while: {formatCondition(node.data.condition)}

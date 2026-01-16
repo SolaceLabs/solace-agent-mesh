@@ -33,43 +33,43 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     const getStepIcon = () => {
         switch (step.type) {
             case "USER_REQUEST":
-                return <User className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
+                return <User className="mr-2 text-(--color-info-wMain) dark:text-(--color-info-w30)" size={18} />;
             case "AGENT_RESPONSE_TEXT":
-                return <Zap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
+                return <Zap className="mr-2 text-(--color-accent-n2-wMain) dark:text-(--color-accent-n2-w30)" size={18} />;
             case "TASK_COMPLETED":
-                return <CheckCircle className="mr-2 text-green-500 dark:text-green-400" size={18} />;
+                return <CheckCircle className="mr-2 text-(--color-success-wMain) dark:text-(--color-success-w30)" size={18} />;
             case "TASK_FAILED":
-                return <XCircle className="mr-2 text-red-500 dark:text-red-400" size={18} />;
+                return <XCircle className="mr-2 text-(--color-error-wMain) dark:text-(--color-error-w30)" size={18} />;
             case "AGENT_LLM_CALL":
-                return <Zap className="mr-2 text-purple-500 dark:text-purple-400" size={18} />;
+                return <Zap className="mr-2 text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30)" size={18} />;
             case "AGENT_LLM_RESPONSE_TO_AGENT":
-                return <Zap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
+                return <Zap className="mr-2 text-(--color-accent-n2-wMain) dark:text-(--color-accent-n2-w30)" size={18} />;
             case "AGENT_LLM_RESPONSE_TOOL_DECISION": {
                 const firstDecision = step.data.toolDecision?.decisions?.[0];
                 const isPeer = firstDecision?.isPeerDelegation;
 
-                return isPeer ? <Share2 className="mr-2 text-orange-500 dark:text-orange-400" size={18} /> : <Terminal className="mr-2 text-orange-500 dark:text-orange-400" size={18} />;
+                return isPeer ? <Share2 className="mr-2 text-(--color-warning-wMain) dark:text-(--color-warning-w30)" size={18} /> : <Terminal className="mr-2 text-(--color-warning-wMain) dark:text-(--color-warning-w30)" size={18} />;
             }
             case "AGENT_TOOL_INVOCATION_START":
-                return step.data.toolInvocationStart?.isPeerInvocation ? <Share2 className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} /> : <Terminal className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} />;
+                return step.data.toolInvocationStart?.isPeerInvocation ? <Share2 className="mr-2 text-(--color-accent-n7-w100) dark:text-(--color-accent-n7-wMain)" size={18} /> : <Terminal className="mr-2 text-(--color-accent-n7-w100) dark:text-(--color-accent-n7-wMain)" size={18} />;
             case "AGENT_TOOL_EXECUTION_RESULT":
-                return <HardDrive className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
+                return <HardDrive className="mr-2 text-(--color-accent-n2-wMain) dark:text-(--color-accent-n2-w30)" size={18} />;
             case "AGENT_ARTIFACT_NOTIFICATION":
-                return <FileText className="mr-2 text-indigo-500 dark:text-indigo-400" size={18} />;
+                return <FileText className="mr-2 text-(--color-accent-n1-wMain) dark:text-(--color-accent-n1-w30)" size={18} />;
             case "WORKFLOW_EXECUTION_START":
             case "WORKFLOW_EXECUTION_RESULT":
-                return <Workflow className="mr-2 text-purple-500 dark:text-purple-400" size={18} />;
+                return <Workflow className="mr-2 text-(--color-accent-n3-wMain) dark:text-(--color-accent-n3-w30)" size={18} />;
             case "WORKFLOW_NODE_EXECUTION_START":
-                if (step.data.workflowNodeExecutionStart?.nodeType === "map") return <List className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
-                if (step.data.workflowNodeExecutionStart?.nodeType === "fork") return <Split className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
-                if (step.data.workflowNodeExecutionStart?.nodeType === "switch") return <GitMerge className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
-                return <GitCommit className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
+                if (step.data.workflowNodeExecutionStart?.nodeType === "map") return <List className="mr-2 text-(--color-info-wMain) dark:text-(--color-info-w30)" size={18} />;
+                if (step.data.workflowNodeExecutionStart?.nodeType === "fork") return <Split className="mr-2 text-(--color-info-wMain) dark:text-(--color-info-w30)" size={18} />;
+                if (step.data.workflowNodeExecutionStart?.nodeType === "switch") return <GitMerge className="mr-2 text-(--color-info-wMain) dark:text-(--color-info-w30)" size={18} />;
+                return <GitCommit className="mr-2 text-(--color-info-wMain) dark:text-(--color-info-w30)" size={18} />;
             case "WORKFLOW_NODE_EXECUTION_RESULT":
-                return <GitCommit className="mr-2 text-green-500 dark:text-green-400" size={18} />;
+                return <GitCommit className="mr-2 text-(--color-success-wMain) dark:text-(--color-success-w30)" size={18} />;
             case "WORKFLOW_MAP_PROGRESS":
-                return <List className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
+                return <List className="mr-2 text-(--color-info-wMain) dark:text-(--color-info-w30)" size={18} />;
             default:
-                return <MessageSquare className="mr-2 text-gray-500 dark:text-gray-400" size={18} />;
+                return <MessageSquare className="mr-2 text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)" size={18} />;
         }
     };
 
@@ -82,14 +82,14 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     const displayTimestamp = `${formattedTimestamp}.${milliseconds}`;
 
     const renderLLMCallData = (data: LLMCallData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+        <div className="mt-1.5 rounded-md bg-(--color-secondary-w10) p-2 text-xs text-(--color-secondary-text-wMain) dark:bg-(--color-secondary-w70) dark:text-(--color-secondary-text-w50)">
             <p>
                 <strong>Model:</strong> {data.modelName}
             </p>
             <p className="mt-1">
                 <strong>Prompt Preview:</strong>
             </p>
-            <pre className="max-h-28 overflow-y-auto rounded bg-gray-100 p-1.5 font-mono text-xs break-all whitespace-pre-wrap dark:bg-gray-700">{data.promptPreview}</pre>
+            <pre className="max-h-28 overflow-y-auto rounded bg-(--color-secondary-w10) p-1.5 font-mono text-xs break-all whitespace-pre-wrap dark:bg-(--color-secondary-w70)">{data.promptPreview}</pre>
         </div>
     );
 
@@ -104,9 +104,9 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
         // If not expanded, just show a minimal summary
         if (!expanded) {
             return (
-                <div className="mt-1.5 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <div className="mt-1.5 flex items-center justify-between text-xs text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">
                     <span className="italic">Internal LLM response</span>
-                    <button onClick={toggleExpand} className="text-xs text-blue-500 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+                    <button onClick={toggleExpand} className="text-xs text-(--color-info-wMain) underline hover:text-(--color-info-w100) dark:text-(--color-info-w30) dark:hover:text-(--color-info-w10)">
                         Show details
                     </button>
                 </div>
@@ -115,10 +115,10 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
 
         // Expanded view
         return (
-            <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <div className="mt-1.5 rounded-md bg-(--color-secondary-w10) p-2 text-xs text-(--color-secondary-text-wMain) dark:bg-(--color-secondary-w70) dark:text-(--color-secondary-text-w50)">
                 <div className="mb-1 flex items-center justify-between">
                     <strong>LLM Response Details:</strong>
-                    <button onClick={toggleExpand} className="text-xs text-blue-500 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+                    <button onClick={toggleExpand} className="text-xs text-(--color-info-wMain) underline hover:text-(--color-info-w100) dark:text-(--color-info-w30) dark:hover:text-(--color-info-w10)">
                         Hide details
                     </button>
                 </div>
@@ -131,7 +131,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                     <p>
                         <strong>Response Preview:</strong>
                     </p>
-                    <pre className="max-h-28 overflow-y-auto rounded bg-gray-100 p-1.5 font-mono text-xs break-all whitespace-pre-wrap dark:bg-gray-700">{data.responsePreview}</pre>
+                    <pre className="max-h-28 overflow-y-auto rounded bg-(--color-secondary-w10) p-1.5 font-mono text-xs break-all whitespace-pre-wrap dark:bg-(--color-secondary-w70)">{data.responsePreview}</pre>
                 </div>
                 {data.isFinalResponse !== undefined && (
                     <p className="mt-1">
@@ -143,7 +143,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     };
 
     const renderToolDecisionData = (data: ToolDecisionData) => (
-        <div className="mt-1.5 rounded-md bg-blue-50 p-2 font-mono text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+        <div className="mt-1.5 rounded-md bg-(--color-info-w10) p-2 font-mono text-xs text-(--color-info-w100) dark:bg-(--color-info-w100)/30 dark:text-(--color-info-w30)">
             <p className="mb-2">
                 <strong>🔧 {data.isParallel ? "Parallel Tool Calls:" : "Tool Call:"}</strong>
             </p>
@@ -159,14 +159,14 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     );
 
     const renderToolInvocationStartData = (data: ToolInvocationStartData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+        <div className="mt-1.5 rounded-md bg-(--color-secondary-w10) p-2 text-xs text-(--color-secondary-text-wMain) dark:bg-(--color-secondary-w70) dark:text-(--color-secondary-text-w50)">
             <p>
                 <strong>Tool:</strong> {data.toolName}
             </p>
             <p className="mt-1">
                 <strong>Arguments:</strong>
             </p>
-            <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
+            <div className="max-h-40 overflow-y-auto rounded bg-(--color-secondary-w10) p-1.5 dark:bg-(--color-secondary-w70)">
                 <JSONViewer data={data.toolArguments} />
             </div>
         </div>
@@ -210,7 +210,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
         }
 
         return (
-            <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <div className="mt-1.5 rounded-md bg-(--color-secondary-w10) p-2 text-xs text-(--color-secondary-text-wMain) dark:bg-(--color-secondary-w70) dark:text-(--color-secondary-text-w50)">
                 <p>
                     <strong>Tool:</strong> {data.toolName}
                 </p>
@@ -222,8 +222,8 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                         </p>
                         <ImageSearchGrid images={isString(parsedResult.result) ? JSON.parse(parsedResult.result).images : parsedResult.result.images} />
                         <details className="mt-2">
-                            <summary className="cursor-pointer text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">Show full result data</summary>
-                            <div className="mt-2 max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">{renderResultData(data.resultData)}</div>
+                            <summary className="cursor-pointer text-xs text-(--color-info-wMain) hover:text-(--color-info-w100) dark:text-(--color-info-w30) dark:hover:text-(--color-info-w10)">Show full result data</summary>
+                            <div className="mt-2 max-h-40 overflow-y-auto rounded bg-(--color-secondary-w10) p-1.5 dark:bg-(--color-secondary-w70)">{renderResultData(data.resultData)}</div>
                         </details>
                     </>
                 ) : (
@@ -231,7 +231,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                         <p className="mt-1">
                             <strong>Result:</strong>
                         </p>
-                        <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">{renderResultData(data.resultData)}</div>
+                        <div className="max-h-40 overflow-y-auto rounded bg-(--color-secondary-w10) p-1.5 dark:bg-(--color-secondary-w70)">{renderResultData(data.resultData)}</div>
                     </>
                 )}
             </div>
@@ -266,13 +266,13 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
         };
 
         return (
-            <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <div className="mt-1.5 rounded-md bg-(--color-secondary-w10) p-2 text-xs text-(--color-secondary-text-wMain) dark:bg-(--color-secondary-w70) dark:text-(--color-secondary-text-w50)">
                 <div className="flex items-center justify-between">
                     <p>
                         <strong>Artifact:</strong> {data.artifactName}
-                        {data.version !== undefined && <span className="text-gray-500 dark:text-gray-400"> (v{data.version})</span>}
+                        {data.version !== undefined && <span className="text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)"> (v{data.version})</span>}
                     </p>
-                    <button onClick={handleViewFile} className="flex items-center gap-1 text-blue-600 transition-colors hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300" title="View in Files tab">
+                    <button onClick={handleViewFile} className="flex items-center gap-1 text-(--color-info-wMain) transition-colors hover:text-(--color-info-w100) dark:text-(--color-info-w30) dark:hover:text-(--color-info-w10)" title="View in Files tab">
                         <span className="text-xs">View File</span>
                         <ExternalLink size={12} />
                     </button>
@@ -292,16 +292,16 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     };
 
     const renderWorkflowNodeStartData = (data: WorkflowNodeExecutionStartData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+        <div className="mt-1.5 rounded-md bg-(--color-secondary-w10) p-2 text-xs text-(--color-secondary-text-wMain) dark:bg-(--color-secondary-w70) dark:text-(--color-secondary-text-w50)">
             <div className="mb-1 flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400">{data.nodeType} Node</span>
-                {(data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === 'number') && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-800 dark:bg-blue-900 dark:text-blue-200">Iter #{data.iterationIndex}</span>}
+                <span className="text-[10px] font-bold uppercase text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">{data.nodeType} Node</span>
+                {(data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === 'number') && <span className="rounded bg-(--color-info-w10) px-1.5 py-0.5 text-[10px] text-(--color-info-w100) dark:bg-(--color-info-w100)/30 dark:text-(--color-info-w10)">Iter #{data.iterationIndex}</span>}
             </div>
 
             {data.condition && (
                 <div className="mt-1">
                     <p className="mb-0.5 font-semibold">Condition:</p>
-                    <code className="block break-all rounded border border-gray-200 bg-gray-100 p-1.5 font-mono text-xs dark:border-gray-600 dark:bg-gray-800">{data.condition}</code>
+                    <code className="block break-all rounded border border-(--color-secondary-w20) bg-(--color-secondary-w10) p-1.5 font-mono text-xs dark:border-(--color-secondary-w60) dark:bg-(--color-background-wMain)">{data.condition}</code>
                 </div>
             )}
             {data.trueBranch && (
@@ -318,19 +318,19 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     );
 
     const renderWorkflowNodeResultData = (data: WorkflowNodeExecutionResultData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+        <div className="mt-1.5 rounded-md bg-(--color-secondary-w10) p-2 text-xs text-(--color-secondary-text-wMain) dark:bg-(--color-secondary-w70) dark:text-(--color-secondary-text-w50)">
             <p>
                 <strong>Status:</strong> {data.status}
             </p>
             {data.metadata?.condition && (
                 <div className="mt-1 mb-1">
                     <p className="mb-0.5 font-semibold">Condition:</p>
-                    <code className="block break-all rounded border border-gray-200 bg-gray-100 p-1.5 font-mono text-xs dark:border-gray-600 dark:bg-gray-800">{data.metadata.condition}</code>
+                    <code className="block break-all rounded border border-(--color-secondary-w20) bg-(--color-secondary-w10) p-1.5 font-mono text-xs dark:border-(--color-secondary-w60) dark:bg-(--color-background-wMain)">{data.metadata.condition}</code>
                 </div>
             )}
             {data.metadata?.condition_result !== undefined && (
                 <p className="mt-1">
-                    <strong>Condition Result:</strong> <span className={data.metadata.condition_result ? "font-bold text-green-600 dark:text-green-400" : "font-bold text-orange-600 dark:text-orange-400"}>{data.metadata.condition_result ? "True" : "False"}</span>
+                    <strong>Condition Result:</strong> <span className={data.metadata.condition_result ? "font-bold text-(--color-success-wMain) dark:text-(--color-success-w30)" : "font-bold text-(--color-warning-wMain) dark:text-(--color-warning-w30)"}>{data.metadata.condition_result ? "True" : "False"}</span>
                 </p>
             )}
             {data.outputArtifactRef && (
@@ -339,7 +339,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                 </p>
             )}
             {data.errorMessage && (
-                <p className="mt-1 text-red-600">
+                <p className="mt-1 text-(--color-error-wMain)">
                     <strong>Error:</strong> {data.errorMessage}
                 </p>
             )}
@@ -347,7 +347,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     );
 
     const renderWorkflowExecutionStartData = (data: WorkflowExecutionStartData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+        <div className="mt-1.5 rounded-md bg-(--color-secondary-w10) p-2 text-xs text-(--color-secondary-text-wMain) dark:bg-(--color-secondary-w70) dark:text-(--color-secondary-text-w50)">
             <p>
                 <strong>Workflow:</strong> {data.workflowName}
             </p>
@@ -356,7 +356,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                     <p>
                         <strong>Input:</strong>
                     </p>
-                    <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-800">
+                    <div className="max-h-40 overflow-y-auto rounded bg-(--color-secondary-w10) p-1.5 dark:bg-(--color-background-wMain)">
                         <JSONViewer data={data.workflowInput} />
                     </div>
                 </div>
@@ -365,7 +365,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     );
 
     const renderWorkflowExecutionResultData = (data: WorkflowExecutionResultData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+        <div className="mt-1.5 rounded-md bg-(--color-secondary-w10) p-2 text-xs text-(--color-secondary-text-wMain) dark:bg-(--color-secondary-w70) dark:text-(--color-secondary-text-w50)">
             <p>
                 <strong>Status:</strong> {data.status}
             </p>
@@ -374,13 +374,13 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                     <p>
                         <strong>Output:</strong>
                     </p>
-                    <div className="max-h-60 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-800">
+                    <div className="max-h-60 overflow-y-auto rounded bg-(--color-secondary-w10) p-1.5 dark:bg-(--color-background-wMain)">
                         <JSONViewer data={data.workflowOutput} />
                     </div>
                 </div>
             )}
             {data.errorMessage && (
-                <p className="text-red-600">
+                <p className="text-(--color-error-wMain)">
                     <strong>Error:</strong> {data.errorMessage}
                 </p>
             )}
@@ -397,13 +397,13 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     const cardClasses =
         variant === "popover"
             ? `
-      p-3 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150
+      p-3 bg-transparent hover:bg-(--color-secondary-w10) dark:hover:bg-(--color-secondary-w70)/50 transition-colors duration-150
       ${onClick ? "cursor-pointer" : ""}
     `
             : `
       mb-3 p-3 border rounded-lg shadow-sm
-      bg-white dark:bg-gray-800 hover:shadow-md transition-shadow duration-150
-      ${isHighlighted ? "border-blue-500 dark:border-blue-400 ring-2 ring-blue-500 dark:ring-blue-400" : "border-gray-200 dark:border-gray-700"}
+      bg-(--color-background-w10) dark:bg-(--color-background-wMain) hover:shadow-md transition-shadow duration-150
+      ${isHighlighted ? "border-(--color-info-wMain) dark:border-(--color-info-w30) ring-2 ring-(--color-info-wMain) dark:ring-(--color-info-w30)" : "border-(--color-secondary-w20) dark:border-(--color-secondary-w70)"}
       ${onClick ? "cursor-pointer" : ""}
     `;
 
@@ -429,10 +429,10 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                 </div>
             </div>
             {step.delegationInfo && step.delegationInfo.length > 0 && (
-                <div className="mt-2 mb-1.5 space-y-2 rounded-r-md border-l-4 border-blue-500 bg-blue-50 p-2 text-sm dark:border-blue-400 dark:bg-gray-700/60">
+                <div className="mt-2 mb-1.5 space-y-2 rounded-r-md border-l-4 border-(--color-info-wMain) bg-(--color-info-w10) p-2 text-sm dark:border-(--color-info-w30) dark:bg-(--color-secondary-w70)/60">
                     {step.delegationInfo.map(info => (
                         <div key={info.functionCallId}>
-                            <div className="flex items-center font-semibold text-blue-700 dark:text-blue-300">
+                            <div className="flex items-center font-semibold text-(--color-info-w100) dark:text-(--color-info-w30)">
                                 <Link className="mr-2 h-4 w-4 flex-shrink-0" />
                                 <span>
                                     {getDelegationText()}
@@ -440,7 +440,7 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                                 </span>
                             </div>
                             {info.subTaskId && (
-                                <div className="mt-0.5 ml-[24px] text-xs text-blue-600 dark:text-blue-400">
+                                <div className="mt-0.5 ml-[24px] text-xs text-(--color-info-wMain) dark:text-(--color-info-w30)">
                                     Sub-Task:{" "}
                                     <span className="font-mono" title={info.subTaskId}>
                                         {info.subTaskId.substring(0, 15)}...
@@ -452,18 +452,18 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
                 </div>
             )}
             {step.data.text && (
-                <div className="max-h-20 overflow-y-auto pl-1 text-sm text-gray-800 dark:text-gray-100">
+                <div className="max-h-20 overflow-y-auto pl-1 text-sm text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                     <MarkdownHTMLConverter>{step.data.text}</MarkdownHTMLConverter>
                 </div>
             )}
             {step.data.finalMessage && (
-                <div className="pl-1 text-sm text-gray-800 dark:text-gray-100">
+                <div className="pl-1 text-sm text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                     <MarkdownHTMLConverter>{step.data.finalMessage}</MarkdownHTMLConverter>
                 </div>
             )}
-            {step.type === "TASK_COMPLETED" && !step.data.finalMessage && <div className="pl-1 text-sm text-gray-600 italic dark:text-gray-300">Task completed successfully.</div>}
+            {step.type === "TASK_COMPLETED" && !step.data.finalMessage && <div className="pl-1 text-sm text-(--color-secondary-text-wMain) italic dark:text-(--color-secondary-text-w50)">Task completed successfully.</div>}
             {step.data.errorDetails && (
-                <div className="mt-1 rounded-md bg-red-50 p-2 pl-1 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                <div className="mt-1 rounded-md bg-(--color-error-w10) p-2 pl-1 text-sm text-(--color-error-w100) dark:bg-(--color-error-w100)/30 dark:text-(--color-error-w30)">
                     <p>
                         <strong>Error:</strong> {step.data.errorDetails.message}
                     </p>

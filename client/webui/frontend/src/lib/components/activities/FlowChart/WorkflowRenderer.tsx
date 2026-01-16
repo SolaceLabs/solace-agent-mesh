@@ -327,7 +327,7 @@ const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({
                 {component}
                 {/* Add connector line between nodes */}
                 {index < nodes.length - 1 && (
-                    <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
+                    <div className="w-0.5 h-4 bg-(--color-secondary-w40) dark:bg-(--color-secondary-w70) my-0" />
                 )}
             </React.Fragment>
         );
@@ -335,7 +335,7 @@ const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({
 
     if (nodes.length === 0) {
         return (
-            <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
+            <div className="flex h-full items-center justify-center text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50)">
                 {processedSteps.length > 0 ? "Processing flow data..." : "No steps to display in flow chart."}
             </div>
         );

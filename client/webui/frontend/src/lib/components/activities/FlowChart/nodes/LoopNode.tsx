@@ -15,13 +15,13 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
     const getStatusColor = () => {
         switch (node.data.status) {
             case "completed":
-                return "bg-teal-100 border-teal-500 dark:bg-teal-900/30 dark:border-teal-500";
+                return "bg-(--color-accent-n2-w10) border-(--color-accent-n2-wMain) dark:bg-(--color-accent-n2-w100)/30 dark:border-(--color-accent-n2-wMain)";
             case "in-progress":
-                return "bg-blue-100 border-blue-500 dark:bg-blue-900/30 dark:border-blue-500";
+                return "bg-(--color-info-w10) border-(--color-info-wMain) dark:bg-(--color-info-w100)/30 dark:border-(--color-info-wMain)";
             case "error":
-                return "bg-red-100 border-red-500 dark:bg-red-900/30 dark:border-red-500";
+                return "bg-(--color-error-w10) border-(--color-error-wMain) dark:bg-(--color-error-w100)/30 dark:border-(--color-error-wMain)";
             default:
-                return "bg-gray-100 border-gray-400 dark:bg-gray-800 dark:border-gray-600";
+                return "bg-(--color-secondary-w10) border-(--color-secondary-w40) dark:bg-(--color-background-wMain) dark:border-(--color-secondary-w70)";
         }
     };
 
@@ -52,7 +52,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
     if (hasChildren) {
         return (
             <div
-                className={`relative rounded-lg border-2 border-dashed border-teal-400 bg-teal-50/30 dark:border-teal-600 dark:bg-teal-900/20 ${
+                className={`relative rounded-lg border-2 border-dashed border-(--color-accent-n2-w30) bg-(--color-accent-n2-w10)/30 dark:border-(--color-accent-n2-wMain) dark:bg-(--color-accent-n2-w100)/20 ${
                     isSelected ? "ring-2 ring-blue-500" : ""
                 }`}
                 style={{
@@ -62,7 +62,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
             >
                 {/* Loop Label with icon - clickable */}
                 <div
-                    className="absolute -top-3 left-4 px-2 text-xs font-bold text-teal-600 dark:text-teal-400 bg-gray-50 dark:bg-gray-900 rounded-md border border-teal-300 dark:border-teal-700 flex items-center gap-1.5 cursor-pointer hover:bg-teal-50 dark:hover:bg-teal-900/50 transition-colors"
+                    className="absolute -top-3 left-4 px-2 text-xs font-bold text-(--color-accent-n2-wMain) dark:text-(--color-accent-n2-w30) bg-(--color-secondary-w10) dark:bg-(--color-background-w100) rounded-md border border-(--color-accent-n2-w30) dark:border-(--color-accent-n2-w100) flex items-center gap-1.5 cursor-pointer hover:bg-(--color-accent-n2-w10) dark:hover:bg-(--color-accent-n2-w100)/50 transition-colors"
                     onClick={(e) => {
                         e.stopPropagation();
                         onClick?.(node);
@@ -91,13 +91,13 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
                     {node.children.map((child, index) => (
                         <Fragment key={child.id}>
                             {/* Iteration label */}
-                            <div className="text-[10px] font-medium text-teal-600 dark:text-teal-400 mb-1">
+                            <div className="text-[10px] font-medium text-(--color-accent-n2-wMain) dark:text-(--color-accent-n2-w30) mb-1">
                                 Iteration {index + 1}
                             </div>
                             {renderChild(child)}
                             {/* Connector line to next child */}
                             {index < node.children.length - 1 && (
-                                <div className="w-0.5 h-4 bg-teal-400 dark:bg-teal-600 my-1" />
+                                <div className="w-0.5 h-4 bg-(--color-accent-n2-w30) dark:bg-(--color-accent-n2-wMain) my-1" />
                             )}
                         </Fragment>
                     ))}
@@ -125,7 +125,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
             >
                 {/* Loop Arrow Icon */}
                 <svg
-                    className="absolute -top-1 -right-1 w-4 h-4 text-teal-600 dark:text-teal-400"
+                    className="absolute -top-1 -right-1 w-4 h-4 text-(--color-accent-n2-wMain) dark:text-(--color-accent-n2-w30)"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -140,7 +140,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
 
                 {/* Content */}
                 <div className="flex flex-col items-center justify-center text-center pointer-events-none">
-                    <div className="text-[10px] font-bold text-gray-800 dark:text-gray-200">
+                    <div className="text-[10px] font-bold text-(--color-primary-text-wMain) dark:text-(--color-primary-text-w10)">
                         {node.data.label}
                     </div>
                 </div>
@@ -148,7 +148,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
 
             {/* Iteration Counter (if in progress) */}
             {node.data.status === 'in-progress' && currentIteration > 0 && (
-                <div className="absolute bottom-[-18px] left-1/2 transform -translate-x-1/2 text-[9px] font-medium text-gray-600 dark:text-gray-300 bg-white/80 dark:bg-gray-900/80 px-1.5 py-0.5 rounded">
+                <div className="absolute bottom-[-18px] left-1/2 transform -translate-x-1/2 text-[9px] font-medium text-(--color-secondary-text-wMain) dark:text-(--color-secondary-text-w50) bg-(--color-background-w10)/80 dark:bg-(--color-background-w100)/80 px-1.5 py-0.5 rounded">
                     Iteration {currentIteration}
                 </div>
             )}
