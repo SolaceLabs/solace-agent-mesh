@@ -67,7 +67,7 @@ export function AgentMeshPage() {
                 <EmptyState variant="error" title="Error loading data" subtitle={agentsError} />
             ) : (
                 <div className="relative flex-1">
-                    {activeTab === "agents" ? <AgentMeshCards agents={regularAgents} /> : <WorkflowList workflows={workflowAgents} />}
+                    {activeTab === "agents" ? <AgentMeshCards agents={regularAgents} /> : <WorkflowList workflows={workflowAgents} className="bg-muted" />}
                 </div>
             )}
         </div>
