@@ -148,7 +148,7 @@ class WorkflowExecutorComponent(SamComponentBase):
             except Exception as e:
                 log.error(f"{self.log_identifier} Error processing request: {e}")
                 message.call_acknowledgements()
-        elif topic == discovery_topic:
+        elif a2a.topic_matches_subscription(topic, discovery_topic):
             handle_agent_card_message(self, message)
         elif a2a.topic_matches_subscription(
             topic, response_sub
