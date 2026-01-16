@@ -43,9 +43,7 @@ export function useStreamingSpeed(content: string) {
                 dt = Math.max(StreamingConfig.STREAMING_DT_MIN_MS, Math.min(StreamingConfig.STREAMING_DT_MAX_MS, dt));
 
                 // Update moving average of inter-arrival time
-                const alpha = dt < StreamingConfig.STREAMING_ALPHA_THRESHOLD_MS
-                    ? StreamingConfig.STREAMING_ALPHA_FAST
-                    : StreamingConfig.STREAMING_ALPHA_SLOW;
+                const alpha = dt < StreamingConfig.STREAMING_ALPHA_THRESHOLD_MS ? StreamingConfig.STREAMING_ALPHA_FAST : StreamingConfig.STREAMING_ALPHA_SLOW;
                 s.avgInterval = s.avgInterval * (1 - alpha) + dt * alpha;
 
                 s.lastArrivalTime = now;
@@ -56,9 +54,7 @@ export function useStreamingSpeed(content: string) {
             const targetSpeed = backlog / (s.avgInterval * StreamingConfig.STREAMING_SAFETY_FACTOR);
 
             // Update current speed smoothly
-            const momentum = targetSpeed > s.speed
-                ? StreamingConfig.STREAMING_MOMENTUM_INCREASE
-                : StreamingConfig.STREAMING_MOMENTUM_DECREASE;
+            const momentum = targetSpeed > s.speed ? StreamingConfig.STREAMING_MOMENTUM_INCREASE : StreamingConfig.STREAMING_MOMENTUM_DECREASE;
             s.speed = s.speed * momentum + targetSpeed * (1 - momentum);
 
             // Hard clamps to keep it sane

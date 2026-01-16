@@ -97,6 +97,47 @@ def _determine_background_tasks_enabled(
     return enabled
 
 
+def _determine_auto_title_generation_enabled(
+    component: "WebUIBackendComponent",
+    api_config: Dict[str, Any],
+    log_prefix: str
+) -> bool:
+    """
+    Determines if automatic title generation feature should be enabled.
+    
+    Logic:
+    1. Check if persistence is enabled (required for title generation)
+    2. Check explicit auto_title_generation config (must be explicitly enabled)
+    3. Check frontend_feature_enablement.auto_title_generation override
+    
+    Returns:
+        bool: True if auto title generation should be enabled
+    """
+    # Auto title generation requires persistence
+    persistence_enabled = api_config.get("persistence_enabled", False)
+    if not persistence_enabled:
+        log.debug("%s Auto title generation disabled: persistence is not enabled", log_prefix)
+        return False
+    
+    # Check explicit auto_title_generation config - disabled by default
+    auto_title_config = component.get_config("auto_title_generation", {})
+    explicitly_enabled = False
+    if isinstance(auto_title_config, dict):
+        explicitly_enabled = auto_title_config.get("enabled", False)
+    
+    # Check frontend_feature_enablement override
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    if "auto_title_generation" in feature_flags:
+        explicitly_enabled = feature_flags.get("auto_title_generation", False)
+    
+    if not explicitly_enabled:
+        log.debug("%s Auto title generation disabled: not explicitly enabled in config", log_prefix)
+        return False
+    
+    log.debug("%s Auto title generation enabled: explicitly enabled in config", log_prefix)
+    return True
+
+
 def _determine_projects_enabled(
     component: "WebUIBackendComponent",
     api_config: Dict[str, Any],
@@ -275,6 +316,14 @@ async def get_app_config(
             log.debug("%s Mentions feature flag is enabled (identity_service configured).", log_prefix)
         else:
             log.debug("%s Mentions feature flag is disabled (no identity_service configured).", log_prefix)
+        
+        # Determine if auto title generation should be enabled
+        auto_title_generation_enabled = _determine_auto_title_generation_enabled(component, api_config, log_prefix)
+        feature_enablement["auto_title_generation"] = auto_title_generation_enabled
+        if auto_title_generation_enabled:
+            log.debug("%s Auto title generation feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Auto title generation feature flag is disabled.", log_prefix)
         
         # Check tool configuration status
         tool_config_status = {}
