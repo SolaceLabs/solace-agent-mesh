@@ -7,9 +7,6 @@ export interface SpeechSettings {
     engineSTT: "browser" | "external";
     sttProvider: "browser" | "openai" | "azure";
     languageSTT: string;
-    autoSendText: number;
-    autoTranscribeAudio: boolean;
-    decibelThreshold: number;
 
     // TTS Settings
     textToSpeech: boolean;
@@ -23,7 +20,6 @@ export interface SpeechSettings {
 
     // Advanced
     conversationMode: boolean;
-    advancedMode: boolean;
 }
 
 export interface AudioSettingsContextValue {
@@ -47,9 +43,6 @@ const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
     engineSTT: "engineSTT",
     sttProvider: "sttProvider",
     languageSTT: "languageSTT",
-    autoSendText: "autoSendText",
-    autoTranscribeAudio: "autoTranscribeAudio",
-    decibelThreshold: "decibelThreshold",
 
     textToSpeech: "textToSpeech",
     engineTTS: "engineTTS",
@@ -61,7 +54,6 @@ const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
     cloudBrowserVoices: "cloudBrowserVoices",
 
     conversationMode: "conversationMode",
-    advancedMode: "advancedMode",
 };
 
 const DEFAULT_SETTINGS: SpeechSettings = {
@@ -69,21 +61,17 @@ const DEFAULT_SETTINGS: SpeechSettings = {
     engineSTT: "browser",
     sttProvider: "browser",
     languageSTT: "en-US",
-    autoSendText: -1,
-    autoTranscribeAudio: true,
-    decibelThreshold: -45,
 
     textToSpeech: true, // Enable by default for browser TTS
     engineTTS: "browser", // Use browser TTS by default (no backend needed)
     ttsProvider: "browser",
-    voice: "Kore",
+    voice: "",
     playbackRate: 1.0,
     automaticPlayback: false, // Disabled by default - doesn't work reliably due to browser autoplay policies
     cacheTTS: true,
     cloudBrowserVoices: false,
 
     conversationMode: false,
-    advancedMode: false,
 };
 
 function loadSettingsFromStorage(): SpeechSettings {
@@ -124,13 +112,35 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
                 const config = await api.webui.get("/api/v1/config");
                 const ttsSettings = config.tts_settings || {};
 
-                // Check speech config for external availability
+                // Check speech config for external availability AND get speechTab defaults
                 let sttExternal = false;
                 let ttsExternal = false;
+                let speechTabSettings: Record<string, unknown> = {};
                 try {
                     const speechConfig = await api.webui.get("/api/v1/speech/config");
                     sttExternal = speechConfig.sttExternal || false;
                     ttsExternal = speechConfig.ttsExternal || false;
+
+                    // Extract speechTab settings from the speech config response
+                    // These come from the YAML config's speech.speechTab section
+                    speechTabSettings = {
+                        // STT settings
+                        speechToText: speechConfig.speechToText,
+                        engineSTT: speechConfig.engineSTT,
+                        sttProvider: speechConfig.sttProvider,
+                        languageSTT: speechConfig.languageSTT,
+                        // TTS settings
+                        textToSpeech: speechConfig.textToSpeech,
+                        engineTTS: speechConfig.engineTTS,
+                        ttsProvider: speechConfig.ttsProvider,
+                        voice: speechConfig.voice,
+                        playbackRate: speechConfig.playbackRate,
+                        automaticPlayback: speechConfig.automaticPlayback,
+                        cacheTTS: speechConfig.cacheTTS,
+                        cloudBrowserVoices: speechConfig.cloudBrowserVoices,
+                        // Advanced
+                        conversationMode: speechConfig.conversationMode,
+                    };
                 } catch (error) {
                     console.error("Error fetching speech config:", error);
                 }
@@ -138,7 +148,18 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
                 setSettings(prev => {
                     const updated = { ...prev };
 
-                    // Apply TTS settings from server config
+                    // First, apply speechTab settings from server (YAML defaults)
+                    // Only apply if localStorage doesn't have a user-set value
+                    Object.entries(speechTabSettings).forEach(([key, value]) => {
+                        if (value === undefined) return; // Skip undefined values
+                        const settingKey = key as keyof SpeechSettings;
+                        const storageKey = STORAGE_KEY_MAP[settingKey];
+                        if (settingKey in updated && storageKey && localStorage.getItem(storageKey) === null) {
+                            (updated as Record<string, unknown>)[settingKey] = value;
+                        }
+                    });
+
+                    // Then apply TTS settings from main config (these may override speechTab)
                     Object.entries(ttsSettings).forEach(([key, value]) => {
                         const settingKey = key as keyof SpeechSettings;
                         const storageKey = STORAGE_KEY_MAP[settingKey];
