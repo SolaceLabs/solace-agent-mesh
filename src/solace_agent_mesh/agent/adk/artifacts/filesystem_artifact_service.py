@@ -324,6 +324,8 @@ class FilesystemArtifactService(BaseArtifactService):
         self, *, app_name: str, user_id: str, session_id: str, filename: str
     ) -> None:
         log_prefix = "[FSArtifact:Delete] "
+
+        # remove artifact directory and all its contents
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
 
         if not await asyncio.to_thread(os.path.isdir, artifact_dir):
@@ -339,8 +341,9 @@ class FilesystemArtifactService(BaseArtifactService):
             )
         except OSError as e:
             logger.error(
-                "%sError deleting artifact directory '%s'",
+                "%sError deleting artifact directory '%s': %s",
                 log_prefix,
+                artifact_dir,
                 e,
             )
 

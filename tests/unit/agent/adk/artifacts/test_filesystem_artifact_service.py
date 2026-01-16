@@ -643,6 +643,33 @@ class TestFilesystemArtifactServiceDeleteArtifact:
         assert not os.path.exists(artifact_dir)
 
 
+    @pytest.mark.asyncio
+    async def test_delete_artifact_error_deleting_artifact_directory(self, artifact_service, sample_artifact):
+        """Test error handling when deleting artifact directory fails"""
+        # Save artifact first
+        await artifact_service.save_artifact(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+            artifact=sample_artifact
+        )
+        
+        # Mock shutil.rmtree to raise OSError on first call (artifact directory)
+        with patch('shutil.rmtree', side_effect=OSError("Permission denied")) as mock_rmtree:
+            # Should not raise exception, just log error
+            await artifact_service.delete_artifact(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt"
+            )
+            
+            # Verify rmtree was called at least once
+            assert mock_rmtree.call_count >= 1
+
+
+
 class TestFilesystemArtifactServiceListVersions:
     """Tests for list_versions method"""
 
