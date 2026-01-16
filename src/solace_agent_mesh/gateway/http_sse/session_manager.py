@@ -81,10 +81,9 @@ class SessionManager:
             return client_id
 
         if not self.use_authorization:
-            # Generate new unique client ID for this session
-            client_id = f"sam_dev_user_{uuid.uuid4().hex[:8]}"
+            client_id = "sam_dev_user"
             log.info(
-                "No authenticated user and auth is disabled, generated unique client ID: %s for web session.",
+                "No authenticated user and auth is disabled, using client ID: %s for web session.",
                 client_id,
             )
             request.session[SESSION_KEY_CLIENT_ID] = client_id
