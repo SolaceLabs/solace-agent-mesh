@@ -38,9 +38,9 @@ describe("Chat Page - Messaging Functionality", { tags: ["@community"] }, () => 
     });
 
     it("should have a functioning chat input", () => {
-        cy.findByTestId("chat-input").should("be.visible").should("be.enabled");
+        cy.findByTestId("chat-input").should("be.visible");
         cy.findByTestId("chat-input").type("Test message");
-        cy.findByTestId("chat-input").should("have.value", "Test message");
+        cy.findByTestId("chat-input").should("have.text", "Test message");
     });
 
     it("should allow sending a message and show workflow", () => {

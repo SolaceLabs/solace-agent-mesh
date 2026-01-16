@@ -21,7 +21,6 @@ Before you begin, ensure you have:
 - A standard IDE (such as VS Code)
 - A coding assistant with MCP support (recommended Claude Code). See the [list of supported clients](https://context7.com/docs/resources/all-clients).
 - LLM model (recommended Claude Opus 4.5 model)
-- Python V3.10.6 to V3.13
 - (Optional) A Context7 API key (free for anyone)
 
 ## Installation
@@ -37,22 +36,28 @@ Before you begin, ensure you have:
 Ask your coding assistant:
 
 ```
-Using the `solacelabs/solace-agent-mesh` context7 library when answering questions in this chat session.
+Use the `solacelabs/solace-agent-mesh` context7 library when answering questions in this chat session.
 ```
 
-Review the response from your coding assistant to confirm that it acknowledges the Context7 integration and recognizes the `solacelabs/solace-agent-mesh` library. Depending on the assistant, you might see confirmations such as:  
-`I've successfully configured the solacelabs/solace-agent-mesh context7 library ...`  
-or  `I'll use the solacelabs/solace-agent-mesh library ...`  
-This ensures your coding agent is correctly set up to leverage the Solace Agent Mesh knowledge base.
+Review the response from your coding assistant to confirm that it acknowledges the Context7 integration and recognizes the `solacelabs/solace-agent-mesh` library. 
+
+:::tip
+Configure your MCP client with a rule to avoid mentioning the `solacelabs/solace-agent-mesh` Context7 library in prompts.
+
+Example rule:
+```
+Automatically use `solacelabs/solace-agent-mesh` context7 library without requiring me to explicitly request it.
+```
+:::
 
 ### Step 3: Setup project environment
 
-1. Ensure that the correct versions of Python (v1.10–v1.13) and [PIP package manager](https://pip.pypa.io/en/stable/installation/) are installed and properly configured.
+1. Ensure that Python and [PIP package manager](https://pip.pypa.io/en/stable/installation/) are installed and properly configured.
 
     Verify python and pip:
     ```
-    python --version
-    pip --version
+    python --help
+    pip --help
     ```
 
 2. Create a new, empty project in your IDE. Although vibe coding works in any workspace, existing files in a project may influence its behavior and results.
@@ -65,44 +70,28 @@ Once configured, you can interact with your coding assistant through natural lan
 
 **Getting Information About Solace Agent Mesh:**
 ```
-Using `solacelabs/solace-agent-mesh` context7 library, provide a list of built-in tools.
+Provide a list of built-in tools.
 ```
 
 **Creating a New Solace Agent Mesh Project:**
 ```
-Using `solacelabs/solace-agent-mesh` context7 library, initialize a Solace Agent Mesh project called example_app.
+Initialize a Solace Agent Mesh project called example_app.
 ```
 
 **Creating a New Agent:**
 ```
-Using `solacelabs/solace-agent-mesh` context7 library and command line, create a calculator agent that sums two numbers.
+Create a calculator agent that adds two numbers.
 ```
 
 **Creating a New Plugin Using Built-in Tools:**
 ```
-Using the `solacelabs/solace-agent-mesh` context7 library, command line and built-in tools, create an image analysis plugin that can generate images and describe images.
+Using built-in tools, create an image analysis plugin that can generate images and describe images.
 ```
 
 **Creating a New Gateway:**
 ```
-Using the `solacelabs/solace-agent-mesh` context7 library and command line, create a Discord gateway that enables message exchange with the Discord chat application.
+Create a Discord gateway that enables message exchange with the Discord chat application.
 ```
-
-:::note
-You need to specify the library at least once in your chat session to activate the Context7 integration.
-To avoid mentioning `solacelabs/solace-agent-mesh` context7 library in every prompt, configure your MCP client with a rule that automatically triggers the library for any code-related request.
-
-```
-Claude Code: CLAUDE.md
-Or the equivalent configuration in your MCP client.
-```
-
-Example rule:
-```
-Automatically use `solacelabs/solace-agent-mesh` context7 library without requiring me to explicitly request it.
-```
-:::
-
 
 
 ## Troubleshooting
@@ -110,7 +99,7 @@ Automatically use `solacelabs/solace-agent-mesh` context7 library without requir
 Vibe Coding provides an interactive development environment that generates high-quality code. However, the generated code and configurations may occasionally contain bugs. Follow these best practices to resolve issues quickly:
 
 ### Best Practices
-
+- **Setup Workspace**: When the coding agent is connected to multiple MCPs, or when the Solace Agent Mesh repository is available in the workspace, it may prioritize those sources over Context7. To ensure Context7 is used, add a rule as described in Step 2.
 - **Generate Tests**: After code generation, ask your coding assistant to create comprehensive tests for the generated code.
 - **Iterative Debugging**: If you encounter errors during execution, provide the error log to your coding assistant in the same chat session and request a fix.
 - **Review Generated Code**: Review the generated code to ensure it meets your requirements and follows best practices.
