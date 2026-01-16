@@ -62,7 +62,7 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
             case "WORKFLOW_NODE_EXECUTION_START":
                 if (step.data.workflowNodeExecutionStart?.nodeType === "map") return <List className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
                 if (step.data.workflowNodeExecutionStart?.nodeType === "fork") return <Split className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
-                if (step.data.workflowNodeExecutionStart?.nodeType === "conditional") return <GitMerge className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
+                if (step.data.workflowNodeExecutionStart?.nodeType === "switch") return <GitMerge className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
                 return <GitCommit className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
             case "WORKFLOW_NODE_EXECUTION_RESULT":
                 return <GitCommit className="mr-2 text-green-500 dark:text-green-400" size={18} />;

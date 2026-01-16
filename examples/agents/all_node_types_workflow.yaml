@@ -800,7 +800,7 @@ apps:
              (Achieved through same dependency - both depend on validate_order)
           3. MAP NODE: Processes each item in the order individually
           4. AGENT NODE: Calculates final price with discounts
-          5. CONDITIONAL NODE: Routes to manual or auto approval based on total
+          5. SWITCH NODE: Routes to manual or auto approval based on total
           6. SWITCH NODE: Selects shipping method based on priority
           7. LOOP NODE: Polls for readiness status
           8. AGENT NODE: Sends notification
