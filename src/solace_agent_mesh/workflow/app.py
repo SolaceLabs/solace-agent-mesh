@@ -465,16 +465,6 @@ class WorkflowDefinition(BaseModel):
                             f"Node '{node.id}' depends on non-existent node '{dep}'"
                         )
 
-            # Validate Conditional Node Consistency
-            if node.type == "conditional":
-                self._validate_branch_dependency(
-                    node, node.true_branch, "true_branch", node_map
-                )
-                if node.false_branch:
-                    self._validate_branch_dependency(
-                        node, node.false_branch, "false_branch", node_map
-                    )
-
             # Validate Switch Node Consistency
             if node.type == "switch":
                 for i, case in enumerate(node.cases):

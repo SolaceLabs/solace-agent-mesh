@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import type { LayoutNode } from "../utils/types";
 
@@ -8,7 +8,7 @@ interface SwitchNodeProps {
     onClick?: (node: LayoutNode) => void;
 }
 
-const SwitchNode: React.FC<SwitchNodeProps> = ({ node, isSelected, onClick }) => {
+const SwitchNode: FC<SwitchNodeProps> = ({ node, isSelected, onClick }) => {
     const getStatusColor = () => {
         switch (node.data.status) {
             case "completed":

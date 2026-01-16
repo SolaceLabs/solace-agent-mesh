@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import type { Edge } from "../utils/types";
 
 interface EdgeLayerProps {
@@ -10,7 +10,7 @@ interface EdgeLayerProps {
 /**
  * EdgeLayer - SVG layer for rendering bezier curve edges between nodes
  */
-const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, width, height }) => {
+const EdgeLayer: FC<EdgeLayerProps> = ({ edges, width, height }) => {
     /**
      * Generate SVG path for an edge (bezier curve or straight line)
      * Ends with a short vertical segment so arrowhead always points down

@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { ZoomIn, ZoomOut, Home } from "lucide-react";
 
 export interface CanvasControlsProps {
@@ -20,7 +20,7 @@ export interface CanvasControlsProps {
  * CanvasControls - Control bar for pan/zoom canvas operations
  * Displays zoom level and provides zoom in/out and fit-to-view buttons
  */
-export const CanvasControls: React.FC<CanvasControlsProps> = ({
+export const CanvasControls: FC<CanvasControlsProps> = ({
     zoomLevel,
     onZoomIn,
     onZoomOut,

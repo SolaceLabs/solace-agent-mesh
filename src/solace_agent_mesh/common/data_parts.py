@@ -282,7 +282,7 @@ class WorkflowNodeExecutionStartData(BaseModel):
         description="The constant type for this data part.",
     )
     node_id: str = Field(..., description="ID of the node")
-    node_type: str = Field(..., description="Type of the node (agent, conditional, switch, join, loop, etc.)")
+    node_type: str = Field(..., description="Type of the node (agent, switch, map, loop, workflow, etc.)")
     agent_name: Optional[str] = Field(
         None, description="Name of the agent persona if applicable"
     )
@@ -293,7 +293,7 @@ class WorkflowNodeExecutionStartData(BaseModel):
         None, description="Index if inside a map/loop"
     )
     condition: Optional[str] = Field(
-        None, description="Condition expression for conditional/loop nodes"
+        None, description="Condition expression for switch/loop nodes"
     )
     true_branch: Optional[str] = Field(
         None, description="Node ID for true branch"

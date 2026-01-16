@@ -5,7 +5,7 @@ import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
 import type { VisualizerStep, ToolDecision } from "@/lib/types";
 import { useChatContext } from "@/lib/hooks";
 import { parseArtifactUri } from "@/lib/utils/download";
-import { authenticatedFetch } from "@/lib/api";
+import { api } from "@/lib/api";
 
 const MAX_ARTIFACT_DISPLAY_LENGTH = 5000;
 
@@ -48,10 +48,10 @@ const ArtifactContentViewer: React.FC<ArtifactContentViewerProps> = ({ uri, name
                     }
                 }
 
-                // Construct API URL
-                const apiUrl = `/api/v1/artifacts/${encodeURIComponent(sessionId || "null")}/${encodeURIComponent(filename)}/versions/${artifactVersion}`;
+                // Construct API endpoint
+                const endpoint = `/api/v1/artifacts/${encodeURIComponent(sessionId || "null")}/${encodeURIComponent(filename)}/versions/${artifactVersion}`;
 
-                const response = await authenticatedFetch(apiUrl, { credentials: "include" });
+                const response = await api.webui.get(endpoint, { fullResponse: true, credentials: "include" });
                 if (!response.ok) {
                     throw new Error(`Failed to fetch artifact: ${response.statusText}`);
                 }

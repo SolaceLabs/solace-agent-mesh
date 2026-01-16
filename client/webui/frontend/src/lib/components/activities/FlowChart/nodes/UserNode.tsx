@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { User } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 
@@ -8,7 +8,7 @@ interface UserNodeProps {
     onClick?: (node: LayoutNode) => void;
 }
 
-const UserNode: React.FC<UserNodeProps> = ({ node, isSelected, onClick }) => {
+const UserNode: FC<UserNodeProps> = ({ node, isSelected, onClick }) => {
     return (
         <div
             className={`cursor-pointer rounded-md border-2 border-purple-600 bg-white px-4 py-3 text-gray-800 shadow-md transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-purple-400 dark:bg-gray-800 dark:text-gray-200 ${
