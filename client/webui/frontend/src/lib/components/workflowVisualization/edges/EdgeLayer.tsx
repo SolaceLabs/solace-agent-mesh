@@ -57,29 +57,34 @@ const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, width, height }) => {
             </defs>
 
             {/* Render each edge */}
-            {edges.map(edge => (
-                <g key={edge.id}>
-                    {/* Main edge path */}
-                    <path
-                        d={generatePath(edge)}
-                        className="fill-none stroke-gray-400 dark:stroke-gray-500"
-                        strokeWidth={2}
-                        markerEnd="url(#arrowhead)"
-                    />
+            {edges.map(edge => {
+                // Check if this edge connects to a condition pill (target starts with __condition_)
+                const isConditionPillEdge = edge.target.startsWith('__condition_');
 
-                    {/* Edge label (if present) */}
-                    {edge.label && (
-                        <text
-                            x={(edge.sourceX + edge.targetX) / 2}
-                            y={(edge.sourceY + edge.targetY) / 2 - 8}
-                            textAnchor="middle"
-                            className="fill-gray-500 text-xs dark:fill-gray-400"
-                        >
-                            {edge.label}
-                        </text>
-                    )}
-                </g>
-            ))}
+                return (
+                    <g key={edge.id}>
+                        {/* Main edge path */}
+                        <path
+                            d={generatePath(edge)}
+                            className="fill-none stroke-gray-400 dark:stroke-gray-500"
+                            strokeWidth={2}
+                            markerEnd={isConditionPillEdge ? undefined : "url(#arrowhead)"}
+                        />
+
+                        {/* Edge label (if present) */}
+                        {edge.label && (
+                            <text
+                                x={(edge.sourceX + edge.targetX) / 2}
+                                y={(edge.sourceY + edge.targetY) / 2 - 8}
+                                textAnchor="middle"
+                                className="fill-gray-500 text-xs dark:fill-gray-400"
+                            >
+                                {edge.label}
+                            </text>
+                        )}
+                    </g>
+                );
+            })}
         </svg>
     );
 };
