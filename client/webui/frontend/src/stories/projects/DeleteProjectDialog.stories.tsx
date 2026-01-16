@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, within } from "storybook/test";
 import { DeleteProjectDialog } from "@/lib";
-import { weatherProject } from "./data";
+import { weatherProject } from "../data/projects";
 
 const meta = {
     title: "Pages/Projects/DeleteProjectDialog",

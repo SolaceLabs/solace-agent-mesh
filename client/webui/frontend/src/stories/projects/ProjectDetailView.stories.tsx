@@ -2,7 +2,8 @@ import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vit
 import { expect, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import { ProjectDetailView } from "@/lib";
-import { populatedProject, emptyProject, pdfArtifact, imageArtifact, jsonArtifact, markdownArtifact } from "./data";
+import { populatedProject, emptyProject } from "../data/projects";
+import { pdfArtifact, imageArtifact, jsonArtifact, markdownArtifact } from "../data/artifactInfo";
 import type { Session } from "@/lib/types/fe";
 import { getMockAgentCards, mockAgentCards } from "../mocks/data";
 import { transformAgentCard } from "@/lib/hooks/useAgentCards";

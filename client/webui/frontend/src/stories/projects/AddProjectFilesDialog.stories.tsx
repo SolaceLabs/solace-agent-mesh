@@ -1,40 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, within } from "storybook/test";
 import { AddProjectFilesDialog } from "@/lib";
-
-// ============================================================================
-// Mock data helpers
-// ============================================================================
-
-// Mock file creation helper
-const createMockFile = (name: string, size: number, type: string): File => {
-    const blob = new Blob(["a".repeat(size)], { type });
-    return new File([blob], name, { type });
-};
-
-const createMockFileList = (files: File[]): FileList => {
-    const fileList: Record<number, File> & {
-        length: number;
-        item: (index: number) => File | null;
-        [Symbol.iterator]: () => IterableIterator<File>;
-    } = {
-        length: files.length,
-        item: (index: number) => files[index] || null,
-        [Symbol.iterator]: function* () {
-            for (const f of files) {
-                yield f;
-            }
-        },
-    };
-    files.forEach((file, index) => {
-        fileList[index] = file;
-    });
-    return fileList as FileList;
-};
-
-// ============================================================================
-// Story Configuration
-// ============================================================================
+import { createMockFile, createMockFileList } from "../utils/mockFileHelpers";
 
 const meta = {
     title: "Pages/Projects/AddProjectFilesDialog",
@@ -51,11 +18,6 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-
-
-// ============================================================================
-// Stories
-// ============================================================================
 
 /**
  * Default state with single file

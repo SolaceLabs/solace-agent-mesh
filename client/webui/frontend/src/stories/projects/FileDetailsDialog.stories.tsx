@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, within } from "storybook/test";
 import { FileDetailsDialog } from "@/lib";
-import { artifactWithLongDescription } from "./data";
+import { artifactWithLongDescription } from "../data/artifactInfo";
 
 const meta = {
     title: "Pages/Projects/FileDetailsDialog",

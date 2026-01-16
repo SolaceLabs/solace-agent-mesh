@@ -1,7 +1,7 @@
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { ProjectsPage } from "@/lib";
-import { allProjects } from "./data";
+import { allProjects } from "../data/projects";
 
 const meta = {
     title: "Pages/Projects/ProjectsPage",
