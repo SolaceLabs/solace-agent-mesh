@@ -21,7 +21,7 @@ export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({ projec
             <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-foreground text-sm font-semibold">Chats</h3>
                 {onStartNewChat && (
-                    <Button onClick={onStartNewChat} size="sm">
+                    <Button onClick={onStartNewChat} size="sm" testid="startNewChatButton">
                         <Plus className="mr-2 h-4 w-4" />
                         New Chat
                     </Button>
@@ -41,7 +41,7 @@ export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({ projec
                     <MessageCircle className="text-muted-foreground mb-2 h-8 w-8" />
                     <p className="text-muted-foreground mb-4 text-sm">No chats. Start a chat with all the knowledge and context from this project.</p>
                     {onStartNewChat && (
-                        <Button onClick={onStartNewChat} size="sm">
+                        <Button onClick={onStartNewChat} size="sm" testid="startNewChatButtonNoChats">
                             <Plus className="mr-2 h-4 w-4" />
                             Start New Chat
                         </Button>
