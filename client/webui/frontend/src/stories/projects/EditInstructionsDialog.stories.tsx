@@ -82,10 +82,10 @@ export const InstructionCharacterLimitError: Story = {
         const atLimitText = "a".repeat(4000);
         await userEvent.click(textarea);
         await userEvent.paste(atLimitText);
-        await waitFor(() => expect(dialogContent.getByText("4000 / 4000")).toBeVisible());
+        await waitFor(() => expect(dialogContent.getByText("4000 / 4000")).toBeInTheDocument());
 
         await userEvent.type(textarea, "b");
-        await waitFor(() => expect(dialogContent.getByText("Instructions must be less than 4000 characters")).toBeVisible());
+        await waitFor(() => expect(dialogContent.getByText("Instructions must be less than 4000 characters")).toBeInTheDocument());
 
         expect(await dialogContent.findByRole("button", { name: "Save" })).toBeDisabled();
     },

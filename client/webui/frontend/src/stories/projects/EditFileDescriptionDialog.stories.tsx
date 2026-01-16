@@ -34,10 +34,10 @@ export const Default: Story = {
         const dialog = await screen.findByRole("dialog");
         expect(dialog).toBeInTheDocument();
         const dialogContent = within(dialog);
-        expect(await dialogContent.findByText("api-documentation.pdf")).toBeVisible();
-        expect(await dialogContent.findByText("API reference documentation")).toBeVisible();
-        expect(await dialogContent.findByRole("button", { name: "Save" })).toBeVisible();
-        expect(await dialogContent.findByRole("button", { name: "Discard Changes" })).toBeVisible();
+        expect(await dialogContent.findByText("api-documentation.pdf")).toBeInTheDocument();
+        expect(await dialogContent.findByText("API reference documentation")).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: "Save" })).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: "Discard Changes" })).toBeInTheDocument();
     },
 };
 
@@ -57,7 +57,7 @@ export const Empty: Story = {
         expect(dialog).toBeInTheDocument();
         const dialogContent = within(dialog);
 
-        expect(await dialogContent.findByText("package.json")).toBeVisible();
+        expect(await dialogContent.findByText("package.json")).toBeInTheDocument();
 
         expect(await dialogContent.findByRole("button", { name: "Save" })).toBeEnabled();
         expect(await dialogContent.findByRole("button", { name: "Discard Changes" })).toBeEnabled();

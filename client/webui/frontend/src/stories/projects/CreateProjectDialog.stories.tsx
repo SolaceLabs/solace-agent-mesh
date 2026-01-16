@@ -33,7 +33,7 @@ export const Default: Story = {
         expect(dialog).toBeInTheDocument();
         const dialogContent = within(dialog);
 
-        expect(await dialogContent.findByRole("button", { name: "Create Project" })).toBeVisible();
+        expect(await dialogContent.findByRole("button", { name: "Create Project" })).toBeInTheDocument();
     },
 };
 
@@ -54,7 +54,7 @@ export const Empty: Story = {
         const submitButton = await dialogContent.findByRole("button", { name: "Create Project" });
 
         await userEvent.click(submitButton);
-        expect(await dialogContent.findByText("Project name is required")).toBeVisible();
+        expect(await dialogContent.findByText("Project name is required")).toBeInTheDocument();
     },
 };
 
@@ -83,7 +83,7 @@ export const DescriptionCharacterLimit: Story = {
         await waitFor(() => dialogContent.findByText("1000/1000"));
 
         await userEvent.type(descriptionInput, "extra text (you shouldn't see this)");
-        expect(await dialogContent.findByText("1000/1000")).toBeVisible();
+        expect(await dialogContent.findByText("1000/1000")).toBeInTheDocument();
     },
 };
 

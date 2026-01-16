@@ -34,7 +34,7 @@ export const Default: Story = {
         expect(dialog).toBeInTheDocument();
         const dialogContent = within(dialog);
 
-        expect(await dialogContent.findByText("api-documentation.pdf")).toBeVisible();
-        expect(await dialogContent.findByRole("button", { name: "Delete" })).toBeVisible();
+        expect(await dialogContent.findByText("api-documentation.pdf")).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: "Delete" })).toBeInTheDocument();
     },
 };

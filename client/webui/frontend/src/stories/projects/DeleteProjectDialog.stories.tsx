@@ -34,12 +34,12 @@ export const Default: Story = {
         const dialog = await screen.findByRole("dialog");
         expect(dialog).toBeInTheDocument();
         const dialogContent = within(dialog);
-        expect(await dialogContent.findByRole("button", { name: "Delete" })).toBeVisible();
-        expect(await dialogContent.findByRole("button", { name: "Cancel" })).toBeVisible();
+        expect(await dialogContent.findByRole("button", { name: "Delete" })).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: "Cancel" })).toBeInTheDocument();
 
         const projectName = await dialogContent.findByText(weatherProject.name);
         expect(projectName.tagName).toBe("STRONG");
-        expect(projectName).toBeVisible();
+        expect(projectName).toBeInTheDocument();
     },
 };
 

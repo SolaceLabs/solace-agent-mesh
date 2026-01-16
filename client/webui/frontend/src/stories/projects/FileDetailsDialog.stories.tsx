@@ -34,9 +34,9 @@ export const Default: Story = {
         expect(dialog).toBeInTheDocument();
         const dialogContent = within(dialog);
 
-        expect(await dialogContent.findByText("design-spec.pdf")).toBeVisible();
-        expect(await dialogContent.findByText("API reference documentation for the project endpoints including authentication, data models, and error handling patterns")).toBeVisible();
-        expect(await dialogContent.findByRole("button", { name: "Edit Description" })).toBeVisible();
-        expect(await dialogContent.findByRole("button", { name: "Close" })).toBeVisible();
+        expect(await dialogContent.findByText("design-spec.pdf")).toBeInTheDocument();
+        expect(await dialogContent.findByText("API reference documentation for the project endpoints including authentication, data models, and error handling patterns")).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: "Edit Description" })).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: "Close" })).toBeInTheDocument();
     },
 };

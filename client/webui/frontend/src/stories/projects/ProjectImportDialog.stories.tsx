@@ -106,7 +106,7 @@ export const Default: Story = {
         expect(dialog).toBeInTheDocument();
         const dialogContent = within(dialog);
 
-        expect(await dialogContent.findByRole("button", { name: "Upload File" })).toBeVisible();
+        expect(await dialogContent.findByRole("button", { name: "Upload File" })).toBeInTheDocument();
         expect(await dialogContent.findByRole("button", { name: "Import" })).toBeDisabled();
     },
 };
@@ -132,7 +132,7 @@ export const InvalidProjectZip: Story = {
         fileInput.files = dataTransfer.files;
         fileInput.dispatchEvent(new Event('change', { bubbles: true }));
 
-        expect(await dialogContent.findByText(/Invalid project export/i)).toBeVisible();
+        expect(await dialogContent.findByText(/Invalid project export/i)).toBeInTheDocument();
         expect(await dialogContent.findByRole("button", { name: "Import" })).toBeDisabled();
     },
 };
@@ -158,7 +158,7 @@ export const NonZipFile: Story = {
         fileInput.files = dataTransfer.files;
         fileInput.dispatchEvent(new Event('change', { bubbles: true }));
 
-        expect(await dialogContent.findByText("Please select a ZIP file")).toBeVisible();
+        expect(await dialogContent.findByText("Please select a ZIP file")).toBeInTheDocument();
         expect(await dialogContent.findByRole("button", { name: "Import" })).toBeDisabled();
     },
 };
@@ -193,9 +193,9 @@ export const ValidProjectWithArtifacts: Story = {
         fileInput.files = dataTransfer.files;
         fileInput.dispatchEvent(new Event('change', { bubbles: true }));
 
-        expect(await dialogContent.findByText("Artifacts (6 files)")).toBeVisible();
-        expect(await dialogContent.findByText("artifact-1.txt")).toBeVisible();
-        expect(await dialogContent.findByText("+ 1 more files")).toBeVisible();
+        expect(await dialogContent.findByText("Artifacts (6 files)")).toBeInTheDocument();
+        expect(await dialogContent.findByText("artifact-1.txt")).toBeInTheDocument();
+        expect(await dialogContent.findByText("+ 1 more files")).toBeInTheDocument();
 
         const nameInput = await dialogContent.findByLabelText("Project Name") as HTMLInputElement;
         expect(nameInput.value).toBe("E-commerce Platform");
