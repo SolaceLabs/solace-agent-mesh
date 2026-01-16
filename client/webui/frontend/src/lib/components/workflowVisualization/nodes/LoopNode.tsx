@@ -1,5 +1,6 @@
 import React from "react";
 import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
+import { Button } from "@/lib/components/ui";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
 
 interface LoopNodeProps extends NodeProps {
@@ -53,17 +54,19 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
             >
                 <div className="flex items-center gap-2">
                     <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                    <span className="text-sm font-medium text-teal-900 dark:text-teal-100">Loop</span>
+                    <span className="text-sm font-semibold text-teal-900 dark:text-teal-100">Loop</span>
                 </div>
 
                 {canHaveChildren && (
-                    <button
+                    <Button
                         onClick={handleToggle}
-                        className="rounded p-1 text-teal-500 hover:bg-teal-100 dark:text-teal-400 dark:hover:bg-teal-800/50"
-                        title="Expand"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        tooltip="Expand"
                     >
                         <Maximize2 className="h-4 w-4" />
-                    </button>
+                    </Button>
                 )}
             </div>
         );
@@ -87,7 +90,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
         >
             {/* Dotted Children Container */}
             <div
-                className="absolute inset-0 rounded-lg border-2 border-dashed border-teal-300 bg-teal-50/30 dark:border-teal-600/50 dark:bg-teal-900/10"
+                className="absolute inset-0 rounded-lg border-2 border-dashed border-[var(--color-secondary-w40)] bg-[var(--color-secondary-w10)]"
                 style={{ top: `${headerTopOffsetPx}px` }}
             >
                 {/* Top padding clears the header portion below the dotted border plus gap */}
@@ -112,16 +115,18 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                 <div className="flex items-center justify-between gap-4 px-3 py-2">
                     <div className="flex items-center gap-2">
                         <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                        <span className="text-sm font-medium text-teal-900 dark:text-teal-100">Loop</span>
+                        <span className="text-sm font-semibold text-teal-900 dark:text-teal-100">Loop</span>
                     </div>
 
-                    <button
+                    <Button
                         onClick={handleToggle}
-                        className="rounded p-1 text-teal-500 hover:bg-teal-100 dark:text-teal-400 dark:hover:bg-teal-800/50"
-                        title="Collapse"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        tooltip="Collapse"
                     >
                         <Minimize2 className="h-4 w-4" />
-                    </button>
+                    </Button>
                 </div>
 
                 {/* Condition display */}

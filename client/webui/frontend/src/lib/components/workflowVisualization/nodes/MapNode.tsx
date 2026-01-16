@@ -1,5 +1,6 @@
 import React from "react";
 import { Repeat2, Maximize2, Minimize2 } from "lucide-react";
+import { Button } from "@/lib/components/ui";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
 
 interface MapNodeProps extends NodeProps {
@@ -44,17 +45,19 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
             >
                 <div className="flex items-center gap-2">
                     <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                    <span className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Map</span>
+                    <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">Map</span>
                 </div>
 
                 {canHaveChildren && (
-                    <button
+                    <Button
                         onClick={handleToggle}
-                        className="rounded p-1 text-indigo-500 hover:bg-indigo-100 dark:text-indigo-400 dark:hover:bg-indigo-800/50"
-                        title="Expand"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        tooltip="Expand"
                     >
                         <Maximize2 className="h-4 w-4" />
-                    </button>
+                    </Button>
                 )}
             </div>
         );
@@ -77,7 +80,7 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
         >
             {/* Dotted Children Container */}
             <div
-                className="absolute inset-0 rounded-lg border-2 border-dashed border-indigo-300 bg-indigo-50/30 dark:border-indigo-600/50 dark:bg-indigo-900/10"
+                className="absolute inset-0 rounded-lg border-2 border-dashed border-[var(--color-secondary-w40)] bg-[var(--color-secondary-w10)]"
                 style={{ top: `${headerTopOffsetPx}px` }}
             >
                 {/* Top padding clears the header portion below the dotted border plus gap */}
@@ -100,16 +103,18 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
             >
                 <div className="flex items-center gap-2">
                     <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                    <span className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Map</span>
+                    <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">Map</span>
                 </div>
 
-                <button
+                <Button
                     onClick={handleToggle}
-                    className="rounded p-1 text-indigo-500 hover:bg-indigo-100 dark:text-indigo-400 dark:hover:bg-indigo-800/50"
-                    title="Collapse"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    tooltip="Collapse"
                 >
                     <Minimize2 className="h-4 w-4" />
-                </button>
+                </Button>
             </div>
         </div>
     );
