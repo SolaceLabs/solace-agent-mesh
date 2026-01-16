@@ -27,7 +27,7 @@ async function createValidProjectZip(projectData: {
             systemPrompt: projectData.systemPrompt || null,
             defaultAgentId: projectData.defaultAgentId || null,
         },
-        artifacts: [] as any[],
+        artifacts: [] as Array<{ filename: string; size: number; mime_type: string }>,
     };
 
     if (projectData.artifactCount && projectData.artifactCount > 0) {

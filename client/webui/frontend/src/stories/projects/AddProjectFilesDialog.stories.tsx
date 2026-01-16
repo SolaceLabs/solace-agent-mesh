@@ -13,9 +13,13 @@ const createMockFile = (name: string, size: number, type: string): File => {
 };
 
 const createMockFileList = (files: File[]): FileList => {
-    const fileList = {
+    const fileList: Record<number, File> & {
+        length: number;
+        item: (index: number) => File | null;
+        [Symbol.iterator]: () => IterableIterator<File>;
+    } = {
         length: files.length,
-        item: (index: number) => files[index],
+        item: (index: number) => files[index] || null,
         [Symbol.iterator]: function* () {
             for (const f of files) {
                 yield f;
@@ -23,7 +27,7 @@ const createMockFileList = (files: File[]): FileList => {
         },
     };
     files.forEach((file, index) => {
-        (fileList as any)[index] = file;
+        fileList[index] = file;
     });
     return fileList as FileList;
 };
