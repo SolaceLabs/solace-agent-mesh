@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Download, ChevronDown, Trash, Info, ChevronUp, CircleAlert } from "lucide-react";
+import { Download, ChevronDown, Trash, Info, ChevronUp, CircleAlert, Pencil } from "lucide-react";
 
-import { Button, Spinner, Badge } from "@/lib/components/ui";
-import { FileIcon } from "../file/FileIcon";
-import { cn } from "@/lib/utils";
+import { Button, Spinner } from "@/lib/components/ui";
+import { cn, formatBytes } from "@/lib/utils";
+
+import { FileIcon, ProjectBadge } from "../file";
 
 const ErrorState: React.FC<{ message: string }> = ({ message }) => (
     <div className="w-full rounded-lg border border-[var(--color-error-w100)] bg-[var(--color-error-wMain-50)] p-3">
@@ -26,6 +27,7 @@ export interface ArtifactBarProps {
         onDelete?: () => void;
         onInfo?: () => void;
         onExpand?: () => void;
+        onEdit?: () => void;
     };
     // For creation progress
     bytesTransferred?: number;
@@ -108,7 +110,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
         switch (status) {
             case "in-progress":
                 return {
-                    text: bytesTransferred ? `Creating... ${(bytesTransferred / 1024).toFixed(1)}KB` : "Creating...",
+                    text: bytesTransferred ? `Creating... ${formatBytes(bytesTransferred)}` : "Creating...",
                     className: "text-[var(--color-info-wMain)]",
                 };
             case "failed":
@@ -118,7 +120,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 };
             case "completed":
                 return {
-                    text: size ? `${(size / 1024).toFixed(1)}KB` : "",
+                    text: size ? formatBytes(size) : "",
                 };
             default:
                 return {
@@ -211,11 +213,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             {hasDescription ? displayDescription : filename.length > 50 ? `${filename.substring(0, 47)}...` : filename}
                         </div>
                         {/* Project badge */}
-                        {source === "project" && (
-                            <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary px-2 py-0.5 text-xs font-semibold shadow-sm">
-                                Project
-                            </Badge>
-                        )}
+                        {source === "project" && <ProjectBadge />}
                     </div>
 
                     {/* Secondary line: Filename (if description shown) or status */}
@@ -295,6 +293,24 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             tooltip={expanded ? "Collapse" : "Expand"}
                         >
                             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </Button>
+                    )}
+
+                    {status === "completed" && actions?.onEdit && !isDeleted && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={e => {
+                                e.stopPropagation();
+                                try {
+                                    actions.onEdit?.();
+                                } catch (error) {
+                                    console.error("Edit failed:", error);
+                                }
+                            }}
+                            tooltip="Edit Description"
+                        >
+                            <Pencil className="h-4 w-4" />
                         </Button>
                     )}
 

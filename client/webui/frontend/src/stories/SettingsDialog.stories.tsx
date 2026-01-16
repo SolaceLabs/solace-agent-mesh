@@ -47,7 +47,7 @@ const meta = {
             },
         },
         authContext: {
-            userInfo: { username: "Story Username" },
+            userInfo: { username: "Story Username With a Very Long Name" },
         },
     },
     decorators: [
@@ -191,7 +191,7 @@ export const Logout = {
         await within(document.body).findByRole("menuitem", { name: "Settings" });
 
         // Verify user name  and logout menu item
-        await within(document.body).findByText("Story Username");
+        await within(document.body).findByText(/Story Username/i);
         const logoutButton = await within(document.body).findByRole("menuitem", { name: "Log Out" });
         await expect(logoutButton).toBeInTheDocument();
     },

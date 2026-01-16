@@ -1,16 +1,37 @@
 import type { FileAttachment } from "@/lib/types";
 import { api } from "@/lib/api";
 
-export const parseArtifactUri = (uri: string): { filename: string; version: string | null } | null => {
+export const parseArtifactUri = (uri: string): { sessionId: string | null; filename: string; version: string | null } | null => {
     try {
         const url = new URL(uri);
         if (url.protocol !== "artifact:") {
             return null;
         }
+
+        // URI format: artifact://{app_name}/{user_id}/{session_id}/{filename}?version={version}
+        // hostname = app_name
+        // pathname = /{user_id}/{session_id}/{filename}
         const pathParts = url.pathname.split("/").filter(p => p);
-        const filename = pathParts[pathParts.length - 1];
+
+        // Expected path parts: [user_id, session_id, filename]
+        if (pathParts.length < 3) {
+            // Fallback for legacy format: artifact://{session_id}/{filename}
+            // In this case, hostname might be session_id and filename is in path
+            const sessionId = url.hostname || null;
+            const filename = pathParts.length > 0 ? pathParts[pathParts.length - 1] : "";
+            if (!filename) {
+                return null;
+            }
+            const version = url.searchParams.get("version");
+            return { sessionId, filename, version };
+        }
+
+        // Standard format: extract session_id from path (index 1)
+        const sessionId = pathParts[1];
+        const filename = pathParts[2];
+
         const version = url.searchParams.get("version");
-        return { filename, version };
+        return { sessionId, filename, version };
     } catch (e) {
         console.error("Invalid artifact URI:", e);
         return null;
@@ -51,8 +72,9 @@ export const downloadFile = async (file: FileAttachment, sessionId?: string, pro
                 throw new Error(`Invalid or unhandled URI format: ${file.uri}`);
             }
 
-            filename = parsedUri.filename;
-            const version = parsedUri.version || "latest";
+            const { filename: parsedFilename, version: parsedVersion } = parsedUri;
+            filename = parsedFilename;
+            const version = parsedVersion || "latest";
 
             let endpoint: string;
             if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {

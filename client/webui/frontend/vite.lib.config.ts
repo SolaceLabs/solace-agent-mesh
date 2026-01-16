@@ -29,6 +29,7 @@ export default defineConfig({
                 "@radix-ui/react-slot",
                 "@radix-ui/react-tabs",
                 "@radix-ui/react-tooltip",
+                "@tanstack/react-query",
                 "@tanstack/react-table",
                 "@xyflow/react",
                 "class-variance-authority",

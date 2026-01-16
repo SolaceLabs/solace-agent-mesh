@@ -26,7 +26,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ projec
                 </div>
 
                 <div className="px-4">
-                    <div className={`text-muted-foreground bg-muted max-h-[400px] min-h-[120px] overflow-y-auto rounded-md p-3 text-sm whitespace-pre-wrap ${!project.systemPrompt ? "flex items-center justify-center" : ""}`}>
+                    <div className={`text-muted-foreground bg-muted max-h-[240px] min-h-[120px] overflow-y-auto rounded-md p-3 text-sm whitespace-pre-wrap ${!project.systemPrompt ? "flex items-center justify-center" : ""}`}>
                         {project.systemPrompt || "No instructions. Provide instructions to tailor the chat responses to your needs."}
                     </div>
                 </div>

@@ -1,16 +1,7 @@
-import React, { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import React, { useState, useCallback, type ReactNode } from "react";
 
 import type { SelectionState, SelectionContextValue } from "./types";
-
-export const TextSelectionContext = createContext<SelectionContextValue | undefined>(undefined);
-
-export const useTextSelection = () => {
-    const context = useContext(TextSelectionContext);
-    if (!context) {
-        throw new Error("useTextSelection must be used within TextSelectionProvider");
-    }
-    return context;
-};
+import { TextSelectionContext } from "./TextSelectionContext";
 
 interface TextSelectionProviderProps {
     children: ReactNode;

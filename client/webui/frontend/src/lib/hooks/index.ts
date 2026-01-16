@@ -1,4 +1,6 @@
 export * from "./useAgentCards";
+export * from "./useArtifactOperations";
+export * from "./useArtifactPreview";
 export * from "./useArtifactRendering";
 export * from "./useArtifacts";
 export * from "./useAudioSettings";
@@ -12,7 +14,10 @@ export * from "./useDebounce";
 export * from "./useDownload";
 export * from "./useDragAndDrop";
 export * from "./useMobile";
+export * from "./useProjectArtifacts";
 export * from "./useSpeechToText";
+export * from "./useStreamingAnimation";
+export * from "./useStreamingSpeed";
 export * from "./useStreamingTTS";
 export * from "./useTaskContext";
 export * from "./useTextToSpeech";

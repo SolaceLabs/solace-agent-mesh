@@ -5,7 +5,11 @@ from pathlib import Path
 import click
 import yaml
 
-from config_portal.backend.common import AGENT_DEFAULTS, USE_DEFAULT_SHARED_ARTIFACT, USE_DEFAULT_SHARED_SESSION
+from config_portal.backend.common import (
+    AGENT_DEFAULTS,
+    USE_DEFAULT_SHARED_ARTIFACT,
+    USE_DEFAULT_SHARED_SESSION,
+)
 
 from ...utils import (
     ask_if_not_provided,
@@ -143,6 +147,7 @@ def _write_agent_yaml_from_data(
             Dumper=yaml.SafeDumper,
             default_flow_style=False,
             indent=2,
+            sort_keys=False,
         ).strip()
 
         if "\n" in tools_replacement_value:

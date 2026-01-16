@@ -186,13 +186,15 @@ class PlatformServiceFactory:
 
     def _setup_routers(self):
         """Mount community and enterprise routers to the FastAPI application."""
+        PLATFORM_SERVICE_PREFIX = "/api/v1/platform"
+
         from solace_agent_mesh.services.platform.api.routers import get_community_platform_routers
 
         community_routers = get_community_platform_routers()
         for router_config in community_routers:
             self.app.include_router(
                 router_config["router"],
-                prefix=router_config["prefix"],
+                prefix=PLATFORM_SERVICE_PREFIX,
                 tags=router_config["tags"],
             )
         log.info(f"[PlatformServiceFactory] Mounted {len(community_routers)} community platform routers")
@@ -204,7 +206,7 @@ class PlatformServiceFactory:
             for router_config in enterprise_routers:
                 self.app.include_router(
                     router_config["router"],
-                    prefix=router_config["prefix"],
+                    prefix=PLATFORM_SERVICE_PREFIX,
                     tags=router_config["tags"],
                 )
             log.info(f"[PlatformServiceFactory] Mounted {len(enterprise_routers)} enterprise platform routers")
@@ -212,10 +214,6 @@ class PlatformServiceFactory:
             log.info("[PlatformServiceFactory] No enterprise package detected - running in community mode")
         except Exception as e:
             log.warning(f"[PlatformServiceFactory] Failed to load enterprise routers: {e}")
-
-        @self.app.get("/health", tags=["Health"])
-        async def health_check():
-            return {"status": "healthy", "service": "Platform Service (Test)"}
 
     def _setup_dependency_overrides(self, component):
         """Set up FastAPI dependency overrides for testing."""

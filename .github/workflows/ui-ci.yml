@@ -5,14 +5,10 @@ on:
   push:
     branches:
       - "main"
-    paths:
-      - "client/webui/frontend/**"
   pull_request:
     types: [opened, synchronize]
     branches:
       - "main"
-    paths:
-      - "client/webui/frontend/**"
 
 permissions:
   contents: write
@@ -25,13 +21,30 @@ permissions:
   repository-projects: read
 
 jobs:
+  check-paths:
+    name: "Check if UI files changed"
+    runs-on: ubuntu-latest
+    outputs:
+      should-run: ${{ steps.filter.outputs.ui }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Check for UI changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            ui:
+              - 'client/webui/frontend/**'
+
   validate-conventional-commit:
     name: "Validate Conventional Commit"
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           fetch-depth: 0
 
@@ -63,13 +76,15 @@ jobs:
 
   ui-build-and-test:
     name: "Build and Test UI"
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: client/webui/frontend
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           fetch-depth: 0
 
@@ -218,11 +233,30 @@ jobs:
             python whitesource_vulnerability_checker.py
             "
 
+  ui-ci-status:
+    name: "UI CI Status"
+    runs-on: ubuntu-latest
+    needs: [check-paths, ui-build-and-test]
+    if: always()
+    steps:
+      - name: Check build status
+        run: |
+          if [[ "${{ needs.check-paths.outputs.should-run }}" == "false" ]]; then
+            echo "UI files not changed, skipping UI build and tests"
+            exit 0
+          elif [[ "${{ needs.ui-build-and-test.result }}" == "success" ]]; then
+            echo "UI build/tests passed"
+            exit 0
+          else
+            echo "UI build/tests failed"
+            exit 1
+          fi
+
   bump-version:
-    needs: ui-build-and-test
+    needs: [check-paths, ui-build-and-test]
     name: "Bump UI Version"
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch && needs.check-paths.outputs.should-run == 'true'
     outputs:
       new-tag: ${{ steps.bump.outputs.newTag }}
     defaults:
@@ -230,7 +264,7 @@ jobs:
         working-directory: client/webui/frontend
     steps:
       - name: "Checkout source code"
-        uses: "actions/checkout@v4"
+        uses: "actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd" # v5.0.1
         with:
           ref: ${{ github.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}

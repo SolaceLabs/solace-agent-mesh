@@ -1,4 +1,4 @@
-import { defineConfig, mergeConfig } from "vitest/config";
+import { defineConfig, defineProject, mergeConfig } from "vitest/config";
 import { playwright } from "@vitest/browser-playwright";
 
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
@@ -34,6 +34,18 @@ export default mergeConfig(
                         setupFiles: ["./.storybook/vitest.setup.ts"],
                     },
                 },
+                defineProject({
+                    test: {
+                        name: "unit",
+                        globals: true,
+                        environment: "jsdom",
+                        include: ["src/**/*.test.{ts,tsx}"],
+                        setupFiles: ["./.storybook/vitest.setup.ts"],
+                        alias: {
+                            "@": path.resolve(dirname, "src"),
+                        },
+                    },
+                }),
             ],
         },
     })

@@ -60,6 +60,13 @@ apps:
       frontend_bot_name: __FRONTEND_BOT_NAME__
       frontend_collect_feedback: __FRONTEND_COLLECT_FEEDBACK__
       frontend_logo_url: __FRONTEND_LOGO_URL__
+
+      task_logging:
+        enabled: true
+        log_status_updates: true
+        log_artifact_events: true
+        log_file_parts: true
+        max_file_part_size_bytes: 10240
       
       # --- Frontend Feature Flags ---
       # Uncomment to control speech features in the UI
@@ -68,7 +75,7 @@ apps:
       #   textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
       #   projects: true
       #   promptLibrary: true
-        background_tasks: true  # Enable background task execution
+        background_tasks: true  # NOTE: task_logging must also be enabled for background tasks to work
 
       # --- Background Tasks Configuration ---
       background_tasks:

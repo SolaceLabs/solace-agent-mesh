@@ -309,7 +309,26 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Data retention is disabled via configuration.", self.log_identifier
             )
 
+        if self.database_url:
+            log.info("%s Running database migrations...", self.log_identifier)
+            self._run_database_migrations()
+            log.info("%s Database migrations completed", self.log_identifier)
+
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
+
+    def _run_database_migrations(self):
+        """Run database migrations synchronously during __init__."""
+        try:
+            from ...gateway.http_sse.main import _setup_database
+            _setup_database(self.database_url)
+        except Exception as e:
+            log.error(
+                "%s Failed to run database migrations: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
+            raise RuntimeError(f"Database migration failed during component initialization: {e}") from e
 
     def process_event(self, event: Event):
         if event.event_type == EventType.TIMER:
@@ -1284,7 +1303,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             self.fastapi_app = fastapi_app_instance
 
-            setup_dependencies(self, self.database_url)
+            setup_dependencies(self)
 
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.

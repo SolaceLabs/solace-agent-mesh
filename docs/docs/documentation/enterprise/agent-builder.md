@@ -23,6 +23,10 @@ When you submit your description, the AI analyzes it and generates suggested val
 
 These AI-generated values serve as suggestions only. You proceed to the configuration form where you can review, modify, or completely rewrite any of these values before saving the agent.
 
+:::note[LLM Cache Configuration]
+If you encounter an error about "minimum token count to start caching" when using AI-assisted creation, set the `LLM_CACHE_STRATEGY` environment variable to `none` in your Platform Service configuration. This disables LLM prompt caching which requires a minimum token threshold that the AI Assistant's prompts may not meet. See [LLM Configuration](../installing-and-configuring/large_language_models.md#prompt-caching) for more details.
+:::
+
 ### Manual Creation
 
 You can skip AI assistance entirely by clicking the secondary button. The system prompts you to manually enter the agent's name and description in a simple dialog. After you provide these details and click continue, you proceed to the agent configuration form where the Agent Details section is pre-filled with your entered name and description. Other sections (instructions, toolsets, and connectors) remain empty for you to configure manually.

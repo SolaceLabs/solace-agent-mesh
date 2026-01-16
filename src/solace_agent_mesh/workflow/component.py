@@ -126,7 +126,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         """
         # Determine message type based on topic
         request_topic = a2a.get_agent_request_topic(self.namespace, self.workflow_name)
-        discovery_topic = a2a.get_discovery_topic(self.namespace)
+        discovery_topic = a2a.get_discovery_subscription_topic(self.namespace)
         response_sub = a2a.get_agent_response_subscription_topic(
             self.namespace, self.workflow_name
         )
@@ -148,7 +148,7 @@ class WorkflowExecutorComponent(SamComponentBase):
             except Exception as e:
                 log.error(f"{self.log_identifier} Error processing request: {e}")
                 message.call_acknowledgements()
-        elif topic == discovery_topic:
+        elif a2a.topic_matches_subscription(topic, discovery_topic):
             handle_agent_card_message(self, message)
         elif a2a.topic_matches_subscription(
             topic, response_sub
@@ -215,7 +215,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         """
         try:
             agent_card = self._create_workflow_agent_card()
-            discovery_topic = a2a.get_discovery_topic(self.namespace)
+            discovery_topic = a2a.get_agent_discovery_topic(self.namespace)
             self.publish_a2a_message(
                 payload=agent_card.model_dump(exclude_none=True), topic=discovery_topic
             )

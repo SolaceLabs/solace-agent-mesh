@@ -21,15 +21,17 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
     // When authorization is enabled, show menu with user info and settings/logout
     const { configUseAuthorization, configFeatureEnablement } = useConfigContext();
     const logoutEnabled = configUseAuthorization && configFeatureEnablement?.logout ? true : false;
+
     const { userInfo, logout } = useAuthContext();
+    const userName = typeof userInfo?.username === "string" ? userInfo.username : "Guest";
 
     const handleSettingsClick = () => {
         setMenuOpen(false);
         setSettingsDialogOpen(true);
     };
-    const handleLogoutClick = () => {
+    const handleLogoutClick = async () => {
         setMenuOpen(false);
-        logout();
+        await logout();
     };
 
     return (
@@ -76,8 +78,10 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                             </Tooltip>
                             <PopoverContent side="right" align="end" className="w-60 p-0">
                                 <div className="flex items-center gap-2 border-b px-3 py-4">
-                                    <User className="size-4" />
-                                    <span className="text-sm font-medium">{typeof userInfo?.username === "string" ? userInfo.username : "Guest"}</span>
+                                    <User className="size-4 shrink-0" />
+                                    <div className="min-w-0 truncate text-sm font-medium" title={userName}>
+                                        {userName}
+                                    </div>
                                 </div>
                                 <Menu
                                     actions={[

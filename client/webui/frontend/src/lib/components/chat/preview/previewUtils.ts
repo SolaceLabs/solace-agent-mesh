@@ -314,7 +314,6 @@ export const getFileContent = (file: FileAttachment | null) => {
     // Check if content is already plain text (from streaming)
     // @ts-expect-error - Custom property added during streaming
     if (file.isPlainText) {
-        console.log("Content is plain text from streaming, returning as-is");
         return file.content;
     }
 

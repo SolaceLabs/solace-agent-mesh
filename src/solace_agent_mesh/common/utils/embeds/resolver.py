@@ -921,6 +921,27 @@ async def evaluate_embed(
             )
             output_format = format_spec
 
+        # Check if this is a deep research report artifact
+        # Deep research reports should be rendered by the frontend component, not resolved inline
+        filename_part = artifact_spec.split(":")[0] if ":" in artifact_spec else artifact_spec
+        is_deep_research_report = filename_part.lower().endswith("_report.md")
+        
+        if is_deep_research_report and resolution_mode == ResolutionMode.A2A_MESSAGE_TO_USER:
+            # Parse version from artifact_spec
+            parts = artifact_spec.strip().split(":", 1)
+            filename = parts[0]
+            version = parts[1] if len(parts) > 1 else "latest"
+            log.info(
+                "%s Detected deep research report artifact '%s'. Signaling for frontend rendering instead of inline resolution.",
+                log_identifier,
+                filename,
+            )
+            return (
+                None,
+                "SIGNAL_DEEP_RESEARCH_REPORT",
+                {"filename": filename, "version": version},
+            )
+
         result = await _evaluate_artifact_content_embed_with_chain(
             artifact_spec_from_directive=artifact_spec,
             modifiers_from_directive=modifiers,

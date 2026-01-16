@@ -193,7 +193,6 @@ async def _inject_project_context(
 
     db = SessionLocal()
     artifact_service = None
-    should_clear_pending_flags = False
 
     try:
         project = project_service.get_project(db, project_id, user_id)
@@ -231,10 +230,6 @@ async def _inject_project_context(
                     db=db,
                     log_prefix=log_prefix,
                 )
-
-                if inject_full_context and artifacts_copied > 0:
-                    # need to clear the pending flags even if injection fails
-                    should_clear_pending_flags = True
 
                 # Get artifact descriptions for context injection
                 if artifacts_copied > 0 or inject_full_context:
@@ -303,22 +298,6 @@ async def _inject_project_context(
         # Continue without injection - don't fail the request
         return message_text
     finally:
-        # Clear the pending project context flags from all artifacts
-        if should_clear_pending_flags and artifact_service:
-            from ..utils.artifact_copy_utils import clear_pending_project_context
-            try:
-                await clear_pending_project_context(
-                    user_id=user_id,
-                    session_id=session_id,
-                    artifact_service=artifact_service,
-                    app_name=project_service.app_name,
-                    db=db,
-                    log_prefix=log_prefix,
-                )
-                log.debug("%sCleared pending project context flags", log_prefix)
-            except Exception as e:
-                log.warning("%sFailed to clear pending project context flags: %s", log_prefix, e)
-
         db.close()
 
 
@@ -538,12 +517,24 @@ async def _submit_task(
             "target_agent_name": agent_name,
         }
 
+        # Extract additional metadata from the message (e.g., background execution settings)
+        # This metadata will be passed through to the A2A message for the task logger
+        additional_metadata = {}
+        if payload.params and payload.params.message and payload.params.message.metadata:
+            msg_metadata = payload.params.message.metadata
+            # Pass through background execution settings
+            if msg_metadata.get("backgroundExecutionEnabled"):
+                additional_metadata["backgroundExecutionEnabled"] = msg_metadata.get("backgroundExecutionEnabled")
+            if msg_metadata.get("maxExecutionTimeMs"):
+                additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
+
         task_id = await component.submit_a2a_task(
             target_agent_name=agent_name,
             a2a_parts=a2a_parts,
             external_request_context=external_req_ctx,
             user_identity=user_identity,
             is_streaming=is_streaming,
+            metadata=additional_metadata if additional_metadata else None,
         )
 
         log.info("%sTask submitted successfully. TaskID: %s", log_prefix, task_id)
