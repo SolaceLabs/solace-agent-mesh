@@ -16,9 +16,10 @@
  */
 
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CreateProjectRequest, Project, UpdateProjectData } from "@/lib/types/projects";
+import type { CreateProjectRequest, Project, UpdateProjectData, ProjectRole } from "@/lib/types/projects";
 import { projectKeys } from "./keys";
 import * as projectService from "./service";
+import * as sharingService from "./sharing";
 
 /**
  * @internal - DO NOT USE: Still under development
@@ -129,6 +130,50 @@ export function useImportProject() {
         mutationFn: ({ file, options }: { file: File; options: { preserveName: boolean; customName?: string } }) => projectService.importProject(file, options),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
+        },
+    });
+}
+
+/** @internal - DO NOT USE: Still under development */
+export function useCollaborators(projectId: string | null) {
+    return useQuery({
+        queryKey: projectId ? projectKeys.collaborators(projectId) : ["projects", "collaborators", "empty"],
+        queryFn: projectId ? () => sharingService.getCollaborators(projectId) : skipToken,
+    });
+}
+
+/** @internal - DO NOT USE: Still under development */
+export function useShareProject() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ projectId, email, role }: { projectId: string; email: string; role: ProjectRole }) => sharingService.shareProject(projectId, email, role),
+        onSuccess: (_, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.collaborators(projectId) });
+        },
+    });
+}
+
+/** @internal - DO NOT USE: Still under development */
+export function useUpdateCollaborator() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ projectId, userId, role }: { projectId: string; userId: string; role: ProjectRole }) => sharingService.updateCollaborator(projectId, userId, role),
+        onSuccess: (_, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.collaborators(projectId) });
+        },
+    });
+}
+
+/** @internal - DO NOT USE: Still under development */
+export function useRemoveCollaborator() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ projectId, userId }: { projectId: string; userId: string }) => sharingService.removeCollaborator(projectId, userId),
+        onSuccess: (_, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.collaborators(projectId) });
         },
     });
 }

@@ -1,17 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
 
 import { Button, Input, Textarea, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
-import type { Project, UpdateProjectData } from "@/lib/types/projects";
+import { useAuthContext } from "@/lib/hooks";
+import type { Project, UpdateProjectData, ProjectRole } from "@/lib/types/projects";
 
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
 import { KnowledgeSection } from "./KnowledgeSection";
 import { ProjectChatsSection } from "./ProjectChatsSection";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
+import { ShareDialog } from "./ShareDialog";
 
 interface ProjectDetailViewProps {
     project: Project;
@@ -21,7 +23,8 @@ interface ProjectDetailViewProps {
 }
 
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
-    const { updateProject, projects, deleteProject } = useProjectContext();
+    const { updateProject, projects, deleteProject, getCollaboratorsWithOwner } = useProjectContext();
+    const { userInfo } = useAuthContext();
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -30,6 +33,38 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     const [nameError, setNameError] = useState<string | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [userRole, setUserRole] = useState<ProjectRole | null>(null);
+    const [, setIsLoadingRole] = useState(true);
+
+    // Fetch user's role for this project
+    useEffect(() => {
+        const fetchUserRole = async () => {
+            try {
+                setIsLoadingRole(true);
+                const response = await getCollaboratorsWithOwner(project.id);
+
+                // Get current user's username from userInfo
+                const currentUserId = (userInfo as { username?: string })?.username;
+
+                // Check if user is the owner
+                if (response.owner.userId === currentUserId) {
+                    setUserRole("owner");
+                } else {
+                    // Check if user is in collaborators list
+                    const collaborator = response.collaborators.find(c => c.userId === currentUserId);
+                    setUserRole(collaborator?.role || null);
+                }
+            } catch (err) {
+                console.error("Failed to fetch user role:", err);
+                // Fallback to existing permission checks if API fails
+                setUserRole(null);
+            } finally {
+                setIsLoadingRole(false);
+            }
+        };
+
+        fetchUserRole();
+    }, [project.id, getCollaboratorsWithOwner, userInfo]);
 
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
         setError(null);
@@ -118,6 +153,14 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
         }
     };
 
+    // Role-based permissions
+    // Owner: full access (edit, delete, share)
+    // Editor: can edit but not share or delete
+    // Viewer: read-only (cannot edit, delete, or share)
+    const userCanEdit = userRole === "owner" || userRole === "editor";
+    const userCanDelete = userRole === "owner";
+    const userCanShare = userRole === "owner";
+
     return (
         <div className="flex h-full flex-col">
             {/* Header with breadcrumbs and actions */}
@@ -125,23 +168,28 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 title={project.name}
                 breadcrumbs={[{ label: "Projects", onClick: onBack }, { label: project.name }]}
                 buttons={[
-                    <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
-                        <Pencil className="h-4 w-4" />
-                        Edit Details
-                    </Button>,
-                    <DropdownMenu key="more">
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={handleDeleteClick}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>,
+                    userCanShare && <ShareDialog key="share" project={project} />,
+                    userCanEdit && (
+                        <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
+                            <Pencil className="h-4 w-4" />
+                            Edit Details
+                        </Button>
+                    ),
+                    userCanDelete && (
+                        <DropdownMenu key="more">
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={handleDeleteClick}>
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ),
                 ]}
             />
 
@@ -160,11 +208,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
 
                 {/* Right Panel - Metadata Sidebar */}
                 <div className="flex min-h-0 w-[40%] flex-col">
-                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
+                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} readOnly={!userCanEdit} />
 
-                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />
+                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} readOnly={!userCanEdit} />
 
-                    <KnowledgeSection project={project} />
+                    <KnowledgeSection project={project} readOnly={!userCanEdit} />
                 </div>
             </div>
 

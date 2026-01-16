@@ -1,5 +1,5 @@
 import { ProjectContext } from "@/lib";
-import type { Project, ProjectContextValue } from "@/lib/types/projects";
+import type { Project, ProjectContextValue, Collaborator, CollaboratorsResponse } from "@/lib/types/projects";
 
 interface MockProjectProviderProps {
     children: React.ReactNode;
@@ -26,6 +26,16 @@ const defaultProjectValues: ProjectContextValue = {
     searchQuery: "",
     setSearchQuery: () => {},
     filteredProjects: [],
+    getCollaborators: async () => [],
+    getCollaboratorsWithOwner: async () =>
+        ({
+            projectId: "",
+            owner: {} as Collaborator,
+            collaborators: [],
+        }) as CollaboratorsResponse,
+    shareProject: async () => ({}) as Collaborator,
+    updateCollaborator: async () => ({}) as Collaborator,
+    removeCollaborator: async () => {},
 };
 
 export const MockProjectProvider: React.FC<MockProjectProviderProps> = ({ children, mockValues = {} }) => {

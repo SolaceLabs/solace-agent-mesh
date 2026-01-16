@@ -3,7 +3,7 @@ Request DTOs for project-related API endpoints.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Literal
 
 
 class CreateProjectRequest(BaseModel):
@@ -46,3 +46,14 @@ class DeleteProjectRequest(BaseModel):
 class ProjectFilter(BaseModel):
     """Filter criteria for retrieving projects."""
     user_id: Optional[str] = None
+
+
+class ShareProjectRequest(BaseModel):
+    """Request to share a project with another user."""
+    user_email: str = Field(..., description="Email of user to share with")
+    role: Literal["editor", "viewer"] = Field(..., description="Role to assign (editor or viewer)")
+
+
+class UpdateCollaboratorRequest(BaseModel):
+    """Request to update a collaborator's role."""
+    role: Literal["editor", "viewer"] = Field(..., description="New role to assign (editor or viewer)")
