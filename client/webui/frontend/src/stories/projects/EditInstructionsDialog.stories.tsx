@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { EditInstructionsDialog } from "@/lib";
 import { populatedProject, emptyProject } from "../data/projects";
 
@@ -82,10 +82,10 @@ export const InstructionCharacterLimitError: Story = {
         const atLimitText = "a".repeat(4000);
         await userEvent.click(textarea);
         await userEvent.paste(atLimitText);
-        await waitFor(() => expect(dialogContent.getByText("4000 / 4000")).toBeInTheDocument());
+        expect(await dialogContent.findByText("4000 / 4000")).toBeInTheDocument();
 
         await userEvent.type(textarea, "b");
-        await waitFor(() => expect(dialogContent.getByText("Instructions must be less than 4000 characters")).toBeInTheDocument());
+        expect(await dialogContent.findByText("Instructions must be less than 4000 characters")).toBeInTheDocument();
 
         expect(await dialogContent.findByRole("button", { name: "Save" })).toBeDisabled();
     },

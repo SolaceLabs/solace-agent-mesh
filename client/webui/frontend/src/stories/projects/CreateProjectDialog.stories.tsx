@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { CreateProjectDialog } from "@/lib";
 
 const meta = {
@@ -80,7 +80,7 @@ export const DescriptionCharacterLimit: Story = {
 
         await userEvent.click(descriptionInput);
         await userEvent.paste(maxText);
-        await waitFor(() => dialogContent.findByText("1000/1000"));
+        expect(await dialogContent.findByText("1000/1000")).toBeInTheDocument();
 
         await userEvent.type(descriptionInput, "extra text (you shouldn't see this)");
         expect(await dialogContent.findByText("1000/1000")).toBeInTheDocument();
