@@ -1,6 +1,6 @@
 import React from "react";
 import { GitBranch } from "lucide-react";
-import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
 
 /**
  * Switch node - Shows conditional branching with case rows inside
@@ -14,8 +14,8 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCl
 
     return (
         <div
-            className={`group relative cursor-pointer rounded-lg border-2 border-purple-500 bg-white shadow-sm transition-all duration-200 hover:shadow-md dark:border-purple-400 dark:bg-gray-800 ${
-                isSelected ? NODE_SELECTED_CLASSES.PURPLE : ""
+            className={`${NODE_BASE_STYLES.SWITCH} ${
+                isSelected ? NODE_SELECTED_CLASS : ""
             } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
             style={{
                 width: `${node.width}px`,

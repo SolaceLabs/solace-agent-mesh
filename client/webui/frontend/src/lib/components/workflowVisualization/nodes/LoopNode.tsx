@@ -1,6 +1,6 @@
 import React from "react";
 import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
-import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
 
 interface LoopNodeProps extends NodeProps {
     renderChildren?: (children: NodeProps["node"]["children"]) => React.ReactNode;
@@ -39,8 +39,8 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
     if (isCollapsed || !hasChildren) {
         return (
             <div
-                className={`group relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-teal-500 bg-white px-3 py-2 shadow-sm transition-all duration-200 hover:shadow-md dark:border-teal-400 dark:bg-gray-800 ${
-                    isSelected ? NODE_SELECTED_CLASSES.TEAL : ""
+                className={`${NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${
+                    isSelected ? NODE_SELECTED_CLASS : ""
                 } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 style={{
                     width: `${node.width}px`,
@@ -100,8 +100,8 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
 
             {/* Solid Header Box - straddles the dotted container border */}
             <div
-                className={`group relative mx-auto w-fit cursor-pointer rounded-lg border-2 border-teal-500 bg-white shadow-sm transition-all duration-200 hover:shadow-md dark:border-teal-400 dark:bg-gray-800 ${
-                    isSelected ? NODE_SELECTED_CLASSES.TEAL : ""
+                className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${
+                    isSelected ? NODE_SELECTED_CLASS : ""
                 } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 onClick={e => {
                     e.stopPropagation();

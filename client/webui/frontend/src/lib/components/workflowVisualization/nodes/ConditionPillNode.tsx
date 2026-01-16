@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_BASE_STYLES, NODE_SELECTED_CLASS_COMPACT, type NodeProps } from "../utils/types";
 import { getValidNodeReferences } from "../utils/expressionParser";
 
 /**
@@ -32,11 +32,11 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
 
     return (
         <div
-            className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium shadow-sm transition-all duration-200 ${
+            className={`${NODE_BASE_STYLES.CONDITION_PILL} ${
                 isDefault
-                    ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500 dark:bg-amber-900/30 dark:text-amber-300"
-                    : "border-purple-400 bg-purple-50 text-purple-700 dark:border-purple-500 dark:bg-purple-900/30 dark:text-purple-300"
-            } ${isSelected ? NODE_SELECTED_CLASSES.BLUE_COMPACT : ""}`}
+                    ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                    : "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+            } ${isSelected ? NODE_SELECTED_CLASS_COMPACT : ""}`}
             style={{
                 width: `${node.width}px`,
                 height: `${node.height}px`,

@@ -1,6 +1,6 @@
 import React from "react";
 import { Repeat2, Maximize2, Minimize2 } from "lucide-react";
-import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
 
 interface MapNodeProps extends NodeProps {
     renderChildren?: (children: NodeProps["node"]["children"]) => React.ReactNode;
@@ -30,8 +30,8 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
     if (isCollapsed || !hasChildren) {
         return (
             <div
-                className={`group relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-indigo-500 bg-white px-3 py-2 shadow-sm transition-all duration-200 hover:shadow-md dark:border-indigo-400 dark:bg-gray-800 ${
-                    isSelected ? NODE_SELECTED_CLASSES.INDIGO : ""
+                className={`${NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${
+                    isSelected ? NODE_SELECTED_CLASS : ""
                 } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 style={{
                     width: `${node.width}px`,
@@ -90,8 +90,8 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
 
             {/* Solid Header Box - straddles the dotted container border */}
             <div
-                className={`group relative mx-auto flex w-fit cursor-pointer items-center justify-between gap-4 rounded-lg border-2 border-indigo-500 bg-white px-3 py-2 shadow-sm transition-all duration-200 hover:shadow-md dark:border-indigo-400 dark:bg-gray-800 ${
-                    isSelected ? NODE_SELECTED_CLASSES.INDIGO : ""
+                className={`${NODE_BASE_STYLES.CONTAINER_HEADER} flex items-center justify-between gap-4 px-3 py-2 ${
+                    isSelected ? NODE_SELECTED_CLASS : ""
                 } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 onClick={e => {
                     e.stopPropagation();

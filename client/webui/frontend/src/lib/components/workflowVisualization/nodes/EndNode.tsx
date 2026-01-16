@@ -1,6 +1,6 @@
 import React from "react";
 import { CheckCircle } from "lucide-react";
-import { NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_BASE_STYLES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
 
 /**
  * End node - Pill-shaped node marking the end of the workflow
@@ -8,8 +8,8 @@ import { NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 const EndNode: React.FC<NodeProps> = ({ node, isSelected, onClick }) => {
     return (
         <div
-            className={`flex cursor-pointer items-center justify-center gap-2 rounded-full border-2 border-indigo-500 bg-indigo-50 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:border-indigo-400 dark:bg-indigo-900/50 ${
-                isSelected ? NODE_SELECTED_CLASSES.BLUE : ""
+            className={`${NODE_BASE_STYLES.PILL} ${
+                isSelected ? NODE_SELECTED_CLASS : ""
             }`}
             style={{
                 width: `${node.width}px`,

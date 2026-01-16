@@ -1,7 +1,7 @@
 import React from "react";
 import { Workflow, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
 import { buildWorkflowNavigationUrl } from "../WorkflowVisualizationPage";
 
 /**
@@ -38,8 +38,8 @@ const WorkflowRefNode: React.FC<NodeProps> = ({
 
     return (
         <div
-            className={`group relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-purple-600 bg-white px-4 py-3 shadow-sm transition-all duration-200 ease-in-out hover:shadow-md dark:border-purple-500 dark:bg-gray-800 ${
-                isSelected ? NODE_SELECTED_CLASSES.PURPLE : ""
+            className={`${NODE_BASE_STYLES.RECTANGULAR} ${
+                isSelected ? NODE_SELECTED_CLASS : ""
             } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
             style={{
                 width: `${node.width}px`,

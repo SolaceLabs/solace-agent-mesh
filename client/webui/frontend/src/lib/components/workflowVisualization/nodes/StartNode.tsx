@@ -1,6 +1,6 @@
 import React from "react";
 import { Play } from "lucide-react";
-import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
 
 /**
  * Start node - Pill-shaped node marking the beginning of the workflow
@@ -9,8 +9,8 @@ import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from ".
 const StartNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) => {
     return (
         <div
-            className={`flex cursor-pointer items-center justify-center gap-2 rounded-full border-2 border-indigo-500 bg-indigo-50 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:border-indigo-400 dark:bg-indigo-900/50 ${
-                isSelected ? NODE_SELECTED_CLASSES.BLUE : ""
+            className={`${NODE_BASE_STYLES.PILL} ${
+                isSelected ? NODE_SELECTED_CLASS : ""
             } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
             style={{
                 width: `${node.width}px`,

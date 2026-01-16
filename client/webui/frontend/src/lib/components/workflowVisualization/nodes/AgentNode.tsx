@@ -1,6 +1,6 @@
 import React from "react";
 import { Bot } from "lucide-react";
-import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
 
 /**
  * Agent node - Rectangle with robot icon, agent name, and "Agent" badge
@@ -11,8 +11,8 @@ const AgentNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCli
 
     return (
         <div
-            className={`group relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-blue-600 bg-white px-4 py-3 shadow-sm transition-all duration-200 ease-in-out hover:shadow-md dark:border-blue-500 dark:bg-gray-800 ${
-                isSelected ? NODE_SELECTED_CLASSES.BLUE : ""
+            className={`${NODE_BASE_STYLES.RECTANGULAR} ${
+                isSelected ? NODE_SELECTED_CLASS : ""
             } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
             style={{
                 width: `${node.width}px`,
