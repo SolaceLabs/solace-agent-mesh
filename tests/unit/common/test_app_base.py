@@ -349,3 +349,168 @@ class TestSamAppBaseDatabaseHealthChecks:
 
         result = app.is_ready()
         assert result is False
+
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_is_database_connected_timeout_returns_false(self, mock_app_init):
+        """When database connection times out, returns False."""
+        import time
+
+        mock_app_init.return_value = None
+
+        from solace_agent_mesh.common.app_base import SamAppBase
+
+        app = object.__new__(SamAppBase)
+
+        # Mock an engine that takes longer than the timeout to connect
+        def slow_connect(*args, **kwargs):
+            time.sleep(2)  # Sleep longer than our short timeout
+            return MagicMock()
+
+        mock_engine = MagicMock()
+        mock_engine.connect.side_effect = slow_connect
+
+        mock_component = MagicMock()
+        mock_component.get_db_engine.return_value = mock_engine
+
+        mock_wrapper = MagicMock()
+        mock_wrapper.component = mock_component
+
+        mock_flow = MagicMock()
+        mock_flow.component_groups = [[mock_wrapper]]
+        app.flows = [mock_flow]
+
+        # Use a very short timeout (0.1 seconds)
+        result = app._is_database_connected(timeout=0.1)
+        assert result is False
+
+
+class TestSamAppBaseDatabaseTimeoutConfig:
+    """Tests for configurable database health check timeout."""
+
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_get_db_health_check_timeout_default(self, mock_app_init):
+        """When no config, returns default timeout."""
+        mock_app_init.return_value = None
+
+        from solace_agent_mesh.common.app_base import (
+            DB_HEALTH_CHECK_TIMEOUT_SECONDS,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {}
+
+        result = app._get_db_health_check_timeout()
+        assert result == DB_HEALTH_CHECK_TIMEOUT_SECONDS
+
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_get_db_health_check_timeout_custom_value(self, mock_app_init):
+        """When config specifies timeout, returns that value."""
+        mock_app_init.return_value = None
+
+        from solace_agent_mesh.common.app_base import SamAppBase
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {"health_check": {"database_timeout_seconds": 10.0}}
+
+        result = app._get_db_health_check_timeout()
+        assert result == 10.0
+
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_get_db_health_check_timeout_string_value(self, mock_app_init):
+        """When config specifies timeout as string, converts to float."""
+        mock_app_init.return_value = None
+
+        from solace_agent_mesh.common.app_base import SamAppBase
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {"health_check": {"database_timeout_seconds": "3.5"}}
+
+        result = app._get_db_health_check_timeout()
+        assert result == 3.5
+
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_get_db_health_check_timeout_invalid_string(self, mock_app_init):
+        """When config has invalid string, returns default."""
+        mock_app_init.return_value = None
+
+        from solace_agent_mesh.common.app_base import (
+            DB_HEALTH_CHECK_TIMEOUT_SECONDS,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {"health_check": {"database_timeout_seconds": "invalid"}}
+
+        result = app._get_db_health_check_timeout()
+        assert result == DB_HEALTH_CHECK_TIMEOUT_SECONDS
+
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_get_db_health_check_timeout_negative_value(self, mock_app_init):
+        """When config has negative value, returns default."""
+        mock_app_init.return_value = None
+
+        from solace_agent_mesh.common.app_base import (
+            DB_HEALTH_CHECK_TIMEOUT_SECONDS,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {"health_check": {"database_timeout_seconds": -5}}
+
+        result = app._get_db_health_check_timeout()
+        assert result == DB_HEALTH_CHECK_TIMEOUT_SECONDS
+
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_get_db_health_check_timeout_zero_value(self, mock_app_init):
+        """When config has zero value, returns default."""
+        mock_app_init.return_value = None
+
+        from solace_agent_mesh.common.app_base import (
+            DB_HEALTH_CHECK_TIMEOUT_SECONDS,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {"health_check": {"database_timeout_seconds": 0}}
+
+        result = app._get_db_health_check_timeout()
+        assert result == DB_HEALTH_CHECK_TIMEOUT_SECONDS
+
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_is_ready_uses_configured_timeout(self, mock_app_init):
+        """is_ready uses timeout from configuration."""
+        import time
+
+        mock_app_init.return_value = None
+
+        from solace_agent_mesh.common.app_base import SamAppBase
+
+        app = object.__new__(SamAppBase)
+        # Configure a very short timeout (0.1 seconds)
+        app.app_info = {
+            "broker": {"dev_mode": True},
+            "health_check": {"database_timeout_seconds": 0.1},
+        }
+
+        # Mock an engine that takes longer than the configured timeout
+        def slow_connect(*args, **kwargs):
+            time.sleep(2)
+            return MagicMock()
+
+        mock_engine = MagicMock()
+        mock_engine.connect.side_effect = slow_connect
+
+        mock_component = MagicMock()
+        mock_component.get_db_engine.return_value = mock_engine
+
+        mock_wrapper = MagicMock()
+        mock_wrapper.component = mock_component
+
+        mock_flow = MagicMock()
+        mock_flow.component_groups = [[mock_wrapper]]
+        app.flows = [mock_flow]
+
+        # Should fail due to configured timeout
+        result = app.is_ready()
+        assert result is False
