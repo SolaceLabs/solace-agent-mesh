@@ -593,6 +593,20 @@ def get_audio_service(
     return AudioService(config=app_config)
 
 
+def get_title_generation_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> "TitleGenerationService":
+    """FastAPI dependency to get an instance of TitleGenerationService."""
+    from .services.title_generation_service import TitleGenerationService
+    
+    log.debug("get_title_generation_service called")
+    
+    # Get model configuration from component (same pattern as prompt_builder_assistant)
+    model_config = component.get_config("model", {})
+    
+    return TitleGenerationService(model_config=model_config)
+
+
 
 def get_user_display_name(
     request: Request,

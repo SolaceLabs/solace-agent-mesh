@@ -1,10 +1,12 @@
+import asyncio
+import json
 import logging
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from ..dependencies import get_session_business_service, get_db
+from ..dependencies import get_session_business_service, get_db, get_title_generation_service
 from ..services.session_service import SessionService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from solace_agent_mesh.shared.api.pagination import DataResponse, PaginatedResponse, PaginationParams
@@ -18,6 +20,9 @@ from .dto.requests.session_requests import (
 from .dto.requests.task_requests import SaveTaskRequest
 from .dto.responses.session_responses import SessionResponse
 from .dto.responses.task_responses import TaskResponse, TaskListResponse
+
+if TYPE_CHECKING:
+    from ..services.title_generation_service import TitleGenerationService
 
 log = logging.getLogger(__name__)
 
@@ -630,5 +635,101 @@ async def move_session_to_project(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to move session",
         ) from e
+
+
+@router.post("/sessions/{session_id}/generate-title", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_title_generation(
+    session_id: str,
+    request_body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+    title_service: "TitleGenerationService" = Depends(get_title_generation_service),
+):
+    """
+    Trigger asynchronous title generation for a chat session.
+    Accepts the user message and agent response directly to avoid database timing issues.
+    Returns immediately (202 Accepted) while title is generated in background.
+    
+    If the session already has a meaningful title (not "New Chat"), the request is
+    silently accepted but no generation occurs. This handles browser refresh scenarios
+    where the frontend's in-memory tracking is lost.
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} triggering async title generation for session {session_id}")
+    
+    try:
+        # Extract messages from request body
+        user_message = request_body.get("userMessage", "")
+        agent_response = request_body.get("agentResponse", "")
+        force_regenerate = request_body.get("force", False)
+        
+        log.info(f"Received messages - User: {len(user_message)} chars, Agent: {len(agent_response)} chars, Force: {force_regenerate}")
+
+        # Validate session exists and belongs to user
+        session_domain = session_service.get_session_details(
+            db=db, session_id=session_id, user_id=user_id
+        )
+
+        if not session_domain:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+            )
+        
+        # Check if session already has a meaningful title (not "New Chat")
+        # This handles browser refresh scenarios where frontend tracking is lost
+        current_title = session_domain.name
+        if not force_regenerate and current_title and current_title.strip() and current_title.strip() != "New Chat":
+            log.debug(f"Session {session_id} already has title, skipping generation")
+            return {"message": "Title already exists", "skipped": True}
+        
+        # Validate we have both messages
+        if not user_message or not agent_response:
+            log.warning(f"Missing messages for title generation - User: {bool(user_message)}, Agent: {bool(agent_response)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Both user message and agent response are required for title generation",
+            )
+
+        # Create callback to update session name when title is generated
+        async def update_session_callback(generated_title: str):
+            """Callback to update session name after title generation."""
+            try:
+                session_service.update_session_name(
+                    db=db,
+                    session_id=session_id,
+                    user_id=user_id,
+                    name=generated_title,
+                )
+                log.info(f"Session name updated to '{generated_title}' for session {session_id}")
+            except Exception as e:
+                log.error(f"Failed to update session name in callback: {e}")
+
+        # Create background task using asyncio to ensure it runs
+        loop = asyncio.get_event_loop()
+        
+        # Schedule the task in the event loop with callback
+        loop.create_task(
+            title_service._generate_and_update_title(
+                session_id=session_id,
+                user_message=user_message,
+                agent_response=agent_response,
+                update_callback=update_session_callback,
+            )
+        )
+
+        log.info(f"Async title generation task scheduled for session {session_id}")
+
+        return {"message": "Title generation started"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error triggering title generation for session {session_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to trigger title generation",
+        ) from e
+
 
 
