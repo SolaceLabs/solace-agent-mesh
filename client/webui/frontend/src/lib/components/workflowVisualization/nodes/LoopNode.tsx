@@ -112,7 +112,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                 }}
             >
                 {/* Header row */}
-                <div className="flex items-center justify-between gap-4 px-3 py-2">
+                <div className="flex items-center justify-between gap-4 px-4 py-3">
                     <div className="flex items-center gap-2">
                         <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
                         <span className="text-sm font-semibold text-teal-900 dark:text-teal-100">Loop</span>

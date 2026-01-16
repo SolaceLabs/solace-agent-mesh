@@ -32,13 +32,9 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
 
     return (
         <div
-            className={`${NODE_BASE_STYLES.CONDITION_PILL} ${
-                isDefault
-                    ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                    : "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-            } ${isSelected ? NODE_SELECTED_CLASS_COMPACT : ""}`}
+            className={`${NODE_BASE_STYLES.CONDITION_PILL} border border-[var(--color-secondary-w20)] bg-[var(--color-background-w10)] text-[var(--color-secondary-text-wMain)] ${isSelected ? NODE_SELECTED_CLASS_COMPACT : ""}`}
             style={{
-                width: `${node.width}px`,
+                width: isDefault ? 'auto' : `${node.width}px`,
                 height: `${node.height}px`,
             }}
             onClick={e => {
@@ -50,7 +46,10 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
             title={fullText}
         >
             {!isDefault && caseNumber && (
-                <span className="flex-shrink-0 font-semibold">{caseNumber}</span>
+                <>
+                    <span className="flex-shrink-0 font-medium">{caseNumber}</span>
+                    <div className="h-4 w-px bg-[var(--color-secondary-w20)]" />
+                </>
             )}
             <span className="block flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                 {displayText}

@@ -93,7 +93,7 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
 
             {/* Solid Header Box - straddles the dotted container border */}
             <div
-                className={`${NODE_BASE_STYLES.CONTAINER_HEADER} flex items-center justify-between gap-4 px-3 py-2 ${
+                className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${
                     isSelected ? NODE_SELECTED_CLASS : ""
                 } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 onClick={e => {
@@ -101,20 +101,22 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
                     onClick?.(node);
                 }}
             >
-                <div className="flex items-center gap-2">
-                    <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                    <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">Map</span>
-                </div>
+                <div className="flex items-center justify-between gap-4 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                        <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                        <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">Map</span>
+                    </div>
 
-                <Button
-                    onClick={handleToggle}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    tooltip="Collapse"
-                >
-                    <Minimize2 className="h-4 w-4" />
-                </Button>
+                    <Button
+                        onClick={handleToggle}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        tooltip="Collapse"
+                    >
+                        <Minimize2 className="h-4 w-4" />
+                    </Button>
+                </div>
             </div>
         </div>
     );
