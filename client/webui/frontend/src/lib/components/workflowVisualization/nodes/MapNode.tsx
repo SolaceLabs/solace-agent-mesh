@@ -1,7 +1,9 @@
 import React from "react";
 import { Repeat2, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
-import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
+import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, LAYOUT_CONSTANTS, type NodeProps } from "../utils/types";
+
+const { NODE_HEIGHTS } = LAYOUT_CONSTANTS;
 
 interface MapNodeProps extends NodeProps {
     renderChildren?: (children: NodeProps["node"]["children"]) => React.ReactNode;
@@ -63,12 +65,6 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
         );
     }
 
-    // Calculate header height for straddling effect
-    // Header row: py-2 (16px) + icon line (~20px) ≈ 36px
-    // Dotted border starts closer to top for better visual balance
-    const headerHeightPx = 36;
-    const headerTopOffsetPx = headerHeightPx / 3;
-
     // When expanded with children, render with straddling header and dotted container
     return (
         <div
@@ -81,7 +77,7 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
             {/* Dotted Children Container */}
             <div
                 className="absolute inset-0 rounded border-2 border-dashed border-[var(--color-secondary-w40)] bg-[var(--color-secondary-w10)]"
-                style={{ top: `${headerTopOffsetPx}px` }}
+                style={{ top: `${NODE_HEIGHTS.CONTAINER_HEADER / 2}px` }}
             >
                 {/* Top padding clears the header portion below the dotted border plus gap */}
                 <div className="pt-12 pb-4 px-3">
@@ -101,7 +97,7 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
                     onClick?.(node);
                 }}
             >
-                <div className="flex items-center justify-between gap-4 px-4 py-3">
+                <div className="flex items-center justify-between gap-4 px-4 py-2">
                     <div className="flex items-center gap-2">
                         <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                         <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">Map</span>

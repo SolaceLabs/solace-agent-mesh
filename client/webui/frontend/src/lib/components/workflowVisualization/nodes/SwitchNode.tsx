@@ -38,7 +38,7 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCl
 
             {/* Case rows */}
             {totalCases > 0 && (
-                <div className="px-4 py-3">
+                <div className="px-4 pb-3 pt-0">
                     <div className="flex flex-col gap-1.5">
                         {cases.map((caseItem: { condition?: string }, index: number) => (
                             <div key={index} className="flex items-center gap-2">

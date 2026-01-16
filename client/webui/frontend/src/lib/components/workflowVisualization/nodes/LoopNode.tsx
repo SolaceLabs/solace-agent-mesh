@@ -1,7 +1,9 @@
 import React from "react";
 import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
-import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
+import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, LAYOUT_CONSTANTS, type NodeProps } from "../utils/types";
+
+const { NODE_HEIGHTS } = LAYOUT_CONSTANTS;
 
 interface LoopNodeProps extends NodeProps {
     renderChildren?: (children: NodeProps["node"]["children"]) => React.ReactNode;
@@ -26,15 +28,6 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
             onCollapse?.(node.id);
         }
     };
-
-    // Format condition for display (truncate if too long)
-    const formatCondition = (condition?: string) => {
-        if (!condition) return null;
-        const maxLen = 30;
-        return condition.length > maxLen ? `${condition.slice(0, maxLen)}...` : condition;
-    };
-
-    const hasConditionRow = node.data.condition || node.data.maxIterations;
 
     // When collapsed or no children, render as a simple node (like AgentNode)
     if (isCollapsed || !hasChildren) {
@@ -72,12 +65,10 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
         );
     }
 
-    // Calculate header height for straddling effect
-    // Header row: py-2 (16px) + icon line (~20px) ≈ 36px
-    // Condition row adds: border + py-1.5 (12px) + text (~16px) ≈ 28px
-    // Dotted border starts closer to top for better visual balance
-    const headerHeightPx = hasConditionRow ? 64 : 36;
-    const headerTopOffsetPx = headerHeightPx / 3;
+    // Calculate header section height for positioning dotted container
+    // Header row is CONTAINER_HEADER (44px), plus condition section if present (44px)
+    const hasCondition = !!node.data.condition;
+    const totalHeaderHeightPx = NODE_HEIGHTS.CONTAINER_HEADER + (hasCondition ? NODE_HEIGHTS.LOOP_CONDITION_ROW : 0);
 
     // When expanded with children, render with straddling header and dotted container
     return (
@@ -91,10 +82,10 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
             {/* Dotted Children Container */}
             <div
                 className="absolute inset-0 rounded border-2 border-dashed border-[var(--color-secondary-w40)] bg-[var(--color-secondary-w10)]"
-                style={{ top: `${headerTopOffsetPx}px` }}
+                style={{ top: `${totalHeaderHeightPx / 2}px` }}
             >
                 {/* Top padding clears the header portion below the dotted border plus gap */}
-                <div className={`pb-4 px-3 ${hasConditionRow ? 'pt-16' : 'pt-12'}`}>
+                <div className={`pb-4 px-3 ${node.data.condition ? 'pt-16' : 'pt-12'}`}>
                     <div className="flex flex-col items-center gap-2">
                         {renderChildren ? renderChildren(node.children) : null}
                     </div>
@@ -112,34 +103,37 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                 }}
             >
                 {/* Header row */}
-                <div className="flex items-center justify-between gap-4 px-4 py-3">
+                <div className="flex items-center justify-between gap-4 px-4 py-2">
                     <div className="flex items-center gap-2">
                         <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
                         <span className="text-sm font-semibold text-teal-900 dark:text-teal-100">Loop</span>
                     </div>
 
-                    <Button
-                        onClick={handleToggle}
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        tooltip="Collapse"
-                    >
-                        <Minimize2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        {node.data.maxIterations && (
+                            <span className="text-sm text-gray-500 dark:text-gray-400">max: {node.data.maxIterations}</span>
+                        )}
+                        <Button
+                            onClick={handleToggle}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            tooltip="Collapse"
+                        >
+                            <Minimize2 className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Condition display */}
-                {hasConditionRow && (
-                    <div className="border-t border-teal-200 px-3 py-1.5 dark:border-teal-700/50">
-                        <div className="flex flex-wrap gap-2 text-xs text-teal-600 dark:text-teal-400">
-                            {node.data.condition && (
-                                <span className="truncate" title={node.data.condition}>
-                                    while: {formatCondition(node.data.condition)}
-                                </span>
-                            )}
-                            {node.data.maxIterations && <span>max: {node.data.maxIterations}</span>}
-                        </div>
+                {node.data.condition && (
+                    <div className="px-4 pb-3 pt-0">
+                        <span
+                            className="block truncate rounded bg-gray-100 px-2 py-1 text-sm text-[var(--color-secondary-text-wMain)] dark:bg-gray-700"
+                            title={node.data.condition}
+                        >
+                            {node.data.condition}
+                        </span>
                     </div>
                 )}
             </div>

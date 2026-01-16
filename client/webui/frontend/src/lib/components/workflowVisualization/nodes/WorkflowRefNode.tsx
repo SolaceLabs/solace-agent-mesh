@@ -51,18 +51,9 @@ const WorkflowRefNode: React.FC<NodeProps> = ({
                 <Workflow className="h-5 w-5 flex-shrink-0 text-purple-600 dark:text-purple-400" />
                 <span className="truncate text-sm font-semibold text-gray-800 dark:text-gray-200">{workflowName}</span>
             </div>
-            <div className="ml-2 flex flex-shrink-0 items-center gap-1">
-                <span className="rounded px-2 py-0.5 text-sm font-medium text-[var(--color-secondary-text-wMain)]">
-                    Workflow
-                </span>
-                <button
-                    onClick={handleNavigate}
-                    className="rounded p-1 text-purple-500 opacity-0 transition-opacity hover:bg-purple-100 group-hover:opacity-100 dark:text-purple-400 dark:hover:bg-purple-900/50"
-                    title="Open workflow"
-                >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                </button>
-            </div>
+            <span className="ml-2 flex-shrink-0 rounded px-2 py-0.5 text-sm font-medium text-[var(--color-secondary-text-wMain)]">
+                Workflow
+            </span>
         </div>
     );
 };
