@@ -280,8 +280,8 @@ def create_oauth_middleware(component):
 
                     request.state.user = {
                         "id": user_identifier,
-                        "email": claims.get("email"),
-                        "name": claims.get("name"),
+                        "email": claims.get("email", user_identifier),
+                        "name": claims.get("name", user_identifier),
                         "authenticated": True,
                         "auth_method": "sam_access_token",
                         "roles": roles,
