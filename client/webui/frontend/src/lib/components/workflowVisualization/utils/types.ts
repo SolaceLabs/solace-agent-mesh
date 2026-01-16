@@ -109,7 +109,7 @@ export interface NodeProps {
  * Used by all node components to ensure consistent highlight styling
  */
 export const NODE_HIGHLIGHT_CLASSES =
-    "ring-2 ring-amber-400 ring-offset-2 shadow-lg shadow-amber-200/50 dark:ring-amber-500 dark:ring-offset-gray-900 dark:shadow-amber-500/30";
+    "ring-1 ring-amber-400 ring-offset-2 shadow-lg shadow-amber-200/50 dark:ring-amber-500 dark:ring-offset-gray-900 dark:shadow-amber-500/30";
 
 /**
  * Common base styles for different node types
@@ -145,10 +145,10 @@ export const NODE_ID_BADGE_CLASSES =
  * Uses n2-wMain theme color for consistent selection ring across all node types
  */
 /** Standard selection ring for most nodes */
-export const NODE_SELECTED_CLASS = "ring-2 ring-[var(--color-accent-n2-wMain)] ring-offset-2 dark:ring-offset-gray-900";
+export const NODE_SELECTED_CLASS = "ring-1 ring-[var(--color-accent-n2-wMain)] ring-offset-2 dark:ring-offset-gray-900";
 
 /** Selection ring with smaller offset for compact nodes (condition pills) */
-export const NODE_SELECTED_CLASS_COMPACT = "ring-2 ring-[var(--color-accent-n2-wMain)] ring-offset-1 dark:ring-offset-gray-900";
+export const NODE_SELECTED_CLASS_COMPACT = "ring-1 ring-[var(--color-accent-n2-wMain)] ring-offset-1 dark:ring-offset-gray-900";
 
 /**
  * Layout constants for consistent sizing

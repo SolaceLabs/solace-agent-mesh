@@ -80,7 +80,7 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
         >
             {/* Dotted Children Container */}
             <div
-                className="absolute inset-0 rounded-lg border-2 border-dashed border-[var(--color-secondary-w40)] bg-[var(--color-secondary-w10)]"
+                className="absolute inset-0 rounded border-2 border-dashed border-[var(--color-secondary-w40)] bg-[var(--color-secondary-w10)]"
                 style={{ top: `${headerTopOffsetPx}px` }}
             >
                 {/* Top padding clears the header portion below the dotted border plus gap */}
