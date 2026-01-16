@@ -178,6 +178,9 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
     const effectiveMimeType = contentSource?.mime_type || artifact.mime_type;
     const rendererType = getRenderType(artifact.filename, effectiveMimeType);
     const content = getFileContent(contentSource);
+    // For URL-based renderers (like PDF), prefer contentSource URL, fall back to previewFileContent URL
+    // This ensures binary files can be fetched even when using cached content
+    const effectiveUrl = contentSource?.url || previewFileContent?.url;
 
     if (!rendererType || !content) {
         return <EmptyState>No preview available</EmptyState>;
@@ -185,7 +188,7 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
 
     return (
         <div className="relative h-full w-full">
-            <ContentRenderer content={content} rendererType={rendererType} mime_type={contentSource?.mime_type} setRenderError={setError} ragData={artifactRagData} />
+            <ContentRenderer content={content} rendererType={rendererType} mime_type={contentSource?.mime_type} url={effectiveUrl} filename={artifact.filename} setRenderError={setError} ragData={artifactRagData} />
             <ArtifactTransitionOverlay isVisible={isDownloading} message="Resolving embeds..." />
         </div>
     );

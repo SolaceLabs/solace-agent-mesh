@@ -93,6 +93,7 @@ export interface FileAttachment {
     last_modified?: string; // ISO 8601 timestamp
     size?: number;
     uri?: string;
+    url?: string; // URL for direct file access (e.g., for PDF preview)
 }
 
 /**
