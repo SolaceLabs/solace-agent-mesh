@@ -46,6 +46,7 @@ from solace_ai_connector.common.log import log
 from datetime import datetime, timezone
 
 from ....common import a2a
+from ....common.auth_headers import build_full_auth_headers
 from ....common.oauth import OAuth2Client, validate_https_url
 from ....common.data_parts import AgentProgressUpdateData
 from ....agent.utils.artifact_helpers import format_artifact_uri
@@ -132,6 +133,9 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         Builds HTTP headers for requests, applying authentication and custom headers.
 
+        Delegates to the common header-building utility and provides the OAuth2
+        token fetcher for dynamic token acquisition.
+
         Args:
             agent_name: The name of the agent.
             agent_config: The agent configuration dictionary.
@@ -143,51 +147,14 @@ class A2AProxyComponent(BaseProxyComponent):
             Note: For task invocations, the A2A SDK's AuthInterceptor may further
             modify authentication headers after these are set.
         """
-        headers: Dict[str, str] = {}
-
-        # Step 1: Add authentication headers if requested
-        if use_auth:
-            auth_config = agent_config.get("authentication")
-            if auth_config:
-                auth_type = auth_config.get("type")
-
-                # Determine auth type (with backward compatibility)
-                if not auth_type:
-                    scheme = auth_config.get("scheme", "bearer")
-                    auth_type = "static_bearer" if scheme == "bearer" else "static_apikey"
-
-                # Apply authentication based on type
-                if auth_type == "static_bearer":
-                    token = auth_config.get("token")
-                    if token:
-                        headers["Authorization"] = f"Bearer {token}"
-                elif auth_type == "static_apikey":
-                    token = auth_config.get("token")
-                    if token:
-                        headers["X-API-Key"] = token
-                elif auth_type == "oauth2_client_credentials":
-                    # Fetch OAuth token
-                    try:
-                        access_token = await self._fetch_oauth2_token(agent_name, auth_config)
-                        headers["Authorization"] = f"Bearer {access_token}"
-                    except Exception as e:
-                        log.error(
-                            "%s Failed to obtain OAuth 2.0 token for headers: %s",
-                            self.log_identifier,
-                            e,
-                        )
-                        # Continue without auth header - let the request fail downstream
-
-        # Step 2: Add custom headers (these override auth headers)
-        custom_headers_list = agent_config.get(custom_headers_key)
-        if custom_headers_list:
-            for header_config in custom_headers_list:
-                header_name = header_config.get("name")
-                header_value = header_config.get("value")
-                if header_name and header_value:
-                    headers[header_name] = header_value
-
-        return headers
+        return await build_full_auth_headers(
+            agent_name=agent_name,
+            agent_config=agent_config,
+            custom_headers_key=custom_headers_key,
+            use_auth=use_auth,
+            log_identifier=self.log_identifier,
+            oauth_token_fetcher=self._fetch_oauth2_token,
+        )
 
     async def _fetch_agent_card(
         self, agent_config: Dict[str, Any]
@@ -230,7 +197,7 @@ class A2AProxyComponent(BaseProxyComponent):
 
             log.info("%s Fetching agent card from %s", log_identifier, agent_url)
             async with httpx.AsyncClient(headers=headers) as client:
-                resolver = A2ACardResolver(httpx_client=client, base_url=agent_url)
+                resolver = A2ACardResolver(httpx_client=client, base_url=agent_url, agent_card_path=agent_card_path)
                 agent_card = await resolver.get_agent_card()
                 return agent_card
         except A2AClientHTTPError as e:
