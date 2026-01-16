@@ -430,13 +430,6 @@ class BaseProxyComponent(ComponentBase, ABC):
                 try:
                     # Build headers using common utility (sync context - OAuth2 not supported)
                     use_auth = agent_config.get("use_auth_for_agent_card", False)
-                    headers = build_static_auth_headers(
-                        agent_name=agent_alias,
-                        agent_config=agent_config,
-                        custom_headers_key="agent_card_headers",
-                        use_auth=use_auth,
-                        log_identifier=self.log_identifier,
-                    )
 
                     # Skip OAuth2-configured agents in sync discovery
                     # They will be discovered during periodic async discovery
@@ -459,6 +452,14 @@ class BaseProxyComponent(ComponentBase, ABC):
                                 )
                                 continue
 
+                    headers = build_static_auth_headers(
+                        agent_name=agent_alias,
+                        agent_config=agent_config,
+                        custom_headers_key="agent_card_headers",
+                        use_auth=use_auth,
+                        log_identifier=self.log_identifier,
+                    )
+                    
                     if headers:
                         log.debug(
                             "%s Fetching agent card with %d custom header(s) (auth=%s)",
