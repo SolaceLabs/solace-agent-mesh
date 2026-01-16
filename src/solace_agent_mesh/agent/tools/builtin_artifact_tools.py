@@ -2570,7 +2570,7 @@ async def index_kw_search(
     Args:
         index_name: The name of the BM25 index artifact (with .bm25_index suffix).
         query: The search query string.
-        top_k: The number of top results to return (must be between 1 and 50), default is 10.
+        top_k: The number of top results to return (must be at least 1, no maximum limit), default is 10.
         version: The version of the index artifact to use. Can be an integer or "latest". Defaults to "latest".
         tool_context: The context provided by the ADK framework.
 
@@ -2589,11 +2589,11 @@ async def index_kw_search(
     log.info("%s Processing bm25 keyword search request.", log_identifier)
     
     # Validate top_k parameter
-    if top_k < 1 or top_k > 50:
+    if top_k < 1:
         return {
             "status": "error",
             "index_name": index_name,
-            "message": f"Invalid top_k value: {top_k}. Must be between 1 and 50.",
+            "message": f"Invalid top_k value: {top_k}. Must be at least 1.",
         }
     
     temp_dir = None
@@ -3067,12 +3067,12 @@ single-digit millisecond latencies [2].
 | **10** | **DEFAULT - Standard queries, typical research questions** | "How do I configure S3 buckets?", "What are Kendra prerequisites?" |
 | **15-20** | Complex topics requiring multiple perspectives, comparison tasks | "Compare S3 bucket types", "What are all the IAM role requirements?" |
 | **25-30** | Comprehensive research, broad exploratory queries, multiple subtopics | "Explain everything about S3 security", "Complete guide to Kendra deployment" |
-| **40-50** | RARE - Exhaustive coverage, citation-heavy research reports | "Comprehensive analysis of all S3 features across all documentation" |
+| **30+** | **Adaptive expansion - increase as needed for comprehensive coverage (no upper limit)** | After initial searches, progressively increase (40, 60, 80, 100+) until satisfied with coverage |
 
 **Hard Limits:**
 - **Minimum:** `top_k=1` (at least one result)
-- **Maximum:** `top_k=50` (never exceed this to prevent excessive token usage)
-- **If you need more than 50 results, you likely need to refine your query instead**
+- **No maximum limit** - you can retrieve as many chunks as needed
+- **However:** Be mindful of token usage - very large top_k values will consume more tokens
 
 #### Decision Tree for Top-K Selection #####
 
@@ -3105,8 +3105,8 @@ single-digit millisecond latencies [2].
 **Best Practice:**
 1. **Start small:** Use top_k=10 by default
 2. **Evaluate results:** If insufficient, you can make a second call with higher top_k
-3. **Never guess high:** Don't use top_k=50 "just to be safe"
-4. **Query quality > Quantity:** A well-formulated query with top_k=10 beats a poor query with top_k=50
+3. **Be strategic:** Only increase top_k when you have a specific reason (insufficient results, low confidence)
+4. **Query quality > Quantity:** A well-formulated query with top_k=10 beats a poor query with large top_k values
 
 #### Example Tool Calls ####
 
@@ -3162,13 +3162,23 @@ single-digit millisecond latencies [2].
 
 #### Adaptive Strategy #####
 
-If your initial search doesn't yield sufficient information:
+**IMPORTANT: It is OK to expand search scope if retrieved results are insufficient or you lack confidence.**
 
-1. **First:** Try reformulating your query (better keywords)
-2. **Second:** Increase top_k incrementally (e.g., 10 → 15 → 20)
-3. **Last resort:** Use top_k=30+ for truly comprehensive needs
+If your initial search doesn't yield sufficient information or you're not confident in the results:
 
-**Example of adaptive retrieval:**
+1. **First:** Try reformulating your query (better keywords, more specific terms)
+2. **Second:** Increase top_k incrementally (e.g., 10 → 15 → 20 → 30)
+   - **Don't hesitate to increase top_k** if you feel the results don't adequately cover the topic
+   - Better to retrieve more results than to provide an incomplete or uncertain answer
+3. **Third:** Try multiple searches with different query formulations
+4. **Last resort:** If after multiple retrieval attempts you are still not satisfied with the results, **increase top_k significantly (e.g., 50, 100, or higher) to retrieve all or most chunks from the index**
+   - There is no maximum limit on top_k - use whatever value is needed for comprehensive coverage
+   - This effectively retrieves the entire indexed content while maintaining the citation system
+   - The search results include `num_chunks` which tells you how many chunks were found
+   - If you need truly comprehensive coverage, don't hesitate to use very large top_k values (100+)
+   - This is more efficient than loading the original document and maintains proper citations
+
+**Example of adaptive retrieval with progressive expansion:**
 
 ```xml
 <!-- First attempt: standard search -->
@@ -3184,13 +3194,34 @@ If your initial search doesn't yield sufficient information:
 <parameter name="query">S3 server-side encryption SSE-S3 SSE-KMS SSE-C client-side encryption</parameter>
 <parameter name="top_k">20</parameter>
 </invoke>
+
+<!-- If still not confident, expand further -->
+<invoke name="index_kw_search">
+<parameter name="index_name">my_documents</parameter>
+<parameter name="query">S3 encryption at rest in transit KMS keys default encryption</parameter>
+<parameter name="top_k">30</parameter>
+</invoke>
+
+<!-- Last resort: retrieve many chunks for comprehensive coverage -->
+<invoke name="index_kw_search">
+<parameter name="index_name">my_documents</parameter>
+<parameter name="query">S3 encryption security</parameter>
+<parameter name="top_k">100</parameter>
+</invoke>
 ```
+
+**When to Use Very Large top_k Values (50+):**
+- After 2-3 search attempts with different queries and increasing top_k values
+- When you need comprehensive coverage and search results feel fragmented
+- When precise details are critical and you're not confident in the search results
+- When the topic requires exhaustive information from the entire document
+- This maintains the citation system while giving you access to all indexed content
 
 #### Monitoring Your Usage ####
 
 **Self-check questions before calling:**
 - [ ] Have I chosen the smallest reasonable top_k for this query type?
-- [ ] Is my top_k ≤ 50?
+- [ ] Am I being mindful of token usage with my top_k choice?
 - [ ] Could I answer this with fewer results if my query was better?
 - [ ] Am I using top_k=10 unless I have a specific reason not to?
 
@@ -3231,7 +3262,7 @@ This is GOOD - cite what's useful, not everything retrieved
             ),
             "top_k": adk_types.Schema(
                 type=adk_types.Type.INTEGER,
-                description="Number of top results to return (must be between 1 and 50). Default is 10.",
+                description="Number of top results to return (must be at least 1, no maximum limit). Default is 10. Be mindful of token usage with very large values.",
                 nullable=True,
             ),
             "version": adk_types.Schema(
