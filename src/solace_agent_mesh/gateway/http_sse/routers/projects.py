@@ -22,6 +22,7 @@ from solace_ai_connector.common.log import log
 from ..dependencies import get_project_service, get_sac_component, get_api_config, get_db
 from ..services.project_service import ProjectService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
+from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig
 from ....common.a2a.types import ArtifactInfo
 from typing import TYPE_CHECKING
 
@@ -38,6 +39,7 @@ from .dto.requests.project_requests import (
 from .dto.responses.project_responses import (
     ProjectResponse,
     ProjectListResponse,
+    ProjectCollaboratorsResponse,
 )
 from .dto.project_dto import (
     ProjectImportOptions,
@@ -766,3 +768,102 @@ async def import_project(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to import project"
         )
+
+
+@router.post("/projects/{project_id}/share")
+async def share_project(
+    project_id: str,
+    user_email: str = Form(...),
+    role: str = Form(...),
+    user: dict = Depends(get_current_user),
+    user_config: dict = Depends(ValidatedUserConfig(["project:share"])),
+    db: Session = Depends(get_db),
+    project_service: ProjectService = Depends(get_project_service),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Share a project with another user by email.
+
+    Requires:
+    - project:share scope (enterprise RBAC)
+    - Owner role on the project (database check)
+    """
+    try:
+        result = await project_service.share_project(
+            db, project_id, user_email, role, user.get("id")
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+
+
+@router.get("/projects/{project_id}/collaborators", response_model=ProjectCollaboratorsResponse)
+async def get_project_collaborators(
+    project_id: str,
+    user: dict = Depends(get_current_user),
+    user_config: dict = Depends(ValidatedUserConfig(["project:read"])),
+    db: Session = Depends(get_db),
+    project_service: ProjectService = Depends(get_project_service),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Get all collaborators for a project.
+
+    Requires:
+    - project:read scope (enterprise RBAC)
+    - Any role on the project (owner/editor/viewer can all view collaborators)
+    """
+    try:
+        return project_service.get_collaborators(db, project_id, user.get("id"))
+    except ValueError as e:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(e))
+
+
+@router.put("/projects/{project_id}/collaborators/{user_id}")
+async def update_collaborator_role(
+    project_id: str,
+    user_id: str,
+    role: str = Form(...),
+    user: dict = Depends(get_current_user),
+    user_config: dict = Depends(ValidatedUserConfig(["project:share"])),
+    db: Session = Depends(get_db),
+    project_service: ProjectService = Depends(get_project_service),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Update a collaborator's role.
+
+    Requires:
+    - project:share scope (enterprise RBAC)
+    - Owner role on the project (database check)
+    """
+    try:
+        project_service.update_collaborator_role(
+            db, project_id, user_id, role, user.get("id")
+        )
+        return {"message": "Role updated successfully"}
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+
+
+@router.delete("/projects/{project_id}/collaborators/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_collaborator(
+    project_id: str,
+    user_id: str,
+    user: dict = Depends(get_current_user),
+    user_config: dict = Depends(ValidatedUserConfig(["project:share"])),
+    db: Session = Depends(get_db),
+    project_service: ProjectService = Depends(get_project_service),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Remove a collaborator from a project.
+
+    Requires:
+    - project:share scope (enterprise RBAC)
+    - Owner role on the project (database check)
+    """
+    try:
+        project_service.remove_collaborator(db, project_id, user_id, user.get("id"))
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))

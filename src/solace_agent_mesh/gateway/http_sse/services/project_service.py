@@ -2,7 +2,7 @@
 Business service for project-related operations.
 """
 
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING, Dict
 import logging
 import json
 import zipfile
@@ -26,6 +26,8 @@ except ImportError:
 
 
 from ....common.a2a.types import ArtifactInfo
+from ....common.middleware.registry import MiddlewareRegistry
+from ....services.resource_sharing_service import ResourceSharingService, ResourceType, SharingRole
 from ..repository.interfaces import IProjectRepository
 from ..repository.entities.project import Project
 
@@ -39,11 +41,21 @@ class ProjectService:
     def __init__(
         self,
         component: "WebUIBackendComponent" = None,
+        resource_sharing_service: ResourceSharingService = None,
     ):
         self.component = component
         self.artifact_service = component.get_shared_artifact_service() if component else None
         self.app_name = component.get_config("name", "WebUIBackendApp") if component else "WebUIBackendApp"
         self.logger = logging.getLogger(__name__)
+        
+        # Initialize resource sharing service
+        if resource_sharing_service:
+            self._resource_sharing_service = resource_sharing_service
+        else:
+            # Get from registry (returns class, need to instantiate)
+            service_class = MiddlewareRegistry.get_resource_sharing_service()
+            self._resource_sharing_service = service_class()
+        
         # Get max upload size from component config, with fallback to default
         # Ensure values are integers for proper formatting
         max_upload_config = (
@@ -250,23 +262,38 @@ class ProjectService:
         Returns:
             Optional[Project]: The project if found and accessible, None otherwise
         """
+        from ..repository.models import ProjectModel
+
+        # Get project without user filter
+        project_model = db.query(ProjectModel).filter_by(
+            id=project_id, deleted_at=None
+        ).first()
+
+        if not project_model:
+            return None
+
+        # Check if user has access (owner OR shared access via resource sharing service)
+        if not self._can_view_project(db, project_id, user_id):
+            return None
+
+        # Convert to domain entity
         project_repository = self._get_repositories(db)
-        return project_repository.get_by_id(project_id, user_id)
+        return project_repository._model_to_entity(project_model)
 
     def get_user_projects(self, db, user_id: str) -> List[Project]:
         """
-        Get all projects owned by a specific user.
+        Get all projects accessible by a specific user (owned + shared).
 
         Args:
             db: Database session
             user_id: The user ID
-            
+
         Returns:
-            List[DomainProject]: List of user's projects
+            List[DomainProject]: List of user's accessible projects (owned + shared)
         """
-        self.logger.debug(f"Retrieving projects for user {user_id}")
+        self.logger.debug(f"Retrieving accessible projects for user {user_id}")
         project_repository = self._get_repositories(db)
-        db_projects = project_repository.get_user_projects(user_id)
+        db_projects = project_repository.get_accessible_projects(user_id)
         return db_projects
 
     async def get_user_projects_with_counts(self, db, user_id: str) -> List[tuple[Project, int]]:
@@ -381,6 +408,10 @@ class ProjectService:
         if not project:
             raise ValueError("Project not found or access denied")
 
+        # Check edit artifacts permission (Owner + Administrator + Editor)
+        if not self._can_edit_artifacts(db, project_id, user_id):
+            raise ValueError("Permission denied: insufficient access to modify artifacts")
+
         if not self.artifact_service:
             self.logger.warning(f"Attempted to add artifacts to project {project_id} but no artifact service is configured.")
             raise ValueError("Artifact service is not configured")
@@ -446,6 +477,10 @@ class ProjectService:
         """
         project = self.get_project(db, project_id, user_id)
         if not project:
+            return False
+
+        # Check edit artifacts permission (Owner + Administrator + Editor)
+        if not self._can_edit_artifacts(db, project_id, user_id):
             return False
 
         if not self.artifact_service:
@@ -514,6 +549,10 @@ class ProjectService:
         if not project:
             return False
 
+        # Check delete artifacts permission (Owner + Administrator only)
+        if not self._can_delete_artifacts(db, project_id, user_id):
+            return False
+
         if not self.artifact_service:
             self.logger.warning(f"Attempted to delete artifact from project {project_id} but no artifact service is configured.")
             raise ValueError("Artifact service is not configured")
@@ -567,14 +606,34 @@ class ProjectService:
             # Nothing to update - get existing project
             return self.get_project(db, project_id, user_id)
 
+        # Check edit permission (Owner + Administrator + Editor)
+        if not self._can_edit_project(db, project_id, user_id):
+            return None
+
+        from ..repository.models import ProjectModel
+        from ....shared.utils.timestamp_utils import now_epoch_ms
+
+        # Get project without access check
+        model = db.query(ProjectModel).filter_by(
+            id=project_id, deleted_at=None
+        ).first()
+
+        if not model:
+            return None
+
+        # Update fields
+        for field, value in update_data.items():
+            if hasattr(model, field):
+                setattr(model, field, value)
+
+        model.updated_at = now_epoch_ms()
+        db.flush()
+        db.refresh(model)
+
+        self.logger.info(f"Successfully updated project {project_id}")
+
         project_repository = self._get_repositories(db)
-        self.logger.info(f"Updating project {project_id} for user {user_id}")
-        updated_project = project_repository.update(project_id, user_id, update_data)
-
-        if updated_project:
-            self.logger.info(f"Successfully updated project {project_id}")
-
-        return updated_project
+        return project_repository._model_to_entity(model)
 
     def delete_project(self, db, project_id: str, user_id: str) -> bool:
         """
@@ -593,14 +652,22 @@ class ProjectService:
         if not existing_project:
             return False
 
-        project_repository = self._get_repositories(db)
-        self.logger.info(f"Deleting project {project_id} for user {user_id}")
-        success = project_repository.delete(project_id, user_id)
+        # Check delete permission (Owner + Administrator only)
+        if not self._can_delete_project(db, project_id, user_id):
+            return False
 
-        if success:
+        from ..repository.models import ProjectModel
+
+        # Delete directly without repository access check
+        result = db.query(ProjectModel).filter_by(
+            id=project_id, deleted_at=None
+        ).delete(synchronize_session=False)
+
+        if result > 0:
             self.logger.info(f"Successfully deleted project {project_id}")
+            return True
 
-        return success
+        return False
 
     def soft_delete_project(self, db, project_id: str, user_id: str) -> bool:
         """
@@ -621,19 +688,33 @@ class ProjectService:
             self.logger.warning(f"Attempted to soft delete non-existent project {project_id} by user {user_id}")
             return False
 
+        # Check delete permission (Owner + Administrator only)
+        if not self._can_delete_project(db, project_id, user_id):
+            return False
+
         self.logger.info(f"Soft deleting project {project_id} and its associated sessions for user {user_id}")
 
-        project_repository = self._get_repositories(db)
-        # Soft delete the project
-        success = project_repository.soft_delete(project_id, user_id)
+        from ..repository.models import ProjectModel
+        from ....shared.utils.timestamp_utils import now_epoch_ms
 
-        if success:
-            from ..repository.session_repository import SessionRepository
-            session_repo = SessionRepository()
-            deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
-            self.logger.info(f"Successfully soft deleted project {project_id} and {deleted_count} associated sessions")
+        # Soft delete directly
+        model = db.query(ProjectModel).filter_by(
+            id=project_id, deleted_at=None
+        ).first()
 
-        return success
+        if not model:
+            return False
+
+        model.deleted_at = now_epoch_ms()
+        db.flush()
+
+        # Cascade to sessions
+        from ..repository.session_repository import SessionRepository
+        session_repo = SessionRepository()
+        deleted_count = session_repo.soft_delete_by_project(db, project_id, user_id)
+        self.logger.info(f"Successfully soft deleted project {project_id} and {deleted_count} associated sessions")
+
+        return True
 
     async def export_project_as_zip(
         self, db, project_id: str, user_id: str
@@ -928,3 +1009,294 @@ class ProjectService:
             counter += 1
             if counter > 100:  # Safety limit
                 raise ValueError("Unable to resolve name conflict")
+
+    def _is_project_owner(self, db, project_id: str, user_id: str) -> bool:
+        """
+        Check if user is the owner of the project.
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            user_id: The user ID
+
+        Returns:
+            bool: True if user is the project owner, False otherwise
+        """
+        from ..repository.models import ProjectModel
+
+        # Check if user is the owner
+        project = db.query(ProjectModel).filter_by(
+            id=project_id, user_id=user_id, deleted_at=None
+        ).first()
+        return project is not None
+
+    def _get_shared_access_role(self, db, project_id: str, user_id: str) -> Optional[str]:
+        """
+        Get user's shared access role for the project.
+        
+        Args:
+            db: Database session
+            project_id: The project ID
+            user_id: The user ID to check
+            
+        Returns:
+            Optional[str]: "administrator", "editor", "viewer", or None if no shared access
+        """
+        shared_resources = self._resource_sharing_service.get_shared_resources(
+            session=db, user_id=user_id, resource_type=ResourceType.PROJECT
+        )
+        for resource in shared_resources:
+            if resource['resource_id'] == project_id:
+                return resource['role']
+        return None
+
+    def _get_user_role(self, db, project_id: str, user_id: str) -> Optional[str]:
+        """
+        Get user's role on a project (for backward compatibility).
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            user_id: The user ID
+
+        Returns:
+            Optional[str]: "owner", "administrator", "editor", "viewer", or None if no access
+        """
+        # Check if user is the owner first
+        if self._is_project_owner(db, project_id, user_id):
+            return "owner"
+
+        # Check shared access role
+        return self._get_shared_access_role(db, project_id, user_id)
+
+    def _can_view_project(self, db, project_id: str, user_id: str) -> bool:
+        return (
+            self._is_project_owner(db, project_id, user_id) or
+            self._get_shared_access_role(db, project_id, user_id) is not None
+        )
+
+    def _can_edit_project(self, db, project_id: str, user_id: str) -> bool:
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+        role = self._get_shared_access_role(db, project_id, user_id)
+        return role in ["administrator", "editor"]
+
+    def _can_delete_project(self, db, project_id: str, user_id: str) -> bool:
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+        role = self._get_shared_access_role(db, project_id, user_id)
+        return role == "administrator"
+
+    def _can_share_project(self, db, project_id: str, user_id: str) -> bool:
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+        role = self._get_shared_access_role(db, project_id, user_id)
+        return role == "administrator"
+
+    def _can_edit_artifacts(self, db, project_id: str, user_id: str) -> bool:
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+        role = self._get_shared_access_role(db, project_id, user_id)
+        return role in ["administrator", "editor"]
+
+    def _can_delete_artifacts(self, db, project_id: str, user_id: str) -> bool:
+        if self._is_project_owner(db, project_id, user_id):
+            return True
+        role = self._get_shared_access_role(db, project_id, user_id)
+        return role == "administrator"
+
+    async def share_project(
+        self, db, project_id: str, target_email: str, role: str, sharing_user_id: str
+    ) -> dict:
+        """
+        Share a project with another user by email.
+
+        Args:
+            db: Database session
+            project_id: The project ID to share
+            target_email: Email of user to share with
+            role: Role to assign ("editor" or "viewer")
+            sharing_user_id: User ID of person sharing the project
+
+        Returns:
+            dict: Success message with user_id
+
+        Raises:
+            ValueError: If user is not owner, role is invalid, user not found, or already has access
+            HTTPException: If identity service not configured (501)
+        """
+        from fastapi import HTTPException
+
+        # Verify the sharing user can share (Owner + Administrator)
+        if not self._can_share_project(db, project_id, sharing_user_id):
+            raise ValueError("Only project owner or administrator can share")
+
+        # Validate role - allow administrator role as well
+        if role not in ["administrator", "editor", "viewer"]:
+            raise ValueError(f"Invalid role: {role}")
+
+        # Look up user by email using identity service
+        identity_service = self.component.identity_service
+        if not identity_service:
+            raise HTTPException(501, "Identity service not configured")
+
+        results = await identity_service.search_users(target_email, limit=1)
+        if not results or results[0].get("email", "").lower() != target_email.lower():
+            raise ValueError(f"User not found: {target_email}")
+
+        target_user_id = results[0]["id"]
+
+        # Check if user already has access via ResourceSharingService
+        if self._resource_sharing_service.can_access_resource(
+            session=db, resource_id=project_id, resource_type=ResourceType.PROJECT, user_id=target_user_id
+        ):
+            raise ValueError("User already has access to this project")
+
+        # Add the collaborator via ResourceSharingService
+        success = self._resource_sharing_service.share_resource(
+            session=db, resource_id=project_id, resource_type=ResourceType.PROJECT, 
+            shared_with_user_id=target_user_id, role=SharingRole(role), shared_by_user_id=sharing_user_id
+        )
+        if not success:
+            raise ValueError("Failed to share project")
+
+        self.logger.info(
+            f"Shared project {project_id} with {target_email} as {role} by user {sharing_user_id}"
+        )
+        return {"message": "Project shared successfully", "user_id": target_user_id}
+
+    def get_collaborators(self, db, project_id: str, requesting_user_id: str) -> dict:
+        """
+        Get all collaborators for a project.
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            requesting_user_id: User ID of person requesting the list
+
+        Returns:
+            dict: Contains project_id, owner info, and list of collaborators
+
+        Raises:
+            ValueError: If user doesn't have access or project doesn't exist
+        """
+        from ..repository.models import ProjectModel
+
+        # Verify user has access to this project
+        if not self._can_view_project(db, project_id, requesting_user_id):
+            raise ValueError("Access denied")
+
+        # Get the project to find the owner
+        project = db.query(ProjectModel).filter_by(
+            id=project_id, deleted_at=None
+        ).first()
+        if not project:
+            raise ValueError("Project not found")
+
+        # Get all collaborators from ResourceSharingService
+        shared_resources = self._resource_sharing_service.get_shared_resources(
+            session=db, user_id=None, resource_type=ResourceType.PROJECT  # Get all shared resources for this project type
+        )
+        # Filter for this specific project
+        collaborators = []
+        for resource in shared_resources:
+            if resource['resource_id'] == project_id:
+                collaborators.append({
+                    "user_id": resource['shared_with_user_id'],
+                    "role": resource['role'],
+                    "added_at": resource['created_at'],
+                    "added_by_user_id": resource['shared_by_user_id'],
+                })
+
+        return {
+            "project_id": project_id,
+            "owner": {
+                "user_id": project.user_id,
+                "role": "owner",
+                "added_at": project.created_at,
+                "added_by_user_id": project.user_id,
+            },
+            "collaborators": collaborators,
+        }
+
+    def update_collaborator_role(
+        self, db, project_id: str, target_user_id: str, new_role: str, requesting_user_id: str
+    ) -> bool:
+        """
+        Update a collaborator's role (owner only).
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            target_user_id: User ID of collaborator to update
+            new_role: New role to assign ("editor" or "viewer")
+            requesting_user_id: User ID of person making the change
+
+        Returns:
+            bool: True if successful
+
+        Raises:
+            ValueError: If user is not owner, role is invalid, or collaborator not found
+        """
+
+        # Verify requesting user can manage collaborators (Owner + Administrator)
+        if not self._can_share_project(db, project_id, requesting_user_id):
+            raise ValueError("Only owner or administrator can update roles")
+
+        # Validate new role - allow administrator as well
+        if new_role not in ["administrator", "editor", "viewer"]:
+            raise ValueError(f"Invalid role: {new_role}")
+
+        # Check if target user currently has access
+        if not self._resource_sharing_service.can_access_resource(
+            session=db, resource_id=project_id, resource_type=ResourceType.PROJECT, user_id=target_user_id
+        ):
+            raise ValueError("Collaborator not found")
+
+        # Update the role by re-sharing with new role
+        success = self._resource_sharing_service.share_resource(
+            session=db, resource_id=project_id, resource_type=ResourceType.PROJECT, shared_with_user_id=target_user_id,
+            role=SharingRole(new_role), shared_by_user_id=requesting_user_id
+        )
+        if not success:
+            raise ValueError("Failed to update collaborator role")
+
+        self.logger.info(
+            f"Updated user {target_user_id} to {new_role} on project {project_id}"
+        )
+        return True
+
+    def remove_collaborator(
+        self, db, project_id: str, target_user_id: str, requesting_user_id: str
+    ) -> bool:
+        """
+        Remove a collaborator from a project (owner only).
+
+        Args:
+            db: Database session
+            project_id: The project ID
+            target_user_id: User ID of collaborator to remove
+            requesting_user_id: User ID of person removing access
+
+        Returns:
+            bool: True if successful
+
+        Raises:
+            ValueError: If user is not owner or collaborator not found
+        """
+
+        # Verify requesting user can manage collaborators (Owner + Administrator)
+        if not self._can_share_project(db, project_id, requesting_user_id):
+            raise ValueError("Only owner or administrator can remove collaborators")
+
+        # Remove the collaborator via ResourceSharingService
+        success = self._resource_sharing_service.unshare_resource(
+            session=db, resource_id=project_id, resource_type=ResourceType.PROJECT, shared_with_user_id=target_user_id
+        )
+        if not success:
+            raise ValueError("Collaborator not found")
+
+        self.logger.info(
+            f"Removed user {target_user_id} from project {project_id}"
+        )
+        return True
