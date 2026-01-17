@@ -71,7 +71,6 @@ class SessionManager:
             )
             return user_id
 
-        # Check if we already have a client_id stored in this session
         client_id = request.session.get(SESSION_KEY_CLIENT_ID)
         if client_id:
             log.debug(
