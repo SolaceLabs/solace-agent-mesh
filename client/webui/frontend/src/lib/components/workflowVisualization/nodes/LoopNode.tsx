@@ -50,17 +50,22 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                     <span className="text-sm font-semibold text-teal-900 dark:text-teal-100">Loop</span>
                 </div>
 
-                {canHaveChildren && (
-                    <Button
-                        onClick={handleToggle}
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        tooltip="Expand"
-                    >
-                        <Maximize2 className="h-4 w-4" />
-                    </Button>
-                )}
+                <div className="flex items-center gap-2">
+                    {node.data.maxIterations && (
+                        <span className="text-sm text-gray-500 dark:text-gray-400">max: {node.data.maxIterations}</span>
+                    )}
+                    {canHaveChildren && (
+                        <Button
+                            onClick={handleToggle}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            tooltip="Expand"
+                        >
+                            <Maximize2 className="h-4 w-4" />
+                        </Button>
+                    )}
+                </div>
             </div>
         );
     }

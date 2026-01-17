@@ -33,7 +33,7 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
     if (isCollapsed || !hasChildren) {
         return (
             <div
-                className={`${NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${
+                className={`${NODE_BASE_STYLES.RECTANGULAR_COMPACT}  ${
                     isSelected ? NODE_SELECTED_CLASS : ""
                 } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 style={{
@@ -68,7 +68,7 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
     // When expanded with children, render with straddling header and dotted container
     return (
         <div
-            className="relative"
+            className="relative "
             style={{
                 width: `${node.width}px`,
                 height: `${node.height}px`,

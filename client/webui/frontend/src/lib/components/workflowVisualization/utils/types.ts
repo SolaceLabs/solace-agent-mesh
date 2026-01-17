@@ -120,17 +120,17 @@ export const NODE_BASE_STYLES = {
     /** Rectangular node style - used by Agent, Workflow, Switch nodes
      * Figma Card: rounded (4px), shadow, 16px padding
      */
-    RECTANGULAR: "group relative flex cursor-pointer items-center justify-between rounded bg-white px-4 py-3 shadow transition-all duration-200 ease-in-out hover:shadow-md dark:bg-gray-800",
+    RECTANGULAR: "group relative flex cursor-pointer items-center justify-between rounded bg-card px-4 py-3 shadow transition-all duration-200 ease-in-out hover:shadow-md",
     /** Rectangular compact style - used by Loop/Map collapsed nodes */
-    RECTANGULAR_COMPACT: "group relative flex cursor-pointer items-center justify-between rounded bg-white px-3 py-2 shadow transition-all duration-200 hover:shadow-md dark:bg-gray-800",
+    RECTANGULAR_COMPACT: "group relative flex cursor-pointer items-center justify-between rounded bg-card px-3 py-2 shadow transition-all duration-200 hover:shadow-md",
     /** Pill-shaped node style - used by Start/End nodes */
     PILL: "flex cursor-pointer items-center justify-center gap-2 rounded-full bg-indigo-50 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:bg-indigo-900/50",
     /** Container header style - used by Loop/Map expanded header */
-    CONTAINER_HEADER: "group relative mx-auto w-fit cursor-pointer rounded bg-white shadow transition-all duration-200 hover:shadow-md dark:bg-gray-800",
+    CONTAINER_HEADER: "group relative mx-auto w-fit cursor-pointer rounded bg-card shadow transition-all duration-200 hover:shadow-md",
     /** Condition pill style - used by Switch condition pills */
     CONDITION_PILL: "flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all duration-200",
     /** Switch node style - similar to rectangular but without justify-between */
-    SWITCH: "group relative cursor-pointer rounded bg-white shadow transition-all duration-200 hover:shadow-md dark:bg-gray-800",
+    SWITCH: "group relative cursor-pointer rounded bg-card shadow transition-all duration-200 hover:shadow-md",
 } as const;
 
 /**
