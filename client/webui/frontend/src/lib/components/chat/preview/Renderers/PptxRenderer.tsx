@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FileType, Loader2, ChevronLeft, ChevronRight, Play, Pause, ZoomIn, ZoomOut, Maximize2, X, RotateCcw } from "lucide-react";
+import { FileType, Loader2, ChevronLeft, ChevronRight, Play, Pause, ZoomIn, ZoomOut, Maximize2, RotateCcw } from "lucide-react";
 import DOMPurify from "dompurify";
 
 interface PptxRendererProps {
@@ -575,13 +575,11 @@ export const PptxRenderer: React.FC<PptxRendererProps> = ({ content, setRenderEr
             justify-content: center;
             align-items: center;
             padding: 2rem;
+            cursor: pointer;
         }
         
-        .fullscreen-close {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            z-index: 1001;
+        .fullscreen-overlay > * {
+            cursor: default;
         }
         
         .slide-content {
@@ -742,13 +740,18 @@ export const PptxRenderer: React.FC<PptxRendererProps> = ({ content, setRenderEr
         }
     `;
 
+    // Handle click on fullscreen overlay background to close
+    const handleOverlayClick = (event: React.MouseEvent<HTMLDivElement>) => {
+        // Only close if clicking directly on the overlay background, not on child elements
+        if (event.target === event.currentTarget) {
+            setIsFullscreen(false);
+        }
+    };
+
     if (isFullscreen) {
         return (
-            <div className="fullscreen-overlay">
+            <div className="fullscreen-overlay" onClick={handleOverlayClick}>
                 <style>{styles}</style>
-                <button onClick={toggleFullscreen} className="fullscreen-close flex items-center gap-2 rounded bg-red-600 px-3 py-2 text-white hover:bg-red-700" title="Exit Fullscreen (ESC)">
-                    <X className="h-4 w-4" />
-                </button>
                 {slideContent}
             </div>
         );
