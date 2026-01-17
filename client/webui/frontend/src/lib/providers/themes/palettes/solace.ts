@@ -2,50 +2,50 @@ import type { ThemePalette } from "./themePalette";
 
 export const solace: ThemePalette = {
     brand: {
-        wMain: "#00C895",
-        w30: "#B3EFDF",
-        wMain30: "#00C8954d",
-        w10: "#E6FAF4",
-        w60: "#66DEBF",
-        w100: "#00AD93",
+        wMain: "#9333EA",
+        w30: "#D8B4FE",
+        wMain30: "#9333EA4d",
+        w10: "#F3E8FF",
+        w60: "#C084FC",
+        w100: "#7E22CE",
     },
 
     primary: {
-        w100: "#01374E",
-        w90: "#014968",
-        wMain: "#015B82",
-        w60: "#679DB4",
-        w40: "#99BDCD",
-        w20: "#CCDEE6",
-        w10: "#E6EFF2",
+        w100: "#3B0764",
+        w90: "#4C1D95",
+        wMain: "#6B21A8",
+        w60: "#A78BFA",
+        w40: "#C4B5FD",
+        w20: "#E9D5FF",
+        w10: "#F5F3FF",
 
         text: {
-            wMain: "#273749",
+            wMain: "#3F2749",
             w100: "#000000",
             w10: "#CCCCCC",
         },
     },
 
     secondary: {
-        w70: "#536574",
-        w80: "#354E62",
-        w8040: "#354E6240",
+        w70: "#6B5374",
+        w80: "#4A3562",
+        w8040: "#4A356240",
         w100: "#000000",
-        wMain: "#8790A0",
-        w40: "#CFD3D9",
-        w20: "#E7E9EC",
-        w10: "#F3F4F6",
+        wMain: "#9D87A0",
+        w40: "#D3CFD9",
+        w20: "#E9E7EC",
+        w10: "#F4F3F6",
 
         text: {
-            wMain: "#647481",
-            w50: "#B1B9C0",
+            wMain: "#746481",
+            w50: "#B9B1C0",
         },
     },
 
     background: {
-        w100: "#021B2F",
-        wMain: "#03223B",
-        w20: "#F7F8F9",
+        w100: "#1A0A2E",
+        wMain: "#2D1B3D",
+        w20: "#F9F7FA",
         w10: "#FFFFFF",
     },
 
