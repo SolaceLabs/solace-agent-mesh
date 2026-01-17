@@ -26,7 +26,7 @@ export function parseInternalMention(text: string): { name: string; id: string }
  * Formats a person as internal mention format: @[Name](id)
  */
 export function formatInternalMention(person: Person): string {
-    return `@[${person.name}](${person.id})`;
+    return `@[${person.displayName}](${person.id})`;
 }
 
 /**
@@ -64,7 +64,7 @@ export function detectMentionTrigger(text: string, cursorPosition: number): stri
  * Example: "@Edward Funnekotter"
  */
 export function formatMentionDisplay(person: Person): string {
-    return `@${person.name}`;
+    return `@${person.displayName}`;
 }
 
 /**
@@ -73,8 +73,8 @@ export function formatMentionDisplay(person: Person): string {
  * Example: "@John Smith [john.smith@example.com]"
  */
 export function formatDisambiguatedMentionDisplay(person: Person): string {
-    const disambiguator = person.email || person.id;
-    return `@${person.name} [${disambiguator}]`;
+    const disambiguator = person.workEmail || person.id;
+    return `@${person.displayName} [${disambiguator}]`;
 }
 
 /**
@@ -91,11 +91,11 @@ export function getDisplayText(person: Person, disambiguate: boolean): string {
 }
 
 /**
- * Formats a person as the backend expects: "name <user_id:id>"
+ * Formats a person as the backend expects: "displayName <user_id:id>"
  * Example: "Edward Funnekotter <user_id:edward.funnekotter@solace.com>"
  */
 export function formatMentionForBackend(person: Person): string {
-    return `${person.name} <user_id:${person.id}>`;
+    return `${person.displayName} <user_id:${person.id}>`;
 }
 
 /**
@@ -222,8 +222,8 @@ export function extractMentionsFromDOM(element: HTMLElement): Map<string, Person
             // Key by ID for uniqueness
             mentionMap.set(personId, {
                 id: personId,
-                name: personName,
-                email: personId, // Assuming ID is email
+                displayName: personName,
+                workEmail: personId, // Assuming ID is email
             });
         }
     });

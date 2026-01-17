@@ -585,7 +585,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         let existingPersonId: string | undefined;
 
         for (const [id, existingPerson] of mentionMap.entries()) {
-            if (existingPerson.name === person.name && id !== person.id) {
+            if (existingPerson.displayName === person.displayName && id !== person.id) {
                 needsDisambiguation = true;
                 existingPersonId = id;
                 break;

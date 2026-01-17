@@ -1,11 +1,16 @@
 /**
- * Represents a person/user in the organization
+ * Represents a person/user in the organization.
+ *
+ * Uses canonical field names from the identity provider:
+ * - displayName: Full display name
+ * - workEmail: Work email address
+ * - jobTitle: Job title (optional)
  */
 export interface Person {
     id: string;
-    name: string;
-    email: string;
-    title?: string;
+    displayName: string;
+    workEmail: string;
+    jobTitle?: string;
 }
 
 /**
