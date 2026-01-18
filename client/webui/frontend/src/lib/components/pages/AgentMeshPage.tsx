@@ -12,7 +12,7 @@ export function AgentMeshPage() {
                 title="Agents"
                 buttons={[
                     <Button data-testid="refreshAgents" disabled={agentsLoading} variant="ghost" title="Refresh Agents" onClick={() => agentsRefetch()}>
-                        <RefreshCcw className="size-4" />
+                        <RefreshCcw className="size-4 text-(--color-brand-wMain)" />
                         Refresh Agents
                     </Button>,
                 ]}

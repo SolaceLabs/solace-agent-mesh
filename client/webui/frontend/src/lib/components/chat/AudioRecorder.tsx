@@ -111,14 +111,14 @@ export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
 
     const renderIcon = () => {
         if (isLoading) {
-            return <Loader2 className="size-5 animate-spin" />;
+            return <Loader2 className="size-5 animate-spin text-(--color-brand-wMain)" />;
         }
 
         if (isListening) {
-            return <Mic className="size-5 animate-pulse" />;
+            return <Mic className="size-5 animate-pulse text-(--color-brand-wMain)" />;
         }
 
-        return <Mic className="size-5" />;
+        return <Mic className="size-5 text-(--color-brand-wMain)" />;
     };
 
     const getTooltip = () => {
@@ -152,7 +152,7 @@ export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
             size="icon"
             onClick={handleClick}
             disabled={disabled || isLoading}
-            className={cn("transition-colors", isListening && "bg-[var(--accent-background)] text-[var(--primary-wMain)] hover:bg-[var(--accent-background)]/80", className)}
+            className={cn("transition-colors", isListening && "bg-[var(--accent-background)] text-(--color-brand-wMain) hover:bg-[var(--accent-background)]/80", className)}
             tooltip={getTooltip()}
             aria-label={getAriaLabel()}
             aria-pressed={isListening}

@@ -84,7 +84,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                             <DialogTrigger asChild>
                                 <button
                                     type="button"
-                                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)]"
+                                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center px-3 py-5 text-xs text-(--color-brand-wMain) transition-colors"
                                     aria-label="Open Settings"
                                 >
                                     <Settings className="h-6 w-6" />

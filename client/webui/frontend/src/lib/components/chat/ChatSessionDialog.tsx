@@ -11,7 +11,7 @@ interface NewChatButtonProps {
 
 const NewChatButton: React.FC<NewChatButtonProps> = ({ text, onClick }) => {
     return (
-        <Button data-testid="startNewChat" variant="ghost" onClick={onClick} tooltip="Start New Chat Session">
+        <Button className="text-(--color-brand-wMain) dark:text-(--color-brand-wMain)" data-testid="startNewChat" variant="ghost" onClick={onClick} tooltip="Start New Chat Session">
             <Edit className="size-5" />
             {text}
         </Button>

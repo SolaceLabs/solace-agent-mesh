@@ -209,7 +209,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                 className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-l-md border border-r-0 px-2 data-[state=active]:z-10 data-[state=active]:border-r-0"
                                 onClick={() => setPreviewArtifact(null)}
                             >
-                                <FileText className="h-4 w-4 shrink-0" />
+                                <FileText className="h-4 w-4 shrink-0 text-(--color-brand-wMain)" />
                                 <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
                             </TabsTrigger>
                             <TabsTrigger
@@ -217,7 +217,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                 title="Workflow"
                                 className={`border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border-x-0 border-y px-2 data-[state=active]:z-10 ${!hasSourcesInSession ? "rounded-r-md border-r" : ""}`}
                             >
-                                <Network className="h-4 w-4 shrink-0" />
+                                <Network className="h-4 w-4 shrink-0 text-(--color-brand-wMain)" />
                                 <span className="ml-1.5 hidden truncate @[240px]:inline">Workflow</span>
                             </TabsTrigger>
                             {hasSourcesInSession && (

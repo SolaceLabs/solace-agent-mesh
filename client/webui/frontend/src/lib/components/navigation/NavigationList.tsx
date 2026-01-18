@@ -35,9 +35,9 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
     };
 
     return (
-        <nav className="flex flex-1 flex-col" role="navigation" aria-label="Main navigation">
+        <div className="flex w-fit h-full" role="navigation" aria-label="Main navigation">
             {/* Main navigation items */}
-            <ul className="space-y-1">
+            <ul className="flex items-center">
                 {items.map(item => (
                     <li key={item.id}>
                         <NavigationButton item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
@@ -47,14 +47,14 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
             </ul>
 
             {/* Spacer */}
-            <div className="flex-1" />
+            <div className="" />
 
             {/* Bottom items */}
-            <ul className="space-y-1">
+            <ul className="flex items-center h-full">
                 {bottomItems &&
                     bottomItems.length > 0 &&
                     bottomItems.map(item => (
-                        <li key={item.id} className="my-4">
+                        <li key={item.id} className="">
                             <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
                         </li>
                     ))}
@@ -104,13 +104,13 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                         </Popover>
                     </li>
                 ) : (
-                    <li className="my-4 flex justify-center">
+                    <li className="flex justify-center">
                         <SettingsDialog iconOnly={true} />
                     </li>
                 )}
             </ul>
 
             {settingsDialogOpen && <SettingsDialog iconOnly={false} open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen} />}
-        </nav>
+        </div>
     );
 };

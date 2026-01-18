@@ -164,7 +164,7 @@
         left: 0;
         right: 0;
         height: 40px;
-        background: linear-gradient(to top, rgba(247, 248, 249, 0), var(--color-background-w20, #F7F8F9));
+        background: linear-gradient(to top, rgba(250, 248, 246, 0), var(--color-background-w20, #FAF8F6));
         pointer-events: none;
         z-index: 10;
     }
@@ -176,17 +176,17 @@
         left: 0;
         right: 0;
         height: 40px;
-        background: linear-gradient(to bottom, rgba(247, 248, 249, 0), var(--color-background-w20, #F7F8F9));
+        background: linear-gradient(to bottom, rgba(250, 248, 246, 0), var(--color-background-w20, #FAF8F6));
         pointer-events: none;
         z-index: 10;
     }
 
     .dark .fade-both-mask::before {
-        background: linear-gradient(to top, rgba(2, 27, 47, 0), var(--color-background-w100, #021B2F));
+        background: linear-gradient(to top, rgba(42, 39, 37, 0), var(--color-background-w100, #2A2725));
     }
 
     .dark .fade-both-mask::after {
-        background: linear-gradient(to bottom, rgba(2, 27, 47, 0), var(--color-background-w100, #021B2F));
+        background: linear-gradient(to bottom, rgba(42, 39, 37, 0), var(--color-background-w100, #2A2725));
     }
 
     .dark * {

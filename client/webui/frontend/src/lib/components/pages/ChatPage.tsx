@@ -205,8 +205,8 @@ export function ChatPage() {
     }, [isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream]);
 
     return (
-        <div className="relative flex h-screen w-full flex-col overflow-hidden">
-            <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
+        <div className="relative flex h-[calc(100vh-80px)] w-full flex-col overflow-hidden text-(--color-brand-wMain)">
+            <div className={`absolute top-0 left-0 z-20 h-[calc(100vh-80px)] transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
                 <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
             </div>
             <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
@@ -229,7 +229,7 @@ export function ChatPage() {
                         isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
                                 <Button data-testid="showSessionsPanel" variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
-                                    <PanelLeftIcon className="size-5" />
+                                    <PanelLeftIcon className="size-5 text-(--color-brand-wMain)" />
                                 </Button>
                                 <div className="h-6 border-r"></div>
 

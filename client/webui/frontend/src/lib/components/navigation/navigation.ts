@@ -36,15 +36,15 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
 
     // Add prompts only if explicitly enabled (requires SQL persistence)
     // Default to false if flag is undefined to be safe
-    const promptLibraryEnabled = featureFlags?.promptLibrary ?? false;
-    if (promptLibraryEnabled) {
-        items.push({
-            id: "prompts",
-            label: "Prompts",
-            icon: NotepadText,
-            badge: "EXPERIMENTAL",
-        });
-    }
+    // const promptLibraryEnabled = featureFlags?.promptLibrary ?? false;
+    // if (promptLibraryEnabled) {
+    //     items.push({
+    //         id: "prompts",
+    //         label: "Prompts",
+    //         icon: NotepadText,
+    //         badge: "EXPERIMENTAL",
+    //     });
+    // }
 
     return items;
 };

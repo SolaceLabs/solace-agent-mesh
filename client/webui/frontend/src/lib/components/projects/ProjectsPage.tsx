@@ -165,11 +165,11 @@ export const ProjectsPage: React.FC = () => {
                     title="Projects"
                     buttons={[
                         <Button key="importProject" variant="ghost" title="Import Project" onClick={() => setShowImportDialog(true)}>
-                            <Upload className="size-4" />
+                            <Upload className="size-4 text-(--color-brand-wMain)" />
                             Import Project
                         </Button>,
                         <Button key="refreshProjects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>
-                            <RefreshCcw className="size-4" />
+                            <RefreshCcw className="size-4 text-(--color-brand-wMain)" />
                             Refresh Projects
                         </Button>,
                     ]}

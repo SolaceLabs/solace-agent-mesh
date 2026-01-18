@@ -77,9 +77,9 @@ function AppLayoutContent() {
     };
 
     return (
-        <div className={`relative flex h-screen`}>
+        <div>
             <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
-            <main className="h-full w-full flex-1 overflow-auto">
+            <main className="w-full h-[calc(100vh-80px)]">
                 <Outlet />
             </main>
             <ToastContainer />

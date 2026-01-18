@@ -17,12 +17,12 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle }) 
             <div className="flex h-20 justify-between border-b px-2 pt-[35px]">
                 <div className="flex items-center gap-2">
                     <Button variant="ghost" onClick={onToggle} data-testid="hideChatSessions" tooltip="Hide Chat Sessions">
-                        <PanelLeftIcon className="size-5" />
+                        <PanelLeftIcon className="size-5 text-[color:var(--color-brand-wMain)]" />
                     </Button>
                     <div className="text-xl">Chats</div>
                 </div>
 
-                <div className="flex items-center">
+                <div className="flex items-center ">
                     <ChatSessionDialog buttonText="New Chat" />
                 </div>
             </div>
