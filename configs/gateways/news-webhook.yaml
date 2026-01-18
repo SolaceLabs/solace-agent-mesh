@@ -1,0 +1,93 @@
+# Plugin Metadata:
+# Name: sam-webhook-gateway
+# Version: 0.1.0
+# Description: A Universal Webhook Gateway for the Solace Agent Mesh that allows external systems to trigger A2A (Agent-to-Agent) tasks via HTTP webhooks.
+# Author: SolaceLabs <solacelabs@solace.com>
+#
+#
+# Environment Variables for Endpoint Secrets (examples):
+# - INGEST_API_TOKEN
+# - LOG_USER
+# - LOG_PASSWORD
+# - ALERT_API_KEY
+# - IMAGE_UPLOAD_SECRET
+
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: news-webhook.log
+
+# To use the `shared_config.yaml` file, uncomment the following line and remove the `shared_config` section below.
+# !include ../shared_config.yaml
+
+shared_config:
+  - broker_connection: &broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+
+  - services:
+    # Default artifact service configuration
+    artifact_service: &default_artifact_service
+      type: "filesystem"
+      base_path: "/tmp/samv2"
+      artifact_scope: namespace # Or "namespace", "app", "custom"
+
+apps:
+  # --- App Definition ---
+  - name: NewsWebhook__app # Unique name for this gateway app instance
+    app_module: sam_webhook_gateway.app # Points to the plugin's App class
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}" 
+      gateway_id: news-webhook-gw-01
+      artifact_service: *default_artifact_service
+
+      authorization_service:
+        type: "none" # Or "default_rbac"
+
+      system_purpose: >
+            The system is an AI Chatbot with agentic capabilities.
+            It will use the agents available to provide information,
+            reasoning and general assistance for the users in this system.
+            **Always return useful artifacts and files that you create to the user.**
+            Provide a status update before each tool call.
+            Your external name is Agent Mesh.
+
+      response_format: >
+            Responses should be clear, concise, and professionally toned.
+            Format responses to the user in Markdown using appropriate formatting.
+
+      # --- WebhookGatewayApp Specific Config ---
+      webhook_server_host: ${NEWS_WEBHOOK_HOST, "0.0.0.0"}
+      webhook_server_port: ${NEWS_WEBHOOK_PORT, 8002}       
+      cors_allowed_origins: ["*"]    # Or specify origins like ["http://localhost:3000", "https://myfrontend.com"]
+
+
+      webhook_endpoints:
+        # News Article Webhook - receives notifications when new paragraphs are uploaded
+        - path: "/webhook-listener"
+          method: "POST"
+          target_agent_name: "OrchestratorAgent"
+          payload_format: "json"
+          input_template: |
+            BREAKING NEWS ALERT!
+
+            A new news article has been published:
+
+            Event: {{text://input.payload:event}}
+            Article ID: {{text://input.payload:data:id}}
+            Content: {{text://input.payload:data:content}}
+            Published At: {{text://input.payload:data:created_at}}
+            Timestamp: {{text://input.payload:timestamp}}
+
+            Please acknowledge receipt of this news article and provide an analysis on the stocks provided.
+          auth:
+            type: "none"
+          assumed_user_identity: "news_webhook_system"
