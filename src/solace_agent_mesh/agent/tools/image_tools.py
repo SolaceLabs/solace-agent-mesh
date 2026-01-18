@@ -777,21 +777,21 @@ async def edit_image_with_gemini(
     """
     Edits an existing image based on a text prompt using Google's Gemini image generation models.
     
-    Two models are available:
-    - Nano Banana (gemini-2.5-flash-image): Default model, optimized for speed and efficiency.
-    - Nano Banana Pro (gemini-3-pro-image-preview): Professional model for complex tasks requiring
-      advanced reasoning, high-fidelity text rendering, and up to 4K resolution. Use this for
-      infographics, charts, diagrams, technical illustrations, or any task requiring precise
-      text placement and professional quality output.
+    Two models are available (configured via tool_config):
+    - Standard model: Default, optimized for speed, efficiency, and lower cost.
+    - Pro model: Professional quality for complex tasks requiring advanced reasoning,
+      high-fidelity text rendering, and up to 4K resolution. More expensive, so use only
+      when truly necessary for infographics, charts, diagrams, technical illustrations,
+      or tasks requiring precise text placement.
 
     Args:
         image_filename: The filename (and optional :version) of the input image artifact.
         edit_prompt: Text description of the desired edits to apply to the image.
         output_filename: Optional. The desired filename for the output edited image.
                         If not provided, a unique name like 'edited_image_<uuid>.jpg' will be used.
-        use_pro_model: If True, uses Nano Banana Pro (gemini-3-pro-image-preview) for professional
-                      quality output with advanced reasoning and high-fidelity text rendering.
-                      If False (default), uses Nano Banana (gemini-2.5-flash-image) for fast processing.
+        use_pro_model: If True, uses the pro model for professional quality output with
+                      advanced reasoning and high-fidelity text rendering. More expensive.
+                      If False (default), uses the standard model which is faster and cheaper.
         tool_context: The context provided by the ADK framework.
         tool_config: Configuration dictionary containing gemini_api_key, model, and optionally pro_model.
 
@@ -860,12 +860,12 @@ async def edit_image_with_gemini(
             )
 
         gemini_api_key = current_tool_config.get("gemini_api_key")
-        # Nano Banana: gemini-2.5-flash-image - optimized for speed and efficiency
+        # Standard model - optimized for speed, efficiency, and lower cost
         default_model = current_tool_config.get(
             "model", "gemini-2.5-flash-image"
         )
-        # Nano Banana Pro: gemini-3-pro-image-preview - for professional asset production
-        # with advanced reasoning, high-fidelity text rendering, and up to 4K resolution
+        # Pro model - for professional asset production with advanced reasoning,
+        # high-fidelity text rendering, and up to 4K resolution. More expensive.
         pro_model = current_tool_config.get(
             "pro_model", "gemini-3-pro-image-preview"
         )
@@ -1113,22 +1113,22 @@ async def generate_image_with_gemini(
     tool_config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Generates an image from a text description using Google's Gemini Nano Banana image generation models.
+    Generates an image from a text description using Google's Gemini image generation models.
     
-    Two models are available:
-    - Nano Banana (gemini-2.5-flash-image): Default model, optimized for speed and efficiency.
-    - Nano Banana Pro (gemini-3-pro-image-preview): Professional model for complex tasks requiring
-      advanced reasoning, high-fidelity text rendering, and up to 4K resolution. Use this for
-      infographics, charts, diagrams, technical illustrations, or any task requiring precise
-      text placement and professional quality output.
+    Two models are available (configured via tool_config):
+    - Standard model: Default, optimized for speed, efficiency, and lower cost.
+    - Pro model: Professional quality for complex tasks requiring advanced reasoning,
+      high-fidelity text rendering, and up to 4K resolution. More expensive, so use only
+      when truly necessary for infographics, charts, diagrams, technical illustrations,
+      or tasks requiring precise text placement.
 
     Args:
         image_description: The textual prompt to use for image generation.
         output_filename: Optional. The desired filename for the output image.
                         If not provided, a unique name like 'generated_image_<uuid>.png' will be used.
-        use_pro_model: If True, uses Nano Banana Pro (gemini-3-pro-image-preview) for professional
-                      quality output with advanced reasoning and high-fidelity text rendering.
-                      If False (default), uses Nano Banana (gemini-2.5-flash-image) for fast processing.
+        use_pro_model: If True, uses the pro model for professional quality output with
+                      advanced reasoning and high-fidelity text rendering. More expensive.
+                      If False (default), uses the standard model which is faster and cheaper.
         tool_context: The context provided by the ADK framework.
         tool_config: Configuration dictionary containing gemini_api_key, model, and optionally pro_model.
 
@@ -1196,12 +1196,12 @@ async def generate_image_with_gemini(
             )
 
         gemini_api_key = current_tool_config.get("gemini_api_key")
-        # Nano Banana: gemini-2.5-flash-image - optimized for speed and efficiency
+        # Standard model - optimized for speed, efficiency, and lower cost
         default_model = current_tool_config.get(
             "model", "gemini-2.5-flash-image"
         )
-        # Nano Banana Pro: gemini-3-pro-image-preview - for professional asset production
-        # with advanced reasoning, high-fidelity text rendering, and up to 4K resolution
+        # Pro model - for professional asset production with advanced reasoning,
+        # high-fidelity text rendering, and up to 4K resolution. More expensive.
         pro_model = current_tool_config.get(
             "pro_model", "gemini-3-pro-image-preview"
         )
@@ -1424,11 +1424,9 @@ edit_image_with_gemini_tool_def = BuiltinTool(
     implementation=edit_image_with_gemini,
     description=(
         "Edits an existing image based on a text prompt using Google's Gemini image generation models. "
-        "Two models are available: Nano Banana (gemini-2.5-flash-image) for fast, efficient processing, "
-        "and Nano Banana Pro (gemini-3-pro-image-preview) for complex tasks requiring professional quality. "
-        "Use the pro model (use_pro_model=true) for: infographics, charts, diagrams, flowcharts, technical "
-        "illustrations, images with precise text placement, high-resolution output (up to 4K), or any task "
-        "requiring advanced reasoning and professional quality output."
+        "Two models are available: a standard model (fast, efficient, and cheaper) and a pro model "
+        "(professional quality but more expensive). Use the pro model only when truly necessary for "
+        "complex tasks like infographics, charts, diagrams, or images requiring precise text placement."
     ),
     category="image",
     required_scopes=["tool:image:edit"],
@@ -1451,10 +1449,11 @@ edit_image_with_gemini_tool_def = BuiltinTool(
             "use_pro_model": adk_types.Schema(
                 type=adk_types.Type.BOOLEAN,
                 description=(
-                    "Set to true to use Nano Banana Pro (gemini-3-pro-image-preview) for professional quality output "
-                    "with advanced reasoning, high-fidelity text rendering, and up to 4K resolution. Recommended for "
-                    "infographics, charts, diagrams, technical illustrations, or any complex visual content. "
-                    "Set to false (default) to use Nano Banana (gemini-2.5-flash-image) for fast, efficient processing."
+                    "Set to true to use the pro model for professional quality output with advanced reasoning, "
+                    "high-fidelity text rendering, and up to 4K resolution. The pro model is MORE EXPENSIVE, "
+                    "so only use it when truly necessary for: infographics, charts, diagrams, technical "
+                    "illustrations, or complex visual content requiring precise text placement. "
+                    "Set to false (default) to use the standard model which is faster, efficient, and cheaper."
                 ),
                 nullable=True,
             ),
@@ -1469,11 +1468,9 @@ generate_image_with_gemini_tool_def = BuiltinTool(
     implementation=generate_image_with_gemini,
     description=(
         "Generates an image from a text description using Google's Gemini image generation models. "
-        "Two models are available: Nano Banana (gemini-2.5-flash-image) for fast, efficient processing, "
-        "and Nano Banana Pro (gemini-3-pro-image-preview) for complex tasks requiring professional quality. "
-        "Use the pro model (use_pro_model=true) for: infographics, charts, diagrams, flowcharts, technical "
-        "illustrations, images with precise text placement, high-resolution output (up to 4K), or any task "
-        "requiring advanced reasoning and professional quality output."
+        "Two models are available: a standard model (fast, efficient, and cheaper) and a pro model "
+        "(professional quality but more expensive). Use the pro model only when truly necessary for "
+        "complex tasks like infographics, charts, diagrams, or images requiring precise text placement."
     ),
     category="image",
     required_scopes=["tool:image:create"],
@@ -1492,10 +1489,11 @@ generate_image_with_gemini_tool_def = BuiltinTool(
             "use_pro_model": adk_types.Schema(
                 type=adk_types.Type.BOOLEAN,
                 description=(
-                    "Set to true to use Nano Banana Pro (gemini-3-pro-image-preview) for professional quality output "
-                    "with advanced reasoning, high-fidelity text rendering, and up to 4K resolution. Recommended for "
-                    "infographics, charts, diagrams, technical illustrations, or any complex visual content. "
-                    "Set to false (default) to use Nano Banana (gemini-2.5-flash-image) for fast, efficient processing."
+                    "Set to true to use the pro model for professional quality output with advanced reasoning, "
+                    "high-fidelity text rendering, and up to 4K resolution. The pro model is MORE EXPENSIVE, "
+                    "so only use it when truly necessary for: infographics, charts, diagrams, technical "
+                    "illustrations, or complex visual content requiring precise text placement. "
+                    "Set to false (default) to use the standard model which is faster, efficient, and cheaper."
                 ),
                 nullable=True,
             ),
