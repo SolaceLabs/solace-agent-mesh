@@ -8,14 +8,12 @@ import logging
 import os
 from typing import (
     TYPE_CHECKING,
-    Any,
     Callable,
     Dict,
     List,
     Optional,
     Set,
     Tuple,
-    Type,
     Union,
 )
 
@@ -38,20 +36,16 @@ from solace_ai_connector.common.utils import import_module
 from ...agent.adk import callbacks as adk_callbacks
 from ...agent.adk.models.lite_llm import LiteLlm
 from ...common.utils.type_utils import is_subclass_by_name
-from ..tools.dynamic_tool import DynamicTool, DynamicToolProvider
+# DynamicTool and DynamicToolProvider are loaded via UnifiedPythonExecutor
 from ..tools.registry import tool_registry
 from ..tools.tool_config_types import (
     AnyToolConfig,
     BuiltinGroupToolConfig,
     BuiltinToolConfig,
-    ExecutorToolConfig,
     McpToolConfig,
     PythonToolConfig,
 )
-from ..tools.executors import (
-    ExecutorBasedTool,
-    create_executor,
-)
+from ..tools.executors import UnifiedPythonExecutor
 from ..tools.tool_definition import BuiltinTool
 from .app_llm_agent import AppLlmAgent
 from .embed_resolving_mcp_toolset import EmbedResolvingMCPToolset
@@ -65,24 +59,6 @@ log = logging.getLogger(__name__)
 
 # Define a clear return type for all tool-loading helpers
 ToolLoadingResult = Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool], List[Callable]]
-
-
-def _find_dynamic_tool_class(module) -> Optional[type]:
-    """Finds a single non-abstract DynamicTool subclass in a module."""
-    found_classes = []
-    for name, obj in inspect.getmembers(module, inspect.isclass):
-        if (
-            is_subclass_by_name(obj, "DynamicTool")
-            and not is_subclass_by_name(obj, "DynamicToolProvider")
-            and not inspect.isabstract(obj)
-        ):
-            found_classes.append(obj)
-    if len(found_classes) > 1:
-        raise TypeError(
-            f"Module '{module.__name__}' contains multiple DynamicTool subclasses. "
-            "Please specify which one to use with 'class_name' in the config."
-        )
-    return found_classes[0] if found_classes else None
 
 
 async def _execute_lifecycle_hook(
@@ -162,22 +138,6 @@ def _create_cleanup_partial(
         raise RuntimeError(f"Tool lifecycle setup failed: {e}") from e
 
 
-def _find_dynamic_tool_provider_class(module) -> Optional[type]:
-    """Finds a single non-abstract DynamicToolProvider subclass in a module."""
-    found_classes = []
-    for name, obj in inspect.getmembers(module, inspect.isclass):
-        if is_subclass_by_name(obj, "DynamicToolProvider") and not inspect.isabstract(
-            obj
-        ):
-            found_classes.append(obj)
-    if len(found_classes) > 1:
-        raise TypeError(
-            f"Module '{module.__name__}' contains multiple DynamicToolProvider subclasses. "
-            "Only one is permitted per module."
-        )
-    return found_classes[0] if found_classes else None
-
-
 def _check_and_register_tool_name(name: str, source: str, loaded_tool_names: Set[str]):
     """Checks for duplicate tool names and raises ValueError if found."""
     if name in loaded_tool_names:
@@ -247,157 +207,53 @@ async def _create_python_tool_lifecycle_hooks(
     return list(reversed(cleanup_hooks))
 
 
-def _load_python_class_based_tool(
-    module: Any,
-    tool_config: Dict,
-    component: "SamAgentComponent",
-) -> List[DynamicTool]:
-    """
-    Loads a class-based tool, which can be a single DynamicTool or a
-    DynamicToolProvider that generates multiple tools.
-    """
-    from pydantic import BaseModel, ValidationError
-
-    specific_tool_config = tool_config.get("tool_config")
-    dynamic_tools: List[DynamicTool] = []
-    module_name = module.__name__
-
-    # Determine the class to load
-    tool_class = None
-    class_name = tool_config.get("class_name")
-    if class_name:
-        tool_class = getattr(module, class_name)
-    else:
-        # Auto-discover: provider first, then single tool
-        tool_class = _find_dynamic_tool_provider_class(module)
-        if not tool_class:
-            tool_class = _find_dynamic_tool_class(module)
-
-    if not tool_class:
-        raise TypeError(
-            f"Module '{module_name}' does not contain a 'function_name' or 'class_name' to load, "
-            "and no DynamicTool or DynamicToolProvider subclass could be auto-discovered."
-        )
-
-    # Check for a Pydantic model declaration on the tool class
-    config_model: Optional[Type["BaseModel"]] = getattr(
-        tool_class, "config_model", None
-    )
-    validated_config: Union[dict, "BaseModel"] = specific_tool_config
-
-    if config_model:
-        log.debug(
-            "%s Found config_model '%s' for tool class '%s'. Validating...",
-            component.log_identifier,
-            config_model.__name__,
-            tool_class.__name__,
-        )
-        try:
-            # Validate the raw dict and get a Pydantic model instance
-            validated_config = config_model.model_validate(specific_tool_config or {})
-            log.debug(
-                "%s Successfully validated tool_config for '%s'.",
-                component.log_identifier,
-                tool_class.__name__,
-            )
-        except ValidationError as e:
-            # Provide a clear error message and raise
-            error_msg = (
-                f"Configuration error for tool '{tool_class.__name__}' from module '{module_name}'. "
-                f"The provided 'tool_config' in your YAML is invalid:\n{e}"
-            )
-            log.error("%s %s", component.log_identifier, error_msg)
-            raise ValueError(error_msg) from e
-
-    # Instantiate tools from the class
-    if is_subclass_by_name(tool_class, "DynamicToolProvider"):
-        provider_instance = tool_class()
-        dynamic_tools = provider_instance.get_all_tools_for_framework(
-            tool_config=validated_config
-        )
-        log.info(
-            "%s Loaded %d tools from DynamicToolProvider '%s' in %s",
-            component.log_identifier,
-            len(dynamic_tools),
-            tool_class.__name__,
-            module_name,
-        )
-    elif is_subclass_by_name(tool_class, "DynamicTool"):
-        tool_instance = tool_class(tool_config=validated_config)
-        dynamic_tools = [tool_instance]
-    else:
-        raise TypeError(
-            f"Class '{tool_class.__name__}' in module '{module_name}' is not a valid "
-            "DynamicTool or DynamicToolProvider subclass."
-        )
-
-    # Post-process all generated tools
-    for tool in dynamic_tools:
-        tool.origin = "dynamic"
-        declaration = tool._get_declaration()
-        if not declaration:
-            log.warning(
-                "Dynamic tool '%s' from module '%s' did not generate a valid declaration. Skipping.",
-                tool.__class__.__name__,
-                module_name,
-            )
-            continue
-        log.info(
-            "%s Loaded dynamic tool: %s from %s",
-            component.log_identifier,
-            declaration.name,
-            module_name,
-        )
-
-    return dynamic_tools
-
-
 async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    """
+    Load Python tools using the UnifiedPythonExecutor.
+
+    This function handles all Python tool patterns through a unified interface:
+    - Simple functions (component_module + function_name)
+    - DynamicTool classes (component_module + class_name)
+    - DynamicToolProvider classes (component_module with auto-discovery)
+
+    The UnifiedPythonExecutor internally handles:
+    - Schema auto-detection from function signatures
+    - Artifact parameter detection from type hints
+    - ToolContextFacade parameter detection and injection
+    """
     from pydantic import TypeAdapter
 
     python_tool_adapter = TypeAdapter(PythonToolConfig)
     tool_config_model = python_tool_adapter.validate_python(tool_config)
 
     module_name = tool_config_model.component_module
-    base_path = tool_config_model.component_base_path
     if not module_name:
         raise ValueError("'component_module' is required for python tools.")
-    module = import_module(module_name, base_path=base_path)
 
-    loaded_python_tools: List[Union[BaseTool, Callable]] = []
+    # Create the unified executor with all configuration
+    executor = UnifiedPythonExecutor(
+        module=module_name,
+        function_name=tool_config_model.function_name,
+        class_name=tool_config_model.class_name,
+        tool_config=tool_config_model.tool_config,
+        tool_name=tool_config_model.tool_name,
+        tool_description=tool_config_model.tool_description,
+        raw_string_args=tool_config_model.raw_string_args,
+        base_path=tool_config_model.component_base_path,
+    )
 
-    # Case 1: Simple function-based tool
-    if tool_config_model.function_name:
-        func = getattr(module, tool_config_model.function_name)
-        if not callable(func):
-            raise TypeError(
-                f"'{tool_config_model.function_name}' in module '{module_name}' is not callable."
-            )
+    # Initialize the executor (loads and creates tools)
+    await executor.initialize(component, tool_config_model.model_dump())
 
-        tool_callable = ADKToolWrapper(
-            func,
-            tool_config_model.tool_config,
-            tool_config_model.function_name,
-            origin="python",
-            raw_string_args=tool_config_model.raw_string_args,
-        )
+    # Get the loaded tools
+    loaded_python_tools = executor.get_loaded_tools()
 
-        if tool_config_model.tool_name:
-            tool_callable.__name__ = tool_config_model.tool_name
-        if tool_config_model.tool_description:
-            tool_callable.__doc__ = tool_config_model.tool_description
-
-        loaded_python_tools.append(tool_callable)
-        log.info(
-            "%s Loaded Python tool: %s from %s.",
-            component.log_identifier,
-            tool_callable.__name__,
-            module_name,
-        )
-    # Case 2: Advanced class-based dynamic tool or provider
-    else:
-        dynamic_tools = _load_python_class_based_tool(module, tool_config, component)
-        loaded_python_tools.extend(dynamic_tools)
+    log.info(
+        "%s Loaded %d Python tool(s) from %s via UnifiedPythonExecutor.",
+        component.log_identifier,
+        len(loaded_python_tools),
+        module_name,
+    )
 
     # --- Lifecycle Hook Execution for all Python Tools ---
     cleanup_hooks = await _create_python_tool_lifecycle_hooks(
@@ -818,166 +674,6 @@ async def _load_openapi_tool(component: "SamAgentComponent", tool_config: Dict) 
         return [], [], []
 
 
-async def _load_executor_tool(
-    component: "SamAgentComponent", tool_config: Dict
-) -> ToolLoadingResult:
-    """
-    Load an executor-based tool from configuration.
-
-    Executor tools run on different backends (Python, Lambda) through
-    a unified configuration interface.
-    """
-    from google.genai import types as adk_types
-
-    tool_config_model = ExecutorToolConfig.model_validate(tool_config)
-    log_identifier = f"[ExecutorTool:{tool_config_model.name}]"
-
-    log.info(
-        "%s Loading executor tool with %s executor",
-        log_identifier,
-        tool_config_model.executor,
-    )
-
-    # Build executor kwargs based on type
-    executor_kwargs = {}
-
-    if tool_config_model.executor == "python":
-        executor_kwargs = {
-            "module": tool_config_model.module,
-            "function": tool_config_model.function,
-            "pass_tool_context": tool_config_model.pass_tool_context,
-            "pass_tool_config": tool_config_model.pass_tool_config,
-        }
-    elif tool_config_model.executor == "lambda":
-        executor_kwargs = {
-            "function_arn": tool_config_model.function_arn,
-            "region": tool_config_model.region,
-            "invocation_type": tool_config_model.invocation_type,
-            "include_context": tool_config_model.include_context,
-            "timeout_seconds": tool_config_model.timeout_seconds,
-        }
-
-    # Create executor
-    executor = create_executor(tool_config_model.executor, **executor_kwargs)
-
-    # Build parameter schema using the unified schema builder
-    # This detects artifact types from the schema (type: artifact)
-    from ..tools.executors.executor_tool import _build_schema_from_config
-    from ..tools.artifact_types import ArtifactTypeInfo
-
-    schema_result = _build_schema_from_config(tool_config_model.parameters or {})
-
-    # Merge schema-detected artifacts with explicit config (backward compatibility)
-    artifact_params = dict(schema_result.artifact_params)
-    for param_name in (tool_config_model.artifact_content_args or []):
-        if param_name not in artifact_params:
-            artifact_params[param_name] = ArtifactTypeInfo(
-                is_artifact=True, is_list=False
-            )
-    for param_name in (tool_config_model.artifact_content_list_args or []):
-        if param_name not in artifact_params:
-            artifact_params[param_name] = ArtifactTypeInfo(
-                is_artifact=True, is_list=True
-            )
-
-    # Create tool instance
-    tool = ExecutorBasedTool(
-        name=tool_config_model.name,
-        description=tool_config_model.description,
-        parameters_schema=schema_result.schema,
-        executor=executor,
-        tool_config=tool_config_model.tool_config,
-        artifact_params=artifact_params,
-    )
-
-    # Initialize executor
-    await tool.init(component, tool_config_model)
-
-    # Create cleanup function
-    async def cleanup_executor():
-        await tool.cleanup(component, tool_config_model)
-
-    log.info(
-        "%s Loaded executor tool '%s'",
-        component.log_identifier,
-        tool_config_model.name,
-    )
-
-    return [tool], [], [cleanup_executor]
-
-
-def _build_executor_schema(params_config: Optional[Dict]) -> "adk_types.Schema":
-    """
-    Build an ADK Schema from a parameters configuration dict.
-
-    DEPRECATED: This function is kept for backward compatibility only.
-    Use _build_schema_from_config from executor_tool.py instead, which
-    properly handles artifact types and returns artifact parameter info.
-    """
-    from google.genai import types as adk_types
-
-    if not params_config:
-        return adk_types.Schema(
-            type=adk_types.Type.OBJECT,
-            properties={},
-            required=[],
-        )
-
-    type_map = {
-        "string": adk_types.Type.STRING,
-        "str": adk_types.Type.STRING,
-        "integer": adk_types.Type.INTEGER,
-        "int": adk_types.Type.INTEGER,
-        "number": adk_types.Type.NUMBER,
-        "float": adk_types.Type.NUMBER,
-        "boolean": adk_types.Type.BOOLEAN,
-        "bool": adk_types.Type.BOOLEAN,
-        "array": adk_types.Type.ARRAY,
-        "list": adk_types.Type.ARRAY,
-        "object": adk_types.Type.OBJECT,
-        "dict": adk_types.Type.OBJECT,
-    }
-
-    # Handle standard JSON Schema format
-    if "properties" in params_config:
-        properties = {}
-        for name, prop_config in params_config.get("properties", {}).items():
-            prop_type = prop_config.get("type", "string")
-            adk_type = type_map.get(prop_type.lower(), adk_types.Type.STRING)
-            properties[name] = adk_types.Schema(
-                type=adk_type,
-                description=prop_config.get("description"),
-                nullable=prop_config.get("nullable", False),
-            )
-
-        return adk_types.Schema(
-            type=adk_types.Type.OBJECT,
-            properties=properties,
-            required=params_config.get("required", []),
-        )
-
-    # Handle simple format: {param_name: type_or_config}
-    properties = {}
-    for name, type_spec in params_config.items():
-        if isinstance(type_spec, str):
-            adk_type = type_map.get(type_spec.lower(), adk_types.Type.STRING)
-            properties[name] = adk_types.Schema(type=adk_type)
-        elif isinstance(type_spec, dict):
-            prop_type = type_spec.get("type", "string")
-            adk_type = type_map.get(prop_type.lower(), adk_types.Type.STRING)
-            properties[name] = adk_types.Schema(
-                type=adk_type,
-                description=type_spec.get("description"),
-                nullable=type_spec.get("nullable", False),
-            )
-
-    return adk_types.Schema(
-        type=adk_types.Type.OBJECT,
-        properties=properties,
-        required=[],
-    )
-
-
 def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[str]) -> ToolLoadingResult:
     """Loads internal framework tools that are not explicitly configured by the user."""
     loaded_tools: List[Union[BaseTool, Callable]] = []
@@ -1106,12 +802,6 @@ async def load_adk_tools(
                         new_builtins,
                         new_cleanups,
                     ) = await _load_openapi_tool(component, tool_config)
-                elif tool_type == "executor":
-                    (
-                        new_tools,
-                        new_builtins,
-                        new_cleanups,
-                    ) = await _load_executor_tool(component, tool_config)
                 else:
                     log.warning(
                         "%s Unknown tool type '%s' in config: %s",

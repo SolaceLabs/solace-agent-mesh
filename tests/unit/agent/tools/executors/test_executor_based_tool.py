@@ -195,25 +195,8 @@ class TestCreateExecutorToolFromConfig:
         assert tool.tool_description == "A Python-based tool"
         assert tool._executor.executor_type == "python"
 
-    def test_creates_tool_with_lambda_executor(self):
-        """Factory creates tool with Lambda executor."""
-        config = {
-            "name": "lambda_tool",
-            "description": "A Lambda-based tool",
-            "executor": "lambda",
-            "function_arn": "arn:aws:lambda:us-east-1:123456789:function:test",
-            "region": "us-east-1",
-            "parameters": {
-                "properties": {
-                    "input": {"type": "string"},
-                },
-            },
-        }
-
-        tool = create_executor_tool_from_config(config)
-
-        assert tool.tool_name == "lambda_tool"
-        assert tool._executor.executor_type == "lambda"
+    # Lambda executor test removed - Lambda support will be added in a future branch
+    # as a top-level tool_type: lambda (not nested under executor)
 
     def test_raises_on_missing_required_fields(self):
         """Factory raises ValueError for missing required fields."""
@@ -255,13 +238,7 @@ class TestCreateExecutorToolFromConfig:
                 "function": "f",
             })
 
-        # Lambda executor missing 'function_arn'
-        with pytest.raises(ValueError, match="Missing required fields.*function_arn"):
-            create_executor_tool_from_config({
-                "name": "test",
-                "description": "A tool",
-                "executor": "lambda",
-            })
+        # Lambda executor test removed - Lambda support will be added in a future branch
 
     def test_raises_on_unknown_executor_type(self):
         """Factory raises ValueError for unknown executor type."""

@@ -136,72 +136,9 @@ class TestFactoryWrongKeyBug:
         assert tool.artifact_params["input_files"].is_list is True
 
 
-class TestSetupSchemaBuilderBug:
-    """
-    Bug #3: setup.py's _build_executor_schema doesn't recognize `type: artifact`.
-
-    FIXED: setup.py now uses _build_schema_from_config from executor_tool.py,
-    which correctly handles artifact types.
-
-    The old _build_executor_schema is kept for backward compatibility but is
-    deprecated.
-    """
-
-    def test_deprecated_schema_builder_still_works(self):
-        """
-        The deprecated _build_executor_schema should still work for basic types.
-        It's kept for backward compatibility.
-        """
-        from src.solace_agent_mesh.agent.adk.setup import _build_executor_schema
-
-        # Config using basic types
-        params_config = {
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "A name",
-                },
-                "count": {
-                    "type": "integer",
-                    "description": "A count",
-                },
-            },
-            "required": ["name"],
-        }
-
-        schema = _build_executor_schema(params_config)
-
-        # The schema should be built correctly
-        assert schema is not None
-        assert "name" in schema.properties
-        assert "count" in schema.properties
-        assert schema.properties["name"].type == adk_types.Type.STRING
-        assert schema.properties["count"].type == adk_types.Type.INTEGER
-
-    def test_deprecated_schema_builder_limitation_documented(self):
-        """
-        Document that the deprecated _build_executor_schema doesn't return
-        artifact info (this is why it's deprecated).
-        """
-        from src.solace_agent_mesh.agent.adk.setup import _build_executor_schema
-
-        params_config = {
-            "properties": {
-                "input_file": {
-                    "type": "artifact",
-                    "description": "An artifact to process",
-                },
-            },
-        }
-
-        result = _build_executor_schema(params_config)
-
-        # The deprecated function only returns Schema, not artifact info
-        assert result is not None
-        assert not hasattr(result, 'artifact_params'), (
-            "The deprecated _build_executor_schema doesn't return artifact_params. "
-            "Use _build_schema_from_config from executor_tool.py instead."
-        )
+# TestSetupSchemaBuilderBug removed - _build_executor_schema was removed
+# as part of the tool_type: executor cleanup. All Python tools now use
+# UnifiedPythonExecutor which handles schema building internally.
 
 
 class TestUnifiedSchemaBuilder:

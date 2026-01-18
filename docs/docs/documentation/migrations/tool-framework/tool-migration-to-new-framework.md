@@ -324,47 +324,6 @@ async def merge_files(
 - You want explicit control over data disposition
 - You need to include metadata with the artifact
 
-## Executor Tools (Lambda): Using `type: artifact`
-
-For executor-based tools (Lambda), use `type: artifact` directly in the parameters schema:
-
-```yaml
-tools:
-  - tool_type: executor
-    name: process_file
-    description: Process a data file
-    executor: lambda
-    function_arn: arn:aws:lambda:us-east-1:123456789:function:process
-
-    parameters:
-      properties:
-        input_file:
-          type: artifact              # Single artifact - translated to string for LLM
-          description: Input file to process (supports filename:version format)
-        input_files:
-          type: array
-          items:
-            type: artifact            # List of artifacts - translated to array of strings
-          description: Multiple files to merge
-        output_name:
-          type: string                # Regular string - no pre-loading
-          description: Output filename
-      required:
-        - input_file
-        - output_name
-```
-
-**How it works:**
-1. `type: artifact` is translated to `string` in the LLM schema
-2. `type: array` with `items.type: artifact` is translated to `array of strings`
-3. The framework automatically pre-loads artifact content before calling the executor
-4. Supports `filename:version` format (e.g., `data.csv:2` for version 2)
-
-**Benefits over deprecated `artifact_content_args`:**
-- Type info is co-located with parameter definition
-- No separate lists to maintain
-- Cleaner, more intuitive configuration
-
 ## Complete Examples
 
 For complete migration examples, see the example tool implementations in the source code:

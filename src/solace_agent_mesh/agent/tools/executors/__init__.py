@@ -3,29 +3,26 @@ Tool executors for running tools on different backends.
 
 This package provides an abstraction layer that allows tools to run on:
 - Local Python: Execute functions in the same process
-- AWS Lambda: Invoke serverless functions
+
+The UnifiedPythonExecutor handles all Python tool loading patterns:
+- Simple functions (module + function_name)
+- DynamicTool classes (module + class_name)
+- DynamicToolProvider classes (auto-discovery)
 
 Usage:
     from solace_agent_mesh.agent.tools.executors import (
+        UnifiedPythonExecutor,
         ExecutorBasedTool,
-        LocalPythonExecutor,
-        LambdaExecutor,
         create_executor,
     )
 
-    # Create an executor
-    executor = LocalPythonExecutor(
+    # Load Python tools using the unified executor
+    executor = UnifiedPythonExecutor(
         module="my_tools",
-        function="process_data"
+        function_name="process_data"  # or class_name for DynamicTool
     )
-
-    # Create a tool using the executor
-    tool = ExecutorBasedTool(
-        name="process_data",
-        description="Process data",
-        parameters_schema=schema,
-        executor=executor,
-    )
+    await executor.initialize(component, {})
+    tools = executor.get_loaded_tools()
 """
 
 from .base import (
@@ -38,7 +35,7 @@ from .base import (
 )
 
 from .python_executor import LocalPythonExecutor
-from .lambda_executor import LambdaExecutor
+from .unified_python_executor import UnifiedPythonExecutor
 
 from .executor_tool import (
     ExecutorBasedTool,
@@ -56,7 +53,7 @@ __all__ = [
     "list_executor_types",
     # Executor implementations
     "LocalPythonExecutor",
-    "LambdaExecutor",
+    "UnifiedPythonExecutor",
     # Tool class
     "ExecutorBasedTool",
     "create_executor_tool_from_config",

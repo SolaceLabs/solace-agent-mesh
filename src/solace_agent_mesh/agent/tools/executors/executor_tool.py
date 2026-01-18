@@ -2,11 +2,11 @@
 ExecutorBasedTool - A DynamicTool that delegates execution to a ToolExecutor.
 
 This allows tools to be defined via configuration and run on different backends
-(Python, Lambda, HTTP) without changing the tool definition.
+without changing the tool definition.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Literal, Optional, TYPE_CHECKING
 
 from google.adk.tools import ToolContext
 from google.genai import types as adk_types
@@ -57,6 +57,11 @@ class ExecutorBasedTool(DynamicTool):
         # Aliases for backward compatibility with setup.py / YAML configs
         artifact_content_args: Optional[List[str]] = None,
         artifact_content_list_args: Optional[List[str]] = None,
+        # Embed resolution control
+        raw_string_args: Optional[List[str]] = None,
+        resolution_type: Literal["early", "all"] = "early",
+        # ToolContextFacade injection
+        ctx_facade_param_name: Optional[str] = None,
     ):
         """
         Initialize an executor-based tool.
@@ -72,12 +77,18 @@ class ExecutorBasedTool(DynamicTool):
             artifact_list_args: (Deprecated) Parameter names (lists) to pre-load
             artifact_content_args: (Deprecated) Alias for artifact_args
             artifact_content_list_args: (Deprecated) Alias for artifact_list_args
+            raw_string_args: Parameters that should not have embeds resolved
+            resolution_type: "early" or "all" for embed resolution
+            ctx_facade_param_name: Parameter name for ToolContextFacade injection
         """
         super().__init__(tool_config=tool_config)
         self._name = name
         self._description = description
         self._schema = parameters_schema
         self._executor = executor
+        self._raw_string_args = raw_string_args or []
+        self._resolution_type = resolution_type
+        self._ctx_facade_param_name = ctx_facade_param_name
 
         # Merge artifact_content_args into artifact_args for backward compatibility
         effective_artifact_args = list(artifact_args or [])
@@ -122,6 +133,21 @@ class ExecutorBasedTool(DynamicTool):
     def artifact_params(self) -> Dict[str, ArtifactTypeInfo]:
         """Return detailed info about artifact parameters."""
         return self._artifact_params
+
+    @property
+    def raw_string_args(self) -> List[str]:
+        """Return list of arguments that should not have embeds resolved."""
+        return self._raw_string_args
+
+    @property
+    def resolution_type(self) -> Literal["early", "all"]:
+        """Return the embed resolution type."""
+        return self._resolution_type
+
+    @property
+    def ctx_facade_param_name(self) -> Optional[str]:
+        """Return the parameter name for ToolContextFacade injection."""
+        return self._ctx_facade_param_name
 
     async def init(
         self,
@@ -232,7 +258,7 @@ def create_executor_tool_from_config(
         config: Tool configuration dictionary with keys:
             - name: Tool name
             - description: Tool description
-            - executor: Executor type ("python", "lambda")
+            - executor: Executor type ("python")
             - parameters: Parameter schema definition
             - artifact_content_args: List of single-value params to pre-load artifacts
             - artifact_content_list_args: List of list-value params to pre-load artifacts
@@ -257,7 +283,6 @@ def create_executor_tool_from_config(
     # Define required fields for each executor type
     executor_required_fields = {
         "python": ["module", "function"],
-        "lambda": ["function_arn"],
     }
 
     # Validate executor type
@@ -283,14 +308,6 @@ def create_executor_tool_from_config(
             "function": config["function"],
             "pass_tool_context": config.get("pass_tool_context", True),
             "pass_tool_config": config.get("pass_tool_config", True),
-        }
-    elif executor_type == "lambda":
-        executor_kwargs = {
-            "function_arn": config["function_arn"],
-            "region": config.get("region"),
-            "invocation_type": config.get("invocation_type", "RequestResponse"),
-            "include_context": config.get("include_context", True),
-            "timeout_seconds": config.get("timeout_seconds", 60),
         }
 
     # Create executor
