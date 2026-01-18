@@ -134,7 +134,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                 {node.data.condition && (
                     <div className="px-4 pb-3 pt-0">
                         <span
-                            className="block truncate rounded bg-card-background px-2 py-1 text-sm text-secondary-foreground dark:border dark:border-[var(--color-secondary-w80)]"
+                            className="block truncate rounded bg-[var(--color-secondary-w10)] dark:bg-[var(--color-secondary-w80)] px-2 py-1 text-sm text-secondary-foreground"
                             title={node.data.condition}
                         >
                             {node.data.condition}

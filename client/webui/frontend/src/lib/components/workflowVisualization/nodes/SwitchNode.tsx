@@ -46,7 +46,7 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCl
                                     {index + 1}
                                 </span>
                                 <span
-                                className="block truncate rounded bg-card-background px-2 py-1 text-sm text-secondary-foreground dark:border dark:border-[var(--color-secondary-w80)]"
+                                className="block truncate rounded bg-[var(--color-secondary-w10)] dark:bg-[var(--color-secondary-w80)] px-2 py-1 text-sm text-secondary-foreground dark:border dark:border-[var(--color-secondary-w80)]"
                                     title={caseItem.condition}
                                 >
                                     {caseItem.condition || ""}
@@ -58,7 +58,7 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCl
                                 <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-[var(--color-secondary-w20)] text-xs font-medium dark:border-[var(--color-secondary-w80)]">
                                     {cases.length + 1}
                                 </span>
-                                <span className="flex-1 rounded bg-card-background px-2 py-1 text-sm text-secondary-foreground dark:border dark:border-[var(--color-secondary-w80)]">
+                                <span className="flex-1 rounded bg-[var(--color-secondary-w10)] dark:bg-[var(--color-secondary-w80)] px-2 py-1 text-sm text-secondary-foreground dark:border dark:border-[var(--color-secondary-w80)]">
                                     default
                                 </span>
                             </div>
