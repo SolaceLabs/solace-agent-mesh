@@ -120,17 +120,17 @@ export const NODE_BASE_STYLES = {
     /** Rectangular node style - used by Agent, Workflow, Switch nodes
      * Figma Card: rounded (4px), shadow, 16px padding
      */
-    RECTANGULAR: "group relative flex cursor-pointer items-center justify-between rounded bg-white px-4 py-3 shadow transition-all duration-200 ease-in-out dark:bg-gray-800 dark:hover:bg-gray-700 dark:shadow-none",
+    RECTANGULAR: "group relative flex cursor-pointer items-center justify-between rounded bg-[var(--color-background-w10)] px-4 py-3 shadow transition-all duration-200 ease-in-out dark:border dark:border-[var(--color-secondary-w80)] dark:bg-[var(--color-background-wMain)] dark:hover:bg-[var(--color-secondary-w80)] dark:shadow-none",
     /** Rectangular compact style - used by Loop/Map collapsed nodes */
-    RECTANGULAR_COMPACT: "group relative flex cursor-pointer items-center justify-between rounded bg-white px-3 py-2 shadow transition-all duration-200 dark:bg-gray-800 dark:hover:bg-gray-700 dark:shadow-none",
+    RECTANGULAR_COMPACT: "group relative flex cursor-pointer items-center justify-between rounded bg-[var(--color-background-w10)] px-3 py-2 shadow transition-all duration-200 dark:border dark:border-[var(--color-secondary-w80)] dark:bg-[var(--color-background-wMain)] dark:hover:bg-[var(--color-secondary-w80)] dark:shadow-none",
     /** Pill-shaped node style - used by Start/End nodes */
     PILL: "flex cursor-pointer items-center justify-center gap-2 rounded-full bg-indigo-50 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:bg-indigo-900/50",
     /** Container header style - used by Loop/Map expanded header */
-    CONTAINER_HEADER: "group relative mx-auto w-fit cursor-pointer rounded bg-white shadow transition-all duration-200 dark:bg-gray-800 dark:hover:bg-gray-700 dark:shadow-none",
+    CONTAINER_HEADER: "group relative mx-auto w-fit cursor-pointer rounded bg-[var(--color-background-w10)] shadow transition-all duration-200 dark:border dark:border-[var(--color-secondary-w80)] dark:bg-[var(--color-background-wMain)] dark:hover:bg-[var(--color-secondary-w80)] dark:shadow-none",
     /** Condition pill style - used by Switch condition pills */
-    CONDITION_PILL: "flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all duration-200",
+    CONDITION_PILL: "flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all duration-200 bg-[var(--color-background-w10)] dark:bg-[var(--color-background-wMain)] dark:hover:bg-[var(--color-secondary-w80)] dark:shadow-none dark:border dark:border-[var(--color-secondary-w80)]",
     /** Switch node style - similar to rectangular but without justify-between */
-    SWITCH: "group relative cursor-pointer rounded bg-white shadow transition-all duration-200 dark:bg-gray-800 dark:hover:bg-gray-700 dark:shadow-none",
+    SWITCH: "group relative cursor-pointer rounded bg-[var(--color-background-w10)] shadow transition-all duration-200 dark:border dark:border-[var(--color-secondary-w80)] dark:bg-[var(--color-background-wMain)] dark:hover:bg-[var(--color-secondary-w80)] dark:shadow-none",
 } as const;
 
 /**
