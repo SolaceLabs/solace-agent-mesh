@@ -29,7 +29,7 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCl
             <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2">
                     <GitBranch className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Switch</span>
+                    <span className="text-sm font-semibold text-foreground">Switch</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-500 dark:text-gray-400">{totalCases} cases</span>
@@ -41,12 +41,12 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCl
                 <div className="px-4 pb-3 pt-0">
                     <div className="flex flex-col gap-1.5">
                         {cases.map((caseItem: { condition?: string }, index: number) => (
-                            <div key={index} className="flex items-center gap-2">
-                                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-[var(--color-secondary-w20)] bg-[var(--color-background-w10)] text-xs font-medium text-[var(--color-secondary-text-wMain)]">
+                            <div key={index} className="flex items-center gap-2 ">
+                                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-[var(--color-secondary-w20)] text-xs font-medium text-secondary-foreground dark:border dark:border-[var(--color-secondary-w80)]">
                                     {index + 1}
                                 </span>
                                 <span
-                                    className="flex-1 truncate rounded bg-gray-100 px-2 py-1 text-sm text-[var(--color-secondary-text-wMain)] dark:bg-gray-700"
+                                className="block truncate rounded bg-card-background px-2 py-1 text-sm text-secondary-foreground dark:border dark:border-[var(--color-secondary-w80)]"
                                     title={caseItem.condition}
                                 >
                                     {caseItem.condition || ""}
@@ -55,10 +55,10 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCl
                         ))}
                         {hasDefault && (
                             <div className="flex items-center gap-2">
-                                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-[var(--color-secondary-w20)] bg-[var(--color-background-w10)] text-xs font-medium text-[var(--color-secondary-text-wMain)]">
+                                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-[var(--color-secondary-w20)] text-xs font-medium dark:border-[var(--color-secondary-w80)]">
                                     {cases.length + 1}
                                 </span>
-                                <span className="flex-1 rounded bg-gray-100 px-2 py-1 text-sm text-[var(--color-secondary-text-wMain)] dark:bg-gray-700">
+                                <span className="flex-1 rounded bg-card-background px-2 py-1 text-sm text-secondary-foreground dark:border dark:border-[var(--color-secondary-w80)]">
                                     default
                                 </span>
                             </div>

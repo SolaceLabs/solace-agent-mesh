@@ -49,7 +49,7 @@ const WorkflowRefNode: React.FC<NodeProps> = ({
         >
             <div className="flex items-center gap-2 overflow-hidden">
                 <Workflow className="h-5 w-5 flex-shrink-0 text-purple-600 dark:text-purple-400" />
-                <span className="truncate text-sm font-semibold text-gray-800 dark:text-gray-200">{workflowName}</span>
+                <span className="truncate text-sm font-semibold text-foreground">{workflowName}</span>
             </div>
             <span className="ml-2 flex-shrink-0 rounded px-2 py-0.5 text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                 Workflow

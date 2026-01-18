@@ -47,7 +47,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
             >
                 <div className="flex items-center gap-2">
                     <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                    <span className="text-sm font-semibold text-teal-900 dark:text-teal-100">Loop</span>
+                    <span className="text-sm font-semibold text-foreground">Loop</span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -111,7 +111,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                 <div className="flex items-center justify-between gap-4 px-4 py-2">
                     <div className="flex items-center gap-2">
                         <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                        <span className="text-sm font-semibold text-teal-900 dark:text-teal-100">Loop</span>
+                        <span className="text-sm font-semibold text-foreground">Loop</span>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -134,7 +134,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                 {node.data.condition && (
                     <div className="px-4 pb-3 pt-0">
                         <span
-                            className="block truncate rounded bg-gray-100 px-2 py-1 text-sm text-[var(--color-secondary-text-wMain)] dark:bg-gray-700"
+                            className="block truncate rounded bg-card-background px-2 py-1 text-sm text-secondary-foreground dark:border dark:border-[var(--color-secondary-w80)]"
                             title={node.data.condition}
                         >
                             {node.data.condition}

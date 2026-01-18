@@ -47,11 +47,11 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
         >
             {!isDefault && caseNumber && (
                 <>
-                    <span className="flex-shrink-0 font-medium">{caseNumber}</span>
-                    <div className="h-4 w-px bg-[var(--color-secondary-w20)]" />
+                    <span className="flex-shrink-0 font-medium text-foreground">{caseNumber}</span>
+                    <div className="h-4 w-px bg-[var(--color-secondary-w20)] dark:bg-[var(--color-secondary-w80)]" />
                 </>
             )}
-            <span className="block flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+            <span className="block flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-secondary-foreground">
                 {displayText}
             </span>
         </div>

@@ -100,7 +100,7 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onCl
                 <div className="flex items-center justify-between gap-4 px-4 py-2">
                     <div className="flex items-center gap-2">
                         <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                        <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">Map</span>
+                        <span className="text-sm font-semibold text-foreground">Map</span>
                     </div>
 
                     <Button
