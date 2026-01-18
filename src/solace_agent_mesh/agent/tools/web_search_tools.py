@@ -21,6 +21,35 @@ log = logging.getLogger(__name__)
 CATEGORY_NAME = "web_search"
 CATEGORY_DESCRIPTION = "Tools for searching the web and retrieving current information"
 
+# State key for tracking search turns within a task/session
+_SEARCH_TURN_STATE_KEY = "web_search_turn_counter"
+
+
+def _get_next_search_turn(tool_context: Optional[ToolContext]) -> int:
+    """
+    Get the next search turn number using tool context state.
+    
+    This approach stores the turn counter in the tool context state, which is:
+    - Per-task/session scoped (not global)
+    - Automatically cleaned up when the task ends
+    
+    Each search within a task gets a unique turn number, so citations from
+    different searches never collide (e.g., s0r0, s0r1 for first search,
+    s1r0, s1r1 for second search).
+    """
+    if not tool_context:
+        # Fallback: return 0 if no context (shouldn't happen in practice)
+        log.warning("[web_search] No tool_context provided, using turn=0")
+        return 0
+    
+    # Get current turn from state, defaulting to 0
+    current_turn = tool_context.state.get(_SEARCH_TURN_STATE_KEY, 0)
+    
+    # Increment for next search
+    tool_context.state[_SEARCH_TURN_STATE_KEY] = current_turn + 1
+    
+    return current_turn
+
 
 async def web_search_google(
     query: str,
@@ -77,18 +106,42 @@ async def web_search_google(
             log.error("%s Search failed: %s", log_identifier, result.error)
             return f"Error: {result.error}"
         
+        # Get unique search turn for this search to prevent citation ID collisions
+        # Uses tool context state (per-task scoped, automatically cleaned up)
+        search_turn = _get_next_search_turn(tool_context)
+        citation_prefix = f"s{search_turn}r"  # e.g., s0r0, s0r1 for first search; s1r0, s1r1 for second
+        
         log.info(
-            "%s Search successful: %d results, %d images",
+            "%s Search successful: %d results, %d images (turn=%d, citation_prefix=%s)",
             log_identifier,
             len(result.organic),
-            len(result.images)
+            len(result.images),
+            search_turn,
+            citation_prefix
         )
         
         rag_sources = []
+        valid_citation_ids = []
+        
+        # Log citation-to-source mapping for debugging
+        log.debug("%s === CITATION TO SOURCE MAPPING (turn %d) ===", log_identifier, search_turn)
+        
         for i, source in enumerate(result.organic):
+            citation_id = f"{citation_prefix}{i}"
+            valid_citation_ids.append(citation_id)
+            
+            # Log each citation mapping at debug level
+            log.debug(
+                "%s Citation [[cite:%s]] -> URL: %s | Title: %s",
+                log_identifier,
+                citation_id,
+                source.link,
+                source.title[:50] if source.title else "N/A"
+            )
+            
             rag_source = create_rag_source(
-                citation_id=f"search{i}",
-                file_id=f"web_search_{i}",
+                citation_id=citation_id,
+                file_id=f"web_search_{search_turn}_{i}",
                 filename=source.attribution or source.title,
                 title=source.title,
                 source_url=source.link,
@@ -106,10 +159,14 @@ async def web_search_google(
             )
             rag_sources.append(rag_source)
         
+        log.debug("%s === END CITATION MAPPING ===", log_identifier)
+        log.debug("%s Valid citation IDs for this search: %s", log_identifier, valid_citation_ids)
+        
         for i, image in enumerate(result.images):
+            image_citation_id = f"img{search_turn}r{i}"
             image_source = create_rag_source(
-                citation_id=f"image{i}",
-                file_id=f"web_search_image_{i}",
+                citation_id=image_citation_id,
+                file_id=f"web_search_image_{search_turn}_{i}",
                 filename=image.title or f"Image {i+1}",
                 title=image.title,
                 source_url=image.link,
@@ -134,9 +191,36 @@ async def web_search_google(
             sources=rag_sources
         )
         
+        # Build a formatted result string that clearly associates each citation ID with its content
+        # This helps the LLM correctly match citations to facts
+        formatted_results = []
+        formatted_results.append(f"=== SEARCH RESULTS (Turn {search_turn}) ===")
+        formatted_results.append(f"Query: {query}")
+        formatted_results.append(f"Valid citation IDs: {', '.join(valid_citation_ids)}")
+        formatted_results.append("")
+        
+        for i, source in enumerate(result.organic):
+            citation_id = f"{citation_prefix}{i}"
+            formatted_results.append(f"--- RESULT {i+1} ---")
+            formatted_results.append(f"CITATION ID: [[cite:{citation_id}]]")
+            formatted_results.append(f"TITLE: {source.title}")
+            formatted_results.append(f"URL: {source.link}")
+            formatted_results.append(f"CONTENT: {source.snippet}")
+            formatted_results.append(f"USE [[cite:{citation_id}]] to cite facts from THIS result only")
+            formatted_results.append("")
+        
+        formatted_results.append("=== END SEARCH RESULTS ===")
+        formatted_results.append("")
+        formatted_results.append("IMPORTANT: Each citation ID is UNIQUE to its result.")
+        formatted_results.append("Only use a citation ID for facts that appear in THAT specific result's CONTENT.")
+        
         return {
             "result": result.model_dump_json(),
-            "rag_metadata": rag_metadata
+            "formatted_results": "\n".join(formatted_results),
+            "rag_metadata": rag_metadata,
+            "valid_citation_ids": valid_citation_ids,
+            "num_results": len(result.organic),
+            "search_turn": search_turn
         }
         
     except Exception as e:

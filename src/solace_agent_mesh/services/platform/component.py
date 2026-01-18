@@ -18,6 +18,7 @@ from solace_agent_mesh.common.constants import (
     HEALTH_CHECK_INTERVAL_SECONDS,
     HEALTH_CHECK_TTL_SECONDS,
 )
+from solace_agent_mesh.common.a2a.utils import is_gateway_card
 from a2a.types import AgentCard
 
 log = logging.getLogger(__name__)
@@ -69,6 +70,7 @@ class PlatformServiceComponent(SamComponentBase):
     """
 
     HEALTH_CHECK_TIMER_ID = "platform_agent_health_check"
+    GATEWAY_HEALTH_CHECK_TIMER_ID = "platform_gateway_health_check"
 
     def get_config(self, key: str, default: Any = None) -> Any:
         """
@@ -158,16 +160,18 @@ class PlatformServiceComponent(SamComponentBase):
         # but now work with Platform Service via dependency abstraction
         self.session_manager = _StubSessionManager()
 
-        # Agent discovery (like BaseGatewayComponent)
+        # Agent and gateway discovery (like BaseGatewayComponent)
         # Initialize here so CoreA2AService can use it
         from solace_agent_mesh.common.agent_registry import AgentRegistry
+        from solace_agent_mesh.common.gateway_registry import GatewayRegistry
         self.agent_registry = AgentRegistry()
+        self.gateway_registry = GatewayRegistry()
         self.core_a2a_service = CoreA2AService(
             agent_registry=self.agent_registry,
             namespace=self.namespace,
             component_id="Platform"
         )
-        log.info("%s Agent discovery service initialized", self.log_identifier)
+        log.info("%s Agent and gateway discovery services initialized", self.log_identifier)
 
         # Background task state (for heartbeat monitoring and deployment status checking)
         # Note: agent_registry already initialized above
@@ -217,6 +221,9 @@ class PlatformServiceComponent(SamComponentBase):
 
         # Schedule agent health checks to remove expired agents from registry
         self._schedule_agent_health_check()
+
+        # Schedule gateway health checks to remove expired gateways from registry
+        self._schedule_gateway_health_check()
 
         log.info("%s Late initialization complete", self.log_identifier)
 
@@ -395,7 +402,7 @@ class PlatformServiceComponent(SamComponentBase):
 
         try:
             if a2a.topic_matches_subscription(
-                topic, a2a.get_discovery_topic(self.namespace)
+                topic, a2a.get_discovery_subscription_topic(self.namespace)
             ):
                 payload = message.get_payload()
 
@@ -441,9 +448,11 @@ class PlatformServiceComponent(SamComponentBase):
 
     def _handle_discovery_message(self, payload: Dict) -> bool:
         """
-        Handle incoming agent discovery messages.
+        Handle incoming agent and gateway discovery messages.
 
-        Follows the same pattern as BaseGatewayComponent for consistency.
+        Routes discovery cards to appropriate registries:
+        - Gateway cards (with gateway-role extension) -> GatewayRegistry
+        - Agent cards -> AgentRegistry
 
         Args:
             payload: The message payload dictionary
@@ -453,12 +462,34 @@ class PlatformServiceComponent(SamComponentBase):
         """
         try:
             agent_card = AgentCard(**payload)
-            self.core_a2a_service.process_discovery_message(agent_card)
-            log.debug(
-                "%s Processed agent discovery: %s",
-                self.log_identifier,
-                agent_card.name
-            )
+
+            # Route to appropriate registry based on card type
+            if is_gateway_card(agent_card):
+                # This is a gateway card - track in gateway registry
+                is_new = self.gateway_registry.add_or_update_gateway(agent_card)
+                if is_new:
+                    gateway_type = self.gateway_registry.get_gateway_type(agent_card.name)
+                    log.info(
+                        "%s New gateway discovered: %s (type: %s)",
+                        self.log_identifier,
+                        agent_card.name,
+                        gateway_type or "unknown"
+                    )
+                else:
+                    log.debug(
+                        "%s Gateway heartbeat received: %s",
+                        self.log_identifier,
+                        agent_card.name
+                    )
+            else:
+                # This is an agent card - use existing logic
+                self.core_a2a_service.process_discovery_message(agent_card)
+                log.debug(
+                    "%s Processed agent discovery: %s",
+                    self.log_identifier,
+                    agent_card.name
+                )
+
             return True
         except Exception as e:
             log.error(
@@ -538,17 +569,26 @@ class PlatformServiceComponent(SamComponentBase):
             except Exception as e:
                 log.warning("%s Error stopping heartbeat listener: %s", self.log_identifier, e)
 
-        # Cancel health check timer before clearing registry
+        # Cancel health check timers before clearing registries
         self.cancel_timer(self.HEALTH_CHECK_TIMER_ID)
-        log.info("%s Health check timer cancelled", self.log_identifier)
+        self.cancel_timer(self.GATEWAY_HEALTH_CHECK_TIMER_ID)
+        log.info("%s Health check timers cancelled", self.log_identifier)
 
         # Stop agent registry
         if self.agent_registry:
             try:
                 self.agent_registry.clear()
-                log.info("%s Agent registry stopped", self.log_identifier)
+                log.info("%s Agent registry cleared", self.log_identifier)
             except Exception as e:
-                log.warning("%s Error stopping agent registry: %s", self.log_identifier, e)
+                log.warning("%s Error clearing agent registry: %s", self.log_identifier, e)
+
+        # Stop gateway registry
+        if self.gateway_registry:
+            try:
+                self.gateway_registry.clear()
+                log.info("%s Gateway registry cleared", self.log_identifier)
+            except Exception as e:
+                log.warning("%s Error clearing gateway registry: %s", self.log_identifier, e)
 
         # Signal uvicorn to shutdown
         if self.uvicorn_server:
@@ -644,6 +684,17 @@ class PlatformServiceComponent(SamComponentBase):
         """
         return self.agent_registry
 
+    def get_gateway_registry(self):
+        """
+        Return the gateway registry instance.
+
+        Used for gateway fleet health monitoring.
+
+        Returns:
+            GatewayRegistry instance if initialized, None otherwise.
+        """
+        return self.gateway_registry
+
     def _schedule_agent_health_check(self):
         """
         Schedule periodic agent health checks to remove expired agents from registry.
@@ -715,6 +766,79 @@ class PlatformServiceComponent(SamComponentBase):
                 "%s Agent health check complete: %d agents, all healthy",
                 self.log_identifier,
                 total_agents,
+            )
+
+    def _schedule_gateway_health_check(self):
+        """
+        Schedule periodic gateway health checks to remove expired gateways from registry.
+
+        This mirrors _schedule_agent_health_check() for consistency. When a gateway
+        stops sending heartbeats (discovery cards), it will be automatically removed
+        from the registry after the TTL expires.
+        """
+        if self.health_check_interval_seconds > 0:
+            log.info(
+                "%s Scheduling gateway health check every %d seconds (TTL: %d seconds)",
+                self.log_identifier,
+                self.health_check_interval_seconds,
+                self.health_check_ttl_seconds,
+            )
+            self.add_timer(
+                delay_ms=self.health_check_interval_seconds * 1000,
+                timer_id=self.GATEWAY_HEALTH_CHECK_TIMER_ID,
+                interval_ms=self.health_check_interval_seconds * 1000,
+                callback=lambda timer_data: self._check_gateway_health(),
+            )
+        else:
+            log.warning(
+                "%s Gateway health check disabled (interval=%d). "
+                "Gateways will not be automatically removed from registry when they stop sending heartbeats.",
+                self.log_identifier,
+                self.health_check_interval_seconds,
+            )
+
+    def _check_gateway_health(self):
+        """
+        Check gateway health and remove expired gateways from registry.
+
+        Called periodically by the health check timer. Iterates through all
+        registered gateways and removes any whose TTL has expired (i.e., they
+        haven't sent a heartbeat recently).
+        """
+        log.debug("%s Performing gateway health check...", self.log_identifier)
+
+        gateway_ids = self.gateway_registry.get_gateway_ids()
+        total_gateways = len(gateway_ids)
+        gateways_removed = 0
+
+        for gateway_id in gateway_ids:
+            is_expired, time_since_last_seen = self.gateway_registry.check_ttl_expired(
+                gateway_id, self.health_check_ttl_seconds
+            )
+
+            if is_expired:
+                log.warning(
+                    "%s Gateway '%s' TTL expired (last seen: %d seconds ago, TTL: %d seconds). Removing from registry.",
+                    self.log_identifier,
+                    gateway_id,
+                    time_since_last_seen,
+                    self.health_check_ttl_seconds,
+                )
+                self.gateway_registry.remove_gateway(gateway_id)
+                gateways_removed += 1
+
+        if gateways_removed > 0:
+            log.info(
+                "%s Gateway health check complete: %d/%d gateways removed",
+                self.log_identifier,
+                gateways_removed,
+                total_gateways,
+            )
+        else:
+            log.debug(
+                "%s Gateway health check complete: %d gateways, all healthy",
+                self.log_identifier,
+                total_gateways,
             )
 
     def publish_a2a(

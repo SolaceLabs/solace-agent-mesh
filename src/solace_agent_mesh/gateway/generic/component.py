@@ -324,6 +324,8 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             log.info(
                 "%s Authenticated user: %s", log_id_prefix, user_identity.get("id")
             )
+            # Add user_id to external_input so adapter can use it for permission checks.
+            external_input["user_id"] = user_identity.get("id")
 
             # 2. Task Preparation
             sam_task = await self.adapter.prepare_task(external_input, endpoint_context)
@@ -687,13 +689,40 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
 
     # --- BaseGatewayComponent Abstract Method Implementations ---
 
+    async def _async_setup_and_run(self) -> None:
+        """Main async logic for the generic gateway component.
+
+        Initializes the adapter before calling base class setup to ensure
+        the adapter context is available before any message processing begins.
+        This guarantees that adapter methods like extract_auth_claims() have
+        access to self.context when called.
+        """
+        log.info("%s Initializing adapter...", self.log_identifier)
+        try:
+            await self.adapter.init(self)
+            log.info("%s Adapter initialized successfully", self.log_identifier)
+        except Exception as e:
+            log.error("%s Failed to initialize adapter: %s", self.log_identifier, e)
+            raise
+
+        await super()._async_setup_and_run()
+
     def _start_listener(self) -> None:
-        """Starts the adapter's listener."""
-        log.info("%s Calling adapter.init()...", self.log_identifier)
-        # The adapter's init method is responsible for starting any listeners
-        # (e.g., an HTTP server, a websocket client).
-        # We run it in the component's event loop.
-        asyncio.run_coroutine_threadsafe(self.adapter.init(self), self.get_async_loop())
+        """Listener start hook from BaseGatewayComponent.
+
+        For GenericGatewayComponent, adapter initialization is handled in
+        _async_setup_and_run() before this method is called. This ensures
+        proper async initialization and guarantees the adapter context is
+        available before message processing starts.
+
+        Subclasses that need additional listener setup (e.g., starting an
+        HTTP server) can override this method.
+        """
+        # Adapter already initialized in _async_setup_and_run
+        log.debug(
+            "%s _start_listener called - adapter already initialized",
+            self.log_identifier,
+        )
 
     def _stop_listener(self) -> None:
         """Stops the adapter's listener."""
