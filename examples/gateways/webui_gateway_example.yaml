@@ -104,6 +104,7 @@ apps:
       # --- Frontend Feature Enablement ---
       frontend_feature_enablement:
         background_tasks: ${BACKGROUND_TASKS_ENABLED, true} # NOTE: task_logging must also be enabled for background tasks to work
+        auto_title_generation: ${AUTO_TITLE_GENERATION_ENABLED, true}  # Enable automatic chat title generation
 
       # --- Background Tasks Configuration ---
       background_tasks:

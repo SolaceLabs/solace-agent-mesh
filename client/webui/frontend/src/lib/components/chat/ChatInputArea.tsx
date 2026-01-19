@@ -299,13 +299,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             prev.map(item =>
                 item.id === selectedPendingPasteId
                     ? {
-                        ...item,
-                        content: metadata.content,
-                        filename: metadata.filename,
-                        mimeType: metadata.mimeType,
-                        description: metadata.description,
-                        isConfigured: true,
-                    }
+                          ...item,
+                          content: metadata.content,
+                          filename: metadata.filename,
+                          mimeType: metadata.mimeType,
+                          description: metadata.description,
+                          isConfigured: true,
+                      }
                     : item
             )
         );
@@ -480,22 +480,18 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         let found = false;
 
         // Walk through all nodes to calculate position in internal format
-        const walker = document.createTreeWalker(
-            chatInputRef.current,
-            NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-            {
-                acceptNode: (node: Node) => {
-                    // Skip text nodes inside mention chips (we handle the chip as a whole)
-                    if (node.nodeType === Node.TEXT_NODE) {
-                        const parent = node.parentElement;
-                        if (parent && parent.classList.contains("mention-chip")) {
-                            return NodeFilter.FILTER_REJECT;
-                        }
+        const walker = document.createTreeWalker(chatInputRef.current, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+            acceptNode: (node: Node) => {
+                // Skip text nodes inside mention chips (we handle the chip as a whole)
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const parent = node.parentElement;
+                    if (parent && parent.classList.contains("mention-chip")) {
+                        return NodeFilter.FILTER_REJECT;
                     }
-                    return NodeFilter.FILTER_ACCEPT;
                 }
-            }
-        );
+                return NodeFilter.FILTER_ACCEPT;
+            },
+        });
 
         let node: Node | null;
         while ((node = walker.nextNode()) && !found) {
@@ -581,11 +577,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         const cursorPosition = getCursorPosition();
 
         // Insert the mention using internal format @[Name](id)
-        const { newText, newCursorPosition } = insertMention(
-            inputValue,
-            cursorPosition,
-            person
-        );
+        const { newText, newCursorPosition } = insertMention(inputValue, cursorPosition, person);
 
         // Check if there's already a person with the same name but different ID
         // If so, both need disambiguation
@@ -593,7 +585,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         let existingPersonId: string | undefined;
 
         for (const [id, existingPerson] of mentionMap.entries()) {
-            if (existingPerson.name === person.name && id !== person.id) {
+            if (existingPerson.displayName === person.displayName && id !== person.id) {
                 needsDisambiguation = true;
                 existingPersonId = id;
                 break;
@@ -947,13 +939,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 cursorPosition={desiredCursorPosition}
                 mentionMap={mentionMap}
                 disambiguatedIds={disambiguatedIds}
-                placeholder={
-                    isRecording
-                        ? "Recording..."
-                        : mentionsEnabled
-                            ? "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)"
-                            : "How can I help you today? (Type '/' to insert a prompt)"
-                }
+                placeholder={isRecording ? "Recording..." : mentionsEnabled ? "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)" : "How can I help you today? (Type '/' to insert a prompt)"}
                 className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
                 onPaste={handlePaste}
                 disabled={isRecording}

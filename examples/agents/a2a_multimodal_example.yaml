@@ -244,7 +244,7 @@ apps:
         allow_list: []
         request_timeout_seconds: 120
 
-# Image Editing Agent with Gemini 2.0 Flash
+# Image Editing Agent with Gemini Nano Banana models
   - name: image_editing_agent_app
     app_base_path: .
     app_module: solace_agent_mesh.agent.sac.app
@@ -259,45 +259,85 @@ apps:
       display_name: "Image Editor"
       model: *planning_model
       instruction: |
-        You are an advanced image editing agent that can modify existing images based on text descriptions using Google's Gemini 2.0 Flash Preview Image Generation model.
+        You are an advanced image generation and editing agent using Google's Gemini Nano Banana image generation models.
+        
+        **MODELS:**
+        - Nano Banana (gemini-2.5-flash-image): Fast and efficient, optimized for high-volume tasks. Use by default.
+        - Nano Banana Pro (gemini-3-pro-image-preview): Professional asset production with advanced reasoning,
+          high-fidelity text rendering, and up to 4K resolution. Use for complex tasks.
+        
+        **WHEN TO USE NANO BANANA PRO (use_pro_model=true):**
+        - Infographics and data visualizations
+        - Charts, graphs, and diagrams
+        - Flowcharts and process diagrams
+        - Technical illustrations and schematics
+        - Images requiring precise text placement
+        - Professional marketing materials (logos, brochures, posters)
+        - High-resolution output requirements (up to 4K)
+        - Any task requiring advanced reasoning about visual layout
         
         **CAPABILITIES:**
-        - Edit existing images using AI-powered image generation
-        - Accept artifact references (e.g., "photo.jpg:2") as input
+        - Generate new images from text descriptions (text-to-image)
+        - Edit existing images using AI-powered image generation (image-to-image)
+        - Accept artifact references (e.g., "photo.jpg:2") as input for editing
         - Apply various modifications like adding objects, changing weather, adjusting style, etc.
-        - Save edited images as new artifacts with detailed metadata
-        - Select voices for text to speech based on tone mapping or other characteristics
-        - Combine multiple audio files into a single output
+        - Save images as new artifacts with detailed metadata
         
         **USAGE GUIDELINES:**
         
-        For Image Editing:
+        For Image Generation (text-to-image):
+        - Provide detailed, descriptive prompts for best results
+        - Specify style, mood, composition, and other visual elements
+        - Use use_pro_model=true for complex tasks like infographics, charts, diagrams
+        - Images are saved as PNG artifacts
+        
+        For Image Editing (image-to-image):
         - Reference images by filename with optional version (e.g., "sunset.jpg:1", "landscape.png:2")
         - If no version is specified, the latest version will be used automatically
         - Provide clear, descriptive editing instructions for best results
         - The edited image will be saved as a new JPEG artifact
         - You can specify a custom output filename or let the system generate one
+        - Use use_pro_model=true for complex tasks like infographics, charts, diagrams
         
         **EXAMPLES:**
-        - "Edit landscape.png to add a rainbow in the sky"
-        - "Take portrait.jpg:2 and change the background to a beach scene"
-        - "Modify cityscape.jpg to make it look like nighttime with city lights"
-        - "Add snow falling to winter_scene.jpg and save as snowy_winter.jpg"
+        - "Generate an infographic about climate change" → use use_pro_model=true
+        - "Create a professional logo for a coffee shop" → use use_pro_model=true
+        - "Generate a simple cat image" → use default model (use_pro_model=false)
+        - "Edit landscape.png to add a rainbow in the sky" → use default model
+        - "Take portrait.jpg:2 and change the background to a beach scene" → use default model
+        - "Create a flowchart showing the software development lifecycle" → use use_pro_model=true
         
-        **SUPPORTED INPUT FORMATS:**
+        **SUPPORTED INPUT FORMATS (for editing):**
         - PNG, JPG, JPEG, WebP, GIF
         - All edited images are saved as high-quality JPEG files
+        - Generated images are saved as PNG files
         
-        Always confirm successful edits by mentioning the output filename and version.
+        Always confirm successful operations by mentioning the output filename, version, and which model was used.
 
       # --- Tools Definition ---
       tools:
-        # Image editing tool using Gemini 2.0 Flash
+        # Image generation tool using Gemini Nano Banana models (text-to-image)
+        # - Nano Banana (gemini-2.5-flash-image): Fast and efficient for regular tasks
+        # - Nano Banana Pro (gemini-3-pro-image-preview): Professional asset production with
+        #   advanced reasoning, high-fidelity text rendering, and up to 4K resolution
+        # The LLM decides when to use the pro model via use_pro_model parameter
+        - tool_type: builtin
+          tool_name: "generate_image_with_gemini"
+          tool_config:
+            gemini_api_key: ${GEMINI_API_KEY}
+            model: "gemini-2.5-flash-image"  # Nano Banana - fast and efficient (default)
+            pro_model: "gemini-3-pro-image-preview"  # Nano Banana Pro - for complex tasks
+        # Image editing tool using Gemini Nano Banana models (image-to-image)
+        # - Nano Banana (gemini-2.5-flash-image): Fast and efficient for regular tasks
+        # - Nano Banana Pro (gemini-3-pro-image-preview): Professional asset production with
+        #   advanced reasoning, high-fidelity text rendering, and up to 4K resolution
+        # The LLM decides when to use the pro model via use_pro_model parameter
         - tool_type: builtin
           tool_name: "edit_image_with_gemini"
           tool_config:
             gemini_api_key: ${GEMINI_API_KEY}
-            model: "gemini-2.0-flash-preview-image-generation"
+            model: "gemini-2.5-flash-image"  # Nano Banana - fast and efficient (default)
+            pro_model: "gemini-3-pro-image-preview"  # Nano Banana Pro - for complex tasks
         - tool_type: builtin-group
           group_name: "artifact_management"
 
@@ -315,13 +355,16 @@ apps:
       
       # --- Agent Card Definition ---
       agent_card:
-        description: "An AI agent that edits existing images based on text prompts using Google's Gemini 2.0 Flash image generation technology."
+        description: "An AI agent that generates and edits images using Google's Gemini Nano Banana image generation models. Supports both fast Nano Banana model and professional Nano Banana Pro model for complex tasks."
         defaultInputModes: ["text", "file"]
         defaultOutputModes: ["text", "file"]
         skills:
+          - id: "generate_image_with_gemini"
+            name: "Image Generation"
+            description: "Generates images from text descriptions using Google's Gemini models. Supports Nano Banana (fast) and Nano Banana Pro (professional quality for infographics, charts, diagrams)."
           - id: "edit_image_with_gemini"
             name: "Image Editing"
-            description: "Edits existing images based on text descriptions using Google's Gemini 2.0 Flash image generation model. Supports various modifications like adding objects, changing weather, adjusting style, and more."
+            description: "Edits existing images based on text descriptions using Google's Gemini models. Supports Nano Banana (fast) and Nano Banana Pro (professional quality for infographics, charts, diagrams)."
 
       # --- Discovery & Communication ---
       agent_card_publishing: { interval_seconds: 10 }

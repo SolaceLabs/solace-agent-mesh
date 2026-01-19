@@ -770,19 +770,30 @@ async def edit_image_with_gemini(
     image_filename: str,
     edit_prompt: str,
     output_filename: Optional[str] = None,
+    use_pro_model: bool = False,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Edits an existing image based on a text prompt using Google's Gemini 2.0 Flash Preview Image Generation model.
+    Edits an existing image based on a text prompt using Google's Gemini image generation models.
+    
+    Two models are available (configured via tool_config):
+    - Standard model: Default, optimized for speed, efficiency, and lower cost.
+    - Pro model: Professional quality for complex tasks requiring advanced reasoning,
+      high-fidelity text rendering, and up to 4K resolution. More expensive, so use only
+      when truly necessary for infographics, charts, diagrams, technical illustrations,
+      or tasks requiring precise text placement.
 
     Args:
         image_filename: The filename (and optional :version) of the input image artifact.
         edit_prompt: Text description of the desired edits to apply to the image.
         output_filename: Optional. The desired filename for the output edited image.
                         If not provided, a unique name like 'edited_image_<uuid>.jpg' will be used.
+        use_pro_model: If True, uses the pro model for professional quality output with
+                      advanced reasoning and high-fidelity text rendering. More expensive.
+                      If False (default), uses the standard model which is faster and cheaper.
         tool_context: The context provided by the ADK framework.
-        tool_config: Configuration dictionary containing gemini_api_key and model.
+        tool_config: Configuration dictionary containing gemini_api_key, model, and optionally pro_model.
 
     Returns:
         A dictionary containing:
@@ -793,6 +804,7 @@ async def edit_image_with_gemini(
         - "result_preview": A brief preview message (if successful).
         - "original_filename": The name of the input image artifact (if successful).
         - "original_version": The version of the input image artifact (if successful).
+        - "model_used": The model that was used for the edit (if successful).
     """
     log_identifier = f"[ImageTools:edit_image_with_gemini:{image_filename}]"
     if not tool_context:
@@ -848,8 +860,14 @@ async def edit_image_with_gemini(
             )
 
         gemini_api_key = current_tool_config.get("gemini_api_key")
-        model_name = current_tool_config.get(
-            "model", "gemini-2.0-flash-preview-image-generation"
+        # Standard model - optimized for speed, efficiency, and lower cost
+        default_model = current_tool_config.get(
+            "model", "gemini-2.5-flash-image"
+        )
+        # Pro model - for professional asset production with advanced reasoning,
+        # high-fidelity text rendering, and up to 4K resolution. More expensive.
+        pro_model = current_tool_config.get(
+            "pro_model", "gemini-3-pro-image-preview"
         )
 
         if not gemini_api_key:
@@ -857,7 +875,13 @@ async def edit_image_with_gemini(
                 "'gemini_api_key' configuration is missing in tool_config."
             )
 
-        log.debug(f"{log_identifier} Using Gemini model: {model_name}")
+        # Model selection is determined by the calling LLM via use_pro_model parameter
+        model_name = pro_model if use_pro_model else default_model
+        
+        log.info(
+            f"{log_identifier} Model selection: using {'pro' if use_pro_model else 'standard'} model "
+            f"({model_name})"
+        )
 
         parts = image_filename.rsplit(":", 1)
         filename_base_for_load = parts[0]
@@ -1061,6 +1085,8 @@ async def edit_image_with_gemini(
             "result_preview": f"Edited image '{final_output_filename}' (v{save_result['data_version']}) created from '{filename_base_for_load}' with prompt: \"{edit_prompt[:50]}...\"",
             "original_filename": filename_base_for_load,
             "original_version": version_to_load,
+            "model_used": model_name,
+            "used_pro_model": use_pro_model,
         }
 
     except FileNotFoundError as e:
@@ -1075,6 +1101,248 @@ async def edit_image_with_gemini(
     except Exception as e:
         log.exception(
             f"{log_identifier} Unexpected error in edit_image_with_gemini: {e}"
+        )
+        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
+
+async def generate_image_with_gemini(
+    image_description: str,
+    output_filename: Optional[str] = None,
+    use_pro_model: bool = False,
+    tool_context: ToolContext = None,
+    tool_config: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Generates an image from a text description using Google's Gemini image generation models.
+    
+    Two models are available (configured via tool_config):
+    - Standard model: Default, optimized for speed, efficiency, and lower cost.
+    - Pro model: Professional quality for complex tasks requiring advanced reasoning,
+      high-fidelity text rendering, and up to 4K resolution. More expensive, so use only
+      when truly necessary for infographics, charts, diagrams, technical illustrations,
+      or tasks requiring precise text placement.
+
+    Args:
+        image_description: The textual prompt to use for image generation.
+        output_filename: Optional. The desired filename for the output image.
+                        If not provided, a unique name like 'generated_image_<uuid>.png' will be used.
+        use_pro_model: If True, uses the pro model for professional quality output with
+                      advanced reasoning and high-fidelity text rendering. More expensive.
+                      If False (default), uses the standard model which is faster and cheaper.
+        tool_context: The context provided by the ADK framework.
+        tool_config: Configuration dictionary containing gemini_api_key, model, and optionally pro_model.
+
+    Returns:
+        A dictionary containing:
+        - "status": "success" or "error".
+        - "message": A descriptive message about the outcome.
+        - "output_filename": The name of the saved image artifact (if successful).
+        - "output_version": The version of the saved image artifact (if successful).
+        - "result_preview": A brief preview message (if successful).
+        - "model_used": The model that was used for generation (if successful).
+        - "used_pro_model": Whether the pro model was used (if successful).
+    """
+    log_identifier = f"[ImageTools:generate_image_with_gemini]"
+    if not tool_context:
+        log.error(f"{log_identifier} ToolContext is missing.")
+        return {"status": "error", "message": "ToolContext is missing."}
+
+    try:
+        try:
+            from google import genai
+            from google.genai import types
+            from PIL import Image as PILImage
+            from io import BytesIO
+        except ImportError as ie:
+            log.error(f"{log_identifier} Required dependencies not available: {ie}")
+            return {
+                "status": "error",
+                "message": f"Required dependencies not available: {ie}",
+            }
+
+        inv_context = tool_context._invocation_context
+        if not inv_context:
+            raise ValueError("InvocationContext is not available.")
+
+        app_name = getattr(inv_context, "app_name", None)
+        user_id = getattr(inv_context, "user_id", None)
+        session_id = get_original_session_id(inv_context)
+        artifact_service = getattr(inv_context, "artifact_service", None)
+
+        if not all([app_name, user_id, session_id, artifact_service]):
+            missing_parts = [
+                part
+                for part, val in [
+                    ("app_name", app_name),
+                    ("user_id", user_id),
+                    ("session_id", session_id),
+                    ("artifact_service", artifact_service),
+                ]
+                if not val
+            ]
+            raise ValueError(
+                f"Missing required context parts: {', '.join(missing_parts)}"
+            )
+
+        log.info(
+            f"{log_identifier} Processing image generation request for session {session_id}."
+        )
+
+        current_tool_config = tool_config if tool_config is not None else {}
+
+        if not current_tool_config:
+            log.warning(
+                f"{log_identifier} Tool-specific configuration (tool_config) is empty."
+            )
+
+        gemini_api_key = current_tool_config.get("gemini_api_key")
+        # Standard model - optimized for speed, efficiency, and lower cost
+        default_model = current_tool_config.get(
+            "model", "gemini-2.5-flash-image"
+        )
+        # Pro model - for professional asset production with advanced reasoning,
+        # high-fidelity text rendering, and up to 4K resolution. More expensive.
+        pro_model = current_tool_config.get(
+            "pro_model", "gemini-3-pro-image-preview"
+        )
+
+        if not gemini_api_key:
+            raise ValueError(
+                "'gemini_api_key' configuration is missing in tool_config."
+            )
+
+        # Model selection is determined by the calling LLM via use_pro_model parameter
+        model_name = pro_model if use_pro_model else default_model
+        
+        log.info(
+            f"{log_identifier} Model selection: using {'pro' if use_pro_model else 'standard'} model "
+            f"({model_name})"
+        )
+
+        try:
+            client = genai.Client(api_key=gemini_api_key)
+            log.debug(f"{log_identifier} Initialized Gemini client")
+        except Exception as e:
+            raise ValueError(f"Failed to initialize Gemini client: {e}")
+
+        log.debug(
+            f"{log_identifier} Calling Gemini API with prompt: '{image_description[:100]}...'"
+        )
+
+        try:
+            response = await asyncio.to_thread(
+                client.models.generate_content,
+                model=model_name,
+                contents=[image_description],
+                config=types.GenerateContentConfig(
+                    response_modalities=["TEXT", "IMAGE"]
+                ),
+            )
+            log.debug(f"{log_identifier} Gemini API response received.")
+        except Exception as e:
+            raise ValueError(f"Gemini API call failed: {e}")
+
+        generated_image_bytes = None
+        response_text = None
+
+        if not response.candidates or not response.candidates[0].content.parts:
+            raise ValueError("Gemini API did not return valid content.")
+
+        for part in response.candidates[0].content.parts:
+            if part.text is not None:
+                response_text = part.text
+                log.debug(
+                    f"{log_identifier} Received text response: {response_text[:100]}..."
+                )
+            elif part.inline_data is not None:
+                generated_pil_image = PILImage.open(BytesIO(part.inline_data.data))
+                output_buffer = BytesIO()
+                # Save as PNG for generated images
+                generated_pil_image.save(output_buffer, format="PNG")
+                generated_image_bytes = output_buffer.getvalue()
+                log.debug(
+                    f"{log_identifier} Processed generated image: {len(generated_image_bytes)} bytes"
+                )
+
+        if not generated_image_bytes:
+            raise ValueError("No image data received from Gemini API.")
+
+        final_output_filename = ""
+        if output_filename:
+            sane_filename = os.path.basename(output_filename)
+            if not sane_filename.lower().endswith(".png"):
+                final_output_filename = f"{sane_filename}.png"
+            else:
+                final_output_filename = sane_filename
+        else:
+            final_output_filename = f"generated_image_{uuid.uuid4()}.png"
+
+        log.debug(
+            f"{log_identifier} Determined output filename: {final_output_filename}"
+        )
+
+        output_mime_type = "image/png"
+        current_timestamp_iso = datetime.now(timezone.utc).isoformat()
+
+        metadata_dict = {
+            "description": f"Image generated from prompt: {image_description}",
+            "source_prompt": image_description,
+            "generation_tool": "gemini",
+            "generation_model": model_name,
+            "used_pro_model": use_pro_model,
+            "request_timestamp": current_timestamp_iso,
+            "original_requested_filename": (
+                output_filename if output_filename else "N/A"
+            ),
+        }
+        if response_text:
+            metadata_dict["gemini_response_text"] = response_text
+
+        log.info(
+            f"{log_identifier} Saving generated image artifact '{final_output_filename}' with mime_type '{output_mime_type}'."
+        )
+        save_result = await save_artifact_with_metadata(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=final_output_filename,
+            content_bytes=generated_image_bytes,
+            mime_type=output_mime_type,
+            metadata_dict=metadata_dict,
+            timestamp=datetime.now(timezone.utc),
+            schema_max_keys=DEFAULT_SCHEMA_MAX_KEYS,
+            tool_context=tool_context,
+        )
+
+        if save_result.get("status") == "error":
+            raise IOError(
+                f"Failed to save generated image artifact: {save_result.get('message', 'Unknown error')}"
+            )
+
+        log.info(
+            f"{log_identifier} Generated image artifact '{final_output_filename}' v{save_result['data_version']} saved successfully."
+        )
+
+        return {
+            "status": "success",
+            "message": "Image generated and saved successfully.",
+            "output_filename": final_output_filename,
+            "output_version": save_result["data_version"],
+            "result_preview": f"Image '{final_output_filename}' (v{save_result['data_version']}) created from prompt: \"{image_description[:50]}...\"",
+            "model_used": model_name,
+            "used_pro_model": use_pro_model,
+        }
+
+    except ValueError as ve:
+        log.error(f"{log_identifier} Value error: {ve}")
+        return {"status": "error", "message": str(ve)}
+    except IOError as ioe:
+        log.error(f"{log_identifier} IO error: {ioe}")
+        return {"status": "error", "message": str(ioe)}
+    except Exception as e:
+        log.exception(
+            f"{log_identifier} Unexpected error in generate_image_with_gemini: {e}"
         )
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
@@ -1154,7 +1422,12 @@ describe_audio_tool_def = BuiltinTool(
 edit_image_with_gemini_tool_def = BuiltinTool(
     name="edit_image_with_gemini",
     implementation=edit_image_with_gemini,
-    description="Edits an existing image based on a text prompt using Google's Gemini 2.0 Flash Preview Image Generation model.",
+    description=(
+        "Edits an existing image based on a text prompt using Google's Gemini image generation models. "
+        "Two models are available: a standard model (fast, efficient, and cheaper) and a pro model "
+        "(professional quality but more expensive). Use the pro model only when truly necessary for "
+        "complex tasks like infographics, charts, diagrams, or images requiring precise text placement."
+    ),
     category="image",
     required_scopes=["tool:image:edit"],
     parameters=adk_types.Schema(
@@ -1173,8 +1446,59 @@ edit_image_with_gemini_tool_def = BuiltinTool(
                 description="Optional. The desired filename for the output edited image.",
                 nullable=True,
             ),
+            "use_pro_model": adk_types.Schema(
+                type=adk_types.Type.BOOLEAN,
+                description=(
+                    "Set to true to use the pro model for professional quality output with advanced reasoning, "
+                    "high-fidelity text rendering, and up to 4K resolution. The pro model is MORE EXPENSIVE, "
+                    "so only use it when truly necessary for: infographics, charts, diagrams, technical "
+                    "illustrations, or complex visual content requiring precise text placement. "
+                    "Set to false (default) to use the standard model which is faster, efficient, and cheaper."
+                ),
+                nullable=True,
+            ),
         },
         required=["image_filename", "edit_prompt"],
+    ),
+    examples=[],
+)
+
+generate_image_with_gemini_tool_def = BuiltinTool(
+    name="generate_image_with_gemini",
+    implementation=generate_image_with_gemini,
+    description=(
+        "Generates an image from a text description using Google's Gemini image generation models. "
+        "Two models are available: a standard model (fast, efficient, and cheaper) and a pro model "
+        "(professional quality but more expensive). Use the pro model only when truly necessary for "
+        "complex tasks like infographics, charts, diagrams, or images requiring precise text placement."
+    ),
+    category="image",
+    required_scopes=["tool:image:create"],
+    parameters=adk_types.Schema(
+        type=adk_types.Type.OBJECT,
+        properties={
+            "image_description": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="The textual prompt to use for image generation.",
+            ),
+            "output_filename": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Optional. The desired filename for the output PNG image.",
+                nullable=True,
+            ),
+            "use_pro_model": adk_types.Schema(
+                type=adk_types.Type.BOOLEAN,
+                description=(
+                    "Set to true to use the pro model for professional quality output with advanced reasoning, "
+                    "high-fidelity text rendering, and up to 4K resolution. The pro model is MORE EXPENSIVE, "
+                    "so only use it when truly necessary for: infographics, charts, diagrams, technical "
+                    "illustrations, or complex visual content requiring precise text placement. "
+                    "Set to false (default) to use the standard model which is faster, efficient, and cheaper."
+                ),
+                nullable=True,
+            ),
+        },
+        required=["image_description"],
     ),
     examples=[],
 )
@@ -1183,3 +1507,4 @@ tool_registry.register(create_image_from_description_tool_def)
 tool_registry.register(describe_image_tool_def)
 tool_registry.register(describe_audio_tool_def)
 tool_registry.register(edit_image_with_gemini_tool_def)
+tool_registry.register(generate_image_with_gemini_tool_def)
