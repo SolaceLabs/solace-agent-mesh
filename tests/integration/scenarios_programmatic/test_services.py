@@ -148,7 +148,8 @@ async def test_local_file_identity_service_search_users():
     results = await service.search_users(query)
     assert len(results) > 0, f"Search for '{query}' should return results."
     for user in results:
-        assert "name" in user and query.lower() in user["name"].lower(), \
+        # search_users returns canonical format with displayName, workEmail, jobTitle
+        assert "displayName" in user and query.lower() in user["displayName"].lower(), \
             f"User '{user}' does not match search query '{query}'."
 
     # Test with a query that matches no users

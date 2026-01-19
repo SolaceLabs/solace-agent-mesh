@@ -204,16 +204,11 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>
         // Sanitize the HTML to prevent XSS
         // Allow mention chips and their data attributes
         const cleanHtml = DOMPurify.sanitize(message.displayHtml, {
-            ALLOWED_TAGS: ['span', 'br'],
-            ALLOWED_ATTR: ['class', 'contenteditable', 'data-internal', 'data-person-id', 'data-person-name', 'data-display']
+            ALLOWED_TAGS: ["span", "br"],
+            ALLOWED_ATTR: ["class", "contenteditable", "data-internal", "data-person-id", "data-person-name", "data-display"],
         });
 
-        return (
-            <div
-                className="message-with-mentions whitespace-pre-wrap break-words"
-                dangerouslySetInnerHTML={{ __html: cleanHtml }}
-            />
-        );
+        return <div className="message-with-mentions break-words whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: cleanHtml }} />;
     }
 
     const renderContent = () => {
