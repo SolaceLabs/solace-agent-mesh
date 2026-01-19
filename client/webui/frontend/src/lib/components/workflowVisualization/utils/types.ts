@@ -124,7 +124,7 @@ export const NODE_BASE_STYLES = {
     /** Rectangular compact style - used by Loop/Map collapsed nodes */
     RECTANGULAR_COMPACT: "group relative flex cursor-pointer items-center justify-between rounded border border-transparent bg-[var(--color-background-w10)] px-3 py-2 shadow transition-all duration-200 hover:shadow-md dark:border-[var(--color-secondary-w80)] dark:bg-[var(--color-background-wMain)] dark:hover:bg-[var(--color-primary-w100)] dark:!shadow-none",
     /** Pill-shaped node style - used by Start/End nodes */
-    PILL: "flex cursor-pointer items-center justify-center gap-2 rounded-full bg-indigo-50 px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:bg-indigo-900/50",
+    PILL: "flex cursor-pointer items-center justify-center gap-2 rounded-full bg-[var(--color-primary-w10)] dark:hover:bg-[var(--color-primary-wMain)] px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:shadow-md dark:bg-[var(--color-primary-w90)] dark:!shadow-none",
     /** Container header style - used by Loop/Map expanded header */
     CONTAINER_HEADER: "group relative mx-auto w-fit cursor-pointer rounded border border-transparent bg-[var(--color-background-w10)] shadow transition-all duration-200 hover:shadow-md dark:border-[var(--color-secondary-w80)] dark:bg-[var(--color-background-wMain)] dark:hover:bg-[var(--color-primary-w100)] dark:!shadow-none",
     /** Condition pill style - used by Switch condition pills */

@@ -20,8 +20,8 @@ const EndNode: React.FC<NodeProps> = ({ node, isSelected, onClick }) => {
                 onClick?.(node);
             }}
         >
-            <CheckCircle className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
-            <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{node.data.label}</span>
+            <CheckCircle className="h-4 w-4 text-foreground" />
+            <span className="text-sm font-semibold text-foreground">{node.data.label}</span>
         </div>
     );
 };
