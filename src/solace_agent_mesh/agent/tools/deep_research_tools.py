@@ -1180,10 +1180,16 @@ Do not include any other text, markdown formatting, or explanations outside the 
         log.info("%s LLM selected %d sources: %s", log_identifier, len(selected_indices), reasoning)
         
         # Convert 1-based indices to actual findings
+        # Handle case where LLM returns strings instead of integers
         selected_sources = []
         for idx in selected_indices:
-            if 1 <= idx <= len(web_findings):
-                selected_sources.append(web_findings[idx - 1])
+            try:
+                idx_int = int(idx)  # Convert to int in case LLM returned strings
+                if 1 <= idx_int <= len(web_findings):
+                    selected_sources.append(web_findings[idx_int - 1])
+            except (ValueError, TypeError):
+                log.warning("%s Invalid index value: %s (type: %s), skipping", log_identifier, idx, type(idx).__name__)
+                continue
         
         return selected_sources[:max_to_fetch]
         
