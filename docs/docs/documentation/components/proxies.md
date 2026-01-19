@@ -194,6 +194,36 @@ The proxy caches OAuth tokens and automatically refreshes them when they expire.
 Always use environment variables for sensitive credentials. Never commit tokens or secrets directly in configuration files.
 :::
 
+## SSL Certificate Verification
+
+By default, the proxy verifies SSL certificates when connecting to downstream agents over HTTPS. You can disable certificate verification for specific agents using the `ssl_verify` configuration option.
+
+### When to Disable SSL Verification
+
+Disable SSL verification (`ssl_verify: false`) only in these scenarios:
+
+- **Development/Testing**: Connecting to agents with self-signed certificates in non-production environments
+- **Internal Infrastructure**: Agents running on internal networks with private CA certificates not trusted by the system
+
+:::warning[Security Warning]
+Disabling SSL verification removes protection against man-in-the-middle attacks. Never disable SSL verification in production environments unless you fully understand the security implications.
+:::
+
+### Configuration
+
+```yaml
+proxied_agents:
+  - name: "production-agent"
+    url: "https://api.example.com/agent"
+    ssl_verify: true  # Default - verify against system CAs
+
+  - name: "dev-agent-self-signed"
+    url: "https://dev.internal.example.com/agent"
+    ssl_verify: false  # Disable verification for self-signed certs
+```
+
+The `ssl_verify` setting applies to both agent card fetching and task invocations for the configured agent.
+
 ## Custom HTTP Headers
 
 The proxy supports custom HTTP headers for both agent card fetching and A2A task invocations. This is useful for scenarios like API versioning, tenant identification, custom authentication schemes, or any other header-based requirements.

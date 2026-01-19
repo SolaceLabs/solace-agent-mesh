@@ -208,6 +208,11 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
         "headers cannot override authentication. For custom auth, omit the 'authentication' "
         "config and use task_headers to set auth headers directly.",
     )
+    ssl_verify: bool = Field(
+        default=True,
+        description="SSL certificate verification. Set to False to disable "
+        "verification for self-signed certificates.",
+    )
 
 
 class A2AProxyAppConfig(BaseProxyAppConfig):
