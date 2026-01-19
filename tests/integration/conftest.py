@@ -746,6 +746,7 @@ def shared_solace_connector(
                 "max_result_preview_rows": 5,
                 "max_result_preview_bytes": 2048,
             },
+            "stream_batching_threshold_bytes": 0,
             "tools": tools,
         }
 
@@ -812,7 +813,8 @@ def shared_solace_connector(
             "tool_type": "builtin",
             "tool_name": "edit_image_with_gemini",
             "tool_config": {
-                "model": "gemini-2.0-flash-preview-image-generation",
+                "model": "gemini-2.5-flash-image",  
+                "pro_model": "gemini-3-pro-image-preview",  # Nano Banana Pro - for complex tasks
                 "gemini_api_key": "fake-gemini-api-key",
             },
         },
@@ -837,6 +839,22 @@ def shared_solace_connector(
             # prefixes are ignored in allow list
             "allow_list": ["get_data_stdio"],
             "connection_params": mcp_server_harness["stdio"],
+        },
+        {
+            "tool_type": "builtin",
+            "tool_name": "web_search_google",
+            "tool_config": {
+                "google_search_api_key": "fake-google-key",
+                "google_cse_id": "fake-cse-id",
+            },
+        },
+        {
+            "tool_type": "builtin",
+            "tool_name": "deep_research",
+            "tool_config": {
+                "google_search_api_key": "fake-google-key",
+                "google_cse_id": "fake-cse-id",
+            },
         },
     ]
     sam_agent_app_config = create_agent_config(
@@ -980,6 +998,7 @@ def shared_solace_connector(
         },
         "artifact_service": {"type": "test_in_memory"},
         "default_user_identity": "default-user@example.com",
+        "gateway_card_publishing": {"enabled": False},
     }
 
     auth_gateway_config = {
@@ -992,6 +1011,7 @@ def shared_solace_connector(
         },
         "artifact_service": {"type": "test_in_memory"},
         "default_user_identity": "fallback-user@example.com",
+        "gateway_card_publishing": {"enabled": False},
     }
 
     file_gateway_config = {
@@ -1002,6 +1022,7 @@ def shared_solace_connector(
             "max_file_size": 1024 * 1024,
         },
         "artifact_service": {"type": "test_in_memory"},
+        "gateway_card_publishing": {"enabled": False},
     }
 
     dispatching_gateway_config = {
@@ -1014,6 +1035,7 @@ def shared_solace_connector(
         },
         "artifact_service": {"type": "test_in_memory"},
         "default_user_identity": "default-dispatch@example.com",
+        "gateway_card_publishing": {"enabled": False},
     }
 
     app_infos = [
@@ -1031,6 +1053,7 @@ def shared_solace_connector(
                 },
                 "task_logging": {"enabled": True},
                 "artifact_service": {"type": "test_in_memory"},
+                "gateway_card_publishing": {"enabled": False},
             },
         },
         {
@@ -1096,6 +1119,7 @@ def shared_solace_connector(
                 "task_logging": {"enabled": False},
                 "system_purpose": "Test gateway system purpose for metadata validation",
                 "response_format": "Test gateway response format for metadata validation",
+                "gateway_card_publishing": {"enabled": False},
             },
             "broker": {"dev_mode": True},
             "app_module": "sam_test_infrastructure.gateway_interface.app",

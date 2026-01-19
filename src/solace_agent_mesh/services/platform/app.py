@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 from solace_ai_connector.flow.app import App
 
 from .component import PlatformServiceComponent
-from ...common.a2a import get_discovery_topic
+from ...common.a2a import get_discovery_subscription_topic
 
 log = logging.getLogger(__name__)
 
@@ -90,6 +90,13 @@ class PlatformServiceApp(App):
             "description": "List of allowed origins for CORS requests.",
         },
         {
+            "name": "cors_allowed_origin_regex",
+            "required": False,
+            "type": "string",
+            "default": "",
+            "description": "Regex pattern for allowed CORS origins. Useful for local development with dynamic ports (e.g., 'https?://(localhost|127\\.0\\.0\\.1):\\\\d+').",
+        },
+        {
             "name": "external_auth_service_url",
             "required": False,
             "type": "string",
@@ -157,9 +164,9 @@ class PlatformServiceApp(App):
         if not namespace:
             raise ValueError("Namespace is required in app_config for PlatformServiceApp")
 
-        # Create subscriptions for agent discovery
+        # Create subscriptions for agent and gateway discovery
         subscriptions = [
-            {"topic": get_discovery_topic(namespace)},
+            {"topic": get_discovery_subscription_topic(namespace)},
         ]
 
         # Create component definition with subscriptions

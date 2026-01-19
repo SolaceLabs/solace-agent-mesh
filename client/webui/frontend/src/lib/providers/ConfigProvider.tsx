@@ -109,6 +109,9 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 // Check if platform service is configured
                 const platformConfigured = Boolean(data.frontend_platform_server_url);
 
+                // Extract auto title generation config from feature enablement
+                const autoTitleGenerationEnabled = data.frontend_feature_enablement?.auto_title_generation ?? false;
+
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
                     webuiServerUrl: data.frontend_server_url,
@@ -128,6 +131,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     backgroundTasksEnabled,
                     backgroundTasksDefaultTimeoutMs,
                     platformConfigured,
+                    autoTitleGenerationEnabled,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;
@@ -167,26 +171,12 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
 
     // If config is not yet available, handle loading and error states.
     if (loading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
-                <div className="text-center">
-                    <div className="border-solace-green mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2"></div>
-                    <h1 className="text-2xl text-black dark:text-white">Loading Configuration...</h1>
-                </div>
-            </div>
-        );
+        return <EmptyState variant="loading" title="Loading Configuration..." className="h-screen w-screen" />;
     }
 
     if (error) {
-        return <EmptyState className="h-screen w-screen" variant="error" title="Configuration Error" subtitle="Please check the backend server and network connection, then refresh the page." />;
+        return <EmptyState variant="error" title="Configuration Error" subtitle="Please check the backend server and network connection, then refresh the page." className="h-screen w-screen" />;
     }
 
-    return (
-        <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
-            <div className="text-center">
-                <div className="border-solace-green mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2"></div>
-                <h1 className="text-2xl">Initializing Application...</h1>
-            </div>
-        </div>
-    );
+    return <EmptyState variant="loading" title="Initializing Application..." className="h-screen w-screen" />;
 }

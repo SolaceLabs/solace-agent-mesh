@@ -1,6 +1,6 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentCardInfo, ArtifactInfo, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
+import type { AgentCardInfo, ArtifactInfo, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session, RAGSearchResult } from "@/lib/types";
 
 /** Pending prompt data for starting a new chat with a prompt template */
 export interface PendingPromptData {
@@ -33,9 +33,12 @@ export interface ChatState {
     artifactsRefetch: () => Promise<void>;
     setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
     taskIdInSidePanel: string | null;
+    // RAG State
+    ragData: RAGSearchResult[];
+    ragEnabled: boolean;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
-    activeSidePanelTab: "files" | "workflow";
+    activeSidePanelTab: "files" | "workflow" | "rag";
     // Delete Modal State
     isDeleteModalOpen: boolean;
     artifactToDelete: ArtifactInfo | null;
@@ -68,15 +71,15 @@ export interface ChatActions {
     /** Clear the pending prompt (called after it's been applied) */
     clearPendingPrompt: () => void;
     handleSwitchSession: (sessionId: string) => Promise<void>;
-    handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null, overrideSessionId?: string | null) => Promise<void>;
+    handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null, overrideSessionId?: string | null, displayHtml?: string | null) => Promise<void>;
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "warning") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
     uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string, silent?: boolean) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
-    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;
-    openSidePanelTab: (tab: "files" | "workflow") => void;
+    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow" | "rag">>;
+    openSidePanelTab: (tab: "files" | "workflow" | "rag") => void;
 
     openDeleteModal: (artifact: ArtifactInfo) => void;
     closeDeleteModal: () => void;

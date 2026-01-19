@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef } from "react";
 
-import { useTextSelection } from "./TextSelectionProvider";
+import { useTextSelection } from "./useTextSelection";
 import { getSelectedText, getSelectionRange, getSelectionBoundingRect, calculateMenuPosition, isValidSelection, isSelectionContainedInElement } from "./selectionUtils";
 import type { SelectableMessageContentProps } from "./types";
 

@@ -18,11 +18,7 @@ interface UseArtifactRenderingReturn {
  * Custom hook to manage artifact rendering state and decisions
  * Uses local component state to ensure each instance has independent expansion
  */
-export const useArtifactRendering = ({
-    filename,
-    mimeType,
-    shouldAutoExpand
-}: UseArtifactRenderingOptions): UseArtifactRenderingReturn => {
+export const useArtifactRendering = ({ filename, mimeType, shouldAutoExpand }: UseArtifactRenderingOptions): UseArtifactRenderingReturn => {
     // Determine if this artifact should auto-render (images and audio)
     const shouldAutoRenderArtifact = useMemo(() => {
         return shouldAutoRender(filename, mimeType);
@@ -82,7 +78,7 @@ export const useArtifactRendering = ({
 
         setIsExpanded(prev => {
             const newValue = !prev;
-            console.log(`[useArtifactRendering] ${newValue ? 'Expanding' : 'Collapsing'} ${filename}`);
+            console.log(`[useArtifactRendering] ${newValue ? "Expanding" : "Collapsing"} ${filename}`);
             return newValue;
         });
     }, [filename, isExpandable]);
@@ -91,7 +87,7 @@ export const useArtifactRendering = ({
         shouldRender,
         isExpandable,
         isExpanded,
-        toggleExpanded
+        toggleExpanded,
     };
 };
 
@@ -113,6 +109,6 @@ export const useArtifactRenderingPreferences = () => {
 
     return {
         getAutoRenderPreference,
-        getUserControllablePreference
+        getUserControllablePreference,
     };
 };
