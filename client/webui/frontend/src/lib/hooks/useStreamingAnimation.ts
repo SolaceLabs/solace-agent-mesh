@@ -5,7 +5,10 @@ import type { StreamingState } from "./useStreamingSpeed";
  * Hook that runs an animation loop to smoothly advance through streaming content.
  * Uses the speed calculated by useStreamingSpeed to determine render pace.
  */
-export function useStreamingAnimation(state: MutableRefObject<StreamingState>, contentRef: MutableRefObject<string>): string {
+export function useStreamingAnimation(
+    state: MutableRefObject<StreamingState>,
+    contentRef: MutableRefObject<string>
+): string {
     const [displayedContent, setDisplayedContent] = useState("");
 
     useEffect(() => {
@@ -38,7 +41,7 @@ export function useStreamingAnimation(state: MutableRefObject<StreamingState>, c
                 setDisplayedContent(target.slice(0, Math.floor(s.cursor)));
             } else if (target.length > 0) {
                 // Ensure final content is displayed
-                setDisplayedContent(prev => (prev !== target ? target : prev));
+                setDisplayedContent(prev => prev !== target ? target : prev);
             }
 
             animationFrameId = requestAnimationFrame(animate);

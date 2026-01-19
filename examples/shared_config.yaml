@@ -31,8 +31,6 @@ shared_config:
       # 'model' uses the specific model identifier your endpoint expects.
       model: ${LLM_SERVICE_GENERAL_MODEL_NAME} # Use env var for model name
       # 'api_base' tells LiteLLM where to send the request.
-      # Optional: Dedicated model for title generation (faster/cheaper)
-      llm_service_title_model_name: ${LLM_SERVICE_TITLE_MODEL_NAME, }
       api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
       # 'api_key' provides authentication.
       api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key 

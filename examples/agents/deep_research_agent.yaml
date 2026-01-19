@@ -167,7 +167,7 @@ apps:
            
            **IMPORTANT:** Do NOT try to re-write, summarize, or modify the report content yourself.
            The artifact_return embed will attach the full report as an artifact for the user to view.
-        6. All citations in the report are in the format [[cite:researchN]]
+        6. All citations in the report are in the format [[cite:searchN]]
         
         **Citation Requirements:**
         - The deep_research tool handles citations automatically

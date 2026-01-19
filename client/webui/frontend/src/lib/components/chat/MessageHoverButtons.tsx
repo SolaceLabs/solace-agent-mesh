@@ -46,8 +46,8 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ messag
             // For user messages with displayHtml, copy both HTML and plain text (only if mentions enabled)
             if (message.isUser && message.displayHtml && mentionsEnabled) {
                 const clipboardItem = new ClipboardItem({
-                    "text/html": new Blob([message.displayHtml], { type: "text/html" }),
-                    "text/plain": new Blob([text.trim()], { type: "text/plain" }),
+                    'text/html': new Blob([message.displayHtml], { type: 'text/html' }),
+                    'text/plain': new Blob([text.trim()], { type: 'text/plain' })
                 });
 
                 navigator.clipboard

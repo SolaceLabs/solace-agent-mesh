@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { Mic, Volume2, AlertCircle, Play, Loader2 } from "lucide-react";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
 import { Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input, Button } from "@/lib/components/ui";
@@ -59,16 +59,12 @@ export const SpeechSettingsPanel: React.FC = () => {
         checkConfig();
     }, [settings.sttProvider, settings.ttsProvider, updateSetting]);
 
-    // Track previous provider to detect changes
-    const prevProviderRef = useRef(settings.ttsProvider);
-
-    // Load voices when TTS provider changes and auto-select first voice if current voice is invalid
+    // Load voices when TTS provider changes
     useEffect(() => {
         const loadVoices = async () => {
             if (settings.ttsProvider === "browser") {
                 // For browser mode, use hardcoded list or browser voices
                 setAvailableVoices([]);
-                prevProviderRef.current = settings.ttsProvider;
                 return;
             }
 
@@ -76,17 +72,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             try {
                 const provider = settings.ttsProvider || "gemini";
                 const data = await api.webui.get(`/api/v1/speech/voices?provider=${provider}`);
-                const voices = data.voices || [];
-                setAvailableVoices(voices);
-
-                // Auto-select first voice if provider changed and current voice is not in the new provider's voice list
-                const providerChanged = prevProviderRef.current !== settings.ttsProvider;
-                if (providerChanged && voices.length > 0 && !voices.includes(settings.voice)) {
-                    console.log(`Voice "${settings.voice}" not available for ${provider}, selecting first available: ${voices[0]}`);
-                    updateSetting("voice", voices[0]);
-                }
-
-                prevProviderRef.current = settings.ttsProvider;
+                setAvailableVoices(data.voices || []);
             } catch (error) {
                 console.error("Error loading voices:", error);
             } finally {
@@ -95,7 +81,6 @@ export const SpeechSettingsPanel: React.FC = () => {
         };
 
         loadVoices();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [settings.ttsProvider]);
 
     // Cleanup audio element on unmount
@@ -370,7 +355,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                             <div className="flex items-center gap-2">
                                 <Select value={settings.voice} onValueChange={value => updateSetting("voice", value)} disabled={!settings.textToSpeech || loadingVoices}>
                                     <SelectTrigger className="w-[112px]">
-                                        <SelectValue>{loadingVoices ? "Loading..." : settings.voice || "Select voice"}</SelectValue>
+                                        <SelectValue placeholder={loadingVoices ? "Loading..." : "Select voice"} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {availableVoices.length > 0 ? (

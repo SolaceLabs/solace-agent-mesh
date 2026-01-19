@@ -42,10 +42,6 @@ Contrast with session storage:
 
 For session storage configuration, see [Session Storage](./session-storage.md).
 
-### Multiple S3 Buckets for OpenAPI Connector Feature
-
-> **Note:** The S3 bucket used for OpenAPI connector specifications is not for user or chat artifacts. For details on configuring the public S3 bucket for connector specs, see [Infrastructure Setup: S3 Buckets for OpenAPI Connector Specs](../enterprise/installation.md#infrastructure-setup-s3-buckets-for-openapi-connector-specs).
-
 ## Artifact Scoping
 
 Artifact scoping controls how artifacts are organized and isolated within your storage backend. This determines which components can access which artifacts.

@@ -338,8 +338,8 @@ class ResearchCitationTracker:
     
     def add_citation(self, result: SearchResult, query: Optional[str] = None) -> str:
         """Add citation and return citation ID"""
-        # Use 'research' prefix to match the citation rendering system for deep research
-        citation_id = f"research{self.citation_counter}"
+        # Use 'search' prefix to match the citation rendering system
+        citation_id = f"search{self.citation_counter}"
         log.info("[DeepResearch:Citation] Creating citation_id=%s (counter=%d) for: %s",
                  citation_id, self.citation_counter, result.title[:50])
         self.citation_counter += 1
@@ -1348,8 +1348,8 @@ def _generate_sources_section(all_findings: List[SearchResult]) -> str:
     if web_sources:
         for i, source in enumerate(web_sources, 1):
             if source.citation_id and source.url:
-                # Extract citation number from citation_id (e.g., "research0" -> 0)
-                citation_num = int(source.citation_id.replace("research", "").replace("file", "").replace("ref", ""))
+                # Extract citation number from citation_id (e.g., "search0" -> 0)
+                citation_num = int(source.citation_id.replace("search", "").replace("file", "").replace("ref", ""))
                 display_num = citation_num + 1  # Convert 0-based to 1-based for display
                 
                 # DEBUG: Log citation mapping
@@ -1363,7 +1363,7 @@ def _generate_sources_section(all_findings: List[SearchResult]) -> str:
         for source in kb_sources:
             if source.citation_id:
                 # Extract citation number from citation_id
-                citation_num = int(source.citation_id.replace("research", "").replace("file", "").replace("ref", ""))
+                citation_num = int(source.citation_id.replace("search", "").replace("file", "").replace("ref", ""))
                 display_num = citation_num + 1  # Convert 0-based to 1-based for display
                 
                 fetch_indicator = " *(read in full)*" if source.metadata.get('fetched') else " *(search result)*"
@@ -1445,14 +1445,14 @@ Write the following sections WITHOUT including word count targets in headings:
 Synthesize the MOST IMPORTANT insights from ALL sources. Highlight key findings that answer the research question. Provide context for why this topic matters. DO NOT copy from any single source.
 
 ## Introduction
-Explain the research question and its significance. Provide historical or contextual background. Outline what the report will cover. Draw context from multiple sources [[cite:researchX]].
+Explain the research question and its significance. Provide historical or contextual background. Outline what the report will cover. Draw context from multiple sources [[cite:searchX]].
 
 ## Main Analysis
 Organize into 5-8 thematic sections with descriptive headings (###). For EACH section:
 - Create a descriptive heading like "### Historical Development" or "### Economic Impact" (NO word counts)
 - Draw information from multiple sources
 - Start each paragraph with a topic sentence
-- Support claims with citations from different sources.[[cite:researchX]][[cite:researchY]]
+- Support claims with citations from different sources.[[cite:searchX]][[cite:searchY]]
 - Explain implications and connections
 - Compare and contrast different perspectives
 - NEVER copy paragraphs from a single source
@@ -1469,9 +1469,9 @@ Synthesize the key takeaways from ALL sources. Provide final analytical insights
 ⚠️ DO NOT CREATE A REFERENCES SECTION: The system will automatically append a properly formatted References section with all cited sources. Your report should end with the Conclusion section.
 
 CITATION RULES:
-- Use [[cite:researchN]] format where N is the citation number from sources above
-- Place citations AFTER the period at the end of sentences (e.g., "This is a fact.[[cite:research0]]")
-- Use multiple citations when multiple sources support a point: .[[cite:research0]][[cite:research2]]
+- Use [[cite:searchN]] format where N is the citation number from sources above
+- Place citations AFTER the period at the end of sentences (e.g., "This is a fact.[[cite:search0]]")
+- Use multiple citations when multiple sources support a point: .[[cite:search0]][[cite:search2]]
 - Cite sources even when paraphrasing
 
 QUALITY CHECKS:

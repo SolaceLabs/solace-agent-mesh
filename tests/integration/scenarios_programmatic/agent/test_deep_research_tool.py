@@ -212,11 +212,11 @@ async def test_deep_research_produces_comprehensive_report(
         create_llm_report_generation_response(
             "# Research Report: Renewable Energy Benefits\n\n"
             "## Executive Summary\n\n"
-            "Renewable energy provides significant benefits.[[cite:research0]]\n\n"
+            "Renewable energy provides significant benefits.[[cite:search0]]\n\n"
             "## Economic Impact\n\n"
-            "Studies show job creation and cost reduction.[[cite:research1]]\n\n"
+            "Studies show job creation and cost reduction.[[cite:search1]]\n\n"
             "## Environmental Benefits\n\n"
-            "Carbon emissions are significantly reduced.[[cite:research2]]\n\n"
+            "Carbon emissions are significantly reduced.[[cite:search2]]\n\n"
         ),
     ]
     
@@ -304,7 +304,7 @@ async def test_deep_research_respects_quick_mode_limits(
         create_llm_source_selection_response([1, 2]),
         # Report generation
         create_llm_report_generation_response(
-            "# Quick Research Report\n\nLimited findings.[[cite:research0]]\n\n"
+            "# Quick Research Report\n\nLimited findings.[[cite:search0]]\n\n"
         ),
     ]
     
@@ -431,7 +431,7 @@ async def test_deep_research_sends_progress_updates(
         create_llm_query_generation_response(["query 1"]),
         create_llm_reflection_response(0.8, False, [], []),
         create_llm_source_selection_response([1]),
-        create_llm_report_generation_response("# Report\n\nContent.[[cite:research0]]\n\n"),
+        create_llm_report_generation_response("# Report\n\nContent.[[cite:search0]]\n\n"),
     ]
     
     prime_llm_server(test_llm_server, llm_responses)
@@ -478,7 +478,7 @@ async def test_deep_research_generates_proper_citations(
     Research report should contain proper citations and RAG metadata.
     
     Behavior tested:
-    - Citations use correct format [[cite:researchN]]
+    - Citations use correct format [[cite:searchN]]
     - References section is included
     - RAG metadata contains source information
     - Citation IDs are unique and sequential
@@ -492,9 +492,9 @@ async def test_deep_research_generates_proper_citations(
         create_llm_source_selection_response([1, 2, 3]),
         create_llm_report_generation_response(
             "# Research Report\n\n"
-            "First finding from source one.[[cite:research0]]\n\n"
-            "Second finding from source two.[[cite:research1]]\n\n"
-            "Third finding from source three.[[cite:research2]]\n\n"
+            "First finding from source one.[[cite:search0]]\n\n"
+            "Second finding from source two.[[cite:search1]]\n\n"
+            "Third finding from source three.[[cite:search2]]\n\n"
         ),
     ]
     
@@ -521,7 +521,7 @@ async def test_deep_research_generates_proper_citations(
     assert final_event.status.state == TaskState.completed
     
     # In real implementation, we'd verify:
-    # - Report content has [[cite:researchN]] markers
+    # - Report content has [[cite:searchN]] markers
     # - References section exists
     # - RAG metadata has proper structure
     # For now, we verify task completion which implies citation generation succeeded

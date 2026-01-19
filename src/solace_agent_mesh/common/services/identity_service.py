@@ -64,7 +64,7 @@ class BaseIdentityService(ABC):
 
         Returns:
             A list of dictionaries, each containing basic user info
-            (e.g., id, displayName, workEmail, jobTitle).
+            (e.g., id, name, email, title).
         """
         pass
 

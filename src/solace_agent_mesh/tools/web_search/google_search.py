@@ -9,9 +9,6 @@ from .models import SearchResult, SearchSource
 
 logger = logging.getLogger(__name__)
 
-# Default number of search results to return
-DEFAULT_MAX_RESULTS = 5
-
 
 class GoogleSearchTool(WebSearchTool):
     """Google Custom Search API implementation."""
@@ -36,7 +33,7 @@ class GoogleSearchTool(WebSearchTool):
     async def search(
         self,
         query: str,
-        max_results: int = DEFAULT_MAX_RESULTS,
+        max_results: int = 5,
         search_depth: Literal["basic", "advanced"] = "basic",
         search_type: Optional[Literal["image"]] = None,
         date_restrict: Optional[str] = None,
@@ -58,12 +55,6 @@ class GoogleSearchTool(WebSearchTool):
             SearchResult object
         """
         try:
-            # Ensure max_results is an integer (LLM may pass string)
-            try:
-                max_results = int(max_results)
-            except (TypeError, ValueError):
-                max_results = DEFAULT_MAX_RESULTS
-            
             # Google CSE allows max 10 results per request
             num_results = min(max(max_results, 1), 10)
             
@@ -238,7 +229,7 @@ class GoogleSearchTool(WebSearchTool):
                             "description": "Maximum number of results (1-10)",
                             "minimum": 1,
                             "maximum": 10,
-                            "default": DEFAULT_MAX_RESULTS
+                            "default": 5
                         },
                         "search_type": {
                             "type": "string",

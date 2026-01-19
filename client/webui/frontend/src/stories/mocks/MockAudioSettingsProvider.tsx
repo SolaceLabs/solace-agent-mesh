@@ -5,6 +5,9 @@ const defaultSpeechToTextSettings: SpeechSettings = {
     engineSTT: "browser",
     sttProvider: "browser",
     languageSTT: "",
+    autoSendText: 0,
+    autoTranscribeAudio: false,
+    decibelThreshold: 1,
 
     // TTS Settings
     textToSpeech: false,
@@ -18,6 +21,7 @@ const defaultSpeechToTextSettings: SpeechSettings = {
 
     // Advanced
     conversationMode: false,
+    advancedMode: false,
 };
 
 const defaultMockAudioSettingsValues: AudioSettingsContextValue = {

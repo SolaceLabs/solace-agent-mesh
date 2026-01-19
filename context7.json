@@ -54,7 +54,7 @@
     "rules": [
         "Rules within <must></must> are high priority rules and rules within <proc></proc> must be followed together.\"",
         "<proc> For running `sam` command, always create and activate a virtual virtual environment, install `solace-agent-mesh` package in the virtual environment, and then run the command. </proc>",
-        "<must> use python version that is supported by SAM. Find the version in docs </must>",
+        "<must> use python version 3.10.16 to 3.13 </must>",
         "<must> use 'python -m venv .venv' to create a virtual environment and run 'sam' commands </must>",
         "<must> use `pip install solace-agent-mesh` for installing solace agent mesh</must>",
         "<must> use `sam init --gui` for creating or initializing a new solace agent mesh</must>",

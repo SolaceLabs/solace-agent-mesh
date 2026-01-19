@@ -19,7 +19,6 @@ from solace_ai_connector.common.message import Message as SolaceMessage
 from solace_ai_connector.components.component_base import ComponentBase
 
 from ....common.agent_registry import AgentRegistry
-from ....common.auth_headers import build_static_auth_headers
 from pydantic import TypeAdapter, ValidationError
 
 from ....common import a2a
@@ -413,13 +412,6 @@ class BaseProxyComponent(ComponentBase, ABC):
             for agent_config in self.proxied_agents_config:
                 agent_alias = agent_config["name"]
                 agent_url = agent_config.get("url")
-                agent_card_path = agent_config.get("agent_card_path", "/.well-known/agent-card.json")
-                log.debug(
-                    "%s Agent '%s': agent_card_path from config = %s",
-                    self.log_identifier,
-                    agent_alias,
-                    agent_card_path,
-                )
                 if not agent_url:
                     log.error(
                         "%s Skipping agent '%s' in initial discovery: no URL configured.",
@@ -428,50 +420,8 @@ class BaseProxyComponent(ComponentBase, ABC):
                     )
                     continue
                 try:
-                    # Build headers using common utility (sync context - OAuth2 not supported)
-                    use_auth = agent_config.get("use_auth_for_agent_card", False)
-
-                    # Skip OAuth2-configured agents in sync discovery
-                    # They will be discovered during periodic async discovery
-                    if use_auth:
-                        auth_config = agent_config.get("authentication")
-                        if auth_config:
-                            auth_type = auth_config.get("type")
-                            if not auth_type:
-                                # Backward compatibility: infer from scheme
-                                scheme = auth_config.get("scheme", "bearer")
-                                auth_type = "static_bearer" if scheme == "bearer" else "static_apikey"
-
-                            if auth_type in ("oauth2_client_credentials", "oauth2_authorization_code"):
-                                # Skip this agent - OAuth2 not supported in sync context
-                                log.info(
-                                    "%s Skipping agent '%s' in synchronous discovery (OAuth2 configured). "
-                                    "Will be discovered during periodic async discovery.",
-                                    self.log_identifier,
-                                    agent_alias,
-                                )
-                                continue
-
-                    headers = build_static_auth_headers(
-                        agent_name=agent_alias,
-                        agent_config=agent_config,
-                        custom_headers_key="agent_card_headers",
-                        use_auth=use_auth,
-                        log_identifier=self.log_identifier,
-                    )
-                    
-                    if headers:
-                        log.debug(
-                            "%s Fetching agent card with %d custom header(s) (auth=%s)",
-                            self.log_identifier,
-                            len(headers),
-                            use_auth,
-                        )
-                    else:
-                        log.debug("%s Fetching agent card without authentication", self.log_identifier)
-
                     # Use a synchronous client for this initial blocking call
-                    response = client.get(f"{agent_url}{agent_card_path}", headers=headers)
+                    response = client.get(f"{agent_url}/.well-known/agent-card.json")
                     response.raise_for_status()
                     agent_card = AgentCard.model_validate(response.json())
 

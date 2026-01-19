@@ -276,10 +276,10 @@ class TestResearchCitationTracker:
         
         citation_id = tracker.add_citation(result)
         
-        assert citation_id == "research0"
-        assert result.citation_id == "research0"
+        assert citation_id == "search0"
+        assert result.citation_id == "search0"
         assert tracker.citation_counter == 1
-        assert "research0" in tracker.citations
+        assert "search0" in tracker.citations
     
     def test_add_multiple_citations(self):
         """Test adding multiple citations."""
@@ -293,7 +293,7 @@ class TestResearchCitationTracker:
                 url=f"https://example{i}.com"
             )
             citation_id = tracker.add_citation(result)
-            assert citation_id == f"research{i}"
+            assert citation_id == f"search{i}"
         
         assert tracker.citation_counter == 3
         assert len(tracker.citations) == 3
@@ -376,13 +376,13 @@ class TestPrepareFindingsForReport:
                 metadata={"fetched": True}
             )
         ]
-        findings[0].citation_id = "research0"
+        findings[0].citation_id = "search0"
         
         result = _prepare_findings_for_report(findings)
         
         assert "Detailed Sources" in result
         assert "Fetched Source" in result
-        assert "research0" in result
+        assert "search0" in result
     
     def test_findings_with_snippets_only(self):
         """Test report preparation with snippet-only sources."""
@@ -396,7 +396,7 @@ class TestPrepareFindingsForReport:
                 metadata={"fetched": False}
             )
         ]
-        findings[0].citation_id = "research0"
+        findings[0].citation_id = "search0"
         
         result = _prepare_findings_for_report(findings)
         
@@ -422,7 +422,7 @@ class TestGenerateSourcesSection:
                 url="https://example.com"
             )
         ]
-        findings[0].citation_id = "research0"
+        findings[0].citation_id = "search0"
         
         result = _generate_sources_section(findings)
         
@@ -2064,8 +2064,8 @@ class TestGenerateResearchReport:
         findings = [
             SearchResult(source_type="web", title="Source 1", content="Content 1", url="https://example.com", relevance_score=0.9)
         ]
-        findings[0].citation_id = "research0"
-        tracker.citations["research0"] = findings[0]
+        findings[0].citation_id = "search0"
+        tracker.citations["search0"] = findings[0]
         
         report = await _generate_research_report("What is AI?", findings, tracker, tool_context, None)
         

@@ -26,7 +26,7 @@ export function parseInternalMention(text: string): { name: string; id: string }
  * Formats a person as internal mention format: @[Name](id)
  */
 export function formatInternalMention(person: Person): string {
-    return `@[${person.displayName}](${person.id})`;
+    return `@[${person.name}](${person.id})`;
 }
 
 /**
@@ -34,7 +34,10 @@ export function formatInternalMention(person: Person): string {
  * Returns the query string after "@" or null if not in mention mode
  * Updated to handle internal format - doesn't trigger inside @[...](...)
  */
-export function detectMentionTrigger(text: string, cursorPosition: number): string | null {
+export function detectMentionTrigger(
+    text: string,
+    cursorPosition: number
+): string | null {
     const textBeforeCursor = text.substring(0, cursorPosition);
 
     // Find the last "@" before cursor
@@ -64,7 +67,7 @@ export function detectMentionTrigger(text: string, cursorPosition: number): stri
  * Example: "@Edward Funnekotter"
  */
 export function formatMentionDisplay(person: Person): string {
-    return `@${person.displayName}`;
+    return `@${person.name}`;
 }
 
 /**
@@ -73,8 +76,8 @@ export function formatMentionDisplay(person: Person): string {
  * Example: "@John Smith [john.smith@example.com]"
  */
 export function formatDisambiguatedMentionDisplay(person: Person): string {
-    const disambiguator = person.workEmail || person.id;
-    return `@${person.displayName} [${disambiguator}]`;
+    const disambiguator = person.email || person.id;
+    return `@${person.name} [${disambiguator}]`;
 }
 
 /**
@@ -91,11 +94,11 @@ export function getDisplayText(person: Person, disambiguate: boolean): string {
 }
 
 /**
- * Formats a person as the backend expects: "displayName <user_id:id>"
+ * Formats a person as the backend expects: "name <user_id:id>"
  * Example: "Edward Funnekotter <user_id:edward.funnekotter@solace.com>"
  */
 export function formatMentionForBackend(person: Person): string {
-    return `${person.displayName} <user_id:${person.id}>`;
+    return `${person.name} <user_id:${person.id}>`;
 }
 
 /**
@@ -103,7 +106,11 @@ export function formatMentionForBackend(person: Person): string {
  * Uses internal format: @[Name](id)
  * Returns new text and new cursor position
  */
-export function insertMention(text: string, cursorPosition: number, person: Person): { newText: string; newCursorPosition: number } {
+export function insertMention(
+    text: string,
+    cursorPosition: number,
+    person: Person
+): { newText: string; newCursorPosition: number } {
     const textBeforeCursor = text.substring(0, cursorPosition);
     const textAfterCursor = text.substring(cursorPosition);
 
@@ -138,7 +145,7 @@ export function extractInternalMentions(text: string): Array<{
         fullMatch: string;
     }> = [];
 
-    const regex = new RegExp(INTERNAL_MENTION_REGEX.source, "g");
+    const regex = new RegExp(INTERNAL_MENTION_REGEX.source, 'g');
     let match;
     while ((match = regex.exec(text)) !== null) {
         mentions.push({
@@ -146,7 +153,7 @@ export function extractInternalMentions(text: string): Array<{
             id: match[2],
             startIndex: match.index,
             endIndex: match.index + match[0].length,
-            fullMatch: match[0],
+            fullMatch: match[0]
         });
     }
 
@@ -158,7 +165,7 @@ export function extractInternalMentions(text: string): Array<{
  * @[Name](id) -> @Name
  */
 export function internalToDisplayText(text: string): string {
-    return text.replace(INTERNAL_MENTION_REGEX, "@$1");
+    return text.replace(INTERNAL_MENTION_REGEX, '@$1');
 }
 
 /**
@@ -167,22 +174,26 @@ export function internalToDisplayText(text: string): string {
  */
 export function extractDisplayTextFromHTML(html: string): string {
     // Create a temporary div to parse the HTML
-    const tempDiv = document.createElement("div");
+    const tempDiv = document.createElement('div');
     tempDiv.innerHTML = html;
 
     // Walk through the DOM and build plain text
-    const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
-        acceptNode: (node: Node) => {
-            // Skip text nodes that are children of mention-chip spans
-            if (node.nodeType === Node.TEXT_NODE) {
-                const parent = node.parentElement;
-                if (parent && parent.classList.contains("mention-chip")) {
-                    return NodeFilter.FILTER_REJECT;
+    const walker = document.createTreeWalker(
+        tempDiv,
+        NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+        {
+            acceptNode: (node: Node) => {
+                // Skip text nodes that are children of mention-chip spans
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const parent = node.parentElement;
+                    if (parent && parent.classList.contains("mention-chip")) {
+                        return NodeFilter.FILTER_REJECT;
+                    }
                 }
+                return NodeFilter.FILTER_ACCEPT;
             }
-            return NodeFilter.FILTER_ACCEPT;
-        },
-    });
+        }
+    );
 
     const parts: string[] = [];
     let node: Node | null;
@@ -194,7 +205,7 @@ export function extractDisplayTextFromHTML(html: string): string {
             const el = node as HTMLElement;
             if (el.classList.contains("mention-chip")) {
                 // Use the data-display attribute which has the @Name format
-                parts.push(el.getAttribute("data-display") || el.textContent || "");
+                parts.push(el.getAttribute('data-display') || el.textContent || "");
             } else if (el.tagName === "BR") {
                 parts.push("\n");
             }
@@ -212,18 +223,18 @@ export function extractMentionsFromDOM(element: HTMLElement): Map<string, Person
     const mentionMap = new Map<string, Person>();
 
     // Find all mention-chip spans
-    const mentionChips = element.querySelectorAll(".mention-chip");
+    const mentionChips = element.querySelectorAll('.mention-chip');
 
     mentionChips.forEach(chip => {
-        const personId = chip.getAttribute("data-person-id");
-        const personName = chip.getAttribute("data-person-name");
+        const personId = chip.getAttribute('data-person-id');
+        const personName = chip.getAttribute('data-person-name');
 
         if (personId && personName) {
             // Key by ID for uniqueness
             mentionMap.set(personId, {
                 id: personId,
-                displayName: personName,
-                workEmail: personId, // Assuming ID is email
+                name: personName,
+                email: personId, // Assuming ID is email
             });
         }
     });
@@ -236,18 +247,22 @@ export function extractMentionsFromDOM(element: HTMLElement): Map<string, Person
  * This is more reliable than regex parsing because it uses the actual DOM structure
  */
 export function buildMessageFromDOM(element: HTMLElement): string {
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
-        acceptNode: (node: Node) => {
-            // Skip text nodes that are children of mention-chip spans
-            if (node.nodeType === Node.TEXT_NODE) {
-                const parent = node.parentElement;
-                if (parent && parent.classList.contains("mention-chip")) {
-                    return NodeFilter.FILTER_REJECT;
+    const walker = document.createTreeWalker(
+        element,
+        NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+        {
+            acceptNode: (node: Node) => {
+                // Skip text nodes that are children of mention-chip spans
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const parent = node.parentElement;
+                    if (parent && parent.classList.contains("mention-chip")) {
+                        return NodeFilter.FILTER_REJECT;
+                    }
                 }
+                return NodeFilter.FILTER_ACCEPT;
             }
-            return NodeFilter.FILTER_ACCEPT;
-        },
-    });
+        }
+    );
 
     const parts: string[] = [];
     let node: Node | null;
@@ -258,15 +273,15 @@ export function buildMessageFromDOM(element: HTMLElement): string {
         } else if (node.nodeType === Node.ELEMENT_NODE) {
             const el = node as HTMLElement;
             if (el.classList.contains("mention-chip")) {
-                const personId = el.getAttribute("data-person-id");
-                const personName = el.getAttribute("data-person-name");
+                const personId = el.getAttribute('data-person-id');
+                const personName = el.getAttribute('data-person-name');
 
                 if (personId && personName) {
                     // Convert to backend format: "Name <user_id:id>"
                     parts.push(`${personName} <user_id:${personId}>`);
                 } else {
                     // Fallback: just use the display text
-                    parts.push(el.getAttribute("data-display") || el.textContent || "");
+                    parts.push(el.getAttribute('data-display') || el.textContent || "");
                 }
             } else if (el.tagName === "BR") {
                 parts.push("\n");
@@ -289,7 +304,7 @@ export function extractMentions(text: string): Mention[] {
             id: m.id,
             name: m.name,
             startIndex: m.startIndex,
-            endIndex: m.endIndex,
+            endIndex: m.endIndex
         });
     }
 

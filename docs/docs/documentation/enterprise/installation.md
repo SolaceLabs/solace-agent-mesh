@@ -199,60 +199,6 @@ The `SOLACE_DEV_MODE="false"` environment variable tells the container to connec
 
 </details>
 
-## Infrastructure Setup: S3 Buckets for OpenAPI Connector Specs
-
-Some enterprise features require additional infrastructure setup. If you plan to use the OpenAPI Connector feature, you must configure a dedicated S3 bucket for OpenAPI specification files. This is separate from artifact storage and is required for agents to download OpenAPI specs at startup.
-
-### When is a connector specs bucket required?
-- When using the OpenAPI Connector feature for REST API integrations
-- When deploying via Kubernetes (Helm charts handle this automatically)
-- When agents must access OpenAPI spec files at startup
-
-### Why a separate bucket?
-- **Public read access**: Agents must download OpenAPI specs without authentication
-- **Security isolation**: Keeps infrastructure files separate from user artifacts
-- **No secrets**: Only API schemas, endpoints, and models are stored (never credentials)
-
-### Setup Instructions
-
-1. **Create the connector specs S3 bucket** (public read, authenticated write):
-   ```bash
-   aws s3 mb s3://my-connector-specs-bucket --region us-west-2
-   ```
-
-2. **Apply a public read policy**:
-   Save as `connector-specs-policy.json`:
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [{
-       "Sid": "PublicReadGetObject",
-       "Effect": "Allow",
-       "Principal": "*",
-       "Action": "s3:GetObject",
-       "Resource": "arn:aws:s3:::my-connector-specs-bucket/*"
-     }]
-   }
-   ```
-   Apply with:
-   ```bash
-   aws s3api put-bucket-policy \
-     --bucket my-connector-specs-bucket \
-     --policy file://connector-specs-policy.json
-   ```
-
-3. **IAM permissions for write access** (for the SAM service):
-   - Grant `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` to the SAM platform's IAM user/role for this bucket.
-
-4. **Kubernetes deployments**: Use the `connectorSpecBucketName` value in your Helm chart.
-
-5. **Standalone deployments**: The platform manages the connector specs bucket; see your deployment guide.
-
-### Security Notes
-- Never store API keys, passwords, or secrets in OpenAPI spec files
-- Public read is safe for API schemas only
-- Write access should be restricted to the platform
-
 ## Accessing the Web UI
 
 After starting the container in either development or production mode, you can access the Agent Mesh Enterprise web interface through your browser. The UI provides a graphical interface for managing agents, monitoring activity, and configuring your deployment.
