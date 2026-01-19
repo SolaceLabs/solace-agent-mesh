@@ -1,8 +1,15 @@
 import React, { createContext, useCallback, useContext, useEffect, useState, useMemo } from "react";
 
 import { useConfigContext } from "@/lib/hooks";
-import type { Project, ProjectContextValue, ProjectListResponse, UpdateProjectData } from "@/lib/types/projects";
+import type { Project, ProjectContextValue, ProjectListResponse, UpdateProjectData, Collaborator, ProjectRole, CollaboratorsResponse } from "@/lib/types/projects";
 import { api } from "@/lib/api";
+import {
+    shareProject as apiShareProject,
+    getCollaborators as apiGetCollaborators,
+    getCollaboratorsWithOwner as apiGetCollaboratorsWithOwner,
+    updateCollaborator as apiUpdateCollaborator,
+    removeCollaborator as apiRemoveCollaborator,
+} from "@/lib/api/projects/sharing";
 
 const LAST_VIEWED_PROJECT_KEY = "lastViewedProjectId";
 
@@ -245,6 +252,65 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     }, []);
 
+    // Sharing Methods
+
+    const getCollaborators = useCallback(
+        async (projectId: string): Promise<Collaborator[]> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+            return await apiGetCollaborators(projectId);
+        },
+        [projectsEnabled]
+    );
+
+    const getCollaboratorsWithOwner = useCallback(
+        async (projectId: string): Promise<CollaboratorsResponse> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+            return await apiGetCollaboratorsWithOwner(projectId);
+        },
+        [projectsEnabled]
+    );
+
+    const shareProject = useCallback(
+        async (projectId: string, email: string, role: ProjectRole): Promise<Collaborator> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+
+            const newCollaborator = await apiShareProject(projectId, email, role);
+
+            // Refetch to update collaborator counts or other derived state if needed
+            // For now, we assume local state in dialogs will handle the list, but we can trigger a global refresh if critical
+            // We might want to update the project list to reflect sharing status if it changes visually
+
+            return newCollaborator;
+        },
+        [projectsEnabled]
+    );
+
+    const updateCollaborator = useCallback(
+        async (projectId: string, userId: string, role: ProjectRole): Promise<Collaborator> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+            return await apiUpdateCollaborator(projectId, userId, role);
+        },
+        [projectsEnabled]
+    );
+
+    const removeCollaborator = useCallback(
+        async (projectId: string, userId: string): Promise<void> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+            await apiRemoveCollaborator(projectId, userId);
+        },
+        [projectsEnabled]
+    );
+
     const value: ProjectContextValue = {
         projects,
         isLoading,
@@ -265,6 +331,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         searchQuery,
         setSearchQuery,
         filteredProjects,
+        getCollaborators,
+        getCollaboratorsWithOwner,
+        shareProject,
+        updateCollaborator,
+        removeCollaborator,
     };
 
     return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
