@@ -227,8 +227,9 @@ class A2AProxyComponent(BaseProxyComponent):
             else:
                 log.debug("%s Fetching agent card without authentication", log_identifier)
 
+            ssl_verify = agent_config.get("ssl_verify", True)
             log.info("%s Fetching agent card from %s", log_identifier, agent_url)
-            async with httpx.AsyncClient(headers=headers) as client:
+            async with httpx.AsyncClient(headers=headers, verify=ssl_verify) as client:
                 resolver = A2ACardResolver(httpx_client=client, base_url=agent_url)
                 agent_card = await resolver.get_agent_card()
                 return agent_card
@@ -850,6 +851,7 @@ class A2AProxyComponent(BaseProxyComponent):
 
         # Create a new httpx client with the specific timeout and custom headers for this agent
         # httpx.Timeout requires explicit values for connect, read, write, and pool
+        ssl_verify = agent_config.get("ssl_verify", True)
         httpx_client_for_agent = httpx.AsyncClient(
             timeout=httpx.Timeout(
                 connect=agent_timeout,
@@ -858,6 +860,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 pool=agent_timeout,
             ),
             headers=task_headers if task_headers else None,
+            verify=ssl_verify,
         )
 
         if task_headers:
