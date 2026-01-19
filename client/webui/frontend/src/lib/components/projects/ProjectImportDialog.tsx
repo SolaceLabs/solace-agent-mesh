@@ -226,7 +226,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
         <div className="space-y-4">
             {/* File Upload */}
             <div className="mt-2 py-2">
-                <FileUpload name="projectFile" accept=".zip" multiple={false} disabled={isImporting} value={selectedFiles} onChange={handleFileChange} onValidate={handleFileValidation} />
+                <FileUpload name="projectFile" accept=".zip" multiple={false} disabled={isImporting} value={selectedFiles} onChange={handleFileChange} onValidate={handleFileValidation} testid="projectImportFileInput" />
             </div>
 
             {/* Project Preview */}
