@@ -16,6 +16,8 @@ export * from "./useDragAndDrop";
 export * from "./useMobile";
 // export * from "./useProjectArtifacts"; // Removed - now using React Query version from ./api/projects/hooks
 export * from "./useSpeechToText";
+export * from "./useStreamingAnimation";
+export * from "./useStreamingSpeed";
 export * from "./useStreamingTTS";
 export * from "./useTaskContext";
 export * from "./useTextToSpeech";
@@ -28,3 +30,5 @@ export * from "./useSessionStorage";
 export * from "./useMap";
 export * from "./useLocalStorage";
 export * from "./useToggle";
+export * from "./useTitleGeneration";
+export * from "./useTitleAnimation";
