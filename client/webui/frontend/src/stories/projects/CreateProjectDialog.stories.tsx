@@ -64,10 +64,8 @@ export const Empty: Story = {
 export const DescriptionCharacterLimit: Story = {
     args: {
         isOpen: true,
-        onClose: () => console.log("Dialog closed"),
-        onSubmit: async (data) => {
-            console.log("Project created:", data);
-        },
+        onClose: () => alert("Project creation will cancel. Dialog will close."),
+        onSubmit: async () => {},
         isSubmitting: false,
     },
     play: async () => {
@@ -93,19 +91,15 @@ export const DescriptionCharacterLimit: Story = {
 export const Submitting: Story = {
     args: {
         isOpen: true,
-        onClose: () => console.log("Dialog closed"),
-        onSubmit: async (data) => {
-            console.log("Project created:", data);
-            // Simulate slow API call
-            await new Promise(resolve => setTimeout(resolve, 2000));
-        },
+        onClose: () => alert("Bad. cannot close the dialog while submitting."),
+        onSubmit: async () => {},
         isSubmitting: true,
     },
     play: async () => {
         const dialog = await screen.findByRole("dialog");
         expect(dialog).toBeInTheDocument();
         const dialogContent = within(dialog);
- 
+
         const submitButton = await dialogContent.findByRole("button", { name: "Create Project" });
         const cancelButton = await dialogContent.findByRole("button", { name: "Cancel" });
 

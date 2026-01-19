@@ -81,7 +81,7 @@ export const WithNoResults: Story = {
         const canvas = within(canvasElement);
         expect(await canvas.findByText("No Projects Match Your Filter")).toBeVisible();
         expect(await canvas.findByTestId("Clear Filter")).toBeVisible();
-    }
+    },
 };
 
 /**

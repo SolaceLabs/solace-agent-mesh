@@ -61,6 +61,5 @@ export const Empty: Story = {
 
         expect(await dialogContent.findByRole("button", { name: "Save" })).toBeEnabled();
         expect(await dialogContent.findByRole("button", { name: "Discard Changes" })).toBeEnabled();
-        
     },
 };

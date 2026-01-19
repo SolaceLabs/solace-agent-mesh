@@ -7,16 +7,18 @@ import JSZip from "jszip";
 // Mock ZIP File Helpers
 // ============================================================================
 
-/**
- * Creates a valid mock project ZIP file for testing
- */
-async function createValidProjectZip(projectData: {
+interface ProjectData {
     name: string;
     description?: string;
     systemPrompt?: string;
     defaultAgentId?: string;
     artifactCount?: number;
-}): Promise<File> {
+}
+
+/**
+ * Creates a valid mock project ZIP file for testing
+ */
+async function createValidProjectZip(projectData: ProjectData): Promise<File> {
     const zip = new JSZip();
 
     const projectJson = {
@@ -126,11 +128,11 @@ export const InvalidProjectZip: Story = {
         const dialogContent = within(dialog);
 
         const invalidFile = await createInvalidZip();
-        const fileInput = await dialogContent.findByTestId("projectImportFileInput") as HTMLInputElement;
+        const fileInput = (await dialogContent.findByTestId("projectImportFileInput")) as HTMLInputElement;
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(invalidFile);
         fileInput.files = dataTransfer.files;
-        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+        fileInput.dispatchEvent(new Event("change", { bubbles: true }));
 
         expect(await dialogContent.findByText(/Invalid project export/i)).toBeInTheDocument();
         expect(await dialogContent.findByRole("button", { name: "Import" })).toBeDisabled();
@@ -152,11 +154,11 @@ export const NonZipFile: Story = {
         const dialogContent = within(dialog);
 
         const textFile = createNonZipFile();
-        const fileInput = await dialogContent.findByTestId("projectImportFileInput") as HTMLInputElement;
+        const fileInput = (await dialogContent.findByTestId("projectImportFileInput")) as HTMLInputElement;
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(textFile);
         fileInput.files = dataTransfer.files;
-        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+        fileInput.dispatchEvent(new Event("change", { bubbles: true }));
 
         expect(await dialogContent.findByText("Please select a ZIP file")).toBeInTheDocument();
         expect(await dialogContent.findByRole("button", { name: "Import" })).toBeDisabled();
@@ -187,17 +189,17 @@ export const ValidProjectWithArtifacts: Story = {
             artifactCount: 6,
         });
 
-        const fileInput = await dialogContent.findByTestId("projectImportFileInput") as HTMLInputElement;
+        const fileInput = (await dialogContent.findByTestId("projectImportFileInput")) as HTMLInputElement;
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(validFile);
         fileInput.files = dataTransfer.files;
-        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+        fileInput.dispatchEvent(new Event("change", { bubbles: true }));
 
         expect(await dialogContent.findByText("Artifacts (6 files)")).toBeInTheDocument();
         expect(await dialogContent.findByText("artifact-1.txt")).toBeInTheDocument();
         expect(await dialogContent.findByText("+ 1 more files")).toBeInTheDocument();
 
-        const nameInput = await dialogContent.findByLabelText("Project Name") as HTMLInputElement;
+        const nameInput = (await dialogContent.findByLabelText("Project Name")) as HTMLInputElement;
         expect(nameInput.value).toBe("E-commerce Platform");
 
         expect(await dialogContent.findByRole("button", { name: "Import" })).toBeEnabled();

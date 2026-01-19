@@ -25,9 +25,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         isOpen: true,
-        files: createMockFileList([
-            createMockFile("api-documentation.pdf", 524288, "application/pdf"),
-        ]),
+        files: createMockFileList([createMockFile("api-documentation.pdf", 524288, "application/pdf")]),
         onClose: () => alert("Will close the dialog."),
         onConfirm: () => {},
         isSubmitting: false,
@@ -40,7 +38,6 @@ export const Default: Story = {
         const descriptionBox = await dialogContent.findByRole("textbox");
         await userEvent.type(descriptionBox, "API documentation for the project.");
 
-
         expect(await dialogContent.findByText("api-documentation.pdf")).toBeInTheDocument();
         expect(await dialogContent.findByRole("button", { name: "Upload 1 File(s)" })).toBeInTheDocument();
     },
@@ -52,11 +49,7 @@ export const Default: Story = {
 export const MultipleFiles: Story = {
     args: {
         isOpen: true,
-        files: createMockFileList([
-            createMockFile("api-documentation.pdf", 524288, "application/pdf"),
-            createMockFile("architecture-diagram.png", 204800, "image/png"),
-            createMockFile("package.json", 1024, "application/json"),
-        ]),
+        files: createMockFileList([createMockFile("api-documentation.pdf", 524288, "application/pdf"), createMockFile("architecture-diagram.png", 204800, "image/png"), createMockFile("package.json", 1024, "application/json")]),
         onClose: () => alert("Will close the dialog."),
         onConfirm: () => {},
         isSubmitting: false,
@@ -79,9 +72,7 @@ export const MultipleFiles: Story = {
 export const Loading: Story = {
     args: {
         isOpen: true,
-        files: createMockFileList([
-            createMockFile("api-documentation.pdf", 524288, "application/pdf"),
-        ]),
+        files: createMockFileList([createMockFile("api-documentation.pdf", 524288, "application/pdf")]),
         onClose: () => alert("Will close the dialog."),
         onConfirm: () => {},
         isSubmitting: true,

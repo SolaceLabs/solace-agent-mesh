@@ -31,12 +31,7 @@ const mockSessions: Session[] = [
     },
 ];
 
-const mockArtifacts = [
-    pdfArtifact,
-    imageArtifact,
-    jsonArtifact,
-    markdownArtifact,
-];
+const mockArtifacts = [pdfArtifact, imageArtifact, jsonArtifact, markdownArtifact];
 
 const transformedMockAgents = mockAgentCards.concat(getMockAgentCards(2)).map(transformAgentCard);
 const agentNameDisplayNameMap = transformedMockAgents.reduce(

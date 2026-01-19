@@ -56,7 +56,8 @@ export const projectWithLongDescription: Project = {
     id: "project-long-desc",
     name: "Documentation System",
     userId: "user-id",
-    description: "This is a comprehensive documentation management system designed to help teams collaborate on technical documentation, API references, user guides, and internal knowledge bases. It includes features like version control, collaborative editing, markdown support, and automated publishing workflows.",
+    description:
+        "This is a comprehensive documentation management system designed to help teams collaborate on technical documentation, API references, user guides, and internal knowledge bases. It includes features like version control, collaborative editing, markdown support, and automated publishing workflows.",
     systemPrompt: null,
     defaultAgentId: null,
     artifactCount: 8,
@@ -76,11 +77,4 @@ export const projectWithManyArtifacts: Project = {
     updatedAt: new Date("2024-03-15").toISOString(),
 };
 
-export const allProjects: Project[] = [
-    weatherProject,
-    eCommerceProject,
-    populatedProject,
-    emptyProject,
-    projectWithLongDescription,
-    projectWithManyArtifacts,
-];
+export const allProjects: Project[] = [weatherProject, eCommerceProject, populatedProject, emptyProject, projectWithLongDescription, projectWithManyArtifacts];
