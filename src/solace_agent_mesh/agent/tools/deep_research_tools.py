@@ -179,7 +179,6 @@ class ReflectionResult:
     suggested_queries: List[str]  # New queries to explore gaps
     reasoning: str  # Explanation of the reflection
 
-
 def _get_model_for_phase(
     phase: str,
     tool_context: ToolContext,
