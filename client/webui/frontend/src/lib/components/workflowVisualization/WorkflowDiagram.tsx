@@ -247,7 +247,7 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
 
     return (
         <div
-            className="relative h-full w-full bg-[var(--color-background-w20)] dark:bg-[var(--color-background-w100)]"
+            className="relative h-full w-full bg-card-background"
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onClick={handleBackgroundClick}

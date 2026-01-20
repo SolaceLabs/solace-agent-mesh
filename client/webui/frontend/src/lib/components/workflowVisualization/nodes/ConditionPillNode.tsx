@@ -32,7 +32,7 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
 
     return (
         <div
-            className={`${NODE_BASE_STYLES.CONDITION_PILL} border border-[var(--color-secondary-w20)] bg-[var(--color-background-w10)] text-[var(--color-secondary-text-wMain)] ${isSelected ? NODE_SELECTED_CLASS_COMPACT : ""}`}
+            className={`${NODE_BASE_STYLES.CONDITION_PILL} border border-(--color-secondary-w20) bg-(--color-background-w10) text-(--color-secondary-text-wMain) ${isSelected ? NODE_SELECTED_CLASS_COMPACT : ""}`}
             style={{
                 width: isDefault ? 'auto' : `${node.width}px`,
                 height: `${node.height}px`,
@@ -48,7 +48,7 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
             {!isDefault && caseNumber && (
                 <>
                     <span className="flex-shrink-0 font-medium text-foreground">{caseNumber}</span>
-                    <div className="h-4 w-px bg-[var(--color-secondary-w20)] dark:bg-[var(--color-secondary-w80)]" />
+                    <div className="h-4 w-px bg-(--color-secondary-w20) dark:bg-(--color-secondary-w80)" />
                 </>
             )}
             <span className="block flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-secondary-foreground">

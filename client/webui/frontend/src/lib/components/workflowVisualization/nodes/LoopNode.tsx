@@ -86,7 +86,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
         >
             {/* Dotted Children Container */}
             <div
-                className="absolute inset-0 rounded border-1 border-dashed border-[var(--color-secondary-w40)] bg-[var(--color-secondary-w10)] dark:bg-[var(--color-secondary-w100)] dark:border-[var(--color-secondary-w80)]"
+                className="absolute inset-0 rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:bg-(--color-secondary-w100) dark:border-(--color-secondary-w80)"
                 style={{ top: `${totalHeaderHeightPx / 2}px` }}
             >
                 {/* Top padding clears the header portion below the dotted border plus gap */}
@@ -134,7 +134,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                 {node.data.condition && (
                     <div className="px-4 pb-3 pt-0">
                         <span
-                            className="block truncate rounded bg-[var(--color-secondary-w10)] dark:bg-[var(--color-secondary-w80)] px-2 py-1 text-sm text-secondary-foreground"
+                            className="block truncate rounded bg-(--color-secondary-w10) dark:bg-(--color-secondary-w80) px-2 py-1 text-sm text-secondary-foreground"
                             title={node.data.condition}
                         >
                             {node.data.condition}

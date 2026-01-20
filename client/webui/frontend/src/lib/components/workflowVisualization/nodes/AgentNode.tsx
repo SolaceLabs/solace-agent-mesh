@@ -24,7 +24,7 @@ const AgentNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCli
             }}
         >
             <div className="flex items-center gap-2 overflow-hidden">
-                <Bot className="h-5 w-5 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                <Bot className="h-5 w-5 flex-shrink-0 text-(--color-brand-wMain)" />
                 <span className="truncate text-sm font-semibold text-foreground">{agentName}</span>
             </div>
             <span className="ml-2 flex-shrink-0 rounded px-2 py-0.5 text-sm font-medium text-secondary-foreground">

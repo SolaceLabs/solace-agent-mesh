@@ -52,7 +52,7 @@ const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, width, height }) => {
                     orient="auto"
                     markerUnits="userSpaceOnUse"
                 >
-                    <path d="M 0 0 L 12 6 L 0 12 z" className="fill-[var(--color-secondary-w40)] dark:fill-[var(--color-secondary-w80)]" />
+                    <path d="M 0 0 L 12 6 L 0 12 z" className="fill-(--color-secondary-w40) dark:fill-(--color-secondary-w80)" />
                 </marker>
             </defs>
 
@@ -66,7 +66,7 @@ const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, width, height }) => {
                         {/* Main edge path */}
                         <path
                             d={generatePath(edge)}
-                            className="fill-none stroke-[var(--color-secondary-w40)] dark:stroke-[var(--color-secondary-w80)]"
+                            className="fill-none stroke-(--color-secondary-w40) dark:stroke-(--color-secondary-w80)"
                             strokeWidth={2}
                             markerEnd={isConditionPillEdge ? undefined : "url(#arrowhead)"}
                         />
