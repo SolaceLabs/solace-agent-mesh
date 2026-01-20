@@ -288,7 +288,7 @@ def create_oauth_middleware(component):
                         "scopes": scopes,
                     }
                     log.debug(
-                        f"AuthMiddleware: Validated sam_access_token for user '{claims['sub']}' "
+                        f"AuthMiddleware: Validated sam_access_token for user '{user_identifier}' "
                         f"with roles={roles}, resolved scopes={len(scopes)}"
                     )
                     return False  # Success - continue to app
@@ -296,7 +296,7 @@ def create_oauth_middleware(component):
                 except Exception as e:
                     # Not a sam_access_token or verification failed
                     # Fall through to IdP token validation below
-                    log.debug(f"AuthMiddleware: Token is not a valid sam_access_token: {e}")
+                    log.error(f"AuthMiddleware: Token is not a valid sam_access_token: {e}")
 
             # EXISTING: Fall back to IdP token validation (unchanged logic)
             auth_service_url = getattr(self.component, "external_auth_service_url", None)
