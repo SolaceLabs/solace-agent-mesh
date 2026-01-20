@@ -21,8 +21,8 @@ const StartNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCli
                 onClick?.(node);
             }}
         >
-            <Play className="h-4 w-4 text-foreground" />
-            <span className="text-sm font-semibold text-foreground">{node.data.label}</span>
+            <Play className="h-4 w-4" />
+            <span className="text-sm font-semibold">{node.data.label}</span>
         </div>
     );
 };

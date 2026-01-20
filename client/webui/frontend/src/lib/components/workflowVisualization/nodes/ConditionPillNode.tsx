@@ -47,7 +47,7 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
         >
             {!isDefault && caseNumber && (
                 <>
-                    <span className="flex-shrink-0 font-medium text-foreground">{caseNumber}</span>
+                    <span className="flex-shrink-0 font-medium">{caseNumber}</span>
                     <div className="h-4 w-px bg-(--color-secondary-w20) dark:bg-(--color-secondary-w80)" />
                 </>
             )}

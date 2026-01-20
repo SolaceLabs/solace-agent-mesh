@@ -29,7 +29,7 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCl
             <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2">
                     <GitBranch className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                    <span className="text-sm font-semibold text-foreground">Switch</span>
+                    <span className="text-sm font-semibold">Switch</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-500 dark:text-gray-400">{totalCases} cases</span>
