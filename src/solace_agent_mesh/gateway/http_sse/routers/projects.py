@@ -483,6 +483,7 @@ async def _process_background_upload(
         file_like_objects = []
         for buf_file in buffered_files:
             file_obj = BytesIO(buf_file["content"])
+            file_obj.seek(0)  # Reset to beginning after creation
             file_obj.filename = buf_file["filename"]
             file_obj.content_type = buf_file["content_type"]
             file_like_objects.append(file_obj)

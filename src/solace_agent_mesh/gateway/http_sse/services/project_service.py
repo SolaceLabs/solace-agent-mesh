@@ -147,6 +147,15 @@ class ProjectService:
         validated_files = []
         for file in files:
             content_bytes = await self._validate_file_size(file, log_prefix)
+            
+            # Reset file pointer to beginning for subsequent operations
+            # This is especially important for BytesIO objects created in background tasks
+            if hasattr(file, 'seek'):
+                try:
+                    file.seek(0)
+                except Exception:
+                    pass  # Some file objects may not support seek
+            
             validated_files.append((file, content_bytes))
             self.logger.debug(
                 f"{log_prefix} Validated file '{file.filename}': {len(content_bytes):,} bytes"
