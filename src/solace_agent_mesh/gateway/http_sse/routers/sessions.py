@@ -694,16 +694,26 @@ async def trigger_title_generation(
         # Create callback to update session name when title is generated
         async def update_session_callback(generated_title: str):
             """Callback to update session name after title generation."""
+            from ..dependencies import SessionLocal
+            if SessionLocal is None:
+                log.error("Cannot update session name: database not configured")
+                return
+            
+            callback_db = SessionLocal()
             try:
                 session_service.update_session_name(
-                    db=db,
+                    db=callback_db,
                     session_id=session_id,
                     user_id=user_id,
                     name=generated_title,
                 )
+                callback_db.commit()
                 log.info(f"Session name updated to '{generated_title}' for session {session_id}")
             except Exception as e:
+                callback_db.rollback()
                 log.error(f"Failed to update session name in callback: {e}")
+            finally:
+                callback_db.close()
 
         # Create background task using asyncio to ensure it runs
         loop = asyncio.get_event_loop()

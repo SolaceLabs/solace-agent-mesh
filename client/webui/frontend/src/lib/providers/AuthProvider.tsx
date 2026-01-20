@@ -74,20 +74,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const logout = async () => {
         try {
             if (configUseAuthorization) {
-                await api.webui.post("/api/v1/auth/logout");
+                // Clear tokens from localStorage to prevent race conditions for token refresh
+                localStorage.removeItem("access_token");
+                localStorage.removeItem("refresh_token");
+
+                // Clear local state
                 setIsAuthenticated(false);
                 setUserInfo(null);
                 clearCsrfToken();
 
-                // Clear tokens from localStorage - set in authCallback.tsx
-                localStorage.removeItem("access_token");
-                localStorage.removeItem("refresh_token");
-
-                // Force redirect to login - prevents token refresh
-                window.location.href = configAuthLoginUrl;
+                // Call logout API - best effort only
+                await api.webui.post("/api/v1/auth/logout");
             }
         } catch (error) {
-            console.error("Error calling logout endpoint:", error);
+            console.warn("Error during logout:", error);
+        } finally {
+            window.location.href = configAuthLoginUrl;
         }
     };
 
