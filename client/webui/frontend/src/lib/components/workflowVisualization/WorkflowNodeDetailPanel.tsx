@@ -164,13 +164,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
         // If we have agent info, the agent is online (it responded to discovery)
         const isOnline = !!agentInfo;
         return (
-            <span
-                className={`inline-flex items-center gap-1 text-sm font-medium ${
-                    isOnline
-                        ? "text-green-700 dark:text-green-400"
-                        : "text-gray-600 dark:text-gray-400"
-                }`}
-            >
+            <span className="inline-flex items-center gap-1 text-sm font-medium text-[var(--color-primary-text-wMain)]">
                 <span
                     className={`h-1.5 w-1.5 rounded-full ${isOnline ? "bg-green-500" : "bg-gray-400"}`}
                 />
