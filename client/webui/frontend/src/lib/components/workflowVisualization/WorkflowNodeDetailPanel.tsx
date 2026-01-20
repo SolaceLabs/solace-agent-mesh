@@ -290,7 +290,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                     <div className="p-4">
                         {/* Node ID */}
                         <div className="mb-4">
-                            <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                            <label className="mb-1 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                 Node ID
                             </label>
                             <code className="font-mono text-sm text-gray-800 dark:text-gray-200">
@@ -302,13 +302,13 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                         {node.type === "agent" && (
                             <div className="mb-4 grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                    <label className="mb-1 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                         Status
                                     </label>
                                     {renderStatusBadge()}
                                 </div>
                                 <div>
-                                    <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                    <label className="mb-1 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                         Node Type
                                     </label>
                                     <div className="text-sm text-gray-900 dark:text-gray-100">
@@ -321,7 +321,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                         {/* Node Type (for non-agent nodes) */}
                         {node.type !== "agent" && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                <label className="mb-1 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                     Node Type
                                 </label>
                                 <div className="text-sm text-gray-900 dark:text-gray-100">
@@ -333,7 +333,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                         {/* Description (from agent card) */}
                         {agentDescription && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                <label className="mb-1 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                     Description
                                 </label>
                                 <div className="text-sm text-gray-700 dark:text-gray-300">
@@ -345,7 +345,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                         {/* Instruction (for agent nodes) */}
                         {nodeConfig?.instruction && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                <label className="mb-1 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                     Instruction
                                 </label>
                                 <div className="text-sm text-gray-800 dark:text-gray-200">
@@ -387,7 +387,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                         {/* Condition (for loop nodes) */}
                         {node.data.condition && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                <label className="mb-1 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                     Condition
                                 </label>
                                 <div className="rounded bg-gray-100 p-2 font-mono text-xs text-gray-800 dark:bg-gray-700 dark:text-gray-200">
@@ -399,7 +399,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                         {/* Max Iterations (for loop nodes) */}
                         {node.data.maxIterations && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                <label className="mb-1 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                     Max Iterations
                                 </label>
                                 <div className="text-sm text-gray-900 dark:text-gray-100">
@@ -450,7 +450,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                         {/* Items (for map nodes) */}
                         {node.data.items && (
                             <div className="mb-4">
-                                <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                <label className="mb-1 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                     Items
                                 </label>
                                 <div className="rounded bg-gray-100 p-2 font-mono text-xs text-gray-800 dark:bg-gray-700 dark:text-gray-200">
@@ -498,7 +498,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                                 {/* Input Mapping */}
                                                 {getInputMapping() && (
                                                     <div>
-                                                        <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                        <label className="mb-2 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                                             Mapping
                                                         </label>
                                                         <div className="max-h-48 overflow-auto">
@@ -515,7 +515,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                                 {/* Input Schema */}
                                                 {getInputSchema() && (
                                                     <div>
-                                                        <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                        <label className="mb-2 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                                             Schema
                                                             {isInputSchemaFromAgent && (
                                                                 <span className="ml-2 font-normal text-gray-400 dark:text-gray-500">
@@ -546,7 +546,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                     <div>
                                         {getOutputSchema() ? (
                                             <div>
-                                                <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                <label className="mb-2 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                                     Schema
                                                     {isOutputSchemaFromAgent && (
                                                         <span className="ml-2 font-normal text-gray-400 dark:text-gray-500">
