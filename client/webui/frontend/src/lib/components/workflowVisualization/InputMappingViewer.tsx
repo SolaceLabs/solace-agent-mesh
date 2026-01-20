@@ -38,21 +38,6 @@ const MappingValue: React.FC<{
         return /\{\{[^}]+\}\}/.test(str);
     };
 
-    // Handle mouse enter on a value with expressions
-    const handleMouseEnter = useCallback(
-        (str: string) => {
-            const refs = getNodeRefs(str);
-            if (refs.length > 0) {
-                onHighlightNodes?.(refs);
-            }
-        },
-        [getNodeRefs, onHighlightNodes]
-    );
-
-    // Handle mouse leave - clear highlights
-    const handleMouseLeave = useCallback(() => {
-        onHighlightNodes?.([]);
-    }, [onHighlightNodes]);
 
     // Render based on value type
     if (value === null) {
@@ -78,16 +63,7 @@ const MappingValue: React.FC<{
 
         return (
             <span className="inline-flex items-end gap-1">
-                <span
-                    className={`font-mono text-green-700 dark:text-green-400 ${
-                        hasExprs
-                            ? `cursor-pointer rounded px-0.5 transition-all duration-150 hover:bg-amber-100 dark:hover:bg-amber-900/30`
-                            : ""
-                    }`}
-                    onMouseEnter={hasExprs ? () => handleMouseEnter(value) : undefined}
-                    onMouseLeave={hasExprs ? handleMouseLeave : undefined}
-                    title={hasExprs ? "Hover to highlight source nodes" : undefined}
-                >
+                <span className="font-mono text-green-700 dark:text-green-400">
                     "{value}"
                 </span>
                 {hasNodeRefs && onNavigateToNode && (
