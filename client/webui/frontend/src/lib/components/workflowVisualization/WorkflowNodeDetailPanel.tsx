@@ -243,7 +243,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
             <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
                 <div className="flex items-center gap-2.5">
                     {getNodeIcon()}
-                    <span className="text-[20px] font-semibold text-foreground dark:text-gray-100">{title}</span>
+                    <span className="text-[20px] font-semibold">{title}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* View toggle */}
