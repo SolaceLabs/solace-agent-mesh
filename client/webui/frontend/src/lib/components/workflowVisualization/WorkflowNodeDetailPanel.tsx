@@ -132,13 +132,13 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
     const getNodeIcon = () => {
         switch (node.type) {
             case "start":
-                return <Play className="h-5 w-5 text-indigo-500" />;
+                return <Play className="h-5 w-5 text-[var(--color-primary-wMain)]" />;
             case "end":
-                return <CheckCircle className="h-5 w-5 text-indigo-500" />;
+                return <CheckCircle className="h-5 w-5 text-[var(--color-primary-wMain)]" />;
             case "agent":
-                return <Bot className="h-5 w-5 text-blue-500" />;
+                return <Bot className="h-5 w-5 text-[var(--color-brand-wMain)]" />;
             case "workflow":
-                return <Workflow className="h-5 w-5 text-purple-500" />;
+                return <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]"/>;
             case "switch":
                 return <GitBranch className="h-5 w-5 text-purple-500" />;
             case "map":
