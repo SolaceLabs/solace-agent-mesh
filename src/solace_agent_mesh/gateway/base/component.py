@@ -31,6 +31,7 @@ from a2a.types import (
     AgentCard,
     JSONRPCResponse,
     Task,
+    TaskState,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
     JSONRPCError,
@@ -1743,6 +1744,20 @@ class BaseGatewayComponent(SamComponentBase):
             is_final_chunk_of_status_update = False
 
             if isinstance(parsed_event, TaskStatusUpdateEvent):
+                # Try enterprise handling for input_required state (OAuth authentication)
+                if parsed_event.status and parsed_event.status.state == TaskState.input_required:
+                    try:
+                        from solace_agent_mesh_enterprise.auth.input_required import (
+                            handle_input_required_request,
+                        )
+                        parsed_event = handle_input_required_request(
+                            parsed_event,
+                            a2a_task_id,
+                            self  # Gateway component for caching
+                        )
+                    except ImportError:
+                        pass  # Enterprise not installed
+
                 is_final_chunk_of_status_update = parsed_event.final
                 if (
                     not (
