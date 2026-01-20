@@ -455,7 +455,7 @@ async def _process_background_upload(
     upload_id: str,
     project_id: str,
     user_id: str,
-    files: List[UploadFile],
+    buffered_files: List[Dict[str, Any]],
     file_metadata: Optional[str],
     upload_service: ProjectUploadService,
     manager: SSEManager,
@@ -465,8 +465,13 @@ async def _process_background_upload(
     
     This function runs as a background task with its own database session.
     The session is automatically managed via get_db dependency.
+    
+    Args:
+        buffered_files: List of dicts with 'filename', 'content_type', and 'content' (bytes)
     """
     try:
+        from io import BytesIO
+        
         parsed_metadata = {}
         if file_metadata:
             try:
@@ -474,13 +479,21 @@ async def _process_background_upload(
             except json.JSONDecodeError:
                 log.warning("Could not parse file_metadata")
         
+        # ✅ Convert buffered file contents back to file-like objects
+        file_like_objects = []
+        for buf_file in buffered_files:
+            file_obj = BytesIO(buf_file["content"])
+            file_obj.filename = buf_file["filename"]
+            file_obj.content_type = buf_file["content_type"]
+            file_like_objects.append(file_obj)
+        
         # ✅ Use injected background_db session (fresh session via Depends(get_db))
         await upload_service.process_upload(
             db=background_db,
             upload_id=upload_id,
             project_id=project_id,
             user_id=user_id,
-            files=files,
+            files=file_like_objects,
             file_metadata=parsed_metadata,
         )
     except Exception as e:
@@ -529,6 +542,20 @@ async def stream_upload_artifacts(
         # Initiate upload and get upload_id
         upload_id = await project_upload_service.initiate_upload(project_id, user_id)
         
+        # ✅ Buffer file contents into memory BEFORE returning response
+        # This prevents "read of closed file" errors after endpoint returns
+        # FastAPI closes UploadFile objects when the request completes
+        buffered_files = []
+        for upload_file in files:
+            content = await upload_file.read()
+            buffered_files.append({
+                "filename": upload_file.filename,
+                "content_type": upload_file.content_type,
+                "content": content,
+                "size": len(content),
+            })
+            log.info(f"Buffered file {upload_file.filename} ({len(content)} bytes)")
+        
         # ✅ Create a fresh database session for the background task using FastAPI DI
         from ..dependencies import SessionLocal
         background_db = SessionLocal()
@@ -540,7 +567,7 @@ async def stream_upload_artifacts(
                 upload_id=upload_id,
                 project_id=project_id,
                 user_id=user_id,
-                files=files,
+                buffered_files=buffered_files,
                 file_metadata=file_metadata,
                 upload_service=project_upload_service,
                 manager=sse_manager,
