@@ -124,6 +124,7 @@ run = "pytest {args}"
 run-cov = "coverage run -m pytest --cov=cli --cov=src {args}"
 cov-combine = "coverage combine"
 cov-report = "coverage report"
+cov-xml = "coverage xml"
 
 
 [project.urls]
@@ -252,3 +253,28 @@ path = ".github/helper_scripts/build_frontend.py"
 
 [tool.hatch.version]
 path = "cli/__init__.py"
+
+[tool.coverage.run]
+source = ["cli", "src"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.xml]
+output = "coverage.xml"

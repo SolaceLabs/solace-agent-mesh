@@ -35,3 +35,6 @@ storybook-static
 cypress/screenshots
 cypress/videos
 cypress/results
+
+# Test coverage
+coverage

@@ -129,11 +129,20 @@ jobs:
       - name: Run lint
         run: npm run lint
 
-      - name: Run Storybook Tests
-        run: npm run ci:storybook
+      - name: Run Storybook Tests with Coverage
+        run: npm run ci:storybook -- --coverage
 
       - name: Build UI package
         run: npm run build-package
+
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
+          SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
+        with:
+          projectBaseDir: client/webui/frontend
 
       - name: Run WhiteSource Scan
         id: whitesource_scan
