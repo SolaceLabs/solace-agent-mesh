@@ -16,16 +16,20 @@ from fastapi import (
     Form,
     File,
     UploadFile,
+    BackgroundTasks
 )
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from solace_ai_connector.common.log import log
 
-from ..dependencies import get_project_service, get_sac_component, get_api_config, get_db
+from ..dependencies import get_project_service, get_sac_component, get_api_config, get_db, get_sse_manager
 from ..services.project_service import ProjectService
+from ..services.project_upload_service import ProjectUploadService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from ....common.a2a.types import ArtifactInfo
 from typing import TYPE_CHECKING
+from ..sse_manager import SSEManager
+
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
@@ -441,6 +445,72 @@ async def add_project_artifacts(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to add artifacts to project"
         )
+    
+## zhenyu SSE spike ##
+
+@router.post("/projects/{project_id}/artifacts/stream-upload", status_code=status.HTTP_202_ACCEPTED)
+async def stream_upload_artifacts(
+    project_id: str,
+    files: List[UploadFile] = File(...),
+    file_metadata: Optional[str] = Form(None, alias="fileMetadata"),
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    sse_manager: SSEManager = Depends(get_sse_manager),
+    db: Session = Depends(get_db),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Upload artifacts to a project with SSE progress tracking.
+    
+    Returns immediately with upload_id for SSE subscription.
+    Client should subscribe to /api/v1/sse/subscribe/{upload_id} for progress.
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} starting stream upload to project {project_id}")
+    
+    try:
+        
+        project_upload_service = ProjectUploadService(sse_manager, project_service)
+        
+        # Initiate upload and get upload_id
+        upload_id = await project_upload_service.initiate_upload(project_id, user_id)
+        
+        # Start background task for processing
+        # Use FastAPI background tasks to avoid blocking
+        
+        async def background_upload():
+            parsed_metadata = {}
+            if file_metadata:
+                try:
+                    parsed_metadata = json.loads(file_metadata)
+                except json.JSONDecodeError:
+                    log.warning("Could not parse file_metadata")
+            
+            await project_upload_service.process_upload(
+                db=db,
+                upload_id=upload_id,
+                project_id=project_id,
+                user_id=user_id,
+                files=files,
+                file_metadata=parsed_metadata,
+            )
+        
+        # Schedule background task
+        background_tasks = BackgroundTasks()
+        background_tasks.add_task(background_upload)
+        
+        return {
+            "upload_id": upload_id,
+            "status": "accepted",
+            "message": f"Upload initiated. Subscribe to /api/v1/sse/subscribe/{upload_id} for progress",
+        }
+    
+    except Exception as e:
+        log.error(f"Error initiating stream upload: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to initiate upload"
+        )
 
 
 @router.patch("/projects/{project_id}/artifacts/{filename}", status_code=status.HTTP_200_OK)
@@ -531,7 +601,6 @@ async def update_project_artifact_metadata(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update artifact metadata"
         )
-
 
 @router.delete("/projects/{project_id}/artifacts/{filename}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project_artifact(
