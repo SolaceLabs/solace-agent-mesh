@@ -2,7 +2,6 @@ import React, { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import yaml from "js-yaml";
 import {
-    X,
     Bot,
     Workflow,
     GitBranch,
@@ -21,9 +20,7 @@ import type { LayoutNode } from "./utils/types";
 import type { WorkflowConfig } from "@/lib/utils/agentUtils";
 import { getAgentSchemas } from "@/lib/utils/agentUtils";
 import type { AgentCardInfo } from "@/lib/types";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui/tabs";
 import { Button } from "@/lib/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { JSONViewer } from "@/lib/components/jsonViewer";
 import InputMappingViewer from "./InputMappingViewer";
 import { buildWorkflowNavigationUrl } from "./WorkflowVisualizationPage";
@@ -32,7 +29,6 @@ interface WorkflowNodeDetailPanelProps {
     node: LayoutNode | null;
     workflowConfig: WorkflowConfig | null;
     agents: AgentCardInfo[];
-    onClose: () => void;
     /** Callback to highlight nodes when hovering over expressions */
     onHighlightNodes?: (nodeIds: string[]) => void;
     /** Set of known node IDs for validating expression references */
@@ -53,7 +49,6 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
     node,
     workflowConfig: _workflowConfig,
     agents,
-    onClose,
     onHighlightNodes,
     knownNodeIds,
     onNavigateToNode,
@@ -65,7 +60,6 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
     const navigate = useNavigate();
     const [showCodeView, setShowCodeView] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
-    const [isNodeIdCopied, setIsNodeIdCopied] = useState(false);
     const [activeTab, setActiveTab] = useState<"input" | "output">("input");
 
     // Look up agent info for agent nodes
@@ -96,14 +90,6 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
         }
     }, [nodeConfig]);
 
-    // Handle copy node ID to clipboard
-    const handleCopyNodeId = useCallback(() => {
-        if (!node?.id) return;
-        navigator.clipboard.writeText(node.id);
-        setIsNodeIdCopied(true);
-        setTimeout(() => setIsNodeIdCopied(false), 2000);
-    }, [node?.id]);
-
     // Handle switching to code view
     const handleInspectCode = useCallback(() => {
         setShowCodeView(true);
@@ -133,19 +119,19 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
     const getNodeIcon = () => {
         switch (node.type) {
             case "start":
-                return <Play className="h-5 w-5 text-[var(--color-primary-wMain)]" />;
+                return <Play className="h-6 w-6 text-[var(--color-primary-wMain)]" />;
             case "end":
-                return <CheckCircle className="h-5 w-5 text-[var(--color-primary-wMain)]" />;
+                return <CheckCircle className="h-6 w-6 text-[var(--color-primary-wMain)]" />;
             case "agent":
-                return <Bot className="h-5 w-5 text-[var(--color-brand-wMain)]" />;
+                return <Bot className="h-6 w-6 text-[var(--color-brand-wMain)]" />;
             case "workflow":
-                return <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]"/>;
+                return <Workflow className="h-6 w-6 text-[var(--color-brand-wMain)]"/>;
             case "switch":
-                return <GitBranch className="h-5 w-5 text-purple-500" />;
+                return <GitBranch className="h-6 w-6 text-purple-500" />;
             case "map":
-                return <Repeat2 className="h-5 w-5 text-indigo-500" />;
+                return <Repeat2 className="h-6 w-6 text-indigo-500" />;
             case "loop":
-                return <RefreshCw className="h-5 w-5 text-teal-500" />;
+                return <RefreshCw className="h-6 w-6 text-teal-500" />;
             default:
                 return null;
         }
@@ -199,21 +185,17 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
         try {
             const yamlStr = yaml.dump(nodeConfig, { indent: 2, lineWidth: -1 });
             return (
-                <div className="relative">
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                onClick={handleCopy}
-                                className="absolute right-2 top-2 rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                            >
-                                {isCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>Copy</p>
-                        </TooltipContent>
-                    </Tooltip>
-                    <pre className="scrollbar-themed overflow-auto rounded-lg bg-gray-100 p-3 font-mono text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                <div className="relative h-full">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleCopy}
+                        tooltip={isCopied ? "Copied!" : "Copy"}
+                        className="absolute right-2 top-2 z-10 h-8 w-8"
+                    >
+                        {isCopied ? <Check className="h-4 w-4 text-[var(--color-success-wMain)]" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                    <pre className="scrollbar-themed h-full overflow-auto rounded-lg bg-gray-100 p-3 font-mono text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-200">
                         {yamlStr}
                     </pre>
                 </div>
@@ -264,10 +246,10 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
     return (
         <div className="flex h-full flex-col bg-white dark:bg-gray-800">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+            <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
                 <div className="flex items-center gap-2">
                     {getNodeIcon()}
-                    <span className="text-base font-semibold text-foreground dark:text-gray-100">{title}</span>
+                    <span className="text-[20px] font-semibold text-foreground dark:text-gray-100">{title}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* View toggle */}
@@ -295,42 +277,25 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                             <Code className="h-4 w-4" />
                         </button>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-                    >
-                        <X className="h-5 w-5" />
-                    </button>
                 </div>
             </div>
 
             {/* Content */}
-            <div className="scrollbar-themed flex-1 overflow-y-auto p-4">
+            <div className="scrollbar-themed flex-1 overflow-y-auto">
                 {showCodeView ? (
-                    renderCodeView()
+                    <div className="h-full p-4">
+                        {renderCodeView()}
+                    </div>
                 ) : (
-                    <>
+                    <div className="p-4">
                         {/* Node ID */}
                         <div className="mb-4">
                             <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
                                 Node ID
                             </label>
-                            <div className="flex items-center gap-2">
-                                <code className="flex-1 rounded bg-gray-100 px-2 py-1 font-mono text-sm text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                                    {node.id}
-                                </code>
-                                <button
-                                    onClick={handleCopyNodeId}
-                                    className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-                                    title="Copy node ID"
-                                >
-                                    {isNodeIdCopied ? (
-                                        <Check className="h-4 w-4 text-green-500" />
-                                    ) : (
-                                        <Copy className="h-4 w-4" />
-                                    )}
-                                </button>
-                            </div>
+                            <code className="font-mono text-sm text-gray-800 dark:text-gray-200">
+                                {node.id}
+                            </code>
                         </div>
 
                         {/* Status (for agent nodes) */}
@@ -383,7 +348,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                 <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
                                     Instruction
                                 </label>
-                                <div className="rounded bg-gray-100 p-2 text-sm text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                <div className="text-sm text-gray-800 dark:text-gray-200">
                                     {nodeConfig.instruction}
                                 </div>
                             </div>
@@ -496,21 +461,38 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
 
                         {/* Input/Output Tabs (for agent and workflow nodes) */}
                         {hasSchemas && (
-                            <div className="mt-4">
-                                <Tabs
-                                    value={activeTab}
-                                    onValueChange={value => setActiveTab(value as "input" | "output")}
-                                >
-                                    <TabsList className="mb-3 w-full">
-                                        <TabsTrigger value="input" className="flex-1">
-                                            Input
-                                        </TabsTrigger>
-                                        <TabsTrigger value="output" className="flex-1">
-                                            Output
-                                        </TabsTrigger>
-                                    </TabsList>
+                            <div className="mt-8">
+                                {/* Tab Headers */}
+                                <div className="mb-4 flex border-b border-gray-200 dark:border-gray-700" role="tablist">
+                                    <button
+                                        role="tab"
+                                        aria-selected={activeTab === "input"}
+                                        onClick={() => setActiveTab("input")}
+                                        className={`px-4 pb-2 font-medium transition-colors ${
+                                            activeTab === "input"
+                                                ? "border-b-2 border-[var(--color-brand-wMain)] font-semibold text-gray-900 dark:text-gray-100"
+                                                : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                                        }`}
+                                    >
+                                        Input
+                                    </button>
+                                    <button
+                                        role="tab"
+                                        aria-selected={activeTab === "output"}
+                                        onClick={() => setActiveTab("output")}
+                                        className={`ml-6 px-4 pb-2 font-medium transition-colors ${
+                                            activeTab === "output"
+                                                ? "border-b-2 border-[var(--color-brand-wMain)] font-semibold text-gray-900 dark:text-gray-100"
+                                                : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                                        }`}
+                                    >
+                                        Output
+                                    </button>
+                                </div>
 
-                                    <TabsContent value="input" className="mt-0 space-y-4">
+                                {/* Tab Content */}
+                                {activeTab === "input" && (
+                                    <div className="space-y-4">
                                         {hasInputData ? (
                                             <>
                                                 {/* Input Mapping */}
@@ -557,9 +539,11 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                                 No input defined
                                             </div>
                                         )}
-                                    </TabsContent>
+                                    </div>
+                                )}
 
-                                    <TabsContent value="output" className="mt-0">
+                                {activeTab === "output" && (
+                                    <div>
                                         {getOutputSchema() ? (
                                             <div>
                                                 <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -584,11 +568,11 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                                 No output schema defined
                                             </div>
                                         )}
-                                    </TabsContent>
-                                </Tabs>
+                                    </div>
+                                )}
                             </div>
                         )}
-                    </>
+                    </div>
                 )}
             </div>
         </div>
