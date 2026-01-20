@@ -2561,7 +2561,7 @@ async def index_kw_search(
     index_name: str,
     query: str,
     top_k: int = 10,
-    version: Optional[str] = "latest",
+    version: Optional[str] = "latest", # should alway latest since no new index will be created in chat session
     tool_context: ToolContext = None,
 ) -> Dict[str, Any]:
     """
