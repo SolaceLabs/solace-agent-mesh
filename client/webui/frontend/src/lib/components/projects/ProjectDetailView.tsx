@@ -31,6 +31,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
+    const MAX_DESCRIPTION_LENGTH = 1000;
+    const isDescriptionOverLimit = editedDescription.length > MAX_DESCRIPTION_LENGTH;
+
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
         setError(null);
         setIsSaving(true);
@@ -189,8 +192,19 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Description*</label>
-                            <Textarea value={editedDescription} onChange={e => setEditedDescription(e.target.value)} placeholder="Project description" rows={4} disabled={isSaving} maxLength={1000} />
-                            <div className="text-muted-foreground text-right text-xs">{editedDescription.length}/1000</div>
+                            <Textarea
+                                value={editedDescription}
+                                onChange={e => setEditedDescription(e.target.value)}
+                                placeholder="Project description"
+                                rows={4}
+                                disabled={isSaving}
+                                maxLength={MAX_DESCRIPTION_LENGTH + 1}
+                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-destructive" : ""}`}
+                            />
+                            <div className={`text-xs ${isDescriptionOverLimit ? "text-destructive" : "text-muted-foreground text-right"}`}>
+                                {isDescriptionOverLimit && `Description must be less than ${MAX_DESCRIPTION_LENGTH} characters`}
+                                {!isDescriptionOverLimit && `${editedDescription.length} / ${MAX_DESCRIPTION_LENGTH}`}
+                            </div>
                         </div>
                         {nameError && <MessageBanner variant="error" message={nameError} />}
                     </div>
@@ -198,7 +212,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                         <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
                             Discard Changes
                         </Button>
-                        <Button onClick={handleSave} disabled={isSaving}>
+                        <Button onClick={handleSave} disabled={isSaving || isDescriptionOverLimit}>
                             Save
                         </Button>
                     </DialogFooter>
