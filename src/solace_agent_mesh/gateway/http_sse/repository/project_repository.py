@@ -38,43 +38,30 @@ class ProjectRepository(IProjectRepository):
         return self._model_to_entity(model)
 
     def get_user_projects(self, user_id: str) -> List[Project]:
-        """
-        Get all projects owned by a specific user.
-        
-        Note: This returns only projects where the user is the owner (user_id matches).
-        For projects the user has access to via project_users table, use get_accessible_projects().
-        """
+        """Get all projects owned by a specific user."""
         models = self.db.query(ProjectModel).filter(
             ProjectModel.user_id == user_id,
-            ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
+            ProjectModel.deleted_at.is_(None)
         ).all()
         return [self._model_to_entity(model) for model in models]
-    
+
     def get_accessible_projects(self, user_id: str) -> List[Project]:
         """
-        Get all projects accessible by a user (owned or shared).
-        
-        This includes:
-        - Projects owned by the user (user_id matches)
-        - Projects shared with the user (via project_users table)
-        
-        Args:
-            user_id: The user ID
-            
-        Returns:
-            List[Project]: List of accessible projects
+        Get all accessible projects for a user (owned only in Community).
+        Enterprise overrides this via resource sharing service.
         """
-        # Query for projects where user is owner OR has access via project_users
-        models = self.db.query(ProjectModel).outerjoin(
-            ProjectUserModel,
-            ProjectModel.id == ProjectUserModel.project_id
-        ).filter(
-            ProjectModel.deleted_at.is_(None),  # Exclude soft-deleted projects
-            or_(
-                ProjectModel.user_id == user_id,
-                ProjectUserModel.user_id == user_id
-            )
-        ).distinct().all()
+        return self.get_user_projects(user_id)
+
+    def get_all_projects(self) -> List[Project]:
+        """
+        Get all projects.
+        
+        Returns:
+            List[Project]: List of all non-deleted projects.
+        """
+        models = self.db.query(ProjectModel).filter(
+            ProjectModel.deleted_at.is_(None)
+        ).all()
         
         return [self._model_to_entity(model) for model in models]
 
@@ -90,28 +77,19 @@ class ProjectRepository(IProjectRepository):
         models = query.all()
         return [self._model_to_entity(model) for model in models]
 
-    def get_by_id(self, project_id: str, user_id: str) -> Optional[Project]:
+    def get_by_id(self, project_id: str) -> Optional[Project]:
         """
-        Get a project by its ID, ensuring user access.
-        
-        This checks if the user is the owner OR has access via project_users table.
+        Get a project by its ID.
         """
-        model = self.db.query(ProjectModel).outerjoin(
-            ProjectUserModel,
-            ProjectModel.id == ProjectUserModel.project_id
-        ).filter(
+        model = self.db.query(ProjectModel).filter(
             ProjectModel.id == project_id,
-            ProjectModel.deleted_at.is_(None),  # Exclude soft-deleted projects
-            or_(
-                ProjectModel.user_id == user_id,
-                ProjectUserModel.user_id == user_id
-            )
+            ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
         ).first()
         
         return self._model_to_entity(model) if model else None
 
-    def update(self, project_id: str, user_id: str, update_data: dict) -> Optional[Project]:
-        """Update a project with the given data, ensuring user access."""
+    def update(self, project_id: str, update_data: dict) -> Optional[Project]:
+        """Update a project with the given data."""
         # First, find the project
         model = self.db.query(ProjectModel).filter(
             ProjectModel.id == project_id,
@@ -120,20 +98,6 @@ class ProjectRepository(IProjectRepository):
 
         if not model:
             return None  # Project doesn't exist
-
-        # Check if user is owner
-        if model.user_id == user_id:
-            # User is owner, proceed with update
-            pass
-        else:
-            # User is not owner - check if they have editor access
-            from .project_user_repository import ProjectUserRepository
-            pu_repo = ProjectUserRepository(self.db)
-            access = pu_repo.get_user_project_access(project_id, user_id)
-
-            # Verify user has editor or owner role
-            if not access or access.role not in ["editor", "owner"]:
-                return None  # No permission
         
         for field, value in update_data.items():
             if hasattr(model, field):
@@ -144,20 +108,18 @@ class ProjectRepository(IProjectRepository):
         self.db.refresh(model)
         return self._model_to_entity(model)
 
-    def delete(self, project_id: str, user_id: str) -> bool:
-        """Delete a project by its ID, ensuring user access."""
+    def delete(self, project_id: str) -> bool:
+        """Delete a project by its ID."""
         result = self.db.query(ProjectModel).filter(
-            ProjectModel.id == project_id,
-            ProjectModel.user_id == user_id  # Only allow deletion of user's own projects
+            ProjectModel.id == project_id
         ).delete()
         self.db.flush()
         return result > 0
 
-    def soft_delete(self, project_id: str, user_id: str) -> bool:
-        """Soft delete a project by its ID, ensuring user access."""
+    def soft_delete(self, project_id: str, deleted_by_user_id: str) -> bool:
+        """Soft delete a project by its ID."""
         model = self.db.query(ProjectModel).filter(
             ProjectModel.id == project_id,
-            ProjectModel.user_id == user_id,  # Only allow deletion of user's own projects
             ProjectModel.deleted_at.is_(None)  # Only delete if not already deleted
         ).first()
         
@@ -165,7 +127,7 @@ class ProjectRepository(IProjectRepository):
             return False
         
         model.deleted_at = now_epoch_ms()
-        model.deleted_by = user_id
+        model.deleted_by = deleted_by_user_id
         model.updated_at = now_epoch_ms()
         self.db.flush()
         return True

@@ -313,6 +313,25 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self._run_database_migrations()
             log.info("%s Database migrations completed", self.log_identifier)
 
+        # Initialize enterprise features if available
+        try:
+            from solace_agent_mesh_enterprise.init_enterprise import (
+                initialize_enterprise_features,
+            )
+            app_config = self.get_config("app_config", {})
+            initialize_enterprise_features(app_config)
+            log.info("%s Enterprise features initialized", self.log_identifier)
+        except ImportError:
+            # Community edition - no enterprise features
+            log.debug("%s Enterprise features not available (Community edition)", self.log_identifier)
+        except Exception as e:
+            log.error(
+                "%s Failed to initialize enterprise features: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
+
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
     def _run_database_migrations(self):

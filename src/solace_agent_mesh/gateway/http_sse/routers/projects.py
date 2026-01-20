@@ -39,7 +39,6 @@ from .dto.requests.project_requests import (
 from .dto.responses.project_responses import (
     ProjectResponse,
     ProjectListResponse,
-    ProjectCollaboratorsResponse,
 )
 from .dto.project_dto import (
     ProjectImportOptions,
@@ -438,8 +437,14 @@ async def update_project_artifact_metadata(
         
         return {"message": "Artifact metadata updated successfully"}
     except ValueError as e:
-        log.warning(f"Validation error updating artifact metadata in project {project_id}: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        error_msg = str(e)
+        # Check if this is a permission error (403) or validation error (400)
+        if "permission denied" in error_msg.lower():
+            log.warning(f"Permission denied updating artifact metadata in project {project_id}: {error_msg}")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        else:
+            log.warning(f"Validation error updating artifact metadata in project {project_id}: {error_msg}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
     except HTTPException:
         raise
     except Exception as e:
@@ -486,8 +491,14 @@ async def delete_project_artifact(
         
         return
     except ValueError as e:
-        log.warning(f"Validation error deleting artifact from project {project_id}: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        error_msg = str(e)
+        # Check if this is a permission error (403) or validation error (400)
+        if "permission denied" in error_msg.lower():
+            log.warning(f"Permission denied deleting artifact from project {project_id}: {error_msg}")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        else:
+            log.warning(f"Validation error deleting artifact from project {project_id}: {error_msg}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
     except HTTPException:
         raise
     except Exception as e:
@@ -543,7 +554,7 @@ async def update_project(
         }
 
         project = project_service.update_project(**kwargs)
-        
+
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -551,7 +562,7 @@ async def update_project(
             )
 
         log.info("Project %s updated successfully", project_id)
-        
+
         return ProjectResponse(
             id=project.id,
             name=project.name,
@@ -562,14 +573,19 @@ async def update_project(
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
-    
+
     except HTTPException:
         raise
     except ValueError as e:
-        log.warning("Validation error updating project %s: %s", project_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
-        )
+        error_msg = str(e)
+        # Check if this is a permission error (403) or validation error (422)
+        if "permission denied" in error_msg.lower():
+            log.warning("Permission denied updating project %s: %s", project_id, error_msg)
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        else:
+            log.warning("Validation error updating project %s: %s", project_id, error_msg)
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error_msg)
+
     except Exception as e:
         log.error(
             "Error updating project %s for user %s: %s",
@@ -613,14 +629,19 @@ async def delete_project(
             )
 
         log.info("Project %s soft deleted successfully", project_id)
-    
+
     except HTTPException:
         raise
     except ValueError as e:
-        log.warning("Validation error deleting project %s: %s", project_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        error_msg = str(e)
+        # Check if this is a permission error (403) or validation error (400)
+        if "permission denied" in error_msg.lower():
+            log.warning("Permission denied deleting project %s: %s", project_id, error_msg)
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_msg)
+        else:
+            log.warning("Validation error deleting project %s: %s", project_id, error_msg)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
+
     except Exception as e:
         log.error(
             "Error deleting project %s for user %s: %s",
@@ -768,102 +789,3 @@ async def import_project(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to import project"
         )
-
-
-@router.post("/projects/{project_id}/share")
-async def share_project(
-    project_id: str,
-    user_email: str = Form(...),
-    role: str = Form(...),
-    user: dict = Depends(get_current_user),
-    user_config: dict = Depends(ValidatedUserConfig(["project:share"])),
-    db: Session = Depends(get_db),
-    project_service: ProjectService = Depends(get_project_service),
-    _: None = Depends(check_projects_enabled),
-):
-    """
-    Share a project with another user by email.
-
-    Requires:
-    - project:share scope (enterprise RBAC)
-    - Owner role on the project (database check)
-    """
-    try:
-        result = await project_service.share_project(
-            db, project_id, user_email, role, user.get("id")
-        )
-        return result
-    except ValueError as e:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
-
-
-@router.get("/projects/{project_id}/collaborators", response_model=ProjectCollaboratorsResponse)
-async def get_project_collaborators(
-    project_id: str,
-    user: dict = Depends(get_current_user),
-    user_config: dict = Depends(ValidatedUserConfig(["project:read"])),
-    db: Session = Depends(get_db),
-    project_service: ProjectService = Depends(get_project_service),
-    _: None = Depends(check_projects_enabled),
-):
-    """
-    Get all collaborators for a project.
-
-    Requires:
-    - project:read scope (enterprise RBAC)
-    - Any role on the project (owner/editor/viewer can all view collaborators)
-    """
-    try:
-        return project_service.get_collaborators(db, project_id, user.get("id"))
-    except ValueError as e:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, str(e))
-
-
-@router.put("/projects/{project_id}/collaborators/{user_id}")
-async def update_collaborator_role(
-    project_id: str,
-    user_id: str,
-    role: str = Form(...),
-    user: dict = Depends(get_current_user),
-    user_config: dict = Depends(ValidatedUserConfig(["project:share"])),
-    db: Session = Depends(get_db),
-    project_service: ProjectService = Depends(get_project_service),
-    _: None = Depends(check_projects_enabled),
-):
-    """
-    Update a collaborator's role.
-
-    Requires:
-    - project:share scope (enterprise RBAC)
-    - Owner role on the project (database check)
-    """
-    try:
-        project_service.update_collaborator_role(
-            db, project_id, user_id, role, user.get("id")
-        )
-        return {"message": "Role updated successfully"}
-    except ValueError as e:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
-
-
-@router.delete("/projects/{project_id}/collaborators/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_collaborator(
-    project_id: str,
-    user_id: str,
-    user: dict = Depends(get_current_user),
-    user_config: dict = Depends(ValidatedUserConfig(["project:share"])),
-    db: Session = Depends(get_db),
-    project_service: ProjectService = Depends(get_project_service),
-    _: None = Depends(check_projects_enabled),
-):
-    """
-    Remove a collaborator from a project.
-
-    Requires:
-    - project:share scope (enterprise RBAC)
-    - Owner role on the project (database check)
-    """
-    try:
-        project_service.remove_collaborator(db, project_id, user_id, user.get("id"))
-    except ValueError as e:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
