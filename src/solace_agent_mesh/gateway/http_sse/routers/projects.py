@@ -3,10 +3,12 @@ Project API controller using 3-tiered architecture.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+import asyncio
 from fastapi import (
     APIRouter,
     Depends,
@@ -461,22 +463,15 @@ async def stream_upload_artifacts(
 ):
     """
     Upload artifacts to a project with SSE progress tracking.
-    
-    Returns immediately with upload_id for SSE subscription.
-    Client should subscribe to /api/v1/sse/subscribe/{upload_id} for progress.
     """
     user_id = user.get("id")
     log.info(f"User {user_id} starting stream upload to project {project_id}")
     
     try:
-        
         project_upload_service = ProjectUploadService(sse_manager, project_service)
         
         # Initiate upload and get upload_id
         upload_id = await project_upload_service.initiate_upload(project_id, user_id)
-        
-        # Start background task for processing
-        # Use FastAPI background tasks to avoid blocking
         
         async def background_upload():
             parsed_metadata = {}
@@ -486,18 +481,29 @@ async def stream_upload_artifacts(
                 except json.JSONDecodeError:
                     log.warning("Could not parse file_metadata")
             
-            await project_upload_service.process_upload(
-                db=db,
-                upload_id=upload_id,
-                project_id=project_id,
-                user_id=user_id,
-                files=files,
-                file_metadata=parsed_metadata,
-            )
+            try:
+                await project_upload_service.process_upload(
+                    db=db,
+                    upload_id=upload_id,
+                    project_id=project_id,
+                    user_id=user_id,
+                    files=files,
+                    file_metadata=parsed_metadata,
+                )
+            except Exception as e:
+                log.error(f"Background upload failed for {upload_id}: {e}", exc_info=True)
+                await sse_manager.send_event(
+                    upload_id,
+                    {
+                        "type": "upload_failed",
+                        "error": str(e),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    },
+                    event_type="upload_error"
+                )
         
-        # Schedule background task
-        background_tasks = BackgroundTasks()
-        background_tasks.add_task(background_upload)
+        # ✅ SOLUTION: Use asyncio.create_task() to properly schedule the async function
+        asyncio.create_task(background_upload())
         
         return {
             "upload_id": upload_id,
