@@ -141,8 +141,6 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
           SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
-        with:
-          projectBaseDir: client/webui/frontend
 
       - name: Run WhiteSource Scan
         id: whitesource_scan
