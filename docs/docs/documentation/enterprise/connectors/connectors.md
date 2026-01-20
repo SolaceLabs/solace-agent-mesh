@@ -23,6 +23,10 @@ Model Context Protocol (MCP) connectors allow agents to communicate with MCP-com
 
 SQL connectors allow agents to query relational databases using natural language. The connectors convert user questions into SQL queries and execute them against MySQL, PostgreSQL, or MariaDB databases. For detailed information about creating and configuring SQL connectors, see [SQL Connectors](sql-connectors.md).
 
+### Knowledge Base Connectors
+
+Knowledge Base connectors allow agents to retrieve context from enterprise documentation stored in cloud-based knowledge repositories. The connectors retrieve information from knowledge bases that can contain both unstructured documents and structured data, returning relevant results to ground agent responses in organizational knowledge. For detailed information about creating and configuring Knowledge Base connectors, see [Knowledge Base Connectors](knowledgebase-connectors.md).
+
 ## Creating Connectors
 
 You create connectors through the Connectors section of the Agent Mesh Enterprise web interface. Navigate to the Connectors page and click the Create Connector button to begin the creation process. The creation process varies depending on the connector type. All connectors require a unique name and connection credentials appropriate for the target system.

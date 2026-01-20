@@ -1,6 +1,6 @@
 ---
 title: OpenAPI Connectors
-sidebar_position: 1
+sidebar_position: 3
 ---
 
 :::info Coming Soon
