@@ -1,0 +1,75 @@
+# Agent Configuration File: A2A ADK Agents Configurations
+#
+# This file has the configuration for the A2A ADK agents.
+log:
+  stdout_log_level: INFO
+  log_file_level: INFO
+  log_file: a2a_stripe_sse.log
+
+# Shared SAM config
+!include ../../shared_config.yaml
+
+apps:
+# --- Stripe MCP Agent ---
+  - name: stripe_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+  
+    # --- App Level Config ---
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "StripeAgent"
+      model: *general_model
+      instruction: |
+        An agent that handles stripe operations. Use the tools to interact with stripe. Don't make up information.
+        If you don't know the answer, just say that you don't know. Do not try to make up an answer.
+        Do NOT use parallel tool calls.
+      
+      # --- Tools Definition (including MCP) ---
+      tools:
+        - tool_type: mcp
+          connection_params:
+            type: streamable-http
+            url: "http://127.0.0.1:3005/mcp"
+            ssl:
+              verify: false  # Disable SSL verification            
+
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "sql"
+        database_url: "${STRIPE_DATABASE_URL, sqlite:///stripe-agent.db}"
+        default_behavior: "PERSISTENT"        
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      trust_manager:
+        enabled: ${TRUST_MANAGER_ENABLED, false}  # Enable or disable the trust manager
+        card_publish_interval_seconds: 10  # Publish every 10 seconds for testing
+        card_expiration_days: 7  # 1 week for development
+        verification_mode: "permissive"  # Log warnings, don't fail during initial testing
+        clock_skew_tolerance_seconds: 300  # 5 minutes tolerance
+        enable_time_validation: true
+        jwt_default_ttl_seconds: 3600  # 1 hour default JWT lifetime
+        jwt_max_ttl_seconds: 86400     # 24 hours maximum JWT lifetime
+  
+      # --- Agent Card Definition ---
+      agent_card:
+        description: "An agent that handles canva operations."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"] 
+        skills: []
+  
+      # --- Discovery & Communication ---
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 60
