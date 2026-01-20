@@ -475,12 +475,13 @@ class TaskLoggerService:
                                     parts = message.get("parts", [])
                                     for part in parts:
                                         if isinstance(part, dict):
-                                            if part.get("kind") == "text":
+                                            part_kind = part.get("kind")
+                                            if part_kind == "text":
                                                 text = part.get("text", "")
                                                 if text:
                                                     accumulated_agent_text.append(text)
                                                     accumulated_agent_parts.append(part)
-                                            elif part.get("kind") == "data":
+                                            elif part_kind == "data":
                                                 # Extract RAG metadata from tool_result data parts
                                                 data = part.get("data", {})
                                                 if isinstance(data, dict) and data.get("type") == "tool_result":
@@ -496,6 +497,10 @@ class TaskLoggerService:
                                                                 f"searchType={rag_metadata.get('searchType')}, "
                                                                 f"sources_count={len(rag_metadata.get('sources', []))}"
                                                             )
+                                                accumulated_agent_parts.append(part)
+                                            else:
+                                                # Accumulate other non-text, non-data parts
+                                                accumulated_agent_parts.append(part)
                     
                     # Extract artifacts and any additional text from final task response
                     elif event.direction == "response":
