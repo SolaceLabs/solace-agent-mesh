@@ -88,8 +88,10 @@ class ProjectService:
         """
         Validate file size and read content with size checking.
         
+        Handles both async UploadFile (FastAPI) and sync BytesIO objects.
+        
         Args:
-            file: The uploaded file to validate
+            file: The uploaded file to validate (UploadFile or BytesIO)
             log_prefix: Prefix for log messages
             
         Returns:
@@ -103,8 +105,16 @@ class ProjectService:
         content_bytes = bytearray()
         total_bytes_read = 0
         
+        # Check if file has async read (FastAPI UploadFile) or sync read (BytesIO)
+        is_async = hasattr(file.read, '__call__') and hasattr(file.read, '__await__')
+        
         while True:
-            chunk = await file.read(chunk_size)
+            # Use await for async reads, direct call for sync reads
+            if is_async:
+                chunk = await file.read(chunk_size)
+            else:
+                chunk = file.read(chunk_size)
+                
             if not chunk:
                 break
             
