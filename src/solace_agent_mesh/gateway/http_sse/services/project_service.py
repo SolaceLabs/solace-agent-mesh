@@ -293,14 +293,8 @@ class ProjectService:
         """
         self.logger.debug(f"Retrieving accessible projects for user {user_id}")
         project_repository = self._get_repositories(db)
-        all_projects = project_repository.get_all_projects()
-        
-        accessible_projects = []
-        for project in all_projects:
-            if self._can_view_project(db, project.id, user_id):
-                accessible_projects.append(project)
-        
-        return accessible_projects
+        # Use single query with JOIN instead of N+1 queries
+        return project_repository.get_accessible_projects(user_id)
 
     def get_user_projects(self, db, user_id: str) -> List[Project]:
         """

@@ -12,6 +12,7 @@ from .models import ProjectModel, ProjectUserModel
 from .entities.project import Project
 from ..routers.dto.requests.project_requests import ProjectFilter
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+from solace_agent_mesh.shared.api.pagination import PaginationParams
 
 
 class ProjectRepository(IProjectRepository):
@@ -47,10 +48,22 @@ class ProjectRepository(IProjectRepository):
 
     def get_accessible_projects(self, user_id: str) -> List[Project]:
         """
-        Get all accessible projects for a user (owned only in Community).
-        Enterprise overrides this via resource sharing service.
+        Get all accessible projects for a user (owned + shared).
+        Uses a single query with LEFT JOIN for optimal performance.
         """
-        return self.get_user_projects(user_id)
+        # Query for projects where user is owner OR has shared access
+        models = self.db.query(ProjectModel).outerjoin(
+            ProjectUserModel,
+            ProjectModel.id == ProjectUserModel.project_id
+        ).filter(
+            or_(
+                ProjectModel.user_id == user_id,  # Projects owned by user
+                ProjectUserModel.user_id == user_id  # Projects shared with user
+            ),
+            ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
+        ).distinct().all()
+
+        return [self._model_to_entity(model) for model in models]
 
     def get_all_projects(self) -> List[Project]:
         """
