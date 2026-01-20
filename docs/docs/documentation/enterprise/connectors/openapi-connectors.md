@@ -3,10 +3,6 @@ title: OpenAPI Connectors
 sidebar_position: 1
 ---
 
-:::info Coming Soon
-OpenAPI connectors will be available in an upcoming release.
-:::
-
 OpenAPI connectors allow agents to interact with REST APIs that use OpenAPI specifications.
 
 ## Overview
@@ -46,6 +42,7 @@ Depending on the API's authentication requirements, you may need:
 - API keys for APIs using API key authentication
 - Username and password for APIs using basic authentication
 - Bearer tokens for APIs using token-based authentication
+- OAuth2/OIDC credentials (client ID, client secret, and token endpoint URLs) for APIs using OAuth 2.0 or OpenID Connect authentication
 - No credentials for public APIs without authentication
 
 ### Network Access
@@ -77,6 +74,7 @@ Select the authentication method that matches your API requirements. The availab
 - None: The API does not require authentication
 - API Key: The API requires an API key sent in a header or query parameter
 - HTTP: The API uses HTTP authentication (Basic Auth or Bearer Token)
+- OAuth2/OIDC: The API uses OAuth 2.0 or OpenID Connect authentication with client credentials
 
 The authentication configuration fields that appear depend on the type you select.
 
@@ -130,6 +128,36 @@ The connector automatically encodes the username and password in Base64 format a
 
 The connector sends the token in the `Authorization` header with the `Bearer` prefix as required by the Bearer token specification.
 
+#### OAuth2/OIDC Authentication
+
+Configure OAuth2 or OpenID Connect authentication by specifying the OAuth2 endpoints and configuration explicitly. Use this authentication type when the API requires OAuth2 client credentials for access.
+
+Configure the following fields:
+
+**Authorization Endpoint:** The URL where users authorize the application.
+
+**Token Endpoint:** The URL where access tokens are obtained.
+
+**Client ID:** Your OAuth2 client identifier.
+
+**Client Secret:** Your OAuth2 client secret.
+
+**Scopes:** Space-separated list of OAuth2 scopes to request (optional). Common examples include `read`, `write`, `admin`, or API-specific scopes like `users:read` or `data:write`.
+
+**Token Endpoint Auth Method:** Select how the connector authenticates at the token endpoint:
+- Client Secret Post: Send credentials in the request body
+- Client Secret Basic: Send credentials in the Authorization header using Basic authentication
+
+The connector uses these credentials to obtain access tokens and automatically refreshes them when they expire.
+
+**Example Configuration:**
+- Authorization Endpoint: `https://auth.example.com/oauth/authorize`
+- Token Endpoint: `https://auth.example.com/oauth/token`
+- Client ID: `your-client-id`
+- Client Secret: `your-client-secret`
+- Scopes: `read write`
+- Token Endpoint Auth Method: Client Secret Post
+
 ## After Creating the Connector
 
 After you successfully create the connector, the system redirects you to the Connectors list where you can see your new connector. The connector is now available for assignment to agents.
@@ -165,9 +193,11 @@ If API calls fail with 401 or 403 errors:
 
 1. Verify the API credentials are correct by testing them directly with curl or Postman
 2. Check that credentials have not expired
-3. Confirm the authentication type matches what the API expects (API Key vs HTTP Basic vs Bearer)
+3. Confirm the authentication type matches what the API expects (API Key vs HTTP Basic vs Bearer vs OAuth2/OIDC)
 4. Verify the parameter name or header name is correct
 5. Ensure credentials have sufficient permissions for the operations agents attempt to invoke
+6. For OAuth2/OIDC, verify the authorization endpoint, token endpoint, client ID, and client secret are correct
+7. For OAuth2/OIDC, ensure the requested scopes are valid and permitted for your client credentials
 
 ### Operations Not Available
 
