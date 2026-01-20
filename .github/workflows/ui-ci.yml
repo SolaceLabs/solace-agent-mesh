@@ -135,13 +135,6 @@ jobs:
       - name: Build UI package
         run: npm run build-package
 
-      - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
-          SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
-
       - name: Run WhiteSource Scan
         id: whitesource_scan
         uses: SolaceDev/solace-public-workflows/.github/actions/whitesource-scan@main
