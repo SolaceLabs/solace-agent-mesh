@@ -223,7 +223,7 @@ const InputMappingViewer: React.FC<InputMappingViewerProps> = ({
                                     onMouseEnter={() => onHighlightNodes?.([nodeRefs[0]])}
                                     onMouseLeave={() => onHighlightNodes?.([])}
                                     tooltip={`Navigate to ${nodeRefs[0]}`}
-                                    className="h-6 w-6 opacity-50 hover:opacity-100"
+                                    className="h-6 w-6"
                                 >
                                     <Search className="h-6 w-6" />
                                 </Button>

@@ -127,11 +127,11 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
             case "workflow":
                 return <Workflow className="h-6 w-6 text-[var(--color-brand-wMain)]"/>;
             case "switch":
-                return <GitBranch className="h-6 w-6 text-purple-500" />;
+                return <GitBranch className="h-6 w-6 text-[var(--color-accent-n0-wMain)]" />;
             case "map":
-                return <Repeat2 className="h-6 w-6 text-indigo-500" />;
+                return <Repeat2 className="h-6 w-6 text-[var(--color-accent-n0-wMain)]" />;
             case "loop":
-                return <RefreshCw className="h-6 w-6 text-teal-500" />;
+                return <RefreshCw className="h-6 w-6 text-[var(--color-accent-n0-wMain)]" />;
             default:
                 return null;
         }
@@ -247,7 +247,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
         <div className="flex h-full flex-col bg-white dark:bg-gray-800">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                     {getNodeIcon()}
                     <span className="text-[20px] font-semibold text-foreground dark:text-gray-100">{title}</span>
                 </div>
@@ -363,12 +363,12 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                     onClick={() => navigate(`/agents/${encodeURIComponent(node.data.agentName!)}`)}
                                     className="w-full"
                                 >
-                                    <ExternalLink className="mr-2 h-4 w-4" />
                                     Open Agent
+                                    <ExternalLink className="ml-2 h-4 w-4" />
                                 </Button>
                             </div>
                         )}
-
+                        <div></div>
                         {/* Open Workflow button (for workflow ref nodes) */}
                         {node.type === "workflow" && node.data.workflowName && (
                             <div className="mb-4">
@@ -378,21 +378,9 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                     onClick={handleOpenWorkflow}
                                     className="w-full"
                                 >
-                                    <ExternalLink className="mr-2 h-4 w-4" />
                                     Open Workflow
+                                    <ExternalLink className="ml-2 h-4 w-4" />
                                 </Button>
-                            </div>
-                        )}
-
-                        {/* Condition (for loop nodes) */}
-                        {node.data.condition && (
-                            <div className="mb-4">
-                                <label className="mb-1 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
-                                    Condition
-                                </label>
-                                <div className="rounded bg-gray-100 p-2 font-mono text-xs text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                                    {node.data.condition}
-                                </div>
                             </div>
                         )}
 
@@ -404,6 +392,18 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                 </label>
                                 <div className="text-sm text-gray-900 dark:text-gray-100">
                                     {node.data.maxIterations}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Condition (for loop nodes) */}
+                        {node.data.condition && (
+                            <div className="mb-4">
+                                <label className="mb-1 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
+                                    Condition
+                                </label>
+                                <div className="rounded bg-gray-100 p-2 font-mono text-xs text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                    {node.data.condition}
                                 </div>
                             </div>
                         )}
@@ -423,11 +423,11 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                             <div className="flex h-8 w-[30px] items-center justify-center rounded border border-[var(--color-secondary-w20)] bg-[var(--color-background-w10)] text-sm text-[var(--color-secondary-text-wMain)]">
                                                 {index + 1}
                                             </div>
-                                            <div className="min-h-[32px] bg-[var(--color-background-w20)] p-2">
-                                                <div className="mb-1 font-mono text-xs text-gray-800 dark:text-gray-200">
+                                            <div className="mb-2">
+                                                <div className="p-2 min-h-[32px] bg-[var(--color-background-w20)] mb-1 font-mono text-xs text-gray-800 dark:text-gray-200">
                                                     {caseItem.condition}
                                                 </div>
-                                                <div className="text-xs text-gray-600 dark:text-gray-400">
+                                                <div className="text-sm text-gray-600 dark:text-gray-400">
                                                     → {caseItem.node}
                                                 </div>
                                             </div>
