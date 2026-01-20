@@ -335,7 +335,10 @@ class BaseGatewayComponent(SamComponentBase):
             )
 
         config_resolver = MiddlewareRegistry.get_config_resolver()
-        gateway_context = {"gateway_id": self.gateway_id}
+        gateway_context = {
+            "gateway_id": self.gateway_id,
+            "gateway_app_config": self.component_config.get("app_config", {}),
+        }
 
         try:
             user_config = await config_resolver.resolve_user_config(
