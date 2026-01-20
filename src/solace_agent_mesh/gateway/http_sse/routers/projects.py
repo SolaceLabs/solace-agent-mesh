@@ -450,6 +450,58 @@ async def add_project_artifacts(
     
 ## zhenyu SSE spike ##
 
+async def _process_background_upload(
+    background_db: Session,
+    upload_id: str,
+    project_id: str,
+    user_id: str,
+    files: List[UploadFile],
+    file_metadata: Optional[str],
+    upload_service: ProjectUploadService,
+    manager: SSEManager,
+):
+    """
+    Background upload task with proper dependency injection.
+    
+    This function runs as a background task with its own database session.
+    The session is automatically managed via get_db dependency.
+    """
+    try:
+        parsed_metadata = {}
+        if file_metadata:
+            try:
+                parsed_metadata = json.loads(file_metadata)
+            except json.JSONDecodeError:
+                log.warning("Could not parse file_metadata")
+        
+        # ✅ Use injected background_db session (fresh session via Depends(get_db))
+        await upload_service.process_upload(
+            db=background_db,
+            upload_id=upload_id,
+            project_id=project_id,
+            user_id=user_id,
+            files=files,
+            file_metadata=parsed_metadata,
+        )
+    except Exception as e:
+        log.error(f"Background upload failed for {upload_id}: {e}", exc_info=True)
+        try:
+            await manager.send_event(
+                upload_id,
+                {
+                    "type": "upload_failed",
+                    "error": str(e),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+                event_type="upload_error"
+            )
+        except Exception as sse_err:
+            log.error(f"Failed to send error event: {sse_err}")
+    finally:
+        # ✅ Always close the background database session
+        background_db.close()
+
+
 @router.post("/projects/{project_id}/artifacts/stream-upload", status_code=status.HTTP_202_ACCEPTED)
 async def stream_upload_artifacts(
     project_id: str,
@@ -458,11 +510,15 @@ async def stream_upload_artifacts(
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
     sse_manager: SSEManager = Depends(get_sse_manager),
-    db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
 ):
     """
     Upload artifacts to a project with SSE progress tracking.
+    
+    Returns immediately with 202 Accepted and an upload_id.
+    The actual upload processing happens in the background.
+    
+    Client should subscribe to /api/v1/sse/subscribe/{upload_id} for progress events.
     """
     user_id = user.get("id")
     log.info(f"User {user_id} starting stream upload to project {project_id}")
@@ -473,37 +529,23 @@ async def stream_upload_artifacts(
         # Initiate upload and get upload_id
         upload_id = await project_upload_service.initiate_upload(project_id, user_id)
         
-        async def background_upload():
-            parsed_metadata = {}
-            if file_metadata:
-                try:
-                    parsed_metadata = json.loads(file_metadata)
-                except json.JSONDecodeError:
-                    log.warning("Could not parse file_metadata")
-            
-            try:
-                await project_upload_service.process_upload(
-                    db=db,
-                    upload_id=upload_id,
-                    project_id=project_id,
-                    user_id=user_id,
-                    files=files,
-                    file_metadata=parsed_metadata,
-                )
-            except Exception as e:
-                log.error(f"Background upload failed for {upload_id}: {e}", exc_info=True)
-                await sse_manager.send_event(
-                    upload_id,
-                    {
-                        "type": "upload_failed",
-                        "error": str(e),
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    },
-                    event_type="upload_error"
-                )
+        # ✅ Create a fresh database session for the background task using FastAPI DI
+        from ..dependencies import SessionLocal
+        background_db = SessionLocal()
         
-        # ✅ SOLUTION: Use asyncio.create_task() to properly schedule the async function
-        asyncio.create_task(background_upload())
+        # ✅ Schedule background task using asyncio.create_task() with proper dependency injection
+        asyncio.create_task(
+            _process_background_upload(
+                background_db=background_db,
+                upload_id=upload_id,
+                project_id=project_id,
+                user_id=user_id,
+                files=files,
+                file_metadata=file_metadata,
+                upload_service=project_upload_service,
+                manager=sse_manager,
+            )
+        )
         
         return {
             "upload_id": upload_id,
