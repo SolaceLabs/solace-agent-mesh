@@ -17,7 +17,7 @@ apps:
     # Specifies the base path for resolving other module paths.
     app_base_path: .
     # The Python module that contains the main application entry point for an agent.
-    app_module: src.solace_agent_mesh.agent.sac.app
+    app_module: solace_agent_mesh.agent.sac.app
     # Inherits broker connection settings from the shared_config.yaml file.
     broker:
       <<: *broker_connection
