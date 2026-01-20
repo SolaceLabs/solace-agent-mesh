@@ -281,7 +281,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
             </div>
 
             {/* Content */}
-            <div className="scrollbar-themed flex-1 overflow-y-auto">
+            <div className="scrollbar-themed flex-1 overflow-auto">
                 {showCodeView ? (
                     <div className="h-full p-4">
                         {renderCodeView()}
@@ -498,17 +498,15 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                                 {/* Input Mapping */}
                                                 {getInputMapping() && (
                                                     <div>
-                                                        <label className="mb-2 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
+                                                        <label className="mb-4 block text-sm font-medium text-[var(--color-secondary-text-wMain)]">
                                                             Mapping
                                                         </label>
-                                                        <div className="max-h-48 overflow-auto">
-                                                            <InputMappingViewer
-                                                                mapping={getInputMapping() as Record<string, unknown>}
-                                                                onHighlightNodes={onHighlightNodes}
-                                                                knownNodeIds={knownNodeIds}
-                                                                onNavigateToNode={onNavigateToNode}
-                                                            />
-                                                        </div>
+                                                        <InputMappingViewer
+                                                            mapping={getInputMapping() as Record<string, unknown>}
+                                                            onHighlightNodes={onHighlightNodes}
+                                                            knownNodeIds={knownNodeIds}
+                                                            onNavigateToNode={onNavigateToNode}
+                                                        />
                                                     </div>
                                                 )}
 

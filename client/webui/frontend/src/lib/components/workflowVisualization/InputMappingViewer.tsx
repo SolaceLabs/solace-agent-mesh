@@ -1,5 +1,6 @@
 import React, { useCallback } from "react";
-import { Crosshair } from "lucide-react";
+import { Search } from "lucide-react";
+import { Button } from "@/lib/components/ui/button";
 import { getValidNodeReferences } from "./utils/expressionParser";
 
 interface InputMappingViewerProps {
@@ -90,15 +91,16 @@ const MappingValue: React.FC<{
                     "{value}"
                 </span>
                 {hasNodeRefs && onNavigateToNode && (
-                    <button
+                    <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={handleNavigate}
                         onMouseEnter={() => onHighlightNodes?.([nodeRefs[0]])}
                         onMouseLeave={() => onHighlightNodes?.([])}
-                        className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-                        title={`Navigate to ${nodeRefs[0]}`}
+                        tooltip={`Navigate to ${nodeRefs[0]}`}
                     >
-                        <Crosshair className="h-3 w-3" />
-                    </button>
+                        <Search className="h-6 w-6" />
+                    </Button>
                 )}
             </span>
         );
@@ -187,20 +189,49 @@ const InputMappingViewer: React.FC<InputMappingViewerProps> = ({
         );
     }
 
+    // Helper to check if value has node references
+    const getNodeRefsForValue = (value: unknown): string[] => {
+        if (typeof value === "string" && knownNodeIds) {
+            return getValidNodeReferences(value, knownNodeIds);
+        }
+        return [];
+    };
+
     return (
-        <div className="rounded-lg border bg-gray-50 p-3 text-xs dark:bg-gray-900">
-            {entries.map(([key, value], index) => (
-                <div key={key} className={index > 0 ? "mt-1" : ""}>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">{key}</span>
-                    <span className="text-gray-500">: </span>
-                    <MappingValue
-                        value={value}
-                        onHighlightNodes={onHighlightNodes}
-                        knownNodeIds={knownNodeIds}
-                        onNavigateToNode={onNavigateToNode}
-                    />
-                </div>
-            ))}
+        <div className="space-y-4">
+            {entries.map(([key, value]) => {
+                const nodeRefs = getNodeRefsForValue(value);
+                const hasNodeRefs = nodeRefs.length > 0;
+
+                return (
+                    <div key={key} className="space-y-1">
+                        <div className="font-mono text-sm text-[var(--color-primary-text-wMain)]">{key}</div>
+                        <div className="flex items-start gap-2">
+                            <div className="min-h-[27px] flex-1 break-words overflow-auto bg-[var(--color-background-w20)] px-2.5 py-1">
+                                <MappingValue
+                                    value={value}
+                                    onHighlightNodes={onHighlightNodes}
+                                    knownNodeIds={knownNodeIds}
+                                    onNavigateToNode={undefined}
+                                />
+                            </div>
+                            {hasNodeRefs && onNavigateToNode && (
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => onNavigateToNode(nodeRefs[0])}
+                                    onMouseEnter={() => onHighlightNodes?.([nodeRefs[0]])}
+                                    onMouseLeave={() => onHighlightNodes?.([])}
+                                    tooltip={`Navigate to ${nodeRefs[0]}`}
+                                    className="h-6 w-6 opacity-50 hover:opacity-100"
+                                >
+                                    <Search className="h-6 w-6" />
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 };
