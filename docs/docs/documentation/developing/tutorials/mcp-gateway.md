@@ -161,21 +161,6 @@ As agents join and leave the SAM mesh:
    - FastMCP notifies clients of the change
    - Stale tools disappear from the client's tool list
 
-### Session Management
-
-The MCP gateway uses **connection-based persistent sessions**:
-
-- **Session Creation**: When an MCP client connects and makes its first tool call, a session is created
-- **Session ID Format**: `mcp-client-{client_id}`
-- **Session Lifetime**: Persists for the entire MCP connection lifetime
-- **Cross-Tool Sharing**: All tool calls from the same connection share the same session
-- **Isolation**: Each MCP connection gets its own isolated session
-
-Each tool call uses **RUN_BASED** execution mode:
-- No chat history between tool calls
-- Each invocation is stateless and independent
-- However, artifacts persist in the session across tool calls
-
 ## Tool Filtering
 
 The MCP adapter supports filtering which agent tools are exposed through the MCP server. This is useful for:
