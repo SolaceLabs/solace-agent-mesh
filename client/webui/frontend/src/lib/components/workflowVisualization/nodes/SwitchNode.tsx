@@ -28,7 +28,7 @@ const SwitchNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onCl
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2">
-                    <GitBranch className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    <GitBranch className="h-4 w-4 text-(--color-accent-n0-wMain)" />
                     <span className="text-sm font-semibold">Switch</span>
                 </div>
                 <div className="flex items-center gap-2">
