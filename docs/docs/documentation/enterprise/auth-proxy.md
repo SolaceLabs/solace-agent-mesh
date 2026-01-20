@@ -14,17 +14,16 @@ High-level flow of the authentication proxy:
 
 ```mermaid
 graph TD
-    D[MCP Client<br> e.g. Claude Code] --> A[OAuth2 Service<br>port 8080];
-    A[MCP Server Gateway<br>port 8090] --> B[OAuth2 Service<br>port 8080];
-    B --> C[OAuth Provider];
-    C --> B;
+    D[MCP Client<br> e.g. Claude Code] --> A;
+    A[MCP Server Gateway<br>port 8090] --> B;
+    B[OAuth2 Service<br>port 8080] --> C;
+    C[OAuth Provider] --> B;
     B --> A;
     A --> D;
     linkStyle 0 stroke-width:2px,fill:none,stroke:white;
     linkStyle 1 stroke-width:2px,fill:none,stroke:white;
     linkStyle 2 stroke-width:2px,fill:none,stroke:white;
-    linkStyle 3 stroke-   
-   linkStyle 3 stroke-width:2px,fill:none,stroke:grey;
+    linkStyle 3 stroke-width:2px,fill:none,stroke:grey;
     linkStyle 4 stroke-width:2px,fill:none,stroke:grey;
     linkStyle 5 stroke-width:2px,fill:none,stroke:grey;
 ```
