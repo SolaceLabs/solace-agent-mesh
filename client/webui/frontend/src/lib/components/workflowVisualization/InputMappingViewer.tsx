@@ -63,7 +63,7 @@ const MappingValue: React.FC<{
 
         return (
             <span className="inline-flex items-end gap-1">
-                <span className="font-mono text-[var(--color-error-w100)]">
+                <span className="font-mono text-(--color-error-w100)">
                     "{value}"
                 </span>
                 {hasNodeRefs && onNavigateToNode && (
@@ -83,11 +83,11 @@ const MappingValue: React.FC<{
     }
 
     if (typeof value === "number") {
-        return <span className="font-mono text-blue-600 dark:text-blue-400">{value}</span>;
+        return <span className="font-mono text-(--color-info-w100)">{value}</span>;
     }
 
     if (typeof value === "boolean") {
-        return <span className="font-mono text-purple-600 dark:text-purple-400">{value.toString()}</span>;
+        return <span className="font-mono text-(--color-brand-w100)">{value.toString()}</span>;
     }
 
     if (Array.isArray(value)) {
@@ -145,9 +145,7 @@ const MappingValue: React.FC<{
 };
 
 /**
- * InputMappingViewer - Displays input mapping with hover highlighting for expressions
- * When hovering over a value containing template expressions like {{node_a.output.field}},
- * the referenced nodes will be highlighted in the diagram.
+ * InputMappingViewer - Displays input mapping 
  */
 const InputMappingViewer: React.FC<InputMappingViewerProps> = ({
     mapping,
@@ -181,9 +179,9 @@ const InputMappingViewer: React.FC<InputMappingViewerProps> = ({
 
                 return (
                     <div key={key} className="space-y-1">
-                        <div className="font-mono text-sm text-[var(--color-primary-text-wMain)]">{key}</div>
+                        <div className="font-mono text-sm">{key}</div>
                         <div className="flex items-start gap-2">
-                            <div className="min-h-[27px] flex-1 break-words overflow-auto bg-[var(--color-background-w20)] px-2.5 py-1">
+                            <div className="min-h-[27px] flex-1 break-words overflow-auto bg-card-background dark:border dark:border-(--color-secondary-w70) px-2.5 py-1">
                                 <MappingValue
                                     value={value}
                                     onHighlightNodes={onHighlightNodes}
