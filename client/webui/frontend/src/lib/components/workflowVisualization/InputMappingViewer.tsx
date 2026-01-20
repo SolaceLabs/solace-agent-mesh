@@ -63,7 +63,7 @@ const MappingValue: React.FC<{
 
         return (
             <span className="inline-flex items-end gap-1">
-                <span className="font-mono text-green-700 dark:text-green-400">
+                <span className="font-mono text-[var(--color-error-w100)]">
                     "{value}"
                 </span>
                 {hasNodeRefs && onNavigateToNode && (
