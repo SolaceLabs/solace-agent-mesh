@@ -11,21 +11,21 @@ Connectors allow your agents to access external data sources and services. You c
 
 Agent Mesh Enterprise provides multiple connector types. Each type integrates with different external systems.
 
-### OpenAPI Connectors
+### Knowledge Base Connectors
 
-OpenAPI connectors allow agents to interact with REST APIs that use OpenAPI specifications. The connectors automatically generate callable tools from API endpoints. Agents use these tools to make authenticated HTTP requests to external services. For detailed information about creating and configuring OpenAPI connectors, see [OpenAPI Connectors](openapi-connectors.md).
+Knowledge Base connectors allow agents to retrieve context from enterprise documentation stored in cloud-based knowledge repositories. The connectors retrieve information from knowledge bases that can contain both unstructured documents and structured data, returning relevant results to ground agent responses in organizational knowledge. For detailed information about creating and configuring Knowledge Base connectors, see [Knowledge Base Connectors](knowledgebase-connectors.md).
 
 ### MCP Connectors
 
 Model Context Protocol (MCP) connectors allow agents to communicate with MCP-compliant servers. The connectors provide access to external tools and data sources that implement the MCP standard. For detailed information about creating and configuring MCP connectors, see [MCP Connectors](mcp-connectors.md).
 
+### OpenAPI Connectors
+
+OpenAPI connectors allow agents to interact with REST APIs that use OpenAPI specifications. The connectors automatically generate callable tools from API endpoints. Agents use these tools to make authenticated HTTP requests to external services. For detailed information about creating and configuring OpenAPI connectors, see [OpenAPI Connectors](openapi-connectors.md).
+
 ### SQL Connectors
 
 SQL connectors allow agents to query relational databases using natural language. The connectors convert user questions into SQL queries and execute them against MySQL, PostgreSQL, or MariaDB databases. For detailed information about creating and configuring SQL connectors, see [SQL Connectors](sql-connectors.md).
-
-### Knowledge Base Connectors
-
-Knowledge Base connectors allow agents to retrieve context from enterprise documentation stored in cloud-based knowledge repositories. The connectors retrieve information from knowledge bases that can contain both unstructured documents and structured data, returning relevant results to ground agent responses in organizational knowledge. For detailed information about creating and configuring Knowledge Base connectors, see [Knowledge Base Connectors](knowledgebase-connectors.md).
 
 ## Creating Connectors
 
