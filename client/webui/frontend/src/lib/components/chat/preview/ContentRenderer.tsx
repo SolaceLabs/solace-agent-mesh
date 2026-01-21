@@ -1,6 +1,6 @@
 import React from "react";
 
-import { AudioRenderer, CsvRenderer, DocxRenderer, HtmlRenderer, ImageRenderer, MarkdownRenderer, MermaidRenderer, PdfRenderer, PptxRenderer, StructuredDataRenderer, TextRenderer } from "./Renderers";
+import { AudioRenderer, CsvRenderer, HtmlRenderer, ImageRenderer, MarkdownRenderer, MermaidRenderer, OfficeDocumentRenderer, PdfRenderer, StructuredDataRenderer, TextRenderer } from "./Renderers";
 import type { RAGSearchResult } from "@/lib/types";
 
 interface ContentRendererProps {
@@ -32,9 +32,9 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, rende
         case "audio":
             return <AudioRenderer content={content} mime_type={mime_type} setRenderError={setRenderError} />;
         case "docx":
-            return <DocxRenderer content={content} setRenderError={setRenderError} />;
+            return <OfficeDocumentRenderer content={content} filename={filename || "document.docx"} documentType="docx" setRenderError={setRenderError} />;
         case "pptx":
-            return <PptxRenderer content={content} setRenderError={setRenderError} />;
+            return <OfficeDocumentRenderer content={content} filename={filename || "presentation.pptx"} documentType="pptx" setRenderError={setRenderError} />;
         case "pdf":
         case "application/pdf":
             if (url && filename) {

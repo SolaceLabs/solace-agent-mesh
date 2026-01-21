@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
-import { ZoomIn, ZoomOut, RotateCcw, Maximize2 } from "lucide-react";
+import { ZoomIn, ZoomOut, ScanLine } from "lucide-react";
 
 // Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
@@ -53,10 +53,6 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
 
     const zoomIn = () => setZoomLevel(prev => Math.min(prev + 0.2, 3));
     const zoomOut = () => setZoomLevel(prev => Math.max(prev - 0.2, 0.2));
-    const resetZoom = () => {
-        setZoomLevel(1);
-        setPan({ x: 0, y: 0 });
-    };
 
     const fitToPage = useCallback(() => {
         if (viewerRef.current && pageWidth) {
@@ -96,7 +92,6 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
     if (error) {
         return (
             <div className="flex h-full flex-col overflow-auto p-4">
-                <h5 className="mb-2 self-start text-sm font-semibold">{`Preview: ${filename}`}</h5>
                 <div className="flex flex-grow flex-col items-center justify-center text-center">
                     <div className="mb-4 p-4 text-red-500">{error}</div>
                     <a href={url} download={filename} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">
@@ -109,20 +104,16 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
 
     return (
         <div className="flex h-full flex-col overflow-auto bg-gray-100 p-4 dark:bg-gray-800">
-            <div className="mb-2 flex items-center justify-between">
-                <h5 className="text-sm font-semibold">{`Preview: ${filename}`}</h5>
-                <div className="flex items-center gap-2">
-                    <button onClick={zoomOut} title="Zoom Out" className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-700">
+            <div className="mb-2 flex items-center justify-center">
+                <div className="flex items-center gap-2 rounded-lg bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm dark:bg-gray-700/80">
+                    <button onClick={zoomOut} title="Zoom Out" className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
                         <ZoomOut className="h-4 w-4" />
                     </button>
-                    <button onClick={resetZoom} title="Reset Zoom" className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-700">
-                        <RotateCcw className="h-4 w-4" />
-                    </button>
-                    <button onClick={zoomIn} title="Zoom In" className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-700">
+                    <button onClick={zoomIn} title="Zoom In" className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
                         <ZoomIn className="h-4 w-4" />
                     </button>
-                    <button onClick={fitToPage} title="Fit to Page" className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-700">
-                        <Maximize2 className="h-4 w-4" />
+                    <button onClick={fitToPage} title="Fit to Width" className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
+                        <ScanLine className="h-4 w-4" />
                     </button>
                 </div>
             </div>

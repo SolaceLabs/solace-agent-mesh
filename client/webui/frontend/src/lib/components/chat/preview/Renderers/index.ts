@@ -11,12 +11,11 @@ export interface BaseRendererProps {
 
 export { AudioRenderer } from "./AudioRenderer";
 export { CsvRenderer } from "./CsvRenderer";
-export { DocxRenderer } from "./DocxRenderer";
 export { HtmlRenderer } from "./HTMLRenderer";
 export { ImageRenderer } from "./ImageRenderer";
 export { MarkdownRenderer } from "./MarkdownRenderer";
 export { MermaidRenderer } from "./MermaidRenderer";
+export { OfficeDocumentRenderer } from "./OfficeDocumentRenderer";
 export { default as PdfRenderer } from "./PdfRenderer";
-export { PptxRenderer } from "./PptxRenderer";
 export { StructuredDataRenderer } from "./StructuredDataRenderer";
 export { TextRenderer } from "./TextRenderer";
