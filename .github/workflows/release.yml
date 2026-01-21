@@ -32,7 +32,7 @@ on:
         type: boolean
         required: false
         description: "Tag the image as 'latest' in DockerHub"
-        default: false
+        default: true
       skip_security_checks:
         type: boolean
         required: false
