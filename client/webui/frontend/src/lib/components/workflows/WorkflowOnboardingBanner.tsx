@@ -24,7 +24,7 @@ export const WorkflowOnboardingBanner: React.FC = () => {
 
     return (
         <div className="relative mx-6 mt-6 rounded-lg border border-(--color-learning-w20) bg-(--color-learning-w10) p-4">
-            <Button variant="ghost" size="icon" onClick={handleDismiss} className="absolute top-2 right-2 h-6 w-6" aria-label="Dismiss banner">
+            <Button variant="ghost" size="icon" onClick={handleDismiss} tooltip="Close" className="absolute top-2 right-2 h-6 w-6">
                 <X size={16} />
             </Button>
 
