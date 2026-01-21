@@ -1,4 +1,4 @@
-import { getAccessToken } from "@/lib/utils/api";
+import { getApiBearerToken } from "@/lib/utils/api";
 
 interface RequestOptions {
     headers?: HeadersInit;
@@ -35,13 +35,15 @@ interface HttpMethods {
 
 const getRefreshToken = () => localStorage.getItem("refresh_token");
 
-const setTokens = (accessToken: string, refreshToken: string) => {
+const setTokens = (accessToken: string, samAccessToken: string, refreshToken: string,) => {
     localStorage.setItem("access_token", accessToken);
+    localStorage.setItem("sam_access_token", samAccessToken);
     localStorage.setItem("refresh_token", refreshToken);
 };
 
 const clearTokens = () => {
     localStorage.removeItem("access_token");
+    localStorage.removeItem("sam_access_token");
     localStorage.removeItem("refresh_token");
 };
 
@@ -59,8 +61,8 @@ const refreshToken = async () => {
 
     if (response.ok) {
         const data = await response.json();
-        setTokens(data.access_token, data.refresh_token);
-        return data.access_token;
+        setTokens(data.access_token, data.sam_access_token, data.refresh_token);
+        return getApiBearerToken()
     }
 
     clearTokens();
@@ -85,9 +87,9 @@ const getErrorFromResponse = async (response: Response): Promise<string> => {
 };
 
 const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
-    const accessToken = getAccessToken();
+    const bearerToken = getApiBearerToken();
 
-    if (!accessToken) {
+    if (!bearerToken) {
         return fetch(url, options);
     }
 
@@ -95,18 +97,18 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
         ...options,
         headers: {
             ...options.headers,
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${bearerToken}`,
         },
     });
 
     if (response.status === 401) {
-        const newAccessToken = await refreshToken();
-        if (newAccessToken) {
+        const newBearerToken = await refreshToken();
+        if (newBearerToken) {
             return fetch(url, {
                 ...options,
                 headers: {
                     ...options.headers,
-                    Authorization: `Bearer ${newAccessToken}`,
+                    Authorization: `Bearer ${newBearerToken}`,
                 },
             });
         }
