@@ -1,6 +1,6 @@
 ---
 title: SQL Connectors
-sidebar_position: 3
+sidebar_position: 4
 ---
 
 SQL connectors allow agents to query and analyze database information using natural language.
