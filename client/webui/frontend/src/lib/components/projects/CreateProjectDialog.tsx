@@ -4,6 +4,7 @@ import { Button, Input, Textarea } from "@/lib/components/ui";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
 import { MessageBanner } from "@/lib/components/common";
 import { getErrorMessage } from "@/lib/utils";
+import { useConfigContext } from "@/lib/hooks";
 
 interface CreateProjectDialogProps {
     isOpen: boolean;
@@ -13,12 +14,13 @@ interface CreateProjectDialogProps {
 }
 
 export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({ isOpen, onClose, onSubmit, isSubmitting = false }) => {
+    const { validationLimits } = useConfigContext();
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [nameError, setNameError] = useState<string | null>(null);
 
-    const MAX_DESCRIPTION_LENGTH = 1000;
+    const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? 1000;
     const isDescriptionOverLimit = description.length > MAX_DESCRIPTION_LENGTH;
 
     const handleSubmit = async (e: React.FormEvent) => {

@@ -5,6 +5,7 @@ import { Button, Input, Textarea, Dialog, DialogContent, DialogDescription, Dial
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
+import { useConfigContext } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 
 import { SystemPromptSection } from "./SystemPromptSection";
@@ -22,6 +23,7 @@ interface ProjectDetailViewProps {
 
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
     const { updateProject, projects, deleteProject } = useProjectContext();
+    const { validationLimits } = useConfigContext();
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -31,7 +33,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const MAX_DESCRIPTION_LENGTH = 1000;
+    const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? 1000;
     const isDescriptionOverLimit = editedDescription.length > MAX_DESCRIPTION_LENGTH;
 
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
