@@ -115,7 +115,7 @@ jobs:
   verify-rc:
     name: Verify RC Status
     needs: prepare-release-metadata
-    if: ${{ github.event.inputs.skip_rc_check != 'true' }}
+    if: ${{ !fromJSON(github.event.inputs.skip_rc_check) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -231,7 +231,7 @@ jobs:
   # Run security checks via reusable workflow (conditionally)
   security-checks:
     needs: prepare-release-metadata
-    if: github.event.inputs.skip_security_checks != 'true'
+    if: ${{ !fromJSON(github.event.inputs.skip_security_checks) }}
     uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
     with:
       whitesource_project_name: "solace-agent-mesh"
@@ -296,7 +296,7 @@ jobs:
         id: prep
         uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-prep@main
         with:
-          version: ${{github.event.inputs.version || github.event.inputs.version_bump_type}}
+          version: ${{ github.event.inputs.version || github.event.inputs.version_bump_type }}
 
       # Publish using Trusted Publishing - must be directly in workflow, not in composite action
       # See: https://docs.pypi.org/trusted-publishers/using-a-publisher/
@@ -316,12 +316,12 @@ jobs:
   build_and_push_docker:
     name: Build and Push to DockerHub
     needs: release
-    if: always() && (needs.release.result == 'success') && github.event.inputs.skip_docker_push != 'true'
+    if: always() && (needs.release.result == 'success') && !fromJSON(github.event.inputs.skip_docker_push)
     uses: SolaceLabs/solace-agent-mesh/.github/workflows/build-push-dockerhub.yml@main
     with:
       version: ${{ needs.release.outputs.new_version }}
       commit_hash: ${{ needs.release.outputs.commit_hash }}
-      push_latest: true
+      push_latest: ${{ fromJSON(github.event.inputs.tag_as_latest)}}
     secrets:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
