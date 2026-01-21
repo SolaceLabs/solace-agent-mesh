@@ -19,7 +19,7 @@ on:
       version:
         type: string
         required: false
-        description: "Exact version to release (e.g., 1.13.2). Overrides 'version' input if provided."
+        description: "Exact version to release (e.g., 1.13.2). Overrides 'version_bump_type' input if provided."
         default: ""
 
       skip_docker_push:
