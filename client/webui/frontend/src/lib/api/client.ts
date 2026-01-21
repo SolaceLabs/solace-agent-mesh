@@ -35,7 +35,7 @@ interface HttpMethods {
 
 const getRefreshToken = () => localStorage.getItem("refresh_token");
 
-const setTokens = (accessToken: string, samAccessToken: string, refreshToken: string,) => {
+const setTokens = (accessToken: string, samAccessToken: string, refreshToken: string) => {
     localStorage.setItem("access_token", accessToken);
     localStorage.setItem("sam_access_token", samAccessToken);
     localStorage.setItem("refresh_token", refreshToken);
