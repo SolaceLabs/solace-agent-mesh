@@ -240,7 +240,7 @@ jobs:
       sonarqube_hotspot_check: true
       fossa_check: true
     secrets:
-      PRISMA_DOCKER_IMAGE_TO_CHECK: ${{ needs.prepare-release-metadata.outputs.prisma_image_tag || secrets.DOCKER_IMAGE_TO_CHECK }}
+      PRISMA_DOCKER_IMAGE_TO_CHECK: ${{ needs.prepare-release-metadata.outputs.prisma_image_tag }}
       PRISMA_ACCESS_KEY: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
       PRISMA_ACCESS_KEY_SECRET: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
       FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
