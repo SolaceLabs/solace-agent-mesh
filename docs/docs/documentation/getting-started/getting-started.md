@@ -1,6 +1,7 @@
 ---
 title: Getting Started
 sidebar_position: 12
+slug: /
 ---
 
 # Get Started with Agent Mesh
