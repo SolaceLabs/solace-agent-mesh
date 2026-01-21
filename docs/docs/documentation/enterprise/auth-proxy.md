@@ -98,6 +98,10 @@ proxy_oauth:
 
 Update `allowed_redirect_uris` with the actual callback URIs of your gateways.
 
+:::info
+The path `/gateway-oauth` must be exposed and accessible in your deployment environment (e.g., Docker, Kubernetes) and it should point to the Auth Server service port.
+:::
+
 ### Gateway Configuration
 
 In your MCP Gateway configuration YAML (e.g. `my-mcp-gateway.yaml`), update the `adapter` section to enable OAuth and point to the Auth Server:

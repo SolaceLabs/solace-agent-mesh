@@ -77,6 +77,25 @@ adapter_config:
   exclude_tools: []  # Exclude these tools
 ```
 
+:::info[Host and Port]
+The `host` and `port` settings defined above needs to be exposed in your deployment environment (e.g., Docker, Kubernetes) so that MCP clients can connect.
+
+The path `/mcp` should point to the gateway service address.
+
+<details>
+    <summary>MCP Server Gateway with Authentication </summary>
+
+If you have [authentication enabled in your gateway](../../enterprise/auth-proxy.md#gateway-configuration), you'd need to expose and map the following routes to your gateway service address:
+
+- `/oauth/authorize`
+- `/oauth/callback`
+- `/oauth/token`
+- `/oauth/register`
+- `/.well-known/oauth-authorization-server`
+  
+</details>
+:::
+
 ## Running the MCP Gateway
 
 To run the MCP Gateway, use the following command:
