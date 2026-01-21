@@ -13,6 +13,7 @@ import inspect
 import os
 import yaml
 import traceback
+import asyncio
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
@@ -1580,7 +1581,9 @@ async def save_bm25_index_with_metadata(
                   log_identifier, chunk_size, chunk_overlap)
         bm25_indexer = BM25DocumentIndexer(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         
-        index_result = bm25_indexer.create_document_index(
+        # Run blocking BM25 indexer in thread pool to avoid blocking event loop
+        index_result = await asyncio.to_thread(
+            bm25_indexer.create_document_index,
             file_path=Path(temp_source_file_path),
             index_dir=Path(temp_index_dir),
             description=source_description,

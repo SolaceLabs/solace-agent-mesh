@@ -20,7 +20,7 @@ from fastapi import (
     UploadFile,
     BackgroundTasks
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
 from solace_ai_connector.common.log import log
 
@@ -479,7 +479,7 @@ async def _process_background_upload(
             except json.JSONDecodeError:
                 log.warning("Could not parse file_metadata")
         
-        # ✅ Convert buffered file contents back to file-like objects
+        # Convert buffered file contents back to file-like objects
         file_like_objects = []
         for buf_file in buffered_files:
             file_obj = BytesIO(buf_file["content"])
@@ -488,7 +488,7 @@ async def _process_background_upload(
             file_obj.content_type = buf_file["content_type"]
             file_like_objects.append(file_obj)
         
-        # ✅ Use injected background_db session (fresh session via Depends(get_db))
+        # Use injected background_db session (fresh session via Depends(get_db))
         await upload_service.process_upload(
             db=background_db,
             upload_id=upload_id,
@@ -516,8 +516,9 @@ async def _process_background_upload(
         background_db.close()
 
 
-@router.post("/projects/{project_id}/artifacts/stream-upload", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/projects/{project_id}/artifacts_stream", status_code=status.HTTP_202_ACCEPTED)
 async def stream_upload_artifacts(
+    request: Request,
     project_id: str,
     files: List[UploadFile] = File(...),
     file_metadata: Optional[str] = Form(None, alias="fileMetadata"),
@@ -527,12 +528,22 @@ async def stream_upload_artifacts(
     _: None = Depends(check_projects_enabled),
 ):
     """
-    Upload artifacts to a project with SSE progress tracking.
+    Upload artifacts to a project with asynchronous SSE progress tracking.
     
-    Returns immediately with 202 Accepted and an upload_id.
-    The actual upload processing happens in the background.
+    This endpoint follows REST semantics for async operations:
+    - Returns 202 Accepted immediately
+    - Location header points to the status/progress resource
+    - Content-Location header indicates the final artifact collection
+    - Actual upload processing happens in the background
     
-    Client should subscribe to /api/v1/sse/subscribe/{upload_id} for progress events.
+    Client can:
+    1. Poll the Location URL for status updates
+    2. Subscribe to SSE at /api/v1/sse/subscribe/{upload_id} for real-time progress
+    
+    REST Compliance:
+    - 202 Accepted: Indicates async processing initiated
+    - Location header: Where to check upload status
+    - Content-Location header: Where artifacts will be available when complete
     """
     user_id = user.get("id")
     log.info(f"User {user_id} starting stream upload to project {project_id}")
@@ -543,7 +554,7 @@ async def stream_upload_artifacts(
         # Initiate upload and get upload_id
         upload_id = await project_upload_service.initiate_upload(project_id, user_id)
         
-        # ✅ Buffer file contents into memory BEFORE returning response
+        # Buffer file contents into memory BEFORE returning response
         # This prevents "read of closed file" errors after endpoint returns
         # FastAPI closes UploadFile objects when the request completes
         buffered_files = []
@@ -557,11 +568,11 @@ async def stream_upload_artifacts(
             })
             log.info(f"Buffered file {upload_file.filename} ({len(content)} bytes)")
         
-        # ✅ Create a fresh database session for the background task using FastAPI DI
+        # Create a fresh database session for the background task using FastAPI DI
         from ..dependencies import SessionLocal
         background_db = SessionLocal()
         
-        # ✅ Schedule background task using asyncio.create_task() with proper dependency injection
+        # Schedule background task using asyncio.create_task() with proper dependency injection
         asyncio.create_task(
             _process_background_upload(
                 background_db=background_db,
@@ -575,11 +586,28 @@ async def stream_upload_artifacts(
             )
         )
         
-        return {
-            "upload_id": upload_id,
-            "status": "accepted",
-            "message": f"Upload initiated. Subscribe to /api/v1/sse/subscribe/{upload_id} for progress",
-        }
+        # REST-compliant response with Location headers
+        base_url = str(request.base_url).rstrip('/')
+        api_prefix = "/api/v1"  # Adjust if your API prefix is different, can be added to dependencies
+        
+        # Location: Where client can check upload status/progress
+        status_location = f"{base_url}{api_prefix}/sse/subscribe/{upload_id}"
+        
+        # Content-Location: Where artifacts will be available when upload completes
+        artifacts_location = f"{base_url}{api_prefix}/projects/{project_id}/artifacts"
+        
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content={
+                "upload_id": upload_id,
+                "status": "accepted",
+                "message": "Upload processing in background. Check Location header for progress.",
+            },
+            headers={
+                "Location": status_location,  # REST semantic: where to check status
+                "Content-Location": artifacts_location,  # REST semantic: final resource location
+            }
+        )
     
     except Exception as e:
         log.error(f"Error initiating stream upload: {e}")

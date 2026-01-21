@@ -1048,8 +1048,10 @@ class ProjectService:
             
             # Write source file to temporary location for indexing
             temp_source_file_path = os.path.join(temp_index_dir, source_filename)
-            with open(temp_source_file_path, 'wb') as f:
-                f.write(artifact_part.inline_data.data)
+            # Run file write in thread pool to avoid blocking event loop
+            await asyncio.to_thread(
+                lambda: Path(temp_source_file_path).write_bytes(artifact_part.inline_data.data)
+            )
             self.logger.info(f"Retrieved source artifact '{source_filename}' v{source_version} and wrote to temporary file '{temp_source_file_path}'")
             
             result = await save_bm25_index_with_metadata(
