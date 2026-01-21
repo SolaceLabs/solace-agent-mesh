@@ -1,5 +1,5 @@
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import { ProjectDetailView } from "@/lib";
 import { populatedProject, emptyProject } from "../data/projects";
@@ -136,5 +136,73 @@ export const Empty: Story = {
         const canvas = within(canvasElement);
         const startNewChatNoChatsButton = await canvas.findByTestId("startNewChatButtonNoChats");
         expect(startNewChatNoChatsButton).toBeVisible();
+    },
+};
+
+/**
+ * Edit Details Dialog - Tests the embedded edit dialog for project name and description
+ */
+export const EditDetailsDialog: Story = {
+    args: {
+        project: populatedProject,
+        onBack: () => alert("Will navigate back to project list"),
+        onStartNewChat: () => alert("Will start a new chat"),
+        onChatClick: (sessionId: string) => alert("Will open chat " + sessionId),
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Find and click the Edit Details button
+        const editButton = await canvas.findByTestId("editDetailsButton");
+        expect(editButton).toBeVisible();
+        await userEvent.click(editButton);
+
+        // Verify dialog opened
+        const dialog = await screen.findByRole("dialog");
+        expect(dialog).toBeInTheDocument();
+        const dialogContent = within(dialog);
+
+        // Verify dialog content
+        expect(await dialogContent.findByText("Edit Project Details")).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: "Save" })).toBeEnabled();
+        expect(await dialogContent.findByRole("button", { name: "Discard Changes" })).toBeEnabled();
+    },
+};
+
+/**
+ * Edit Details Dialog - Description character limit (1000 characters)
+ */
+export const EditDetailsDescriptionLimit: Story = {
+    args: {
+        project: populatedProject,
+        onBack: () => alert("Will navigate back to project list"),
+        onStartNewChat: () => alert("Will start a new chat"),
+        onChatClick: (sessionId: string) => alert("Will open chat " + sessionId),
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Find and click the Edit Details button
+        const editButton = await canvas.findByTestId("editDetailsButton");
+        await userEvent.click(editButton);
+
+        // Find the description textarea
+        const dialog = await screen.findByRole("dialog");
+        const dialogContent = within(dialog);
+        const descriptionInput = await dialogContent.findByPlaceholderText("Project description");
+
+        // Clear existing content and paste max length text
+        await userEvent.clear(descriptionInput);
+        const atLimitText = "a".repeat(1000);
+        await userEvent.click(descriptionInput);
+        await userEvent.paste(atLimitText);
+        expect(await dialogContent.findByText("1000 / 1000")).toBeInTheDocument();
+
+        // Try to add one more character
+        await userEvent.type(descriptionInput, "b");
+        expect(await dialogContent.findByText("Description must be less than 1000 characters")).toBeInTheDocument();
+
+        // Save button should be disabled
+        expect(await dialogContent.findByRole("button", { name: "Save" })).toBeDisabled();
     },
 };
