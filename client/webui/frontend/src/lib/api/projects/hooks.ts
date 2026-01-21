@@ -59,6 +59,7 @@ export function useProjectSessions(projectId: string | null) {
     return useQuery({
         queryKey: projectId ? projectKeys.sessions(projectId) : ["projects", "sessions", "empty"],
         queryFn: projectId ? () => projectService.getProjectSessions(projectId) : skipToken,
+        refetchOnMount: "always",
     });
 }
 
