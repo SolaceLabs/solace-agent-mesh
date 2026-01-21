@@ -1,7 +1,21 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateProjectRequest, Project, UpdateProjectData } from "@/lib/types/projects";
+import type { ArtifactInfo } from "@/lib/types";
 import { projectKeys } from "./keys";
 import * as projectService from "./service";
+
+/**
+ * Checks if an artifact is an intermediate web content artifact from deep research.
+ * These are temporary files that should not be shown in the files tab.
+ *
+ * @param filename The filename of the artifact to check.
+ * @returns True if the artifact is an intermediate web content artifact.
+ */
+const isIntermediateWebContentArtifact = (filename: string | undefined): boolean => {
+    if (!filename) return false;
+    // Skip web_content_ artifacts (temporary files from deep research)
+    return filename.startsWith("web_content_");
+};
 
 export function useProjects() {
     return useQuery({
@@ -14,6 +28,9 @@ export function useProjectArtifacts(projectId: string | null) {
     return useQuery({
         queryKey: projectId ? projectKeys.artifacts(projectId) : ["projects", "artifacts", "empty"],
         queryFn: projectId ? () => projectService.getProjectArtifacts(projectId) : skipToken,
+        select: (data: ArtifactInfo[]) => {
+            return data.filter(artifact => !isIntermediateWebContentArtifact(artifact.filename));
+        },
     });
 }
 

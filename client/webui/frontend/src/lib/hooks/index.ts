@@ -14,7 +14,6 @@ export * from "./useDebounce";
 export * from "./useDownload";
 export * from "./useDragAndDrop";
 export * from "./useMobile";
-// export * from "./useProjectArtifacts"; // Removed - now using React Query version from ./api/projects/hooks
 export * from "./useSpeechToText";
 export * from "./useStreamingAnimation";
 export * from "./useStreamingSpeed";
