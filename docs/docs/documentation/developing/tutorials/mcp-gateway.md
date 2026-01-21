@@ -92,7 +92,81 @@ If you have [authentication enabled in your gateway](../../enterprise/auth-proxy
 - `/oauth/token`
 - `/oauth/register`
 - `/.well-known/oauth-authorization-server`
-  
+
+Example for Kubernetes Service and Ingress configuration:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: solace-agent-mesh-mcp-service
+spec:
+  selector:
+    app: solace-agent-mesh
+  type: ClusterIP
+  ports:
+    - name: http
+      protocol: TCP
+      targetPort: http-mcp
+      port: 8090
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: solace-agent-mesh-ingress
+  labels:
+    app: solace-agent-mesh-ingress
+spec:
+  ingressClassName: alb
+  rules:
+  - http:
+      paths:
+      - path: /mcp
+        pathType: Prefix
+        backend:
+          service:
+            name: solace-agent-mesh-mcp-service
+            port:
+              number: 8090
+      - path: /oauth/authorize
+        pathType: Prefix
+        backend:
+          service:
+            name: solace-agent-mesh-mcp-service
+            port:
+              number: 8090
+      - path: /oauth/callback
+        pathType: Prefix
+        backend:
+          service:
+            name: solace-agent-mesh-mcp-service
+            port:
+              number: 8090
+      - path: /oauth/token
+        pathType: Prefix
+        backend:
+          service:
+            name: solace-agent-mesh-mcp-service
+            port:
+              number: 8090
+      - path: /oauth/register
+        pathType: Prefix
+        backend:
+          service:
+            name: solace-agent-mesh-mcp-service
+            port:
+              number: 8090
+      - path: /.well-known/oauth-authorization-server
+        pathType: Prefix
+        backend:
+          service:
+            name: solace-agent-mesh-mcp-service
+            port:
+              number: 8090
+```
+
 </details>
 :::
 
