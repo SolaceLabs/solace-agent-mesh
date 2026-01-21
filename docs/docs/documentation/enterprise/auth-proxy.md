@@ -84,7 +84,7 @@ proxy_oauth:
   # Apps with URIs in this list can use this auth server for OAuth proxy
   allowed_redirect_uris:
     - "http://localhost:8090/oauth/callback"  # MCP gateway
-    - "http://localhost:*"  # Wildcard for development
+    - "http://localhost:*"  # Wildcard for development - requires strict_uri_validation set to `false`
     - "https://mcp.example.com/oauth/callback"  # Production Example
 
   # Gateway code time-to-live in seconds (default: 300 = 5 minutes)
