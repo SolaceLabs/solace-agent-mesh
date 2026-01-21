@@ -91,7 +91,6 @@
         "json-edit-react": "^1.27.2",
         "jszip": "^3.10.1",
         "lucide-react": "^0.511.0",
-        "mammoth": "^1.11.0",
         "marked": "^15.0.12",
         "mermaid": "^11.12.2",
         "react": "19.0.0",
