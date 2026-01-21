@@ -29,6 +29,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
     const [showExpandButton, setShowExpandButton] = useState(false);
     const [showCodeView, setShowCodeView] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
+    const [activeTab, setActiveTab] = useState<"input" | "output">("input");
     const descriptionRef = useRef<HTMLDivElement>(null);
 
     const config = providedConfig ?? getWorkflowConfig(workflow);
@@ -69,7 +70,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
     };
 
     return (
-        <div className="flex h-full flex-col bg-white dark:bg-gray-800">
+        <div className="flex h-full flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                 <div className="flex items-center gap-2">
@@ -211,47 +212,97 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
                     </div>
                 )}
 
-                {/* Input Schema */}
-                {config?.input_schema && (
+                {/* Input/Output Schema Tabs */}
+                {(config?.input_schema || config?.output_schema) && (
                     <div className="mb-4">
-                        <label className="mb-2 flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
-                            <FileJson size={14} className="mr-1" />
-                            Input Schema
-                        </label>
-                        <div className="max-h-48 overflow-auto rounded-lg border">
-                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                            <JSONViewer data={config.input_schema as any} maxDepth={2} className="border-none text-xs" />
+                        {/* Tab buttons */}
+                        <div className="mb-3 flex border-b" role="tablist">
+                            <button
+                                role="tab"
+                                aria-selected={activeTab === "input"}
+                                onClick={() => setActiveTab("input")}
+                                className={`relative px-4 py-2 font-medium transition-colors ${
+                                    activeTab === "input"
+                                        ? "border-b-2 border-(--color-brand-wMain) font-semibold text-(--color-brand-wMain)"
+                                        : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                                }`}
+                            >
+                                Input
+                            </button>
+                            <button
+                                role="tab"
+                                aria-selected={activeTab === "output"}
+                                onClick={() => setActiveTab("output")}
+                                className={`relative px-4 py-2 font-medium transition-colors ${
+                                    activeTab === "output"
+                                        ? "border-b-2 border-(--color-brand-wMain) font-semibold text-(--color-brand-wMain)"
+                                        : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                                }`}
+                            >
+                                Output
+                            </button>
                         </div>
-                    </div>
-                )}
 
-                {/* Output Schema */}
-                {config?.output_schema && (
-                    <div className="mb-4">
-                        <label className="mb-2 flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
-                            <FileJson size={14} className="mr-1" />
-                            Output Schema
-                        </label>
-                        <div className="max-h-48 overflow-auto rounded-lg border">
-                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                            <JSONViewer data={config.output_schema as any} maxDepth={2} className="border-none text-xs" />
-                        </div>
-                    </div>
-                )}
+                        {/* Tab content */}
+                        <div className="mt-3">
+                            {activeTab === "input" && (
+                                <div>
+                                    {config?.input_schema ? (
+                                        <div>
+                                            <label className="mb-2 flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                <FileJson size={14} className="mr-1" />
+                                                Schema
+                                            </label>
+                                            <div className="max-h-64 overflow-auto rounded-lg border">
+                                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                                <JSONViewer data={config.input_schema as any} maxDepth={2} className="border-none text-xs" />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">
+                                            No input schema defined
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
-                {/* Output Mapping */}
-                {config?.output_mapping && (
-                    <div className="mb-4">
-                        <label className="mb-1 flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
-                            <FileJson size={14} className="mr-1" />
-                            Output Mapping
-                        </label>
-                        <div className="text-muted-foreground mb-2 text-xs">
-                            Defines how the final agent output is mapped to the workflow output schema.
-                        </div>
-                        <div className="max-h-48 overflow-auto rounded-lg border">
-                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                            <JSONViewer data={config.output_mapping as any} maxDepth={2} className="border-none text-xs" />
+                            {activeTab === "output" && (
+                                <div className="space-y-4">
+                                    {config?.output_schema ? (
+                                        <div>
+                                            <label className="mb-2 flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                <FileJson size={14} className="mr-1" />
+                                                Schema
+                                            </label>
+                                            <div className="max-h-64 overflow-auto rounded-lg border">
+                                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                                <JSONViewer data={config.output_schema as any} maxDepth={2} className="border-none text-xs" />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">
+                                            No output schema defined
+                                        </div>
+                                    )}
+
+                                    {/* Output Mapping */}
+                                    {config?.output_mapping && (
+                                        <div>
+                                            <label className="mb-2 flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                <FileJson size={14} className="mr-1" />
+                                                Output Mapping
+                                            </label>
+                                            <div className="text-muted-foreground mb-2 text-xs">
+                                                Defines how the final agent output is mapped to the workflow output schema.
+                                            </div>
+                                            <div className="max-h-48 overflow-auto rounded-lg border">
+                                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                                <JSONViewer data={config.output_mapping as any} maxDepth={2} className="border-none text-xs" />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

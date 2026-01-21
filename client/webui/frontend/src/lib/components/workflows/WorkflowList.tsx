@@ -204,7 +204,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
                 </div>
 
                 {/* Workflows table area */}
-                <div className="min-h-0 flex-1 overflow-y-auto pr-2 pl-6">
+                <div className="min-h-0 flex-1 overflow-y-auto pr-6 pl-6">
                     <div className="h-full">
                         {currentWorkflows.length > 0 ? (
                             <div className="rounded-xs border">
