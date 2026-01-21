@@ -62,7 +62,7 @@ const refreshToken = async () => {
     if (response.ok) {
         const data = await response.json();
         setTokens(data.access_token, data.sam_access_token, data.refresh_token);
-        return getApiBearerToken()
+        return getApiBearerToken();
     }
 
     clearTokens();
