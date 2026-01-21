@@ -3,10 +3,10 @@ ADK Callbacks for the A2A Host Component.
 Includes dynamic instruction injection, artifact metadata injection,
 embed resolution, and logging.
 """
-
 import logging
 import json
 import asyncio
+import time
 import uuid
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 from collections import defaultdict
@@ -33,6 +33,7 @@ from ...agent.utils.context_helpers import (
     get_session_from_callback_context,
 )
 from ..tools.tool_definition import BuiltinTool
+from ..tools.workflow_tool import WorkflowAgentTool, WORKFLOW_TOOL_PREFIX
 from ..tools.peer_agent_tool import PEER_TOOL_PREFIX
 
 from ...common.utils.embeds import (
@@ -75,7 +76,9 @@ from ...agent.adk.stream_parser import (
     TemplateBlockCompletedEvent,
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
+    TEMPLATE_LIQUID_START_SEQUENCE,
 )
+
 
 log = logging.getLogger(__name__)
 
@@ -90,32 +93,17 @@ async def _publish_data_part_status_update(
     a2a_context: Dict[str, Any],
     data_part_model: BaseModel,
 ):
-    """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart."""
-    logical_task_id = a2a_context.get("logical_task_id")
-    context_id = a2a_context.get("contextId")
+    """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart.
 
-    status_update_event = a2a.create_data_signal_event(
-        task_id=logical_task_id,
-        context_id=context_id,
+    This function delegates to the host component's publish_data_signal_from_thread method,
+    which handles the async loop check and scheduling internally.
+    """
+    host_component.publish_data_signal_from_thread(
+        a2a_context=a2a_context,
         signal_data=data_part_model,
-        agent_name=host_component.agent_name,
+        skip_buffer_flush=False,
+        log_identifier=host_component.log_identifier,
     )
-
-    loop = host_component.get_async_loop()
-    if loop and loop.is_running():
-        asyncio.run_coroutine_threadsafe(
-            host_component._publish_status_update_with_buffer_flush(
-                status_update_event,
-                a2a_context,
-                skip_buffer_flush=False,
-            ),
-            loop,
-        )
-    else:
-        log.error(
-            "%s Async loop not available. Cannot publish status update.",
-            host_component.log_identifier,
-        )
 
 
 async def _resolve_early_embeds_in_chunk(
@@ -436,6 +424,13 @@ async def process_artifact_blocks_callback(
                                             version_for_tool,
                                             logical_task_id,
                                         )
+                                    else:
+                                        log.warning(
+                                            "%s TaskExecutionContext not found for task %s, cannot register inline artifact '%s'.",
+                                            log_identifier,
+                                            logical_task_id,
+                                            filename,
+                                        )
                                 else:
                                     log.warning(
                                         "%s No logical_task_id, cannot register inline artifact.",
@@ -569,8 +564,37 @@ async def process_artifact_blocks_callback(
                                 template_id,
                             )
 
-                        # Store template_id in session for potential future use
-                        # (Gateway will handle the actual resolution)
+                        # Reconstruct the original template block text for peer-to-peer responses
+                        # Peer agents don't receive TemplateBlockData signals, so they need
+                        # the original block text to pass templates through to the gateway
+                        params_str = " ".join([f'{k}="{v}"' for k, v in params.items()])
+                        original_template_text = (
+                            f"{TEMPLATE_LIQUID_START_SEQUENCE} {params_str}\n"
+                            f"{event.template_content}"
+                            f"{ARTIFACT_BLOCK_DELIMITER_CLOSE}"
+                        )
+
+                        # For RUN_BASED sessions (peer-to-peer agent requests), preserve the
+                        # template block in the response text at its original position.
+                        # This allows the calling agent to forward it to the gateway.
+                        # Gateway requests use streaming sessions and receive TemplateBlockData
+                        # signals instead.
+                        is_run_based = a2a_context and a2a_context.get(
+                            "is_run_based_session", False
+                        )
+                        if is_run_based and llm_response.partial:
+                            processed_parts.append(
+                                adk_types.Part(text=original_template_text)
+                            )
+                            log.debug(
+                                "%s Preserved template block in RUN_BASED peer response. Template ID: %s",
+                                log_identifier,
+                                template_id,
+                            )
+
+                        # Store template_id and original text in session for potential future use
+                        # (Gateway will handle the actual resolution via signals,
+                        # but peer agents need the original text in their responses)
                         if (
                             "completed_template_blocks_list" not in session.state
                             or session.state["completed_template_blocks_list"] is None
@@ -580,6 +604,7 @@ async def process_artifact_blocks_callback(
                             {
                                 "template_id": template_id,
                                 "data_artifact": data_artifact,
+                                "original_text": original_template_text,
                             }
                         )
 
@@ -692,7 +717,8 @@ async def process_artifact_blocks_callback(
                         artifact_info = ArtifactInfo(
                             filename=block_info["filename"],
                             version=block_info["version"],
-                            mime_type=block_info.get("mime_type") or "application/octet-stream",
+                            mime_type=block_info.get("mime_type")
+                            or "application/octet-stream",
                             size=block_info.get("bytes_transferred", 0),
                             description=block_info.get("description"),
                             version_count=None,  # Count not available in save context
@@ -982,26 +1008,24 @@ async def manage_large_mcp_tool_responses_callback(
     message_parts_for_llm: list[str] = []
 
     if needs_truncation_for_llm:
-        truncation_suffix = "... [Response truncated due to size limit.]"
-        adjusted_max_bytes = llm_max_bytes - len(truncation_suffix.encode("utf-8"))
-        if adjusted_max_bytes < 0:
-            adjusted_max_bytes = 0
-
-        truncated_bytes = serialized_original_response_str.encode("utf-8")[
-            :adjusted_max_bytes
-        ]
-        truncated_preview_str = (
-            truncated_bytes.decode("utf-8", "ignore") + truncation_suffix
-        )
-
+        # ALL-OR-NOTHING APPROACH: Do not include truncated data to prevent LLM hallucination.
+        # When LLMs receive partial data, they tend to confidently fill in gaps with
+        # hallucinated information. By withholding partial data entirely, we force the LLM
+        # to use reliable mechanisms (template_liquid, load_artifact) to access the full data.
         final_llm_response_dict["mcp_tool_output"] = {
-            "type": "truncated_json_string",
-            "content": truncated_preview_str,
+            "type": "data_in_artifact_only",
+            "message": "Data exceeds size limit. Full data saved as artifact - use template_liquid, load_artifact or other artifact analysis tools to process and access.",
         }
         message_parts_for_llm.append(
-            f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) for direct display and has been truncated."
+            f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) to display directly. "
+            "The data has NOT been included here to prevent incomplete information. "
+            "You MUST use template_liquid (for displaying to users) or load_artifact or other "
+            "artifact analysis tools (for processing) to access the full data."
         )
-        log.debug("%s MCP tool output truncated for LLM.", log_identifier)
+        log.debug(
+            "%s MCP tool output withheld from LLM (all-or-nothing approach).",
+            log_identifier,
+        )
 
     if needs_saving_as_artifact:
         if save_result and save_result.status in [
@@ -1018,19 +1042,27 @@ async def manage_large_mcp_tool_responses_callback(
                 filename = first_artifact.data_filename
                 version = first_artifact.data_version
                 if total_artifacts > 1:
-                    message_parts_for_llm.append(
-                        f"The full response has been saved as {total_artifacts} artifacts, starting with '{filename}' (version {version})."
-                    )
+                    artifact_msg = f"The full response has been saved as {total_artifacts} artifacts, starting with '{filename}' (version {version})."
                 else:
-                    message_parts_for_llm.append(
-                        f"The full response has been saved as artifact '{filename}' (version {version})."
+                    artifact_msg = f"The full response has been saved as artifact '{filename}' (version {version})."
+
+                # When data was too large and truncated, provide explicit guidance
+                if needs_truncation_for_llm:
+                    artifact_msg += (
+                        f' To display this data to the user, use template_liquid with data="{filename}". '
+                        f'To process the data yourself, use load_artifact("{filename}").'
                     )
+                message_parts_for_llm.append(artifact_msg)
             elif save_result.fallback_artifact:
                 filename = save_result.fallback_artifact.data_filename
                 version = save_result.fallback_artifact.data_version
-                message_parts_for_llm.append(
-                    f"The full response has been saved as artifact '{filename}' (version {version})."
-                )
+                artifact_msg = f"The full response has been saved as artifact '{filename}' (version {version})."
+                if needs_truncation_for_llm:
+                    artifact_msg += (
+                        f' To display this data to the user, use template_liquid with data="{filename}". '
+                        f'To process the data yourself, use load_artifact("{filename}").'
+                    )
+                message_parts_for_llm.append(artifact_msg)
 
             log.debug(
                 "%s Added saved artifact details to LLM response.", log_identifier
@@ -1055,16 +1087,18 @@ async def manage_large_mcp_tool_responses_callback(
         and save_result.status in [McpSaveStatus.SUCCESS, McpSaveStatus.PARTIAL_SUCCESS]
     ):
         if needs_truncation_for_llm:
-            final_llm_response_dict["status"] = "processed_saved_and_truncated"
+            # Data was too large - withheld from LLM, only available via artifact
+            final_llm_response_dict["status"] = "processed_saved_artifact_only"
         else:
             final_llm_response_dict["status"] = "processed_and_saved"
     elif needs_saving_as_artifact:
         if needs_truncation_for_llm:
-            final_llm_response_dict["status"] = "processed_truncated_save_failed"
+            final_llm_response_dict["status"] = "processed_artifact_only_save_failed"
         else:
             final_llm_response_dict["status"] = "processed_save_failed"
     elif needs_truncation_for_llm:
-        final_llm_response_dict["status"] = "processed_truncated"
+        # This case shouldn't happen (truncation implies saving), but handle it
+        final_llm_response_dict["status"] = "processed_data_withheld"
     else:
         final_llm_response_dict["status"] = "processed"
 
@@ -1553,6 +1587,14 @@ Examples:
  - BAD: "Let me search for that information." [then calls tool]
  - BAD: "Searching for information..." [then calls tool]
 
+**CRITICAL - No Links From Training Data**:
+- DO NOT include URLs, links, or markdown links from your training data in responses
+- NEVER include markdown links like [text](url) or raw URLs like https://example.com unless they came from a tool result
+- If a delegated agent's response contains [[cite:searchN]] citations, those are properly formatted - preserve them exactly
+- If a delegated agent's response has no links, do NOT add any links yourself
+- The ONLY acceptable links are those returned by tools (web search, deep research, etc.) with proper citation format
+- Your role is to coordinate and present results, not to augment them with links from your training data
+
 Embeds in responses from agents:
 To be efficient, peer agents may respond with artifact_content in their responses. These will not be resolved until they are sent back to a gateway. If it makes
 sense, just carry that embed forward to your response to the user. For example, if you ask for an org chart from another agent and its response contains an embed like
@@ -1667,6 +1709,27 @@ If a plan is created:
             "%s Injected peer discovery instructions from callback state.",
             log_identifier,
         )
+
+    # Check for WorkflowAgentTool instances and inject specific instructions
+    has_workflow_tools = False
+    if llm_request.tools_dict:
+        for tool in llm_request.tools_dict.values():
+            if isinstance(tool, WorkflowAgentTool):
+                has_workflow_tools = True
+                break
+
+    if has_workflow_tools:
+        workflow_instruction = (
+            "**Workflow Execution:**\n"
+            "You have access to workflow tools (prefixed with `workflow_`). These tools represent structured business processes.\n"
+            "They support two modes of invocation:\n"
+            "1. **Parameter Mode:** Provide arguments directly matching the tool's schema. Use this for new data or simple inputs.\n"
+            "2. **Artifact Mode:** Provide a single `input_artifact` argument with the filename of an existing JSON artifact. "
+            "Use this when passing large datasets or outputs from previous steps to avoid re-tokenizing.\n"
+            "Do NOT provide both parameters and `input_artifact` simultaneously."
+        )
+        injected_instructions.append(workflow_instruction)
+        log.debug("%s Injected workflow execution instructions.", log_identifier)
 
     last_call_notification_message_added = False
     try:
@@ -2102,6 +2165,28 @@ def solace_llm_response_callback(
         agent_name = host_component.get_config("agent_name", "unknown_agent")
         logical_task_id = a2a_context.get("logical_task_id")
 
+        # Check for parallel tool calls - if multiple function_calls in this response,
+        # generate a parallel_group_id for the frontend to group them visually
+        function_calls = []
+        if llm_response.content and llm_response.content.parts:
+            function_calls = [
+                p for p in llm_response.content.parts if p.function_call
+            ]
+
+        if len(function_calls) > 1:
+            import uuid
+            parallel_group_id = f"llm_batch_{uuid.uuid4().hex[:8]}"
+            callback_context.state["parallel_group_id"] = parallel_group_id
+            log.debug(
+                "%s Detected %d parallel tool calls, assigned parallel_group_id=%s",
+                log_identifier,
+                len(function_calls),
+                parallel_group_id,
+            )
+        else:
+            # Clear any previous parallel_group_id
+            callback_context.state["parallel_group_id"] = None
+
         llm_response_data = {
             "type": "llm_response",
             "data": llm_response.model_dump(exclude_none=True),
@@ -2232,14 +2317,20 @@ def notify_tool_invocation_start_callback(
             except TypeError:
                 serializable_args[k] = str(v)
 
+        # Get parallel_group_id from callback state if this is part of a parallel batch
+        parallel_group_id = tool_context.state.get("parallel_group_id")
+
         tool_data = ToolInvocationStartData(
             tool_name=tool.name,
             tool_args=serializable_args,
             function_call_id=tool_context.function_call_id,
+            parallel_group_id=parallel_group_id,
         )
-        asyncio.run_coroutine_threadsafe(
-            _publish_data_part_status_update(host_component, a2a_context, tool_data),
-            host_component.get_async_loop(),
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=tool_data,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
         )
         log.debug(
             "%s Scheduled tool_invocation_start notification.",
@@ -2310,9 +2401,11 @@ def notify_tool_execution_result_callback(
             result_data=serializable_response,
             function_call_id=tool_context.function_call_id,
         )
-        asyncio.run_coroutine_threadsafe(
-            _publish_data_part_status_update(host_component, a2a_context, tool_data),
-            host_component.get_async_loop(),
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=tool_data,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
         )
         log.debug(
             "%s Scheduled tool_result notification for function call ID %s.",
@@ -2439,12 +2532,12 @@ def preregister_long_running_tools_callback(
     if not llm_response.content or not llm_response.content.parts:
         return None
 
-    # Find all long-running tool calls (identified by peer_ prefix)
+    # Find all long-running tool calls (identified by peer_ or workflow_ prefix)
     long_running_calls = []
     for part in llm_response.content.parts:
         if part.function_call:
             tool_name = part.function_call.name
-            if tool_name.startswith(PEER_TOOL_PREFIX):
+            if tool_name.startswith(PEER_TOOL_PREFIX) or tool_name.startswith(WORKFLOW_TOOL_PREFIX):
                 long_running_calls.append(part.function_call)
 
     if not long_running_calls:
@@ -2483,3 +2576,279 @@ def preregister_long_running_tools_callback(
     )
 
     return None  # Don't alter the response
+
+
+# ============================================================================
+# OpenAPI Tool Audit Logging Callbacks
+# ============================================================================
+
+
+def _is_openapi_tool(tool: BaseTool) -> bool:
+    """
+    Check if a tool is an OpenAPI-based RestApiTool.
+
+    Args:
+        tool: The tool to check
+
+    Returns:
+        True if the tool is OpenAPI-based, False otherwise
+    """
+    # Check the origin attribute set by SAM at initialization
+    return getattr(tool, "origin", None) == "openapi"
+
+
+def _extract_openapi_base_url(tool: BaseTool) -> Optional[str]:
+    """Extract base URL from an OpenAPI tool."""
+    try:
+        # Check for endpoint.base_url attribute (RestApiTool has this)
+        if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "base_url"):
+            return str(tool.endpoint.base_url)
+
+        if hasattr(tool, "base_url") and tool.base_url:
+            return str(tool.base_url)
+
+        if hasattr(tool, "_base_url") and tool._base_url:
+            return str(tool._base_url)
+
+        if hasattr(tool, "_config") and isinstance(tool._config, dict):
+            return tool._config.get("base_url")
+
+    except Exception as e:
+        log.debug("Could not extract base URL: %s", e)
+
+    return None
+
+
+def _extract_openapi_http_method(tool: BaseTool) -> Optional[str]:
+    """Extract HTTP method from OpenAPI tool."""
+    # Get from tool's endpoint (RestApiTool)
+    if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "method"):
+        return str(tool.endpoint.method).upper()
+    return None
+
+
+def _extract_openapi_operation_id(tool: BaseTool) -> Optional[str]:
+    """Extract operation ID from OpenAPI tool."""
+    # Get from tool's operation (RestApiTool)
+    if hasattr(tool, "operation") and hasattr(tool.operation, "operationId"):
+        return tool.operation.operationId
+    return None
+
+
+def _extract_openapi_metadata(tool: BaseTool) -> Dict[str, Optional[str]]:
+    """
+    Extract all OpenAPI metadata from tool in one pass.
+
+    Returns:
+        Dict with keys: operation_id, base_url, http_method, endpoint_path, tool_uri
+    """
+    operation_id = _extract_openapi_operation_id(tool)
+    base_url = _extract_openapi_base_url(tool)
+    http_method = _extract_openapi_http_method(tool)
+
+    # Extract endpoint path template (safe, non-sensitive)
+    endpoint_path = None
+    if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "path"):
+        endpoint_path = tool.endpoint.path
+
+    # Construct URI from base URL + path template
+    tool_uri = base_url
+    if base_url and endpoint_path:
+        base_clean = base_url.rstrip('/')
+        path_clean = endpoint_path.lstrip('/') if endpoint_path.startswith('/') else endpoint_path
+        tool_uri = f"{base_clean}/{path_clean}"
+
+    return {
+        "operation_id": operation_id,
+        "base_url": base_url,
+        "http_method": http_method,
+        "endpoint_path": endpoint_path,
+        "tool_uri": tool_uri,
+    }
+
+
+def audit_log_openapi_tool_invocation_start(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    host_component: "SamAgentComponent",
+) -> None:
+    """
+    ADK before_tool_callback for OpenAPI tools - logs invocation start.
+
+    Args:
+        tool: The tool being invoked
+        args: Tool arguments (NOT logged)
+        tool_context: ADK tool context
+        host_component: The SamAgentComponent host
+    """
+    # Only process OpenAPI tools (RestApiTool instances created from OpenAPI specs)
+    if not _is_openapi_tool(tool):
+        return
+
+    # Extract context
+    invocation_context = tool_context._invocation_context
+    session_id = None
+    user_id = None
+
+    if invocation_context and invocation_context.session:
+        session_id = invocation_context.session.id
+        user_id = invocation_context.session.user_id
+
+    # Extract all OpenAPI metadata
+    metadata = _extract_openapi_metadata(tool)
+
+    # Build action field and correlation tag
+    action = f"{metadata['http_method']}: {metadata['operation_id']}" if metadata['http_method'] and metadata['operation_id'] else (metadata['operation_id'] or "unknown")
+    correlation_tag = f"corr:{session_id}" if session_id else "corr:unknown"
+
+    # Store start time for latency calculation
+    tool_context.state["audit_start_time_ms"] = int(time.time() * 1000)
+
+    # Log in MCP-style format: [openapi-tool] [corr:xxx] message
+    log.info(
+        "[openapi-tool] [%s] Tool call: %s - User: %s, Agent: %s, URI: %s",
+        correlation_tag,
+        action,
+        user_id,
+        host_component.agent_name,
+        metadata['tool_uri'],
+        extra={
+            "user_id": user_id,
+            "agent_id": host_component.agent_name,
+            "tool_name": tool.name,
+            "session_id": session_id,
+            "operation_id": metadata['operation_id'],
+            "tool_uri": metadata['tool_uri'],
+        },
+    )
+
+
+async def audit_log_openapi_tool_execution_result(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    tool_response: Any,
+    host_component: "SamAgentComponent",
+) -> Optional[Dict[str, Any]]:
+    """
+    ADK after_tool_callback for OpenAPI tools - logs execution result.
+
+    Args:
+        tool: The tool that was executed
+        args: Tool arguments (NOT logged)
+        tool_context: ADK tool context
+        tool_response: Tool response (NOT logged for sensitive data)
+        host_component: The SamAgentComponent host
+
+    Returns:
+        None (does not modify the response)
+    """
+    # Only process OpenAPI tools (RestApiTool instances created from OpenAPI specs)
+    if not _is_openapi_tool(tool):
+        return None
+
+    # Extract context
+    invocation_context = tool_context._invocation_context
+    session_id = None
+    user_id = None
+
+    if invocation_context and invocation_context.session:
+        session_id = invocation_context.session.id
+        user_id = invocation_context.session.user_id
+
+    # Extract all OpenAPI metadata
+    metadata = _extract_openapi_metadata(tool)
+
+    # Check if request failed or is pending auth
+    has_error = False
+    is_pending_auth = False
+    error_type = None
+
+    if isinstance(tool_response, dict):
+        has_error = "error" in tool_response
+        is_pending_auth = tool_response.get("pending") == True
+
+        # Extract error type if present (safe, non-sensitive)
+        if has_error:
+            error_data = tool_response.get("error", {})
+            if isinstance(error_data, dict):
+                error_type = error_data.get("type") or error_data.get("code")
+            elif isinstance(error_data, str):
+                # If error is just a string, try to classify it
+                error_lower = error_data.lower()
+                if "auth" in error_lower or "unauthorized" in error_lower:
+                    error_type = "auth_error"
+                elif "not found" in error_lower or "404" in error_lower:
+                    error_type = "not_found"
+                elif "timeout" in error_lower:
+                    error_type = "timeout"
+                elif "network" in error_lower or "connection" in error_lower:
+                    error_type = "network_error"
+
+    # Calculate latency
+    latency_ms = None
+    start_time = tool_context.state.get("audit_start_time_ms")
+    if start_time:
+        latency_ms = int(time.time() * 1000) - start_time
+
+    # Build action and correlation tag
+    action = f"{metadata['http_method']}: {metadata['operation_id']}" if metadata['http_method'] and metadata['operation_id'] else (metadata['operation_id'] or "unknown")
+    correlation_tag = f"corr:{session_id}" if session_id else "corr:unknown"
+
+    if has_error:
+        # Build error message with optional error type
+        error_msg = f"[openapi-tool] [{correlation_tag}] {action} failed - Path: {metadata['endpoint_path'] or 'unknown'}"
+        if error_type:
+            error_msg += f", Error Type: {error_type}"
+        error_msg += f", Latency: {latency_ms}ms, User: {user_id}"
+
+        log.error(
+            error_msg,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+                "endpoint_path": metadata['endpoint_path'],
+                "error_type": error_type,
+            },
+        )
+    elif is_pending_auth:
+        log.warning(
+            "[openapi-tool] [%s] %s pending auth - Latency: %sms, User: %s",
+            correlation_tag,
+            action,
+            latency_ms,
+            user_id,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+                "status": "pending_auth",
+            },
+        )
+    else:
+        # SUCCESS format
+        log.info(
+            "[openapi-tool] [%s] %s completed - Latency: %sms, User: %s",
+            correlation_tag,
+            action,
+            latency_ms,
+            user_id,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+            },
+        )
+
+    return None

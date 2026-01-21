@@ -152,3 +152,18 @@ def get_agent_registry():
         log.warning("Platform component not initialized - agent registry unavailable")
         return None
     return platform_component_instance.get_agent_registry()
+
+
+def get_gateway_registry():
+    """
+    Get the gateway registry from platform component.
+
+    Used for gateway fleet health monitoring.
+
+    Returns:
+        GatewayRegistry instance if initialized, None otherwise.
+    """
+    if platform_component_instance is None:
+        log.warning("Platform component not initialized - gateway registry unavailable")
+        return None
+    return platform_component_instance.get_gateway_registry()

@@ -234,7 +234,7 @@ class TestOAuth2ClientCredentialsTokenManager:
             await manager.get_token()
 
             # Verify AsyncClient was called with custom CA cert
-            mock_client.assert_called_with(verify="/path/to/ca.crt")
+            mock_client.assert_called_once_with(verify="/path/to/ca.crt")
 
     @pytest.mark.asyncio
     async def test_concurrent_token_requests(self, token_manager, mock_token_response):

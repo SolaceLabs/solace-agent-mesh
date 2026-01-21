@@ -23,8 +23,6 @@ app = FastAPI(
     description="Platform configuration management API (agents, connectors, toolsets, deployments)",
 )
 
-# Global flag to track initialization (idempotent)
-_dependencies_initialized = False
 
 
 def _setup_alembic_config(database_url: str) -> Config:
@@ -96,90 +94,45 @@ def _run_enterprise_migrations(database_url: str) -> None:
     This is optional and only runs if the enterprise package is available.
 
     Args:
-        component: PlatformServiceComponent instance.
         database_url: Database connection string.
     """
     try:
         from solace_agent_mesh_enterprise.platform_service.migration_runner import run_migrations
 
-        log.info("Starting enterprise platform migrations...")
+        log.info("[Platform Service] Starting enterprise migrations...")
         run_migrations(database_url)
-        log.info("Enterprise platform migrations completed")
+        log.info("[Platform Service] Enterprise migrations completed successfully")
     except ImportError:
-        log.debug("Enterprise platform module not found - skipping enterprise migrations")
+        log.debug("[Platform Service] Enterprise module not found - skipping enterprise migrations")
     except Exception as e:
-        log.error("Enterprise platform migration failed: %s", e)
-        log.error("Enterprise platform features may be unavailable")
+        log.error("[Platform Service] Enterprise migration failed: %s", e)
+        log.error("[Platform Service] Enterprise features may be unavailable")
         raise RuntimeError(f"Enterprise platform database migration failed: {e}") from e
 
 
 def _setup_database(database_url: str) -> None:
-    """
-    Initialize database connection and run all required migrations.
-    Sets up both community and enterprise platform database schemas.
-
-    This follows the same pattern as gateway/http_sse:
-    1. Initialize database (create engine and SessionLocal)
-    2. Run community migrations
-    3. Run enterprise migrations (if available)
-
-    Args:
-        component: PlatformServiceComponent instance.
-        database_url: Platform database URL (agents, connectors, deployments, toolsets) - REQUIRED
-    """
-    from . import dependencies
-
-    # MIGRATION PHASE 1: DB is initialized in enterprise repo. In next phase, platform db will be initialized here
-    # dependencies.init_database(database_url)
-    # log.info("Platform database initialized - running migrations...")
-
-    # MIGRATION PHASE 1: No community migrations yet - only enterprise migrations
-    # _run_community_migrations(database_url)
+    """Initialize database and run migrations."""
+    log.info("[Platform Service] Initializing database and running migrations...")
     _run_enterprise_migrations(database_url)
+    log.info("[Platform Service] Database initialization complete")
 
 
-def setup_dependencies(component: "PlatformServiceComponent", database_url: str):
+def setup_dependencies(component: "PlatformServiceComponent"):
     """
-    Initialize dependencies for the Platform Service.
-
-    This function is idempotent and safe to call multiple times.
-    It sets up:
-    1. Component instance reference
-    2. Database connection
-    3. Middleware (CORS, OAuth2)
-    4. Routers (community and enterprise)
+    Initialize FastAPI dependencies (middleware, routers).
+    Database migrations are handled in component.__init__().
 
     Args:
-        component: PlatformServiceComponent instance.
-        database_url: Database connection string.
+        component: PlatformServiceComponent instance
     """
-    global _dependencies_initialized
-
-    if _dependencies_initialized:
-        log.debug("Platform service dependencies already initialized, skipping")
-        return
-
     log.info("Initializing Platform Service dependencies...")
 
-    # Store component reference for dependency injection
     from . import dependencies
-
     dependencies.set_component_instance(component)
 
-    # Initialize database and run migrations
-    if database_url:
-        _setup_database(database_url)
-        log.info("Platform database initialized with migrations")
-    else:
-        log.warning("No database URL provided - platform service will not function")
-
-    # Setup middleware
     _setup_middleware(component)
-
-    # Setup routers
     _setup_routers()
 
-    _dependencies_initialized = True
     log.info("Platform Service dependencies initialized successfully")
 
 
@@ -279,14 +232,20 @@ def _setup_middleware(component: "PlatformServiceComponent"):
     # Combine and deduplicate
     allowed_origins = list(set(auto_trusted_origins + configured_origins))
 
+    # Get optional regex pattern for CORS origins (useful for local dev with dynamic ports)
+    cors_origin_regex = component.get_cors_origin_regex()
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
+        allow_origin_regex=cors_origin_regex if cors_origin_regex else None,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
     log.info(f"CORS middleware added with origins: {allowed_origins}")
+    if cors_origin_regex:
+        log.info(f"  CORS origin regex pattern: {cors_origin_regex}")
     if auto_trusted_origins:
         log.info(f"  Auto-added trusted origins: {auto_trusted_origins}")
 
@@ -307,17 +266,25 @@ def _setup_routers():
     """
     Mount community and enterprise routers to the FastAPI application.
 
-    Community routers: Loaded from .routers (empty in Phase 1)
+    All platform service routers (both community and enterprise) are mounted
+    under the PLATFORM_SERVICE_PREFIX. This ensures a consistent API structure
+    where /api/v1/platform/* contains all platform management endpoints.
+
+    Community routers: Loaded from .routers
     Enterprise routers: Dynamically loaded from enterprise package if available
     """
-    # Load community platform routers (empty in Phase 1)
+    # Define the platform service API prefix
+    # This is the single source of truth for all platform service endpoints
+    PLATFORM_SERVICE_PREFIX = "/api/v1/platform"
+
+    # Load community platform routers
     from .routers import get_community_platform_routers
 
     community_routers = get_community_platform_routers()
     for router_config in community_routers:
         app.include_router(
             router_config["router"],
-            prefix=router_config["prefix"],
+            prefix=PLATFORM_SERVICE_PREFIX,
             tags=router_config["tags"],
         )
     log.info(f"Mounted {len(community_routers)} community platform routers")
@@ -330,10 +297,10 @@ def _setup_routers():
         for router_config in enterprise_routers:
             app.include_router(
                 router_config["router"],
-                prefix=router_config["prefix"],
+                prefix=PLATFORM_SERVICE_PREFIX,
                 tags=router_config["tags"],
             )
-        log.info(f"Mounted {len(enterprise_routers)} enterprise platform routers")
+        log.info(f"Mounted {len(enterprise_routers)} enterprise platform routers under {PLATFORM_SERVICE_PREFIX}")
 
     except ImportError:
         log.info(
@@ -345,15 +312,3 @@ def _setup_routers():
     from solace_agent_mesh.shared.exceptions.exception_handlers import register_exception_handlers
     register_exception_handlers(app)
     log.info("Registered shared exception handlers")
-
-
-@app.get("/health", tags=["Health"])
-async def health_check():
-    """
-    Platform Service health check endpoint.
-
-    Returns:
-        Dictionary with status and service name.
-    """
-    log.debug("Health check endpoint '/health' called")
-    return {"status": "healthy", "service": "Platform Service"}

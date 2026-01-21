@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
 import { Search, X } from "lucide-react";
-import { Input } from "@/lib/components/ui/input";
-import { Button } from "@/lib/components/ui/button";
-import { Badge } from "@/lib/components/ui/badge";
-import { useDebounce } from "@/lib/hooks/useDebounce";
-import type { Session } from "@/lib/types";
+
 import { api } from "@/lib/api";
+import { ProjectBadge } from "@/lib/components/chat";
+import { Button, Input } from "@/lib/components/ui";
+import { useDebounce } from "@/lib/hooks";
+import type { Session } from "@/lib/types";
 
 interface SessionSearchProps {
     onSessionSelect: (sessionId: string) => void;
@@ -98,11 +98,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
                                 <button key={session.id} onClick={() => handleSessionClick(session.id)} className="hover:bg-accent hover:text-accent-foreground w-full rounded-sm px-3 py-2 text-left text-sm">
                                     <div className="mb-1 flex items-center justify-between gap-2">
                                         <div className="flex-1 truncate font-medium">{session.name || "Untitled Session"}</div>
-                                        {session.projectName && (
-                                            <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary flex-shrink-0 px-2 py-0.5 text-xs font-semibold shadow-sm">
-                                                {session.projectName}
-                                            </Badge>
-                                        )}
+                                        {session.projectName && <ProjectBadge text={session.projectName} />}
                                     </div>
                                     <div className="text-muted-foreground text-xs">{new Date(session.updatedTime).toLocaleDateString()}</div>
                                 </button>

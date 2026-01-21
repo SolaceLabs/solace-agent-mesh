@@ -70,6 +70,10 @@ class SamTask(BaseModel):
         default_factory=dict,
         description="Platform-specific data for response routing.",
     )
+    session_behavior: Optional[str] = Field(
+        default=None,
+        description="Session behavior: 'PERSISTENT' or 'RUN_BASED'. If provided, overrides agent's default.",
+    )
 
 
 class SamUpdate(BaseModel):
@@ -173,6 +177,11 @@ class GatewayContext:
     ) -> List["ArtifactInfo"]:
         """Lists all artifacts available in the user's context."""
         raise NotImplementedError
+
+    def list_agents(self) -> List[Any]:
+        """Lists all agents currently registered in the agent registry."""
+        raise NotImplementedError
+
 
     def add_timer(
         self, delay_ms: int, callback: "Callable", interval_ms: Optional[int] = None

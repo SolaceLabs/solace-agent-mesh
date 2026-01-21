@@ -7,9 +7,9 @@ interface ViewWorkflowButtonProps {
     text?: string;
 }
 
-export const ViewWorkflowButton: React.FC<ViewWorkflowButtonProps> = ({ onClick, text = "View Agent Workflow" }) => {
+export const ViewWorkflowButton: React.FC<ViewWorkflowButtonProps> = ({ onClick, text = "View Activity" }) => {
     return (
-        <Button data-testid="viewAgentWorkflow" variant="ghost" size="sm" onClick={onClick} tooltip={text}>
+        <Button data-testid="viewActivity" variant="ghost" size="sm" onClick={onClick} tooltip={text}>
             <Network className="h-4 w-4" />
         </Button>
     );

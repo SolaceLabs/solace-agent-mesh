@@ -48,14 +48,13 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+
 app = FastAPI(
     title="A2A Web UI Backend",
     version="1.0.0",  # Updated to reflect simplified architecture
     description="Backend API and SSE server for the A2A Web UI, hosted by Solace AI Connector.",
 )
 
-# Global flag to track if dependencies have been initialized
-_dependencies_initialized = False
 
 
 
@@ -77,33 +76,28 @@ def _run_community_migrations(database_url: str) -> None:
     try:
         from sqlalchemy import create_engine
 
-        log.info("Starting community migrations...")
+        log.info("[WebUI Gateway] Starting community migrations...")
         engine = create_engine(database_url)
         inspector = sa.inspect(engine)
         existing_tables = inspector.get_table_names()
 
+        alembic_cfg = _setup_alembic_config(database_url)
         if not existing_tables or "sessions" not in existing_tables:
-            log.info("Running initial community database setup")
-            alembic_cfg = _setup_alembic_config(database_url)
-            command.upgrade(alembic_cfg, "head")
-            log.info("Community database migrations completed")
+            log.info("[WebUI Gateway] Running initial database setup")
         else:
-            log.info("Checking for community schema updates")
-            alembic_cfg = _setup_alembic_config(database_url)
-            command.upgrade(alembic_cfg, "head")
-            log.info("Community database schema is current")
+            log.info("[WebUI Gateway] Checking for schema updates")
+
+        command.upgrade(alembic_cfg, "head")
+        log.info("[WebUI Gateway] Community migrations completed")
     except Exception as e:
-        log.warning(
-            "Community migration check failed: %s - attempting to run migrations",
-            e,
-        )
+        log.warning("[WebUI Gateway] Migration check failed: %s - attempting to run migrations", e)
         try:
             alembic_cfg = _setup_alembic_config(database_url)
             command.upgrade(alembic_cfg, "head")
-            log.info("Community database migrations completed")
+            log.info("[WebUI Gateway] Community migrations completed")
         except Exception as migration_error:
-            log.error("Community migration failed: %s", migration_error)
-            log.error("Check database connectivity and permissions")
+            log.error("[WebUI Gateway] Migration failed: %s", migration_error)
+            log.error("[WebUI Gateway] Check database connectivity and permissions")
             raise RuntimeError(
                 f"Community database migration failed: {migration_error}"
             ) from migration_error
@@ -111,24 +105,15 @@ def _run_community_migrations(database_url: str) -> None:
 
 
 
-def _setup_database(
-    component: "WebUIBackendComponent",
-    database_url: str,
-) -> None:
+def _setup_database(database_url: str) -> None:
     """
-    Initialize database and run migrations for WebUI Gateway (chat only).
-
-    Platform database is no longer used by WebUI Gateway.
-    Platform migrations are handled by Platform Service.
+    Initialize database and run migrations for WebUI Gateway.
 
     Args:
-        component: WebUIBackendComponent instance
-        database_url: Chat database URL (sessions, tasks, feedback) - REQUIRED
+        database_url: Chat database URL (sessions, tasks, feedback)
     """
     dependencies.init_database(database_url)
-    log.info("Persistence enabled - sessions will be stored in database")
-    log.info("Running database migrations...")
-
+    log.info("[WebUI Gateway] Running database migrations...")
     _run_community_migrations(database_url)
 
 
@@ -164,48 +149,23 @@ def _create_api_config(app_config: dict, database_url: str) -> dict:
     }
 
 
-def setup_dependencies(
-    component: "WebUIBackendComponent",
-    database_url: str = None,
-):
+def setup_dependencies(component: "WebUIBackendComponent"):
     """
-    Initialize dependencies for WebUI Gateway (chat only).
+    Initialize FastAPI dependencies (middleware, routers, static files).
+    Database migrations are handled in component.__init__().
 
     Args:
         component: WebUIBackendComponent instance
-        database_url: Chat database URL (sessions, tasks, feedback).
-                     If None, runs in compatibility mode with in-memory sessions.
-
-    This function is idempotent and safe to call multiple times.
     """
-    global _dependencies_initialized
-
-    if _dependencies_initialized:
-        log.debug("[setup_dependencies] Dependencies already initialized, skipping")
-        return
-
     dependencies.set_component_instance(component)
 
-    if database_url:
-        _setup_database(component, database_url)
-    else:
-        log.warning(
-            "No database URL provided - using in-memory session storage (data not persisted across restarts)"
-        )
-        log.info("This maintains backward compatibility for existing SAM installations")
-
     app_config = _get_app_config(component)
-    api_config_dict = _create_api_config(app_config, database_url)
-
+    api_config_dict = _create_api_config(app_config, component.database_url)
     dependencies.set_api_config(api_config_dict)
-    log.debug("API configuration extracted and stored.")
 
     _setup_middleware(component)
     _setup_routers()
     _setup_static_files()
-
-    _dependencies_initialized = True
-    log.debug("[setup_dependencies] Dependencies initialization complete")
 
 
 def _setup_middleware(component: "WebUIBackendComponent") -> None:

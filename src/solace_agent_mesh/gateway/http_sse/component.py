@@ -47,6 +47,7 @@ from a2a.types import (
     JSONRPCResponse,
     Task,
     TaskArtifactUpdateEvent,
+    TaskState,
     TaskStatusUpdateEvent,
 )
 
@@ -308,7 +309,26 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Data retention is disabled via configuration.", self.log_identifier
             )
 
+        if self.database_url:
+            log.info("%s Running database migrations...", self.log_identifier)
+            self._run_database_migrations()
+            log.info("%s Database migrations completed", self.log_identifier)
+
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
+
+    def _run_database_migrations(self):
+        """Run database migrations synchronously during __init__."""
+        try:
+            from ...gateway.http_sse.main import _setup_database
+            _setup_database(self.database_url)
+        except Exception as e:
+            log.error(
+                "%s Failed to run database migrations: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
+            raise RuntimeError(f"Database migration failed during component initialization: {e}") from e
 
     def process_event(self, event: Event):
         if event.event_type == EventType.TIMER:
@@ -1283,7 +1303,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             self.fastapi_app = fastapi_app_instance
 
-            setup_dependencies(self, self.database_url)
+            setup_dependencies(self)
 
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.
@@ -1704,6 +1724,20 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             if result.metadata
                             else None
                         )
+                        task_status = a2a.get_task_status(result)
+                        # Guard against task_status being an Enum (TaskState) instead of TaskStatus object
+                        if (
+                            task_status
+                            and not isinstance(task_status, TaskState)
+                            and hasattr(task_status, "message")
+                        ):
+                            data_parts = a2a.get_data_parts_from_message(
+                                task_status.message
+                            )
+                            if data_parts:
+                                details["debug_type"] = data_parts[0].data.get(
+                                    "type", "task_result"
+                                )
                     elif isinstance(result, TaskArtifactUpdateEvent):
                         artifact = a2a.get_artifact_from_artifact_update(result)
                         if artifact:
@@ -1739,6 +1773,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             if message.metadata
                             else None
                         )
+                        data_parts = a2a.get_data_parts_from_message(message)
+                        if data_parts:
+                            details["debug_type"] = data_parts[0].data.get(
+                                "type", method
+                            )
                 elif method == "tasks/cancel":
                     details["task_id"] = a2a.get_task_id_from_cancel_request(
                         rpc_request

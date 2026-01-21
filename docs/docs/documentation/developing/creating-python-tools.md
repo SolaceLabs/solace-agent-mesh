@@ -7,7 +7,23 @@ sidebar_position: 440
 
 Agent Mesh provides a powerful and unified system for creating custom agent tools using Python. This is the primary way to extend an agent's capabilities with your own business logic, integrate with proprietary APIs, or perform specialized data processing.
 
-This guide covers the different patterns for creating custom tools, all of which are configured using the versatile `tool_type: python`.
+
+## Python Tool Configuration Reference
+
+All Python tools are configured in your agent's YAML file under the `tools` list with `tool_type: python`. The following configuration fields are available:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tool_type` | string | Yes | Must be `python` |
+| `tool_name` | string | No | Tool name for the LLM (auto-generated from function/class name if omitted) |
+| `tool_description` | string | No | Tool description for the LLM (auto-generated from docstring if omitted) |
+| `component_module` | string | Yes | Python module path (e.g., `my_company.tools.calculators`) |
+| `function_name` | string | Conditional | Function name within the module (required for function-based tools) |
+| `class_name` | string | No | Class name for `DynamicTool` or `DynamicToolProvider` (auto-discovered if only one exists in module) |
+| `component_base_path` | string | No | Base path for module resolution (defaults to project root) |
+| `tool_config` | object | No | Custom tool configuration passed to the function/class |
+| `init_function` | string | No | Name of initialization function to call on agent startup |
+| `cleanup_function` | string | No | Name of cleanup function to call on agent shutdown |
 
 ## Tool Creation Patterns
 
@@ -494,3 +510,65 @@ tools:
       api_key: ${WEATHER_API_KEY}
       default_unit: "fahrenheit" # Optional, overrides the model's default
 ```
+
+---
+
+## Complete Configuration Examples
+
+### Example 1: Simple Function-Based Tool with All Options
+
+```yaml
+tools:
+  - tool_type: python
+    tool_name: "custom_calculator"
+    tool_description: "Performs custom mathematical calculations"
+    component_module: "my_company.tools.calculators"
+    function_name: "calculate_advanced_metrics"
+    component_base_path: "src/plugins"
+    tool_config:
+      precision: 6
+      use_cache: true
+```
+
+### Example 2: DynamicTool Class with Lifecycle Hooks
+
+```yaml
+tools:
+  - tool_type: python
+    component_module: "my_agent.db_tools"
+    class_name: "DatabaseQueryTool"
+    tool_config:
+      connection_string: "postgresql://user:pass@host/db"
+      max_rows: 1000
+```
+
+### Example 3: Function-Based Tool with YAML Lifecycle Hooks
+
+```yaml
+tools:
+  - tool_type: python
+    component_module: "my_agent.db_tools"
+    function_name: "query_database"
+    init_function: "initialize_db_connection"
+    cleanup_function: "close_db_connection"
+    tool_config:
+      connection_string: "postgresql://user:pass@host/db"
+```
+
+### Example 4: DynamicToolProvider for Multiple Tools
+
+```yaml
+tools:
+  - tool_type: python
+    component_module: "my_agent.database_tools"
+    # The provider will be auto-discovered and will create multiple tools
+    tool_config:
+      connection_string: ${DB_CONNECTION_STRING}
+      max_rows: 1000
+```
+
+---
+
+For additional ways to extend agent capabilities:
+- **Built-in Tools**: See [Configuring Built-in Tools](../components/builtin-tools/builtin-tools.md) for pre-packaged tools for file management, data analysis, web requests, and more
+- **MCP Integration**: See [MCP Integration Tutorial](../developing/tutorials/mcp-integration.md) for connecting to Model Context Protocol servers to access external tools and resources

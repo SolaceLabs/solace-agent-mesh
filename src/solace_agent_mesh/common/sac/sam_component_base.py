@@ -146,6 +146,14 @@ class SamComponentBase(ComponentBase, abc.ABC):
             message: SolaceMessage = event.data
             topic = message.get_topic()
 
+            # DEBUG: Log all incoming messages at process_event level
+            log.debug(
+                "%s [PROCESS_EVENT_DEBUG] MESSAGE event received | topic=%s | component=%s",
+                self.log_identifier,
+                topic,
+                self._get_component_id() if hasattr(self, '_get_component_id') else 'unknown'
+            )
+
             if not topic:
                 log.warning(
                     "%s Received message without topic. Ignoring.",
@@ -463,8 +471,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
                     payload=payload, topic=topic, user_properties=user_properties
                 )
 
-                log.debug(
-                    "%s [publish_a2a_message] Successfully called app.send_message on topic '%s'",
+                # DEBUG: Upgrade to INFO for troubleshooting message routing
+                log.info(
+                    "%s [MSG_DEBUG] Published message to topic: %s",
                     self.log_identifier, topic
                 )
             else:

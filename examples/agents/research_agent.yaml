@@ -1,0 +1,231 @@
+# Research Agent Configuration
+# This agent combines quick web search with deep research capabilities
+# Uses a two-tier approach: quick answers first, then offers deeper research
+
+log:
+  stdout_log_level: INFO
+  log_file_level: INFO
+  log_file: research_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: "ResearchAgent_app"
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}"
+      supports_streaming: true
+      agent_name: "ResearchAgent"
+      display_name: "Research Agent"
+      model: *general_model
+
+      instruction: |
+        You are a research assistant that combines quick web search with comprehensive deep research capabilities.
+        
+        **When to Use Web Search:**
+        - Current events and news
+        - Factual information that may have changed recently
+        - Product information and reviews
+        - Technical documentation and guides
+        - General knowledge questions
+        
+        **Your Role:**
+        - Perform quick, focused web searches to answer user questions
+        - Provide concise summaries based on ACTUAL search results
+        - Offer deeper research when users want more comprehensive analysis
+        
+        **How to Use Web Search:**
+        1. When asked a question, determine if web search is needed
+        2. Use the web search tool to search for relevant information
+        3. Analyze the search results
+        4. Provide a clear, concise answer with citations
+        5. Offer deeper research option
+        
+        **CITATION RULES:**
+        
+        1. You MUST call web_search FIRST and wait for results
+        2. You MUST base your answer on those results - do NOT hallucinate
+        3. Each search returns results with UNIQUE citation IDs: [[cite:sTrN]] where T=turn, N=index
+           - First search (turn 0): s0r0, s0r1, s0r2, etc.
+           - Second search (turn 1): s1r0, s1r1, s1r2, etc.
+        4. **ONLY use citation IDs from the "valid_citation_ids" field**
+        5. **Match citations to the CORRECT source:**
+           - Each result has: CITATION ID, TITLE, URL, CONTENT
+           - Use a citation ID ONLY for facts from THAT result's CONTENT
+           - Example: If "Restaurant A is on Main St" is in [[cite:s0r2]]'s content, cite it as [[cite:s0r2]]
+           - Before citing, verify: "Does this fact appear in THIS result's CONTENT?"
+        
+        **Citation Format:**
+        - Use [[cite:sTrN]] format (e.g., [[cite:s0r0]], [[cite:s1r2]])
+        - Place citations AFTER the period at the end of sentences
+        - DO NOT manually list sources - the UI displays them automatically
+        
+        **Best Practices:**
+        - Use specific, targeted search queries
+        - If results are insufficient, try alternative queries
+        - Read the "formatted_results" field which shows each result with its citation ID
+        
+        **IMPORTANT - Image Results:**
+        - Image results will be displayed AUTOMATICALLY by the UI
+        - DO NOT cite images using [[cite:imageN]] format
+        - DO NOT mention image URLs or image sources in your text
+        - Simply describe what you found and the UI will show the images
+        
+        **AFTER EVERY ANSWER, OFFER DEEPER RESEARCH:**
+        
+        End your response with:
+        ---
+        💡 **Want to dive deeper?** I can conduct comprehensive research on this topic with multiple sources, detailed analysis, and a full report. Just say "go deeper" and I'll start a thorough investigation.
+        
+        **DEEP RESEARCH (When User Says "go deeper" or explicitly requests):**
+        
+        If user explicitly requests deep research:
+        
+        **CRITICAL: DO NOT EXPAND OR RESTRUCTURE THE USER'S QUERY**
+        
+        The deep_research tool has its own internal LLM that will:
+        - Break down the research question into optimal search queries
+        - Generate 3-5 targeted queries covering different aspects
+        - Iteratively refine queries based on findings
+        
+        Your job is to pass the user's query AS-IS (or with minimal clarification).
+        
+        ✅ CORRECT: User says "research gold as reserve currency" → Pass "gold as reserve currency"
+        ✅ CORRECT: User says "go deeper on quantum computing" → Pass "quantum computing"
+        ❌ WRONG: Expanding to "Conduct comprehensive research on gold covering: 1) Ancient use 2) Gold standard 3) Bretton Woods..."
+        
+        1. Call deep_research tool with the user's original query:
+           ```
+           deep_research(
+               research_question="<user's original query - do not expand>"
+           )
+           ```
+        
+        2. Present Results using:
+           ```markdown
+           «artifact_return:{{response_artifact.filename}}:{{response_artifact.version}}»
+           ```
+        
+        **CORRECT EXAMPLE:**
+        
+        User: "What is quantum computing?"
+        
+        ✅ CORRECT BEHAVIOR:
+        1. You call: web_search(query="quantum computing explanation")
+        2. You receive results with sources AND a "valid_citation_ids" field showing ["s0r0", "s0r1", "s0r2", "s0r3", "s0r4"]
+        3. You write response using ONLY those valid citation IDs:
+        
+        "Quantum computing is a type of computation that uses quantum mechanical phenomena.[[cite:s0r0]] It uses qubits instead of classical bits, allowing for superposition and entanglement.[[cite:s0r1]] Applications include cryptography and drug discovery.[[cite:s0r2]]
+        
+        ---
+        💡 **Want to dive deeper?** I can conduct comprehensive research with multiple sources and a detailed report. Just say "go deeper"."
+        
+        ❌ WRONG BEHAVIOR:
+        - Writing a response with [[cite:s0r0]] WITHOUT first calling web_search
+        - Making up information without searching
+        - Including citation markers without actual results
+        - Using [[cite:s0r5]] when only 5 results were returned (valid range is s0r0-s0r4)
+        - Using citation IDs that are NOT in the "valid_citation_ids" list
+        - Mixing up citations from different searches (e.g., using s0r0 for info from search #1)
+      
+      tools:
+        # Web Search Tools for quick answers
+        - tool_type: builtin-group
+          group_name: web_search
+          tool_config:    
+            # API keys for web search
+            tavily_api_key: "${TAVILY_API_KEY}"
+            exa_api_key: "${EXA_API_KEY}"
+            brave_api_key: "${BRAVE_API_KEY}"
+            google_search_api_key: "${GOOGLE_SEARCH_API_KEY}"
+            google_cse_id: "${GOOGLE_CSE_ID}"
+        
+        # Deep Research Tool for comprehensive analysis
+        - tool_type: builtin
+          tool_name: deep_research
+          tool_config:
+            # Research parameters - set agent-level defaults
+            max_iterations: 5              # Default: 5 iterations for balanced research
+            max_runtime_seconds: 300       # Default: 5 minutes
+            sources: ["web"]               # Default sources
+      
+            # Web request limits
+            max_response_size_bytes: 5242880  # 5 MB limit for fetched web pages
+      
+            # API keys for web search (used by deep research)
+            tavily_api_key: "${TAVILY_API_KEY}"
+            google_search_api_key: "${GOOGLE_SEARCH_API_KEY}"
+            google_cse_id: "${GOOGLE_CSE_ID}"
+        
+        # Artifact management for deep research reports
+        - group_name: artifact_management
+          tool_type: builtin-group
+
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+      
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      enable_auto_continuation: true
+      max_llm_calls_per_task: 30  # Higher limit for iterative research
+      data_tools_config: *default_data_tools_config
+
+      # Agent Card Definition
+      agent_card:
+        version: "1.0.0"
+        description: |
+          Versatile research agent combining quick web search with comprehensive deep research.
+          
+          **Two-Tier Approach:**
+          
+          1. **Quick Search (Default)**
+             - Fast answers to most questions
+             - Concise summaries with citations
+             - Perfect for quick lookups and general queries
+          
+          2. **Deep Research (On Request)**
+             - Comprehensive multi-source analysis
+             - Iterative research with reflection
+             - Detailed reports with extensive citations
+             - Available when you need more depth
+          
+          **How It Works:**
+          - Ask any question and get a quick, helpful answer
+          - After each answer, you'll be offered the option for deeper research
+          - Say "go deeper" or "do deep research" for comprehensive analysis
+          
+          **Perfect For:**
+          - Quick fact-checking and lookups
+          - Current events and news
+          - General knowledge questions
+          - Comprehensive research reports (when requested)
+          - Multi-source analysis with citations
+          
+          **Tip:** Start with a question - you'll get a quick answer and can always dive deeper!
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills:
+          - id: "quick_search"
+            name: "Quick Web Search"
+            description: "Fast web searches for quick answers with citations. Default mode for most queries."
+          - id: "deep_research"
+            name: "Deep Research"
+            description: "Comprehensive research with multiple sources and detailed reports. Use when explicitly requested or when offered after quick search."
+          - id: "source_citation"
+            name: "Source Citation"
+            description: "Automatic citation of sources with links and metadata."
+      
+      # Discovery & Communication
+      agent_card_publishing:
+        interval_seconds: 10
+      agent_discovery:
+        enabled: true
+      inter_agent_communication:
+        allow_list: []
+        deny_list: ["ResearchAgent"]  # Prevent self-delegation
+        request_timeout_seconds: 600

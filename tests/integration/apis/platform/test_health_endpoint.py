@@ -6,11 +6,11 @@ Verifies that the Platform Service health check endpoint works correctly.
 
 
 class TestPlatformHealthEndpoint:
-    """Tests for the /health endpoint."""
+    """Tests for the /api/v1/platform/health endpoint."""
 
     def test_health_endpoint_returns_healthy(self, platform_api_client):
         """Test that health endpoint returns healthy status."""
-        response = platform_api_client.get("/health")
+        response = platform_api_client.get("/api/v1/platform/health")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
@@ -19,7 +19,7 @@ class TestPlatformHealthEndpoint:
 
     def test_health_endpoint_no_auth_required(self, platform_api_client):
         """Test that health endpoint doesn't require authentication."""
-        response = platform_api_client.get("/health")
+        response = platform_api_client.get("/api/v1/platform/health")
         assert response.status_code == 200
 
     def test_factory_initialization(self, platform_api_client_factory):

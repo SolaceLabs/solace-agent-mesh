@@ -320,20 +320,19 @@ async def upload_artifact_with_session(
             except ValueError:
                 log.warning("%s Invalid Content-Length header: %s", log_prefix, content_length)
         
-        # Read file content in chunks with size validation
+        # Validate file size by streaming through WITHOUT accumulating chunks in memory
         chunk_size = LOAD_FILE_CHUNK_SIZE
-        content_bytes = bytearray()
         total_bytes_read = 0
-        
+
         try:
+            # Step 1: Validate size by reading chunks (discard data, just count bytes)
             while True:
                 chunk = await upload_file.read(chunk_size)
                 if not chunk:
                     break  # End of file
-                
-                chunk_len = len(chunk)
-                total_bytes_read += chunk_len
-                
+
+                total_bytes_read += len(chunk)
+
                 # Validate size during reading (fail fast)
                 if total_bytes_read > max_upload_size:
                     error_msg = (
@@ -342,19 +341,20 @@ async def upload_artifact_with_session(
                         f"{total_bytes_read / (1024*1024):.2f} MB > {max_upload_size / (1024*1024):.2f} MB)"
                     )
                     log.warning("%s %s", log_prefix, error_msg)
-                    
+
                     raise HTTPException(
                         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                         detail=error_msg
                     )
-                
-                content_bytes.extend(chunk)
-            
-            # Convert to bytes for consistency with existing code
-            content_bytes = bytes(content_bytes)
-            
+
+            # Step 2: Size is valid - reset to beginning
+            await upload_file.seek(0)
+
+            # Step 3: Read all content at once
+            content_bytes = await upload_file.read()
+
             log.debug(
-                "%s File read successfully in chunks: %d bytes total",
+                "%s File validated (%d bytes) and loaded into memory",
                 log_prefix,
                 total_bytes_read
             )

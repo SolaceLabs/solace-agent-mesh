@@ -6,6 +6,7 @@ import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
+
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
 import { KnowledgeSection } from "./KnowledgeSection";
@@ -158,7 +159,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 </div>
 
                 {/* Right Panel - Metadata Sidebar */}
-                <div className="w-[40%] overflow-y-auto">
+                <div className="flex min-h-0 w-[40%] flex-col">
                     <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
 
                     <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />

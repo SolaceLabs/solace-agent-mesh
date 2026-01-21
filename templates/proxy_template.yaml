@@ -1,0 +1,62 @@
+# A2A Proxy Configuration File
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: a2a_proxy.log
+
+# Shared SAM config (includes broker connection details)
+!include ../shared_config.yaml
+
+apps:
+  - name: "__PROXY_NAME____app"
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.proxies.a2a.app 
+    broker:
+      <<: *broker_connection
+
+    # --- App Level Config for the Proxy ---
+    app_config:
+      namespace: ${NAMESPACE}
+
+      # Configuration for the artifact service used by the proxy itself.
+      # When the proxy receives an artifact from a downstream agent, it will
+      # store it here before forwarding it on the Solace mesh.
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace # Default scope, shares artifacts within the NAMESPACE
+
+      # How the proxy should handle artifacts it sends over Solace.
+      # 'reference': Sends an artifact:// URI.
+      # 'embed': Sends the full content base64 encoded.
+      artifact_handling_mode: "reference"
+
+      # Interval in seconds for the proxy to re-fetch agent cards from
+      # downstream agents. Set to 0 to disable periodic checks.
+      discovery_interval_seconds: 5
+      tools:
+        - group_name: artifact_management
+          tool_type: builtin-group
+
+      # --- List of Downstream Agents to Proxy ---
+      # A single proxy can manage multiple external agents.
+      # Each agent can have its own URL, authentication, and timeout settings.
+      proxied_agents:
+        # Example 1: A simple agent without authentication
+        - name: "HelloWorld" # The name this agent will have on the Solace mesh
+          url: "http://localhost:9999" # The real HTTP endpoint of the agent
+        
+        # Example 2: Another agent without authentication
+        - name: "AnalysisAgent"
+          url: "http://127.0.0.1:10001"
+        
+        # You can add more agents here with different configurations:
+        # - name: "SecureAgent"
+        #   url: "https://api.example.com/agent"
+        #   authentication:
+        #     type: "static_bearer"
+        #     token: "${SECURE_AGENT_TOKEN}"
+        #   request_timeout_seconds: 180
+        #   # use_agent_card_url: false  # If true (default), uses URL from agent card for tasks.
+        #                                # If false, uses configured URL directly for all calls.

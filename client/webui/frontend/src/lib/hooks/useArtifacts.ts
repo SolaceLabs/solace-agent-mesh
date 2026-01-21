@@ -11,6 +11,19 @@ interface UseArtifactsReturn {
     setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
 }
 
+/**
+ * Checks if an artifact is an intermediate web content artifact from deep research.
+ * These are temporary files that should not be shown in the files tab.
+ *
+ * @param filename The filename of the artifact to check.
+ * @returns True if the artifact is an intermediate web content artifact.
+ */
+const isIntermediateWebContentArtifact = (filename: string | undefined): boolean => {
+    if (!filename) return false;
+    // Skip web_content_ artifacts (temporary files from deep research)
+    return filename.startsWith("web_content_");
+};
+
 export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
     const { activeProject } = useProjectContext();
     const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
@@ -35,7 +48,9 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
             }
 
             const data: ArtifactInfo[] = await api.webui.get(endpoint);
-            const artifactsWithUris = data.map(artifact => ({
+            // Filter out intermediate web content artifacts from deep research
+            const filteredData = data.filter(artifact => !isIntermediateWebContentArtifact(artifact.filename));
+            const artifactsWithUris = filteredData.map(artifact => ({
                 ...artifact,
                 uri: artifact.uri || `artifact://${sessionId}/${artifact.filename}`,
             }));

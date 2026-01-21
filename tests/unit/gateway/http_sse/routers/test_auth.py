@@ -7,10 +7,16 @@ see tests/integration/apis/test_auth_api.py
 """
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from fastapi import HTTPException
+from unittest.mock import MagicMock, patch
 from fastapi.responses import RedirectResponse
 
+# Test if enterprise package is available
+try:
+    from solace_agent_mesh_enterprise.gateway.auth.internal import oauth_utils
+    ENTERPRISE_AVAILABLE = True
+except ImportError:
+    oauth_utils = None
+    ENTERPRISE_AVAILABLE = False
 
 class TestLogoutEndpoint:
     """Unit tests for the logout endpoint logic"""
@@ -19,6 +25,7 @@ class TestLogoutEndpoint:
     async def test_logout_clears_access_token_from_session(self):
         """Test that logout removes access_token from session"""
         from solace_agent_mesh.gateway.http_sse.routers.auth import logout
+        from fastapi import Response
 
         # Arrange: Create mock request with session containing access_token
         mock_request = MagicMock()
@@ -26,9 +33,10 @@ class TestLogoutEndpoint:
             'access_token': 'test-access-token',
             'other_data': 'should-also-be-cleared'
         }
+        response = Response()
 
         # Act: Call logout
-        result = await logout(mock_request)
+        result = await logout(mock_request, response)
 
         # Assert: access_token is removed from session
         assert 'access_token' not in mock_request.session
@@ -39,6 +47,7 @@ class TestLogoutEndpoint:
     async def test_logout_clears_refresh_token_from_session(self):
         """Test that logout removes refresh_token from session"""
         from solace_agent_mesh.gateway.http_sse.routers.auth import logout
+        from fastapi import Response
 
         # Arrange: Create mock request with session containing refresh_token
         mock_request = MagicMock()
@@ -46,9 +55,10 @@ class TestLogoutEndpoint:
             'access_token': 'test-access-token',
             'refresh_token': 'test-refresh-token'
         }
+        response = Response()
 
         # Act: Call logout
-        result = await logout(mock_request)
+        result = await logout(mock_request, response)
 
         # Assert: refresh_token is removed from session
         assert 'refresh_token' not in mock_request.session
@@ -56,8 +66,9 @@ class TestLogoutEndpoint:
 
     @pytest.mark.asyncio
     async def test_logout_clears_all_session_data(self):
-        """Test that logout clears all session data including tokens"""
+        """Test that logout clears all session data including tokens AND deletes session cookie"""
         from solace_agent_mesh.gateway.http_sse.routers.auth import logout
+        from fastapi import Response
 
         # Arrange: Create mock request with session containing multiple items
         mock_request = MagicMock()
@@ -67,9 +78,10 @@ class TestLogoutEndpoint:
             'user_id': 'test-user',
             'other_data': 'value'
         }
+        response = Response()
 
         # Act: Call logout
-        result = await logout(mock_request)
+        result = await logout(mock_request, response)
 
         # Assert: All session data is cleared
         assert len(mock_request.session) == 0
@@ -78,18 +90,27 @@ class TestLogoutEndpoint:
         assert 'user_id' not in mock_request.session
         assert 'other_data' not in mock_request.session
         assert result["success"] is True
+        
+        # Assert: Session cookie is deleted from response
+        assert "set-cookie" in response.headers
+        cookie_header = response.headers["set-cookie"]
+        assert "session=" in cookie_header
+        # Cookie deletion is indicated by Max-Age=0 or Expires in the past
+        assert "Max-Age=0" in cookie_header or "max-age=0" in cookie_header
 
     @pytest.mark.asyncio
     async def test_logout_is_idempotent_without_session(self):
         """Test that logout succeeds even when session has no tokens"""
         from solace_agent_mesh.gateway.http_sse.routers.auth import logout
+        from fastapi import Response
 
         # Arrange: Create mock request with empty session
         mock_request = MagicMock()
         mock_request.session = {}
+        response = Response()
 
         # Act: Call logout
-        result = await logout(mock_request)
+        result = await logout(mock_request, response)
 
         # Assert: Still returns success (idempotent)
         assert result["success"] is True
@@ -99,6 +120,7 @@ class TestLogoutEndpoint:
     async def test_logout_handles_session_without_access_token(self):
         """Test logout when session has refresh_token but no access_token"""
         from solace_agent_mesh.gateway.http_sse.routers.auth import logout
+        from fastapi import Response
 
         # Arrange: Session with only refresh_token
         mock_request = MagicMock()
@@ -106,9 +128,10 @@ class TestLogoutEndpoint:
             'refresh_token': 'test-refresh-token',
             'user_id': 'test-user'
         }
+        response = Response()
 
         # Act: Call logout
-        result = await logout(mock_request)
+        result = await logout(mock_request, response)
 
         # Assert: Clears all session data
         assert len(mock_request.session) == 0
@@ -119,6 +142,7 @@ class TestLogoutEndpoint:
     async def test_logout_handles_session_without_refresh_token(self):
         """Test logout when session has access_token but no refresh_token"""
         from solace_agent_mesh.gateway.http_sse.routers.auth import logout
+        from fastapi import Response
 
         # Arrange: Session with only access_token
         mock_request = MagicMock()
@@ -126,9 +150,10 @@ class TestLogoutEndpoint:
             'access_token': 'test-access-token',
             'user_id': 'test-user'
         }
+        response = Response()
 
         # Act: Call logout
-        result = await logout(mock_request)
+        result = await logout(mock_request, response)
 
         # Assert: Clears all session data
         assert len(mock_request.session) == 0
@@ -139,14 +164,16 @@ class TestLogoutEndpoint:
     async def test_logout_returns_success_even_on_exception(self):
         """Test that logout returns success even if an exception occurs (idempotent design)"""
         from solace_agent_mesh.gateway.http_sse.routers.auth import logout
+        from fastapi import Response
 
         # Arrange: Create mock request where session operations raise exceptions
         mock_request = MagicMock()
         mock_request.session = MagicMock()
         mock_request.session.__contains__ = MagicMock(side_effect=Exception("Test exception"))
+        response = Response()
 
         # Act: Call logout
-        result = await logout(mock_request)
+        result = await logout(mock_request, response)
 
         # Assert: Still returns success (graceful degradation)
         assert result["success"] is True
@@ -156,16 +183,40 @@ class TestLogoutEndpoint:
     async def test_logout_with_request_without_session_attribute(self):
         """Test logout handles request without session attribute gracefully"""
         from solace_agent_mesh.gateway.http_sse.routers.auth import logout
+        from fastapi import Response
 
         # Arrange: Create mock request without session attribute
         mock_request = MagicMock(spec=[])  # spec=[] means no attributes
+        response = Response()
 
         # Act: Call logout
-        result = await logout(mock_request)
+        result = await logout(mock_request, response)
 
         # Assert: Still returns success
         assert result["success"] is True
         assert result["message"] == "Logged out successfully"
+
+
+    @pytest.mark.asyncio
+    async def test_logout_deletes_session_cookie_with_correct_parameters(self):
+        """Test that logout deletes session cookie with correct path and samesite"""
+        from solace_agent_mesh.gateway.http_sse.routers.auth import logout
+        from fastapi import Response
+
+        # Arrange
+        mock_request = MagicMock()
+        mock_request.session = {'access_token': 'token'}
+        response = Response()
+
+        # Act
+        result = await logout(mock_request, response)
+
+        # Assert: Cookie parameters match SessionMiddleware defaults
+        cookie_header = response.headers.get("set-cookie", "")
+        assert "session=" in cookie_header
+        assert "Path=/" in cookie_header or "path=/" in cookie_header
+        assert "SameSite=lax" in cookie_header or "samesite=lax" in cookie_header.lower()
+        assert result["success"] is True
 
 
 class TestGetCsrfTokenEndpoint:
@@ -234,6 +285,7 @@ class TestGetCsrfTokenEndpoint:
         assert mock_token.call_count == 2
 
 
+@pytest.mark.skipif(not ENTERPRISE_AVAILABLE, reason="Enterprise package not available")
 class TestInitiateLoginEndpoint:
     """Unit tests for the initiate login endpoint logic"""
 

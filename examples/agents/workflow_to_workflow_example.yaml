@@ -1,0 +1,767 @@
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: workflow_to_workflow_example.log
+
+!include ../shared_config.yaml
+
+apps:
+  # ============================================================================
+  # WORKFLOW-TO-WORKFLOW INVOCATION EXAMPLE
+  # ============================================================================
+  #
+  # This example demonstrates the `workflow` node type that allows workflows
+  # to invoke other workflows as sub-workflows.
+  #
+  # Architecture:
+  # -------------
+  #   DataAnalysisPipeline (Parent Workflow)
+  #       |
+  #       +-- DataValidator (Agent) - Validates incoming data
+  #       |
+  #       +-- StatisticalAnalysisWorkflow (Sub-Workflow)
+  #       |       |
+  #       |       +-- DataNormalizer (Agent)
+  #       |       +-- StatisticsCalculator (Agent)
+  #       |
+  #       +-- ReportGenerationWorkflow (Sub-Workflow)
+  #       |       |
+  #       |       +-- InsightExtractor (Agent)
+  #       |       +-- ReportFormatter (Agent)
+  #       |
+  #       +-- SummaryGenerator (Agent) - Creates final summary
+  #
+  # This demonstrates:
+  # - Parent workflow invoking child workflows
+  # - Data flow between workflows via input/output mappings
+  # - Sequential sub-workflow invocations
+  # - max_call_depth configuration for recursion prevention
+  #
+  # ============================================================================
+
+
+  # ============================================================================
+  # SUPPORTING AGENTS
+  # ============================================================================
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Data Validator
+  # Validates incoming data structure and quality
+  # ----------------------------------------------------------------------------
+  - name: data_validator_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "DataValidator"
+      model: *planning_model
+
+      instruction: |
+        You validate incoming data for analysis.
+        1. Read 'dataset_name' and 'data_points' from input
+        2. Check if data_points is a non-empty array
+        3. Validate each data point has 'value' field
+        4. Create a JSON artifact with: {"valid": true/false, "dataset_name": <name>, "record_count": <count>, "validation_notes": <notes>}
+        5. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          dataset_name: {type: string}
+          data_points: {type: array, items: {type: object}}
+        required: [dataset_name, data_points]
+
+      output_schema:
+        type: object
+        properties:
+          valid: {type: boolean}
+          dataset_name: {type: string}
+          record_count: {type: integer}
+          validation_notes: {type: string}
+        required: [valid, dataset_name, record_count]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Validates data structure and quality"
+        skills: [{id: "validate_data", name: "Validate Data", description: "Validates datasets", tags: ["validation"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Data Normalizer
+  # Normalizes data values for statistical analysis
+  # ----------------------------------------------------------------------------
+  - name: data_normalizer_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "DataNormalizer"
+      model: *planning_model
+
+      instruction: |
+        You normalize data for statistical analysis.
+        1. Read 'data_points' from input
+        2. Calculate min and max values from the data
+        3. Create a JSON artifact with: {"normalized": true, "min_value": <min>, "max_value": <max>, "normalized_data": <array of normalized values 0-1>}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          data_points: {type: array, items: {type: object}}
+        required: [data_points]
+
+      output_schema:
+        type: object
+        properties:
+          normalized: {type: boolean}
+          min_value: {type: number}
+          max_value: {type: number}
+          normalized_data: {type: array, items: {type: number}}
+        required: [normalized, min_value, max_value]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Normalizes data values"
+        skills: [{id: "normalize_data", name: "Normalize Data", description: "Normalizes datasets", tags: ["normalization"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Statistics Calculator
+  # Calculates statistical measures
+  # ----------------------------------------------------------------------------
+  - name: statistics_calculator_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "StatisticsCalculator"
+      model: *planning_model
+
+      instruction: |
+        You calculate statistical measures from normalized data.
+        1. Read 'normalized_data', 'min_value', 'max_value' from input
+        2. Calculate mean, median, and standard deviation
+        3. Create a JSON artifact with: {"mean": <mean>, "median": <median>, "std_dev": <std>, "data_range": <max-min>, "sample_size": <count>}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          normalized_data: {type: array, items: {type: number}}
+          min_value: {type: number}
+          max_value: {type: number}
+        required: [normalized_data]
+
+      output_schema:
+        type: object
+        properties:
+          mean: {type: number}
+          median: {type: number}
+          std_dev: {type: number}
+          data_range: {type: number}
+          sample_size: {type: integer}
+        required: [mean, median, std_dev, sample_size]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Calculates statistical measures"
+        skills: [{id: "calculate_stats", name: "Calculate Statistics", description: "Computes statistics", tags: ["statistics"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Insight Extractor
+  # Extracts insights from statistical results
+  # ----------------------------------------------------------------------------
+  - name: insight_extractor_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "InsightExtractor"
+      model: *planning_model
+
+      instruction: |
+        You extract business insights from statistical analysis.
+        1. Read 'statistics' (mean, median, std_dev, etc.) from input
+        2. Identify key insights based on the statistics
+        3. Create a JSON artifact with: {"insights": [<list of insight strings>], "trend": "stable/increasing/decreasing", "anomaly_detected": true/false, "confidence_level": "high/medium/low"}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          statistics:
+            type: object
+            properties:
+              mean: {type: number}
+              median: {type: number}
+              std_dev: {type: number}
+              data_range: {type: number}
+              sample_size: {type: integer}
+        required: [statistics]
+
+      output_schema:
+        type: object
+        properties:
+          insights: {type: array, items: {type: string}}
+          trend: {type: string}
+          anomaly_detected: {type: boolean}
+          confidence_level: {type: string}
+        required: [insights, trend, confidence_level]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Extracts insights from statistics"
+        skills: [{id: "extract_insights", name: "Extract Insights", description: "Identifies insights", tags: ["insights"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Report Formatter
+  # Formats insights into a structured report
+  # ----------------------------------------------------------------------------
+  - name: report_formatter_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ReportFormatter"
+      model: *planning_model
+
+      instruction: |
+        You format insights into a structured report.
+        1. Read 'dataset_name', 'insights', 'trend', 'confidence_level' from input
+        2. Create a formatted report structure
+        3. Create a JSON artifact with: {"report_title": "Analysis Report: <dataset_name>", "sections": [{title: "Key Insights", content: <insights>}, {title: "Trend Analysis", content: <trend>}], "generated_at": <timestamp>, "confidence": <confidence_level>}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          dataset_name: {type: string}
+          insights: {type: array, items: {type: string}}
+          trend: {type: string}
+          confidence_level: {type: string}
+        required: [dataset_name, insights, trend]
+
+      output_schema:
+        type: object
+        properties:
+          report_title: {type: string}
+          sections: {type: array, items: {type: object}}
+          generated_at: {type: string}
+          confidence: {type: string}
+        required: [report_title, sections]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Formats analysis reports"
+        skills: [{id: "format_report", name: "Format Report", description: "Creates formatted reports", tags: ["reporting"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Summary Generator
+  # Creates final executive summary
+  # ----------------------------------------------------------------------------
+  - name: summary_generator_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "SummaryGenerator"
+      model: *planning_model
+
+      instruction: |
+        You create executive summaries of analysis pipelines.
+        1. Read 'dataset_name', 'statistics', 'report' from input
+        2. Create a concise executive summary
+        3. Create a JSON artifact with: {"executive_summary": <2-3 sentence summary>, "dataset_analyzed": <dataset_name>, "key_finding": <most important insight>, "recommendation": <action recommendation>, "pipeline_status": "completed"}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          dataset_name: {type: string}
+          statistics:
+            type: object
+            properties:
+              mean: {type: number}
+              median: {type: number}
+              std_dev: {type: number}
+          report:
+            type: object
+            properties:
+              report_title: {type: string}
+              sections: {type: array}
+        required: [dataset_name]
+
+      output_schema:
+        type: object
+        properties:
+          executive_summary: {type: string}
+          dataset_analyzed: {type: string}
+          key_finding: {type: string}
+          recommendation: {type: string}
+          pipeline_status: {type: string}
+        required: [executive_summary, dataset_analyzed, pipeline_status]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Generates executive summaries"
+        skills: [{id: "generate_summary", name: "Generate Summary", description: "Creates summaries", tags: ["summary"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+
+  # ============================================================================
+  # SUB-WORKFLOW: Statistical Analysis
+  # A reusable workflow for performing statistical analysis on data
+  # ============================================================================
+  - name: statistical_analysis_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "StatisticalAnalysisWorkflow"
+      display_name: "Statistical Analysis Workflow"
+
+      workflow:
+        version: "1.0.0"
+        description: |
+          A reusable sub-workflow that performs statistical analysis on data.
+
+          This workflow:
+          1. Normalizes the input data
+          2. Calculates statistical measures (mean, median, std_dev)
+
+          Designed to be invoked by parent workflows that need statistical analysis.
+
+        # max_call_depth prevents infinite recursion if workflows call each other
+        max_call_depth: 5
+
+        input_schema:
+          type: object
+          properties:
+            data_points:
+              type: array
+              description: "Array of data points to analyze"
+              items:
+                type: object
+                properties:
+                  value: {type: number}
+          required: [data_points]
+
+        output_schema:
+          type: object
+          properties:
+            mean: {type: number}
+            median: {type: number}
+            std_dev: {type: number}
+            data_range: {type: number}
+            sample_size: {type: integer}
+            normalized_data: {type: array, items: {type: number}}
+          required: [mean, median, std_dev, sample_size]
+
+        nodes:
+          # Step 1: Normalize the data
+          - id: normalize
+            type: agent
+            agent_name: "DataNormalizer"
+            instruction: |
+              Normalize the incoming data points for statistical analysis.
+              This is the first step in the statistical analysis sub-workflow.
+            input:
+              data_points: "{{workflow.input.data_points}}"
+
+          # Step 2: Calculate statistics on normalized data
+          - id: calculate_stats
+            type: agent
+            agent_name: "StatisticsCalculator"
+            depends_on: [normalize]
+            instruction: |
+              Calculate statistical measures from the normalized data.
+              Use the normalization results to compute mean, median, and standard deviation.
+            input:
+              normalized_data: "{{normalize.output.normalized_data}}"
+              min_value: "{{normalize.output.min_value}}"
+              max_value: "{{normalize.output.max_value}}"
+
+        output_mapping:
+          mean: "{{calculate_stats.output.mean}}"
+          median: "{{calculate_stats.output.median}}"
+          std_dev: "{{calculate_stats.output.std_dev}}"
+          data_range: "{{calculate_stats.output.data_range}}"
+          sample_size: "{{calculate_stats.output.sample_size}}"
+          normalized_data: "{{normalize.output.normalized_data}}"
+
+        skills:
+          - id: "statistical_analysis"
+            name: "Statistical Analysis"
+            description: "Performs statistical analysis on data"
+            tags: ["statistics", "analysis", "sub-workflow"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+
+  # ============================================================================
+  # SUB-WORKFLOW: Report Generation
+  # A reusable workflow for generating analysis reports
+  # ============================================================================
+  - name: report_generation_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ReportGenerationWorkflow"
+      display_name: "Report Generation Workflow"
+
+      workflow:
+        version: "1.0.0"
+        description: |
+          A reusable sub-workflow that generates analysis reports.
+
+          This workflow:
+          1. Extracts insights from statistical results
+          2. Formats the insights into a structured report
+
+          Designed to be invoked by parent workflows that need report generation.
+
+        # max_call_depth prevents infinite recursion if workflows call each other
+        max_call_depth: 5
+
+        input_schema:
+          type: object
+          properties:
+            dataset_name:
+              type: string
+              description: "Name of the dataset being analyzed"
+            statistics:
+              type: object
+              description: "Statistical results to generate report from"
+              properties:
+                mean: {type: number}
+                median: {type: number}
+                std_dev: {type: number}
+                data_range: {type: number}
+                sample_size: {type: integer}
+          required: [dataset_name, statistics]
+
+        output_schema:
+          type: object
+          properties:
+            report_title: {type: string}
+            sections: {type: array, items: {type: object}}
+            generated_at: {type: string}
+            confidence: {type: string}
+            insights: {type: array, items: {type: string}}
+            trend: {type: string}
+          required: [report_title, sections]
+
+        nodes:
+          # Step 1: Extract insights from statistics
+          - id: extract_insights
+            type: agent
+            agent_name: "InsightExtractor"
+            instruction: |
+              Extract business insights from the statistical analysis results.
+              Identify trends, anomalies, and key findings.
+            input:
+              statistics: "{{workflow.input.statistics}}"
+
+          # Step 2: Format into a structured report
+          - id: format_report
+            type: agent
+            agent_name: "ReportFormatter"
+            depends_on: [extract_insights]
+            instruction: |
+              Format the extracted insights into a professional analysis report.
+              Include sections for key insights and trend analysis.
+            input:
+              dataset_name: "{{workflow.input.dataset_name}}"
+              insights: "{{extract_insights.output.insights}}"
+              trend: "{{extract_insights.output.trend}}"
+              confidence_level: "{{extract_insights.output.confidence_level}}"
+
+        output_mapping:
+          report_title: "{{format_report.output.report_title}}"
+          sections: "{{format_report.output.sections}}"
+          generated_at: "{{format_report.output.generated_at}}"
+          confidence: "{{format_report.output.confidence}}"
+          insights: "{{extract_insights.output.insights}}"
+          trend: "{{extract_insights.output.trend}}"
+
+        skills:
+          - id: "report_generation"
+            name: "Report Generation"
+            description: "Generates analysis reports from statistics"
+            tags: ["reporting", "insights", "sub-workflow"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+
+  # ============================================================================
+  # PARENT WORKFLOW: Data Analysis Pipeline
+  # Orchestrates the complete analysis by invoking sub-workflows
+  # ============================================================================
+  - name: data_analysis_pipeline
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "DataAnalysisPipeline"
+      display_name: "Data Analysis Pipeline"
+
+      workflow:
+        version: "1.0.0"
+        description: |
+          A parent workflow that demonstrates workflow-to-workflow invocation.
+
+          This workflow orchestrates a complete data analysis pipeline by:
+          1. Validating incoming data (agent node)
+          2. Performing statistical analysis (workflow node - invokes StatisticalAnalysisWorkflow)
+          3. Generating a report (workflow node - invokes ReportGenerationWorkflow)
+          4. Creating an executive summary (agent node)
+
+          This demonstrates:
+          - The `workflow` node type for invoking sub-workflows
+          - Data flow between parent and child workflows via input/output mappings
+          - Sequential sub-workflow invocations
+          - Mixing agent nodes and workflow nodes in the same parent workflow
+
+        # max_call_depth limits recursion depth to prevent infinite loops
+        # Default is 10, but we set it explicitly here for demonstration
+        max_call_depth: 10
+
+        input_schema:
+          type: object
+          properties:
+            dataset_name:
+              type: string
+              description: "Name of the dataset to analyze"
+            data_points:
+              type: array
+              description: "Data points to analyze"
+              items:
+                type: object
+                properties:
+                  value:
+                    type: number
+                    description: "Numeric value for analysis"
+                required: [value]
+          required: [dataset_name, data_points]
+
+        output_schema:
+          type: object
+          properties:
+            executive_summary: {type: string}
+            dataset_analyzed: {type: string}
+            key_finding: {type: string}
+            recommendation: {type: string}
+            pipeline_status: {type: string}
+          required: [executive_summary, dataset_analyzed, pipeline_status]
+
+        nodes:
+          # ====================================================================
+          # STEP 1: AGENT NODE - Validate the incoming data
+          # ====================================================================
+          - id: validate_data
+            type: agent
+            agent_name: "DataValidator"
+            instruction: |
+              Validate the incoming dataset before analysis.
+              Check data structure and quality.
+            input:
+              dataset_name: "{{workflow.input.dataset_name}}"
+              data_points: "{{workflow.input.data_points}}"
+
+          # ====================================================================
+          # STEP 2: WORKFLOW NODE - Invoke Statistical Analysis sub-workflow
+          # This demonstrates the workflow node type!
+          # ====================================================================
+          - id: run_statistical_analysis
+            type: workflow
+            workflow_name: "StatisticalAnalysisWorkflow"
+            depends_on: [validate_data]
+            # Pass data to the sub-workflow via input mapping
+            input:
+              data_points: "{{workflow.input.data_points}}"
+            # Optional: Override schemas for this specific invocation
+            input_schema_override:
+              type: object
+              properties:
+                data_points:
+                  type: array
+                  description: "Validated data points for statistical analysis"
+                  items:
+                    type: object
+                    properties:
+                      value:
+                        type: number
+                    required: [value]
+              required: [data_points]
+
+          # ====================================================================
+          # STEP 3: WORKFLOW NODE - Invoke Report Generation sub-workflow
+          # Another workflow invocation, using output from the previous workflow
+          # ====================================================================
+          - id: run_report_generation
+            type: workflow
+            workflow_name: "ReportGenerationWorkflow"
+            depends_on: [run_statistical_analysis]
+            instruction: |
+              Generate a comprehensive analysis report based on the statistical results.
+              This sub-workflow will extract insights and format them into a report.
+            # Pass the statistical results to the report generation workflow
+            input:
+              dataset_name: "{{workflow.input.dataset_name}}"
+              statistics:
+                mean: "{{run_statistical_analysis.output.mean}}"
+                median: "{{run_statistical_analysis.output.median}}"
+                std_dev: "{{run_statistical_analysis.output.std_dev}}"
+                data_range: "{{run_statistical_analysis.output.data_range}}"
+                sample_size: "{{run_statistical_analysis.output.sample_size}}"
+
+          # ====================================================================
+          # STEP 4: AGENT NODE - Generate executive summary
+          # ====================================================================
+          - id: generate_summary
+            type: agent
+            agent_name: "SummaryGenerator"
+            depends_on: [run_report_generation]
+            instruction: |
+              Create an executive summary combining the statistical analysis
+              and report generation results. This is the final step in the pipeline.
+            input:
+              dataset_name: "{{workflow.input.dataset_name}}"
+              statistics:
+                mean: "{{run_statistical_analysis.output.mean}}"
+                median: "{{run_statistical_analysis.output.median}}"
+                std_dev: "{{run_statistical_analysis.output.std_dev}}"
+              report:
+                report_title: "{{run_report_generation.output.report_title}}"
+                sections: "{{run_report_generation.output.sections}}"
+
+        output_mapping:
+          executive_summary: "{{generate_summary.output.executive_summary}}"
+          dataset_analyzed: "{{generate_summary.output.dataset_analyzed}}"
+          key_finding: "{{generate_summary.output.key_finding}}"
+          recommendation: "{{generate_summary.output.recommendation}}"
+          pipeline_status: "{{generate_summary.output.pipeline_status}}"
+
+        skills:
+          - id: "analyze_data"
+            name: "Analyze Data"
+            description: "Runs complete data analysis pipeline with statistical analysis and report generation"
+            tags: ["analysis", "pipeline", "workflow-orchestration"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }

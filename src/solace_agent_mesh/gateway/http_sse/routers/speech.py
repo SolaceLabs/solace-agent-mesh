@@ -23,6 +23,15 @@ class TTSRequest(BaseModel):
     voice: Optional[str] = None
     messageId: Optional[str] = None
     provider: Optional[str] = None
+    preprocess_markdown: bool = True  # Strip markdown syntax for natural speech
+
+
+class PreprocessRequest(BaseModel):
+    """Request model for markdown preprocessing"""
+    text: str
+    read_code_blocks: bool = False
+    read_images: bool = True
+    read_citations: bool = True
 
 
 class StreamTTSRequest(BaseModel):
@@ -31,6 +40,7 @@ class StreamTTSRequest(BaseModel):
     voice: Optional[str] = None
     runId: Optional[str] = None
     provider: Optional[str] = None
+    preprocess_markdown: bool = True  # Strip markdown syntax for natural speech
 
 
 @router.post("/stt")
@@ -141,7 +151,8 @@ async def text_to_speech(
             session_id=user.get("session_id", "default"),
             app_name=user.get("app_name", "webui"),
             message_id=request.messageId,
-            provider=request.provider  # NEW: Pass provider from request
+            provider=request.provider,
+            preprocess_markdown=request.preprocess_markdown
         )
         
         return Response(
@@ -202,7 +213,8 @@ async def stream_audio(
                 user_id=user.get("user_id", "anonymous"),
                 session_id=user.get("session_id", "default"),
                 app_name=user.get("app_name", "webui"),
-                provider=request.provider  # Pass provider from request
+                provider=request.provider,
+                preprocess_markdown=request.preprocess_markdown
             ):
                 yield chunk
         
@@ -300,6 +312,79 @@ async def get_speech_config(
         raise HTTPException(500, f"Failed to get config: {str(e)}")
 
 
+@router.post("/preprocess")
+async def preprocess_markdown(
+    request: PreprocessRequest,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Preprocess markdown text for natural speech.
+    
+    This endpoint converts markdown-formatted text to plain text suitable for
+    Text-to-Speech engines. It removes markdown syntax while preserving the
+    semantic meaning of the content.
+    
+    This is useful for browser-based TTS which doesn't go through the backend
+    TTS pipeline that normally handles preprocessing.
+    
+    Args:
+        request: Preprocess request with text and options
+        user: Current authenticated user
+    
+    Returns:
+        JSON with preprocessed text:
+        {
+            "text": "preprocessed plain text",
+            "original_length": 150,
+            "processed_length": 120
+        }
+    
+    Raises:
+        HTTPException: If preprocessing fails
+    """
+    log.debug(
+        "[SpeechAPI] Preprocess request from user=%s, text_len=%d",
+        user.get("user_id"),
+        len(request.text)
+    )
+    
+    try:
+        # Validate input
+        if not request.text:
+            return {
+                "text": "",
+                "original_length": 0,
+                "processed_length": 0
+            }
+        
+        # Import and use the backend markdown_to_speech utility
+        from solace_agent_mesh.common.utils.markdown_to_speech import (
+            markdown_to_speech,
+            MarkdownToSpeechOptions
+        )
+        
+        original_length = len(request.text)
+        
+        # Create options object with the request parameters
+        options = MarkdownToSpeechOptions(
+            read_code_blocks=request.read_code_blocks,
+            read_images=request.read_images,
+            read_citations=request.read_citations
+        )
+        
+        processed_text = markdown_to_speech(request.text, options=options)
+        
+        return {
+            "text": processed_text,
+            "original_length": original_length,
+            "processed_length": len(processed_text)
+        }
+        
+    except Exception as e:
+        log.exception("[SpeechAPI] Preprocess error: %s", e)
+        raise HTTPException(500, f"Preprocessing failed: {str(e)}")
+
+
 @router.post("/voice-sample")
 async def get_voice_sample(
     voice: str = Form(...),
@@ -340,7 +425,8 @@ async def get_voice_sample(
             session_id=user.get("session_id", "default"),
             app_name=user.get("app_name", "webui"),
             message_id=f"voice_sample_{voice}",
-            provider=provider
+            provider=provider,
+            preprocess_markdown=False  # Sample text has no markdown
         )
         
         return Response(

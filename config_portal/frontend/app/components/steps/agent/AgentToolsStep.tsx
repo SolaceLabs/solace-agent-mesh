@@ -8,6 +8,8 @@ import Modal from "../../ui/Modal";
 import { InfoBox } from "../../ui/InfoBoxes";
 import ChipInput from "../../ui/ChipInput";
 import AutocompleteInput from "../../ui/AutocompleteInput";
+import KeyValueInput from "../../ui/KeyValueInput";
+import ListInput from "../../ui/ListInput";
 
 export interface Tool {
   id?: string;
@@ -18,14 +20,37 @@ export interface Tool {
   component_module?: string;
   function_name?: string;
   component_base_path?: string;
-  connection_params_str?: string;
-  environment_variables_str?: string;
-  tool_config_str?: string;
+
+  // Structured versions for UI
+  environment_variables_ui?: Record<string, string>;
+  tool_config_ui?: Record<string, string>;
 
   connection_params?: Record<string, unknown>;
   environment_variables?: Record<string, unknown>;
   required_scopes?: string[];
   tool_config?: Record<string, unknown>;
+
+  // MCP transport-specific fields
+  transport_type?: "stdio" | "sse" | "streamable-http" | "";
+  // stdio fields
+  stdio_command?: string;
+  stdio_args?: string[];
+  // sse fields
+  sse_url?: string;
+  // streamable-http fields
+  streamable_http_url?: string;
+
+  // MCP timeout field (applies to all transports)
+  mcp_timeout?: number;
+
+  // MCP auth fields
+  auth_type?: "none" | "api_key" | "bearer" | "oauth2" | "";
+  // api_key / bearer fields
+  auth_token?: string;
+  auth_header_name?: string; // For api_key (e.g., "X-API-Key")
+  // oauth2 fields
+  oauth_client_id?: string;
+  oauth_client_secret?: string;
 }
 
 const initialToolState: Tool = {
@@ -37,33 +62,26 @@ const initialToolState: Tool = {
   component_module: "",
   function_name: "",
   component_base_path: "",
-  connection_params_str: "{}",
-  environment_variables_str: "{}",
-  tool_config_str: "{}",
   connection_params: undefined,
   environment_variables: undefined,
   required_scopes: [],
   tool_config: undefined,
+  environment_variables_ui: {},
+  tool_config_ui: {},
+  transport_type: "",
+  stdio_command: "",
+  stdio_args: [],
+  sse_url: "",
+  streamable_http_url: "",
+  mcp_timeout: 30,
+  auth_type: "",
+  auth_token: "",
+  auth_header_name: "",
+  oauth_client_id: "",
+  oauth_client_secret: "",
 };
 
-const parseJsonString = (
-  jsonStr: string | undefined,
-  defaultValue: Record<string, unknown> | undefined = undefined
-): Record<string, unknown> | undefined => {
-  if (jsonStr === undefined || jsonStr.trim() === "" || jsonStr.trim() === "{}")
-    return defaultValue;
-  try {
-    const parsed = JSON.parse(jsonStr);
-    return typeof parsed === "object" &&
-      parsed !== null &&
-      !Array.isArray(parsed)
-      ? parsed
-      : defaultValue;
-  } catch (e) {
-    console.warn("Failed to parse JSON string:", jsonStr, e);
-    return defaultValue;
-  }
-};
+
 
 const AgentToolsStep: React.FC<StepProps> = ({
   data,
@@ -100,23 +118,63 @@ const AgentToolsStep: React.FC<StepProps> = ({
     } else {
       setModalView("custom");
     }
+
+    // Extract transport-specific fields from connection_params for MCP tools
+    // Also extract UI-friendly versions of environment_variables and tool_config
+    let transportFields: Partial<Tool> = {};
+
+    // Convert environment_variables and tool_config to UI format
+    const envVarsUI: Record<string, string> = {};
+    if (tool.environment_variables && typeof tool.environment_variables === "object") {
+      Object.entries(tool.environment_variables).forEach(([key, value]) => {
+        envVarsUI[key] = String(value);
+      });
+    }
+
+    const toolConfigUI: Record<string, string> = {};
+    if (tool.tool_config && typeof tool.tool_config === "object") {
+      Object.entries(tool.tool_config).forEach(([key, value]) => {
+        toolConfigUI[key] = String(value);
+      });
+    }
+
+    if (tool.tool_type === "mcp" && tool.connection_params) {
+      const cp = tool.connection_params;
+      const type = cp.type as string;
+
+      if (type === "stdio") {
+        transportFields = {
+          transport_type: "stdio",
+          stdio_command: cp.command as string || "",
+          stdio_args: Array.isArray(cp.args) ? cp.args as string[] : [],
+          mcp_timeout: (cp.timeout as number) || 30,
+        };
+      } else if (type === "sse") {
+        transportFields = {
+          transport_type: "sse",
+          sse_url: cp.url as string || "",
+          mcp_timeout: (cp.timeout as number) || 30,
+        };
+      } else if (type === "streamable-http") {
+        transportFields = {
+          transport_type: "streamable-http",
+          streamable_http_url: cp.url as string || "",
+          mcp_timeout: (cp.timeout as number) || 30,
+        };
+      }
+    }
+
     const toolForEdit: Tool = {
       ...initialToolState,
       ...tool,
+      ...transportFields,
       id: tool.id || Date.now().toString(),
       tool_type: tool.tool_type || "",
-      connection_params_str: tool.connection_params
-        ? JSON.stringify(tool.connection_params, null, 2)
-        : "{}",
-      environment_variables_str: tool.environment_variables
-        ? JSON.stringify(tool.environment_variables, null, 2)
-        : "{}",
-      tool_config_str: tool.tool_config
-        ? JSON.stringify(tool.tool_config, null, 2)
-        : "{}",
       required_scopes: Array.isArray(tool.required_scopes)
         ? tool.required_scopes
         : [],
+      environment_variables_ui: envVarsUI,
+      tool_config_ui: toolConfigUI,
     };
     setCurrentTool(toolForEdit);
     setEditingToolId(tool.id || null);
@@ -129,51 +187,26 @@ const AgentToolsStep: React.FC<StepProps> = ({
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     >
   ) => {
-    const { name, value } = e.target;
-    setCurrentTool((prev) => ({ ...prev, [name]: value }));
+    const { name, value }: { name: string; value: string } = e.target;
 
-    if (
-      name === "connection_params_str" ||
-      name === "environment_variables_str" ||
-      name === "tool_config_str"
-    ) {
-      if (value.trim() === "" || value.trim() === "{}") {
-        setFormErrors((prev) => ({ ...prev, [name]: undefined }));
-      } else {
-        try {
-          const parsed = JSON.parse(value);
-          if (
-            typeof parsed !== "object" ||
-            parsed === null ||
-            Array.isArray(parsed)
-          ) {
-            setFormErrors((prev) => ({
-              ...prev,
-              [name]: "Must be a valid JSON object.",
-            }));
-          } else if (
-            name === "connection_params_str" &&
-            (!parsed.type || !parsed.command || !parsed.args)
-          ) {
-            setFormErrors((prev) => ({
-              ...prev,
-              [name]:
-                "Connection parameters must include type, command, and args.",
-            }));
-          } else {
-            setFormErrors((prev) => ({ ...prev, [name]: undefined }));
-          }
-        } catch (error) {
-          setFormErrors((prev) => ({
-            ...prev,
-            [name]: "Invalid JSON format.",
-          }));
-        }
-      }
+    // Handle number fields
+    if (name === "mcp_timeout") {
+      const numValue = value === "" ? 30 : parseInt(value, 10);
+      setCurrentTool((prev) => ({ ...prev, [name]: numValue }));
+    } else {
+      setCurrentTool((prev) => ({ ...prev, [name]: value }));
     }
   };
 
   const handleChipInputChange = (fieldName: keyof Tool, values: string[]) => {
+    setCurrentTool((prev) => ({ ...prev, [fieldName]: values }));
+  };
+
+  const handleListInputChange = (fieldName: keyof Tool, values: string[]) => {
+    setCurrentTool((prev) => ({ ...prev, [fieldName]: values }));
+  };
+
+  const handleKeyValueInputChange = (fieldName: keyof Tool, values: Record<string, string>) => {
     setCurrentTool((prev) => ({ ...prev, [fieldName]: values }));
   };
 
@@ -192,37 +225,60 @@ const AgentToolsStep: React.FC<StepProps> = ({
       if (!currentTool.function_name)
         errors.function_name = "Function name is required.";
     } else if (currentTool.tool_type === "mcp") {
-      if (
-        !currentTool.connection_params_str ||
-        currentTool.connection_params_str.trim() === "{}"
-      ) {
-        errors.connection_params_str =
-          "Connection parameters are required for MCP tools.";
+      if (!currentTool.transport_type) {
+        errors.transport_type = "Transport type is required for MCP tools.";
+      } else if (currentTool.transport_type === "stdio") {
+        if (!currentTool.stdio_command)
+          errors.stdio_command = "Command is required for stdio transport.";
+      } else if (currentTool.transport_type === "sse") {
+        if (!currentTool.sse_url)
+          errors.sse_url = "URL is required for SSE transport.";
+      } else if (currentTool.transport_type === "streamable-http") {
+        if (!currentTool.streamable_http_url)
+          errors.streamable_http_url = "URL is required for streamable-http transport.";
+      }
+
+      // Validate auth fields
+      if (currentTool.auth_type === "api_key") {
+        if (!currentTool.auth_header_name)
+          errors.auth_header_name = "Header name is required for API key authentication.";
+        if (!currentTool.auth_token)
+          errors.auth_token = "API key is required for API key authentication.";
+      } else if (currentTool.auth_type === "bearer") {
+        if (!currentTool.auth_token)
+          errors.auth_token = "Bearer token is required for bearer authentication.";
       }
     }
-    if (currentTool.connection_params_str)
-      try {
-        parseJsonString(currentTool.connection_params_str, undefined);
-      } catch (e) {
-        errors.connection_params_str =
-          "Invalid JSON format for Connection Parameters.";
-      }
-    if (currentTool.environment_variables_str)
-      try {
-        parseJsonString(currentTool.environment_variables_str, undefined);
-      } catch (e) {
-        errors.environment_variables_str =
-          "Invalid JSON format for Environment Variables.";
-      }
-    if (currentTool.tool_config_str)
-      try {
-        parseJsonString(currentTool.tool_config_str, undefined);
-      } catch (e) {
-        errors.tool_config_str = "Invalid JSON format for Tool Config.";
-      }
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
+  };
+
+  const buildMcpAuth = (): { auth?: Record<string, string>; headers?: Record<string, string> } => {
+    const result: { auth?: Record<string, string>; headers?: Record<string, string> } = {};
+
+    if (currentTool.auth_type === "oauth2") {
+      const mcp_auth: Record<string, string> = { type: "oauth2" };
+      if (currentTool.oauth_client_id) {
+        mcp_auth.client_id = currentTool.oauth_client_id;
+      }
+      if (currentTool.oauth_client_secret) {
+        mcp_auth.client_secret = currentTool.oauth_client_secret;
+      }
+      result.auth = mcp_auth;
+    } else if (currentTool.auth_type === "bearer" || currentTool.auth_type === "api_key") {
+      const headers: Record<string, string> = {};
+      if (currentTool.auth_type === "bearer" && currentTool.auth_token) {
+        headers.Authorization = `Bearer ${currentTool.auth_token}`;
+      } else if (currentTool.auth_type === "api_key" && currentTool.auth_token && currentTool.auth_header_name) {
+        headers[currentTool.auth_header_name] = currentTool.auth_token;
+      }
+      if (Object.keys(headers).length > 0) {
+        result.headers = headers;
+      }
+    }
+
+    return result;
   };
 
   const handleSaveTool = () => {
@@ -250,26 +306,113 @@ const AgentToolsStep: React.FC<StepProps> = ({
           component_module: currentTool.component_module || undefined,
           function_name: currentTool.function_name || undefined,
           component_base_path: currentTool.component_base_path || undefined,
-          tool_config: parseJsonString(currentTool.tool_config_str, undefined),
+          tool_config: currentTool.tool_config_ui && Object.keys(currentTool.tool_config_ui).length > 0
+            ? currentTool.tool_config_ui
+            : undefined,
           required_scopes: currentTool.required_scopes || [],
         };
         break;
-      case "mcp":
-        processedTool = {
-          ...baseTool,
-          tool_name: currentTool.tool_name || undefined,
-          connection_params: parseJsonString(
-            currentTool.connection_params_str,
-            undefined
-          ),
-          environment_variables: parseJsonString(
-            currentTool.environment_variables_str,
-            undefined
-          ),
-          tool_config: parseJsonString(currentTool.tool_config_str, undefined),
-          required_scopes: currentTool.required_scopes || [],
+      case "mcp": {
+        // Build connection_params from transport-specific fields
+        let connection_params: Record<string, unknown> = {};
+        let mcp_auth: Record<string, string> | undefined;
+
+        if (currentTool.transport_type === "stdio") {
+          connection_params = {
+            type: "stdio",
+            command: currentTool.stdio_command,
+            args: currentTool.stdio_args || [],
+            timeout: currentTool.mcp_timeout || 30,
+          };
+        } else if (currentTool.transport_type === "sse") {
+          connection_params = {
+            type: "sse",
+            url: currentTool.sse_url,
+            timeout: currentTool.mcp_timeout || 30,
+          };
+
+          // Build authentication
+          const authResult = buildMcpAuth();
+          if (authResult.auth) {
+            mcp_auth = authResult.auth;
+          }
+          if (authResult.headers) {
+            connection_params.headers = authResult.headers;
+          }
+        } else if (currentTool.transport_type === "streamable-http") {
+          connection_params = {
+            type: "streamable-http",
+            url: currentTool.streamable_http_url,
+            timeout: currentTool.mcp_timeout || 30,
+          };
+
+          // Build authentication
+          const authResult = buildMcpAuth();
+          if (authResult.auth) {
+            mcp_auth = authResult.auth;
+          }
+          if (authResult.headers) {
+            connection_params.headers = authResult.headers;
+          }
+        }
+
+        // Build environment_variables and tool_config from UI fields
+        const environment_variables = currentTool.environment_variables_ui && Object.keys(currentTool.environment_variables_ui).length > 0
+          ? currentTool.environment_variables_ui
+          : undefined;
+
+        const tool_config = currentTool.tool_config_ui && Object.keys(currentTool.tool_config_ui).length > 0
+          ? currentTool.tool_config_ui
+          : undefined;
+
+        // Build processedTool with explicit field ordering - tool_type MUST be first
+        const toolAsRecord: Record<string, unknown> = {
+          id: baseTool.id,
+          tool_type: baseTool.tool_type,
         };
+
+        // Add optional fields in preferred order after tool_type
+        if (currentTool.tool_name) {
+          toolAsRecord.tool_name = currentTool.tool_name;
+        }
+        toolAsRecord.connection_params = connection_params;
+        if (mcp_auth) {
+          toolAsRecord.auth = mcp_auth;
+        }
+        if (environment_variables) {
+          toolAsRecord.environment_variables = environment_variables;
+        }
+        if (tool_config) {
+          toolAsRecord.tool_config = tool_config;
+        }
+        if (currentTool.required_scopes && currentTool.required_scopes.length > 0) {
+          toolAsRecord.required_scopes = currentTool.required_scopes;
+        }
+
+        // Store auth fields separately for easy re-editing
+        if (currentTool.auth_type && currentTool.auth_type !== "none") {
+          toolAsRecord.auth_type = currentTool.auth_type;
+
+          if (currentTool.auth_type === "oauth2") {
+            if (currentTool.oauth_client_id) {
+              toolAsRecord.oauth_client_id = currentTool.oauth_client_id;
+            }
+            if (currentTool.oauth_client_secret) {
+              toolAsRecord.oauth_client_secret = currentTool.oauth_client_secret;
+            }
+          } else if (currentTool.auth_type === "bearer" || currentTool.auth_type === "api_key") {
+            if (currentTool.auth_token) {
+              toolAsRecord.auth_token = currentTool.auth_token;
+            }
+            if (currentTool.auth_type === "api_key" && currentTool.auth_header_name) {
+              toolAsRecord.auth_header_name = currentTool.auth_header_name;
+            }
+          }
+        }
+
+        processedTool = toolAsRecord as unknown as Tool;
         break;
+      }
       default:
         setIsModalOpen(false);
         return;
@@ -283,6 +426,31 @@ const AgentToolsStep: React.FC<StepProps> = ({
     } else {
       newToolsList = [...toolsList, processedTool];
     }
+
+    // Auto-include web tool group for remote MCP transports
+    const transportType =
+      (processedTool.connection_params as { type?: string } | undefined)?.type ??
+      currentTool.transport_type;
+    if (
+      processedTool.tool_type === "mcp" &&
+      (transportType === "sse" || transportType === "streamable-http")
+    ) {
+      const hasWebTool = newToolsList.some(
+        (t) =>
+          (t.tool_type === "builtin-group" && t.group_name === "web") ||
+          (t.tool_type === "builtin" && t.tool_name === "web_request")
+      );
+
+      if (!hasWebTool) {
+        const webToolGroup: Tool = {
+          id: `web_auto_${Date.now()}`,
+          tool_type: "builtin-group",
+          group_name: "web",
+        };
+        newToolsList.push(webToolGroup);
+      }
+    }
+
     updateData({ tools: newToolsList });
     setIsModalOpen(false);
     setEditingToolId(null);
@@ -297,6 +465,12 @@ const AgentToolsStep: React.FC<StepProps> = ({
     const props = [];
     if (tool.tool_type === "builtin-group") {
       props.push(`Group: ${tool.group_name}`);
+    } else if (tool.tool_type === "mcp") {
+      // Extract transport type from connection_params
+      const transportType = tool.connection_params?.type as string | undefined;
+      if (transportType) {
+        props.push(`Transport: ${transportType}`);
+      }
     } else if (tool.tool_name) {
       props.push(`Name: ${tool.tool_name}`);
     } else if (tool.tool_type === "python" && tool.function_name) {
@@ -343,6 +517,11 @@ const AgentToolsStep: React.FC<StepProps> = ({
                 <tr key={tool.id || index}>
                   <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-700">
                     {tool.tool_type}
+                    {tool.id?.startsWith("web_auto_") && (
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                        Auto-added
+                      </span>
+                    )}
                   </td>
                   <td
                     className="px-4 py-2 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate"
@@ -587,33 +766,285 @@ const AgentToolsStep: React.FC<StepProps> = ({
                         onChange={handleModalChange}
                       />
                     </FormField>
+
                     <FormField
-                      label="Connection Parameters (JSON)"
-                      htmlFor="connection_params_str"
-                      error={formErrors.connection_params_str}
-                      helpText='E.g., {"type": "stdio", "command": "cmd", "args":[]}'
+                      label="Transport Type"
+                      htmlFor="transport_type"
+                      error={formErrors.transport_type}
+                      required
                     >
-                      <textarea
-                        id="connection_params_str"
-                        name="connection_params_str"
-                        rows={4}
-                        value={currentTool.connection_params_str || "{}"}
+                      <Select
+                        id="transport_type"
+                        name="transport_type"
+                        value={currentTool.transport_type || ""}
                         onChange={handleModalChange}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-solace-blue focus:border-solace-blue sm:text-sm font-mono text-xs"
+                        options={[
+                          { value: "", label: "Select transport type..." },
+                          { value: "stdio", label: "stdio - Standard Input/Output" },
+                          { value: "sse", label: "sse - Server-Sent Events" },
+                          { value: "streamable-http", label: "streamable-http - Streamable HTTP" },
+                        ]}
                       />
                     </FormField>
+
+                    {currentTool.transport_type === "stdio" && (
+                      <>
+                        <InfoBox>
+                          <strong>Example stdio configuration:</strong>
+                          <br />
+                          Command: <code>npx</code>
+                          <br />
+                          Arguments (in order):
+                          <br />
+                          &nbsp;&nbsp;1. <code>-y</code>
+                          <br />
+                          &nbsp;&nbsp;2. <code>@modelcontextprotocol/server-filesystem</code>
+                          <br />
+                          &nbsp;&nbsp;3. <code>/path/to/allowed/directory</code>
+                          <br />
+                          <em>Do not include quotation marks when entering arguments.</em>
+                        </InfoBox>
+                        <FormField
+                          label="Command"
+                          htmlFor="stdio_command"
+                          error={formErrors.stdio_command}
+                          required
+                          helpText="The command to execute (e.g., 'python', 'node', 'npx')"
+                        >
+                          <Input
+                            id="stdio_command"
+                            name="stdio_command"
+                            value={currentTool.stdio_command || ""}
+                            onChange={handleModalChange}
+                            placeholder="e.g., npx"
+                          />
+                        </FormField>
+                        <ListInput
+                          id="stdio_args"
+                          label="Arguments"
+                          values={currentTool.stdio_args || []}
+                          onChange={(values) => handleListInputChange("stdio_args", values)}
+                          error={formErrors.stdio_args}
+                          helpText="Command line arguments in order. Enter each argument separately without quotes."
+                          placeholder="No arguments added yet"
+                          itemPlaceholder="e.g., -y or /path/to/directory"
+                        />
+                      </>
+                    )}
+
+                    {currentTool.transport_type === "sse" && (
+                      <>
+                        <InfoBox>
+                          <strong>📡 Remote MCP Server</strong>
+                          <br />
+                          SSE transport connects to remote servers over HTTP. The <strong>web</strong> builtin tool group will be automatically included in your agent configuration to enable network access.
+                        </InfoBox>
+                        <FormField
+                          label="URL"
+                          htmlFor="sse_url"
+                          error={formErrors.sse_url}
+                          required
+                          helpText="The SSE endpoint URL"
+                        >
+                          <Input
+                            id="sse_url"
+                            name="sse_url"
+                            value={currentTool.sse_url || ""}
+                            onChange={handleModalChange}
+                            placeholder="https://mcp.example.com/v1/sse"
+                          />
+                        </FormField>
+                      </>
+                    )}
+
+                    {currentTool.transport_type === "streamable-http" && (
+                      <>
+                        <InfoBox>
+                          <strong>📡 Remote MCP Server</strong>
+                          <br />
+                          Streamable HTTP transport connects to remote servers over HTTP. The <strong>web</strong> builtin tool group will be automatically included in your agent configuration to enable network access.
+                        </InfoBox>
+                        <FormField
+                          label="URL"
+                          htmlFor="streamable_http_url"
+                          error={formErrors.streamable_http_url}
+                          required
+                          helpText="The streamable HTTP endpoint URL"
+                        >
+                          <Input
+                            id="streamable_http_url"
+                            name="streamable_http_url"
+                            value={currentTool.streamable_http_url || ""}
+                            onChange={handleModalChange}
+                            placeholder="https://mcp.example.com:port/mcp/message"
+                          />
+                        </FormField>
+                      </>
+                    )}
+
+                    {currentTool.transport_type === "stdio" && (
+                      <KeyValueInput
+                        id="environment_variables_ui"
+                        label="Environment Variables (Optional)"
+                        values={currentTool.environment_variables_ui || {}}
+                        onChange={(values) => handleKeyValueInputChange("environment_variables_ui", values)}
+                        error={formErrors.environment_variables_ui}
+                        helpText="Environment variables passed to the MCP server process (e.g., API keys, paths). Can use ${VAR} syntax."
+                        placeholder="No environment variables added"
+                        keyPlaceholder="Variable name (e.g., CONFLUENCE_URL)"
+                        valuePlaceholder="Variable value (e.g., ${CONFLUENCE_URL})"
+                      />
+                    )}
+
+                    {(currentTool.transport_type === "sse" || currentTool.transport_type === "streamable-http") && (
+                      <FormField
+                        label="Authentication Type (Optional)"
+                        htmlFor="auth_type"
+                        helpText="Configure authentication for the MCP server"
+                      >
+                        <Select
+                          id="auth_type"
+                          name="auth_type"
+                          value={currentTool.auth_type || ""}
+                          onChange={handleModalChange}
+                          options={[
+                            { value: "", label: "No authentication" },
+                            { value: "api_key", label: "API Key" },
+                            { value: "bearer", label: "Bearer Token" },
+                            { value: "oauth2", label: "OAuth 2.0 (Requires Enterprise License)" },
+                          ]}
+                        />
+                      </FormField>
+                    )}
+
+                    {(currentTool.transport_type === "sse" || currentTool.transport_type === "streamable-http") && currentTool.auth_type === "api_key" && (
+                      <>
+                        <FormField
+                          label="Header Name"
+                          htmlFor="auth_header_name"
+                          required
+                          error={formErrors.auth_header_name}
+                          helpText="The HTTP header name for the API key"
+                        >
+                          <Input
+                            id="auth_header_name"
+                            name="auth_header_name"
+                            value={currentTool.auth_header_name || ""}
+                            onChange={handleModalChange}
+                            placeholder="e.g., X-API-Key"
+                          />
+                        </FormField>
+                        <FormField
+                          label="API Key"
+                          htmlFor="auth_token"
+                          required
+                          error={formErrors.auth_token}
+                          helpText="The API key value (can use environment variables like ${API_KEY})"
+                        >
+                          <Input
+                            id="auth_token"
+                            name="auth_token"
+                            value={currentTool.auth_token || ""}
+                            onChange={handleModalChange}
+                            placeholder="e.g., ${MCP_API_KEY}"
+                          />
+                        </FormField>
+                      </>
+                    )}
+
+                    {(currentTool.transport_type === "sse" || currentTool.transport_type === "streamable-http") && currentTool.auth_type === "bearer" && (
+                      <FormField
+                        label="Bearer Token"
+                        htmlFor="auth_token"
+                        required
+                        error={formErrors.auth_token}
+                        helpText="The bearer token value (can use environment variables like ${TOKEN})"
+                      >
+                        <Input
+                          id="auth_token"
+                          name="auth_token"
+                          value={currentTool.auth_token || ""}
+                          onChange={handleModalChange}
+                          placeholder="e.g., ${MCP_BEARER_TOKEN}"
+                        />
+                      </FormField>
+                    )}
+
+                    {(currentTool.transport_type === "sse" || currentTool.transport_type === "streamable-http") && currentTool.auth_type === "oauth2" && (
+                      <>
+                        <InfoBox>
+                          <strong>⚠️ Enterprise Feature</strong>
+                          <br />
+                          OAuth 2.0 authentication requires a Solace Agent Mesh Enterprise license.
+                          <br />
+                          <br />
+                          <strong>Note:</strong> After generating the agent YAML, you will need to manually add a manifest section to define the tools. Example:
+                          <br />
+                          <br />
+                          <code style={{ display: 'block', whiteSpace: 'pre', fontSize: '0.85em', background: '#f5f5f5', padding: '8px', borderRadius: '4px' }}>
+{`tools:
+  - tool_type: mcp
+    connection_params:
+      type: sse
+      url: https://mcp.example.com/v1/sse
+    auth:
+      type: oauth2
+    manifest:
+      - id: searchDocuments
+        name: searchDocuments
+        description: Search through documents
+        inputSchema:
+          type: object
+          properties:
+            query:
+              type: string
+            maxResults:
+              type: number
+          required: [query]`}</code>
+                        </InfoBox>
+                        <FormField
+                          label="Client ID (Optional)"
+                          htmlFor="oauth_client_id"
+                          error={formErrors.oauth_client_id}
+                          helpText="OAuth 2.0 client ID (can use environment variables like ${OAUTH_CLIENT_ID})"
+                        >
+                          <Input
+                            id="oauth_client_id"
+                            name="oauth_client_id"
+                            value={currentTool.oauth_client_id || ""}
+                            onChange={handleModalChange}
+                            placeholder="e.g., ${OAUTH_CLIENT_ID}"
+                          />
+                        </FormField>
+                        <FormField
+                          label="Client Secret (Optional)"
+                          htmlFor="oauth_client_secret"
+                          error={formErrors.oauth_client_secret}
+                          helpText="OAuth 2.0 client secret (can use environment variables like ${OAUTH_CLIENT_SECRET})"
+                        >
+                          <Input
+                            id="oauth_client_secret"
+                            name="oauth_client_secret"
+                            value={currentTool.oauth_client_secret || ""}
+                            onChange={handleModalChange}
+                            placeholder="e.g., ${OAUTH_CLIENT_SECRET}"
+                          />
+                        </FormField>
+                      </>
+                    )}
+
                     <FormField
-                      label="Environment Variables (JSON, Optional)"
-                      htmlFor="environment_variables_str"
-                      error={formErrors.environment_variables_str}
+                      label="Connection Timeout (seconds)"
+                      htmlFor="mcp_timeout"
+                      helpText="Timeout for MCP server connections (default: 30 seconds)"
                     >
-                      <textarea
-                        id="environment_variables_str"
-                        name="environment_variables_str"
-                        rows={3}
-                        value={currentTool.environment_variables_str || "{}"}
+                      <Input
+                        id="mcp_timeout"
+                        name="mcp_timeout"
+                        type="number"
+                        value={currentTool.mcp_timeout?.toString() || "30"}
                         onChange={handleModalChange}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-solace-blue focus:border-solace-blue sm:text-sm font-mono text-xs"
+                        placeholder="30"
                       />
                     </FormField>
                   </>
@@ -634,21 +1065,17 @@ const AgentToolsStep: React.FC<StepProps> = ({
                   placeholder="No scopes added yet."
                   inputPlaceholder="e.g., read:profile"
                 />
-                <FormField
-                  label="Tool Config (JSON, Optional)"
-                  htmlFor="tool_config_str"
-                  error={formErrors.tool_config_str}
+                <KeyValueInput
+                  id="tool_config_ui"
+                  label="Tool Config (Optional)"
+                  values={currentTool.tool_config_ui || {}}
+                  onChange={(values) => handleKeyValueInputChange("tool_config_ui", values)}
+                  error={formErrors.tool_config_ui}
                   helpText="Tool-specific configuration like API keys, model names etc."
-                >
-                  <textarea
-                    id="tool_config_str"
-                    name="tool_config_str"
-                    rows={3}
-                    value={currentTool.tool_config_str || "{}"}
-                    onChange={handleModalChange}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-solace-blue focus:border-solace-blue sm:text-sm font-mono text-xs"
-                  />
-                </FormField>
+                  placeholder="No configuration added"
+                  keyPlaceholder="Config key (e.g., api_key)"
+                  valuePlaceholder="Config value"
+                />
               </>
             )}
 

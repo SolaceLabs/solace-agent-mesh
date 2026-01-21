@@ -1,9 +1,10 @@
 import React from "react";
 import type { ReactNode } from "react";
 
-import { GitMerge, Info, Book, Link, Paperclip, Box, Wrench, Key, Bot, Code } from "lucide-react";
+import { GitMerge, Info, Book, Link, Paperclip, Box, Wrench, Key, Bot, Code, Workflow } from "lucide-react";
 
 import type { AgentCardInfo, AgentSkill } from "@/lib/types";
+import { isWorkflowAgent, getWorkflowNodeCount } from "@/lib/utils/agentUtils";
 
 interface DetailItemProps {
     label: string;
@@ -34,6 +35,9 @@ const DetailItem: React.FC<DetailItemProps> = ({ label, value, icon, fullWidthVa
 };
 
 export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExpanded, onToggleExpand }) => {
+    const isWorkflow = isWorkflowAgent(agent);
+    const nodeCount = isWorkflow ? getWorkflowNodeCount(agent) : 0;
+
     const renderCapabilities = (capabilities?: { [key: string]: unknown } | null) => {
         if (!capabilities || Object.keys(capabilities).length === 0) return <span className="text-sm">N/A</span>;
         return (
@@ -90,8 +94,12 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
             <div className={`transform-style-preserve-3d relative h-full w-full transition-transform duration-700 ${isExpanded ? "rotate-y-180" : ""}`} style={{ transformStyle: "preserve-3d" }}>
                 <div className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl" style={{ backfaceVisibility: "hidden", transform: "rotateY(0deg)" }}>
                     <div className="flex items-center p-4">
-                        <div className="flex min-w-0 items-center">
-                            <Bot className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                        <div className="flex min-w-0 items-center flex-1">
+                            {isWorkflow ? (
+                                <Workflow className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                            ) : (
+                                <Bot className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                            )}
                             <div className="min-w-0">
                                 <h2 className="truncate text-xl font-semibold" title={agent.name}>
                                     {agent.displayName || agent.name}
@@ -146,6 +154,12 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                         <DetailItem label="Output Modes" value={renderList(agent.defaultOutputModes)} icon={<Box size={14} />} fullWidthValue />
                         <DetailItem label="Skills" value={renderSkills(agent.skills)} icon={<Wrench size={14} />} fullWidthValue />
                         <DetailItem label="Tools Info" value={renderTools(agent.tools)} icon={<Code size={14} />} fullWidthValue />
+                        {isWorkflow && nodeCount > 0 && (
+                            <div className="mt-3 border-t pt-3">
+                                <h4 className="mb-2 text-xs font-semibold">Workflow Information</h4>
+                                <DetailItem label="Nodes" value={`${nodeCount} nodes`} icon={<Workflow size={14} />} />
+                            </div>
+                        )}
                         <div className="text-2xs mt-1.5 pt-1.5">
                             <DetailItem label="A2A Protocol" value={agent.protocolVersion} />
                         </div>

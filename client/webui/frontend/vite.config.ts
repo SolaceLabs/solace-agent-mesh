@@ -66,7 +66,7 @@ export default defineConfig(({ mode }) => {
                 },
                 output: {
                     manualChunks: {
-                        vendor: ["react", "react-dom", "@xyflow/react", "json-edit-react", "marked", "@tanstack/react-table", "lucide-react", "html-react-parser"],
+                        vendor: ["react", "react-dom", "json-edit-react", "marked", "@tanstack/react-table", "lucide-react", "html-react-parser"],
                     },
                 },
             },
@@ -75,7 +75,7 @@ export default defineConfig(({ mode }) => {
             proxy: {
                 // IMPORTANT: Platform Service endpoints must come first for specificity
                 // More specific routes must be defined before general routes
-                "/api/v1/enterprise": {
+                "/api/v1/platform": {
                     target: platformTarget,
                     changeOrigin: true,
                     secure: false,

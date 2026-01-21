@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef } from "react";
 import { NotepadText } from "lucide-react";
 import { Badge, CardTitle, Label } from "@/lib/components/ui";
 import type { TemplateConfig } from "@/lib/types";
@@ -13,21 +13,20 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({ conf
     // Only show content when we have actual prompt text, not just metadata
     const hasContent = config.promptText && config.promptText.trim().length > 0;
 
-    // Track if we've ever had content before to distinguish initial generation from updates
-    const hadContentBeforeRef = useRef(false);
-    const previousHighlightedFieldsRef = useRef<string[]>([]);
+    const updateCountRef = useRef(0);
+    const lastHighlightedFieldsRef = useRef<string[]>([]);
 
-    useEffect(() => {
-        // When highlightedFields changes, check if we had content before
-        if (highlightedFields.length > 0 && hasContent) {
-            if (!hadContentBeforeRef.current) {
-                hadContentBeforeRef.current = true;
-            }
-        }
-        previousHighlightedFieldsRef.current = highlightedFields;
-    }, [highlightedFields, hasContent]);
+    // Check if highlightedFields actually changed (not just a re-render)
+    const highlightedFieldsChanged = highlightedFields.length > 0 && (highlightedFields.length !== lastHighlightedFieldsRef.current.length || highlightedFields.some((f, i) => f !== lastHighlightedFieldsRef.current[i]));
 
-    const showBadges = hadContentBeforeRef.current && highlightedFields.length > 0;
+    // Update count when we get new highlighted fields with content
+    if (highlightedFieldsChanged && hasContent) {
+        updateCountRef.current += 1;
+        lastHighlightedFieldsRef.current = [...highlightedFields];
+    }
+
+    // Show badges only after the first update (updateCount >= 2 means we've had at least one update after initial generation)
+    const showBadges = updateCountRef.current >= 2 && highlightedFields.length > 0;
 
     const renderField = (label: string, value: string | undefined, fieldName: string, isCommand: boolean = false) => {
         const isHighlighted = highlightedFields.includes(fieldName);

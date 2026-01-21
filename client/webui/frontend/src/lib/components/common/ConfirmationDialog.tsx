@@ -14,8 +14,9 @@ export interface ConfirmationDialogProps {
     content?: React.ReactNode;
     description?: string;
 
-    // optional loading state for confirm action
+    // optional loading and enabled state for confirm action
     isLoading?: boolean;
+    isEnabled?: boolean;
 
     // optional custom action labels
     actionLabels?: {
@@ -27,7 +28,7 @@ export interface ConfirmationDialogProps {
     trigger?: React.ReactNode;
 }
 
-export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, title, content, description, actionLabels, trigger, isLoading, onOpenChange, onConfirm, onCancel }) => {
+export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, title, content, description, actionLabels, trigger, isLoading, isEnabled = true, onOpenChange, onConfirm, onCancel }) => {
     const cancelTitle = actionLabels?.cancel ?? "Cancel";
     const confirmTitle = actionLabels?.confirm ?? "Confirm";
 
@@ -63,7 +64,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, ti
                             await onConfirm();
                             onOpenChange(false);
                         }}
-                        disabled={isLoading}
+                        disabled={isLoading || !isEnabled}
                     >
                         {confirmTitle}
                     </Button>

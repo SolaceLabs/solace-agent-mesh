@@ -73,6 +73,16 @@ GATEWAY_DEFAULTS = {
     ),
 }
 
+PROXY_DEFAULTS = {
+    "namespace": "${NAMESPACE}",
+    "artifact_service_type": "filesystem",
+    "artifact_service_base_path": "/tmp/samv2",
+    "artifact_service_scope": "namespace",
+    "artifact_handling_mode": "reference",
+    "discovery_interval_seconds": 5,
+    "proxied_agents": [],
+}
+
 
 port_55555 = "-p 55554:55555" if sys.platform == "darwin" else "-p 55555:55555"
 

@@ -1,0 +1,373 @@
+# Test configuration for workflow node types.
+# This file defines test agents and workflows to verify the behavior of
+# different workflow node types: agent, map, loop, switch, and workflow nodes.
+# Used for integration testing of the workflow execution engine.
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: new_node_types_test.log
+
+!include ../shared_config.yaml
+
+apps:
+  # ============================================================================
+  # AGENT: Echo Agent
+  # Simple agent that echoes back input with a prefix
+  # ============================================================================
+  - name: echo_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "EchoAgent"
+      model: *planning_model
+
+      instruction: |
+        You are an echo agent. Read the input message and create a JSON artifact with the echoed response.
+        1. Read 'message' from input
+        2. Create a JSON artifact with: {"echoed": "Echo: " + message, "timestamp": current_time}
+        3. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          message: {type: string}
+        required: [message]
+
+      output_schema:
+        type: object
+        properties:
+          echoed: {type: string}
+          timestamp: {type: string}
+        required: [echoed]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Echoes back the input message"
+        skills: [{id: "echo", name: "Echo", description: "Echoes input", tags: ["echo"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ============================================================================
+  # AGENT: Category Classifier
+  # Classifies input into categories: A, B, C, or unknown
+  # ============================================================================
+  - name: classifier_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "Classifier"
+      model: *planning_model
+
+      instruction: |
+        You classify inputs into categories.
+        1. Read 'value' from input (a number)
+        2. Classify: value < 10 -> "A", value < 50 -> "B", value < 100 -> "C", else -> "unknown"
+        3. Create a JSON artifact with: {"category": <category>, "original_value": <value>}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          value: {type: integer}
+        required: [value]
+
+      output_schema:
+        type: object
+        properties:
+          category: {type: string, enum: ["A", "B", "C", "unknown"]}
+          original_value: {type: integer}
+        required: [category, original_value]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Classifies values into categories"
+        skills: [{id: "classify", name: "Classify", description: "Classifies values", tags: ["classify"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ============================================================================
+  # AGENT: Handler A/B/C
+  # Different handlers for different categories
+  # ============================================================================
+  - name: handler_a_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "HandlerA"
+      model: *planning_model
+
+      instruction: |
+        You handle Category A items.
+        1. Create a JSON artifact with: {"handler": "A", "action": "processed with high priority"}
+        2. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      output_schema:
+        type: object
+        properties:
+          handler: {type: string}
+          action: {type: string}
+        required: [handler, action]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Handles Category A"
+        skills: [{id: "handle_a", name: "Handle A", description: "Handles A", tags: ["handler"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: handler_b_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "HandlerB"
+      model: *planning_model
+
+      instruction: |
+        You handle Category B items.
+        1. Create a JSON artifact with: {"handler": "B", "action": "processed with normal priority"}
+        2. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      output_schema:
+        type: object
+        properties:
+          handler: {type: string}
+          action: {type: string}
+        required: [handler, action]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Handles Category B"
+        skills: [{id: "handle_b", name: "Handle B", description: "Handles B", tags: ["handler"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: handler_c_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "HandlerC"
+      model: *planning_model
+
+      instruction: |
+        You handle Category C items.
+        1. Create a JSON artifact with: {"handler": "C", "action": "processed with low priority"}
+        2. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      output_schema:
+        type: object
+        properties:
+          handler: {type: string}
+          action: {type: string}
+        required: [handler, action]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Handles Category C"
+        skills: [{id: "handle_c", name: "Handle C", description: "Handles C", tags: ["handler"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  - name: handler_default_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "HandlerDefault"
+      model: *planning_model
+
+      instruction: |
+        You handle unknown/default items.
+        1. Create a JSON artifact with: {"handler": "Default", "action": "processed as fallback"}
+        2. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      output_schema:
+        type: object
+        properties:
+          handler: {type: string}
+          action: {type: string}
+        required: [handler, action]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Handles unknown categories"
+        skills: [{id: "handle_default", name: "Handle Default", description: "Handles default", tags: ["handler"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ============================================================================
+  # WORKFLOW: Switch Node Test
+  # Tests the new SwitchNode for multi-way branching
+  # ============================================================================
+  - name: switch_test_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "SwitchTestWorkflow"
+      display_name: "Switch Node Test Workflow"
+
+      workflow:
+        description: |
+          Tests the SwitchNode for multi-way branching.
+
+          Takes a numeric value, classifies it, then routes to the appropriate handler
+          based on the category using a switch statement.
+
+        input_schema:
+          type: object
+          properties:
+            value: {type: integer, description: "A number to classify and route"}
+          required: [value]
+
+        output_schema:
+          type: object
+          properties:
+            category: {type: string}
+            handler_result: {type: string}
+          required: [category, handler_result]
+
+        nodes:
+          # Step 1: Classify the value
+          - id: classify
+            type: agent
+            agent_name: "Classifier"
+            input:
+              value: "{{workflow.input.value}}"
+
+          # Step 2: Switch based on category
+          - id: route_by_category
+            type: switch
+            depends_on: [classify]
+            cases:
+              - condition: "'{{classify.output.category}}' == 'A'"
+                node: handle_a
+              - condition: "'{{classify.output.category}}' == 'B'"
+                node: handle_b
+              - condition: "'{{classify.output.category}}' == 'C'"
+                node: handle_c
+            default: handle_default
+
+          # Step 3a-d: Handlers for each category
+          - id: handle_a
+            type: agent
+            agent_name: "HandlerA"
+            depends_on: [route_by_category]
+
+          - id: handle_b
+            type: agent
+            agent_name: "HandlerB"
+            depends_on: [route_by_category]
+
+          - id: handle_c
+            type: agent
+            agent_name: "HandlerC"
+            depends_on: [route_by_category]
+
+          - id: handle_default
+            type: agent
+            agent_name: "HandlerDefault"
+            depends_on: [route_by_category]
+
+        output_mapping:
+          category: "{{classify.output.category}}"
+          handler_result:
+            coalesce:
+              - "{{handle_a.output.action}}"
+              - "{{handle_b.output.action}}"
+              - "{{handle_c.output.action}}"
+              - "{{handle_default.output.action}}"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }

@@ -1,0 +1,158 @@
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: simple_nested_test.log
+
+!include ../shared_config.yaml
+
+apps:
+  # Simple echo agent
+  - name: simple_echo_agent
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "SimpleEcho"
+      model: *planning_model
+
+      instruction: |
+        Echo back the input message.
+        1. Read 'message' from input
+        2. Create a JSON artifact with: {"echoed": "<message>"}
+        3. End with: «result:artifact=<artifact_name> status=success»
+
+      input_schema:
+        type: object
+        properties:
+          message: {type: string}
+        required: [message]
+
+      output_schema:
+        type: object
+        properties:
+          echoed: {type: string}
+        required: [echoed]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Echoes back the input message"
+        skills: [{id: "echo", name: "Echo", description: "Echoes input", tags: ["echo"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # Child workflow with one agent
+  - name: simple_child_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "SimpleChildWorkflow"
+      display_name: "Simple Child Workflow"
+
+      workflow:
+        version: "1.0.0"
+        description: "A simple child workflow with one agent"
+        max_call_depth: 5
+
+        input_schema:
+          type: object
+          properties:
+            message: {type: string}
+          required: [message]
+
+        output_schema:
+          type: object
+          properties:
+            echoed: {type: string}
+          required: [echoed]
+
+        nodes:
+          - id: echo_it
+            type: agent
+            agent_name: "SimpleEcho"
+            input:
+              message: "{{workflow.input.message}}"
+
+        output_mapping:
+          echoed: "{{echo_it.output.echoed}}"
+
+        skills:
+          - id: "child_echo"
+            name: "Child Echo"
+            description: "Child workflow that echoes"
+            tags: ["echo", "child"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # Parent workflow that calls child workflow
+  - name: simple_parent_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "SimpleParentWorkflow"
+      display_name: "Simple Parent Workflow"
+
+      workflow:
+        version: "1.0.0"
+        description: "A simple parent workflow that calls a child workflow"
+        max_call_depth: 10
+
+        input_schema:
+          type: object
+          properties:
+            message: {type: string}
+          required: [message]
+
+        output_schema:
+          type: object
+          properties:
+            result: {type: string}
+          required: [result]
+
+        nodes:
+          - id: call_child
+            type: workflow
+            workflow_name: "SimpleChildWorkflow"
+            input:
+              message: "{{workflow.input.message}}"
+
+        output_mapping:
+          result: "{{call_child.output.echoed}}"
+
+        skills:
+          - id: "parent_echo"
+            name: "Parent Echo"
+            description: "Parent workflow that calls child"
+            tags: ["echo", "parent"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }

@@ -1,0 +1,80 @@
+test_case_id: "mcp_schema_inference_depth_shallow_001"
+description: |
+  Tests that schema_inference_depth=2 produces shallower schema inspection.
+  With depth=2, nested fields like 'fields' should show as 'dict' rather than
+  revealing the inner structure.
+tags: ["all", "agent", "mcp"]
+skip_intermediate_events: true
+
+test_runner_config_overrides:
+  agent_config:
+    mcp_tool_response_save_threshold_bytes: 10  # Force saving for small responses
+    schema_inference_depth: 2  # Shallow depth - 'fields' should show as 'dict'
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "mcp_schema_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Get nested JSON data to test shallow schema inference."
+  external_context:
+    a2a_session_id: "session_mcp_schema_inference_depth_shallow_001"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mcp_tool_nested_json"
+                type: "function"
+                function:
+                  name: "get_data_stdio"
+                  # Same nested JSON structure as the depth=4 test
+                  arguments: '{"response_to_return": {"content": [{"type": "text",
+                    "text": "[{\"key\": \"ISSUE-123\", \"fields\": {\"summary\": \"Test issue\", \"status\": {\"name\": \"Open\", \"id\": \"1\"}, \"priority\": {\"name\": \"High\", \"id\": \"2\"}}}]"}]}}'
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_data_stdio"
+          response_json_matches:
+            status: "processed_and_saved"
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_stdio_json_0_.*\\.json' \\(version 0\\)\\."
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have retrieved the nested JSON data and saved it as an artifact."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_mcp_schema_inference_depth_shallow_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have retrieved the nested JSON data and saved it as an artifact."
+    assert_artifact_state:
+      - filename_matches_regex: "get_data_stdio_json_0_.*\\.json$"
+        version: 0
+        expected_content_text: '[{"key": "ISSUE-123", "fields": {"summary": "Test issue", "status": {"name": "Open", "id": "1"}, "priority": {"name": "High", "id": "2"}}}]'
+        expected_metadata_contains:
+          source_tool_name: "get_data_stdio"
+          detected_format: "json"
+          mime_type: "application/json"
+          # With depth=2, the schema should show shallow structure:
+          # depth 0: array
+          # depth 1: object with 'key', 'fields'
+          # depth 2: stops here - 'fields' is just "dict"
+          schema:
+            type: "application/json"
+            inferred: true
+            structure:
+              - key: "str"
+                fields: "dict"  # At depth=2, nested objects become "dict"

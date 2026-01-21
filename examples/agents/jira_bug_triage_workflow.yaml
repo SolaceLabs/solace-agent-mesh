@@ -1,0 +1,569 @@
+# Jira Bug Triage Workflow - Demo Configuration
+#
+# This workflow demonstrates a realistic bug triage process:
+# 1. Detect duplicate issues using similarity analysis
+# 2. Conditionally branch based on duplicate detection
+# 3. Perform code analysis if not a duplicate
+# 4. Generate appropriate Jira comments
+#
+# DEMO MODE: All agents operate in demonstration mode and generate realistic
+# but fake data. No actual Jira or code repository access is required.
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: jira_workflow.log
+
+# Shared configuration
+shared_config:
+  - broker_connection: &broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8008}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+
+  - models:
+    planning: &planning_model
+      model: ${LLM_SERVICE_PLANNING_MODEL_NAME}
+      api_base: ${LLM_SERVICE_ENDPOINT}
+      api_key: ${LLM_SERVICE_API_KEY}
+      parallel_tool_calls: true
+      max_tokens: ${MAX_TOKENS, 16000}
+      temperature: 0.7
+      cache_strategy: "5m"
+
+  - services:
+    session_service: &default_session_service
+      type: "sql"
+      default_behavior: "PERSISTENT"
+      database_url: ${SESSION_DATABASE_URL, sqlite:///session.db}
+
+    artifact_service: &default_artifact_service
+      type: "filesystem"
+      base_path: "/tmp/samv2"
+      artifact_scope: namespace
+
+apps:
+  # ============================================================================
+  # AGENT 1: DuplicateDetectorAgent
+  # Analyzes Jira issues to detect duplicates and find similar issues
+  # ============================================================================
+  - name: duplicate_detector_agent
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "DuplicateDetector"
+      model: *planning_model
+
+      instruction: |
+          You are a Jira duplicate detection agent operating in DEMONSTRATION MODE.
+
+          CRITICAL: You do NOT have access to real Jira systems. You must generate
+          realistic but fake data based on the Jira ID provided.
+
+          Your task:
+          1. Generate a realistic bug report for the given Jira ID
+          2. Create exactly 2 plausible similar issues with IDs from the same project (keep it minimal for testing)
+          3. Analyze for potential duplication (25% chance of duplicate)
+          4. Save all data as JSON artifacts
+          5. Return structured output matching the exact schema
+
+          When generating fake data:
+          - Use the project prefix from the input (e.g., DATAGO-12345 → DATAGO project)
+          - Create realistic bug descriptions related to common software issues:
+            * NullPointerExceptions
+            * Memory leaks
+            * API timeout issues
+            * Data validation errors
+            * Race conditions
+          - Generate similar issue IDs with different numbers (e.g., DATAGO-11234, DATAGO-10567)
+          - Make similarities plausible (same component, similar error messages)
+
+          CRITICAL OUTPUT REQUIREMENTS:
+          1. Create artifact "issue_<jira_id>.json" with JSON structure containing:
+             - jira_id: string (e.g., "PROJECT-12345")
+             - title: string (brief bug title)
+             - description: string (detailed description)
+             - priority: string (High|Medium|Low)
+             - reporter: string (username)
+             - created_date: string (ISO 8601 timestamp)
+             - labels: array of strings
+             - component: string (component name)
+
+          2. Create artifact "similar_<similar_id>.json" for each similar issue
+
+          3. Decide on duplication (check the force_duplicate_result input parameter):
+             - If force_duplicate_result = "duplicate": ALWAYS set is_duplicate = true, confidence 70-95
+             - If force_duplicate_result = "not_duplicate": ALWAYS set is_duplicate = false, confidence 10-40
+             - If force_duplicate_result = "random" OR not provided:
+               * 75% of time: is_duplicate = false (to showcase full workflow), confidence 10-40
+               * 25% of time: is_duplicate = true, confidence 70-95
+
+          4. You MUST end your response with:
+             «result:artifact=duplicate_analysis_<jira_id>.json:v0 status=success»
+
+          The result artifact must contain your structured output matching the schema exactly.
+
+      input_schema:
+        type: object
+        properties:
+          jira_id:
+            type: string
+            pattern: "^[A-Z]+-\\d+$"
+            description: "Jira issue ID (e.g., DATAGO-12345)"
+          force_duplicate_result:
+            type: string
+            enum: ["duplicate", "not_duplicate", "random"]
+            description: "Control duplicate detection: 'duplicate', 'not_duplicate', or 'random' (default)"
+        required: [jira_id]
+
+      output_schema:
+        type: object
+        properties:
+          issue_details_artifact:
+            type: string
+            description: "Artifact name containing the main issue details"
+          similar_issues:
+            type: array
+            items:
+              type: string
+            description: "Array of artifact names for similar issues"
+          is_duplicate:
+            type: boolean
+            description: "Whether this issue is likely a duplicate"
+          duplicate_confidence:
+            type: number
+            minimum: 0
+            maximum: 100
+            description: "Confidence score for duplicate determination"
+          recommendation:
+            type: string
+            description: "Explanation of the duplicate determination"
+        required: [issue_details_artifact, similar_issues, is_duplicate, duplicate_confidence, recommendation]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Detects duplicate Jira issues using similarity analysis"
+        skills: [{id: "detect_dup", name: "Detect Duplicates", description: "Analyzes issues for duplicates", tags: ["jira", "analysis"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ============================================================================
+  # AGENT 2: CodeAnalyzerAgent
+  # Performs code analysis to identify root cause and propose fixes
+  # ============================================================================
+  - name: code_analyzer_agent
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "CodeAnalyzer"
+      model: *planning_model
+
+      instruction: |
+          You are a code analysis agent operating in DEMONSTRATION MODE.
+
+          CRITICAL: You do NOT have access to real code repositories or Claude Code.
+          You must generate realistic but fake code analysis based on the issue description.
+
+          Your task:
+          1. Read the issue details from the provided artifact
+          2. Review similar issues if helpful for context
+          3. Generate a plausible root cause analysis
+          4. Identify likely affected files (realistic paths)
+          5. Create actual code snippets showing:
+             - Current (buggy) code
+             - Proposed fix with proper syntax
+          6. Estimate fix complexity
+
+          When generating fake analysis:
+          - Use realistic file paths for the project type (e.g., src/main/java/, lib/python/, etc.)
+          - Create actual code snippets in appropriate languages (Python, Java, JavaScript, etc.)
+          - Make code snippets realistic (5-15 lines each)
+          - Include proper syntax, imports, and context
+          - Show clear before/after differences
+
+          Example code change structure (JSON format):
+          - file: string (e.g., "src/pipeline/processor.py")
+          - line_numbers: array of integers (e.g., [45, 50])
+          - current_code: string (the buggy code)
+          - suggested_code: string (the fixed code)
+          - explanation: string (description of the change)
+
+          CRITICAL OUTPUT REQUIREMENTS:
+          1. Create artifact "code_analysis_<jira_id>.json" with complete analysis
+
+          2. The analysis artifact should contain:
+             - root_cause: Detailed explanation
+             - affected_files: Array of file paths
+             - proposed_fix: Object with approach, file_changes array, estimated_complexity
+             - related_issues_insights: What you learned from similar issues
+
+          3. You MUST end your response with:
+             «result:artifact=code_analysis_<jira_id>.json:v0 status=success»
+
+          The result artifact must contain your structured output matching the schema exactly.
+
+      input_schema:
+        type: object
+        properties:
+          jira_id:
+            type: string
+            description: "Jira issue ID for reference"
+          issue_details_artifact:
+            type: string
+            description: "Artifact name containing the main issue details"
+          similar_issues_artifacts:
+            type: array
+            items:
+              type: string
+            description: "Array of artifact names for similar issues"
+        required: [jira_id, issue_details_artifact, similar_issues_artifacts]
+
+      output_schema:
+        type: object
+        properties:
+          analysis_artifact:
+            type: string
+            description: "Artifact name containing the complete code analysis"
+          summary:
+            type: string
+            description: "Brief summary of findings"
+          complexity:
+            type: string
+            enum: [low, medium, high]
+            description: "Estimated fix complexity"
+        required: [analysis_artifact, summary, complexity]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Analyzes code to identify root causes and propose fixes"
+        skills: [{id: "analyze_code", name: "Analyze Code", description: "Performs code analysis", tags: ["code", "analysis"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ============================================================================
+  # AGENT 3: JiraCommenterAgent
+  # Generates formatted Jira comments based on workflow results
+  # ============================================================================
+  - name: jira_commenter_agent
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "JiraCommenter"
+      model: *planning_model
+
+      instruction: |
+          You are a Jira comment generator agent operating in DEMONSTRATION MODE.
+
+          Your task is to create well-formatted Jira comments in two modes:
+
+          MODE 1 - DUPLICATE DETECTION:
+          When mode = "duplicate":
+          - Read the issue details artifact
+          - Create a professional comment explaining the duplication
+          - Reference the similar issues found
+          - Include the confidence score
+          - Suggest closing as duplicate
+
+          Example duplicate comment format:
+          ```
+          h2. Duplicate Issue Detected
+
+          This issue appears to be a duplicate of existing issues in the system.
+
+          *Confidence Score:* 85%
+
+          *Similar Issues:*
+          * [DATAGO-11234] - NullPointerException in data processor
+          * [DATAGO-10567] - Data processing pipeline throws NPE
+
+          *Recommendation:*
+          Review the linked issues above. If this is indeed a duplicate, consider
+          closing this issue and adding any unique information to the existing issue.
+
+          _Analysis performed by automated workflow_
+          ```
+
+          MODE 2 - CODE ANALYSIS:
+          When mode = "analysis":
+          - Read the issue details artifact
+          - Read the code analysis artifact
+          - Create a detailed technical comment with:
+            * Root cause explanation
+            * Affected files
+            * Code snippets in Jira code blocks (use the code markup syntax)
+            * Proposed fix with before/after code
+            * Complexity estimate
+
+          Example analysis comment format (using Jira markup):
+          ```
+          h2. Automated Code Analysis Results
+
+          h3. Root Cause
+          The issue is caused by missing null validation in the data processing pipeline...
+
+          h3. Affected Files
+          * <monospace>src/pipeline/processor.py</monospace> - Lines 45-50
+          * <monospace>src/utils/validator.py</monospace> - Lines 120-125
+
+          h3. Proposed Fix
+
+          *Complexity:* Low
+
+          *File: processor.py*
+          <use Jira code block with language:python>
+          # Current code (buggy)
+          def process(data):
+              result = data.transform()
+              return result
+          </use closing code tag>
+
+          <use Jira code block with language:python>
+          # Proposed fix
+          def process(data):
+              if data is None:
+                  logger.warning('Null data received')
+                  return None
+              result = data.transform()
+              return result
+          </use closing code tag>
+
+          h3. Recommendation
+          Apply the suggested null check to prevent NullPointerExceptions...
+
+          _Analysis performed by automated workflow_
+          ```
+
+          CRITICAL OUTPUT REQUIREMENTS:
+          1. Generate well-formatted Jira markup (use h2, h3, Jira code blocks, *, etc.)
+          2. Include all relevant information from the artifacts
+          3. Keep comments professional and actionable
+          4. You MUST end your response with:
+             «result:artifact=jira_comment_<jira_id>.json:v0 status=success»
+
+          The result artifact must be a JSON object with a "comment_text" field containing your formatted Jira comment.
+
+      input_schema:
+        type: object
+        properties:
+          jira_id:
+            type: string
+            description: "Jira issue ID"
+          mode:
+            type: string
+            enum: [duplicate, analysis]
+            description: "Comment generation mode"
+          issue_details_artifact:
+            type: string
+            description: "Artifact name containing the main issue details"
+          recommendation:
+            type: string
+            description: "Recommendation text (for duplicate mode)"
+          duplicate_confidence:
+            type: number
+            description: "Confidence score (for duplicate mode)"
+          analysis_artifact:
+            type: string
+            description: "Artifact name containing code analysis (for analysis mode)"
+        required: [jira_id, mode, issue_details_artifact]
+
+      output_schema:
+        type: object
+        properties:
+          comment_text:
+            type: string
+            description: "Formatted Jira comment text"
+        required: [comment_text]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Generates formatted Jira comments from analysis results"
+        skills: [{id: "gen_comment", name: "Generate Comment", description: "Creates Jira comments", tags: ["jira", "formatting"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ============================================================================
+  # WORKFLOW: JiraBugTriageWorkflow
+  # Orchestrates the complete bug triage process
+  # ============================================================================
+  - name: jira_bug_triage_workflow
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "JiraBugTriageWorkflow"
+      display_name: "Jira Bug Triage Workflow"
+
+      # Workflow execution timeouts
+      max_workflow_execution_time_seconds: 1800
+      default_node_timeout_seconds: 300
+
+      workflow:
+        description: |
+          Automated Jira bug triage workflow that:
+          1. Analyzes incoming bugs for duplicates
+          2. Performs code analysis for unique issues
+          3. Generates appropriate Jira comments
+
+          Input: Jira issue ID (e.g., DATAGO-12345)
+          Output: Formatted Jira comment with analysis or duplicate detection results
+
+          This is a demonstration workflow - all agents generate realistic fake data.
+
+        input_schema:
+          type: object
+          properties:
+            jira_id:
+              type: string
+              pattern: "^[A-Z]+-\\d+$"
+              description: "Jira issue ID in format PROJECT-12345"
+            force_duplicate_result:
+              type: string
+              enum: ["duplicate", "not_duplicate", "random"]
+              description: "Optional: Control duplicate detection result - 'duplicate' forces duplicate detection, 'not_duplicate' forces unique issue, 'random' uses default 25% chance (default: random)"
+          required: [jira_id]
+
+        output_schema:
+          type: object
+          properties:
+            jira_id:
+              type: string
+              description: "Original Jira issue ID"
+            final_comment:
+              type: string
+              description: "Generated Jira comment text"
+            workflow_path:
+              type: string
+              description: "Which path the workflow took (full_analysis or duplicate_detected)"
+            is_duplicate:
+              type: boolean
+              description: "Whether issue was detected as duplicate"
+          required: [jira_id, final_comment, workflow_path]
+
+        nodes:
+          # ============================================
+          # Node 1: Detect Duplicates
+          # ============================================
+          - id: detect_duplicates
+            type: agent
+            agent_name: "DuplicateDetector"
+            input:
+              jira_id: "{{workflow.input.jira_id}}"
+              force_duplicate_result:
+                coalesce:
+                  - "{{workflow.input.force_duplicate_result}}"
+                  - "random"
+
+          # ============================================
+          # Node 2: Check if Duplicate (Switch node)
+          # ============================================
+          - id: check_duplicate
+            type: switch
+            depends_on: [detect_duplicates]
+            cases:
+              - condition: "{{detect_duplicates.output.is_duplicate}} == false"
+                node: analyze_code
+            default: create_duplicate_comment
+
+          # ============================================
+          # Node 3A: Code Analysis (if not duplicate)
+          # ============================================
+          - id: analyze_code
+            type: agent
+            agent_name: "CodeAnalyzer"
+            depends_on: [check_duplicate]
+            input:
+              jira_id: "{{workflow.input.jira_id}}"
+              issue_details_artifact: "{{detect_duplicates.output.issue_details_artifact}}"
+              similar_issues_artifacts: "{{detect_duplicates.output.similar_issues}}"
+
+          # ============================================
+          # Node 3B: Create Duplicate Comment (if duplicate)
+          # ============================================
+          - id: create_duplicate_comment
+            type: agent
+            agent_name: "JiraCommenter"
+            depends_on: [check_duplicate]
+            input:
+              jira_id: "{{workflow.input.jira_id}}"
+              mode: "duplicate"
+              issue_details_artifact: "{{detect_duplicates.output.issue_details_artifact}}"
+              recommendation: "{{detect_duplicates.output.recommendation}}"
+              duplicate_confidence: "{{detect_duplicates.output.duplicate_confidence}}"
+
+          # ============================================
+          # Node 4: Create Analysis Comment (after code analysis)
+          # ============================================
+          - id: create_analysis_comment
+            type: agent
+            agent_name: "JiraCommenter"
+            depends_on: [analyze_code]
+            input:
+              jira_id: "{{workflow.input.jira_id}}"
+              mode: "analysis"
+              issue_details_artifact: "{{detect_duplicates.output.issue_details_artifact}}"
+              analysis_artifact: "{{analyze_code.output.analysis_artifact}}"
+
+        output_mapping:
+          jira_id: "{{workflow.input.jira_id}}"
+          final_comment:
+            coalesce:
+              - "{{create_analysis_comment.output.comment_text}}"
+              - "{{create_duplicate_comment.output.comment_text}}"
+          workflow_path:
+            coalesce:
+              - "{{create_analysis_comment.output.comment_text}}"
+              - "{{create_duplicate_comment.output.comment_text}}"
+          is_duplicate: "{{detect_duplicates.output.is_duplicate}}"
+
+      session_service:
+        <<: *default_session_service
+
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }

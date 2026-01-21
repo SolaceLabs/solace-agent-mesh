@@ -1,0 +1,91 @@
+test_case_id: "mcp_schema_inference_depth_001"
+description: |
+  Tests that schema_inference_depth configuration controls how deeply nested
+  structures are inspected in artifact metadata. With depth=4 (default), nested
+  fields like 'fields.status.name' should be visible in the schema.
+tags: ["all", "agent", "mcp"]
+skip_intermediate_events: true
+
+test_runner_config_overrides:
+  agent_config:
+    mcp_tool_response_save_threshold_bytes: 10  # Force saving for small responses
+    schema_inference_depth: 4  # Explicitly set to verify nested schema inspection
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "mcp_schema_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Get nested JSON data to test schema inference."
+  external_context:
+    a2a_session_id: "session_mcp_schema_inference_depth_001"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mcp_tool_nested_json"
+                type: "function"
+                function:
+                  name: "get_data_stdio"
+                  # Nested JSON structure similar to Jira response:
+                  # depth 0: array
+                  # depth 1: object with 'key', 'fields'
+                  # depth 2: fields object with 'summary', 'status', 'priority'
+                  # depth 3: status/priority objects with 'name', 'id'
+                  arguments: '{"response_to_return": {"content": [{"type": "text",
+                    "text": "[{\"key\": \"ISSUE-123\", \"fields\": {\"summary\": \"Test issue\", \"status\": {\"name\": \"Open\", \"id\": \"1\"}, \"priority\": {\"name\": \"High\", \"id\": \"2\"}}}]"}]}}'
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_data_stdio"
+          response_json_matches:
+            status: "processed_and_saved"
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_stdio_json_0_.*\\.json' \\(version 0\\)\\."
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have retrieved the nested JSON data and saved it as an artifact."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_mcp_schema_inference_depth_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have retrieved the nested JSON data and saved it as an artifact."
+    assert_artifact_state:
+      - filename_matches_regex: "get_data_stdio_json_0_.*\\.json$"
+        version: 0
+        expected_content_text: '[{"key": "ISSUE-123", "fields": {"summary": "Test issue", "status": {"name": "Open", "id": "1"}, "priority": {"name": "High", "id": "2"}}}]'
+        expected_metadata_contains:
+          source_tool_name: "get_data_stdio"
+          detected_format: "json"
+          mime_type: "application/json"
+          # With depth=4, the schema should show nested structure including
+          # fields.status.name and fields.priority.name (depth 3-4 content)
+          schema:
+            type: "application/json"
+            inferred: true
+            # The structure should show nested fields down to depth 4
+            # [{"key": "str", "fields": {"summary": "str", "status": {"name": "str", "id": "str"}, ...}}]
+            structure:
+              - key: "str"
+                fields:
+                  summary: "str"
+                  status:
+                    name: "str"
+                    id: "str"
+                  priority:
+                    name: "str"
+                    id: "str"

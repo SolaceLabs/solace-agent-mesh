@@ -146,7 +146,8 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 tmp
-.sam 
+.sam
+*.key
 playground.py
 
 # VS Code
@@ -168,3 +169,4 @@ client/webui/frontend/static/ui-version.json
 # workaround requirements.txt not working in ci
 requirements.txt
 data/artifacts/
+CLAUDE.md

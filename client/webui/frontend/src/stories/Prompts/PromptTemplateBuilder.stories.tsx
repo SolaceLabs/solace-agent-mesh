@@ -83,3 +83,46 @@ export const ManualModeValidationErrors: Story = {
         createButton.click();
     },
 };
+
+export const EditingModeDefaultsToAIAssisted: Story = {
+    args: {
+        isEditing: true,
+        editingGroup: {
+            id: "test-prompt-id",
+            name: "Test Prompt",
+            description: "A test prompt for editing",
+            category: "Development",
+            command: "test",
+            userId: "test-user-id",
+            authorName: "Test User",
+            productionPromptId: "test-production-prompt-id",
+            isShared: false,
+            isPinned: false,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            productionPrompt: {
+                id: "test-production-prompt-id",
+                promptText: "This is a test prompt with {{Variable1}}",
+                groupId: "test-prompt-id",
+                userId: "test-user-id",
+                version: 1,
+                name: "Test Prompt",
+                description: "A test prompt for editing",
+                category: "Development",
+                command: "test",
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+            },
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        // When editing, the mode should default to AI-assisted
+        const editManually = await canvas.findByTestId("editManuallyButton");
+        expect(editManually).toBeVisible();
+
+        // Build with AI button should not exist in AI-assisted mode
+        const buildWithAI = canvas.queryByTestId("buildWithAIButton");
+        expect(buildWithAI).not.toBeInTheDocument();
+    },
+};
