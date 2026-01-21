@@ -34,8 +34,9 @@ apps:
           connection_params:
             type: streamable-http
             url: "http://127.0.0.1:3005/mcp"
-            ssl:
-              verify: false  # Disable SSL verification            
+            ssl_config:
+              verify: false  # Disable SSL verification (dev only)
+              # ca_bundle: "/path/to/ca-cert.pem"  # Custom CA certificate            
 
         - tool_type: builtin-group
           group_name: "artifact_management"

@@ -561,7 +561,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     connection_args["timeout"] = connection_args.get("timeout", 30)
 
     # Extract SSL configuration if provided
-    ssl_config_dict = connection_args.pop("ssl", None)
+    ssl_config_dict = connection_args.pop("ssl_config", None)
     ssl_config = None
     if ssl_config_dict and isinstance(ssl_config_dict, dict):
         ssl_verify = ssl_config_dict.get("verify", True)
