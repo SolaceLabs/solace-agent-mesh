@@ -2,7 +2,7 @@ import React, { type ReactNode, useState, useRef, useEffect, useCallback } from 
 
 import type { A2AEventSSEPayload, TaskFE } from "@/lib/types";
 import { TaskContext, type TaskContextValue } from "@/lib/contexts/TaskContext";
-import {getApiBearerToken} from "@/lib/utils/api";
+import { getApiBearerToken } from "@/lib/utils/api";
 import { api } from "@/lib/api";
 
 interface SubscriptionResponse {
