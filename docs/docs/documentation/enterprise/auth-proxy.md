@@ -39,7 +39,7 @@ sequenceDiagram
     participant AS as Auth Server (OAuth2)
     participant OP as OAuth Provider
 
-    MC->>+AG: 1. GET /.well-known
+    MC->>+AG: 1. GET /.well-known/oauth-authorization-server
     AG-->>-MC: 2. Returns auth address
 
     MC->>UB: 3. Opens browser at auth URL
