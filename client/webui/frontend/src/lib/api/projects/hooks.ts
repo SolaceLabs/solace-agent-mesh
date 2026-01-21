@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateProjectRequest, Project, UpdateProjectData } from "@/lib/types/projects";
 import type { ArtifactInfo } from "@/lib/types";
@@ -31,6 +32,33 @@ export function useProjectArtifacts(projectId: string | null) {
         select: (data: ArtifactInfo[]) => {
             return data.filter(artifact => !isIntermediateWebContentArtifact(artifact.filename));
         },
+    });
+}
+
+export function useProjectSessions(projectId: string | null) {
+    const queryClient = useQueryClient();
+
+    // Set up event listeners for automatic invalidation
+    // Each hook instance manages its own listeners
+    useEffect(() => {
+        const handleSessionEvent = () => {
+            if (projectId) {
+                queryClient.invalidateQueries({ queryKey: projectKeys.sessions(projectId) });
+            }
+        };
+
+        window.addEventListener("session-moved", handleSessionEvent);
+        window.addEventListener("new-chat-session", handleSessionEvent);
+
+        return () => {
+            window.removeEventListener("session-moved", handleSessionEvent);
+            window.removeEventListener("new-chat-session", handleSessionEvent);
+        };
+    }, [projectId, queryClient]);
+
+    return useQuery({
+        queryKey: projectId ? projectKeys.sessions(projectId) : ["projects", "sessions", "empty"],
+        queryFn: projectId ? () => projectService.getProjectSessions(projectId) : skipToken,
     });
 }
 
