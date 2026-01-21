@@ -152,17 +152,14 @@ export const EditDetailsDialog: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Find and click the Edit Details button
         const editButton = await canvas.findByTestId("editDetailsButton");
         expect(editButton).toBeVisible();
         await userEvent.click(editButton);
 
-        // Verify dialog opened
         const dialog = await screen.findByRole("dialog");
         expect(dialog).toBeInTheDocument();
         const dialogContent = within(dialog);
 
-        // Verify dialog content
         expect(await dialogContent.findByText("Edit Project Details")).toBeInTheDocument();
         expect(await dialogContent.findByRole("button", { name: "Save" })).toBeEnabled();
         expect(await dialogContent.findByRole("button", { name: "Discard Changes" })).toBeEnabled();
@@ -182,27 +179,22 @@ export const EditDetailsDescriptionLimit: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Find and click the Edit Details button
         const editButton = await canvas.findByTestId("editDetailsButton");
         await userEvent.click(editButton);
 
-        // Find the description textarea
         const dialog = await screen.findByRole("dialog");
         const dialogContent = within(dialog);
         const descriptionInput = await dialogContent.findByPlaceholderText("Project description");
 
-        // Clear existing content and paste max length text
         await userEvent.clear(descriptionInput);
         const atLimitText = "a".repeat(1000);
         await userEvent.click(descriptionInput);
         await userEvent.paste(atLimitText);
         expect(await dialogContent.findByText("1000 / 1000")).toBeInTheDocument();
 
-        // Try to add one more character
         await userEvent.type(descriptionInput, "b");
         expect(await dialogContent.findByText("Description must be less than 1000 characters")).toBeInTheDocument();
 
-        // Save button should be disabled
         expect(await dialogContent.findByRole("button", { name: "Save" })).toBeDisabled();
     },
 };
