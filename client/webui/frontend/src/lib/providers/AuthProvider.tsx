@@ -54,7 +54,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         checkAuthStatus();
 
         const handleStorageChange = (event: StorageEvent) => {
-            if (event.key === "access_token") {
+            if (event.key === "access_token" || event.key === "sam_access_token") {
                 checkAuthStatus();
             }
         };
@@ -76,6 +76,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (configUseAuthorization) {
                 // Clear tokens from localStorage to prevent race conditions for token refresh
                 localStorage.removeItem("access_token");
+                localStorage.removeItem("sam_access_token");
                 localStorage.removeItem("refresh_token");
 
                 // Clear local state
