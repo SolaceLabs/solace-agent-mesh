@@ -1,6 +1,6 @@
 ---
 title: OpenAPI Connectors
-sidebar_position: 1
+sidebar_position: 3
 ---
 
 :::info Coming Soon
@@ -33,9 +33,11 @@ You need an OpenAPI specification file in JSON or YAML format that describes the
 
 ### Public Storage Bucket Configuration
 
-Your platform administrator must configure the platform service with a publicly accessible storage bucket where OpenAPI specification files are stored. Your platform administrator sets up this configuration during deployment.
+Your platform administrator must configure the platform service with a publicly accessible storage bucket where OpenAPI specification files are stored. This bucket requires public read access so agents can download specification files during startup without authentication.
 
 If you are unsure whether the storage bucket is configured, contact your platform administrator. Without this configuration, you will not be able to create OpenAPI connectors.
+
+For platform administrators: See [Infrastructure Setup: S3 Buckets for OpenAPI Connector Specs](../installation.md#infrastructure-setup-s3-buckets-for-openapi-connector-specs) in the enterprise installation guide for detailed setup instructions. Kubernetes deployments handle this configuration automatically via Helm charts.
 
 ### API Credentials (if required)
 

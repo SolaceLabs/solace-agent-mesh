@@ -60,6 +60,13 @@ export interface ConfigContextValue {
     platformConfigured: boolean;
 
     /**
+     * Whether automatic title generation is enabled for new chat sessions.
+     * When true, the first message exchange will trigger AI-powered title generation.
+     * Requires persistence to be enabled.
+     */
+    autoTitleGenerationEnabled?: boolean;
+
+    /**
      * Whether artifact search citations are enabled.
      * When false, citations from BM25 artifact search are hidden in the UI.
      * Default: false (disabled)
