@@ -80,14 +80,20 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
 
     const handleSelectWorkflow = (workflow: AgentCardInfo | null) => {
         if (workflow) {
-            setSelectedWorkflow(workflow);
-            setIsSidePanelOpen(true);
+            // If clicking the same workflow, close the panel
+            if (selectedWorkflow?.name === workflow.name && isSidePanelOpen) {
+                handleCloseSidePanel();
+            } else {
+                // Open panel for new workflow
+                setSelectedWorkflow(workflow);
+                setTimeout(() => setIsSidePanelOpen(true), 10);
+            }
         }
     };
 
     const handleCloseSidePanel = () => {
-        setSelectedWorkflow(null);
         setIsSidePanelOpen(false);
+        setTimeout(() => setSelectedWorkflow(null), 300);
     };
 
     const handleViewWorkflow = (workflow: AgentCardInfo) => {
@@ -270,8 +276,8 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
 
             {/* Side panel wrapper */}
             {selectedWorkflow && (
-                <div className={`h-full overflow-hidden transition-all duration-500 ease-in-out ${isSidePanelOpen ? "w-[400px]" : "w-0"}`}>
-                    <div className={`h-full transition-opacity duration-500 ${isSidePanelOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+                <div className={`h-full overflow-hidden transition-[width] duration-300 ease-in-out ${isSidePanelOpen ? "w-[400px]" : "w-0"}`}>
+                    <div className={`h-full transition-opacity duration-300 ${isSidePanelOpen ? "opacity-100 delay-100" : "pointer-events-none opacity-0"}`}>
                         <WorkflowDetailPanel workflow={selectedWorkflow} onClose={handleCloseSidePanel} />
                     </div>
                 </div>
