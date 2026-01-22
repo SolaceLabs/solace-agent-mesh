@@ -241,13 +241,20 @@ class A2AProxyComponent(BaseProxyComponent):
             return None
 
         try:
-            # Build headers based on configuration
-            use_auth = agent_config.get("use_auth_for_agent_card", False)
+            # Get effective authentication for agent card using resolution logic
+            effective_auth, should_use_auth = self._get_effective_agent_card_auth(agent_config)
+
+            # Create a temporary config with the effective auth for header building
+            # This allows _build_headers() to work with the resolved auth config
+            config_for_headers = agent_config.copy()
+            if should_use_auth and effective_auth:
+                config_for_headers["authentication"] = effective_auth
+
             headers = await self._build_headers(
                 agent_name=agent_name,
-                agent_config=agent_config,
+                agent_config=config_for_headers,
                 custom_headers_key="agent_card_headers",
-                use_auth=use_auth,
+                use_auth=should_use_auth,
             )
 
             if headers:
@@ -255,7 +262,7 @@ class A2AProxyComponent(BaseProxyComponent):
                     "%s Fetching agent card with %d custom header(s) (auth=%s)",
                     log_identifier,
                     len(headers),
-                    use_auth,
+                    should_use_auth,
                 )
             else:
                 log.debug("%s Fetching agent card without authentication", log_identifier)
@@ -927,9 +934,9 @@ class A2AProxyComponent(BaseProxyComponent):
                 agent_name,
             )
 
-        # Setup authentication if configured
-        auth_config = agent_config.get("authentication")
-        if auth_config:
+        # Get effective authentication for tasks using resolution logic
+        auth_config, should_use_auth = self._get_effective_task_auth(agent_config)
+        if should_use_auth and auth_config:
             auth_type = auth_config.get("type")
 
             # Determine auth type (with backward compatibility)
