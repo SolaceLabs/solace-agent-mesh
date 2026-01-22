@@ -7,17 +7,35 @@ sidebar_position: 10
 
 Agent Mesh offers flexible deployment options designed to meet different operational requirements. Understanding these options helps you choose the right approach for your specific environment and scale needs.
 
+Agent and workflow deployments follow identical processes in Solace Agent Mesh. Both agents and workflows are configured using YAML files and deployed using the same commands and infrastructure. From a deployment perspective, workflows are treated as specialized agents that orchestrate other agents through defined steps.
+
 ## Development Environment
 
 During development, simplicity and rapid iteration are key priorities. The Agent Mesh CLI provides a streamlined way to run your entire project as a single application, making it easy to test changes and debug issues locally.
 
 The development setup automatically loads environment variables from your configuration file (typically a `.env` file at the project root), eliminating the need for complex environment management:
 
+**Run your entire project:**
+
 ```bash
 sam run
 ```
 
 This command starts all configured components together, providing immediate feedback and allowing you to see how different agents interact within your mesh.
+
+**Run a specific agent/workflow:**
+
+```bash
+sam run <agent/workflow config file path>
+```
+
+**Run multiple components together:**
+
+```bash
+sam run <agent config file path> <workflow config file path>
+```
+
+This flexibility allows you to test individual components in isolation or verify how agents and workflows interact within your mesh.
 
 ## Production Environment
 
@@ -48,7 +66,7 @@ COPY . /app
 
 CMD ["run", "--system-env"]
 
-# To run one specific component, use:
+# To run one specific agent/workflow, use:
 # CMD ["run", "--system-env", "configs/agents/main_orchestrator.yaml"]
 
 ```
