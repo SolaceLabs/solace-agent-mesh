@@ -123,6 +123,71 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         return self._agent_config_by_name.get(agent_name)
 
+    def _get_effective_agent_card_auth(
+        self, agent_config: Dict[str, Any]
+    ) -> Tuple[Optional[Dict[str, Any]], bool]:
+        """
+        Resolves the effective authentication configuration for agent card fetching.
+
+        This method implements the auth resolution priority for agent card requests:
+        1. If agent_card_authentication is specified, use it (new field takes precedence)
+        2. If authentication is specified AND use_auth_for_agent_card=True, use it (legacy behavior)
+        3. Otherwise, no authentication for agent card
+
+        Args:
+            agent_config: The agent configuration dictionary.
+
+        Returns:
+            Tuple of (auth_config, should_use_auth):
+            - auth_config: The authentication config dict to use, or None if no auth
+            - should_use_auth: Boolean flag indicating whether to apply auth
+        """
+        # Priority 1: Check for new agent_card_authentication field
+        agent_card_auth = agent_config.get("agent_card_authentication")
+        if agent_card_auth is not None:
+            return (agent_card_auth, True)
+
+        # Priority 2: Check for legacy authentication with use_auth_for_agent_card flag
+        legacy_auth = agent_config.get("authentication")
+        use_auth_for_agent_card = agent_config.get("use_auth_for_agent_card", False)
+        if legacy_auth is not None and use_auth_for_agent_card:
+            return (legacy_auth, True)
+
+        # No authentication for agent card
+        return (None, False)
+
+    def _get_effective_task_auth(
+        self, agent_config: Dict[str, Any]
+    ) -> Tuple[Optional[Dict[str, Any]], bool]:
+        """
+        Resolves the effective authentication configuration for task invocations.
+
+        This method implements the auth resolution priority for task requests:
+        1. If task_authentication is specified, use it (new field takes precedence)
+        2. If authentication is specified, use it (legacy behavior - tasks always get auth)
+        3. Otherwise, no authentication for tasks
+
+        Args:
+            agent_config: The agent configuration dictionary.
+
+        Returns:
+            Tuple of (auth_config, should_use_auth):
+            - auth_config: The authentication config dict to use, or None if no auth
+            - should_use_auth: Boolean flag indicating whether to apply auth
+        """
+        # Priority 1: Check for new task_authentication field
+        task_auth = agent_config.get("task_authentication")
+        if task_auth is not None:
+            return (task_auth, True)
+
+        # Priority 2: Check for legacy authentication (always applies to tasks)
+        legacy_auth = agent_config.get("authentication")
+        if legacy_auth is not None:
+            return (legacy_auth, True)
+
+        # No authentication for tasks
+        return (None, False)
+
     async def _build_headers(
         self,
         agent_name: str,
@@ -580,11 +645,11 @@ class A2AProxyComponent(BaseProxyComponent):
             )
             return False
 
-        # Step 2: Check authentication type
-        auth_config = agent_config.get("authentication")
-        if not auth_config:
+        # Step 2: Get effective task authentication (uses new resolution logic)
+        auth_config, should_use_auth = self._get_effective_task_auth(agent_config)
+        if not should_use_auth or not auth_config:
             log.debug(
-                "%s No authentication configured for agent. No retry needed.",
+                "%s No authentication configured for tasks. No retry needed.",
                 log_identifier,
             )
             return False
