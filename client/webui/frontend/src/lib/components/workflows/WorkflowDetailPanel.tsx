@@ -122,7 +122,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
                 ) : (
                     <>
                         {/* Version and Node Count */}
-                        <div className="mb-4 flex items-center gap-4">
+                        <div className="mb-4 grid grid-cols-2 gap-4">
                     <div>
                         <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">
                             Version
