@@ -270,7 +270,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
 
             {/* Side panel wrapper */}
             {selectedWorkflow && (
-                <div className={`h-full overflow-hidden transition-all duration-500 ease-in-out ${isSidePanelOpen ? "w-1/4 min-w-[400px]" : "w-0"}`}>
+                <div className={`h-full overflow-hidden transition-all duration-500 ease-in-out ${isSidePanelOpen ? "w-[400px]" : "w-0"}`}>
                     <div className={`h-full transition-opacity duration-500 ${isSidePanelOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}>
                         <WorkflowDetailPanel workflow={selectedWorkflow} onClose={handleCloseSidePanel} />
                     </div>

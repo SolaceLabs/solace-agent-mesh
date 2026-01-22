@@ -5,6 +5,7 @@ import yaml from "js-yaml";
 import type { AgentCardInfo } from "@/lib/types";
 import { getWorkflowConfig, getWorkflowNodeCount } from "@/lib/utils/agentUtils";
 import { Button } from "@/lib/components/ui/button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui/tooltip";
 import { MarkdownHTMLConverter } from "@/lib/components/common";
 import { JSONViewer } from "@/lib/components/jsonViewer";
 import { Workflow, GitMerge, FileJson, X, ExternalLink, ChevronDown, ChevronUp, FileText, Code, Copy, Check } from "lucide-react";
@@ -72,71 +73,49 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
     return (
         <div className="flex h-full flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-                <div className="flex items-center gap-2">
-                    <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                        {workflow.displayName || workflow.name}
-                    </span>
+            <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                <div className="flex min-w-0 items-center gap-2">
+                    <Workflow className="h-5 w-5 flex-shrink-0 text-(--color-brand-wMain)" />
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="truncate text-xl font-semibold">
+                                {workflow.displayName || workflow.name}
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            {workflow.displayName || workflow.name}
+                        </TooltipContent>
+                    </Tooltip>
                 </div>
-                <div className="flex items-center gap-2">
-                    {/* View toggle */}
-                    <div className="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-600">
-                        <button
-                            onClick={() => setShowCodeView(false)}
-                            className={`flex items-center justify-center px-3 py-1.5 ${
-                                !showCodeView
-                                    ? "bg-[var(--color-brand-wMain)]/10 text-gray-700 dark:text-gray-200"
-                                    : "bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
-                            }`}
-                            title="Details view"
-                        >
-                            <FileText className="h-4 w-4" />
-                        </button>
-                        <button
-                            onClick={() => setShowCodeView(true)}
-                            className={`flex items-center justify-center border-l border-gray-300 px-3 py-1.5 dark:border-gray-600 ${
-                                showCodeView
-                                    ? "bg-[var(--color-brand-wMain)]/10 text-gray-700 dark:text-gray-200"
-                                    : "bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
-                            }`}
-                            title="Code view"
-                        >
-                            <Code className="h-4 w-4" />
-                        </button>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={onClose}
-                        tooltip="Close"
-                    >
-                        <X className="h-5 w-5" />
-                    </Button>
-                </div>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onClose}
+                    tooltip="Close"
+                >
+                    <X className="h-5 w-5" />
+                </Button>
             </div>
-
-            {/* Toolbar (only for code view) */}
-            {showCodeView && (
-                <div className="flex items-center justify-end gap-1 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-                    <button
-                        onClick={handleCopy}
-                        className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                        title="Copy YAML"
-                    >
-                        {isCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                    </button>
-                </div>
-            )}
 
             {/* Content */}
             <div className="scrollbar-themed flex-1 overflow-y-auto p-4">
                 {showCodeView ? (
                     // Code view - show YAML
                     config ? (
-                        <pre className="scrollbar-themed overflow-auto rounded-lg bg-gray-100 p-3 font-mono text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-200">
-                            {yaml.dump(config, { indent: 2, lineWidth: -1 })}
-                        </pre>
+                        <div className="relative h-full">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={handleCopy}
+                                tooltip={isCopied ? "Copied!" : "Copy"}
+                                className="absolute right-2 top-2 z-10 h-8 w-8"
+                            >
+                                {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                            </Button>
+                            <pre className="scrollbar-themed h-full overflow-auto rounded-lg bg-gray-100 p-3 font-mono text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                                {yaml.dump(config, { indent: 2, lineWidth: -1 })}
+                            </pre>
+                        </div>
                     ) : (
                         <div className="text-muted-foreground text-sm">No configuration available</div>
                     )
@@ -145,20 +124,18 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
                         {/* Version and Node Count */}
                         <div className="mb-4 flex items-center gap-4">
                     <div>
-                        <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">
                             Version
                         </label>
-                        <div className="flex items-center gap-1 text-sm text-gray-900 dark:text-gray-100">
-                            <GitMerge size={14} className="text-gray-400" />
+                        <div className="text-sm text-gray-900 dark:text-gray-100">
                             {workflow.version || "N/A"}
                         </div>
                     </div>
                     <div>
-                        <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">
                             Nodes
                         </label>
-                        <div className="flex items-center gap-1 text-sm text-gray-900 dark:text-gray-100">
-                            <Workflow size={14} className="text-gray-400" />
+                        <div className="text-sm text-gray-900 dark:text-gray-100">
                             {nodeCount > 0 ? nodeCount : "N/A"}
                         </div>
                     </div>
@@ -167,7 +144,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
                 {/* Description */}
                 {description && (
                     <div className="mb-4">
-                        <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">
                             Description
                         </label>
                         <div
@@ -181,7 +158,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
                         {showExpandButton && (
                             <button
                                 onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                                className="mt-2 flex items-center gap-1 text-sm text-[var(--color-brand-wMain)] hover:underline"
+                                className="mt-2 flex items-center gap-1 text-sm text-(--color-primary-wMain) hover:underline"
                             >
                                 {isDescriptionExpanded ? (
                                     <>
@@ -208,7 +185,6 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
                             onClick={handleOpenWorkflow}
                             className="w-full"
                         >
-                            <ExternalLink className="mr-2 h-4 w-4" />
                             Open Workflow
                         </Button>
                     </div>
@@ -251,7 +227,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
                                 <div>
                                     {config?.input_schema ? (
                                         <div>
-                                            <label className="mb-2 flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                                            <label className="mb-2 flex items-center text-sm font-medium text-gray-500 dark:text-gray-400">
                                                 <FileJson size={14} className="mr-1" />
                                                 Schema
                                             </label>
@@ -272,7 +248,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
                                 <div className="space-y-4">
                                     {config?.output_schema ? (
                                         <div>
-                                            <label className="mb-2 flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                                            <label className="mb-2 flex items-center text-sm font-medium text-gray-500 dark:text-gray-400">
                                                 <FileJson size={14} className="mr-1" />
                                                 Schema
                                             </label>
@@ -290,7 +266,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
                                     {/* Output Mapping */}
                                     {config?.output_mapping && (
                                         <div>
-                                            <label className="mb-2 flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                                            <label className="mb-2 flex items-center text-sm font-medium text-gray-500 dark:text-gray-400">
                                                 <FileJson size={14} className="mr-1" />
                                                 Output Mapping
                                             </label>
@@ -312,7 +288,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
                 {/* Provider */}
                 {workflow.provider && (
                     <div className="border-t pt-4">
-                        <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-400">
                             Provider
                         </label>
                         <div className="space-y-2 text-sm">
