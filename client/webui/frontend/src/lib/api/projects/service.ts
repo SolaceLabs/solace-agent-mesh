@@ -49,7 +49,6 @@ export const addFilesToProjectStream = async (projectId: string, files: File[], 
         throw new Error("No upload_id returned from server");
     }
 
-    // 3. Subscribe to SSE progress events
     return new Promise<UploadFilesResult>((resolve, reject) => {
         const accessToken = getAccessToken();
         const params = new URLSearchParams();
