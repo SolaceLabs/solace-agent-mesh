@@ -200,6 +200,14 @@ Add the following to your Claude Desktop configuration file (`~/.config/claude/c
 }
 ```
 
+### Claude Code
+
+Add the MCP Server gateway using the following command:
+
+```sh
+claude mcp add sam http://localhost:8090/mcp --transport http
+```
+
 ### MCP Inspector
 
 For testing with the MCP Inspector CLI tool:
