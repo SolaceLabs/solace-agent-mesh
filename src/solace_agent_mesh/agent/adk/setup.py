@@ -50,6 +50,7 @@ from ..tools.tool_config_types import (
 from ..tools.tool_definition import BuiltinTool
 from .app_llm_agent import AppLlmAgent
 from .embed_resolving_mcp_toolset import EmbedResolvingMCPToolset
+from .mcp_ssl_config import SslConfig
 from .tool_wrapper import ADKToolWrapper
 
 if TYPE_CHECKING:
@@ -569,6 +570,29 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     }
     connection_args["timeout"] = connection_args.get("timeout", 30)
 
+    # Extract SSL configuration if provided
+    ssl_config_dict = connection_args.pop("ssl_config", None)
+    ssl_config = None
+    if ssl_config_dict and isinstance(ssl_config_dict, dict):
+        ssl_verify = ssl_config_dict.get("verify", True)
+        ssl_ca_bundle = ssl_config_dict.get("ca_bundle")
+
+        # Log warning when SSL verification is disabled
+        if ssl_verify is False:
+            log.warning(
+                "%s SSL verification is disabled for MCP connection. "
+                "This should only be used in development environments.",
+                component.log_identifier,
+            )
+
+        ssl_config = SslConfig(verify=ssl_verify, ca_bundle=ssl_ca_bundle)
+        log.debug(
+            "%s SSL configuration for MCP tool: verify=%s, ca_bundle=%s",
+            component.log_identifier,
+            ssl_verify,
+            ssl_ca_bundle,
+        )
+
     environment_variables = tool_config_model.environment_variables
     env_param = {}
     if connection_type == "stdio" and environment_variables:
@@ -704,6 +728,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
         "tool_filter": tool_filter,
         "tool_name_prefix": tool_config_model.tool_name_prefix,
         "tool_config": tool_config,
+        "ssl_config": ssl_config,
     }
 
     # Merge additional parameters from configurator
