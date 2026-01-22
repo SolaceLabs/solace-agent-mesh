@@ -23,6 +23,7 @@ from .exceptions import (
     ConfigurationError,
     DataIntegrityError,
     ExternalServiceError,
+    InternalServiceError,
 )
 from .error_dto import EventErrorDTO
 
@@ -103,6 +104,19 @@ async def external_service_error_handler(
     """Handle external service errors - 503 Service Unavailable."""
     error_dto = EventErrorDTO.create("Service is unavailable.")
     return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=error_dto.model_dump())
+
+
+async def internal_service_error_handler(
+    request: Request, exc: InternalServiceError
+) -> JSONResponse:
+    """Handle unexpected internal errors - 500 Internal Server Error."""
+    log.error(
+        "InternalServiceError: An unexpected error occurred",
+        extra={"path": request.url.path, "method": request.method},
+        exc_info=True
+    )
+    error_dto = EventErrorDTO.create("An unexpected error occurred.")
+    return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=error_dto.model_dump())
 
 
 async def webui_backend_exception_handler(
@@ -208,6 +222,7 @@ def register_exception_handlers(app):
     app.add_exception_handler(ConfigurationError, configuration_error_handler)
     app.add_exception_handler(DataIntegrityError, data_integrity_error_handler)
     app.add_exception_handler(ExternalServiceError, external_service_error_handler)
+    app.add_exception_handler(InternalServiceError, internal_service_error_handler)
     app.add_exception_handler(WebUIBackendException, webui_backend_exception_handler)
 
     # FastAPI built-in exception handlers
