@@ -156,9 +156,10 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
                             <MarkdownHTMLConverter>{description}</MarkdownHTMLConverter>
                         </div>
                         {showExpandButton && (
-                            <button
+                            <Button
+                                variant="link"
                                 onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                                className="mt-2 flex items-center gap-1 text-sm text-(--color-primary-wMain) hover:underline"
+                                className="mt-2 h-auto pl-0 pr-0 text-sm"
                             >
                                 {isDescriptionExpanded ? (
                                     <>
@@ -171,7 +172,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
                                         Show More
                                     </>
                                 )}
-                            </button>
+                            </Button>
                         )}
                     </div>
                 )}
