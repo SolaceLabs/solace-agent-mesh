@@ -3,7 +3,8 @@ import React, { createContext, useCallback, useContext, useEffect, useState, use
 
 import { useConfigContext } from "@/lib/hooks";
 import type { Project, ProjectContextValue, UpdateProjectData } from "@/lib/types/projects";
-import { useProjects, useCreateProject, useUpdateProject, useDeleteProject, useAddFilesToProject, useRemoveFileFromProject, useUpdateFileMetadata } from "@/lib/api/projects/hooks";
+import { useProjects, useCreateProject, useUpdateProject, useDeleteProject, useRemoveFileFromProject, useUpdateFileMetadata } from "@/lib/api/projects/hooks";
+import { addFilesToProjectStream } from "@/lib/api/projects/service";
 
 const LAST_VIEWED_PROJECT_KEY = "lastViewedProjectId";
 
@@ -24,7 +25,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const createProjectMutation = useCreateProject();
     const updateProjectMutation = useUpdateProject();
     const deleteProjectMutation = useDeleteProject();
-    const addFilesMutation = useAddFilesToProject();
     const removeFileMutation = useRemoveFileFromProject();
     const updateFileMetadataMutation = useUpdateFileMetadata();
 
@@ -85,7 +85,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const fileMetadata = fileMetadataStr ? JSON.parse(fileMetadataStr) : undefined;
 
             try {
-                await addFilesMutation.mutateAsync({ projectId, files, fileMetadata });
+                // Use streaming API (no progress callback at provider level)
+                await addFilesToProjectStream(projectId, files, fileMetadata);
             } catch (error: unknown) {
                 // Handle 413 (Payload Too Large) errors specifically
                 const errorMessage = error instanceof Error ? error.message : String(error);
@@ -103,7 +104,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw error;
             }
         },
-        [projectsEnabled, addFilesMutation]
+        [projectsEnabled]
     );
 
     const removeFileFromProject = useCallback(

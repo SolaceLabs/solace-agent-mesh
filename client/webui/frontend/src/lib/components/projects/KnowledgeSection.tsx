@@ -6,6 +6,7 @@ import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
 import { formatRelativeTime, validateFileSizes } from "@/lib/utils";
+import { addFilesToProjectStream } from "@/lib/api/projects/service";
 
 import { ArtifactBar } from "../chat/artifact";
 import { FileDetails } from "../chat/file";
@@ -22,7 +23,7 @@ interface KnowledgeSectionProps {
 
 export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) => {
     const { data: artifacts = [], isLoading, error, refetch } = useProjectArtifacts(project.id);
-    const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
+    const { removeFileFromProject, updateFileMetadata } = useProjectContext();
     const { onDownload } = useDownload(project.id);
     const { validationLimits } = useConfigContext();
 
@@ -63,8 +64,17 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const handleConfirmUpload = async (formData: FormData) => {
         setIsSubmitting(true);
         setUploadError(null);
+
         try {
-            await addFilesToProject(project.id, formData);
+            // Extract files and metadata from FormData
+            const files = Array.from(formData.getAll("files")) as File[];
+            const metadataJson = formData.get("fileMetadata") as string | null;
+            const fileMetadata = metadataJson ? JSON.parse(metadataJson) : undefined;
+
+            // Call streaming API with progress callback
+            await addFilesToProjectStream(project.id, files, fileMetadata);
+
+            // Refetch artifacts and close dialog
             await refetch();
             setFilesToUpload(null);
         } catch (e) {

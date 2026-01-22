@@ -72,3 +72,50 @@ export interface ProjectContextValue extends UseProjectsReturn {
     setSearchQuery: (query: string) => void;
     filteredProjects: Project[];
 }
+
+export type ArtifactStreamEventType =
+    | "validation_started"
+    | "validation_completed"
+    | "artifact_saving_started"
+    | "artifact_saved"
+    | "indexing_started"
+    | "index_creation_started"
+    | "index_creation_completed"
+    | "index_creation_failed"
+    | "upload_completed"
+    | "upload_failed";
+
+export interface ArtifactStreamEventData {
+    type: ArtifactStreamEventType;
+    file_count?: number;
+    artifact_count?: number;
+    filename?: string;
+    version?: number;
+    index_version?: number;
+    progress?: string;
+    error?: string;
+    total_files?: number;
+    timestamp: string;
+}
+
+export interface ArtifactStreamEvent {
+    event: "upload_progress" | "upload_success" | "upload_error";
+    data: ArtifactStreamEventData;
+}
+
+export interface UploadProgress {
+    phase: "validating" | "saving" | "indexing" | "completed" | "error";
+    statusText: string;
+    fileCount: number;
+    completedFiles: number;
+    failedFiles: string[];
+    succeededFiles: string[];
+}
+
+export interface UploadFilesResult {
+    success: boolean;
+    totalFiles: number;
+    succeededFiles: string[];
+    failedFiles: string[];
+    error?: string;
+}
