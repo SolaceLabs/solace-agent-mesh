@@ -26,6 +26,9 @@ from markitdown import MarkItDown
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextContainer
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # python-docx installed from markitdown[all]
 try:
     from docx import Document as DocxDocument
@@ -42,16 +45,11 @@ except ImportError:
     PPTX_AVAILABLE = False
     logger.warning("python-pptx not available, PowerPoint slide tracking will be disabled")
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 # Supported file extensions with their MIME types
 SUPPORTED_BINARY_DICT = {
     '.pdf': 'application/pdf',
     '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    '.doc': 'application/msword',
-    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    '.ppt': 'application/vnd.ms-powerpoint'
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 }
 SUPPORTED_TEXT_DICT = {
     '.txt': 'text/plain',
@@ -501,10 +499,10 @@ class BM25DocumentIndexer:
             mime_type: Optional MIME type of the file (used when file extension is not available)
             supported_type: The supported type of the file ('text' or 'binary')
         Returns:
-            Tuple of (text_content, file_type, page_map, total_pages) where:
+            Tuple of (text_content, file_type, position_map, total_pages) where:
             - text_content: The extracted text
             - file_type: File extension or MIME type
-            - page_map: Optional page/slide/line mapping (list of (num, char_start, char_end))
+            - position_map: Optional page/slide/line mapping (list of (num, char_start, char_end))
             - total_pages: Optional total page/slide/line count
         """
         is_pdf = False
@@ -522,7 +520,7 @@ class BM25DocumentIndexer:
         elif supported_type == 'binary':
             is_pdf = (file_ext == '.pdf' or mime_type == 'application/pdf')
             is_docx = (file_ext == '.docx' or mime_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-            is_pptx = (file_ext in ['.pptx', '.ppt'] or mime_type in ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint'])
+            is_pptx = (file_ext == '.pptx' or mime_type == 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
             
             # For PDFs, try to extract with page information
             if is_pdf:
@@ -613,7 +611,7 @@ class BM25DocumentIndexer:
             return {"message": "unsupported file type for indexing"}
 
         # Convert to text (with page tracking for PDFs)
-        text_content, file_type, page_map, total_pages = self.convert_to_text(
+        text_content, file_type, position_map, total_pages = self.convert_to_text(
             file_path, 
             validation_result['supported_type'],
             validation_result['file_ext'], 
@@ -626,7 +624,7 @@ class BM25DocumentIndexer:
         
         # Determine position type based on file type
         position_type = 'page'  # default
-        if file_type in ['.pptx', '.ppt', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint']:
+        if file_type in ['.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation']:
             position_type = 'slide'
         elif file_type in ['.txt', '.md', '.csv', '.html', '.htm', '.json', '.xml', 'text/plain', 'text/markdown', 'text/csv', 'text/html', 'application/json', 'application/xml']:
             position_type = 'line'
@@ -652,7 +650,7 @@ class BM25DocumentIndexer:
         doc_metadata['description'] = description
         
         # Chunk the document (with position mapping and type)
-        chunks = self.chunker.chunk_text(text_content, doc_metadata, page_map, position_type)
+        chunks = self.chunker.chunk_text(text_content, doc_metadata, position_map, position_type)
         
         if not chunks:
             logger.warning(f"No chunks created from {file_path.name}")
