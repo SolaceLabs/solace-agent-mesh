@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Workflow } from "lucide-react";
+import { Search, Workflow, ExternalLink } from "lucide-react";
 
 import type { AgentCardInfo } from "@/lib/types";
 import { getWorkflowConfig } from "@/lib/utils/agentUtils";
@@ -9,7 +9,7 @@ import { Button } from "@/lib/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/lib/components/ui/table";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/lib/components/ui/pagination";
 import { WorkflowDetailPanel } from "./WorkflowDetailPanel";
-import { WorkflowOnboardingBanner } from "./WorkflowOnboardingBanner";
+import { WorkflowOnboardingBanner, WORKFLOW_HEADER, WORKFLOW_DESCRIPTION, WORKFLOW_LEARN_MORE_TEXT } from "./WorkflowOnboardingBanner";
 
 const WorkflowImage = <Workflow className="text-muted-foreground" size={64} />;
 
@@ -24,9 +24,12 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
     const [screenHeight, setScreenHeight] = useState<number>(typeof window !== "undefined" ? window.innerHeight : 768);
     const [selectedWorkflow, setSelectedWorkflow] = useState<AgentCardInfo | null>(null);
     const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(false);
+    
 
     // Responsive itemsPerPage based on screen height
     const itemsPerPage = screenHeight >= 900 ? 20 : 10;
+
+    // workflows = []; // TEMPORARY: Force empty state preview
 
     // Handle screen resize
     useEffect(() => {
@@ -141,7 +144,32 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
     };
 
     if (workflows.length === 0) {
-        return <EmptyState image={WorkflowImage} title="No workflows found" subtitle="No workflows discovered in the current namespace." />;
+        return (
+            <div className="flex h-full items-center justify-center p-12">
+                <div className="grid max-w-6xl grid-cols-2 gap-12">
+                    {/* Left column - Text and CTA */}
+                    <div className="flex flex-col justify-center">
+                        <h2 className="mb-4 text-xl font-semibold">
+                            {WORKFLOW_HEADER}
+                        </h2>
+                        <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">
+                            {WORKFLOW_DESCRIPTION}
+                        </p>
+                        <Button variant="default" className="w-fit" asChild>
+                            <a href="#">
+                                {WORKFLOW_LEARN_MORE_TEXT}
+                                <ExternalLink size={14} />
+                            </a>
+                        </Button>
+                    </div>
+
+                    {/* Right column - Image placeholder */}
+                    <div className="flex items-center justify-center">
+                        <div className="h-[400px] w-full rounded-lg bg-gray-300 dark:bg-gray-700"></div>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     // Pagination controls component

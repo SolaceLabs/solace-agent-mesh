@@ -5,6 +5,10 @@ import { Button } from "@/lib/components/ui/button";
 
 const STORAGE_KEY = "workflow-onboarding-dismissed";
 
+export const WORKFLOW_HEADER = "Turn complex multi-agent tasks into streamlined workflows.";
+export const WORKFLOW_DESCRIPTION = "Define the sequence in YAML, deploy to Agent Mesh, and watch your workflow handle the coordination automatically. Great for building repeatable processes that need multiple agents working together in a specific order.";
+export const WORKFLOW_LEARN_MORE_TEXT = "Learn how to create workflows";
+
 export const WorkflowOnboardingBanner: React.FC = () => {
     const [isDismissed, setIsDismissed] = useState<boolean>(true);
 
@@ -30,12 +34,12 @@ export const WorkflowOnboardingBanner: React.FC = () => {
 
             <div className="pr-8">
                 <p className="text-sm">
-                    <span className="font-semibold">Turn complex multi-agent tasks into streamlined workflows. </span>Define the sequence in YAML, deploy to Agent Mesh, and watch your workflow handle the coordination automatically. Great for building repeatable processes that need multiple agents working together in a specific order.
+                    <span className="font-semibold">{WORKFLOW_HEADER}</span> {WORKFLOW_DESCRIPTION}
                 </p>
 
-                <Button variant="link" className="mt-2 h-auto !pl-0 !pr-0 !pb-0 text-sm hover:underline" asChild>
+                <Button variant="link" className="mt-2 h-auto !pl-0 !pr-0 !pb-0text-sm hover:underline" asChild>
                     <a href="#">
-                        Learn how to create workflows
+                        {WORKFLOW_LEARN_MORE_TEXT}
                         <ExternalLink size={14} />
                     </a>
                 </Button>
