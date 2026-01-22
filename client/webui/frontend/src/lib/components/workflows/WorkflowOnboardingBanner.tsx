@@ -33,7 +33,7 @@ export const WorkflowOnboardingBanner: React.FC = () => {
                     <span className="font-semibold">Turn complex multi-agent tasks into streamlined workflows. </span>Define the sequence in YAML, deploy to Agent Mesh, and watch your workflow handle the coordination automatically. Great for building repeatable processes that need multiple agents working together in a specific order.
                 </p>
 
-                <Button variant="link" className="mt-2 h-auto !pl-0 !pr-0 text-sm hover:underline" asChild>
+                <Button variant="link" className="mt-2 h-auto !pl-0 !pr-0 !pb-0 text-sm hover:underline" asChild>
                     <a href="#">
                         Learn how to create workflows
                         <ExternalLink size={14} />

@@ -57,12 +57,25 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
 
     // Check if description needs truncation (more than 5 lines)
     useEffect(() => {
-        if (descriptionRef.current) {
+        if (descriptionRef.current && description) {
             const element = descriptionRef.current;
-            // Check if content is taller than 5 lines (approximately 5 * line-height)
+            // Temporarily remove line clamp to get natural height
+            const hadClamp = element.classList.contains('line-clamp-5');
+            if (hadClamp) {
+                element.classList.remove('line-clamp-5');
+            }
+
+            // Check if content is taller than 5 lines
             const lineHeight = parseInt(getComputedStyle(element).lineHeight) || 20;
             const maxHeight = lineHeight * 5;
-            setShowExpandButton(element.scrollHeight > maxHeight + 5); // +5 for tolerance
+            const needsExpand = element.scrollHeight > maxHeight + 5; // +5 for tolerance
+
+            // Restore line clamp if it was there
+            if (hadClamp) {
+                element.classList.add('line-clamp-5');
+            }
+
+            setShowExpandButton(needsExpand);
         }
     }, [description]);
 
@@ -71,7 +84,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
     };
 
     return (
-        <div className="flex h-full flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex h-full flex-col border-l border-gray-200 dark:border-gray-700">
             {/* Header */}
             <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                 <div className="flex min-w-0 items-center gap-2">
