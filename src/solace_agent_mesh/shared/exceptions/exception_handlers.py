@@ -111,7 +111,8 @@ async def internal_service_error_handler(
 ) -> JSONResponse:
     """Handle unexpected internal errors - 500 Internal Server Error."""
     log.error(
-        "InternalServiceError: An unexpected error occurred",
+        "InternalServiceError: %s",
+        exc.message,
         extra={"path": request.url.path, "method": request.method},
         exc_info=True
     )
