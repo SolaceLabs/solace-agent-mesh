@@ -29,8 +29,6 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
     // Responsive itemsPerPage based on screen height
     const itemsPerPage = screenHeight >= 900 ? 20 : 10;
 
-    // workflows = []; // TEMPORARY: Force empty state preview
-
     // Handle screen resize
     useEffect(() => {
         const handleResize = () => {

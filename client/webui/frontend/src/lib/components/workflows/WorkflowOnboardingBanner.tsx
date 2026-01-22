@@ -37,7 +37,7 @@ export const WorkflowOnboardingBanner: React.FC = () => {
                     <span className="font-semibold">{WORKFLOW_HEADER}</span> {WORKFLOW_DESCRIPTION}
                 </p>
 
-                <Button variant="link" className="mt-2 h-auto !pl-0 !pr-0 !pb-0text-sm hover:underline" asChild>
+                <Button variant="link" className="mt-2 h-auto !pl-0 !pr-0 !pb-0 text-sm hover:underline" asChild>
                     <a href="#">
                         {WORKFLOW_LEARN_MORE_TEXT}
                         <ExternalLink size={14} />
