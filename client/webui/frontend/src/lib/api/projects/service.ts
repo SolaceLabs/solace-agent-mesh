@@ -42,11 +42,9 @@ export const addFilesToProjectStream = async (projectId: string, files: File[], 
         throw new Error(`Upload initiation failed: ${response.statusText}`);
     }
 
-    const result = await response.json();
-    const uploadId = result.upload_id;
-
-    if (!uploadId) {
-        throw new Error("No upload_id returned from server");
+    const locationHeader = response.headers.get("Location");
+    if (!locationHeader) {
+        throw new Error("No Location header returned from server");
     }
 
     return new Promise<UploadFilesResult>((resolve, reject) => {
@@ -56,7 +54,8 @@ export const addFilesToProjectStream = async (projectId: string, files: File[], 
             params.append("token", accessToken);
         }
 
-        const sseUrl = api.webui.getFullUrl(`/api/v1/sse/subscribe/${uploadId}`);
+        // Use Location header directly
+        const sseUrl = api.webui.getFullUrl(locationHeader);
         const eventSourceUrl = params.toString() ? `${sseUrl}?${params}` : sseUrl;
         const eventSource = new EventSource(eventSourceUrl, { withCredentials: true });
 
