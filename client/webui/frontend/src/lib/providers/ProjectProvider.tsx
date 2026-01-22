@@ -87,11 +87,18 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             try {
                 await addFilesMutation.mutateAsync({ projectId, files, fileMetadata });
             } catch (error: unknown) {
-                // Handle 413 errors specifically
-                const err = error as { response?: { status: number }; message?: string };
-                if (err?.response?.status === 413) {
-                    const errorMessage = err.message || "One or more files exceed the maximum allowed size. Please try uploading smaller files.";
-                    throw new Error(errorMessage.includes("exceeds maximum") || errorMessage.includes("too large") ? errorMessage : "One or more files exceed the maximum allowed size. Please try uploading smaller files.");
+                // Handle 413 (Payload Too Large) errors specifically
+                const errorMessage = error instanceof Error ? error.message : String(error);
+
+                // Check if error message indicates 413 or contains size-related keywords
+                if (
+                    errorMessage.includes("413") ||
+                    errorMessage.toLowerCase().includes("payload too large") ||
+                    errorMessage.toLowerCase().includes("exceed") ||
+                    errorMessage.toLowerCase().includes("too large") ||
+                    errorMessage.toLowerCase().includes("maximum allowed size")
+                ) {
+                    throw new Error("One or more files exceed the maximum allowed size. Please try uploading smaller files.");
                 }
                 throw error;
             }
