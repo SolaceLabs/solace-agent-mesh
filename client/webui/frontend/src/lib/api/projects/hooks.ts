@@ -110,6 +110,19 @@ export function useAddFilesToProject() {
     });
 }
 
+export function useAddFilesToProjectStream() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ projectId, files, fileMetadata, onProgress }: { projectId: string; files: File[]; fileMetadata?: Record<string, string>; onProgress?: (progress: import("@/lib/types").UploadProgress) => void }) =>
+            projectService.addFilesToProjectStream(projectId, files, fileMetadata, onProgress),
+        onSuccess: (_, { projectId }) => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: projectKeys.artifacts(projectId) });
+        },
+    });
+}
+
 export function useRemoveFileFromProject() {
     const queryClient = useQueryClient();
 

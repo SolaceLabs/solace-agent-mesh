@@ -36,7 +36,6 @@ export const addFilesToProjectStream = async (projectId: string, files: File[], 
         formData.append("fileMetadata", JSON.stringify(fileMetadata));
     }
 
-    // 2. Initiate upload (returns 202 Accepted with upload_id)
     const response = await api.webui.post(`/api/v1/projects/${projectId}/artifacts_stream`, formData, { fullResponse: true });
 
     if (response.status !== 202) {
@@ -72,13 +71,11 @@ export const addFilesToProjectStream = async (projectId: string, files: File[], 
             succeededFiles: [],
         };
 
-        // Helper to update and notify progress
         const updateProgress = (updates: Partial<UploadProgress>) => {
             Object.assign(progressState, updates);
             onProgress?.(progressState);
         };
 
-        // Handle SSE events
         const handleMessage = (event: MessageEvent) => {
             try {
                 const data: ArtifactStreamEventData = JSON.parse(event.data);

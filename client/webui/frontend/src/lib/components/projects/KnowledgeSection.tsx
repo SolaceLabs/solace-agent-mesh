@@ -2,11 +2,10 @@ import React, { useState, useCallback } from "react";
 
 import { Spinner } from "@/lib/components/ui/spinner";
 import { useConfigContext, useDownload } from "@/lib/hooks";
-import { useProjectArtifacts } from "@/lib/api/projects/hooks";
+import { useProjectArtifacts, useAddFilesToProjectStream } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
 import { formatRelativeTime, validateFileSizes } from "@/lib/utils";
-import { addFilesToProjectStream } from "@/lib/api/projects/service";
 
 import { ArtifactBar } from "../chat/artifact";
 import { FileDetails } from "../chat/file";
@@ -26,12 +25,12 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const { removeFileFromProject, updateFileMetadata } = useProjectContext();
     const { onDownload } = useDownload(project.id);
     const { validationLimits } = useConfigContext();
+    const uploadMutation = useAddFilesToProjectStream();
 
     // Get max upload size from config - if not available, skip client-side validation
     const maxUploadSizeBytes = validationLimits?.maxUploadSizeBytes;
 
     const [filesToUpload, setFilesToUpload] = useState<FileList | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedArtifact, setSelectedArtifact] = useState<ArtifactInfo | null>(null);
     const [showDetailsDialog, setShowDetailsDialog] = useState(false);
     const [expandedArtifact, setExpandedArtifact] = useState<string | null>(null);
@@ -62,27 +61,24 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     };
 
     const handleConfirmUpload = async (formData: FormData) => {
-        setIsSubmitting(true);
         setUploadError(null);
 
         try {
-            // Extract files and metadata from FormData
             const files = Array.from(formData.getAll("files")) as File[];
             const metadataJson = formData.get("fileMetadata") as string | null;
             const fileMetadata = metadataJson ? JSON.parse(metadataJson) : undefined;
 
-            // Call streaming API with progress callback
-            await addFilesToProjectStream(project.id, files, fileMetadata);
+            await uploadMutation.mutateAsync({
+                projectId: project.id,
+                files,
+                fileMetadata,
+            });
 
-            // Refetch artifacts and close dialog
-            await refetch();
             setFilesToUpload(null);
         } catch (e) {
             console.error("Failed to add files:", e);
             const errorMessage = e instanceof Error ? e.message : "Failed to upload files. Please try again.";
             setUploadError(errorMessage);
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -215,7 +211,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                 )}
             </div>
 
-            <AddProjectFilesDialog isOpen={!!filesToUpload} files={filesToUpload} onClose={handleCloseUploadDialog} onConfirm={handleConfirmUpload} isSubmitting={isSubmitting} error={uploadError} onClearError={handleClearUploadError} />
+            <AddProjectFilesDialog isOpen={!!filesToUpload} files={filesToUpload} onClose={handleCloseUploadDialog} onConfirm={handleConfirmUpload} isSubmitting={uploadMutation.isPending} error={uploadError} onClearError={handleClearUploadError} />
             <FileDetailsDialog isOpen={showDetailsDialog} artifact={selectedArtifact} onClose={handleCloseDetailsDialog} onEdit={handleEditFromDetails} />
             <EditFileDescriptionDialog isOpen={showEditDialog} artifact={selectedArtifact} onClose={handleCloseEditDialog} onSave={handleSaveDescription} isSaving={isSavingMetadata} />
             <DeleteProjectFileDialog isOpen={!!fileToDelete} fileToDelete={fileToDelete} handleConfirmDelete={handleConfirmDelete} setFileToDelete={setFileToDelete} />
