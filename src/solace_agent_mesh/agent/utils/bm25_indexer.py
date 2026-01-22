@@ -19,6 +19,7 @@ from abc import ABC, abstractmethod
 import json
 import pickle
 import io
+import time
 import bm25s
 import Stemmer
 from markitdown import MarkItDown
@@ -611,12 +612,19 @@ class BM25DocumentIndexer:
             return {"message": "unsupported file type for indexing"}
 
         # Convert to text (with page tracking for PDFs)
+        logger.info(f"[TIMING] Starting conversion to markdown format for {file_path.name}")
+        conversion_start = time.perf_counter()
+        
         text_content, file_type, position_map, total_pages = self.convert_to_text(
             file_path, 
             validation_result['supported_type'],
             validation_result['file_ext'], 
             validation_result['mime_type'],
         )
+        
+        conversion_end = time.perf_counter()
+        conversion_time = conversion_end - conversion_start
+        logger.info(f"[TIMING] Conversion to markdown completed in {conversion_time:.3f} seconds ({len(text_content)} chars)")
         
         if not text_content:
             logger.warning(f"No content extracted from {file_path.name}")
@@ -650,7 +658,14 @@ class BM25DocumentIndexer:
         doc_metadata['description'] = description
         
         # Chunk the document (with position mapping and type)
+        logger.info(f"[TIMING] Starting chunking for {file_path.name}")
+        chunking_start = time.perf_counter()
+        
         chunks = self.chunker.chunk_text(text_content, doc_metadata, position_map, position_type)
+        
+        chunking_end = time.perf_counter()
+        chunking_time = chunking_end - chunking_start
+        logger.info(f"[TIMING] Chunking completed in {chunking_time:.3f} seconds ({len(chunks)} chunks created)")
         
         if not chunks:
             logger.warning(f"No chunks created from {file_path.name}")
@@ -658,6 +673,10 @@ class BM25DocumentIndexer:
         
         # Extract text from chunks for indexing
         corpus_texts = [chunk['text'] for chunk in chunks]
+        
+        # Tokenize and index (with timing)
+        logger.info(f"[TIMING] Starting indexing for {file_path.name}")
+        indexing_start = time.perf_counter()
         
         # Tokenize the corpus (BM25s requires tokenized input)
         # We'll use simple whitespace tokenization with stemming
@@ -673,6 +692,10 @@ class BM25DocumentIndexer:
         
         # Save the index
         retriever.save(str(index_dir))
+        
+        indexing_end = time.perf_counter()
+        indexing_time = indexing_end - indexing_start
+        logger.info(f"[TIMING] Indexing completed in {indexing_time:.3f} seconds")
         
         # Save metadata and chunks
         metadata = {
