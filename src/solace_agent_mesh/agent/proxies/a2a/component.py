@@ -194,6 +194,7 @@ class A2AProxyComponent(BaseProxyComponent):
         agent_config: Dict[str, Any],
         custom_headers_key: str,
         use_auth: bool = True,
+        context: str = "task",
     ) -> Dict[str, str]:
         """
         Builds HTTP headers for requests, applying authentication and custom headers.
@@ -206,19 +207,27 @@ class A2AProxyComponent(BaseProxyComponent):
             agent_config: The agent configuration dictionary.
             custom_headers_key: Key to look up custom headers in config ('agent_card_headers' or 'task_headers').
             use_auth: Whether to apply authentication headers.
+            context: The authentication context ("agent_card" or "task").
+                     Defaults to "task" for backward compatibility.
 
         Returns:
             Dictionary of HTTP headers. Custom headers are applied after auth headers.
             Note: For task invocations, the A2A SDK's AuthInterceptor may further
             modify authentication headers after these are set.
         """
+        # Create a context-aware wrapper for the OAuth token fetcher
+        async def oauth_token_fetcher_with_context(
+            agent_name: str, auth_config: Dict[str, Any]
+        ) -> str:
+            return await self._fetch_oauth2_token(agent_name, auth_config, context)
+
         return await build_full_auth_headers(
             agent_name=agent_name,
             agent_config=agent_config,
             custom_headers_key=custom_headers_key,
             use_auth=use_auth,
             log_identifier=self.log_identifier,
-            oauth_token_fetcher=self._fetch_oauth2_token,
+            oauth_token_fetcher=oauth_token_fetcher_with_context,
         )
 
     async def _fetch_agent_card(
@@ -255,6 +264,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 agent_config=config_for_headers,
                 custom_headers_key="agent_card_headers",
                 use_auth=should_use_auth,
+                context="agent_card",
             )
 
             if headers:
@@ -675,13 +685,13 @@ class A2AProxyComponent(BaseProxyComponent):
             )
             return False
 
-        # Step 3: Invalidate cached OAuth token
+        # Step 3: Invalidate cached OAuth token for task context
         log.info(
-            "%s Invalidating cached OAuth 2.0 token for agent '%s'.",
+            "%s Invalidating cached OAuth 2.0 token for agent '%s' (context: task).",
             log_identifier,
             agent_name,
         )
-        await self._oauth_token_cache.invalidate(agent_name)
+        await self._oauth_token_cache.invalidate(agent_name, context="task")
 
         # Step 4: Remove ALL cached Clients for this agent/session combination
         # We clear both streaming and non-streaming clients because:
@@ -727,14 +737,14 @@ class A2AProxyComponent(BaseProxyComponent):
         return True
 
     async def _fetch_oauth2_token(
-        self, agent_name: str, auth_config: Dict[str, Any]
+        self, agent_name: str, auth_config: Dict[str, Any], context: str = "task"
     ) -> str:
         """
         Fetches an OAuth 2.0 access token using the client credentials flow.
 
         This method implements token caching to avoid unnecessary token requests.
-        Tokens are cached per agent and automatically expire based on the configured
-        cache duration (default: 55 minutes).
+        Tokens are cached per agent and context (agent_card vs task) and
+        automatically expire based on the configured cache duration (default: 55 minutes).
 
         Args:
             agent_name: The name of the agent (used as cache key).
@@ -744,6 +754,8 @@ class A2AProxyComponent(BaseProxyComponent):
                 - client_secret: OAuth 2.0 client secret (required)
                 - scope: (optional) Space-separated scope string
                 - token_cache_duration_seconds: (optional) Cache duration in seconds
+            context: The authentication context ("agent_card" or "task").
+                     Defaults to "task" for backward compatibility.
 
         Returns:
             A valid OAuth 2.0 access token (string).
@@ -753,10 +765,10 @@ class A2AProxyComponent(BaseProxyComponent):
             httpx.HTTPStatusError: If token request returns non-2xx status.
             httpx.RequestError: If network error occurs.
         """
-        log_identifier = f"{self.log_identifier}[OAuth2:{agent_name}]"
+        log_identifier = f"{self.log_identifier}[OAuth2:{agent_name}:{context}]"
 
-        # Step 1: Check cache first
-        cached_token = await self._oauth_token_cache.get(agent_name)
+        # Step 1: Check cache first (with context)
+        cached_token = await self._oauth_token_cache.get(agent_name, context)
         if cached_token:
             log.debug("%s Using cached OAuth token.", log_identifier)
             return cached_token
@@ -803,9 +815,9 @@ class A2AProxyComponent(BaseProxyComponent):
 
             access_token = token_data["access_token"]
 
-            # Step 6: Cache the token
+            # Step 6: Cache the token (with context)
             await self._oauth_token_cache.set(
-                agent_name, access_token, cache_duration
+                agent_name, access_token, cache_duration, context
             )
 
             # Step 7: Log success
@@ -912,6 +924,7 @@ class A2AProxyComponent(BaseProxyComponent):
             agent_config=agent_config,
             custom_headers_key="task_headers",
             use_auth=False,  # Auth will be handled by AuthInterceptor below
+            context="task",
         )
 
         # Create a new httpx client with the specific timeout and custom headers for this agent
@@ -992,7 +1005,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 # NEW: OAuth 2.0 Client Credentials Flow
                 try:
                     access_token = await self._fetch_oauth2_token(
-                        agent_name, auth_config
+                        agent_name, auth_config, context="task"
                     )
                     await self._credential_store.set_credentials(
                         session_id, "bearer", access_token
