@@ -75,6 +75,19 @@ const getErrorFromResponse = async (response: Response): Promise<string> => {
         if (!text) return fallbackMessage;
         try {
             const errorData = JSON.parse(text);
+
+            // Handle 422 validation errors with array format (FastAPI/Pydantic)
+            if (response.status === 422 && errorData.detail && Array.isArray(errorData.detail)) {
+                const validationErrors = errorData.detail
+                    .map((err: { loc?: string[]; msg: string }) => {
+                        const field = err.loc?.join(".") || "field";
+                        return `${field}: ${err.msg}`;
+                    })
+                    .join(", ");
+                return `Validation error: ${validationErrors}`;
+            }
+
+            // Handle standard error formats
             return errorData.message || errorData.detail || fallbackMessage;
         } catch {
             return text.length < 500 ? text : fallbackMessage;
