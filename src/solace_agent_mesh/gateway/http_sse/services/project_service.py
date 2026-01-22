@@ -654,12 +654,19 @@ class ProjectService:
         if not self._can_delete_project(db, project_id, user_id):
             return False
 
+        # Delete all shares for this project (cascade)
+        self._resource_sharing_service.delete_resource_shares(
+            session=db,
+            resource_id=project_id,
+            resource_type=ResourceType.PROJECT
+        )
+
         project_repository = self._get_repositories(db)
         deleted = project_repository.delete(project_id)
 
         if deleted:
             self.logger.info(f"Successfully deleted project {project_id}")
-        
+
         return deleted
 
     def soft_delete_project(self, db, project_id: str, user_id: str) -> bool:
@@ -1046,35 +1053,35 @@ class ProjectService:
         if self._is_project_owner(db, project_id, user_id):
             return True
         role = self._get_shared_access_role(db, project_id, user_id)
-        return role in ["administrator", "editor"]
+        return role in ["resource_administrator", "resource_editor"]
 
     def _can_delete_project(self, db, project_id: str, user_id: str) -> bool:
         if self._is_project_owner(db, project_id, user_id):
             return True
         role = self._get_shared_access_role(db, project_id, user_id)
-        return role == "administrator"
+        return role == "resource_administrator"
 
     def _can_share_project(self, db, project_id: str, user_id: str) -> bool:
         if self._is_project_owner(db, project_id, user_id):
             return True
         role = self._get_shared_access_role(db, project_id, user_id)
-        return role == "administrator"
+        return role == "resource_administrator"
 
     def _can_edit_artifacts(self, db, project_id: str, user_id: str) -> bool:
         if self._is_project_owner(db, project_id, user_id):
             return True
         role = self._get_shared_access_role(db, project_id, user_id)
-        return role in ["administrator", "editor"]
+        return role in ["resource_administrator", "resource_editor"]
 
     def _can_delete_artifacts(self, db, project_id: str, user_id: str) -> bool:
         if self._is_project_owner(db, project_id, user_id):
             return True
         role = self._get_shared_access_role(db, project_id, user_id)
-        return role == "administrator"
+        return role == "resource_administrator"
 
     def _can_export_project(self, db, project_id: str, user_id: str) -> bool:
         if self._is_project_owner(db, project_id, user_id):
             return True
         role = self._get_shared_access_role(db, project_id, user_id)
-        return role == "administrator"
+        return role == "resource_administrator"
 
