@@ -1046,6 +1046,10 @@ class ProjectService:
                 source_description=source_description,
                 timestamp=datetime.now(timezone.utc)
             )
+            
+            # Return the index version from the result
+            return result.get("index_version")
+            
         except Exception as e:
             self.logger.error(f"Error creating versioned BM25 index for {source_filename}: {e}", exc_info=True)
             return None

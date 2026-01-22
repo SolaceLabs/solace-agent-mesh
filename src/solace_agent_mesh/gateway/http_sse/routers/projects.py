@@ -17,6 +17,7 @@ from fastapi import (
     File,
     UploadFile,
 )
+import time
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from solace_ai_connector.common.log import log
@@ -377,6 +378,9 @@ async def add_project_artifacts(
                 pass
         
         log.info(f"parsed_file_metadata: {parsed_file_metadata}") # sample parsed_file_metadata: {'kendra-dg.pdf': 'It is a aws document for kendra index'}
+        
+        log.info(f"[TIMING] Starting uploading original files {[file.filename for file in files]} to artifact storage for project {project_id}")
+        upload_start = time.perf_counter()
 
         results = await project_service.add_artifacts_to_project(
             db=db,
@@ -385,6 +389,10 @@ async def add_project_artifacts(
             files=files,
             file_metadata=parsed_file_metadata
         )
+
+        upload_end = time.perf_counter()
+        upload_time = upload_end - upload_start
+        log.info(f"[TIMING] Uploading original files completed in {upload_time:.3f} seconds")
 
         # Create versioned BM25 indexes for uploaded artifacts
         if results:
