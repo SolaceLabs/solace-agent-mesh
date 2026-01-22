@@ -230,7 +230,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
                                             <TableRow
                                                 key={workflow.name}
                                                 onClick={() => handleSelectWorkflow(workflow)}
-                                                className="hover:bg-muted/50 cursor-pointer"
+                                                className="hover:bg-muted/50 cursor-pointe"
                                                 data-state={selectedWorkflow?.name === workflow.name ? "selected" : undefined}
                                             >
                                                 <TableCell>
