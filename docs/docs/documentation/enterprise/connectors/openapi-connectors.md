@@ -9,13 +9,15 @@ OpenAPI connectors allow agents to interact with REST APIs that use OpenAPI spec
 
 OpenAPI connectors generate callable tools from API endpoints. Agents use these tools to make authenticated HTTP requests to external services and integrate with any OpenAPI-compliant REST API through natural language.
 
-OpenAPI connectors use OpenAPI specifications to understand:
-- API structure
-- Parameter requirements
-- Authentication methods
-- Response formats
+The connector reads the OpenAPI specification to determine:
+- API structure and available endpoints
+- Parameter requirements (path, query, header, and body parameters)
+- Authentication methods and security schemes
+- Request and response formats
+- Content types (such as `application/json` or `application/x-www-form-urlencoded`)
+- Data schemas and validation rules
 
-The connector automatically converts API operations into tools that agents invoke. The connector handles HTTP request construction, authentication, and response parsing.
+The connector converts API operations into tools that agents invoke. It derives all request details from the specification, including HTTP methods, headers like `Content-Type`, required parameters, and expected response structures. You cannot modify these settings in Agent Builder. To change how the connector constructs requests, you must update the OpenAPI specification file itself.
 
 The connector supports OpenAPI 3.0+ specifications in JSON or YAML format and provides flexible authentication options to accommodate different API security models.
 
