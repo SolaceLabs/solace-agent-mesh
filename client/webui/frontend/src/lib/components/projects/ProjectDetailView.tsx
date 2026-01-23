@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
 
-import { Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
-import { ValidatedTextareaWithFooter } from "@/lib/components/ui/validated-textarea-with-footer";
+import { Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea } from "@/lib/components/ui";
+import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
 import { useConfigContext } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
-import { DEFAULT_PROJECT_DESCRIPTION_MAX } from "@/lib/constants/validation";
+import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
@@ -35,7 +35,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? DEFAULT_PROJECT_DESCRIPTION_MAX;
+    const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? DEFAULT_MAX_DESCRIPTION_LENGTH;
     const isDescriptionOverLimit = editedDescription.length > MAX_DESCRIPTION_LENGTH;
 
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
@@ -196,7 +196,16 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Description*</label>
-                            <ValidatedTextareaWithFooter value={editedDescription} onChange={e => setEditedDescription(e.target.value)} placeholder="Project description" rows={4} disabled={isSaving} maxLength={MAX_DESCRIPTION_LENGTH} />
+                            <Textarea
+                                value={editedDescription}
+                                onChange={e => setEditedDescription(e.target.value)}
+                                placeholder="Project description"
+                                rows={4}
+                                disabled={isSaving}
+                                maxLength={MAX_DESCRIPTION_LENGTH + 1}
+                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-destructive" : ""}`}
+                            />
+                            <FieldFooter hasError={isDescriptionOverLimit} message={`${editedDescription.length} / ${MAX_DESCRIPTION_LENGTH}`} error={`Description must be less than ${MAX_DESCRIPTION_LENGTH} characters`} />
                         </div>
                         {nameError && <MessageBanner variant="error" message={nameError} />}
                     </div>

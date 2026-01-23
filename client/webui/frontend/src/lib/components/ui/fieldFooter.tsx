@@ -3,16 +3,17 @@ import { cn } from "@/lib/utils";
 
 interface FieldFooterProps {
     hasError?: boolean;
+    message: string;
+    error: string;
     align?: "left" | "right";
     className?: string;
-    children: React.ReactNode;
 }
 
-const FieldFooter: React.FC<FieldFooterProps> = ({ hasError = false, align, className, children }) => {
+const FieldFooter: React.FC<FieldFooterProps> = ({ hasError = false, message, error, align, className }) => {
     const defaultAlign = hasError ? "left" : "right";
     const textAlign = align || defaultAlign;
 
-    return <div className={cn("text-xs", hasError ? "text-destructive" : "text-muted-foreground", textAlign === "right" && "text-right", className)}>{children}</div>;
+    return <div className={cn("text-xs", hasError ? "text-destructive" : "text-muted-foreground", textAlign === "right" && "text-right", className)}>{hasError ? error : message}</div>;
 };
 
 FieldFooter.displayName = "FieldFooter";

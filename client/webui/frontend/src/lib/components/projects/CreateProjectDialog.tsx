@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 
-import { Button, Input } from "@/lib/components/ui";
+import { Button, Input, Textarea } from "@/lib/components/ui";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
-import { ValidatedTextareaWithFooter } from "@/lib/components/ui/validated-textarea-with-footer";
+import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner } from "@/lib/components/common";
 import { getErrorMessage } from "@/lib/utils";
 import { useConfigContext } from "@/lib/hooks";
-import { DEFAULT_PROJECT_DESCRIPTION_MAX } from "@/lib/constants/validation";
+import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 
 interface CreateProjectDialogProps {
     isOpen: boolean;
@@ -22,7 +22,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({ isOpen
     const [error, setError] = useState<string | null>(null);
     const [nameError, setNameError] = useState<string | null>(null);
 
-    const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? DEFAULT_PROJECT_DESCRIPTION_MAX;
+    const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? DEFAULT_MAX_DESCRIPTION_LENGTH;
     const isDescriptionOverLimit = description.length > MAX_DESCRIPTION_LENGTH;
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -94,7 +94,16 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({ isOpen
                             <label htmlFor="project-description" className="font-medium">
                                 Description
                             </label>
-                            <ValidatedTextareaWithFooter id="project-description" value={description} onChange={e => setDescription(e.target.value)} disabled={isSubmitting} rows={3} maxLength={MAX_DESCRIPTION_LENGTH} />
+                            <Textarea
+                                id="project-description"
+                                value={description}
+                                onChange={e => setDescription(e.target.value)}
+                                disabled={isSubmitting}
+                                rows={3}
+                                maxLength={MAX_DESCRIPTION_LENGTH + 1}
+                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-destructive" : ""}`}
+                            />
+                            <FieldFooter hasError={isDescriptionOverLimit} message={`${description.length} / ${MAX_DESCRIPTION_LENGTH}`} error={`Description must be less than ${MAX_DESCRIPTION_LENGTH} characters`} />
                         </div>
                     </div>
 
