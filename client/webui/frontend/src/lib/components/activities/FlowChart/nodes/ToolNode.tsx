@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { FileText, Wrench } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import type { LayoutNode } from "../utils/types";
@@ -9,7 +9,7 @@ interface ToolNodeProps {
     onClick?: (node: LayoutNode) => void;
 }
 
-const ToolNode: React.FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
+const ToolNode: FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
     const isProcessing = node.data.status === "in-progress";
     const haloClass = isProcessing ? 'processing-halo' : '';
     const artifactCount = node.data.createdArtifacts?.length || 0;

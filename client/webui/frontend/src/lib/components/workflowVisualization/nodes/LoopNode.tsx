@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC, ReactNode, MouseEvent } from "react";
 import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, LAYOUT_CONSTANTS, type NodeProps } from "../utils/types";
@@ -6,7 +6,7 @@ import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, LAYOUT_C
 const { NODE_HEIGHTS } = LAYOUT_CONSTANTS;
 
 interface LoopNodeProps extends NodeProps {
-    renderChildren?: (children: NodeProps["node"]["children"]) => React.ReactNode;
+    renderChildren?: (children: NodeProps["node"]["children"]) => ReactNode;
 }
 
 /**
@@ -14,13 +14,13 @@ interface LoopNodeProps extends NodeProps {
  * Shows condition, max iterations, expand/collapse icon, and renders child nodes when expanded
  * Supports highlighting when referenced in expressions
  */
-const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick, onExpand, onCollapse, renderChildren }) => {
+const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick, onExpand, onCollapse, renderChildren }) => {
     const isCollapsed = node.isCollapsed;
     const hasChildren = node.children && node.children.length > 0;
     // Check if node can have children (even when collapsed and children aren't loaded)
     const canHaveChildren = hasChildren || !!node.data.childNodeId;
 
-    const handleToggle = (e: React.MouseEvent) => {
+    const handleToggle = (e: MouseEvent) => {
         e.stopPropagation();
         if (isCollapsed) {
             onExpand?.(node.id);

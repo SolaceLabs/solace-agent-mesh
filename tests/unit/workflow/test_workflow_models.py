@@ -309,7 +309,7 @@ class TestWorkflowInvokeNodeValidation:
     def test_workflow_node_with_when_clause(self):
         """WorkflowInvokeNode with when clause parses correctly."""
         node = WorkflowInvokeNode(
-            id="conditional_wf",
+            id="guarded_wf",
             type="workflow",
             workflow_name="optional_workflow",
             when="{{check.output.should_run}} == true",

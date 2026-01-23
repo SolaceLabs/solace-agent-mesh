@@ -184,7 +184,6 @@ markers = [
     "streaming: marks tests related to streaming messages",
     "artifacts: marks tests related to artifact handling and services",
     "workflows: marks tests related to workflow execution",
-    "conditional: marks tests for conditional workflow branching",
     "map: marks tests for map (parallel iteration) workflows",
     "switch: marks tests for switch (multi-way) workflow branching",
     "loop: marks tests for loop workflow iteration",

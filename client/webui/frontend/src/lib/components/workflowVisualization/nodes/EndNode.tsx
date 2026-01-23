@@ -1,11 +1,11 @@
-import React from "react";
+import type { FC } from "react";
 import { CheckCircle } from "lucide-react";
 import { NODE_BASE_STYLES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
 
 /**
  * End node - Pill-shaped node marking the end of the workflow
  */
-const EndNode: React.FC<NodeProps> = ({ node, isSelected, onClick }) => {
+const EndNode: FC<NodeProps> = ({ node, isSelected, onClick }) => {
     return (
         <div
             className={`${NODE_BASE_STYLES.PILL} ${

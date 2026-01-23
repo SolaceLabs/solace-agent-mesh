@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { Play } from "lucide-react";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
 
@@ -6,7 +6,7 @@ import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type Nod
  * Start node - Pill-shaped node marking the beginning of the workflow
  * Supports highlighting when referenced via workflow.input in expressions
  */
-const StartNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) => {
+const StartNode: FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) => {
     return (
         <div
             className={`${NODE_BASE_STYLES.PILL} ${
