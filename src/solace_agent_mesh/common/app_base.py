@@ -233,32 +233,6 @@ class SamAppBase(App):
 
         return True
 
-    def _get_primary_component(self):
-        """
-        Get the primary component for passing to custom health checks.
-
-        Returns the first component found that has a get_config method,
-        which is typically the main agent, gateway, or platform component.
-
-        Returns:
-            Component instance or None if no suitable component found.
-        """
-        if not hasattr(self, "flows") or not self.flows:
-            return None
-
-        for flow in self.flows:
-            if not hasattr(flow, "component_groups") or not flow.component_groups:
-                continue
-
-            for group in flow.component_groups:
-                for wrapper in group:
-                    component = getattr(wrapper, "component", wrapper)
-                    # Look for components with get_config (main SAM components)
-                    if hasattr(component, "get_config") and callable(component.get_config):
-                        return component
-
-        return None
-
     def _load_custom_check(self, check_path: str):
         """
         Load a custom health check callable from a module path.
@@ -320,6 +294,9 @@ class SamAppBase(App):
         """
         Run a custom health check if configured.
 
+        The custom health check function receives the application instance,
+        allowing it to access app_info, flows, and other application state.
+
         Args:
             check_key: The config key for the custom check
                        (CUSTOM_STARTUP_CHECK_KEY or CUSTOM_READY_CHECK_KEY)
@@ -339,8 +316,7 @@ class SamAppBase(App):
             return False
 
         try:
-            component = self._get_primary_component()
-            result = func(component)
+            result = func(self)
 
             if not isinstance(result, bool):
                 log.warning(

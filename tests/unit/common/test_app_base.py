@@ -694,10 +694,10 @@ class TestSamAppBaseCustomHealthChecks:
 
     @patch("solace_agent_mesh.common.app_base.importlib.import_module")
     @patch("solace_agent_mesh.common.app_base.App.__init__")
-    def test_custom_check_passes_component_to_function(
+    def test_custom_check_passes_app_to_function(
         self, mock_app_init, mock_import
     ):
-        """Custom check function receives the primary component."""
+        """Custom check function receives the application instance."""
         mock_app_init.return_value = None
 
         mock_func = MagicMock(return_value=True)
@@ -716,22 +716,12 @@ class TestSamAppBaseCustomHealthChecks:
                 "custom_ready_check": "mymodule:check_ready"
             }
         }
-
-        # Mock a component with get_config
-        mock_component = MagicMock()
-        mock_component.get_config = MagicMock()
-
-        mock_wrapper = MagicMock()
-        mock_wrapper.component = mock_component
-
-        mock_flow = MagicMock()
-        mock_flow.component_groups = [[mock_wrapper]]
-        app.flows = [mock_flow]
+        app.flows = []
 
         app._run_custom_check(CUSTOM_READY_CHECK_KEY)
 
-        # Verify the component was passed to the function
-        mock_func.assert_called_once_with(mock_component)
+        # Verify the application was passed to the function
+        mock_func.assert_called_once_with(app)
 
     @patch("solace_agent_mesh.common.app_base.importlib.import_module")
     @patch("solace_agent_mesh.common.app_base.App.__init__")
