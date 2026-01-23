@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 
-import { Button, Input, Textarea } from "@/lib/components/ui";
+import { Button, Input } from "@/lib/components/ui";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
+import { ValidatedTextareaWithFooter } from "@/lib/components/ui/validated-textarea-with-footer";
 import { MessageBanner } from "@/lib/components/common";
 import { getErrorMessage } from "@/lib/utils";
 import { useConfigContext } from "@/lib/hooks";
@@ -93,19 +94,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({ isOpen
                             <label htmlFor="project-description" className="font-medium">
                                 Description
                             </label>
-                            <Textarea
-                                id="project-description"
-                                value={description}
-                                onChange={e => setDescription(e.target.value)}
-                                disabled={isSubmitting}
-                                rows={3}
-                                maxLength={MAX_DESCRIPTION_LENGTH + 1}
-                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-destructive" : ""}`}
-                            />
-                            <div className={`text-xs ${isDescriptionOverLimit ? "text-destructive" : "text-muted-foreground text-right"}`}>
-                                {isDescriptionOverLimit && `Description must be less than ${MAX_DESCRIPTION_LENGTH} characters`}
-                                {!isDescriptionOverLimit && `${description.length} / ${MAX_DESCRIPTION_LENGTH}`}
-                            </div>
+                            <ValidatedTextareaWithFooter id="project-description" value={description} onChange={e => setDescription(e.target.value)} disabled={isSubmitting} rows={3} maxLength={MAX_DESCRIPTION_LENGTH} />
                         </div>
                     </div>
 

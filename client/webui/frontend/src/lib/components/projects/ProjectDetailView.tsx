@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
 
-import { Button, Input, Textarea, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
+import { Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
+import { ValidatedTextareaWithFooter } from "@/lib/components/ui/validated-textarea-with-footer";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
@@ -195,19 +196,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Description*</label>
-                            <Textarea
-                                value={editedDescription}
-                                onChange={e => setEditedDescription(e.target.value)}
-                                placeholder="Project description"
-                                rows={4}
-                                disabled={isSaving}
-                                maxLength={MAX_DESCRIPTION_LENGTH + 1}
-                                className={`resize-none text-sm ${isDescriptionOverLimit ? "border-destructive" : ""}`}
-                            />
-                            <div className={`text-xs ${isDescriptionOverLimit ? "text-destructive" : "text-muted-foreground text-right"}`}>
-                                {isDescriptionOverLimit && `Description must be less than ${MAX_DESCRIPTION_LENGTH} characters`}
-                                {!isDescriptionOverLimit && `${editedDescription.length} / ${MAX_DESCRIPTION_LENGTH}`}
-                            </div>
+                            <ValidatedTextareaWithFooter value={editedDescription} onChange={e => setEditedDescription(e.target.value)} placeholder="Project description" rows={4} disabled={isSaving} maxLength={MAX_DESCRIPTION_LENGTH} />
                         </div>
                         {nameError && <MessageBanner variant="error" message={nameError} />}
                     </div>
