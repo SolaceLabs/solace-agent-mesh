@@ -6,7 +6,7 @@ Defines configuration schema and creates the PlatformServiceComponent.
 import logging
 from typing import Any, Dict, List
 
-from solace_ai_connector.flow.app import App
+from ...common.app_base import SamAppBase
 
 from .component import PlatformServiceComponent
 from ...common.a2a import get_discovery_subscription_topic
@@ -19,7 +19,7 @@ info = {
 }
 
 
-class PlatformServiceApp(App):
+class PlatformServiceApp(SamAppBase):
     """
     Platform Service App.
 
