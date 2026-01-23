@@ -71,6 +71,9 @@ class SamAppBase(App):
         )
 
         # Ensure we have a valid positive number
+        if timeout is None:
+            return DB_HEALTH_CHECK_TIMEOUT_SECONDS
+
         try:
             timeout = float(timeout)
             if timeout <= 0:

@@ -190,3 +190,10 @@ class ExternalServiceError(WebUIBackendException):
         if status_code:
             details["status_code"] = status_code
         super().__init__(message, details)
+
+
+class InternalServiceError(WebUIBackendException):
+    """Exception for unexpected internal errors that should never happen."""
+
+    def __init__(self, message: str = "An unexpected error occurred"):
+        super().__init__(message)
