@@ -872,25 +872,51 @@ async def extract_content_from_artifact(
     )
 
     if is_text_based:
-        try:
-            artifact_text_content = source_artifact_content_bytes.decode("utf-8")
+        # Try multiple encodings to handle files from different sources (e.g., Windows Excel exports)
+        artifact_text_content = None
+        encoding_used = None
+        encodings_to_try = ['utf-8', 'cp1252', 'latin-1']
+        decode_errors = []
+        
+        for encoding in encodings_to_try:
+            try:
+                artifact_text_content = source_artifact_content_bytes.decode(encoding)
+                encoding_used = encoding
+                log.debug(
+                    "%s Successfully decoded artifact using %s encoding.",
+                    log_identifier,
+                    encoding,
+                )
+                break
+            except UnicodeDecodeError as e:
+                decode_errors.append(f"{encoding}: {e}")
+                continue
+        
+        if artifact_text_content is not None:
             llm_parts.append(
                 adk_types.Part(
-                    text=f"Artifact Content (MIME type: {source_mime_type}):\n```\n{artifact_text_content}\n```"
+                    text=f"Artifact Content (MIME type: {source_mime_type}, encoding: {encoding_used}):\n```\n{artifact_text_content}\n```"
                 )
             )
             log.debug("%s Prepared text content for LLM.", log_identifier)
-        except UnicodeDecodeError as e:
-            log.warning(
-                "%s Failed to decode text artifact as UTF-8: %s. Treating as opaque binary.",
+        else:
+            # All encoding attempts failed - return an error to the calling agent
+            # instead of passing a misleading message to the internal LLM
+            log.error(
+                "%s Failed to decode text artifact with any supported encoding. Errors: %s",
                 log_identifier,
-                e,
+                "; ".join(decode_errors),
             )
-            llm_parts.append(
-                adk_types.Part(
-                    text=f"The artifact '{filename}' is a binary file of type '{source_mime_type}' and could not be decoded as text."
-                )
-            )
+            return {
+                "status": "error_encoding_failed",
+                "message_to_llm": f"Could not extract content from artifact '{filename}' (v{actual_source_version}). "
+                                  f"The file appears to be a text file (MIME type: {source_mime_type}) but could not be decoded "
+                                  f"with any supported encoding (UTF-8, CP1252, Latin-1). The file may be corrupted or use an "
+                                  f"unsupported encoding. Please inform the user that the file cannot be processed.",
+                "filename": filename,
+                "version_requested": str(version),
+                "encoding_errors": decode_errors,
+            }
     else:  # Binary
         for supported_pattern in supported_binary_mime_types:
             if fnmatch.fnmatch(source_mime_type, supported_pattern):
@@ -1698,7 +1724,7 @@ apply_embed_and_create_artifact_tool_def = BuiltinTool(
 extract_content_from_artifact_tool_def = BuiltinTool(
     name="extract_content_from_artifact",
     implementation=extract_content_from_artifact,
-    description="Loads an existing artifact, uses an internal LLM to process its content based on an 'extraction_goal,' and manages the output by returning it or saving it as a new artifact.",
+    description="Loads an existing artifact, uses an internal LLM to process its content based on an 'extraction_goal,' and manages the output by returning it or saving it as a new artifact. IMPORTANT: If the tool returns an error status (e.g., 'error_encoding_failed', 'error_artifact_not_found'), you MUST relay this error to the user - do NOT attempt to generate or fabricate data. The tool will return a 'message_to_llm' field explaining the error.",
     category="artifact_management",
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
