@@ -2,6 +2,11 @@ name: Release (PyPI & Docker)
 on:
   workflow_dispatch:
     inputs:
+      ref:
+        type: string
+        required: true
+        description: "Git ref to release from"
+        default: "main"
       version:
         type: choice
         required: true
@@ -10,6 +15,12 @@ on:
           - patch
           - minor
           - major
+        default: patch
+      exact_version:
+        type: string
+        required: false
+        description: "Exact version to release (e.g., 1.13.2). Overrides 'version' input if provided."
+        default: ""
       skip_security_checks:
         type: boolean
         required: false
@@ -39,6 +50,7 @@ jobs:
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           fetch-depth: 0 # Need enough history to find last non-skip-ci commit
+          ref: ${{ github.event.inputs.ref }}
 
       - name: Find Last RC-Tested Commit
         id: find-commit
@@ -153,6 +165,7 @@ jobs:
         with:
           fetch-depth: 0
           ssh-key: ${{ secrets.COMMIT_KEY }}
+          ref: ${{ github.event.inputs.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -171,12 +184,12 @@ jobs:
         id: prep
         uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-prep@main
         with:
-          version: ${{ github.event.inputs.version }}
+          version: ${{ github.event.inputs.exact_version || github.event.inputs.version }}
 
       # Publish using Trusted Publishing - must be directly in workflow, not in composite action
       # See: https://docs.pypi.org/trusted-publishers/using-a-publisher/
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
         with:
           verbose: true
 

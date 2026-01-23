@@ -17,6 +17,7 @@ import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
 import { TextWithCitations } from "./Citation";
 import { parseCitations } from "@/lib/utils/citations";
 
+import DOMPurify from "dompurify";
 import { ArtifactMessage, FileMessage } from "./file";
 import { FeedbackModal } from "./FeedbackModal";
 import { ContentRenderer } from "./preview/ContentRenderer";
@@ -108,25 +109,42 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>
     const displayText = message.isUser ? textContent.trim() : textContent;
 
     // Parse citations from text and match to RAG sources
+    // Aggregate sources from ALL RAG entries for this task, not just the last one.
+    // When there are multiple web searches (multiple tool calls), each creates a separate RAG entry.
     const taskRagData = useMemo(() => {
         if (!message.taskId || !ragData) return undefined;
-        // Find the last matching entry (most recent/complete data)
         const matches = ragData.filter(r => r.taskId === message.taskId);
-        return matches.length > 0 ? matches[matches.length - 1] : undefined;
+        if (matches.length === 0) return undefined;
+
+        // If only one entry, return it directly
+        if (matches.length === 1) return matches[0];
+
+        // Aggregate all sources from all matching RAG entries
+        // Use the last entry as the base (for query, title, etc.) but combine all sources
+        const lastEntry = matches[matches.length - 1];
+        const allSources = matches.flatMap(r => r.sources || []);
+
+        // Deduplicate sources by citationId (keep the first occurrence)
+        const seenCitationIds = new Set<string>();
+        const uniqueSources = allSources.filter(source => {
+            const citationId = source.citationId;
+            if (!citationId || seenCitationIds.has(citationId)) {
+                return false;
+            }
+            seenCitationIds.add(citationId);
+            return true;
+        });
+
+        return {
+            ...lastEntry,
+            sources: uniqueSources,
+        };
     }, [message.taskId, ragData]);
 
     const citations = useMemo(() => {
         if (message.isUser) return [];
         return parseCitations(displayText, taskRagData);
     }, [displayText, taskRagData, message.isUser]);
-
-    const handleCitationClick = () => {
-        // Open RAG panel when citation is clicked
-        if (message.taskId) {
-            setTaskIdInSidePanel(message.taskId);
-            openSidePanelTab("rag");
-        }
-    };
 
     // Extract embedded content and compute modified text at component level
     const embeddedContent = useMemo(() => extractEmbeddedContent(displayText), [displayText]);
@@ -172,6 +190,26 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean }>
         if (message.isUser) return [];
         return parseCitations(modifiedText, taskRagData);
     }, [modifiedText, taskRagData, message.isUser]);
+
+    const handleCitationClick = () => {
+        // Open RAG panel when citation is clicked
+        if (message.taskId) {
+            setTaskIdInSidePanel(message.taskId);
+            openSidePanelTab("rag");
+        }
+    };
+
+    // If user message has displayHtml (with mention chips), render that instead
+    if (message.isUser && message.displayHtml) {
+        // Sanitize the HTML to prevent XSS
+        // Allow mention chips and their data attributes
+        const cleanHtml = DOMPurify.sanitize(message.displayHtml, {
+            ALLOWED_TAGS: ["span", "br"],
+            ALLOWED_ATTR: ["class", "contenteditable", "data-internal", "data-person-id", "data-person-name", "data-display"],
+        });
+
+        return <div className="message-with-mentions break-words whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: cleanHtml }} />;
+    }
 
     const renderContent = () => {
         if (message.isError) {
@@ -547,7 +585,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         // If there are multiple report artifacts and we couldn't find one,
         // don't show any inline report to avoid showing the wrong one
         return null;
-    }, [message, isLastWithTaskId, artifacts, taskRagData, sessionId]);
+    }, [message, isLastWithTaskId, artifacts, taskRagData]);
 
     // Get the last RAG data entry for this task (for citations in report)
     const lastTaskRagData = useMemo(() => {

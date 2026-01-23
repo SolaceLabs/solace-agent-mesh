@@ -253,8 +253,8 @@ class TaskLoggerService:
         Safely parses a raw A2A message payload into a Pydantic model.
         Returns the parsed model or None if parsing fails or is not applicable.
         """
-        # Ignore discovery messages
-        if "/discovery/agentcards" in topic:
+        # Ignore discovery messages (agents and gateways)
+        if "/discovery/" in topic:
             return None
         # Ignore trust manager trust card messages
         if "/trust/" in topic:

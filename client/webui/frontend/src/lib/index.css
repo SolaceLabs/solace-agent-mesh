@@ -3,6 +3,20 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Custom animation for title generation pulse */
+@keyframes pulse-generating {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
+}
+
+.animate-pulse-slow {
+    animation: pulse-generating 1.5s ease-in-out infinite;
+}
+
 @theme inline {
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
@@ -201,4 +215,21 @@
         background-color: var(--color-primary-wMain);
         border-color: var(--color-primary-wMain);
     }
+}
+
+/* Mention chip styles */
+.mention-chip {
+    display: inline-block;
+    background-color: rgb(219, 234, 254);
+    color: rgb(30, 64, 175);
+    border-radius: 3px;
+    padding: 1px 4px;
+    margin: 0 1px;
+    font-weight: 500;
+    user-select: all;
+}
+
+.dark .mention-chip {
+    background-color: rgb(30, 58, 138);
+    color: rgb(191, 219, 254);
 }

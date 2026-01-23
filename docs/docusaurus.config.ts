@@ -33,7 +33,9 @@ const config: Config = {
         docs: {
           sidebarPath: "./sidebars.ts",
           editUrl: "https://github.com/SolaceLabs/solace-agent-mesh/edit/main/docs",
+          routeBasePath: '/',
         },
+        blog: false,
       } satisfies Preset.Options,
     ],
   ],
@@ -51,7 +53,7 @@ const config: Config = {
       logo: {
         alt: "Solace Agent Mesh Logo",
         src: "img/logo.png",
-        href: "/docs/documentation/getting-started",
+        href: "/",
       },
       items: [
         {
@@ -81,7 +83,7 @@ const config: Config = {
           items: [
             {
               label: "Documentation",
-              to: "/docs/documentation/getting-started",
+              to: "/",
             },
             {
               label: "GitHub",

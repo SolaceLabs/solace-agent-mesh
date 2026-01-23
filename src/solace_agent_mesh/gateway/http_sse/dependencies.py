@@ -593,6 +593,20 @@ def get_audio_service(
     return AudioService(config=app_config)
 
 
+def get_title_generation_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> "TitleGenerationService":
+    """FastAPI dependency to get an instance of TitleGenerationService."""
+    from .services.title_generation_service import TitleGenerationService
+    
+    log.debug("get_title_generation_service called")
+    
+    # Get model configuration from component (same pattern as prompt_builder_assistant)
+    model_config = component.get_config("model", {})
+    
+    return TitleGenerationService(model_config=model_config)
+
+
 
 def get_user_display_name(
     request: Request,
@@ -607,5 +621,28 @@ def get_user_display_name(
         user_info = request.state.user
         # Try email first, then name, then fall back to user_id
         return user_info.get("email") or user_info.get("name") or user_id
-    
+
     return user_id
+
+
+def get_authorization_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    config_resolver: ConfigResolver = Depends(get_config_resolver),
+) -> Any | None:
+    """
+    Returns:
+        AuthorizationService instance from enterprise, or None if not available
+    """
+    # Check if this is the enterprise config resolver with authorization support
+    if not hasattr(config_resolver, 'get_authorization_service'):
+        log.debug("Base config resolver - no authorization service available")
+        return None
+
+    gateway_id = getattr(component, "gateway_id", None)
+    app_config = component.component_config.get("app_config", {})
+
+    try:
+        return config_resolver.get_authorization_service(gateway_id, app_config)
+    except Exception as e:
+        log.warning(f"Failed to get authorization service: {e}")
+        return None

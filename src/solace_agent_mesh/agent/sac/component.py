@@ -2997,8 +2997,8 @@ class SamAgentComponent(SamComponentBase):
         return a2a.get_a2a_base_topic(self.namespace)
 
     def _get_discovery_topic(self) -> str:
-        """Returns the discovery topic using helper."""
-        return a2a.get_discovery_topic(self.namespace)
+        """Returns the agent discovery topic for publishing."""
+        return a2a.get_agent_discovery_topic(self.namespace)
 
     def _get_agent_request_topic(self, agent_id: str) -> str:
         """Returns the agent request topic using helper."""
