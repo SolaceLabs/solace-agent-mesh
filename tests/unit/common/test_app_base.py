@@ -514,3 +514,323 @@ class TestSamAppBaseDatabaseTimeoutConfig:
         # Should fail due to configured timeout
         result = app.is_ready()
         assert result is False
+
+
+class TestSamAppBaseCustomHealthChecks:
+    """Tests for custom health check functionality."""
+
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_no_custom_check_configured_returns_true(self, mock_app_init):
+        """When no custom check is configured, _run_custom_check returns True."""
+        mock_app_init.return_value = None
+
+        from solace_agent_mesh.common.app_base import (
+            CUSTOM_READY_CHECK_KEY,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {}
+
+        result = app._run_custom_check(CUSTOM_READY_CHECK_KEY)
+        assert result is True
+
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_custom_check_invalid_path_format_returns_false(self, mock_app_init):
+        """When custom check path is missing colon, returns False."""
+        mock_app_init.return_value = None
+
+        from solace_agent_mesh.common.app_base import (
+            CUSTOM_READY_CHECK_KEY,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {
+            "health_check": {
+                "custom_ready_check": "invalid_path_without_colon"
+            }
+        }
+
+        result = app._run_custom_check(CUSTOM_READY_CHECK_KEY)
+        assert result is False
+
+    @patch("solace_agent_mesh.common.app_base.importlib.import_module")
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_custom_check_module_not_found_returns_false(
+        self, mock_app_init, mock_import
+    ):
+        """When custom check module cannot be imported, returns False."""
+        mock_app_init.return_value = None
+        mock_import.side_effect = ImportError("Module not found")
+
+        from solace_agent_mesh.common.app_base import (
+            CUSTOM_READY_CHECK_KEY,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {
+            "health_check": {
+                "custom_ready_check": "nonexistent.module:check_func"
+            }
+        }
+
+        result = app._run_custom_check(CUSTOM_READY_CHECK_KEY)
+        assert result is False
+
+    @patch("solace_agent_mesh.common.app_base.importlib.import_module")
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_custom_check_function_not_found_returns_false(
+        self, mock_app_init, mock_import
+    ):
+        """When custom check function doesn't exist in module, returns False."""
+        mock_app_init.return_value = None
+        mock_module = MagicMock(spec=[])  # Module without the function
+        mock_import.return_value = mock_module
+
+        from solace_agent_mesh.common.app_base import (
+            CUSTOM_READY_CHECK_KEY,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {
+            "health_check": {
+                "custom_ready_check": "mymodule:nonexistent_func"
+            }
+        }
+
+        result = app._run_custom_check(CUSTOM_READY_CHECK_KEY)
+        assert result is False
+
+    @patch("solace_agent_mesh.common.app_base.importlib.import_module")
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_custom_check_returns_true_when_function_returns_true(
+        self, mock_app_init, mock_import
+    ):
+        """When custom check function returns True, _run_custom_check returns True."""
+        mock_app_init.return_value = None
+
+        mock_func = MagicMock(return_value=True)
+        mock_module = MagicMock()
+        mock_module.check_ready = mock_func
+        mock_import.return_value = mock_module
+
+        from solace_agent_mesh.common.app_base import (
+            CUSTOM_READY_CHECK_KEY,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {
+            "health_check": {
+                "custom_ready_check": "mymodule:check_ready"
+            }
+        }
+        app.flows = []
+
+        result = app._run_custom_check(CUSTOM_READY_CHECK_KEY)
+        assert result is True
+        mock_func.assert_called_once()
+
+    @patch("solace_agent_mesh.common.app_base.importlib.import_module")
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_custom_check_returns_false_when_function_returns_false(
+        self, mock_app_init, mock_import
+    ):
+        """When custom check function returns False, _run_custom_check returns False."""
+        mock_app_init.return_value = None
+
+        mock_func = MagicMock(return_value=False)
+        mock_module = MagicMock()
+        mock_module.check_ready = mock_func
+        mock_import.return_value = mock_module
+
+        from solace_agent_mesh.common.app_base import (
+            CUSTOM_READY_CHECK_KEY,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {
+            "health_check": {
+                "custom_ready_check": "mymodule:check_ready"
+            }
+        }
+        app.flows = []
+
+        result = app._run_custom_check(CUSTOM_READY_CHECK_KEY)
+        assert result is False
+
+    @patch("solace_agent_mesh.common.app_base.importlib.import_module")
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_custom_check_returns_false_when_function_raises_exception(
+        self, mock_app_init, mock_import
+    ):
+        """When custom check function raises exception, returns False."""
+        mock_app_init.return_value = None
+
+        mock_func = MagicMock(side_effect=Exception("Check failed"))
+        mock_module = MagicMock()
+        mock_module.check_ready = mock_func
+        mock_import.return_value = mock_module
+
+        from solace_agent_mesh.common.app_base import (
+            CUSTOM_READY_CHECK_KEY,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {
+            "health_check": {
+                "custom_ready_check": "mymodule:check_ready"
+            }
+        }
+        app.flows = []
+
+        result = app._run_custom_check(CUSTOM_READY_CHECK_KEY)
+        assert result is False
+
+    @patch("solace_agent_mesh.common.app_base.importlib.import_module")
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_custom_check_passes_app_to_function(
+        self, mock_app_init, mock_import
+    ):
+        """Custom check function receives the application instance."""
+        mock_app_init.return_value = None
+
+        mock_func = MagicMock(return_value=True)
+        mock_module = MagicMock()
+        mock_module.check_ready = mock_func
+        mock_import.return_value = mock_module
+
+        from solace_agent_mesh.common.app_base import (
+            CUSTOM_READY_CHECK_KEY,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {
+            "health_check": {
+                "custom_ready_check": "mymodule:check_ready"
+            }
+        }
+        app.flows = []
+
+        app._run_custom_check(CUSTOM_READY_CHECK_KEY)
+
+        # Verify the application was passed to the function
+        mock_func.assert_called_once_with(app)
+
+    @patch("solace_agent_mesh.common.app_base.importlib.import_module")
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_custom_check_caches_callable(self, mock_app_init, mock_import):
+        """Custom check callable is cached and not reimported."""
+        mock_app_init.return_value = None
+
+        mock_func = MagicMock(return_value=True)
+        mock_module = MagicMock()
+        mock_module.check_ready = mock_func
+        mock_import.return_value = mock_module
+
+        from solace_agent_mesh.common.app_base import (
+            CUSTOM_READY_CHECK_KEY,
+            SamAppBase,
+        )
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {
+            "health_check": {
+                "custom_ready_check": "mymodule:check_ready"
+            }
+        }
+        app.flows = []
+
+        # Call twice
+        app._run_custom_check(CUSTOM_READY_CHECK_KEY)
+        app._run_custom_check(CUSTOM_READY_CHECK_KEY)
+
+        # import_module should only be called once (cached)
+        mock_import.assert_called_once()
+
+    @patch("solace_agent_mesh.common.app_base.importlib.import_module")
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_is_ready_calls_custom_ready_check(self, mock_app_init, mock_import):
+        """is_ready calls custom_ready_check when configured."""
+        mock_app_init.return_value = None
+
+        mock_func = MagicMock(return_value=True)
+        mock_module = MagicMock()
+        mock_module.check_ready = mock_func
+        mock_import.return_value = mock_module
+
+        from solace_agent_mesh.common.app_base import SamAppBase
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {
+            "broker": {"dev_mode": True},
+            "health_check": {
+                "custom_ready_check": "mymodule:check_ready"
+            }
+        }
+        app.flows = []
+
+        result = app.is_ready()
+        assert result is True
+        mock_func.assert_called_once()
+
+    @patch("solace_agent_mesh.common.app_base.importlib.import_module")
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_is_startup_complete_calls_custom_startup_check(
+        self, mock_app_init, mock_import
+    ):
+        """is_startup_complete calls custom_startup_check when configured."""
+        mock_app_init.return_value = None
+
+        mock_func = MagicMock(return_value=True)
+        mock_module = MagicMock()
+        mock_module.check_startup = mock_func
+        mock_import.return_value = mock_module
+
+        from solace_agent_mesh.common.app_base import SamAppBase
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {
+            "broker": {"dev_mode": True},
+            "health_check": {
+                "custom_startup_check": "mymodule:check_startup"
+            }
+        }
+        app.flows = []
+
+        result = app.is_startup_complete()
+        assert result is True
+        mock_func.assert_called_once()
+
+    @patch("solace_agent_mesh.common.app_base.importlib.import_module")
+    @patch("solace_agent_mesh.common.app_base.App.__init__")
+    def test_is_ready_fails_when_custom_check_returns_false(
+        self, mock_app_init, mock_import
+    ):
+        """is_ready returns False when custom check returns False."""
+        mock_app_init.return_value = None
+
+        mock_func = MagicMock(return_value=False)
+        mock_module = MagicMock()
+        mock_module.check_ready = mock_func
+        mock_import.return_value = mock_module
+
+        from solace_agent_mesh.common.app_base import SamAppBase
+
+        app = object.__new__(SamAppBase)
+        app.app_info = {
+            "broker": {"dev_mode": True},
+            "health_check": {
+                "custom_ready_check": "mymodule:check_ready"
+            }
+        }
+        app.flows = []
+
+        result = app.is_ready()
+        assert result is False

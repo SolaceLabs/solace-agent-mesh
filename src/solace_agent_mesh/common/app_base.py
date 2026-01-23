@@ -1,5 +1,6 @@
 """Base App class for all SAM applications with broker and database health checks."""
 
+import importlib
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
@@ -13,6 +14,10 @@ log = logging.getLogger(__name__)
 
 # Default timeout for database health checks (in seconds)
 DB_HEALTH_CHECK_TIMEOUT_SECONDS = 5.0
+
+# Config keys for custom health checks
+CUSTOM_STARTUP_CHECK_KEY = "custom_startup_check"
+CUSTOM_READY_CHECK_KEY = "custom_ready_check"
 
 
 class SamAppBase(App):
@@ -228,6 +233,113 @@ class SamAppBase(App):
 
         return True
 
+    def _load_custom_check(self, check_path: str):
+        """
+        Load a custom health check callable from a module path.
+
+        Args:
+            check_path: Path in format "module.path:function_name"
+
+        Returns:
+            The callable function, or None if loading fails.
+        """
+        # Use cached callable if available
+        if not hasattr(self, "_custom_check_cache"):
+            self._custom_check_cache = {}
+
+        if check_path in self._custom_check_cache:
+            return self._custom_check_cache[check_path]
+
+        try:
+            if ":" not in check_path:
+                log.error(
+                    "Invalid custom health check path '%s': "
+                    "expected format 'module.path:function_name'",
+                    check_path,
+                )
+                return None
+
+            module_path, function_name = check_path.rsplit(":", 1)
+            module = importlib.import_module(module_path)
+            func = getattr(module, function_name)
+
+            if not callable(func):
+                log.error(
+                    "Custom health check '%s' is not callable",
+                    check_path,
+                )
+                return None
+
+            # Cache the callable
+            self._custom_check_cache[check_path] = func
+            log.info("Loaded custom health check: %s", check_path)
+            return func
+
+        except ImportError as e:
+            log.error(
+                "Failed to import custom health check module '%s': %s",
+                check_path,
+                e,
+            )
+            return None
+        except AttributeError as e:
+            log.error(
+                "Custom health check function not found '%s': %s",
+                check_path,
+                e,
+            )
+            return None
+
+    def _run_custom_check(self, check_key: str) -> bool:
+        """
+        Run a custom health check if configured.
+
+        The custom health check function receives the application instance,
+        allowing it to access app_info, flows, and other application state.
+
+        Args:
+            check_key: The config key for the custom check
+                       (CUSTOM_STARTUP_CHECK_KEY or CUSTOM_READY_CHECK_KEY)
+
+        Returns:
+            True if check passes or no custom check configured, False if check fails.
+        """
+        health_check_config = self.app_info.get("health_check", {})
+        check_path = health_check_config.get(check_key)
+
+        if not check_path:
+            return True  # No custom check configured
+
+        func = self._load_custom_check(check_path)
+        if func is None:
+            # Loading failed - treat as unhealthy
+            return False
+
+        try:
+            result = func(self)
+
+            if not isinstance(result, bool):
+                log.warning(
+                    "Custom health check '%s' returned non-boolean value: %s, "
+                    "treating as unhealthy",
+                    check_path,
+                    result,
+                )
+                return False
+
+            if not result:
+                log.warning("Custom health check '%s' returned False", check_path)
+
+            return result
+
+        except Exception as e:
+            log.error(
+                "Custom health check '%s' raised exception: %s",
+                check_path,
+                e,
+            )
+            return False
+
     def is_startup_complete(self) -> bool:
         """
         Check if the app has completed its startup/initialization phase.
@@ -235,16 +347,22 @@ class SamAppBase(App):
         Returns True if:
         - Broker is connected (or using dev_mode)
         - All configured databases are connected
+        - Custom startup check passes (if configured)
 
         Returns False if:
         - Broker is DISCONNECTED or RECONNECTING
         - Any configured database is unreachable
+        - Custom startup check returns False or raises an exception
 
         Returns:
             bool: True if startup is complete, False if still initializing
         """
         timeout = self._get_db_health_check_timeout()
-        return self._is_broker_connected() and self._is_database_connected(timeout)
+        return (
+            self._is_broker_connected()
+            and self._is_database_connected(timeout)
+            and self._run_custom_check(CUSTOM_STARTUP_CHECK_KEY)
+        )
 
     def is_ready(self) -> bool:
         """
@@ -253,13 +371,19 @@ class SamAppBase(App):
         Returns True if:
         - Broker is connected (or using dev_mode)
         - All configured databases are connected
+        - Custom ready check passes (if configured)
 
         Returns False if:
         - Broker is DISCONNECTED or RECONNECTING
         - Any configured database is unreachable
+        - Custom ready check returns False or raises an exception
 
         Returns:
             bool: True if the app is ready, False otherwise
         """
         timeout = self._get_db_health_check_timeout()
-        return self._is_broker_connected() and self._is_database_connected(timeout)
+        return (
+            self._is_broker_connected()
+            and self._is_database_connected(timeout)
+            and self._run_custom_check(CUSTOM_READY_CHECK_KEY)
+        )
