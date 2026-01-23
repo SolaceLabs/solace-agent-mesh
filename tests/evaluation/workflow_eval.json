@@ -3,7 +3,10 @@
     "examples/agents/orchestrator_example.yaml",
     "examples/agents/eval_workflows/level1_simple_sequential.yaml",
     "examples/agents/eval_workflows/level2_parallel_execution.yaml",
-    "examples/agents/eval_workflows/level3_conditional_branching.yaml"
+    "examples/agents/eval_workflows/level3_conditional_branching.yaml",
+    "examples/agents/eval_workflows/level4_map_iteration.yaml",
+    "examples/agents/eval_workflows/level5_loop_polling.yaml",
+    "examples/agents/eval_workflows/level6_workflow_composition.yaml"
   ],
   "broker": {
     "SOLACE_BROKER_URL_VAR": "SOLACE_BROKER_URL",
@@ -29,7 +32,10 @@
     "tests/evaluation/test_cases/workflows/level2_parallel_execution.test.json",
     "tests/evaluation/test_cases/workflows/level3_conditional_small.test.json",
     "tests/evaluation/test_cases/workflows/level3_conditional_medium.test.json",
-    "tests/evaluation/test_cases/workflows/level3_conditional_large.test.json"
+    "tests/evaluation/test_cases/workflows/level3_conditional_large.test.json",
+    "tests/evaluation/test_cases/workflows/level4_map_iteration.test.json",
+    "tests/evaluation/test_cases/workflows/level5_loop_polling.test.json",
+    "tests/evaluation/test_cases/workflows/level6_workflow_composition.test.json"
   ],
   "evaluation_settings": {
     "tool_match": {
