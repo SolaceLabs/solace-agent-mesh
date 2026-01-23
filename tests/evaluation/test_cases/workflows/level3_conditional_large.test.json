@@ -7,7 +7,7 @@
   "wait_time": 240,
   "evaluation": {
     "expected_tools": ["workflow_ConditionalBranchingWorkflow"],
-    "expected_response": "result: 100",
+    "expected_response": "The ConditionalBranchingWorkflow has successfully processed the value 200. The workflow: Classified the value as large (since 200 > 100), Routed it to the Large Value Handler, Processed it through the large handler, which halved the value (200 ÷ 2 = 100.0). Results: Final Result: 100.0, Handler Used: large, Category: large",
     "criterion": "Evaluate if the orchestrator successfully delegated to ConditionalBranchingWorkflow, and the workflow correctly classified 200 as 'large', routed to the large handler, and returned result=100."
   }
 }

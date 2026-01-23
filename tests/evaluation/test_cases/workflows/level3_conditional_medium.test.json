@@ -7,7 +7,7 @@
   "wait_time": 240,
   "evaluation": {
     "expected_tools": ["workflow_ConditionalBranchingWorkflow"],
-    "expected_response": "result: 100",
+    "expected_response": "The ConditionalBranchingWorkflow has successfully processed the value 50. The workflow: Classified the value 50 as medium, Routed it to the medium value handler, Processed it through the medium handler, resulting in a value of 100. Results: Input Value: 50, Classification: medium, Handler Used: medium, Final Result: 100",
     "criterion": "Evaluate if the orchestrator successfully delegated to ConditionalBranchingWorkflow, and the workflow correctly classified 50 as 'medium', routed to the medium handler, and returned result=100."
   }
 }

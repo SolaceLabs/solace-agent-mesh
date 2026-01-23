@@ -7,7 +7,7 @@
   "wait_time": 240,
   "evaluation": {
     "expected_tools": ["workflow_ParallelExecutionWorkflow"],
-    "expected_response": "sum: 31",
+    "expected_response": "The ParallelExecutionWorkflow has successfully processed the value 5. The workflow performed parallel operations (squaring and incrementing) then added the results together. Workflow demonstrates parallel execution by: Squaring the value: 5² = 25, Incrementing the value: 5 + 1 = 6, Adding the parallel results: 25 + 6 = 31",
     "criterion": "Evaluate if the orchestrator successfully delegated to ParallelExecutionWorkflow, and the workflow correctly executed parallel branches (5² = 25 and 5+1 = 6) and added them (25 + 6 = 31)."
   }
 }
