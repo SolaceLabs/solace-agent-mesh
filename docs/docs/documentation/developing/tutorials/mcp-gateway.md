@@ -5,7 +5,7 @@ sidebar_position: 17
 
 # MCP Gateway
 
-This tutorial walks you through setting up the MCP Gateway, which exposes Solace Agent Mesh (SAM) agents as a Model Context Protocol (MCP) server. This allows any MCP-compatible client (such as Claude Desktop, MCP Inspector, or custom applications) to interact with SAM agents through a standardized interface.
+This tutorial walks you through setting up the MCP Gateway, which exposes Solace Agent Mesh (Solace Agent Mesh) agents as a Model Context Protocol (MCP) server. This allows any MCP-compatible client (such as Claude Desktop, MCP Inspector, or custom applications) to interact with Solace Agent Mesh agents through a standardized interface.
 
 :::info[Learn about gateways]
 Read about [Gateways](../../components/gateways.md) before you start this tutorial.
@@ -14,7 +14,7 @@ Read about [Gateways](../../components/gateways.md) before you start this tutori
 ## Overview
 
 The MCP Gateway adapter:
-- **Dynamically discovers agents** from the SAM agent registry
+- **Dynamically discovers agents** from the Solace Agent Mesh agent registry
 - **Creates MCP tools automatically** based on agent skills
 - **Streams responses** in real-time back to MCP clients
 - **Handles files intelligently** by returning inline content or resource links based on size
@@ -47,8 +47,8 @@ You can customize the gateway by editing the `configs/gateways/my-mcp-gateway.ya
 ```yaml
 adapter_config:
   # Server identity
-  mcp_server_name: "SAM MCP Gateway"
-  mcp_server_description: "Access to SAM agents via MCP"
+  mcp_server_name: "Solace Agent Mesh MCP Gateway"
+  mcp_server_description: "Access to Solace Agent Mesh agents via MCP"
 
   # Transport: "http" or "stdio"
   transport: http
@@ -185,51 +185,28 @@ The gateway starts and automatically:
 
 ## Connecting MCP Clients
 
-### Claude Desktop
+To connect to Solace Agent Mesh via MCP, configure your MCP client (e.g., Claude Desktop) to point to the gateway URL:
 
-Add the following to your Claude Desktop configuration file (`~/.config/claude/config.json`):
-
-```json
-{
-  "mcpServers": {
-    "sam": {
-      "url": "http://localhost:8090/mcp",
-      "transport": "http"
-    }
-  }
-}
+```
+http://<gateway-host>:<gateway-port>/mcp
 ```
 
-### Claude Code
-
-Add the MCP Server gateway using the following command:
-
-```sh
-claude mcp add sam http://localhost:8090/mcp --transport http
-```
-
-### MCP Inspector
-
-For testing with the MCP Inspector CLI tool:
-
-```sh
-npx @modelcontextprotocol/inspector
-```
-
-Select **Streamable HTTP** for the transport type and enter: `http://localhost:8090/mcp`
+Make sure to select the appropriate transport (HTTP) and enable OAuth2.0 authentication if configured.
 
 ## How It Works
 
 ### Architecture
 
-```
-MCP Client → FastMCP Server → McpAdapter → SAM Agent Mesh
-                    ↓
-            [Dynamic Tool Registration]
-            - agent1_skill1
-            - agent1_skill2
-            - agent2_skill1
-            ...
+```mermaid
+flowchart LR
+  A[MCP Client] --> B[FastMCP Server]
+  B --> C[McpAdapter]
+  C --> D[Solace Agent Mesh]
+  B -.-> E[Dynamic Tool Registration]
+  E --> F[agent1_skill1]
+  E --> G[agent1_skill2]
+  E --> H[agent2_skill1]
+  E --> I[...]
 ```
 
 ### Tool Naming
@@ -248,15 +225,15 @@ Tool names are automatically sanitized to be valid MCP identifiers (lowercase, a
 
 ### Dynamic Agent Discovery
 
-As agents join and leave the SAM mesh:
+As agents join and leave the Solace Agent Mesh mesh:
 
-1. **Agent Joins**: When a new agent publishes its AgentCard:
+1. **Agent Joins**: When a new agent publishes its AgentCard.
    - The adapter detects the new agent
    - Registers new MCP tools for the agent's skills
    - FastMCP sends `tools/list_changed` notification to connected clients
    - MCP clients automatically refresh their tool list
 
-2. **Agent Leaves**: When an agent is removed:
+2. **Agent Leaves**: When an agent is removed.
    - The adapter detects the removal
    - Removes the agent's tools from the MCP server
    - FastMCP notifies clients of the change

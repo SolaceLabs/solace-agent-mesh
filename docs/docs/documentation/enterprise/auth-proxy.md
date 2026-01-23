@@ -74,10 +74,10 @@ sequenceDiagram
 ```
 
 ## Configuration
-To enable the authentication proxy, add the following to your Oauth2 YAML configuration, usually named `oauth2_config.yaml`
+To enable the authentication proxy, add the following to your OAuth2 YAML configuration, usually named `oauth2_config.yaml`
 
 ```yaml
-# This enables apps to redirect through this auth server for OAuth,
+# This enables apps to redirect through this auth server for OAuth
 proxy_oauth:
   enabled: true
   # Whitelist of allowed gateway callback URIs
