@@ -249,6 +249,34 @@ class A2AProxyComponent(BaseProxyComponent):
         }
         return defaults.get(auth_type, "bearer")
 
+    async def _ensure_credentials(
+        self,
+        agent_card: Optional[AgentCard],
+        auth_type: str,
+        agent_name: str,
+        session_id: str,
+        token: str,
+    ) -> None:
+        """
+        Extracts the security scheme name from the agent card and stores credentials.
+
+        This helper method combines scheme name extraction and credential storage
+        to reduce code duplication across authentication types.
+
+        Args:
+            agent_card: The agent card (may be None or have no security_schemes).
+            auth_type: The authentication type (e.g., "static_bearer").
+            agent_name: The agent name (for logging).
+            session_id: The session ID for credential isolation.
+            token: The authentication token/access_token to store.
+        """
+        scheme_name = self._extract_security_scheme_name(
+            agent_card, auth_type, agent_name
+        )
+        await self._credential_store.set_credentials(
+            session_id, scheme_name, token
+        )
+
     async def _build_headers(
         self,
         agent_name: str,
@@ -1047,11 +1075,8 @@ class A2AProxyComponent(BaseProxyComponent):
                 # (AuthInterceptor requires security_schemes to work)
                 # If no security_schemes, auth is applied directly via httpx headers
                 if has_security_schemes:
-                    scheme_name = self._extract_security_scheme_name(
-                        agent_card, auth_type, agent_name
-                    )
-                    await self._credential_store.set_credentials(
-                        session_id, scheme_name, token
+                    await self._ensure_credentials(
+                        agent_card, auth_type, agent_name, session_id, token
                     )
 
             elif auth_type == "static_apikey":
@@ -1064,11 +1089,8 @@ class A2AProxyComponent(BaseProxyComponent):
                 # (AuthInterceptor requires security_schemes to work)
                 # If no security_schemes, auth is applied directly via httpx headers
                 if has_security_schemes:
-                    scheme_name = self._extract_security_scheme_name(
-                        agent_card, auth_type, agent_name
-                    )
-                    await self._credential_store.set_credentials(
-                        session_id, scheme_name, token
+                    await self._ensure_credentials(
+                        agent_card, auth_type, agent_name, session_id, token
                     )
 
             elif auth_type == "oauth2_client_credentials":
@@ -1081,11 +1103,8 @@ class A2AProxyComponent(BaseProxyComponent):
                     # (AuthInterceptor requires security_schemes to work)
                     # If no security_schemes, auth is applied directly via httpx headers
                     if has_security_schemes:
-                        scheme_name = self._extract_security_scheme_name(
-                            agent_card, auth_type, agent_name
-                        )
-                        await self._credential_store.set_credentials(
-                            session_id, scheme_name, access_token
+                        await self._ensure_credentials(
+                            agent_card, auth_type, agent_name, session_id, access_token
                         )
                 except Exception as e:
                     log.error(
@@ -1122,11 +1141,8 @@ class A2AProxyComponent(BaseProxyComponent):
                     # 2. Enterprise code expects credential_store + AuthInterceptor pattern for token application
                     # 3. Enterprise requires agent card to exist (enforced in enterprise oauth2_helpers.py:437-439)
                     # 4. This maintains backward compatibility with existing enterprise OAuth2 flows
-                    scheme_name = self._extract_security_scheme_name(
-                        agent_card, auth_type, agent_name
-                    )
-                    await self._credential_store.set_credentials(
-                        session_id, scheme_name, access_token
+                    await self._ensure_credentials(
+                        agent_card, auth_type, agent_name, session_id, access_token
                     )
                     # Ensure AuthInterceptor is added for this auth type (even if no security_schemes)
                     needs_auth_interceptor = True
