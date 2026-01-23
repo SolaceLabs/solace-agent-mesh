@@ -952,6 +952,29 @@ async def extract_content_from_artifact(
                 source_mime_type,
             )
 
+    # System instruction to ensure the LLM directly analyzes data rather than generating code
+    system_instruction = """You are a data extraction and analysis assistant. Your task is to directly analyze the provided artifact content and return the requested information.
+
+CRITICAL RULES:
+1. DIRECTLY ANALYZE the data provided - do NOT write code (Python, SQL, or any other language) to analyze it
+2. The artifact content is already loaded and provided to you - you must work with it directly
+3. Provide actual results, counts, summaries, or extracted data based on what you find in the content
+4. If you cannot find the requested information, clearly state what you found instead
+5. Format your response as plain text or structured data (JSON, markdown tables) - NOT as code
+6. You do NOT have access to execute code - any code you write will NOT be run
+
+Example of WRONG response (do not do this):
+```python
+import pandas as pd
+df = pd.read_csv('file.csv')
+print(df['column'].count())
+```
+
+Example of CORRECT response:
+Based on analyzing the CSV data, I found 102 records containing 'Employee' in the 'Type' column. Here's the breakdown:
+- Employee-A: 65 records
+- Employee-B: 37 records"""
+
     internal_llm_contents = [
         adk_types.Content(
             role="user", parts=[adk_types.Part(text=extraction_goal)] + llm_parts
@@ -962,6 +985,7 @@ async def extract_content_from_artifact(
         contents=internal_llm_contents,
         config=adk_types.GenerateContentConfig(
             temperature=0.1,
+            system_instruction=system_instruction,
         ),
     )
 
@@ -1036,15 +1060,27 @@ async def extract_content_from_artifact(
                     log_identifier,
                     llm_async_err,
                 )
-                extracted_content_str = (
-                    f"[ERROR: Asynchronous LLM call failed: {llm_async_err}]"
-                )
+                # Return an error status instead of continuing with error message as "extracted data"
+                return {
+                    "status": "error_llm_call_failed",
+                    "message_to_llm": f"The internal LLM call failed while processing artifact '{filename}' for your goal '{extraction_goal}'. "
+                                      f"Error: {llm_async_err}. Please inform the user that the extraction could not be completed.",
+                    "filename": filename,
+                    "version_requested": str(version),
+                    "error_details": str(llm_async_err),
+                }
         else:
             log.error(
-                "%s LLM does not have a known generate_content or generate_content_async method. Extraction will be empty.",
+                "%s LLM does not have a known generate_content or generate_content_async method.",
                 log_identifier,
             )
-            extracted_content_str = "[ERROR: LLM method not found]"
+            return {
+                "status": "error_llm_configuration",
+                "message_to_llm": f"The LLM configured for extraction does not have a supported generation method. "
+                                  f"Please inform the user that the extraction tool is misconfigured.",
+                "filename": filename,
+                "version_requested": str(version),
+            }
 
         log.info(
             "%s Internal LLM call completed. Extracted content length: %d chars",
@@ -1056,6 +1092,47 @@ async def extract_content_from_artifact(
                 "%s Internal LLM produced empty or whitespace-only content for extraction goal.",
                 log_identifier,
             )
+        
+        # Check if the LLM generated code instead of actual analysis results
+        # This is a safety check to prevent hallucinated code from being saved as "extracted data"
+        code_indicators = [
+            "```python",
+            "```sql",
+            "import pandas",
+            "import csv",
+            "pd.read_csv",
+            "df = pd.",
+            "SELECT * FROM",
+            "def analyze(",
+            "def extract(",
+        ]
+        content_lower = extracted_content_str.lower()
+        detected_code = [indicator for indicator in code_indicators if indicator.lower() in content_lower]
+        
+        if detected_code and len(extracted_content_str) > 100:
+            # Check if the response is primarily code (more than 50% of content is in code blocks)
+            code_block_pattern = r'```[\s\S]*?```'
+            code_blocks = re.findall(code_block_pattern, extracted_content_str)
+            code_content_length = sum(len(block) for block in code_blocks)
+            
+            if code_content_length > len(extracted_content_str) * 0.3:
+                log.warning(
+                    "%s Internal LLM generated code instead of analyzing data. Detected indicators: %s. "
+                    "Code blocks comprise %.1f%% of response.",
+                    log_identifier,
+                    detected_code,
+                    (code_content_length / len(extracted_content_str)) * 100,
+                )
+                return {
+                    "status": "error_llm_generated_code",
+                    "message_to_llm": f"The extraction tool's internal LLM generated code instead of analyzing the data directly. "
+                                      f"This tool cannot execute code. For CSV data analysis, please use the 'query_data_with_sql' tool"
+                                      f"from the Data Analysis tools instead, if available, which can execute SQL queries on CSV files. "
+                                      f"Alternatively, use 'load_artifact' to view the raw content and analyze it yourself.",
+                    "filename": filename,
+                    "version_requested": str(version),
+                    "detected_code_indicators": detected_code,
+                }
 
     except Exception as e:
         log.exception(
@@ -2165,20 +2242,38 @@ async def artifact_search_and_replace_regex(
                 "message": f"Cannot perform search and replace on binary artifact of type '{source_mime_type}'. This tool only works with text-based content.",
             }
 
-        # Decode the content
-        try:
-            original_content = source_bytes.decode("utf-8")
-        except UnicodeDecodeError as decode_err:
+        # Decode the content - try multiple encodings for Windows-exported files
+        original_content = None
+        encoding_used = None
+        encodings_to_try = ['utf-8', 'cp1252', 'latin-1']
+        decode_errors = []
+        
+        for encoding in encodings_to_try:
+            try:
+                original_content = source_bytes.decode(encoding)
+                encoding_used = encoding
+                if encoding != 'utf-8':
+                    log.info(
+                        "%s Successfully decoded artifact using fallback encoding '%s' (UTF-8 failed)",
+                        log_identifier,
+                        encoding,
+                    )
+                break
+            except UnicodeDecodeError as e:
+                decode_errors.append(f"{encoding}: {e}")
+                continue
+        
+        if original_content is None:
             log.error(
-                "%s Failed to decode artifact content as UTF-8: %s",
+                "%s Failed to decode artifact content with any supported encoding. Errors: %s",
                 log_identifier,
-                decode_err,
+                "; ".join(decode_errors),
             )
             return {
                 "status": "error",
                 "filename": filename,
                 "version": actual_version,
-                "message": f"Failed to decode artifact content as UTF-8: {decode_err}",
+                "message": f"Failed to decode artifact content. Tried encodings: {', '.join(encodings_to_try)}",
             }
 
         # Perform the search and replace
