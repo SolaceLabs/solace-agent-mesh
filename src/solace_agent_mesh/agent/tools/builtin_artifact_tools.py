@@ -873,9 +873,10 @@ async def extract_content_from_artifact(
 
     if is_text_based:
         # Try multiple encodings to handle files from different sources (e.g., Windows Excel exports)
+        # Includes common Windows encodings like CP1252 and UTF-16
         artifact_text_content = None
         encoding_used = None
-        encodings_to_try = ['utf-8', 'cp1252', 'latin-1']
+        encodings_to_try = ['utf-8', 'utf-16', 'cp1252', 'latin-1']
         decode_errors = []
         
         for encoding in encodings_to_try:
@@ -2245,7 +2246,7 @@ async def artifact_search_and_replace_regex(
         # Decode the content - try multiple encodings for Windows-exported files
         original_content = None
         encoding_used = None
-        encodings_to_try = ['utf-8', 'cp1252', 'latin-1']
+        encodings_to_try = ['utf-8', 'utf-16', 'cp1252', 'latin-1']
         decode_errors = []
         
         for encoding in encodings_to_try:

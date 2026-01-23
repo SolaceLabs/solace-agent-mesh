@@ -1351,7 +1351,7 @@ async def load_artifact_content_or_metadata(
                     # Common case: CSV files exported from Excel on Windows use CP1252
                     content_str = None
                     used_encoding = None
-                    encodings_to_try = [encoding, "cp1252", "latin-1"]
+                    encodings_to_try = [encoding, "utf-16", "cp1252", "latin-1"]
                     decode_errors = []
                     
                     for enc in encodings_to_try:
