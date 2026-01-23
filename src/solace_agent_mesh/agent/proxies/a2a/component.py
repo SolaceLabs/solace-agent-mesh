@@ -1000,6 +1000,10 @@ class A2AProxyComponent(BaseProxyComponent):
             )
 
         # Setup authentication if configured
+        # Track whether AuthInterceptor is needed (separate from has_security_schemes)
+        # because oauth2_authorization_code requires AuthInterceptor even without security_schemes
+        needs_auth_interceptor = has_security_schemes
+
         auth_config = agent_config.get("authentication")
         if auth_config:
             auth_type = auth_config.get("type")
@@ -1112,22 +1116,20 @@ class A2AProxyComponent(BaseProxyComponent):
                             "User authorization should have completed in _forward_request()."
                         )
 
-                    # OAuth2 authorization code flow requires security_schemes in agent card
-                    # (per A2A specification). If not present, apply auth via httpx headers.
-                    if has_security_schemes:
-                        scheme_name = self._extract_security_scheme_name(
-                            agent_card, auth_type, agent_name
-                        )
-                        await self._credential_store.set_credentials(
-                            session_id, scheme_name, access_token
-                        )
-                    else:
-                        log.warning(
-                            "%s Agent '%s' uses oauth2_authorization_code but has no security_schemes. "
-                            "Falling back to httpx client auth headers. This is non-standard.",
-                            self.log_identifier,
-                            agent_name,
-                        )
+                    # ALWAYS use credential store + AuthInterceptor for oauth2_authorization_code
+                    # (not conditional like other auth types) because:
+                    # 1. Token is fetched AFTER httpx headers are built, so cannot use httpx header approach
+                    # 2. Enterprise code expects credential_store + AuthInterceptor pattern for token application
+                    # 3. Enterprise requires agent card to exist (enforced in enterprise oauth2_helpers.py:437-439)
+                    # 4. This maintains backward compatibility with existing enterprise OAuth2 flows
+                    scheme_name = self._extract_security_scheme_name(
+                        agent_card, auth_type, agent_name
+                    )
+                    await self._credential_store.set_credentials(
+                        session_id, scheme_name, access_token
+                    )
+                    # Ensure AuthInterceptor is added for this auth type (even if no security_schemes)
+                    needs_auth_interceptor = True
 
                 except ImportError:
                     log.error(
@@ -1155,11 +1157,12 @@ class A2AProxyComponent(BaseProxyComponent):
         )
 
         # Create client using ClientFactory
-        # Only add AuthInterceptor if agent card has security_schemes
-        # (AuthInterceptor requires security_schemes to determine which credentials to apply)
-        # If no security_schemes, auth is handled via httpx client headers
+        # Add AuthInterceptor if:
+        # 1. Agent card has security_schemes (standard path), OR
+        # 2. Auth type is oauth2_authorization_code (enterprise requirement)
+        # Otherwise, auth is handled via httpx client headers
         factory = ClientFactory(config)
-        interceptors = [self._auth_interceptor] if has_security_schemes else []
+        interceptors = [self._auth_interceptor] if needs_auth_interceptor else []
         client = factory.create(
             agent_card,
             consumers=None,
