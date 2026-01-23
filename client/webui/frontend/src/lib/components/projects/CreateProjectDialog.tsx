@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { MessageBanner } from "@/lib/components/common";
 import { getErrorMessage } from "@/lib/utils";
 import { useConfigContext } from "@/lib/hooks";
+import { DEFAULT_PROJECT_DESCRIPTION_MAX } from "@/lib/constants/validation";
 
 interface CreateProjectDialogProps {
     isOpen: boolean;
@@ -20,7 +21,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({ isOpen
     const [error, setError] = useState<string | null>(null);
     const [nameError, setNameError] = useState<string | null>(null);
 
-    const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? 1000;
+    const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? DEFAULT_PROJECT_DESCRIPTION_MAX;
     const isDescriptionOverLimit = description.length > MAX_DESCRIPTION_LENGTH;
 
     const handleSubmit = async (e: React.FormEvent) => {

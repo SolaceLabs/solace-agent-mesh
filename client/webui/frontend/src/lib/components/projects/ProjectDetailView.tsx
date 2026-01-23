@@ -7,6 +7,7 @@ import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
 import { useConfigContext } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
+import { DEFAULT_PROJECT_DESCRIPTION_MAX } from "@/lib/constants/validation";
 
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
@@ -33,7 +34,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? 1000;
+    const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? DEFAULT_PROJECT_DESCRIPTION_MAX;
     const isDescriptionOverLimit = editedDescription.length > MAX_DESCRIPTION_LENGTH;
 
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
