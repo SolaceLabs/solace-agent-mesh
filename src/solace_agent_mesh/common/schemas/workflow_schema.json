@@ -489,6 +489,14 @@
         "on_failure": {
           "type": "string",
           "description": "Alias for onFailure (snake_case)."
+        },
+        "onCancel": {
+          "type": "string",
+          "description": "Node ID to execute only on cancellation."
+        },
+        "on_cancel": {
+          "type": "string",
+          "description": "Alias for onCancel (snake_case)."
         }
       },
       "additionalProperties": false
