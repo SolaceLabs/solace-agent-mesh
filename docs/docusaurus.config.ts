@@ -58,7 +58,6 @@ const config: Config = {
           type: "docSidebar",
           sidebarId: "docSidebar",
           position: "left",
-          label: "Documentation",
         },
         {
           href: "https://github.com/SolaceLabs/solace-agent-mesh/",
