@@ -653,7 +653,7 @@ class WorkflowApp(App):
         subscriptions = []
 
         # Discovery topic for agent cards
-        subscriptions.append({"topic": a2a.get_discovery_topic(namespace)})
+        subscriptions.append({"topic": a2a.get_discovery_subscription_topic(namespace)})
 
         # Workflow's agent request topic
         subscriptions.append(

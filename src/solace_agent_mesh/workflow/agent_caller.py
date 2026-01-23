@@ -107,8 +107,16 @@ class AgentCaller:
                 node.instruction, workflow_state
             )
 
-        # Get schemas from agent card extensions if available
+        # Get agent card - required for proper structured invocation
         agent_card = self.host.agent_registry.get_agent(node.agent_name)
+        if not agent_card:
+            raise ValueError(
+                f"Agent '{node.agent_name}' not found in registry. "
+                f"Ensure the agent is running and has published its agent card before "
+                f"starting the workflow."
+            )
+
+        # Get schemas from agent card extensions
         card_input_schema, card_output_schema = get_schemas_from_agent_card(agent_card)
 
         # Use override schemas if provided, otherwise use schemas from agent card
@@ -187,9 +195,17 @@ class AgentCaller:
                 node.instruction, workflow_state
             )
 
-        # Get schemas from agent card extensions if available
+        # Get agent card - required for proper structured invocation
         # Workflows publish their schemas in their agent cards
         agent_card = self.host.agent_registry.get_agent(node.workflow_name)
+        if not agent_card:
+            raise ValueError(
+                f"Workflow '{node.workflow_name}' not found in registry. "
+                f"Ensure the sub-workflow is running and has published its agent card before "
+                f"starting the parent workflow."
+            )
+
+        # Get schemas from agent card extensions
         card_input_schema, card_output_schema = get_schemas_from_agent_card(agent_card)
 
         # Use override schemas if provided, otherwise use schemas from agent card
@@ -339,16 +355,21 @@ This is MANDATORY for the workflow to continue.
             parts.append(a2a.create_text_part(text=resolved_instruction))
 
         # Determine if we should send as structured artifact or text
-        should_send_artifact = False
+        # For structured invocations (workflow calls), we ALWAYS send input as FilePart
+        # unless it's explicitly a single text schema. This ensures the receiver can
+        # properly handle the structured input even if we don't have the agent's schema
+        # yet (e.g., due to timing issues with agent card discovery).
+        should_send_artifact = True
         if input_schema:
-            # Check if it's NOT a single text schema
+            # Only use text mode if schema is explicitly a single text field
             is_single_text = (
                 input_schema.get("type") == "object"
                 and len(input_schema.get("properties", {})) == 1
                 and "text" in input_schema.get("properties", {})
                 and input_schema["properties"]["text"].get("type") == "string"
             )
-            should_send_artifact = not is_single_text
+            if is_single_text:
+                should_send_artifact = False
 
         if should_send_artifact:
             # Create and save input artifact, then add FilePart with URI

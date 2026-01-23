@@ -43,9 +43,22 @@ def get_a2a_base_topic(namespace: str) -> str:
     return f"{namespace.rstrip('/')}/{A2A_BASE_PATH}"
 
 
-def get_discovery_topic(namespace: str) -> str:
-    """Returns the topic for agent card discovery."""
+def get_agent_discovery_topic(namespace: str) -> str:
+    """Returns the topic for publishing agent card discovery."""
     return f"{get_a2a_base_topic(namespace)}/discovery/agentcards"
+
+
+def get_gateway_discovery_topic(namespace: str) -> str:
+    """Returns the topic for publishing gateway card discovery."""
+    return f"{get_a2a_base_topic(namespace)}/discovery/gatewaycards"
+
+
+def get_discovery_subscription_topic(namespace: str) -> str:
+    """
+    Returns a wildcard subscription topic for receiving all discovery messages
+    (both agents and gateways).
+    """
+    return f"{get_a2a_base_topic(namespace)}/discovery/>"
 
 
 def get_agent_request_topic(namespace: str, agent_name: str) -> str:
