@@ -1,6 +1,6 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentCardInfo, ArtifactInfo, ArtifactRenderingState, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
+import type { AgentCardInfo, ArtifactInfo, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session, RAGSearchResult } from "@/lib/types";
 
 /** Pending prompt data for starting a new chat with a prompt template */
 export interface PendingPromptData {
@@ -33,9 +33,12 @@ export interface ChatState {
     artifactsRefetch: () => Promise<void>;
     setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
     taskIdInSidePanel: string | null;
+    // RAG State
+    ragData: RAGSearchResult[];
+    ragEnabled: boolean;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
-    activeSidePanelTab: "files" | "workflow";
+    activeSidePanelTab: "files" | "activity" | "rag";
     // Delete Modal State
     isDeleteModalOpen: boolean;
     artifactToDelete: ArtifactInfo | null;
@@ -50,8 +53,6 @@ export interface ChatState {
     currentPreviewedVersionNumber: number | null;
     previewFileContent: FileAttachment | null;
     submittedFeedback: Record<string, { type: "up" | "down"; text: string }>;
-    // Artifact Rendering State
-    artifactRenderingState: ArtifactRenderingState;
     // Pending prompt for starting new chat
     pendingPrompt: PendingPromptData | null;
     // Background Task Monitoring State
@@ -77,8 +78,8 @@ export interface ChatActions {
     uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string, silent?: boolean) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
-    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;
-    openSidePanelTab: (tab: "files" | "workflow") => void;
+    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "activity" | "rag">>;
+    openSidePanelTab: (tab: "files" | "activity" | "rag") => void;
 
     openDeleteModal: (artifact: ArtifactInfo) => void;
     closeDeleteModal: () => void;
@@ -101,13 +102,8 @@ export interface ChatActions {
     markArtifactAsDisplayed: (filename: string, displayed: boolean) => void;
     downloadAndResolveArtifact: (filename: string) => Promise<FileAttachment | null>;
 
-    /** Artifact Rendering Actions */
-    toggleArtifactExpanded: (filename: string) => void;
-    isArtifactExpanded: (filename: string) => boolean;
-    setArtifactRenderingState: React.Dispatch<React.SetStateAction<ArtifactRenderingState>>;
-
     /* Session Management Actions */
-    updateSessionName: (sessionId: string, newName: string, showNotification?: boolean) => Promise<void>;
+    updateSessionName: (sessionId: string, newName: string) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
     handleFeedbackSubmit: (taskId: string, feedbackType: "up" | "down", feedbackText: string) => Promise<void>;
 

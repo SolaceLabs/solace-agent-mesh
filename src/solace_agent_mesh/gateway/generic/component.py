@@ -47,6 +47,15 @@ from ..adapter.types import (
 )
 from ..base.component import BaseGatewayComponent
 
+# Try to import enterprise auth handler
+try:
+    from solace_agent_mesh_enterprise.gateway.auth import SAMOAuth2Handler
+    ENTERPRISE_AUTH_AVAILABLE = True
+except ImportError:
+    ENTERPRISE_AUTH_AVAILABLE = False
+    SAMOAuth2Handler = None
+
+
 log = logging.getLogger(__name__)
 
 info = {
@@ -132,7 +141,169 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         self.artifact_service = self.shared_artifact_service
         # `gateway_id`, `namespace`, `config` are available from base classes.
 
-    # --- GatewayContext Implementation ---
+        # --- Setup Authentication ---
+        self._setup_auth()
+
+        # --- Register Agent Registry Callbacks ---
+        # Wire up callbacks so the adapter is notified of agent changes
+        self.agent_registry.set_on_agent_added_callback(self._on_agent_added)
+        self.agent_registry.set_on_agent_removed_callback(self._on_agent_removed)
+        log.info(
+            "%s Agent registry callbacks registered for dynamic adapter updates.",
+            self.log_identifier,
+        )
+
+    def _setup_auth(self) -> None:
+        """
+        Setup authentication handler if enabled in config.
+
+        Uses enterprise SAMOAuth2Handler if available and auth is enabled.
+        Falls back gracefully if enterprise module is not installed.
+
+        Note: This method is called twice:
+        1. During BaseGatewayComponent.__init__() (adapter_config not yet available)
+        2. After adapter_config is set in GenericGatewayComponent.__init__()
+        """
+        # Early exit if adapter_config not yet set
+        if not hasattr(self, 'adapter_config'):
+            log.debug("%s _setup_auth() called before adapter_config set, skipping", self.log_identifier)
+            return
+
+        log.debug("%s adapter_config type: %s", self.log_identifier, type(self.adapter_config))
+
+        # Check enable_auth from adapter_config (not app_config)
+        # Handle both Pydantic models (use getattr) and plain dicts (use .get())
+        if isinstance(self.adapter_config, dict):
+            enable_auth = self.adapter_config.get('enable_auth', False)
+            log.debug("%s adapter_config is dict, keys: %s", self.log_identifier, list(self.adapter_config.keys()))
+        else:
+            # Pydantic model or other object
+            enable_auth = getattr(self.adapter_config, 'enable_auth', False)
+            log.debug("%s adapter_config is Pydantic model, enable_auth=%s", self.log_identifier, enable_auth)
+
+        log.info("%s Authentication check: enable_auth=%s (from adapter_config)", self.log_identifier, enable_auth)
+
+        if not enable_auth:
+            log.debug("%s Authentication disabled in config", self.log_identifier)
+            return
+
+        if not ENTERPRISE_AUTH_AVAILABLE:
+            log.warning(
+                "%s Authentication enabled but enterprise module not available. "
+                "Install solace-agent-mesh-enterprise to enable OAuth2 authentication.",
+                self.log_identifier
+            )
+            return
+
+        try:
+            # Build config dict for SAMOAuth2Handler from adapter_config
+            # Handler expects: oauth_proxy_url, external_auth_service_url, external_auth_provider, callback_url
+            auth_config = {}
+
+            # Try to get config from adapter_config (Pydantic model or dict)
+            if hasattr(self.adapter_config, '__dict__'):
+                # Pydantic model
+                auth_config = self.adapter_config.__dict__.copy()
+            elif isinstance(self.adapter_config, dict):
+                # Plain dict
+                auth_config = self.adapter_config.copy()
+
+            # Ensure callback_url is set (construct from host/port if not provided)
+            if 'callback_url' not in auth_config and 'callback_uri' not in auth_config:
+                # Try to construct from host and port
+                host = auth_config.get('host', 'localhost')
+                port = auth_config.get('port', 8080)
+                auth_config['callback_url'] = f"http://{host}:{port}/oauth/callback"
+                log.debug("%s Constructed callback_url: %s", self.log_identifier, auth_config['callback_url'])
+
+            # Initialize enterprise OAuth2 handler
+            self.auth_handler = SAMOAuth2Handler(auth_config)
+            log.info("%s OAuth2 authentication enabled via enterprise module", self.log_identifier)
+        except Exception as e:
+            log.error("%s Failed to initialize OAuth2 authentication: %s", self.log_identifier, e, exc_info=True)
+            self.auth_handler = None
+
+    def _on_agent_added(self, agent_card: Any) -> None:
+        """Called when a new agent is added to the registry."""
+        if self.adapter:
+            log.info(
+                "%s Registering new agent: %s",
+                self.log_identifier,
+                agent_card.name,
+            )
+            # Schedule the async call in the component's event loop
+            asyncio.run_coroutine_threadsafe(
+                self.adapter.handle_agent_registered(agent_card), self.get_async_loop()
+            )
+
+    def _on_agent_removed(self, agent_name: str) -> None:
+        """Called when an agent is removed from the registry."""
+        log.info(
+            "%s Deregistering agent: %s",
+            self.log_identifier,
+            agent_name,
+        )
+
+        if self.adapter:
+            # Schedule the async call in the component's event loop
+            asyncio.run_coroutine_threadsafe(
+                self.adapter.handle_agent_deregistered(agent_name), self.get_async_loop()
+            )
+
+    async def get_user_identity(
+            self, external_input: Any, endpoint_context: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Extracts the user identity from the external input via the adapter.
+
+        Returns:
+            A dictionary representing the user identity, or None if not available.
+        """
+        log_id_prefix = f"{self.log_identifier}[GetUserIdentity]"
+        user_identity = None
+        # 1. Authentication & Enrichment
+        # Try enterprise authentication first, fallback to adapter-based auth
+        try:
+            from solace_agent_mesh_enterprise.gateway.auth import authenticate_request
+
+            auth_claims = await authenticate_request(
+                adapter=self.adapter,
+                external_input=external_input,
+                endpoint_context=endpoint_context,
+            )
+            log.debug("%s Using enterprise authentication", log_id_prefix)
+        except ImportError:
+            # Enterprise package not available, use adapter-based auth
+            log.debug("%s Enterprise package not available, using adapter auth", log_id_prefix)
+            auth_claims = await self.adapter.extract_auth_claims(
+                external_input, endpoint_context
+            )
+
+        # The final user_identity is a dictionary, not the Pydantic model.
+        # It's built from claims and potentially enriched by an identity service.
+        if auth_claims:
+            if self.identity_service:
+                # Pass the rich claims object to the identity service
+                enriched_profile = await self.identity_service.get_user_profile(
+                    auth_claims
+                )
+                if enriched_profile:
+                    # Merge claims and profile, with profile taking precedence
+                    user_identity = {
+                        **auth_claims.model_dump(),
+                        **enriched_profile,
+                    }
+                else:
+                    user_identity = auth_claims.model_dump()
+            else:
+                # No identity service, just use the claims from the adapter
+                user_identity = auth_claims.model_dump()
+        else:
+            # Fallback to default identity if no claims are extracted
+            default_identity = self.get_config("default_user_identity")
+            if default_identity:
+                user_identity = {"id": default_identity, "name": default_identity}
+        return user_identity
 
     async def handle_external_input(
         self, external_input: Any, endpoint_context: Optional[Dict[str, Any]] = None
@@ -144,36 +315,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         log_id_prefix = f"{self.log_identifier}[HandleInput]"
         user_identity = None
         try:
-            # 1. Authentication & Enrichment
-            auth_claims = await self.adapter.extract_auth_claims(
-                external_input, endpoint_context
-            )
-
-            # The final user_identity is a dictionary, not the Pydantic model.
-            # It's built from claims and potentially enriched by an identity service.
-            if auth_claims:
-                if self.identity_service:
-                    # Pass the rich claims object to the identity service
-                    enriched_profile = await self.identity_service.get_user_profile(
-                        auth_claims
-                    )
-                    if enriched_profile:
-                        # Merge claims and profile, with profile taking precedence
-                        user_identity = {
-                            **auth_claims.model_dump(),
-                            **enriched_profile,
-                        }
-                    else:
-                        user_identity = auth_claims.model_dump()
-                else:
-                    # No identity service, just use the claims from the adapter
-                    user_identity = auth_claims.model_dump()
-            else:
-                # Fallback to default identity if no claims are extracted
-                default_identity = self.get_config("default_user_identity")
-                if default_identity:
-                    user_identity = {"id": default_identity, "name": default_identity}
-
+            user_identity = await self.get_user_identity(external_input, endpoint_context)
             if not user_identity or not user_identity.get("id"):
                 raise PermissionError(
                     "Authentication failed: No identity could be determined."
@@ -182,6 +324,8 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             log.info(
                 "%s Authenticated user: %s", log_id_prefix, user_identity.get("id")
             )
+            # Add user_id to external_input so adapter can use it for permission checks.
+            external_input["user_id"] = user_identity.get("id")
 
             # 2. Task Preparation
             sam_task = await self.adapter.prepare_task(external_input, endpoint_context)
@@ -200,6 +344,10 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 "user_id_for_artifacts": user_identity.get("id"),
                 **sam_task.platform_context,
             }
+
+            # Pass session_behavior if provided by adapter
+            if sam_task.session_behavior:
+                external_request_context["session_behavior"] = sam_task.session_behavior
 
             task_id = await self.submit_a2a_task(
                 target_agent_name=sam_task.target_agent,
@@ -224,6 +372,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                     # Create a dummy context to report the error
                     error_context = ResponseContext(
                         task_id="pre-task-error",
+                        session_id=None,
                         conversation_id=None,
                         user_id=user_identity.get("id"),
                         platform_context={},
@@ -404,7 +553,9 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             )
             return None
 
-    async def list_artifacts(self, context: "ResponseContext") -> List[ArtifactInfo]:
+    async def list_artifacts(
+        self, context: "ResponseContext"
+    ) -> List[ArtifactInfo]:
         """Lists all artifacts available in the user's context."""
         log_id_prefix = f"{self.log_identifier}[ListArtifacts]"
         if not self.artifact_service:
@@ -432,6 +583,22 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 context.user_id,
                 e,
             )
+            return []
+
+    def list_agents(self) -> List[Any]:
+        """Lists all agents currently registered in the agent registry."""
+        log_id_prefix = f"{self.log_identifier}[ListAgents]"
+        try:
+            agent_names = self.agent_registry.get_agent_names()
+            agents = []
+            for agent_name in agent_names:
+                agent_card = self.agent_registry.get_agent(agent_name)
+                if agent_card:
+                    agents.append(agent_card)
+            log.info("%s Found %d registered agents.", log_id_prefix, len(agents))
+            return agents
+        except Exception as e:
+            log.exception("%s Failed to list agents: %s", log_id_prefix, e)
             return []
 
     async def submit_feedback(self, feedback: "SamFeedback") -> None:
@@ -522,13 +689,40 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
 
     # --- BaseGatewayComponent Abstract Method Implementations ---
 
+    async def _async_setup_and_run(self) -> None:
+        """Main async logic for the generic gateway component.
+
+        Initializes the adapter before calling base class setup to ensure
+        the adapter context is available before any message processing begins.
+        This guarantees that adapter methods like extract_auth_claims() have
+        access to self.context when called.
+        """
+        log.info("%s Initializing adapter...", self.log_identifier)
+        try:
+            await self.adapter.init(self)
+            log.info("%s Adapter initialized successfully", self.log_identifier)
+        except Exception as e:
+            log.error("%s Failed to initialize adapter: %s", self.log_identifier, e)
+            raise
+
+        await super()._async_setup_and_run()
+
     def _start_listener(self) -> None:
-        """Starts the adapter's listener."""
-        log.info("%s Calling adapter.init()...", self.log_identifier)
-        # The adapter's init method is responsible for starting any listeners
-        # (e.g., an HTTP server, a websocket client).
-        # We run it in the component's event loop.
-        asyncio.run_coroutine_threadsafe(self.adapter.init(self), self.get_async_loop())
+        """Listener start hook from BaseGatewayComponent.
+
+        For GenericGatewayComponent, adapter initialization is handled in
+        _async_setup_and_run() before this method is called. This ensures
+        proper async initialization and guarantees the adapter context is
+        available before message processing starts.
+
+        Subclasses that need additional listener setup (e.g., starting an
+        HTTP server) can override this method.
+        """
+        # Adapter already initialized in _async_setup_and_run
+        log.debug(
+            "%s _start_listener called - adapter already initialized",
+            self.log_identifier,
+        )
 
     def _stop_listener(self) -> None:
         """Stops the adapter's listener."""
