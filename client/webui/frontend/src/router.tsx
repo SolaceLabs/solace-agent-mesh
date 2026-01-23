@@ -2,10 +2,16 @@ import { createHashRouter, Navigate } from "react-router-dom";
 
 import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage } from "./lib";
 import { WorkflowVisualizationPage } from "./lib/components/workflowVisualization";
+import { SharedSessionPage } from "./lib/components/pages/SharedSessionPage";
 import AppLayout from "./AppLayout";
 
 export const createRouter = () => {
     return createHashRouter([
+        // Public share route (outside AppLayout)
+        {
+            path: "/share/:shareId",
+            element: <SharedSessionPage />,
+        },
         {
             path: "/",
             element: <AppLayout />,

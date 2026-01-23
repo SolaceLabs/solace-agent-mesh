@@ -11,6 +11,7 @@ import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog,
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useLocation, useNavigate } from "react-router-dom";
+import { ShareButton } from "@/lib/components/share/ShareButton";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -275,6 +276,7 @@ export function ChatPage() {
                             </div>
                         ) : null
                     }
+                    buttons={sessionId ? [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />] : undefined}
                 />
             </div>
             <div className="flex min-h-0 flex-1">
