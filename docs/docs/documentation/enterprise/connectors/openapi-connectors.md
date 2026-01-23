@@ -25,7 +25,7 @@ Before you create an OpenAPI connector, ensure you have the following:
 
 ### OpenAPI Specification File
 
-You need an OpenAPI specification file in JSON or YAML format that describes the REST API you want to integrate.
+You need an OpenAPI specification file in JSON or YAML format that describes the REST API you want to integrate. Only OpenAPI 3.0+ specifications are supported. If you have an older OpenAPI 2.0 (Swagger) specification, you can use online converters such as [Swagger Converter](https://converter.swagger.io/) to upgrade it to OpenAPI 3.0 format.
 
 ### Public Storage Bucket Configuration
 
