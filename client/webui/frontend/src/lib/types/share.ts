@@ -38,6 +38,27 @@ export interface UpdateShareLinkRequest {
     allowed_domains?: string[];
 }
 
+export interface SharedTaskEvents {
+    events: SharedTaskEvent[];
+    initial_request_text: string;
+}
+
+export interface SharedTaskEvent {
+    event_type: string;
+    timestamp: string;
+    solace_topic: string;
+    direction: string;
+    source_entity: string;
+    target_entity: string;
+    message_id: string | null;
+    task_id: string;
+    payload_summary: {
+        method: string;
+        params_preview: string | null;
+    };
+    full_payload: Record<string, unknown>;
+}
+
 export interface SharedSessionView {
     share_id: string;
     title: string;
@@ -45,6 +66,7 @@ export interface SharedSessionView {
     access_type: string;
     tasks: SharedTask[];
     artifacts: SharedArtifact[];
+    task_events?: Record<string, SharedTaskEvents> | null;
 }
 
 export interface SharedTask {
@@ -55,12 +77,19 @@ export interface SharedTask {
     message_bubbles: MessageBubble[];
     task_metadata?: TaskMetadata | null;
     created_time: number;
+    /** A2A task ID for workflow lookup (may differ from chat task id) */
+    workflow_task_id?: string;
 }
 
 export interface SharedArtifact {
-    uri: string;
-    version?: number;
-    is_public: boolean;
+    filename: string;
+    mime_type: string;
+    size: number;
+    last_modified?: string | null;
+    version?: number | null;
+    version_count?: number | null;
+    description?: string | null;
+    source?: string | null;
 }
 
 export interface ShareLinkResponse {

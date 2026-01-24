@@ -78,6 +78,25 @@ class ShareLinkItem(BaseModel):
     message_count: int
 
 
+class SharedArtifactInfo(BaseModel):
+    """Artifact info for shared sessions."""
+    filename: str
+    mime_type: str
+    size: int  # in bytes
+    last_modified: Optional[str] = None  # ISO 8601 timestamp
+    version: Optional[int] = None
+    version_count: Optional[int] = None
+    description: Optional[str] = None
+    source: Optional[str] = None
+
+
+class SharedTaskEvents(BaseModel):
+    """Task events for workflow visualization in shared sessions."""
+    task_id: str
+    events: List[dict]  # A2AEventSSEPayload format
+    initial_request_text: Optional[str] = None
+
+
 class SharedSessionView(BaseModel):
     """Public view of a shared session."""
     share_id: str
@@ -85,4 +104,5 @@ class SharedSessionView(BaseModel):
     created_time: int
     access_type: str
     tasks: List[dict]  # Anonymized chat tasks
-    artifacts: List[dict]  # Public artifact info
+    artifacts: List[SharedArtifactInfo]  # Full artifact info for side panel
+    task_events: Optional[dict] = None  # Task events for workflow visualization: {task_id: SharedTaskEvents}
