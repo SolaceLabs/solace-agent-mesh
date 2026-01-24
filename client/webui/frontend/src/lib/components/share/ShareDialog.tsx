@@ -172,7 +172,7 @@ export function ShareDialog({ sessionId, sessionTitle, open, onOpenChange }: Sha
                 <DialogContent className="sm:max-w-[500px]">
                     <DialogHeader>
                         <DialogTitle>Share "{sessionTitle}"</DialogTitle>
-                        <DialogDescription>{shareLink ? "Manage your share link settings" : "Create a share link to share this session with others"}</DialogDescription>
+                        <DialogDescription>{shareLink ? "Manage your share link settings" : "Create a link to share this session with others"}</DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
