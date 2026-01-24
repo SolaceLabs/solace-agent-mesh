@@ -9,6 +9,11 @@ ENV_DEFAULTS = {
     "LLM_SERVICE_API_KEY": "YOUR_LLM_SERVICE_API_KEY_HERE",
     "LLM_SERVICE_PLANNING_MODEL_NAME": "YOUR_LLM_SERVICE_PLANNING_MODEL_NAME_HERE",
     "LLM_SERVICE_GENERAL_MODEL_NAME": "YOUR_LLM_SERVICE_GENERAL_MODEL_NAME_HERE",
+    "AWS_ACCESS_KEY_ID": "YOUR_AWS_ACCESS_KEY_ID_HERE",
+    "AWS_SECRET_ACCESS_KEY": "YOUR_AWS_SECRET_ACCESS_KEY_HERE",
+    "AWS_SESSION_TOKEN": "",
+    "BEDROCK_MODEL_NAME": "YOUR_BEDROCK_MODEL_NAME_HERE",
+    "BEDROCK_MODEL_ID": "YOUR_BEDROCK_MODEL_ID_HERE",
     "NAMESPACE": "my_project_namespace/",
     "SOLACE_BROKER_URL": "ws://localhost:8008",
     "SOLACE_BROKER_VPN": "default",
@@ -51,35 +56,86 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
     env_path = project_root / ".env"
     click.echo("Configuring .env file...")
 
-    env_params_config = [
-        (
-            "llm_service_endpoint",
-            "LLM_SERVICE_ENDPOINT",
-            "Enter LLM Service Endpoint URL",
-            False,
-            "LLM_SERVICE_ENDPOINT",
-        ),
-        (
-            "llm_service_api_key",
-            "LLM_SERVICE_API_KEY",
-            "Enter LLM Service API Key",
-            True,
-            "LLM_SERVICE_API_KEY",
-        ),
-        (
-            "llm_service_planning_model_name",
-            "LLM_SERVICE_PLANNING_MODEL_NAME",
-            "Enter LLM Planning Model Name (e.g., openai/gpt-4o)",
-            False,
-            "LLM_SERVICE_PLANNING_MODEL_NAME",
-        ),
-        (
-            "llm_service_general_model_name",
-            "LLM_SERVICE_GENERAL_MODEL_NAME",
-            "Enter LLM General Model Name (e.g., openai/gpt-3.5-turbo)",
-            False,
-            "LLM_SERVICE_GENERAL_MODEL_NAME",
-        ),
+    # Check if AWS Bedrock provider is being used
+    llm_provider = options.get("llm_provider", "")
+    is_aws_bedrock = llm_provider == "aws_bedrock"
+
+    env_params_config = []
+    
+    # Add AWS Bedrock specific parameters if using AWS Bedrock
+    if is_aws_bedrock:
+        env_params_config.extend([
+            (
+                "llm_model_name",
+                "BEDROCK_MODEL_NAME",
+                "Enter AWS Bedrock Model Name",
+                False,
+                "BEDROCK_MODEL_NAME",
+            ),
+            (
+                "aws_model_id",
+                "BEDROCK_MODEL_ID",
+                "Enter AWS Bedrock Model ID",
+                False,
+                "BEDROCK_MODEL_ID",
+            ),
+            (
+                "aws_access_key",
+                "AWS_ACCESS_KEY_ID",
+                "Enter AWS Access Key ID",
+                True,
+                "AWS_ACCESS_KEY_ID",
+            ),
+            (
+                "aws_secret_access_key",
+                "AWS_SECRET_ACCESS_KEY",
+                "Enter AWS Secret Access Key",
+                True,
+                "AWS_SECRET_ACCESS_KEY",
+            ),
+            (
+                "aws_session_token",
+                "AWS_SESSION_TOKEN",
+                "Enter AWS Session Token (optional)",
+                True,
+                "AWS_SESSION_TOKEN",
+            ),
+        ])
+    else:
+        # Add standard LLM parameters for non-Bedrock providers
+        env_params_config.extend([
+            (
+                "llm_service_endpoint",
+                "LLM_SERVICE_ENDPOINT",
+                "Enter LLM Service Endpoint URL",
+                False,
+                "LLM_SERVICE_ENDPOINT",
+            ),
+            (
+                "llm_service_api_key",
+                "LLM_SERVICE_API_KEY",
+                "Enter LLM Service API Key",
+                True,
+                "LLM_SERVICE_API_KEY",
+            ),
+            (
+                "llm_service_planning_model_name",
+                "LLM_SERVICE_PLANNING_MODEL_NAME",
+                "Enter LLM Planning Model Name (e.g., openai/gpt-4o)",
+                False,
+                "LLM_SERVICE_PLANNING_MODEL_NAME",
+            ),
+            (
+                "llm_service_general_model_name",
+                "LLM_SERVICE_GENERAL_MODEL_NAME",
+                "Enter LLM General Model Name (e.g., openai/gpt-3.5-turbo)",
+                False,
+                "LLM_SERVICE_GENERAL_MODEL_NAME",
+            ),
+        ])
+    
+    # Add common parameters (namespace, broker, webui, etc.)
+    env_params_config.extend([
         (
             "namespace",
             "NAMESPACE",
@@ -220,7 +276,7 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             False,
             "PLATFORM_API_PORT",
         ),
-    ]
+    ])
 
     env_vars_to_write = {}
 

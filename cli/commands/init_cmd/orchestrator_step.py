@@ -287,7 +287,12 @@ def create_orchestrator_config(
     shared_config_dest_path = project_root / "configs" / "shared_config.yaml"
 
     try:
-        shared_template_content = load_template("shared_config.yaml")
+        # Check if AWS Bedrock provider is being used
+        llm_provider = options.get("llm_provider", "")
+        if llm_provider == "aws_bedrock":
+            shared_template_content = load_template("shared_config_bedrock.yaml")
+        else:
+            shared_template_content = load_template("shared_config.yaml")
 
         artifact_base_path_line = ""
         if artifact_type == "filesystem":
