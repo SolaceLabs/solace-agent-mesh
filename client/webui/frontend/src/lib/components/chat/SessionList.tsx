@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2 } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2, Share2 } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
@@ -64,6 +64,7 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId 
 };
 import { formatTimestamp, getErrorMessage } from "@/lib/utils";
 import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
+import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import {
     Button,
     DropdownMenu,
@@ -139,6 +140,8 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
     const [regeneratingTitleForSession, setRegeneratingTitleForSession] = useState<string | null>(null);
+    const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+    const [sessionToShare, setSessionToShare] = useState<Session | null>(null);
 
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0,
@@ -280,6 +283,11 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const handleMoveClick = (session: Session) => {
         setSessionToMove(session);
         setIsMoveDialogOpen(true);
+    };
+
+    const handleShareClick = (session: Session) => {
+        setSessionToShare(session);
+        setIsShareDialogOpen(true);
     };
     const handleGoToProject = (session: Session) => {
         if (!session.projectId) return;
@@ -562,6 +570,15 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                         <FolderInput size={16} className="mr-2" />
                                                         Move to Project
                                                     </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            handleShareClick(session);
+                                                        }}
+                                                    >
+                                                        <Share2 size={16} className="mr-2" />
+                                                        Share
+                                                    </DropdownMenuItem>
                                                     <DropdownMenuSeparator />
                                                     <DropdownMenuItem
                                                         onClick={e => {
@@ -611,6 +628,20 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 projects={projects}
                 currentProjectId={sessionToMove?.projectId}
             />
+
+            {sessionToShare && (
+                <ShareDialog
+                    sessionId={sessionToShare.id}
+                    sessionTitle={sessionToShare.name || "Untitled Chat"}
+                    open={isShareDialogOpen}
+                    onOpenChange={open => {
+                        setIsShareDialogOpen(open);
+                        if (!open) {
+                            setSessionToShare(null);
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 };
