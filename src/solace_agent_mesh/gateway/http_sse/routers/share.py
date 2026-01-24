@@ -214,7 +214,7 @@ async def view_shared_session(
     Returns 403 if authenticated but domain doesn't match.
     """
     try:
-        session_view = share_service.get_shared_session_view(
+        session_view = await share_service.get_shared_session_view(
             db=db,
             share_id=share_id,
             user_id=user_id,

@@ -142,12 +142,29 @@ def anonymize_chat_task(task: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Anonymized task dictionary
     """
+    import json as json_module
+    
     anonymized = task.copy()
     
-    # Anonymize IDs
-    if 'id' in anonymized:
-        anonymized['id'] = anonymize_id(anonymized['id'], 'task')
+    # Extract A2A task_id from task_metadata for workflow lookup
+    # This is the key used in task_events dictionary
+    task_metadata = anonymized.get('task_metadata')
+    a2a_task_id = None
     
+    if task_metadata:
+        if isinstance(task_metadata, str):
+            try:
+                task_metadata = json_module.loads(task_metadata)
+            except:
+                task_metadata = None
+        
+        if task_metadata and isinstance(task_metadata, dict):
+            a2a_task_id = task_metadata.get("task_id")
+    
+    # Store the A2A task ID for workflow lookup (falls back to chat task id)
+    anonymized['workflow_task_id'] = a2a_task_id or anonymized.get('id')
+    
+    # Anonymize session_id but keep task id
     if 'session_id' in anonymized:
         anonymized['session_id'] = anonymize_id(anonymized['session_id'], 'session')
     

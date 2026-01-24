@@ -2,12 +2,16 @@
  * SharedSessionPage - Public view of a shared chat session
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Lock, Globe, Building2, AlertCircle } from "lucide-react";
-import { Button, Spinner } from "@/lib/components/ui";
+import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon } from "lucide-react";
+import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui";
+import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { viewSharedSession } from "@/lib/api/shareApi";
 import type { SharedSessionView } from "@/lib/types/share";
+import type { MessageBubble } from "@/lib/types/storage";
+import { SharedArtifactPanel } from "@/lib/components/share/SharedArtifactPanel";
+import { SharedWorkflowPanel } from "@/lib/components/share/SharedWorkflowPanel";
 
 export function SharedSessionPage() {
     const { shareId } = useParams<{ shareId: string }>();
@@ -15,6 +19,9 @@ export function SharedSessionPage() {
     const [session, setSession] = useState<SharedSessionView | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState(false);
+    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow">("files");
+    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
     useEffect(() => {
         if (shareId) {
@@ -61,6 +68,54 @@ export function SharedSessionPage() {
         }
     };
 
+    // Parse message bubbles from tasks
+    const messages = useMemo(() => {
+        if (!session) return [];
+
+        const result: Array<{
+            type: string;
+            text: string;
+            timestamp?: number;
+            taskId: string;
+            isLastInTask: boolean;
+        }> = [];
+
+        for (const task of session.tasks) {
+            try {
+                const bubbles = typeof task.message_bubbles === "string" ? JSON.parse(task.message_bubbles) : task.message_bubbles;
+
+                if (Array.isArray(bubbles)) {
+                    (bubbles as MessageBubble[]).forEach((bubble: MessageBubble, index: number) => {
+                        result.push({
+                            type: bubble.type || "agent",
+                            text: bubble.text || "",
+                            timestamp: task.created_time,
+                            // Use workflow_task_id for workflow lookup (A2A task ID), fallback to id
+                            taskId: task.workflow_task_id || task.id,
+                            isLastInTask: index === bubbles.length - 1,
+                        });
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to parse message bubbles:", e);
+            }
+        }
+        return result;
+    }, [session]);
+
+    // Check if there are artifacts to show
+    const hasArtifacts = session && session.artifacts && session.artifacts.length > 0;
+
+    const toggleSidePanel = () => {
+        setIsSidePanelCollapsed(!isSidePanelCollapsed);
+    };
+
+    const handleViewWorkflow = (taskId: string) => {
+        setSelectedTaskId(taskId);
+        setActiveSidePanelTab("workflow");
+        setIsSidePanelCollapsed(false);
+    };
+
     if (loading) {
         return (
             <div className="flex h-screen items-center justify-center">
@@ -99,25 +154,86 @@ export function SharedSessionPage() {
         );
     }
 
-    // Parse message bubbles from tasks
-    const messages: Array<{ type: string; text: string; timestamp?: number }> = [];
-    for (const task of session.tasks) {
-        try {
-            const bubbles = typeof task.message_bubbles === "string" ? JSON.parse(task.message_bubbles) : task.message_bubbles;
+    // Render side panel content
+    const renderSidePanel = () => {
+        if (isSidePanelCollapsed) {
+            return (
+                <div className="bg-background flex h-full w-full flex-col items-center border-l py-4">
+                    <Button variant="ghost" size="sm" onClick={toggleSidePanel} className="h-10 w-10 p-0" tooltip="Expand Panel">
+                        <PanelRightIcon className="size-5" />
+                    </Button>
 
-            if (Array.isArray(bubbles)) {
-                for (const bubble of bubbles) {
-                    messages.push({
-                        type: bubble.type || "agent",
-                        text: bubble.text || bubble.content || "",
-                        timestamp: task.created_time,
-                    });
-                }
-            }
-        } catch (e) {
-            console.error("Failed to parse message bubbles:", e);
+                    <div className="bg-border my-4 h-px w-8"></div>
+
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            setIsSidePanelCollapsed(false);
+                            setActiveSidePanelTab("files");
+                        }}
+                        className="mb-2 h-10 w-10 p-0"
+                        tooltip="Files"
+                    >
+                        <FileText className="size-5" />
+                    </Button>
+
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            setIsSidePanelCollapsed(false);
+                            setActiveSidePanelTab("workflow");
+                        }}
+                        className="h-10 w-10 p-0"
+                        tooltip="Workflow"
+                    >
+                        <Network className="size-5" />
+                    </Button>
+                </div>
+            );
         }
-    }
+
+        return (
+            <div className="bg-background flex h-full flex-col border-l">
+                <div className="m-1 min-h-0 flex-1">
+                    <Tabs value={activeSidePanelTab} onValueChange={value => setActiveSidePanelTab(value as "files" | "workflow")} className="flex h-full flex-col">
+                        <div className="@container flex gap-2 p-2">
+                            <Button variant="ghost" onClick={toggleSidePanel} className="shrink-0 p-1" tooltip="Collapse Panel">
+                                <PanelRightIcon className="size-5" />
+                            </Button>
+                            <TabsList className="flex min-w-0 flex-1 bg-transparent p-0">
+                                <TabsTrigger
+                                    value="files"
+                                    title="Files"
+                                    className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-l-md border border-r-0 px-2 data-[state=active]:z-10"
+                                >
+                                    <FileText className="h-4 w-4 shrink-0" />
+                                    <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="workflow" title="Workflow" className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border px-2 data-[state=active]:z-10">
+                                    <Network className="h-4 w-4 shrink-0" />
+                                    <span className="ml-1.5 hidden truncate @[240px]:inline">Workflow</span>
+                                </TabsTrigger>
+                            </TabsList>
+                        </div>
+                        <div className="min-h-0 flex-1">
+                            <TabsContent value="files" className="m-0 h-full">
+                                <div className="h-full">
+                                    <SharedArtifactPanel artifacts={session.artifacts} />
+                                </div>
+                            </TabsContent>
+                            <TabsContent value="workflow" className="m-0 h-full">
+                                <div className="h-full">
+                                    <SharedWorkflowPanel taskEvents={session.task_events} selectedTaskId={selectedTaskId} onTaskSelect={setSelectedTaskId} />
+                                </div>
+                            </TabsContent>
+                        </div>
+                    </Tabs>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="flex h-screen flex-col">
@@ -137,30 +253,58 @@ export function SharedSessionPage() {
                                 <span>{getAccessLabel(session.access_type)}</span>
                                 <span>•</span>
                                 <span>Shared on {new Date(session.created_time).toLocaleDateString()}</span>
+                                {hasArtifacts && (
+                                    <>
+                                        <span>•</span>
+                                        <span>
+                                            {session.artifacts.length} file{session.artifacts.length !== 1 ? "s" : ""}
+                                        </span>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
                 </div>
             </header>
 
-            {/* Messages */}
-            <main className="flex-1 overflow-y-auto p-6">
-                <div className="mx-auto max-w-3xl space-y-4">
-                    {messages.length === 0 ? (
-                        <div className="text-muted-foreground py-12 text-center">
-                            <p>No messages in this session.</p>
-                        </div>
-                    ) : (
-                        messages.map((message, index) => (
-                            <div key={index} className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}>
-                                <div className={`max-w-[80%] rounded-lg px-4 py-2 ${message.type === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                                    <p className="whitespace-pre-wrap">{message.text}</p>
-                                </div>
+            {/* Main content with resizable panels - always show side panel */}
+            <div className="min-h-0 flex-1">
+                <ResizablePanelGroup direction="horizontal" autoSaveId="shared-session-side-panel" className="h-full">
+                    {/* Messages panel */}
+                    <ResizablePanel defaultSize={isSidePanelCollapsed ? 96 : 70} minSize={50} id="shared-session-messages-panel">
+                        <main className="h-full overflow-y-auto p-6">
+                            <div className="mx-auto max-w-3xl space-y-4">
+                                {messages.length === 0 ? (
+                                    <div className="text-muted-foreground py-12 text-center">
+                                        <p>No messages in this session.</p>
+                                    </div>
+                                ) : (
+                                    messages.map((message, index) => (
+                                        <div key={index} className={`flex ${message.type === "user" ? "justify-end" : "justify-start"} mb-4 flex-col`}>
+                                            <div className={`max-w-[80%] rounded-lg px-4 py-2 ${message.type === "user" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted mr-auto"}`}>
+                                                <p className="whitespace-pre-wrap">{message.text}</p>
+                                            </div>
+                                            {/* Show workflow button outside the bubble for the last AI message in each task */}
+                                            {message.type !== "user" && message.isLastInTask && (
+                                                <div className="mt-1 flex justify-start">
+                                                    <ViewWorkflowButton onClick={() => handleViewWorkflow(message.taskId)} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
                             </div>
-                        ))
-                    )}
-                </div>
-            </main>
+                        </main>
+                    </ResizablePanel>
+
+                    <ResizableHandle />
+
+                    {/* Side panel - always visible */}
+                    <ResizablePanel defaultSize={isSidePanelCollapsed ? 4 : 30} minSize={isSidePanelCollapsed ? 4 : 20} maxSize={isSidePanelCollapsed ? 4 : 50} id="shared-session-side-panel">
+                        {renderSidePanel()}
+                    </ResizablePanel>
+                </ResizablePanelGroup>
+            </div>
 
             {/* Footer */}
             <footer className="text-muted-foreground border-t px-6 py-3 text-center text-sm">

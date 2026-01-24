@@ -4,15 +4,17 @@ Service for share link business logic.
 
 import logging
 import json
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional, List, Dict, Any
 from sqlalchemy.orm import Session as DBSession
 
 from ..repository.share_repository import ShareRepository
 from ..repository.entities.share import ShareLink, SharedArtifact
 from ..repository.models.share_model import (
-    ShareLinkResponse, 
-    ShareLinkItem, 
+    ShareLinkResponse,
+    ShareLinkItem,
     SharedSessionView,
+    SharedArtifactInfo,
     CreateShareLinkRequest,
     UpdateShareLinkRequest
 )
@@ -27,6 +29,7 @@ from ..utils.share_utils import (
 )
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_agent_mesh.shared.api.pagination import PaginationParams, PaginatedResponse
+from ....agent.utils.artifact_helpers import get_artifact_info_list
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
@@ -305,7 +308,7 @@ class ShareService:
         
         return success
 
-    def get_shared_session_view(
+    async def get_shared_session_view(
         self,
         db: DBSession,
         share_id: str,
@@ -322,7 +325,7 @@ class ShareService:
             user_email: Optional user email (if authenticated)
         
         Returns:
-            SharedSessionView with anonymized data
+            SharedSessionView with anonymized data and full artifact info
         
         Raises:
             ValueError: If not found or access denied
@@ -350,16 +353,50 @@ class ShareService:
         # Anonymize tasks
         anonymized_tasks = [anonymize_chat_task(task.model_dump()) for task in tasks]
         
-        # Get artifacts
-        artifacts = self.repository.find_artifacts_by_share_id(db, share_id)
-        artifact_list = [
-            {
-                "uri": art.artifact_uri,
-                "version": art.artifact_version,
-                "is_public": art.is_public
-            }
-            for art in artifacts
-        ]
+        # Get full artifact details from artifact service
+        artifact_list: List[SharedArtifactInfo] = []
+        artifact_service = None
+        
+        if self.component:
+            # Use get_shared_artifact_service() method which is the correct way to get the artifact service
+            artifact_service = self.component.get_shared_artifact_service()
+            
+        if artifact_service:
+            try:
+                app_name = self.component.get_config("name", "A2A_WebUI_App")
+                log.info(f"Loading artifacts for shared session {share_id}, user_id={share_link.user_id}, session_id={share_link.session_id}, app_name={app_name}")
+                
+                artifact_infos = await get_artifact_info_list(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=share_link.user_id,
+                    session_id=share_link.session_id
+                )
+                
+                log.info(f"Found {len(artifact_infos)} artifacts for shared session {share_id}")
+                
+                # Convert ArtifactInfo to SharedArtifactInfo
+                for info in artifact_infos:
+                    artifact_list.append(SharedArtifactInfo(
+                        filename=info.filename,
+                        mime_type=info.mime_type,
+                        size=info.size,
+                        last_modified=info.last_modified,
+                        version=info.version,
+                        version_count=info.version_count,
+                        description=info.description,
+                        source=info.source
+                    ))
+                    
+                log.debug(f"Loaded {len(artifact_list)} artifacts for shared session {share_id}")
+            except Exception as e:
+                log.warning(f"Failed to load artifacts for shared session {share_id}: {e}", exc_info=True)
+                # Continue without artifacts rather than failing the entire request
+        else:
+            log.warning(f"No artifact service available for shared session {share_id}")
+        
+        # Load task events for workflow visualization
+        task_events_data = await self._load_task_events_for_session(db, tasks)
         
         return SharedSessionView(
             share_id=share_id,
@@ -367,8 +404,175 @@ class ShareService:
             created_time=share_link.created_time,
             access_type=share_link.get_access_type(),
             tasks=anonymized_tasks,
-            artifacts=artifact_list
+            artifacts=artifact_list,
+            task_events=task_events_data
         )
+    
+    async def _load_task_events_for_session(
+        self,
+        db: DBSession,
+        tasks: List[Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Load task events for workflow visualization.
+        
+        Args:
+            db: Database session
+            tasks: List of chat tasks from the session
+        
+        Returns:
+            Dictionary of task events keyed by task_id, or None if no events found
+        """
+        from ..repository.task_repository import TaskRepository
+        
+        task_repo = TaskRepository()
+        all_task_events: Dict[str, Any] = {}
+        
+        try:
+            log.info(f"Loading task events for {len(tasks)} chat tasks")
+            
+            for task in tasks:
+                # Try to get the task_id from task_metadata first
+                task_id = None
+                task_metadata = task.task_metadata
+                
+                if task_metadata:
+                    if isinstance(task_metadata, str):
+                        try:
+                            task_metadata = json.loads(task_metadata)
+                        except:
+                            task_metadata = None
+                    
+                    if task_metadata and isinstance(task_metadata, dict):
+                        task_id = task_metadata.get("task_id")
+                
+                # If no task_id in metadata, try using the chat task's id directly
+                # (the chat task id might be the same as the A2A task id)
+                if not task_id:
+                    task_id = task.id
+                
+                log.debug(f"Looking up task events for task_id: {task_id}")
+                
+                # Load task and events from database
+                result = task_repo.find_by_id_with_events(db, task_id)
+                if not result:
+                    log.debug(f"No task events found for task_id: {task_id}")
+                    continue
+                
+                db_task, events = result
+                log.debug(f"Found {len(events)} events for task_id: {task_id}")
+                
+                # Format events for frontend (same format as /tasks/{task_id}/events endpoint)
+                formatted_events = self._format_task_events(task_id, events)
+                
+                all_task_events[task_id] = {
+                    "events": formatted_events,
+                    "initial_request_text": db_task.initial_request_text or ""
+                }
+                
+                # Also load related child tasks
+                related_task_ids = task_repo.find_all_by_parent_chain(db, task_id)
+                log.debug(f"Found {len(related_task_ids)} related tasks for task_id: {task_id}")
+                
+                for related_tid in related_task_ids:
+                    if related_tid == task_id or related_tid in all_task_events:
+                        continue
+                    
+                    related_result = task_repo.find_by_id_with_events(db, related_tid)
+                    if not related_result:
+                        continue
+                    
+                    related_task, related_events = related_result
+                    related_formatted_events = self._format_task_events(related_tid, related_events)
+                    
+                    all_task_events[related_tid] = {
+                        "events": related_formatted_events,
+                        "initial_request_text": related_task.initial_request_text or ""
+                    }
+            
+            if not all_task_events:
+                log.info("No task events found for any tasks in the session")
+                return None
+            
+            log.info(f"Loaded task events for {len(all_task_events)} tasks")
+            return all_task_events
+            
+        except Exception as e:
+            log.warning(f"Failed to load task events: {e}", exc_info=True)
+            return None
+    
+    def _format_task_events(self, task_id: str, events: List[Any]) -> List[Dict[str, Any]]:
+        """
+        Format task events into A2AEventSSEPayload format for the frontend.
+        
+        Args:
+            task_id: The task ID
+            events: List of task event entities
+        
+        Returns:
+            List of formatted events
+        """
+        formatted_events = []
+        
+        for event in events:
+            # Convert timestamp from epoch milliseconds to ISO 8601
+            timestamp_dt = datetime.fromtimestamp(event.created_time / 1000, tz=timezone.utc)
+            timestamp_iso = timestamp_dt.isoformat()
+            
+            # Extract metadata from payload
+            payload = event.payload
+            message_id = payload.get("id")
+            source_entity = "unknown"
+            target_entity = "unknown"
+            method = "N/A"
+            
+            # Parse based on direction
+            if event.direction == "request":
+                method = payload.get("method", "N/A")
+                if "params" in payload and "message" in payload.get("params", {}):
+                    message = payload["params"]["message"]
+                    if isinstance(message, dict) and "metadata" in message:
+                        target_entity = message["metadata"].get("agent_name", "unknown")
+            elif event.direction in ["status", "response", "error"]:
+                if "result" in payload:
+                    result = payload["result"]
+                    if isinstance(result, dict):
+                        if "metadata" in result:
+                            source_entity = result["metadata"].get("agent_name", "unknown")
+                        if "message" in result:
+                            message = result["message"]
+                            if isinstance(message, dict) and "metadata" in message:
+                                if source_entity == "unknown":
+                                    source_entity = message["metadata"].get("agent_name", "unknown")
+            
+            # Map stored direction to SSE direction format
+            direction_map = {
+                "request": "request",
+                "response": "task",
+                "status": "status-update",
+                "error": "error_response",
+            }
+            sse_direction = direction_map.get(event.direction, event.direction)
+            
+            # Build the A2AEventSSEPayload structure
+            formatted_event = {
+                "event_type": "a2a_message",
+                "timestamp": timestamp_iso,
+                "solace_topic": event.topic,
+                "direction": sse_direction,
+                "source_entity": source_entity,
+                "target_entity": target_entity,
+                "message_id": message_id,
+                "task_id": task_id,
+                "payload_summary": {
+                    "method": method,
+                    "params_preview": None,
+                },
+                "full_payload": payload,
+            }
+            formatted_events.append(formatted_event)
+        
+        return formatted_events
 
     def _build_share_link_response(self, share_link: ShareLink, base_url: str) -> ShareLinkResponse:
         """Build ShareLinkResponse from entity."""
