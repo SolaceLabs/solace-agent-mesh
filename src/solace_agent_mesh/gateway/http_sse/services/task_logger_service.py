@@ -559,15 +559,7 @@ class TaskLoggerService:
                                                                     f"sources_count={len(rag_metadata.get('sources', []))}"
                                                                 )
                                         
-                                        # Also collect any text from the final response
-                                        # (in case there's text that wasn't in status updates)
-                                        for part in parts:
-                                            if isinstance(part, dict) and part.get("kind") == "text":
-                                                text = part.get("text", "")
-                                                if text and text not in accumulated_agent_text:
-                                                    accumulated_agent_text.append(text)
-                                                    accumulated_agent_parts.append(part)
-                
+                                        
                 except Exception as e:
                     log.warning(
                         f"{self.log_identifier} Error parsing event for chat message reconstruction: {e}"
