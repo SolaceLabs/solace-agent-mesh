@@ -269,7 +269,6 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             }
 
             setRegeneratingTitleForSession(session.id);
-            addNotification?.("Generating AI name...", "info");
 
             try {
                 // Fetch all tasks/messages for this session
@@ -313,8 +312,6 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 // Pass current title so polling can detect the change
                 // Pass force=true to bypass the "already has title" check
                 await generateTitle(session.id, userSummary, agentSummary, session.name || "New Chat", true);
-
-                addNotification?.("Title regenerated successfully", "success");
             } catch (error) {
                 console.error("Error regenerating title:", error);
                 addNotification?.(`Failed to regenerate title: ${error instanceof Error ? error.message : "Unknown error"}`, "warning");
