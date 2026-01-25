@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-import { getAccessToken, getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION } from "@/lib/utils";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken } from "@/lib/utils";
 import { internalToDisplayText } from "@/lib/utils/mentionUtils";
 
 import type {
@@ -2455,14 +2455,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     useEffect(() => {
         if (currentTaskId) {
-            const accessToken = getAccessToken();
+            const bearerToken = getApiBearerToken();
 
             const bgTask = backgroundTasksRef.current.find(t => t.taskId === currentTaskId);
             const isReconnecting = bgTask !== undefined;
 
             const params = new URLSearchParams();
-            if (accessToken) {
-                params.append("token", accessToken);
+            if (bearerToken) {
+                params.append("token", bearerToken);
             }
 
             if (isReconnecting) {
