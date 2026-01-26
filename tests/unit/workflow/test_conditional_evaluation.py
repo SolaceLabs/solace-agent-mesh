@@ -303,3 +303,64 @@ class TestNullHandling:
         # None is converted to string "None" for comparison
         result = evaluate_condition("'{{step1.output.value}}' == 'None'", state)
         assert result is True
+
+    def test_none_value_nested_access(self):
+        """Accessing nested fields through None returns 'None'."""
+        state = create_workflow_state({
+            "step1": {"output": {"parent": None}}
+        })
+
+        # Trying to access a field through None returns "None"
+        result = evaluate_condition("'{{step1.output.parent.child}}' == 'None'", state)
+        assert result is True
+
+
+class TestWorkflowStatusReference:
+    """Tests for referencing workflow status in conditions (for exit handlers)."""
+
+    def test_workflow_status_success(self):
+        """Workflow status can be referenced in conditions."""
+        state = create_workflow_state({
+            "workflow": {"status": "success", "error": None}
+        })
+
+        result = evaluate_condition("'{{workflow.status}}' == 'success'", state)
+        assert result is True
+
+    def test_workflow_status_failure(self):
+        """Workflow failure status can be checked."""
+        state = create_workflow_state({
+            "workflow": {"status": "failed", "error": "Something went wrong"}
+        })
+
+        result = evaluate_condition("'{{workflow.status}}' == 'failed'", state)
+        assert result is True
+
+    def test_workflow_error_not_none(self):
+        """Workflow error can be checked for non-None value."""
+        state = create_workflow_state({
+            "workflow": {"status": "failed", "error": "Error message"}
+        })
+
+        result = evaluate_condition("'{{workflow.error}}' != 'None'", state)
+        assert result is True
+
+    def test_workflow_status_not_initialized(self):
+        """Referencing workflow status before initialization raises error."""
+        state = create_workflow_state({})  # No workflow status
+
+        with pytest.raises(ConditionalEvaluationError, match="has not been initialized"):
+            evaluate_condition("'{{workflow.status}}' == 'success'", state)
+
+
+class TestFieldNotFoundError:
+    """Tests for handling missing fields in paths."""
+
+    def test_missing_field_in_output(self):
+        """Missing field in output raises error."""
+        state = create_workflow_state({
+            "step1": {"output": {"existing_field": "value"}}
+        })
+
+        with pytest.raises(ConditionalEvaluationError, match="Field 'nonexistent' not found"):
+            evaluate_condition("'{{step1.output.nonexistent}}' == 'value'", state)
