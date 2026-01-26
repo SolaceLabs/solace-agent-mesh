@@ -474,7 +474,7 @@ async def delete_project_artifact(
     )
 
     try:
-        result = await project_service.delete_artifact_from_project(
+        await project_service.delete_artifact_from_project(
             db=db,
             project_id=project_id,
             user_id=user_id,
