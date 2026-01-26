@@ -1,8 +1,9 @@
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui/select";
 
 const meta = {
-    title: "Common/Select",
+    title: "Components/Select",
     component: Select,
     parameters: {
         layout: "fullscreen",
@@ -111,4 +112,11 @@ export const Default: Story = {
             </div>
         </div>
     ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Verify all 6 select trigger buttons rendered
+        const selectButtons = await canvas.findAllByRole("combobox");
+        expect(selectButtons).toHaveLength(6);
+    },
 };

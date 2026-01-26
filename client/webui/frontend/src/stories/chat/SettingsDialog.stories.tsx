@@ -28,7 +28,7 @@ const handlers = [
 ];
 
 const meta = {
-    title: "Views/Settings",
+    title: "Pages/Chat/SettingsDialog",
     component: SettingsDialog,
     parameters: {
         layout: "fullscreen",

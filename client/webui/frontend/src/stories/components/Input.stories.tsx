@@ -1,8 +1,9 @@
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { Input } from "@/lib/components/ui/input";
 
 const meta = {
-    title: "Common/Input",
+    title: "Components/Input",
     component: Input,
     parameters: {
         layout: "fullscreen",
@@ -53,4 +54,11 @@ export const Default: Story = {
             </div>
         </div>
     ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Verify all 5 input elements rendered
+        const inputs = await canvas.findAllByRole("textbox");
+        expect(inputs).toHaveLength(5);
+    },
 };

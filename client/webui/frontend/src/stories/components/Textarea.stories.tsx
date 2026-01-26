@@ -1,8 +1,9 @@
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { Textarea } from "@/lib/components/ui/textarea";
 
 const meta = {
-    title: "Common/Textarea",
+    title: "Components/Textarea",
     component: Textarea,
     parameters: {
         layout: "fullscreen",
@@ -61,4 +62,11 @@ export const Default: Story = {
             </div>
         </div>
     ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Verify all 6 textarea elements rendered
+        const textareas = await canvas.findAllByRole("textbox");
+        expect(textareas).toHaveLength(6);
+    },
 };
