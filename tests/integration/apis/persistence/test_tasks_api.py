@@ -343,6 +343,77 @@ def test_upload_artifact_with_session_management(
     print("✓ All upload_artifact_with_session tests passed")
 
 
+def test_upload_artifact_file_size_validation(
+    api_client: TestClient, gateway_adapter: GatewayAdapter
+):
+    """Test POST /artifacts/upload with file size validation (integration test)"""
+
+    # Create a session for testing
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+    session_id = session.id
+
+    # Test 1: Upload file that exceeds size limit
+    # Note: The test environment sets gateway_max_upload_size_bytes to 100MB (see conftest.py)
+    # We'll create a file of 101MB to exceed the limit
+    oversized_content = b"x" * (101 * 1024 * 1024)  # 101MB (exceeds 100MB test limit)
+
+    files = {
+        "upload_file": (
+            "oversized.bin",
+            io.BytesIO(oversized_content),
+            "application/octet-stream",
+        )
+    }
+    data = {
+        "sessionId": session_id,
+        "filename": "oversized.bin",
+    }
+
+    upload_response = api_client.post(
+        "/api/v1/artifacts/upload",
+        files=files,
+        data=data,
+    )
+
+    # Should reject with 413 status
+    assert upload_response.status_code == 413
+    error_detail = upload_response.json()["detail"]
+    assert "exceeds maximum" in error_detail or "too large" in error_detail.lower()
+
+    print("✓ Oversized file (101MB) correctly rejected with 413 status")
+
+    # Test 2: Upload file within size limit (should succeed)
+    valid_content = b"x" * (1024 * 1024)  # 1MB file
+
+    files2 = {
+        "upload_file": (
+            "valid_size.bin",
+            io.BytesIO(valid_content),
+            "application/octet-stream",
+        )
+    }
+    data2 = {
+        "sessionId": session_id,
+        "filename": "valid_size.bin",
+    }
+
+    upload_response2 = api_client.post(
+        "/api/v1/artifacts/upload",
+        files=files2,
+        data=data2,
+    )
+
+    assert upload_response2.status_code == 201
+    upload_result = upload_response2.json()
+    assert upload_result["size"] == len(valid_content)
+    assert upload_result["filename"] == "valid_size.bin"
+
+    print("✓ File within size limit uploaded successfully")
+    print("✓ File size validation integration test passed")
+
+
 def test_send_task_to_existing_session(api_client: TestClient):
     """Test sending task to existing session"""
 

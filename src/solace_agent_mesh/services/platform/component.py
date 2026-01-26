@@ -14,6 +14,11 @@ from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
 from solace_agent_mesh.common.middleware.config_resolver import ConfigResolver
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from solace_agent_mesh.common import a2a
+from solace_agent_mesh.common.constants import (
+    HEALTH_CHECK_INTERVAL_SECONDS,
+    HEALTH_CHECK_TTL_SECONDS,
+)
+from solace_agent_mesh.common.a2a.utils import is_gateway_card
 from a2a.types import AgentCard
 
 log = logging.getLogger(__name__)
@@ -64,6 +69,9 @@ class PlatformServiceComponent(SamComponentBase):
     - NOT A2A communication (deployer is a service, not an agent)
     """
 
+    HEALTH_CHECK_TIMER_ID = "platform_agent_health_check"
+    GATEWAY_HEALTH_CHECK_TIMER_ID = "platform_gateway_health_check"
+
     def get_config(self, key: str, default: Any = None) -> Any:
         """
         Override get_config to look inside nested 'app_config' dictionary.
@@ -109,6 +117,7 @@ class PlatformServiceComponent(SamComponentBase):
             self.ssl_certfile = self.get_config("ssl_certfile", "")
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
             self.cors_allowed_origins = self.get_config("cors_allowed_origins", ["*"])
+            self.cors_allowed_origin_regex = self.get_config("cors_allowed_origin_regex", "")
 
             # OAuth2 configuration (enterprise feature - defaults to community mode)
             self.external_auth_service_url = self.get_config("external_auth_service_url", "")
@@ -118,6 +127,14 @@ class PlatformServiceComponent(SamComponentBase):
             self.deployment_timeout_minutes = self.get_config("deployment_timeout_minutes", 5)
             self.heartbeat_timeout_seconds = self.get_config("heartbeat_timeout_seconds", 90)
             self.deployment_check_interval_seconds = self.get_config("deployment_check_interval_seconds", 60)
+
+            # Agent health check configuration (for removing expired agents from registry)
+            self.health_check_interval_seconds = self.get_config(
+                "health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS
+            )
+            self.health_check_ttl_seconds = self.get_config(
+                "health_check_ttl_seconds", HEALTH_CHECK_TTL_SECONDS
+            )
 
             log.info(
                 "%s Platform service configuration retrieved (Host: %s, Port: %d, Auth: %s).",
@@ -143,16 +160,18 @@ class PlatformServiceComponent(SamComponentBase):
         # but now work with Platform Service via dependency abstraction
         self.session_manager = _StubSessionManager()
 
-        # Agent discovery (like BaseGatewayComponent)
+        # Agent and gateway discovery (like BaseGatewayComponent)
         # Initialize here so CoreA2AService can use it
         from solace_agent_mesh.common.agent_registry import AgentRegistry
+        from solace_agent_mesh.common.gateway_registry import GatewayRegistry
         self.agent_registry = AgentRegistry()
+        self.gateway_registry = GatewayRegistry()
         self.core_a2a_service = CoreA2AService(
             agent_registry=self.agent_registry,
             namespace=self.namespace,
             component_id="Platform"
         )
-        log.info("%s Agent discovery service initialized", self.log_identifier)
+        log.info("%s Agent and gateway discovery services initialized", self.log_identifier)
 
         # Background task state (for heartbeat monitoring and deployment status checking)
         # Note: agent_registry already initialized above
@@ -161,13 +180,27 @@ class PlatformServiceComponent(SamComponentBase):
         self.background_scheduler = None
         self.background_tasks_thread = None
 
-        # Direct message publisher for deployer commands
         self.direct_publisher = None
+
+        log.info("%s Running database migrations...", self.log_identifier)
+        self._run_database_migrations()
+        log.info("%s Database migrations completed", self.log_identifier)
 
         log.info("%s Platform Service Component initialized.", self.log_identifier)
 
-        # Note: FastAPI server, direct publisher, and background tasks are started
-        # in _late_init() after SamComponentBase.run() is called and broker is ready
+    def _run_database_migrations(self):
+        """Run database migrations synchronously during __init__."""
+        try:
+            from .api.main import _setup_database
+            _setup_database(self.database_url)
+        except Exception as e:
+            log.error(
+                "%s Failed to run database migrations: %s",
+                self.log_identifier,
+                e,
+                exc_info=True
+            )
+            raise RuntimeError(f"Database migration failed during component initialization: {e}") from e
 
     def _late_init(self):
         """
@@ -176,6 +209,7 @@ class PlatformServiceComponent(SamComponentBase):
         This is the proper place to initialize services that require broker connectivity:
         - FastAPI server (with startup event for background tasks)
         - Direct message publisher (for deployer commands)
+        - Agent health check timer (for removing expired agents from registry)
         """
         log.info("%s Starting late initialization (broker-dependent services)...", self.log_identifier)
 
@@ -184,6 +218,12 @@ class PlatformServiceComponent(SamComponentBase):
 
         # Start FastAPI server (background tasks started via FastAPI startup event)
         self._start_fastapi_server()
+
+        # Schedule agent health checks to remove expired agents from registry
+        self._schedule_agent_health_check()
+
+        # Schedule gateway health checks to remove expired gateways from registry
+        self._schedule_gateway_health_check()
 
         log.info("%s Late initialization complete", self.log_identifier)
 
@@ -216,8 +256,7 @@ class PlatformServiceComponent(SamComponentBase):
 
             self.fastapi_app = fastapi_app_instance
 
-            # Setup dependencies (idempotent - safe to call multiple times)
-            setup_dependencies(self, self.database_url)
+            setup_dependencies(self)
 
             # Register startup event for background tasks
             @self.fastapi_app.on_event("startup")
@@ -300,30 +339,38 @@ class PlatformServiceComponent(SamComponentBase):
         Uses direct publishing (not A2A protocol) since deployer is a
         standalone service, not an A2A agent.
 
-        Called from _late_init() after broker is guaranteed to be connected.
+        Called from _late_init() and lazily from publish_a2a() if needed.
+        Uses SAC's existing broker connection via the BrokerOutput component.
         """
         try:
-            # Get messaging service from broker_output
-            # Note: broker_output might not be ready yet in _late_init (timing varies)
-            if not hasattr(self, 'broker_output') or not self.broker_output:
+            main_app = self.get_app()
+            if not main_app or not main_app.flows:
                 log.info(
-                    "%s Broker output not yet available - direct publisher will be initialized later if needed",
+                    "%s App flows not yet available - direct publisher will be initialized later",
                     self.log_identifier
                 )
                 return
 
-            if not hasattr(self.broker_output, 'messaging_service'):
-                log.warning(
-                    "%s Broker output missing messaging_service - deployment commands unavailable",
+            # Find BrokerOutput component in the flow (same pattern as App.send_message)
+            broker_output = None
+            flow = main_app.flows[0]
+            if flow.component_groups:
+                for group in reversed(flow.component_groups):
+                    if group:
+                        comp = group[0]
+                        if comp.module_info.get("class_name") == "BrokerOutput":
+                            broker_output = comp
+                            break
+
+            if not broker_output or not hasattr(broker_output, 'messaging_service'):
+                log.info(
+                    "%s BrokerOutput component not ready - direct publisher will be initialized later",
                     self.log_identifier
                 )
                 return
 
-            messaging_service = self.broker_output.messaging_service
-
-            from solace.messaging.publisher.direct_message_publisher import DirectMessagePublisher
-
-            self.direct_publisher = messaging_service.create_direct_message_publisher_builder().build()
+            self._messaging_service = broker_output.messaging_service.messaging_service
+            self.direct_publisher = self._messaging_service.create_direct_message_publisher_builder().build()
             self.direct_publisher.start()
 
             log.info("%s Direct message publisher initialized for deployer commands", self.log_identifier)
@@ -355,7 +402,7 @@ class PlatformServiceComponent(SamComponentBase):
 
         try:
             if a2a.topic_matches_subscription(
-                topic, a2a.get_discovery_topic(self.namespace)
+                topic, a2a.get_discovery_subscription_topic(self.namespace)
             ):
                 payload = message.get_payload()
 
@@ -401,9 +448,11 @@ class PlatformServiceComponent(SamComponentBase):
 
     def _handle_discovery_message(self, payload: Dict) -> bool:
         """
-        Handle incoming agent discovery messages.
+        Handle incoming agent and gateway discovery messages.
 
-        Follows the same pattern as BaseGatewayComponent for consistency.
+        Routes discovery cards to appropriate registries:
+        - Gateway cards (with gateway-role extension) -> GatewayRegistry
+        - Agent cards -> AgentRegistry
 
         Args:
             payload: The message payload dictionary
@@ -413,12 +462,34 @@ class PlatformServiceComponent(SamComponentBase):
         """
         try:
             agent_card = AgentCard(**payload)
-            self.core_a2a_service.process_discovery_message(agent_card)
-            log.debug(
-                "%s Processed agent discovery: %s",
-                self.log_identifier,
-                agent_card.name
-            )
+
+            # Route to appropriate registry based on card type
+            if is_gateway_card(agent_card):
+                # This is a gateway card - track in gateway registry
+                is_new = self.gateway_registry.add_or_update_gateway(agent_card)
+                if is_new:
+                    gateway_type = self.gateway_registry.get_gateway_type(agent_card.name)
+                    log.info(
+                        "%s New gateway discovered: %s (type: %s)",
+                        self.log_identifier,
+                        agent_card.name,
+                        gateway_type or "unknown"
+                    )
+                else:
+                    log.debug(
+                        "%s Gateway heartbeat received: %s",
+                        self.log_identifier,
+                        agent_card.name
+                    )
+            else:
+                # This is an agent card - use existing logic
+                self.core_a2a_service.process_discovery_message(agent_card)
+                log.debug(
+                    "%s Processed agent discovery: %s",
+                    self.log_identifier,
+                    agent_card.name
+                )
+
             return True
         except Exception as e:
             log.error(
@@ -498,13 +569,26 @@ class PlatformServiceComponent(SamComponentBase):
             except Exception as e:
                 log.warning("%s Error stopping heartbeat listener: %s", self.log_identifier, e)
 
+        # Cancel health check timers before clearing registries
+        self.cancel_timer(self.HEALTH_CHECK_TIMER_ID)
+        self.cancel_timer(self.GATEWAY_HEALTH_CHECK_TIMER_ID)
+        log.info("%s Health check timers cancelled", self.log_identifier)
+
         # Stop agent registry
         if self.agent_registry:
             try:
-                self.agent_registry.cleanup()
-                log.info("%s Agent registry stopped", self.log_identifier)
+                self.agent_registry.clear()
+                log.info("%s Agent registry cleared", self.log_identifier)
             except Exception as e:
-                log.warning("%s Error stopping agent registry: %s", self.log_identifier, e)
+                log.warning("%s Error clearing agent registry: %s", self.log_identifier, e)
+
+        # Stop gateway registry
+        if self.gateway_registry:
+            try:
+                self.gateway_registry.clear()
+                log.info("%s Gateway registry cleared", self.log_identifier)
+            except Exception as e:
+                log.warning("%s Error clearing gateway registry: %s", self.log_identifier, e)
 
         # Signal uvicorn to shutdown
         if self.uvicorn_server:
@@ -534,6 +618,15 @@ class PlatformServiceComponent(SamComponentBase):
             List of allowed origin strings.
         """
         return self.cors_allowed_origins
+
+    def get_cors_origin_regex(self) -> str:
+        """
+        Return the configured CORS allowed origin regex pattern.
+
+        Returns:
+            Regex pattern string, or empty string if not configured.
+        """
+        return self.cors_allowed_origin_regex
 
     def get_namespace(self) -> str:
         """
@@ -591,6 +684,163 @@ class PlatformServiceComponent(SamComponentBase):
         """
         return self.agent_registry
 
+    def get_gateway_registry(self):
+        """
+        Return the gateway registry instance.
+
+        Used for gateway fleet health monitoring.
+
+        Returns:
+            GatewayRegistry instance if initialized, None otherwise.
+        """
+        return self.gateway_registry
+
+    def _schedule_agent_health_check(self):
+        """
+        Schedule periodic agent health checks to remove expired agents from registry.
+
+        This is essential for deployment status checking - when an agent is undeployed,
+        the deployment status checker needs to see the agent removed from the registry
+        to mark the undeploy as successful.
+        """
+        if self.health_check_interval_seconds > 0:
+            log.info(
+                "%s Scheduling agent health check every %d seconds (TTL: %d seconds)",
+                self.log_identifier,
+                self.health_check_interval_seconds,
+                self.health_check_ttl_seconds,
+            )
+            self.add_timer(
+                delay_ms=self.health_check_interval_seconds * 1000,
+                timer_id=self.HEALTH_CHECK_TIMER_ID,
+                interval_ms=self.health_check_interval_seconds * 1000,
+                callback=lambda timer_data: self._check_agent_health(),
+            )
+        else:
+            log.warning(
+                "%s Agent health check disabled (interval=%d). "
+                "Agents will not be automatically removed from registry when they stop sending heartbeats.",
+                self.log_identifier,
+                self.health_check_interval_seconds,
+            )
+
+    def _check_agent_health(self):
+        """
+        Check agent health and remove expired agents from registry.
+
+        Called periodically by the health check timer. Iterates through all
+        registered agents and removes any whose TTL has expired (i.e., they
+        haven't sent a heartbeat recently).
+        """
+        log.debug("%s Performing agent health check...", self.log_identifier)
+
+        agent_names = self.agent_registry.get_agent_names()
+        total_agents = len(agent_names)
+        agents_removed = 0
+
+        for agent_name in agent_names:
+            is_expired, time_since_last_seen = self.agent_registry.check_ttl_expired(
+                agent_name, self.health_check_ttl_seconds
+            )
+
+            if is_expired:
+                log.warning(
+                    "%s Agent '%s' TTL expired (last seen: %d seconds ago, TTL: %d seconds). Removing from registry.",
+                    self.log_identifier,
+                    agent_name,
+                    time_since_last_seen,
+                    self.health_check_ttl_seconds,
+                )
+                self.agent_registry.remove_agent(agent_name)
+                agents_removed += 1
+
+        if agents_removed > 0:
+            log.info(
+                "%s Agent health check complete: %d/%d agents removed",
+                self.log_identifier,
+                agents_removed,
+                total_agents,
+            )
+        else:
+            log.debug(
+                "%s Agent health check complete: %d agents, all healthy",
+                self.log_identifier,
+                total_agents,
+            )
+
+    def _schedule_gateway_health_check(self):
+        """
+        Schedule periodic gateway health checks to remove expired gateways from registry.
+
+        This mirrors _schedule_agent_health_check() for consistency. When a gateway
+        stops sending heartbeats (discovery cards), it will be automatically removed
+        from the registry after the TTL expires.
+        """
+        if self.health_check_interval_seconds > 0:
+            log.info(
+                "%s Scheduling gateway health check every %d seconds (TTL: %d seconds)",
+                self.log_identifier,
+                self.health_check_interval_seconds,
+                self.health_check_ttl_seconds,
+            )
+            self.add_timer(
+                delay_ms=self.health_check_interval_seconds * 1000,
+                timer_id=self.GATEWAY_HEALTH_CHECK_TIMER_ID,
+                interval_ms=self.health_check_interval_seconds * 1000,
+                callback=lambda timer_data: self._check_gateway_health(),
+            )
+        else:
+            log.warning(
+                "%s Gateway health check disabled (interval=%d). "
+                "Gateways will not be automatically removed from registry when they stop sending heartbeats.",
+                self.log_identifier,
+                self.health_check_interval_seconds,
+            )
+
+    def _check_gateway_health(self):
+        """
+        Check gateway health and remove expired gateways from registry.
+
+        Called periodically by the health check timer. Iterates through all
+        registered gateways and removes any whose TTL has expired (i.e., they
+        haven't sent a heartbeat recently).
+        """
+        log.debug("%s Performing gateway health check...", self.log_identifier)
+
+        gateway_ids = self.gateway_registry.get_gateway_ids()
+        total_gateways = len(gateway_ids)
+        gateways_removed = 0
+
+        for gateway_id in gateway_ids:
+            is_expired, time_since_last_seen = self.gateway_registry.check_ttl_expired(
+                gateway_id, self.health_check_ttl_seconds
+            )
+
+            if is_expired:
+                log.warning(
+                    "%s Gateway '%s' TTL expired (last seen: %d seconds ago, TTL: %d seconds). Removing from registry.",
+                    self.log_identifier,
+                    gateway_id,
+                    time_since_last_seen,
+                    self.health_check_ttl_seconds,
+                )
+                self.gateway_registry.remove_gateway(gateway_id)
+                gateways_removed += 1
+
+        if gateways_removed > 0:
+            log.info(
+                "%s Gateway health check complete: %d/%d gateways removed",
+                self.log_identifier,
+                gateways_removed,
+                total_gateways,
+            )
+        else:
+            log.debug(
+                "%s Gateway health check complete: %d gateways, all healthy",
+                self.log_identifier,
+                total_gateways,
+            )
+
     def publish_a2a(
         self, topic: str, payload: dict, user_properties: dict | None = None
     ):
@@ -620,18 +870,19 @@ class PlatformServiceComponent(SamComponentBase):
 
         try:
             if not self.direct_publisher:
-                raise RuntimeError("Direct publisher not initialized")
+                self._init_direct_publisher()
+                if not self.direct_publisher:
+                    raise RuntimeError("Direct publisher not initialized")
 
-            # Serialize payload to JSON
+            # Serialize payload to JSON and convert to bytearray
             message_body = json.dumps(payload)
-
-            # Build message
-            main_app = self.get_app()
-            messaging_service = main_app.connector.get_messaging_service()
-            message = messaging_service.message_builder().build(message_body)
+            message_bytes = bytearray(message_body.encode("utf-8"))
 
             # Publish directly to topic
-            self.direct_publisher.publish(message, Topic.of(topic))
+            self.direct_publisher.publish(
+                message=message_bytes,
+                destination=Topic.of(topic)
+            )
 
             log.debug(
                 "%s Successfully published deployer command to topic: %s (payload size: %d bytes)",

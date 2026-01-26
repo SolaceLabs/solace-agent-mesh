@@ -26,6 +26,19 @@ import type {
 } from "@/lib/types";
 
 /**
+ * Checks if an artifact is an intermediate web content artifact from deep research.
+ * These are temporary files that should not be shown in the workflow visualization.
+ *
+ * @param artifactName The name of the artifact to check.
+ * @returns True if the artifact is an intermediate web content artifact.
+ */
+const isIntermediateWebContentArtifact = (artifactName: string | undefined): boolean => {
+    if (!artifactName) return false;
+    // Skip web_content_ artifacts (temporary files from deep research)
+    return artifactName.startsWith("web_content_");
+};
+
+/**
  * Helper function to get parentTaskId from a TaskFE object.
  * It first checks the direct `parentTaskId` field. If not present,
  * it attempts to infer it from the task's first event metadata.
@@ -1030,7 +1043,8 @@ export const processTaskForVisualization = (
                                 // Check if this is _notify_artifact_save and we have a pending artifact
                                 if (signalData.tool_name === "_notify_artifact_save" && functionCallId) {
                                     const pendingArtifact = pendingArtifacts.get(functionCallId);
-                                    if (pendingArtifact) {
+                                    // Skip intermediate web content artifacts from deep research
+                                    if (pendingArtifact && !isIntermediateWebContentArtifact(pendingArtifact.filename)) {
                                         const artifactNotification: ArtifactNotificationData = {
                                             artifactName: pendingArtifact.filename,
                                             version: pendingArtifact.version,
@@ -1051,8 +1065,8 @@ export const processTaskForVisualization = (
                                             owningTaskId: pendingArtifact.taskId,
                                             functionCallId: functionCallId,
                                         });
-                                        pendingArtifacts.delete(functionCallId);
                                     }
+                                    pendingArtifacts.delete(functionCallId);
                                 }
                                 break;
                             }
@@ -1063,13 +1077,20 @@ export const processTaskForVisualization = (
                                 // Handle new artifact_saved event type
                                 flushAggregatedTextStep(currentEventOwningTaskId);
 
+                                const artifactFilename = signalData.filename || "Unnamed Artifact";
+
+                                // Skip intermediate web content artifacts from deep research
+                                if (isIntermediateWebContentArtifact(artifactFilename)) {
+                                    break;
+                                }
+
                                 // Check if this has a function_call_id (from fenced blocks with _notify_artifact_save)
                                 const isSyntheticToolCall = signalData.function_call_id && signalData.function_call_id.startsWith("host-notify-");
 
                                 if (isSyntheticToolCall) {
                                     // Queue this artifact - will be created when we see the _notify_artifact_save tool result
                                     pendingArtifacts.set(signalData.function_call_id, {
-                                        filename: signalData.filename || "Unnamed Artifact",
+                                        filename: artifactFilename,
                                         version: signalData.version,
                                         description: signalData.description,
                                         mimeType: signalData.mime_type,
@@ -1082,7 +1103,7 @@ export const processTaskForVisualization = (
                                 } else {
                                     // Regular tool call - create node immediately
                                     const artifactNotification: ArtifactNotificationData = {
-                                        artifactName: signalData.filename || "Unnamed Artifact",
+                                        artifactName: artifactFilename,
                                         version: signalData.version,
                                         description: signalData.description,
                                         mimeType: signalData.mime_type,
@@ -1130,6 +1151,13 @@ export const processTaskForVisualization = (
         if (event.direction === "artifact_update" && payload?.result?.artifact) {
             flushAggregatedTextStep(currentEventOwningTaskId);
             const artifactData = payload.result.artifact as Artifact;
+            const artifactName = artifactData.name || "Unnamed Artifact";
+
+            // Skip intermediate web content artifacts from deep research
+            if (isIntermediateWebContentArtifact(artifactName)) {
+                return;
+            }
+
             const artifactAgentName = (artifactData.metadata?.agent_name as string) || event.source_entity || "Agent";
             let mimeType: string | undefined = undefined;
             if (artifactData.parts && artifactData.parts.length > 0) {
@@ -1141,7 +1169,7 @@ export const processTaskForVisualization = (
                 }
             }
             const artifactNotification: ArtifactNotificationData = {
-                artifactName: artifactData.name || "Unnamed Artifact",
+                artifactName: artifactName,
                 version: typeof artifactData.metadata?.version === "number" ? artifactData.metadata.version : undefined,
                 description: artifactData.description || undefined,
                 mimeType,
