@@ -10,11 +10,10 @@ import type { Project, Session } from "@/lib/types";
 
 interface SessionNameProps {
     session: Session;
-    isCurrentSession: boolean;
-    isResponding: boolean;
+    respondingSessionId: string | null;
 }
 
-const SessionName: React.FC<SessionNameProps> = ({ session, isCurrentSession, isResponding }) => {
+const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId }) => {
     const { autoTitleGenerationEnabled } = useConfigContext();
 
     const displayName = useMemo(() => {
@@ -38,8 +37,10 @@ const SessionName: React.FC<SessionNameProps> = ({ session, isCurrentSession, is
             return false; // No pulse when auto title generation is disabled
         }
         const isNewChat = !session.name || session.name === "New Chat";
-        return isCurrentSession && isNewChat && isResponding;
-    }, [session.name, isCurrentSession, isResponding, isGenerating, autoTitleGenerationEnabled]);
+        // Only pulse if this session is the one that started the response
+        const isThisSessionResponding = respondingSessionId === session.id;
+        return isThisSessionResponding && isNewChat;
+    }, [session.name, session.id, respondingSessionId, isGenerating, autoTitleGenerationEnabled]);
 
     // Show slow pulse while waiting for title, faster pulse during transition animation
     const animationClass = useMemo(() => {
@@ -98,10 +99,33 @@ interface SessionListProps {
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, isResponding } = useChatContext();
+    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
     const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Track which session started the response to avoid pulsing the wrong session
+    // We use a Map to track task ID -> session ID relationships, plus a version counter to trigger re-renders
+    const taskToSessionRef = useRef<Map<string, string>>(new Map());
+    const [taskMapVersion, setTaskMapVersion] = useState(0);
+
+    // When a new task starts, remember which session it belongs to
+    // Don't rely on currentTaskId changes during session switches
+    useEffect(() => {
+        if (currentTaskId && !taskToSessionRef.current.has(currentTaskId)) {
+            // This is a genuinely new task - capture which session it started in
+            taskToSessionRef.current.set(currentTaskId, sessionId);
+            // Trigger a re-render so respondingSessionId useMemo recomputes
+            setTaskMapVersion(v => v + 1);
+        }
+    }, [currentTaskId, sessionId]);
+
+    // Derive respondingSessionId from the current task's owning session
+    const respondingSessionId = useMemo(() => {
+        if (!currentTaskId) return null;
+        return taskToSessionRef.current.get(currentTaskId) || null;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentTaskId, taskMapVersion]);
 
     const [sessions, setSessions] = useState<Session[]>([]);
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -277,7 +301,6 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             }
 
             setRegeneratingTitleForSession(session.id);
-            addNotification?.("Generating AI name...", "info");
 
             try {
                 // Fetch all tasks/messages for this session
@@ -321,8 +344,6 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 // Pass current title so polling can detect the change
                 // Pass force=true to bypass the "already has title" check
                 await generateTitle(session.id, userSummary, agentSummary, session.name || "New Chat", true);
-
-                addNotification?.("Title regenerated successfully", "success");
             } catch (error) {
                 console.error("Error regenerating title:", error);
                 addNotification?.(`Failed to regenerate title: ${error instanceof Error ? error.message : "Unknown error"}`, "warning");
@@ -470,7 +491,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                             <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                     <div className="flex items-center gap-2">
-                                                        <SessionName session={session} isCurrentSession={session.id === sessionId} isResponding={isResponding} />
+                                                        <SessionName session={session} respondingSessionId={respondingSessionId} />
                                                         {session.hasRunningBackgroundTask && (
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
