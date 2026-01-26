@@ -4,14 +4,19 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon } from "lucide-react";
+import { ArrowLeft, Lock, Globe, Building2, AlertCircle, FileText, Network, PanelRightIcon, Link2 } from "lucide-react";
 import { Button, Spinner, Tabs, TabsList, TabsTrigger, TabsContent, ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { viewSharedSession } from "@/lib/api/shareApi";
 import type { SharedSessionView } from "@/lib/types/share";
 import type { MessageBubble } from "@/lib/types/storage";
+import type { RAGSearchResult } from "@/lib/types";
 import { SharedArtifactPanel } from "@/lib/components/share/SharedArtifactPanel";
 import { SharedWorkflowPanel } from "@/lib/components/share/SharedWorkflowPanel";
+import { TextWithCitations } from "@/lib/components/chat/Citation";
+import { parseCitations } from "@/lib/utils/citations";
+import { RAGInfoPanel } from "@/lib/components/chat/rag/RAGInfoPanel";
+import { Sources } from "@/lib/components/web/Sources";
 
 export function SharedSessionPage() {
     const { shareId } = useParams<{ shareId: string }>();
@@ -20,7 +25,7 @@ export function SharedSessionPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState(false);
-    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow">("files");
+    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow" | "sources">("files");
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -68,6 +73,38 @@ export function SharedSessionPage() {
         }
     };
 
+    // Extract RAG data from all tasks
+    const ragData = useMemo(() => {
+        if (!session) return [];
+
+        const allRagData: RAGSearchResult[] = [];
+
+        for (const task of session.tasks) {
+            const taskId = task.workflow_task_id || task.id;
+
+            // Extract RAG data from task_metadata
+            let taskMetadata = task.task_metadata;
+            if (typeof taskMetadata === "string") {
+                try {
+                    taskMetadata = JSON.parse(taskMetadata);
+                } catch {
+                    taskMetadata = null;
+                }
+            }
+
+            if (taskMetadata && Array.isArray(taskMetadata.rag_data)) {
+                for (const ragEntry of taskMetadata.rag_data) {
+                    allRagData.push({
+                        ...ragEntry,
+                        taskId: taskId,
+                    });
+                }
+            }
+        }
+
+        return allRagData;
+    }, [session]);
+
     // Parse message bubbles from tasks
     const messages = useMemo(() => {
         if (!session) return [];
@@ -102,6 +139,9 @@ export function SharedSessionPage() {
         }
         return result;
     }, [session]);
+
+    // Check if there are any RAG sources to show
+    const hasRagSources = ragData.length > 0;
 
     // Check if there are artifacts to show
     const hasArtifacts = session && session.artifacts && session.artifacts.length > 0;
@@ -154,6 +194,33 @@ export function SharedSessionPage() {
         );
     }
 
+    // Get RAG data for a specific task (for citation rendering)
+    const getTaskRagData = (taskId: string): RAGSearchResult | undefined => {
+        const taskRagEntries = ragData.filter(r => r.taskId === taskId);
+        if (taskRagEntries.length === 0) return undefined;
+
+        // Aggregate all sources from all matching RAG entries
+        const allSources = taskRagEntries.flatMap(entry => entry.sources || []);
+
+        // Deduplicate sources by citationId (keep the first occurrence)
+        const seenCitationIds = new Set<string>();
+        const uniqueSources = allSources.filter(source => {
+            const citationId = source.citationId;
+            if (!citationId || seenCitationIds.has(citationId)) {
+                return false;
+            }
+            seenCitationIds.add(citationId);
+            return true;
+        });
+
+        // Return the last entry as base with aggregated sources
+        const lastEntry = taskRagEntries[taskRagEntries.length - 1];
+        return {
+            ...lastEntry,
+            sources: uniqueSources,
+        };
+    };
+
     // Render side panel content
     const renderSidePanel = () => {
         if (isSidePanelCollapsed) {
@@ -185,11 +252,26 @@ export function SharedSessionPage() {
                             setIsSidePanelCollapsed(false);
                             setActiveSidePanelTab("workflow");
                         }}
-                        className="h-10 w-10 p-0"
+                        className="mb-2 h-10 w-10 p-0"
                         tooltip="Workflow"
                     >
                         <Network className="size-5" />
                     </Button>
+
+                    {hasRagSources && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                setIsSidePanelCollapsed(false);
+                                setActiveSidePanelTab("sources");
+                            }}
+                            className="h-10 w-10 p-0"
+                            tooltip="Sources"
+                        >
+                            <Link2 className="size-5" />
+                        </Button>
+                    )}
                 </div>
             );
         }
@@ -197,7 +279,7 @@ export function SharedSessionPage() {
         return (
             <div className="bg-background flex h-full flex-col border-l">
                 <div className="m-1 min-h-0 flex-1">
-                    <Tabs value={activeSidePanelTab} onValueChange={value => setActiveSidePanelTab(value as "files" | "workflow")} className="flex h-full flex-col">
+                    <Tabs value={activeSidePanelTab} onValueChange={value => setActiveSidePanelTab(value as "files" | "workflow" | "sources")} className="flex h-full flex-col">
                         <div className="@container flex gap-2 p-2">
                             <Button variant="ghost" onClick={toggleSidePanel} className="shrink-0 p-1" tooltip="Collapse Panel">
                                 <PanelRightIcon className="size-5" />
@@ -211,10 +293,24 @@ export function SharedSessionPage() {
                                     <FileText className="h-4 w-4 shrink-0" />
                                     <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
                                 </TabsTrigger>
-                                <TabsTrigger value="workflow" title="Workflow" className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border px-2 data-[state=active]:z-10">
+                                <TabsTrigger
+                                    value="workflow"
+                                    title="Workflow"
+                                    className={`border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border px-2 data-[state=active]:z-10 ${hasRagSources ? "border-r-0" : "rounded-r-md"}`}
+                                >
                                     <Network className="h-4 w-4 shrink-0" />
                                     <span className="ml-1.5 hidden truncate @[240px]:inline">Workflow</span>
                                 </TabsTrigger>
+                                {hasRagSources && (
+                                    <TabsTrigger
+                                        value="sources"
+                                        title="Sources"
+                                        className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border px-2 data-[state=active]:z-10"
+                                    >
+                                        <Link2 className="h-4 w-4 shrink-0" />
+                                        <span className="ml-1.5 hidden truncate @[240px]:inline">Sources</span>
+                                    </TabsTrigger>
+                                )}
                             </TabsList>
                         </div>
                         <div className="min-h-0 flex-1">
@@ -228,11 +324,72 @@ export function SharedSessionPage() {
                                     <SharedWorkflowPanel taskEvents={session.task_events} selectedTaskId={selectedTaskId} onTaskSelect={setSelectedTaskId} />
                                 </div>
                             </TabsContent>
+                            {hasRagSources && (
+                                <TabsContent value="sources" className="m-0 h-full">
+                                    <div className="h-full">
+                                        <RAGInfoPanel ragData={ragData} enabled={true} />
+                                    </div>
+                                </TabsContent>
+                            )}
                         </div>
                     </Tabs>
                 </div>
             </div>
         );
+    };
+
+    // Handle citation click - open sources panel
+    const handleCitationClick = () => {
+        if (hasRagSources) {
+            setActiveSidePanelTab("sources");
+            setIsSidePanelCollapsed(false);
+        }
+    };
+
+    // Render message content with citation support
+    const renderMessageContent = (message: { type: string; text: string; taskId: string }) => {
+        // User messages don't have citations
+        if (message.type === "user") {
+            return <p className="whitespace-pre-wrap">{message.text}</p>;
+        }
+
+        // Get RAG data for this task
+        const taskRagData = getTaskRagData(message.taskId);
+
+        // Parse citations from the message text
+        const citations = parseCitations(message.text, taskRagData);
+
+        // If there are citations, use TextWithCitations
+        if (citations.length > 0) {
+            return <TextWithCitations text={message.text} citations={citations} onCitationClick={handleCitationClick} />;
+        }
+
+        // No citations - render as plain text
+        return <p className="whitespace-pre-wrap">{message.text}</p>;
+    };
+
+    // Get sources element for a specific task (for stacked favicons display)
+    const getSourcesElement = (taskId: string) => {
+        const taskRagEntries = ragData.filter(r => r.taskId === taskId);
+        if (taskRagEntries.length === 0) return null;
+
+        // Aggregate all sources from all matching RAG entries
+        const allSources = taskRagEntries.flatMap(entry => entry.sources || []);
+        if (allSources.length === 0) return null;
+
+        // Filter sources - for web search, include all web sources
+        const sourcesToShow = allSources.filter(source => {
+            const sourceType = source.sourceType || "web";
+            // For images: include if they have a source link
+            if (sourceType === "image") {
+                return source.sourceUrl || source.metadata?.link;
+            }
+            return true;
+        });
+
+        if (sourcesToShow.length === 0) return null;
+
+        return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={false} onDeepResearchClick={handleCitationClick} />;
     };
 
     return (
@@ -281,13 +438,12 @@ export function SharedSessionPage() {
                                 ) : (
                                     messages.map((message, index) => (
                                         <div key={index} className={`flex ${message.type === "user" ? "justify-end" : "justify-start"} mb-4 flex-col`}>
-                                            <div className={`max-w-[80%] rounded-lg px-4 py-2 ${message.type === "user" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted mr-auto"}`}>
-                                                <p className="whitespace-pre-wrap">{message.text}</p>
-                                            </div>
-                                            {/* Show workflow button outside the bubble for the last AI message in each task */}
+                                            <div className={`max-w-[80%] rounded-lg px-4 py-2 ${message.type === "user" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted mr-auto"}`}>{renderMessageContent(message)}</div>
+                                            {/* Show workflow button and sources outside the bubble for the last AI message in each task */}
                                             {message.type !== "user" && message.isLastInTask && (
-                                                <div className="mt-1 flex justify-start">
+                                                <div className="mt-1 flex items-center justify-start gap-2">
                                                     <ViewWorkflowButton onClick={() => handleViewWorkflow(message.taskId)} />
+                                                    {getSourcesElement(message.taskId)}
                                                 </div>
                                             )}
                                         </div>
