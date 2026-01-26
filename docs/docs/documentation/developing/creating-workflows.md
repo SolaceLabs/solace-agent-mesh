@@ -144,7 +144,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "TextAnalysisWorkflow"
+      name: "TextAnalysisWorkflow"
 
       workflow:
         description: "Analyzes text and produces a summary"
@@ -503,7 +503,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "RequestRouterWorkflow"
+      name: "RequestRouterWorkflow"
 
       workflow:
         description: "Routes support requests to appropriate handlers"
@@ -654,7 +654,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "BatchProcessorWorkflow"
+      name: "BatchProcessorWorkflow"
 
       workflow:
         description: "Processes a batch of items in parallel"
@@ -780,7 +780,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "PollingWorkflow"
+      name: "PollingWorkflow"
 
       workflow:
         description: "Polls until a task is ready"
