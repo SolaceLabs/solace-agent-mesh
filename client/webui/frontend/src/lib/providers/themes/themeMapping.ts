@@ -72,7 +72,7 @@ export const customThemeMapping: ThemeMappings = {
         "muted-foreground": "secondary.text.w50",
         accent: "secondary.w80",
         "accent-foreground": "secondary.text.w50",
-        destructive: "error.w70",
+        destructive: "error.wMain",
         border: "secondary.w70",
         input: "secondary.w70",
         ring: "brand.w60",
