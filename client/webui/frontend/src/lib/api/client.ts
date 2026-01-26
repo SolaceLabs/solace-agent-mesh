@@ -48,6 +48,11 @@ const clearTokens = () => {
 };
 
 const refreshToken = async () => {
+    // Don't attempt token refresh if we're in the middle of logging out
+    if (sessionStorage.getItem("logout_in_progress") === "true") {
+        return null;
+    }
+
     const token = getRefreshToken();
     if (!token) {
         return null;
