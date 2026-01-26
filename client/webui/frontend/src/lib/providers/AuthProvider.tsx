@@ -17,6 +17,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [userInfo, setUserInfo] = useState<Record<string, unknown> | null>(null);
 
     useEffect(() => {
+        // Clean up any stale logout flags from previous sessions
+        sessionStorage.removeItem("logout_in_progress");
         let isMounted = true;
 
         const checkAuthStatus = async () => {
