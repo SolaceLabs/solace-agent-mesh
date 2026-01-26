@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 
 // Wrapper to force uuid to use crypto.getRandomValues() fallback instead of crypto.randomUUID()
 // This ensures compatibility with non-secure (HTTP) contexts where crypto.randomUUID() is unavailable
-// may be able to remove with updated version of uuid
+// Note: may be able to remove this workaround with next version of uuid
 const v4 = () => uuidv4({});
 
 import { api } from "@/lib/api";
