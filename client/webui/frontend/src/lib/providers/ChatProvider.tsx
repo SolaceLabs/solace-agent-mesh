@@ -711,15 +711,41 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     break;
                                 }
                                 case "artifact_creation_progress": {
-                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk, version } = data as {
+                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk, version, rolled_back_text } = data as {
                                         filename: string;
-                                        status: "in-progress" | "completed" | "failed";
+                                        status: "in-progress" | "completed" | "failed" | "cancelled";
                                         bytes_transferred: number;
                                         mime_type?: string;
                                         description?: string;
                                         artifact_chunk?: string;
                                         version?: number;
+                                        rolled_back_text?: string;
                                     };
+
+                                    // Handle "cancelled" status - this happens when an artifact block was started
+                                    // but never completed (e.g., LLM mentioned artifact syntax in text).
+                                    // We remove the in-progress artifact part and add the rolled-back text as a text part.
+                                    if (status === "cancelled") {
+                                        setMessages(prev => {
+                                            const newMessages = [...prev];
+                                            const agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
+                                            if (agentMessageIndex !== -1) {
+                                                const agentMessage = { ...newMessages[agentMessageIndex], parts: [...newMessages[agentMessageIndex].parts] };
+                                                // Remove the artifact part for this filename
+                                                agentMessage.parts = agentMessage.parts.filter(p => !(p.kind === "artifact" && p.name === filename));
+                                                // Add the rolled-back text as a text part so the user can see it
+                                                // This is the original text that was incorrectly parsed as an artifact block
+                                                if (rolled_back_text) {
+                                                    agentMessage.parts.push({ kind: "text", text: rolled_back_text });
+                                                }
+                                                newMessages[agentMessageIndex] = agentMessage;
+                                            }
+                                            return newMessages;
+                                        });
+                                        // Also remove from artifacts list if it was added
+                                        setArtifacts(prevArtifacts => prevArtifacts.filter(a => a.filename !== filename));
+                                        return;
+                                    }
 
                                     // Track if we need to trigger auto-download after state update
                                     let shouldAutoDownload = false;

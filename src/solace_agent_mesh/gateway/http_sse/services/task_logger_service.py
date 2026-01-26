@@ -484,19 +484,32 @@ class TaskLoggerService:
                                             elif part_kind == "data":
                                                 # Extract RAG metadata from tool_result data parts
                                                 data = part.get("data", {})
-                                                if isinstance(data, dict) and data.get("type") == "tool_result":
-                                                    result_data = data.get("result_data", {})
-                                                    if isinstance(result_data, dict) and "rag_metadata" in result_data:
-                                                        rag_metadata = result_data["rag_metadata"]
-                                                        if isinstance(rag_metadata, dict):
-                                                            # Add taskId to the RAG metadata
-                                                            rag_metadata["taskId"] = task_id
-                                                            rag_data.append(rag_metadata)
-                                                            log.info(
-                                                                f"{self.log_identifier} Extracted RAG metadata for task {task_id}: "
-                                                                f"searchType={rag_metadata.get('searchType')}, "
-                                                                f"sources_count={len(rag_metadata.get('sources', []))}"
-                                                            )
+                                                if isinstance(data, dict):
+                                                    data_type = data.get("type")
+                                                    
+                                                    if data_type == "tool_result":
+                                                        result_data = data.get("result_data", {})
+                                                        if isinstance(result_data, dict) and "rag_metadata" in result_data:
+                                                            rag_metadata = result_data["rag_metadata"]
+                                                            if isinstance(rag_metadata, dict):
+                                                                # Add taskId to the RAG metadata
+                                                                rag_metadata["taskId"] = task_id
+                                                                rag_data.append(rag_metadata)
+                                                                log.info(
+                                                                    f"{self.log_identifier} Extracted RAG metadata for task {task_id}: "
+                                                                    f"searchType={rag_metadata.get('searchType')}, "
+                                                                    f"sources_count={len(rag_metadata.get('sources', []))}"
+                                                                )
+                                                    elif data_type == "artifact_creation_progress":
+                                                        # Handle cancelled artifacts with rolled back text
+                                                        if data.get("status") == "cancelled":
+                                                            rolled_back_text = data.get("rolled_back_text")
+                                                            if rolled_back_text:
+                                                                accumulated_agent_text.append(rolled_back_text)
+                                                                log.info(
+                                                                    f"{self.log_identifier} Extracted rolled_back_text from cancelled artifact event for task {task_id}"
+                                                                )
+                                                
                                                 accumulated_agent_parts.append(part)
                                             else:
                                                 # Accumulate other non-text, non-data parts
