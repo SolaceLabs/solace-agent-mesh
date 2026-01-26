@@ -189,7 +189,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                     >
                         {isCopied ? <Check className="h-4 w-4 text-(--color-success-wMain)" /> : <Copy className="h-4 w-4" />}
                     </Button>
-                    <pre className="scrollbar-themed h-full overflow-auto rounded-lg bg-card-background dark:border dark:border-(--color-secondary-w80) p-3 font-mono text-sm">
+                    <pre className="scrollbar-themed h-full overflow-auto rounded-lg bg-card-background dark:border p-3 font-mono text-sm">
                         {yamlStr}
                     </pre>
                 </div>

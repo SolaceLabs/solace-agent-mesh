@@ -181,7 +181,7 @@ const InputMappingViewer: React.FC<InputMappingViewerProps> = ({
                     <div key={key} className="space-y-1">
                         <div className="font-mono text-sm">{key}</div>
                         <div className="flex items-start gap-2">
-                            <div className="min-h-[27px] flex-1 break-words overflow-auto bg-card-background dark:border dark:border-(--color-secondary-w70) px-2.5 py-1">
+                            <div className="flex-1 break-words overflow-auto bg-card-background dark:border px-2.5 py-1">
                                 <MappingValue
                                     value={value}
                                     onHighlightNodes={onHighlightNodes}
