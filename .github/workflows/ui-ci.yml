@@ -2,13 +2,7 @@ name: "CI (UI)"
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - "main"
-  pull_request:
-    types: [opened, synchronize]
-    branches:
-      - "main"
+  workflow_call:
 
 permissions:
   contents: write
@@ -131,6 +125,18 @@ jobs:
 
       - name: Run Storybook Tests
         run: npm run ci:storybook
+
+      - name: Run tests with coverage
+        run: npx vitest --project=unit --project=storybook --coverage --run
+        continue-on-error: true
+
+      - name: Upload UI coverage artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-coverage
+          path: client/webui/frontend/coverage/
+          retention-days: 1
 
       - name: Build UI package
         run: npm run build-package

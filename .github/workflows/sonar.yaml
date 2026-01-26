@@ -1,0 +1,67 @@
+name: Sonar Analysis
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+
+permissions:
+  repository-projects: read
+  contents: write
+  id-token: write
+  packages: write
+  checks: write
+  pull-requests: write
+  actions: read
+  statuses: write
+
+jobs:
+  # Call the main CI workflow
+  run-ci:
+    name: Run CI Workflow
+    uses: ./.github/workflows/ci.yaml
+    secrets: inherit
+
+  # Call the UI CI workflow
+  run-ui-ci:
+    name: Run UI CI Workflow
+    uses: ./.github/workflows/ui-ci.yml
+    secrets: inherit
+
+  # Run Sonar Analysis after both CI workflows complete
+  sonar-analysis:
+    name: SonarCloud Analysis
+    needs: [run-ci, run-ui-ci]
+    runs-on: ubuntu-latest
+    if: always() && (needs.run-ci.result == 'success' || needs.run-ci.result == 'skipped') && (needs.run-ui-ci.result == 'success' || needs.run-ui-ci.result == 'skipped')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for better Sonar analysis
+
+      - name: Download Python coverage artifact
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: python-coverage
+          path: .
+
+      - name: Download UI coverage artifact
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ui-coverage
+          path: client/webui/frontend/coverage
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@71c6f9286df0c77c9fddf4fc8ada72459c9d8a5d # v3.2.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ github.repository_owner }}_${{ github.event.repository.name }}
+          SONAR_ORGANIZATION: ${{ github.repository_owner }}
