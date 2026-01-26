@@ -31,7 +31,9 @@ class DefaultResourceSharingService(ResourceSharingService):
         resource_type: ResourceType,
         user_email: str
     ) -> bool:
-        return True
+        # Community edition has no sharing, so users cannot access resources via sharing.
+        # Access is determined solely by ownership in the community edition.
+        return False
 
     def unshare_resource(
         self,
