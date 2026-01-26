@@ -210,25 +210,40 @@ class FencedBlockStreamParser:
             events.append(BlockInvalidatedEvent(rolled_back_text=rolled_back_text))
         elif self._state == ParserState.IN_BLOCK:
             # The turn ended while inside a block. This is an error/failure.
-            # This happens when the LLM outputs partial artifact markers in text
-            # (e.g., explaining how to use artifacts) without actually completing the block.
-            # We need to return the original text to the user so they can see it.
             log.warning(
-                "[StreamParser] finalize() found unterminated block! Type: %s, buffer length: %d, nesting_depth: %d. "
-                "Returning original text to user.",
+                "[StreamParser] finalize() found unterminated block! Type: %s, buffer length: %d, nesting_depth: %d.",
                 self._current_block_type,
                 len(self._artifact_buffer),
                 self._nesting_depth,
             )
             
-            # Reconstruct the original text: opening line + buffered content
-            # This is what the LLM actually output, which should be shown to the user
-            rolled_back_text = self._block_opening_line + self._artifact_buffer
-            user_text_parts.append(rolled_back_text)
-            
-            # Emit a BlockInvalidatedEvent to signal that this was not a valid artifact block
-            # The callback can use this to clean up any in-progress UI
-            events.append(BlockInvalidatedEvent(rolled_back_text=rolled_back_text))
+            # Handle differently based on block type:
+            # - Template blocks: Still emit TemplateBlockCompletedEvent (templates are processed server-side)
+            # - Save_artifact blocks: Emit BlockInvalidatedEvent with rolled-back text (need to show original text to user)
+            if self._current_block_type == "template":
+                # Template blocks should still be processed even if unterminated
+                events.append(
+                    TemplateBlockCompletedEvent(
+                        params=self._block_params,
+                        template_content=self._artifact_buffer,
+                    )
+                )
+            else:
+                # For save_artifact blocks, this happens when the LLM outputs partial artifact markers in text
+                # (e.g., explaining how to use artifacts) without actually completing the block.
+                # We need to return the original text to the user so they can see it.
+                log.warning(
+                    "[StreamParser] Unterminated save_artifact block. Returning original text to user."
+                )
+                
+                # Reconstruct the original text: opening line + buffered content
+                # This is what the LLM actually output, which should be shown to the user
+                rolled_back_text = self._block_opening_line + self._artifact_buffer
+                user_text_parts.append(rolled_back_text)
+                
+                # Emit a BlockInvalidatedEvent to signal that this was not a valid artifact block
+                # The callback can use this to clean up any in-progress UI
+                events.append(BlockInvalidatedEvent(rolled_back_text=rolled_back_text))
 
         self._reset_state()
         return ParserResult("".join(user_text_parts), events)

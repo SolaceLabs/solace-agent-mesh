@@ -713,25 +713,7 @@ async def process_artifact_blocks_callback(
             a2a_context = callback_context.state.get("a2a_context")
 
             tool_call_parts = []
-            error_text_parts = []  # Collect original text from error status artifacts
             for block_info in completed_blocks_list:
-                # Skip creating tool calls for error status artifacts
-                # This happens when the LLM outputs partial artifact markers in text
-                # (e.g., explaining how to use artifacts) without actually creating one
-                if block_info["status"] == "error":
-                    log.debug(
-                        "%s Skipping _notify_artifact_save for error status artifact: %s. "
-                        "Returning original text to user.",
-                        log_identifier,
-                        block_info.get("filename", "unknown"),
-                    )
-                    # Add the original text back to the response so the user can see it
-                    # This handles cases where the LLM mentions artifact syntax in explanations
-                    original_text = block_info.get("original_text", "")
-                    if original_text:
-                        error_text_parts.append(original_text)
-                    continue
-
                 function_call_id = f"host-notify-{uuid.uuid4()}"
                 notify_tool_call = adk_types.FunctionCall(
                     name="_notify_artifact_save",
@@ -781,20 +763,7 @@ async def process_artifact_blocks_callback(
             if llm_response.content is None:
                 llm_response.content = adk_types.Content(parts=[])
 
-            # Add error text parts (original text from failed/unterminated artifact blocks)
-            # This ensures the user sees the text that was incorrectly parsed as an artifact block
-            error_text_content_parts = []
-            if error_text_parts:
-                combined_error_text = "".join(error_text_parts)
-                error_text_content_parts.append(adk_types.Part(text=combined_error_text))
-                log.debug(
-                    "%s Adding %d error text part(s) back to response (%d chars total).",
-                    log_identifier,
-                    len(error_text_parts),
-                    len(combined_error_text),
-                )
-
-            llm_response.content.parts = tool_call_parts + error_text_content_parts + final_existing_parts
+            llm_response.content.parts = tool_call_parts + final_existing_parts
 
             llm_response.turn_complete = True
             llm_response.partial = False
