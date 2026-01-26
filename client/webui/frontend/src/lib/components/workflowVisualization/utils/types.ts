@@ -109,7 +109,29 @@ export interface NodeProps {
  * Used by all node components to ensure consistent highlight styling
  */
 export const NODE_HIGHLIGHT_CLASSES =
-    "ring-2 ring-amber-400 ring-offset-2 shadow-lg shadow-amber-200/50 dark:ring-amber-500 dark:ring-offset-gray-900 dark:shadow-amber-500/30";
+    "ring-1 ring-amber-400 ring-offset-2 shadow-lg shadow-amber-200/50 dark:ring-amber-500 dark:ring-offset-gray-900 dark:shadow-amber-500/30";
+
+/**
+ * Common base styles for different node types
+ * Provides consistent styling for container, shape, shadow, and transitions
+ * Based on Figma Card component design (resting state)
+ */
+export const NODE_BASE_STYLES = {
+    /** Rectangular node style - used by Agent, Workflow, Switch nodes
+     * Figma Card: rounded (4px), shadow, 16px padding
+     */
+    RECTANGULAR: "group relative flex cursor-pointer items-center justify-between rounded border border-transparent bg-(--color-background-w10) px-4 py-3 shadow transition-all duration-200 ease-in-out hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    /** Rectangular compact style - used by Loop/Map collapsed nodes */
+    RECTANGULAR_COMPACT: "group relative flex cursor-pointer items-center justify-between rounded border border-transparent bg-(--color-background-w10) px-3 py-2 shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    /** Pill-shaped node style - used by Start/End nodes */
+    PILL: "flex cursor-pointer items-center justify-center gap-2 rounded-full bg-(--color-primary-w10) dark:hover:bg-(--color-primary-wMain) px-4 py-2 shadow-sm transition-all duration-200 ease-in-out hover:shadow-md dark:bg-(--color-primary-w90) dark:!shadow-none",
+    /** Container header style - used by Loop/Map expanded header */
+    CONTAINER_HEADER: "group relative mx-auto w-fit cursor-pointer rounded border border-transparent bg-(--color-background-w10) shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    /** Condition pill style - used by Switch condition pills */
+    CONDITION_PILL: "flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium shadow-sm transition-all duration-200 bg-(--color-background-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+    /** Switch node style - similar to rectangular but without justify-between */
+    SWITCH: "group relative cursor-pointer rounded border border-transparent bg-(--color-background-w10) shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:hover:bg-(--color-primary-w100) dark:!shadow-none",
+} as const;
 
 /**
  * Shared CSS classes for node ID badge that appears on hover
@@ -120,20 +142,13 @@ export const NODE_ID_BADGE_CLASSES =
 
 /**
  * Shared CSS classes for node selection styling
- * Each node type has its own color to match its theme
+ * Changes border color to accent-n2-wMain instead of adding a ring
  */
-export const NODE_SELECTED_CLASSES = {
-    /** Blue selection ring for agent nodes, start/end nodes */
-    BLUE: "ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900",
-    /** Blue selection ring with smaller offset for condition pills */
-    BLUE_COMPACT: "ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-gray-900",
-    /** Purple selection ring for workflow ref nodes and switch nodes */
-    PURPLE: "ring-2 ring-purple-500 ring-offset-2 dark:ring-offset-gray-900",
-    /** Teal selection ring for loop nodes */
-    TEAL: "ring-2 ring-teal-500 ring-offset-2 dark:ring-offset-gray-900",
-    /** Indigo selection ring for map nodes */
-    INDIGO: "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-gray-900",
-};
+/** Standard selection border for most nodes */
+export const NODE_SELECTED_CLASS = "!border-(--color-accent-n2-wMain)";
+
+/** Selection border for compact nodes (condition pills) */
+export const NODE_SELECTED_CLASS_COMPACT = "!border-(--color-accent-n2-wMain)";
 
 /**
  * Layout constants for consistent sizing
