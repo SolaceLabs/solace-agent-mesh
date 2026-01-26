@@ -71,8 +71,9 @@ class ArtifactCreationProgressData(BaseModel):
         description="The constant type for this data part.",
     )
     filename: str = Field(..., description="The name of the artifact being created.")
-    status: Literal["in-progress", "completed", "failed"] = Field(
-        ..., description="The status of the artifact creation."
+    status: Literal["in-progress", "completed", "failed", "cancelled"] = Field(
+        ...,
+        description="The status of the artifact creation. 'cancelled' is used when an artifact block was started but never completed (e.g., LLM mentioned artifact syntax in text).",
     )
     bytes_transferred: int = Field(
         ..., description="The number of bytes transferred so far."
@@ -94,6 +95,10 @@ class ArtifactCreationProgressData(BaseModel):
     )
     function_call_id: Optional[str] = Field(
         None, description="The function call ID if artifact was created by a tool."
+    )
+    rolled_back_text: Optional[str] = Field(
+        None,
+        description="The original text that was incorrectly parsed as an artifact block. Only present for 'cancelled' status. The frontend should display this text to the user.",
     )
 
 

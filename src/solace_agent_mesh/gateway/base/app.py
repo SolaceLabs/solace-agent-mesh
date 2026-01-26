@@ -8,7 +8,7 @@ from abc import abstractmethod
 from typing import Any, Dict, List, Type
 
 from solace_ai_connector.common.utils import deep_merge
-from solace_ai_connector.flow.app import App
+from ...common.app_base import SamAppBase
 from solace_ai_connector.components.component_base import ComponentBase
 
 from ...common.a2a import (
@@ -182,7 +182,7 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
 }
 
 
-class BaseGatewayApp(App):
+class BaseGatewayApp(SamAppBase):
     """
     Base class for Gateway applications.
 
