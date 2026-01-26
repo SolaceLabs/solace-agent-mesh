@@ -1,4 +1,4 @@
-import React from "react";
+import { Fragment, useMemo, type FC } from "react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import type { LayoutNode } from "../utils/types";
 import AgentNode from "./AgentNode";
@@ -12,7 +12,7 @@ interface MapNodeProps {
     onCollapse?: (nodeId: string) => void;
 }
 
-const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
     const getStatusColor = () => {
         switch (node.data.status) {
             case "completed":
@@ -27,7 +27,7 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, onClick, onChildCli
     };
 
     // Group children by iterationIndex to create branches
-    const branches = React.useMemo(() => {
+    const branches = useMemo(() => {
         const branchMap = new Map<number, typeof node.children>();
         for (const child of node.children) {
             const iterationIndex = child.data.iterationIndex ?? 0;
@@ -114,13 +114,13 @@ const MapNode: React.FC<MapNodeProps> = ({ node, isSelected, onClick, onChildCli
                         <div key={`branch-${branchIndex}`} className="flex flex-col items-center">
                             {/* Branch children */}
                             {branch.map((child, childIndex) => (
-                                <React.Fragment key={child.id}>
+                                <Fragment key={child.id}>
                                     {renderChild(child)}
                                     {/* Connector line to next child in same branch */}
                                     {childIndex < branch.length - 1 && (
                                         <div className={`w-0.5 h-4 ${connectorColor} my-1`} />
                                     )}
-                                </React.Fragment>
+                                </Fragment>
                             ))}
                         </div>
                     ))}
