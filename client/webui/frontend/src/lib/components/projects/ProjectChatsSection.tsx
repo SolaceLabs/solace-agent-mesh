@@ -1,7 +1,7 @@
 import React from "react";
 import { MessageCircle, Calendar, Plus } from "lucide-react";
 
-import { useProjectSessions } from "@/lib/hooks/useProjectSessions";
+import { useProjectSessions } from "@/lib/api/projects/hooks";
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Button } from "@/lib/components/ui";
 import { formatTimestamp } from "@/lib/utils/format";
@@ -14,7 +14,7 @@ interface ProjectChatsSectionProps {
 }
 
 export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({ project, onChatClick, onStartNewChat }) => {
-    const { sessions, isLoading, error } = useProjectSessions(project.id);
+    const { data: sessions = [], isLoading, error } = useProjectSessions(project.id);
 
     return (
         <div className="px-6 py-4">
@@ -34,7 +34,7 @@ export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({ projec
                 </div>
             )}
 
-            {error && <div className="text-destructive border-destructive/50 rounded-md border p-4 text-sm">Error loading chats: {error}</div>}
+            {error && <div className="text-destructive border-destructive/50 rounded-md border p-4 text-sm">Error loading chats: {error.message}</div>}
 
             {!isLoading && !error && sessions.length === 0 && (
                 <div className="flex flex-col items-center justify-center rounded-md border border-dashed p-8 text-center">

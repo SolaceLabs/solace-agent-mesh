@@ -12,8 +12,8 @@ const STORAGE_KEY = "sam_background_tasks";
 interface UseBackgroundTaskMonitorProps {
     userId: string | null;
     currentSessionId: string;
-    onTaskCompleted?: (taskId: string) => void;
-    onTaskFailed?: (taskId: string, error: string) => void;
+    onTaskCompleted?: (taskId: string, sessionId: string) => void;
+    onTaskFailed?: (taskId: string, error: string, sessionId: string) => void;
 }
 
 export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed }: UseBackgroundTaskMonitorProps) {
@@ -133,11 +133,11 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
 
                 setNotifications(prev => [...prev, notification]);
 
-                // Call callbacks
+                // Call callbacks with session ID so caller can decide whether to show notification
                 if (notificationType === "completed" && onTaskCompleted) {
-                    onTaskCompleted(task.taskId);
+                    onTaskCompleted(task.taskId, task.sessionId);
                 } else if (notificationType !== "completed" && onTaskFailed) {
-                    onTaskFailed(task.taskId, message);
+                    onTaskFailed(task.taskId, message, task.sessionId);
                 }
 
                 // Remove from tracking

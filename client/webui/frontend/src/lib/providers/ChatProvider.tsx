@@ -1,13 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
-import { v4 } from "uuid";
+import { v4 as uuidv4 } from "uuid";
+
+// Wrapper to force uuid to use crypto.getRandomValues() fallback instead of crypto.randomUUID()
+// This ensures compatibility with non-secure (HTTP) contexts where crypto.randomUUID() is unavailable
+// Note: may be able to remove this workaround with next version of uuid
+const v4 = () => uuidv4({});
 
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-import { getAccessToken, getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION } from "@/lib/utils";
-import { internalToDisplayText } from "@/lib/utils/mentionUtils";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText } from "@/lib/utils";
 
 import type {
     CancelTaskRequest,
@@ -202,8 +206,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         userId: "sam_dev_user",
         currentSessionId: sessionId,
         onTaskCompleted: useCallback(
-            async (taskId: string) => {
-                addNotification("Background task completed", "success");
+            async (taskId: string, taskSessionId: string) => {
+                // Only show notification if user is NOT currently viewing the session where the task completed
+                // This reduces noise when the user is already on the chat page seeing the results
+                if (currentSessionIdRef.current !== taskSessionId) {
+                    addNotification("Background task completed", "success");
+                }
 
                 // Trigger session list refresh to update background task indicators
                 if (typeof window !== "undefined") {
@@ -269,7 +277,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             [addNotification, autoTitleGenerationEnabled, generateTitle]
         ),
         onTaskFailed: useCallback(
-            (taskId: string, error: string) => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            (taskId: string, error: string, _taskSessionId: string) => {
+                // Always show error dialog for failed tasks, regardless of current session
+                // Errors are important and should not be silently ignored
                 setError({ title: "Background Task Failed", error });
 
                 // Trigger session list refresh to update background task indicators
@@ -700,15 +711,41 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     break;
                                 }
                                 case "artifact_creation_progress": {
-                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk, version } = data as {
+                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk, version, rolled_back_text } = data as {
                                         filename: string;
-                                        status: "in-progress" | "completed" | "failed";
+                                        status: "in-progress" | "completed" | "failed" | "cancelled";
                                         bytes_transferred: number;
                                         mime_type?: string;
                                         description?: string;
                                         artifact_chunk?: string;
                                         version?: number;
+                                        rolled_back_text?: string;
                                     };
+
+                                    // Handle "cancelled" status - this happens when an artifact block was started
+                                    // but never completed (e.g., LLM mentioned artifact syntax in text).
+                                    // We remove the in-progress artifact part and add the rolled-back text as a text part.
+                                    if (status === "cancelled") {
+                                        setMessages(prev => {
+                                            const newMessages = [...prev];
+                                            const agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
+                                            if (agentMessageIndex !== -1) {
+                                                const agentMessage = { ...newMessages[agentMessageIndex], parts: [...newMessages[agentMessageIndex].parts] };
+                                                // Remove the artifact part for this filename
+                                                agentMessage.parts = agentMessage.parts.filter(p => !(p.kind === "artifact" && p.name === filename));
+                                                // Add the rolled-back text as a text part so the user can see it
+                                                // This is the original text that was incorrectly parsed as an artifact block
+                                                if (rolled_back_text) {
+                                                    agentMessage.parts.push({ kind: "text", text: rolled_back_text });
+                                                }
+                                                newMessages[agentMessageIndex] = agentMessage;
+                                            }
+                                            return newMessages;
+                                        });
+                                        // Also remove from artifacts list if it was added
+                                        setArtifacts(prevArtifacts => prevArtifacts.filter(a => a.filename !== filename));
+                                        return;
+                                    }
 
                                     // Track if we need to trigger auto-download after state update
                                     let shouldAutoDownload = false;
@@ -1323,26 +1360,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 generateTitle(taskSessionId, userMessageText, agentResponseText).catch(error => {
                                                     console.error("[ChatProvider] Title generation failed:", error);
                                                 });
-                                            }
-                                        } else {
-                                            // When auto title generation is disabled, use truncated first user message as title
-                                            if (userMessageText) {
-                                                sessionsWithAutoGeneratedTitles.current.add(taskSessionId);
-                                                // Truncate to 50 characters with ellipsis
-                                                const truncatedTitle = userMessageText.length > 50 ? userMessageText.substring(0, 50) + "..." : userMessageText;
-                                                try {
-                                                    await updateSessionName(taskSessionId, truncatedTitle);
-                                                    // Dispatch event to update UI
-                                                    if (typeof window !== "undefined") {
-                                                        window.dispatchEvent(
-                                                            new CustomEvent("session-title-updated", {
-                                                                detail: { sessionId: taskSessionId },
-                                                            })
-                                                        );
-                                                    }
-                                                } catch (error) {
-                                                    console.error("[ChatProvider] Failed to set session title from user message:", error);
-                                                }
                                             }
                                         }
                                     }
@@ -2172,25 +2189,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     // If it was a new session, generate and persist its name
                     if (isNewSession) {
                         let newSessionName = "New Chat";
-                        const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
-                        const combinedText = textParts
-                            .map(p => p.text)
-                            .join(" ")
-                            .trim();
 
-                        if (combinedText) {
-                            // Convert internal mention format @[Name](id) to display format @Name
-                            // Also strip backend mention format <user_id:...> from the text
-                            // The regex handles both complete (<user_id:id>) and truncated (<user_id:id) cases
-                            let displayText = internalToDisplayText(combinedText);
-                            displayText = displayText.replace(/<user_id:[^>]*>?/g, "").trim();
-                            newSessionName = displayText.length > 100 ? `${displayText.substring(0, 100)}...` : displayText;
-                        } else if (currentFiles.length > 0) {
-                            // No text, but files were sent - derive name from files
-                            if (currentFiles.length === 1) {
-                                newSessionName = currentFiles[0].name;
-                            } else {
-                                newSessionName = `${currentFiles[0].name} +${currentFiles.length - 1} more`;
+                        // When auto title generation is DISABLED, use the user's message as the session name
+                        // When auto title generation is ENABLED, keep "New Chat" as placeholder - LLM will generate the title
+                        if (!autoTitleGenerationEnabled) {
+                            const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
+                            const combinedText = textParts
+                                .map(p => p.text)
+                                .join(" ")
+                                .trim();
+
+                            if (combinedText) {
+                                // Convert internal mention format @[Name](id) to display format @Name
+                                // Also strip backend mention format <user_id:...> from the text
+                                // The regex handles both complete (<user_id:id>) and truncated (<user_id:id) cases
+                                let displayText = internalToDisplayText(combinedText);
+                                displayText = displayText.replace(/<user_id:[^>]*>?/g, "").trim();
+                                newSessionName = displayText.length > 100 ? `${displayText.substring(0, 100)}...` : displayText;
+                            } else if (currentFiles.length > 0) {
+                                // No text, but files were sent - derive name from files
+                                if (currentFiles.length === 1) {
+                                    newSessionName = currentFiles[0].name;
+                                } else {
+                                    newSessionName = `${currentFiles[0].name} +${currentFiles.length - 1} more`;
+                                }
                             }
                         }
 
@@ -2268,6 +2290,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             backgroundTasksDefaultTimeoutMs,
             backgroundTasksEnabled,
             registerBackgroundTask,
+            autoTitleGenerationEnabled,
+            updateSessionName,
         ]
     );
 
@@ -2461,14 +2485,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     useEffect(() => {
         if (currentTaskId) {
-            const accessToken = getAccessToken();
+            const bearerToken = getApiBearerToken();
 
             const bgTask = backgroundTasksRef.current.find(t => t.taskId === currentTaskId);
             const isReconnecting = bgTask !== undefined;
 
             const params = new URLSearchParams();
-            if (accessToken) {
-                params.append("token", accessToken);
+            if (bearerToken) {
+                params.append("token", bearerToken);
             }
 
             if (isReconnecting) {

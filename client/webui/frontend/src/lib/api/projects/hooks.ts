@@ -1,28 +1,23 @@
-/**
- * ⚠️ WARNING: THESE HOOKS ARE NOT YET READY FOR USE ⚠️
- *
- * This file contains React Query hooks that are still under development and testing.
- * DO NOT import or use these hooks in your components yet.
- *
- * Current Status:
- * - ❌ Not fully tested
- * - ❌ May have breaking API changes
- * - ❌ Not documented for public use
- * - ❌ Currently being refactored and tested in enterprise
- *
- * When ready for use, this warning will be removed and proper documentation will be added.
- *
- * @internal - These exports are marked as internal and should not be used outside this package
- */
-
+import { useEffect } from "react";
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateProjectRequest, Project, UpdateProjectData } from "@/lib/types/projects";
+import type { ArtifactInfo } from "@/lib/types";
 import { projectKeys } from "./keys";
 import * as projectService from "./service";
 
 /**
- * @internal - DO NOT USE: Still under development
+ * Checks if an artifact is an intermediate web content artifact from deep research.
+ * These are temporary files that should not be shown in the files tab.
+ *
+ * @param filename The filename of the artifact to check.
+ * @returns True if the artifact is an intermediate web content artifact.
  */
+const isIntermediateWebContentArtifact = (filename: string | undefined): boolean => {
+    if (!filename) return false;
+    // Skip web_content_ artifacts (temporary files from deep research)
+    return filename.startsWith("web_content_");
+};
+
 export function useProjects() {
     return useQuery({
         queryKey: projectKeys.lists(),
@@ -30,15 +25,44 @@ export function useProjects() {
     });
 }
 
-/** @internal - DO NOT USE: Still under development */
-export function useProjectArtifactsNew(projectId: string | null) {
+export function useProjectArtifacts(projectId: string | null) {
     return useQuery({
         queryKey: projectId ? projectKeys.artifacts(projectId) : ["projects", "artifacts", "empty"],
         queryFn: projectId ? () => projectService.getProjectArtifacts(projectId) : skipToken,
+        select: (data: ArtifactInfo[]) => {
+            return data.filter(artifact => !isIntermediateWebContentArtifact(artifact.filename));
+        },
     });
 }
 
-/** @internal - DO NOT USE: Still under development */
+export function useProjectSessions(projectId: string | null) {
+    const queryClient = useQueryClient();
+
+    // Set up event listeners for automatic invalidation
+    // Each hook instance manages its own listeners
+    useEffect(() => {
+        const handleSessionEvent = () => {
+            if (projectId) {
+                queryClient.invalidateQueries({ queryKey: projectKeys.sessions(projectId) });
+            }
+        };
+
+        window.addEventListener("session-moved", handleSessionEvent);
+        window.addEventListener("new-chat-session", handleSessionEvent);
+
+        return () => {
+            window.removeEventListener("session-moved", handleSessionEvent);
+            window.removeEventListener("new-chat-session", handleSessionEvent);
+        };
+    }, [projectId, queryClient]);
+
+    return useQuery({
+        queryKey: projectId ? projectKeys.sessions(projectId) : ["projects", "sessions", "empty"],
+        queryFn: projectId ? () => projectService.getProjectSessions(projectId) : skipToken,
+        refetchOnMount: "always",
+    });
+}
+
 export function useCreateProject() {
     const queryClient = useQueryClient();
 
@@ -50,7 +74,6 @@ export function useCreateProject() {
     });
 }
 
-/** @internal - DO NOT USE: Still under development */
 export function useUpdateProject() {
     const queryClient = useQueryClient();
 
@@ -63,7 +86,6 @@ export function useUpdateProject() {
     });
 }
 
-/** @internal - DO NOT USE: Still under development */
 export function useDeleteProject() {
     const queryClient = useQueryClient();
 
@@ -76,7 +98,6 @@ export function useDeleteProject() {
     });
 }
 
-/** @internal - DO NOT USE: Still under development */
 export function useAddFilesToProject() {
     const queryClient = useQueryClient();
 
@@ -89,7 +110,6 @@ export function useAddFilesToProject() {
     });
 }
 
-/** @internal - DO NOT USE: Still under development */
 export function useRemoveFileFromProject() {
     const queryClient = useQueryClient();
 
@@ -102,7 +122,6 @@ export function useRemoveFileFromProject() {
     });
 }
 
-/** @internal - DO NOT USE: Still under development */
 export function useUpdateFileMetadata() {
     const queryClient = useQueryClient();
 
@@ -114,14 +133,12 @@ export function useUpdateFileMetadata() {
     });
 }
 
-/** @internal - DO NOT USE: Still under development */
 export function useExportProject() {
     return useMutation({
         mutationFn: (projectId: string) => projectService.exportProject(projectId),
     });
 }
 
-/** @internal - DO NOT USE: Still under development */
 export function useImportProject() {
     const queryClient = useQueryClient();
 

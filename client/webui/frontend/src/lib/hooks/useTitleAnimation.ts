@@ -42,15 +42,16 @@ export const useTitleAnimation = (finalText: string, sessionId?: string): { text
         const sessionChanged = sessionId !== previousSessionIdRef.current;
         const textChanged = finalText !== previousTextRef.current;
 
-        // Update refs
+        // Update session ref immediately
         previousSessionIdRef.current = sessionId;
-        previousTextRef.current = finalText;
 
         // If session changed, just update text immediately without animation
         if (sessionChanged) {
+            previousTextRef.current = finalText;
             setDisplayedText(finalText);
             setIsAnimating(false);
             // Reset generating state for new session
+            setIsGenerating(false);
             wasGeneratingRef.current = false;
             return;
         }
@@ -70,6 +71,7 @@ export const useTitleAnimation = (finalText: string, sessionId?: string): { text
         }
 
         if (!finalText) {
+            previousTextRef.current = finalText;
             setDisplayedText("");
             setIsAnimating(false);
             wasGeneratingRef.current = false;
@@ -81,6 +83,8 @@ export const useTitleAnimation = (finalText: string, sessionId?: string): { text
 
             // Wait a brief moment for pulse animation, then update text
             const timer = setTimeout(() => {
+                // Update ref and display text together
+                previousTextRef.current = finalText;
                 setDisplayedText(finalText);
                 // Keep animating flag true for fade-in animation
                 setTimeout(() => {
@@ -92,6 +96,7 @@ export const useTitleAnimation = (finalText: string, sessionId?: string): { text
             return () => clearTimeout(timer);
         } else {
             // No animation - just update text immediately
+            previousTextRef.current = finalText;
             setDisplayedText(finalText);
         }
     }, [finalText, sessionId, isGenerating]);

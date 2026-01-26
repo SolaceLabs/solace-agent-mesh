@@ -16,6 +16,7 @@ from .exceptions import (
     ConfigurationError,
     DataIntegrityError,
     ExternalServiceError,
+    InternalServiceError,
     EntityOperation,
 )
 from .exception_handlers import register_exception_handlers
@@ -30,6 +31,7 @@ __all__ = [
     "ConfigurationError",
     "DataIntegrityError",
     "ExternalServiceError",
+    "InternalServiceError",
     "EntityOperation",
     "register_exception_handlers",
     "EventErrorDTO",
