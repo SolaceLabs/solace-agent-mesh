@@ -17,6 +17,10 @@ Agents are LLM-powered components that use tools to accomplish tasks and communi
 
 The [Build Your Own Agent](tutorials/custom-agent.md) tutorial demonstrates creating a weather agent with external API integration, resource management, and artifact creation.
 
+## Orchestrating Agents with Workflows
+
+Workflows let you coordinate multiple agents through YAML configuration rather than AI-driven orchestration. You define the execution sequence, conditional branches, and data flow between agents explicitly. Workflows are useful when you need predictable execution paths, auditability, or control over exactly which agents run and in what order. The UI visualizes workflow progress in real time. For step-by-step guidance, see [Creating Workflows](creating-workflows.md).
+
 ## Extending Agent Capabilities
 
 You can create custom Python tools using three patterns: simple function-based tools, advanced single-class tools, or tool providers that generate multiple related tools dynamically. The framework handles tool discovery, parameter validation, and lifecycle management automatically. For detailed information on all patterns, see [Creating Python Tools](creating-python-tools.md).
