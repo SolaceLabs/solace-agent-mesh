@@ -1,13 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
-import { v4 } from "uuid";
+import { v4 as uuidv4 } from "uuid";
+
+// Wrapper to force uuid to use crypto.getRandomValues() fallback instead of crypto.randomUUID()
+// This ensures compatibility with non-secure (HTTP) contexts where crypto.randomUUID() is unavailable
+// Note: may be able to remove this workaround with next version of uuid
+const v4 = () => uuidv4({});
 
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken } from "@/lib/utils";
-import { internalToDisplayText } from "@/lib/utils/mentionUtils";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText } from "@/lib/utils";
 
 import type {
     CancelTaskRequest,
