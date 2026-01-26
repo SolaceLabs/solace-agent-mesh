@@ -202,8 +202,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         userId: "sam_dev_user",
         currentSessionId: sessionId,
         onTaskCompleted: useCallback(
-            async (taskId: string) => {
-                addNotification("Background task completed", "success");
+            async (taskId: string, taskSessionId: string) => {
+                // Only show notification if user is NOT currently viewing the session where the task completed
+                // This reduces noise when the user is already on the chat page seeing the results
+                if (currentSessionIdRef.current !== taskSessionId) {
+                    addNotification("Background task completed", "success");
+                }
 
                 // Trigger session list refresh to update background task indicators
                 if (typeof window !== "undefined") {
@@ -269,7 +273,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             [addNotification, autoTitleGenerationEnabled, generateTitle]
         ),
         onTaskFailed: useCallback(
-            (taskId: string, error: string) => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            (taskId: string, error: string, _taskSessionId: string) => {
+                // Always show error dialog for failed tasks, regardless of current session
+                // Errors are important and should not be silently ignored
                 setError({ title: "Background Task Failed", error });
 
                 // Trigger session list refresh to update background task indicators
