@@ -537,6 +537,21 @@ class WorkflowDefinition(BaseModel):
 class WorkflowAppConfig(SamAgentAppConfig):
     """Workflow app configuration extends agent config."""
 
+
+    # Rename agent_name to name for clarity in workflow context
+    name: str = Field(..., description="Unique name for this workflow instance.")
+
+    # Make parent's agent_name optional and populate from name via validator
+    agent_name: Optional[str] = Field(default=None, exclude=True)
+
+    @model_validator(mode='after')
+    def populate_agent_name_from_name(self):
+        """Populate agent_name from name for compatibility with parent class."""
+        if not self.agent_name:
+            self.agent_name = self.name
+        return self
+
+
     # Workflow definition
     workflow: WorkflowDefinition = Field(..., description="The workflow DAG definition")
 
@@ -594,7 +609,7 @@ class WorkflowApp(App):
 
         # Extract workflow-specific settings
         namespace = app_config.namespace
-        workflow_name = app_config.agent_name
+        workflow_name = app_config.name
 
         # Auto-populate agent card with workflow schemas in skills
         # Note: AgentCardConfig doesn't have input_schema/output_schema directly
