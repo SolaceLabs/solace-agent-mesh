@@ -13,7 +13,7 @@ const FieldFooter: React.FC<FieldFooterProps> = ({ hasError = false, message, er
     const defaultAlign = hasError ? "left" : "right";
     const textAlign = align || defaultAlign;
 
-    return <div className={cn("text-xs", hasError ? "text-destructive" : "text-muted-foreground", textAlign === "right" && "text-right", className)}>{hasError ? error : message}</div>;
+    return <div className={cn("text-xs", hasError ? "text-(--color-error-wMain)" : "text-muted-foreground", textAlign === "right" && "text-right", className)}>{hasError ? error : message}</div>;
 };
 
 FieldFooter.displayName = "FieldFooter";
