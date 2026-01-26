@@ -25,6 +25,8 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
     const [selectedWorkflow, setSelectedWorkflow] = useState<AgentCardInfo | null>(null);
     const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(false);
     
+    workflows = []; // TEMPORARY: Force empty state preview
+
 
     // Responsive itemsPerPage based on screen height
     const itemsPerPage = screenHeight >= 900 ? 20 : 10;
@@ -153,7 +155,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
                         <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">
                             {WORKFLOW_DESCRIPTION}
                         </p>
-                        <Button variant="default" className="w-fit" asChild>
+                        <Button variant="link" className="w-fit hover:underline !p-0" asChild>
                             <a href="#">
                                 {WORKFLOW_LEARN_MORE_TEXT}
                                 <ExternalLink size={14} />
@@ -256,7 +258,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
                                             <TableRow
                                                 key={workflow.name}
                                                 onClick={() => handleSelectWorkflow(workflow)}
-                                                className="hover:bg-muted/50 cursor-pointe"
+                                                className="hover:bg-muted/50 cursor-pointer"
                                                 data-state={selectedWorkflow?.name === workflow.name ? "selected" : undefined}
                                             >
                                                 <TableCell>

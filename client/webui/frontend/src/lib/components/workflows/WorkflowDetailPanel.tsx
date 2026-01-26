@@ -84,7 +84,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
     };
 
     return (
-        <div className="flex h-full flex-col border-l border-gray-200 dark:border-gray-700">
+        <div className="flex h-full flex-col border-l">
             {/* Header */}
             <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                 <div className="flex min-w-0 items-center gap-2">
