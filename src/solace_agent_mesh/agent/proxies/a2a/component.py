@@ -123,6 +123,160 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         return self._agent_config_by_name.get(agent_name)
 
+    def _extract_security_scheme_name(
+        self, agent_card: Optional[AgentCard], auth_type: str, agent_name: str
+    ) -> str:
+        """
+        Extracts the security scheme name from the agent card based on authentication type.
+
+        The A2A SDK's AuthInterceptor uses the security scheme name from the agent card
+        to look up credentials in the credential store. This method ensures we use the
+        correct scheme name that matches what the agent card expects.
+
+        Args:
+            agent_card: The agent card containing security scheme definitions.
+            auth_type: The authentication type from config (static_bearer, static_apikey,
+                      oauth2_client_credentials, oauth2_authorization_code).
+            agent_name: The name of the agent (for logging).
+
+        Returns:
+            The security scheme name to use when storing credentials. Falls back to
+            default names for backward compatibility if no matching scheme is found
+            in the agent card.
+
+        Default fallbacks:
+            - static_bearer -> "bearer"
+            - static_apikey -> "apikey"
+            - oauth2_client_credentials -> "bearer"
+            - oauth2_authorization_code -> "oauth2_authorization_code"
+        """
+        log_identifier = f"{self.log_identifier}[ExtractScheme:{agent_name}]"
+
+        # If no agent card or no security schemes, use default
+        if not agent_card or not agent_card.security_schemes:
+            default_scheme = self._get_default_scheme_name(auth_type)
+            log.debug(
+                "%s No security schemes in agent card, using default '%s'",
+                log_identifier,
+                default_scheme,
+            )
+            return default_scheme
+
+        scheme_name = None
+
+        # Search for matching security scheme based on auth type
+        for name, scheme_wrapper in agent_card.security_schemes.items():
+            scheme = scheme_wrapper.root
+
+            if not hasattr(scheme, "type"):
+                continue
+
+            scheme_type = scheme.type.lower()
+
+            if auth_type == "static_bearer":
+                # Look for HTTP bearer token scheme
+                if scheme_type == "http" and hasattr(scheme, "scheme"):
+                    if scheme.scheme.lower() == "bearer":
+                        scheme_name = name
+                        break
+                # Also accept oauth2 schemes for bearer tokens (common pattern)
+                elif scheme_type == "oauth2":
+                    scheme_name = name
+                    break
+
+            elif auth_type == "static_apikey":
+                # Look for API key scheme
+                if scheme_type == "apikey":
+                    scheme_name = name
+                    break
+
+            elif auth_type == "oauth2_client_credentials":
+                # Look for OAuth2 scheme with client credentials flow
+                if scheme_type == "oauth2":
+                    if hasattr(scheme, "flows") and scheme.flows:
+                        if hasattr(scheme.flows, "client_credentials") and scheme.flows.client_credentials:
+                            scheme_name = name
+                            break
+                    # Fallback: accept any oauth2 scheme
+                    if not scheme_name:
+                        scheme_name = name
+                        # Don't break - keep looking for client_credentials flow
+
+            elif auth_type == "oauth2_authorization_code":
+                # Look for OAuth2 scheme with authorization code flow
+                if scheme_type == "oauth2":
+                    if hasattr(scheme, "flows") and scheme.flows:
+                        if hasattr(scheme.flows, "authorization_code") and scheme.flows.authorization_code:
+                            scheme_name = name
+                            break
+
+        # Use extracted scheme name or fall back to default
+        if scheme_name:
+            log.info(
+                "%s Extracted security scheme '%s' from agent card for auth type '%s'",
+                log_identifier,
+                scheme_name,
+                auth_type,
+            )
+            return scheme_name
+        else:
+            default_scheme = self._get_default_scheme_name(auth_type)
+            log.warning(
+                "%s No matching security scheme found in agent card for auth type '%s'. "
+                "Using default scheme name '%s'. This may cause authentication failures "
+                "if the agent card uses a custom scheme name.",
+                log_identifier,
+                auth_type,
+                default_scheme,
+            )
+            return default_scheme
+
+    def _get_default_scheme_name(self, auth_type: str) -> str:
+        """
+        Returns the default security scheme name for backward compatibility.
+
+        Args:
+            auth_type: The authentication type from config.
+
+        Returns:
+            Default scheme name to use as fallback.
+        """
+        defaults = {
+            "static_bearer": "bearer",
+            "static_apikey": "apikey",
+            "oauth2_client_credentials": "bearer",
+            "oauth2_authorization_code": "oauth2_authorization_code",
+        }
+        return defaults.get(auth_type, "bearer")
+
+    async def _ensure_credentials(
+        self,
+        agent_card: Optional[AgentCard],
+        auth_type: str,
+        agent_name: str,
+        session_id: str,
+        token: str,
+    ) -> None:
+        """
+        Extracts the security scheme name from the agent card and stores credentials.
+
+        This helper method combines scheme name extraction and credential storage
+        to reduce code duplication across authentication types.
+
+        Args:
+            agent_card: The agent card (may be None or have no security_schemes).
+            auth_type: The authentication type (e.g., "static_bearer").
+            agent_name: The agent name (for logging).
+            session_id: The session ID for credential isolation.
+            token: The authentication token/access_token to store.
+        """
+        scheme_name = self._extract_security_scheme_name(
+            agent_card, auth_type, agent_name
+        )
+        await self._credential_store.set_credentials(
+            session_id, scheme_name, token
+        )
+
     async def _build_headers(
         self,
         agent_name: str,
@@ -136,6 +290,11 @@ class A2AProxyComponent(BaseProxyComponent):
         Delegates to the common header-building utility and provides the OAuth2
         token fetcher for dynamic token acquisition.
 
+        This method is used for agent card fetching and custom task headers. For
+        task invocations, authentication is primarily handled by the A2A SDK's
+        AuthInterceptor (see _get_or_create_a2a_client), which uses credentials
+        stored in the credential store with scheme names extracted from the agent card.
+
         Args:
             agent_name: The name of the agent.
             agent_config: The agent configuration dictionary.
@@ -143,9 +302,10 @@ class A2AProxyComponent(BaseProxyComponent):
             use_auth: Whether to apply authentication headers.
 
         Returns:
-            Dictionary of HTTP headers. Custom headers are applied after auth headers.
-            Note: For task invocations, the A2A SDK's AuthInterceptor may further
-            modify authentication headers after these are set.
+            Dictionary of HTTP headers. Custom headers are applied after auth headers
+            and can override them for agent card fetching. For task invocations,
+            custom headers are supplementary (applied at httpx client level) and do
+            not override AuthInterceptor headers (applied at middleware level).
         """
         return await build_full_auth_headers(
             agent_name=agent_name,
@@ -832,14 +992,19 @@ class A2AProxyComponent(BaseProxyComponent):
         log.info("Using timeout of %ss for agent '%s'.", agent_timeout, agent_name)
 
         # Build custom headers for task invocation
-        # Note: We build headers here but apply them via the httpx client
-        # The A2A SDK's AuthInterceptor will add auth headers via the credential store,
-        # but we want custom headers to override those, so we apply them at the client level
+        # Authentication handling depends on whether the agent card defines security_schemes:
+        # - If agent card HAS security_schemes: Use A2A SDK's AuthInterceptor (middleware level)
+        #   which looks up credentials from the credential store using scheme names
+        # - If agent card has NO security_schemes: Apply auth headers directly via httpx client
+        #   since AuthInterceptor cannot work without security_schemes defined
+        # This ensures authentication works both with compliant A2A agents (with security_schemes)
+        # and legacy/non-compliant agents (without security_schemes) based solely on YAML/DB config.
+        has_security_schemes = bool(agent_card and agent_card.security_schemes)
         task_headers = await self._build_headers(
             agent_name=agent_name,
             agent_config=agent_config,
             custom_headers_key="task_headers",
-            use_auth=False,  # Auth will be handled by AuthInterceptor below
+            use_auth=not has_security_schemes,  # Apply auth directly if no security_schemes
         )
 
         # Create a new httpx client with the specific timeout and custom headers for this agent
@@ -863,6 +1028,10 @@ class A2AProxyComponent(BaseProxyComponent):
             )
 
         # Setup authentication if configured
+        # Track whether AuthInterceptor is needed (separate from has_security_schemes)
+        # because oauth2_authorization_code requires AuthInterceptor even without security_schemes
+        needs_auth_interceptor = has_security_schemes
+
         auth_config = agent_config.get("authentication")
         if auth_config:
             auth_type = auth_config.get("type")
@@ -902,9 +1071,13 @@ class A2AProxyComponent(BaseProxyComponent):
                     raise ValueError(
                         f"Authentication type 'static_bearer' requires 'token' for agent '{agent_name}'"
                     )
-                await self._credential_store.set_credentials(
-                    session_id, "bearer", token
-                )
+                # Only store credentials in credential store if agent card has security_schemes
+                # (AuthInterceptor requires security_schemes to work)
+                # If no security_schemes, auth is applied directly via httpx headers
+                if has_security_schemes:
+                    await self._ensure_credentials(
+                        agent_card, auth_type, agent_name, session_id, token
+                    )
 
             elif auth_type == "static_apikey":
                 token = auth_config.get("token")
@@ -912,19 +1085,27 @@ class A2AProxyComponent(BaseProxyComponent):
                     raise ValueError(
                         f"Authentication type 'static_apikey' requires 'token' for agent '{agent_name}'"
                     )
-                await self._credential_store.set_credentials(
-                    session_id, "apikey", token
-                )
+                # Only store credentials in credential store if agent card has security_schemes
+                # (AuthInterceptor requires security_schemes to work)
+                # If no security_schemes, auth is applied directly via httpx headers
+                if has_security_schemes:
+                    await self._ensure_credentials(
+                        agent_card, auth_type, agent_name, session_id, token
+                    )
 
             elif auth_type == "oauth2_client_credentials":
-                # NEW: OAuth 2.0 Client Credentials Flow
+                # OAuth 2.0 Client Credentials Flow
                 try:
                     access_token = await self._fetch_oauth2_token(
                         agent_name, auth_config
                     )
-                    await self._credential_store.set_credentials(
-                        session_id, "bearer", access_token
-                    )
+                    # Only store credentials in credential store if agent card has security_schemes
+                    # (AuthInterceptor requires security_schemes to work)
+                    # If no security_schemes, auth is applied directly via httpx headers
+                    if has_security_schemes:
+                        await self._ensure_credentials(
+                            agent_card, auth_type, agent_name, session_id, access_token
+                        )
                 except Exception as e:
                     log.error(
                         "%s Failed to obtain OAuth 2.0 token for agent '%s': %s",
@@ -935,7 +1116,7 @@ class A2AProxyComponent(BaseProxyComponent):
                     raise
 
             elif auth_type == "oauth2_authorization_code":
-                # NEW: OAuth 2.0 Authorization Code Flow (enterprise feature)
+                # OAuth 2.0 Authorization Code Flow (enterprise feature)
                 # At this point, user has already authorized (checked in _forward_request)
                 # We just need to get the access token from enterprise helpers
                 try:
@@ -954,29 +1135,17 @@ class A2AProxyComponent(BaseProxyComponent):
                             "User authorization should have completed in _forward_request()."
                         )
 
-                    # Find the OAuth2 authorization code scheme name from agent card
-                    oauth_scheme_name = None
-                    if agent_card and agent_card.security_schemes:
-                        for scheme_name, scheme_wrapper in agent_card.security_schemes.items():
-                            scheme = scheme_wrapper.root
-                            if (hasattr(scheme, 'type') and scheme.type.lower() == 'oauth2' and
-                                    hasattr(scheme, 'flows') and scheme.flows and
-                                    scheme.flows.authorization_code):
-                                oauth_scheme_name = scheme_name
-                                break
-
-                    # Fallback if not found
-                    if not oauth_scheme_name:
-                        oauth_scheme_name = "oauth2_authorization_code"
-                        log.warning(
-                            "%s No OAuth2 authorization code scheme found in agent card, using default name",
-                            self.log_identifier
-                        )
-
-                    # Store in credential store for AuthInterceptor
-                    await self._credential_store.set_credentials(
-                        session_id, oauth_scheme_name, access_token
+                    # ALWAYS use credential store + AuthInterceptor for oauth2_authorization_code
+                    # (not conditional like other auth types) because:
+                    # 1. Token is fetched AFTER httpx headers are built, so cannot use httpx header approach
+                    # 2. Enterprise code expects credential_store + AuthInterceptor pattern for token application
+                    # 3. Enterprise requires agent card to exist (enforced in enterprise oauth2_helpers.py:437-439)
+                    # 4. This maintains backward compatibility with existing enterprise OAuth2 flows
+                    await self._ensure_credentials(
+                        agent_card, auth_type, agent_name, session_id, access_token
                     )
+                    # Ensure AuthInterceptor is added for this auth type (even if no security_schemes)
+                    needs_auth_interceptor = True
 
                 except ImportError:
                     log.error(
@@ -1004,11 +1173,16 @@ class A2AProxyComponent(BaseProxyComponent):
         )
 
         # Create client using ClientFactory
+        # Add AuthInterceptor if:
+        # 1. Agent card has security_schemes (standard path), OR
+        # 2. Auth type is oauth2_authorization_code (enterprise requirement)
+        # Otherwise, auth is handled via httpx client headers
         factory = ClientFactory(config)
+        interceptors = [self._auth_interceptor] if needs_auth_interceptor else []
         client = factory.create(
             agent_card,
             consumers=None,
-            interceptors=[self._auth_interceptor],
+            interceptors=interceptors,
         )
 
         self._a2a_clients[cache_key] = client

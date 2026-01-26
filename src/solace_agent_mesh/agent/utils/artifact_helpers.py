@@ -1448,82 +1448,106 @@ async def load_artifact_content_or_metadata(
                 is_text = is_text_based_file(mime_type, data_bytes)
 
                 if is_text:
-                    try:
-                        content_str = data_bytes.decode(encoding, errors=error_handling)
-                        original_content_str = content_str  # Save for line count calculation
-
-                        # Add line numbers if requested (before truncation)
-                        if include_line_numbers:
-                            lines = content_str.split('\n')
-                            numbered_lines = [f"{i+1}\t{line}" for i, line in enumerate(lines)]
-                            content_str = '\n'.join(numbered_lines)
-                            log.debug(
-                                "%s Added line numbers to %d lines.",
-                                log_identifier,
-                                len(lines)
-                            )
-
-                        message_to_llm = ""
-                        if len(content_str) > max_content_length:
-                            truncated_content = content_str[:max_content_length] + "..."
-
-                            # Calculate line range if line numbers are included
-                            line_range_msg = ""
-                            if include_line_numbers:
-                                visible_line_count = truncated_content.count('\n') + 1
-                                total_line_count = original_content_str.count('\n') + 1
-                                line_range_msg = f" Lines 1-{visible_line_count} of {total_line_count} total."
-
-                            if (
-                                max_content_length
-                                < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY
-                            ):
-                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters.{line_range_msg}
-                                                The artifact is larger ({len(content_str)} characters).
-                                                Please request again with larger max size up to {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} for the full artifact."""
-                            else:
-                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters.{line_range_msg}
-                                                The artifact content met the maximum allowed size of {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} characters.
-                                                Please continue with this truncated content as the full artifact cannot be provided."""
-                            log.info(
-                                "%s Loaded and decoded text artifact '%s' v%d. Returning truncated content (%d chars, limit: %d).%s",
-                                log_identifier,
-                                filename,
-                                version_to_load,
-                                len(truncated_content),
-                                max_content_length,
-                                line_range_msg,
-                            )
-                        else:
-                            truncated_content = content_str
-                            log.info(
-                                "%s Loaded and decoded text artifact '%s' v%d. Returning full content (%d chars).",
-                                log_identifier,
-                                filename,
-                                version_to_load,
-                                len(content_str),
-                            )
-                        return {
-                            "status": "success",
-                            "filename": filename,
-                            "version": version_to_load,
-                            "mime_type": mime_type,
-                            "content": truncated_content,
-                            "message_to_llm": message_to_llm,
-                            "size_bytes": size_bytes,
-                        }
-                    except UnicodeDecodeError as decode_err:
+                    # Try multiple encodings with fallback for Windows-exported files
+                    # Common case: CSV files exported from Excel on Windows use CP1252
+                    content_str = None
+                    used_encoding = None
+                    encodings_to_try = [encoding, "utf-16", "cp1252", "latin-1"]
+                    decode_errors = []
+                    
+                    for enc in encodings_to_try:
+                        try:
+                            content_str = data_bytes.decode(enc, errors=error_handling)
+                            used_encoding = enc
+                            if enc != encoding:
+                                log.info(
+                                    "%s Successfully decoded text artifact '%s' v%d using fallback encoding '%s' (primary '%s' failed)",
+                                    log_identifier,
+                                    filename,
+                                    version_to_load,
+                                    enc,
+                                    encoding,
+                                )
+                            break
+                        except UnicodeDecodeError as e:
+                            decode_errors.append(f"{enc}: {e}")
+                            continue
+                    
+                    if content_str is None:
+                        # All encodings failed
                         log.error(
-                            "%s Failed to decode text artifact '%s' v%d with encoding '%s': %s",
+                            "%s Failed to decode text artifact '%s' v%d with any encoding. Errors: %s",
                             log_identifier,
                             filename,
                             version_to_load,
-                            mime_type,
-                            decode_err,
+                            "; ".join(decode_errors),
                         )
                         raise ValueError(
-                            f"Failed to decode artifact '{filename}' v{version_to_load} as {encoding}."
-                        ) from decode_err
+                            f"Failed to decode artifact '{filename}' v{version_to_load}. Tried encodings: {', '.join(encodings_to_try)}"
+                        )
+                    
+                    original_content_str = content_str  # Save for line count calculation
+
+                    # Add line numbers if requested (before truncation)
+                    if include_line_numbers:
+                        lines = content_str.split('\n')
+                        numbered_lines = [f"{i+1}\t{line}" for i, line in enumerate(lines)]
+                        content_str = '\n'.join(numbered_lines)
+                        log.debug(
+                            "%s Added line numbers to %d lines.",
+                            log_identifier,
+                            len(lines)
+                        )
+
+                    message_to_llm = ""
+                    if len(content_str) > max_content_length:
+                        truncated_content = content_str[:max_content_length] + "..."
+
+                        # Calculate line range if line numbers are included
+                        line_range_msg = ""
+                        if include_line_numbers:
+                            visible_line_count = truncated_content.count('\n') + 1
+                            total_line_count = original_content_str.count('\n') + 1
+                            line_range_msg = f" Lines 1-{visible_line_count} of {total_line_count} total."
+
+                        if (
+                            max_content_length
+                            < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY
+                        ):
+                            message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters.{line_range_msg}
+                                            The artifact is larger ({len(content_str)} characters).
+                                            Please request again with larger max size up to {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} for the full artifact."""
+                        else:
+                            message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters.{line_range_msg}
+                                            The artifact content met the maximum allowed size of {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} characters.
+                                            Please continue with this truncated content as the full artifact cannot be provided."""
+                        log.info(
+                            "%s Loaded and decoded text artifact '%s' v%d. Returning truncated content (%d chars, limit: %d).%s",
+                            log_identifier,
+                            filename,
+                            version_to_load,
+                            len(truncated_content),
+                            max_content_length,
+                            line_range_msg,
+                        )
+                    else:
+                        truncated_content = content_str
+                        log.info(
+                            "%s Loaded and decoded text artifact '%s' v%d. Returning full content (%d chars).",
+                            log_identifier,
+                            filename,
+                            version_to_load,
+                            len(content_str),
+                        )
+                    return {
+                        "status": "success",
+                        "filename": filename,
+                        "version": version_to_load,
+                        "mime_type": mime_type,
+                        "content": truncated_content,
+                        "message_to_llm": message_to_llm,
+                        "size_bytes": size_bytes,
+                    }
                 else:
                     log.info(
                         "%s Loaded binary/unknown artifact '%s' v%d. Returning metadata summary.",
