@@ -721,12 +721,15 @@ class DAGExecutor:
         # Generate sub-task ID
         sub_task_id = f"wf_{workflow_state.execution_id}_{iter_node.id}_{uuid.uuid4().hex[:8]}"
 
+        # Handle both AgentInvokeNode (has agent_name) and WorkflowInvokeNode (has workflow_name)
+        target_name = getattr(iter_node, "agent_name", getattr(iter_node, "workflow_name", None))
+
         # Emit start event for loop iteration child
         start_data = WorkflowNodeExecutionStartData(
             type="workflow_node_execution_start",
             node_id=iter_node.id,
             node_type="agent",
-            agent_name=getattr(iter_node, "agent_name", None),
+            agent_name=target_name,
             iteration_index=iteration,
             sub_task_id=sub_task_id,
             parent_node_id=node.id,
@@ -743,9 +746,14 @@ class DAGExecutor:
         ]
 
         # Execute the inner node
-        await self.host.agent_caller.call_agent(
-            iter_node, workflow_state, workflow_context, sub_task_id=sub_task_id
-        )
+        if iter_node.type == "workflow":
+            await self.host.agent_caller.call_workflow(
+                iter_node, workflow_state, workflow_context, sub_task_id=sub_task_id
+            )
+        else:
+            await self.host.agent_caller.call_agent(
+                iter_node, workflow_state, workflow_context, sub_task_id=sub_task_id
+            )
 
     async def _skip_branch(
         self, node_id: str, workflow_state: WorkflowExecutionState
@@ -880,11 +888,12 @@ class DAGExecutor:
             sub_task_id = f"wf_{workflow_state.execution_id}_{iter_node.id}_{uuid.uuid4().hex[:8]}"
 
             # Emit start event for iteration BEFORE execution
+            target_name = getattr(iter_node, "agent_name", getattr(iter_node, "workflow_name", None))            
             start_data = WorkflowNodeExecutionStartData(
                 type="workflow_node_execution_start",
                 node_id=iter_node.id,
                 node_type="agent",
-                agent_name=iter_node.agent_name,
+                agent_name=target_name,
                 iteration_index=index,
                 sub_task_id=sub_task_id,
                 parent_node_id=map_node_id,
@@ -893,9 +902,14 @@ class DAGExecutor:
             await self.host.publish_workflow_event(workflow_context, start_data)
 
             # Execute
-            await self.host.agent_caller.call_agent(
-                iter_node, iteration_state, workflow_context, sub_task_id=sub_task_id
-            )
+            if iter_node.type == "workflow":
+                await self.host.agent_caller.call_workflow(
+                    iter_node, iteration_state, workflow_context, sub_task_id=sub_task_id
+                )
+            else:
+                await self.host.agent_caller.call_agent(
+                    iter_node, iteration_state, workflow_context, sub_task_id=sub_task_id
+                )
 
             # Track active sub-task
             workflow_state.active_branches[map_node_id].append(
