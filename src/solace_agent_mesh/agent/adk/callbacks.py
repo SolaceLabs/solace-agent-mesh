@@ -8,6 +8,7 @@ import json
 import asyncio
 import time
 import uuid
+import re
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 from collections import defaultdict
 
@@ -635,34 +636,50 @@ async def process_artifact_blocks_callback(
         final_parser_result = parser.finalize()
 
         for event in final_parser_result.events:
-            if isinstance(event, BlockCompletedEvent):
+            if isinstance(event, BlockInvalidatedEvent):
+                # This event is emitted when an unterminated block is detected at the end of a turn.
+                # The rolled_back_text contains the original opening line + buffered content.
+                # We need to:
+                # 1. Send a "cancelled" status to clean up any in-progress UI
+                # 2. Send the original text as a status update so the frontend can display it
                 log.warning(
-                    "%s Unterminated artifact block detected at end of turn.",
+                    "%s Unterminated artifact block detected at end of turn. Rolled back text length: %d",
                     log_identifier,
+                    len(event.rolled_back_text),
                 )
-                params = event.params
-                filename = params.get("filename", "unknown_artifact")
-                if filename == "unknown_artifact":
-                    log.warning(
-                        "%s Unterminated fenced artifact block is missing a valid 'filename'. Failing operation.",
-                        log_identifier,
+                
+                # Try to extract filename from the rolled back text for the cancelled status
+                # The format is: «««save_artifact: filename="test.md" ...\n...content...
+                filename = "unknown_artifact"
+                filename_match = re.search(r'filename="([^"]+)"', event.rolled_back_text)
+                if filename_match:
+                    filename = filename_match.group(1)
+                
+                # Send a "cancelled" status to clean up any in-progress UI that was created
+                # when the block started. This tells the frontend to remove the artifact bubble.
+                a2a_context = callback_context.state.get("a2a_context")
+                if a2a_context:
+                    cancelled_progress_data = ArtifactCreationProgressData(
+                        filename=filename,
+                        status="cancelled",  # Use "cancelled" instead of "failed" for unterminated blocks
+                        bytes_transferred=0,
+                        # Include the rolled back text so the frontend can display it
+                        # This is sent along with the cancelled status so the frontend
+                        # can show the original text that was incorrectly parsed as an artifact
+                        rolled_back_text=event.rolled_back_text,
                     )
-                if (
-                    "completed_artifact_blocks_list" not in session.state
-                    or session.state["completed_artifact_blocks_list"] is None
-                ):
-                    session.state["completed_artifact_blocks_list"] = []
-                session.state["completed_artifact_blocks_list"].append(
-                    {
-                        "filename": filename,
-                        "version": 0,
-                        "status": "error",
-                        "original_text": session.state.get(
-                            "artifact_block_original_text", ""
-                        )
-                        + event.content,
-                    }
-                )
+                    await _publish_data_part_status_update(
+                        host_component, a2a_context, cancelled_progress_data
+                    )
+                    log.debug(
+                        "%s Sent 'cancelled' status with rolled back text for unterminated artifact block: %s",
+                        log_identifier,
+                        filename,
+                    )
+                
+                # Note: We no longer need to store the original text in completed_artifact_blocks_list
+                # because we're sending it directly with the cancelled status.
+                # The frontend will handle displaying the text when it receives the cancelled status.
 
         # If there was any rolled-back text from finalization, append it
         if final_parser_result.user_facing_text:
@@ -696,7 +713,25 @@ async def process_artifact_blocks_callback(
             a2a_context = callback_context.state.get("a2a_context")
 
             tool_call_parts = []
+            error_text_parts = []  # Collect original text from error status artifacts
             for block_info in completed_blocks_list:
+                # Skip creating tool calls for error status artifacts
+                # This happens when the LLM outputs partial artifact markers in text
+                # (e.g., explaining how to use artifacts) without actually creating one
+                if block_info["status"] == "error":
+                    log.debug(
+                        "%s Skipping _notify_artifact_save for error status artifact: %s. "
+                        "Returning original text to user.",
+                        log_identifier,
+                        block_info.get("filename", "unknown"),
+                    )
+                    # Add the original text back to the response so the user can see it
+                    # This handles cases where the LLM mentions artifact syntax in explanations
+                    original_text = block_info.get("original_text", "")
+                    if original_text:
+                        error_text_parts.append(original_text)
+                    continue
+
                 function_call_id = f"host-notify-{uuid.uuid4()}"
                 notify_tool_call = adk_types.FunctionCall(
                     name="_notify_artifact_save",
@@ -746,7 +781,20 @@ async def process_artifact_blocks_callback(
             if llm_response.content is None:
                 llm_response.content = adk_types.Content(parts=[])
 
-            llm_response.content.parts = tool_call_parts + final_existing_parts
+            # Add error text parts (original text from failed/unterminated artifact blocks)
+            # This ensures the user sees the text that was incorrectly parsed as an artifact block
+            error_text_content_parts = []
+            if error_text_parts:
+                combined_error_text = "".join(error_text_parts)
+                error_text_content_parts.append(adk_types.Part(text=combined_error_text))
+                log.debug(
+                    "%s Adding %d error text part(s) back to response (%d chars total).",
+                    log_identifier,
+                    len(error_text_parts),
+                    len(combined_error_text),
+                )
+
+            llm_response.content.parts = tool_call_parts + error_text_content_parts + final_existing_parts
 
             llm_response.turn_complete = True
             llm_response.partial = False
