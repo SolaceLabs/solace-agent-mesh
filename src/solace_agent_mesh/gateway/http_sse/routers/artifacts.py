@@ -520,7 +520,7 @@ async def list_artifact_versions(
         log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
                 log_prefix, context_type, storage_user_id, storage_session_id)
 
-        # Try to get the agent_id for the session to enable fallback to default artifacts
+        # Try to get the agent_id for the session/project to enable fallback to default artifacts
         agent_name: Optional[str] = None
         if context_type == "session" and session_service and db:
             try:
@@ -538,6 +538,29 @@ async def list_artifact_versions(
                     log_prefix,
                     session_err,
                 )
+        elif context_type == "project" and project_service and project_id:
+            # For project context, look up the project's default_agent_id
+            from ....gateway.http_sse.dependencies import SessionLocal
+            
+            if SessionLocal is not None:
+                project_db = SessionLocal()
+                try:
+                    project = project_service.get_project(project_db, project_id, user_id)
+                    if project and project.default_agent_id:
+                        agent_name = project.default_agent_id
+                        log.debug(
+                            "%s Project has default agent '%s', will try fallback if needed.",
+                            log_prefix,
+                            agent_name,
+                        )
+                except Exception as project_err:
+                    log.warning(
+                        "%s Could not retrieve project agent info: %s",
+                        log_prefix,
+                        project_err,
+                    )
+                finally:
+                    project_db.close()
 
         versions = await artifact_service.list_versions(
             app_name=app_name,
@@ -601,6 +624,7 @@ async def list_artifacts(
         ..., title="Session ID", description="The session ID to list artifacts for (or 'null' for project context)"
     ),
     project_id: Optional[str] = Query(None, description="Project ID for project context"),
+    agent_name: Optional[str] = Query(None, description="Agent name to include default artifacts for (used when switching agents)"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
@@ -644,30 +668,43 @@ async def list_artifacts(
         log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
                 log_prefix, context_type, storage_user_id, storage_session_id)
 
-        # Try to get the agent_id for the session to include default artifacts
-        agent_name: Optional[str] = None
+        # Determine agent name for default artifacts
+        # Priority 1: Use agent_name from query parameter (when switching agents mid-session)
+        # Priority 2: Look up from session/project context
+        effective_agent_name: Optional[str] = agent_name  # From query parameter
         include_agent_defaults = False
         
         log.debug(
-            "%s Checking for agent defaults: context_type=%s, session_service=%s, db=%s",
+            "%s Checking for agent defaults: query_agent_name=%s, context_type=%s, session_service=%s, db=%s, project_service=%s",
             log_prefix,
+            agent_name,
             context_type,
             "available" if session_service else "None",
             "available" if db else "None",
+            "available" if project_service else "None",
         )
         
-        if context_type == "session" and session_service and db:
+        # If agent_name was provided via query parameter, use it directly
+        if effective_agent_name:
+            include_agent_defaults = True
+            log.info(
+                "%s Using agent_name from query parameter: '%s', will include default artifacts.",
+                log_prefix,
+                effective_agent_name,
+            )
+        elif context_type == "session" and session_service and db:
+            # Fall back to looking up agent from session
             try:
                 log.debug("%s Looking up session details for session_id=%s, user_id=%s", log_prefix, session_id, user_id)
                 session_domain = session_service.get_session_details(db, session_id, user_id)
                 log.debug("%s Session domain result: %s, agent_id=%s", log_prefix, session_domain, session_domain.agent_id if session_domain else "N/A")
                 if session_domain and session_domain.agent_id:
-                    agent_name = session_domain.agent_id
+                    effective_agent_name = session_domain.agent_id
                     include_agent_defaults = True
                     log.info(
                         "%s Session is associated with agent '%s', will include default artifacts.",
                         log_prefix,
-                        agent_name,
+                        effective_agent_name,
                     )
                 else:
                     log.debug(
@@ -681,6 +718,36 @@ async def list_artifacts(
                     log_prefix,
                     session_err,
                 )
+        elif context_type == "project" and project_service and project_id:
+            # For project context, look up the project's default_agent_id
+            from ....gateway.http_sse.dependencies import SessionLocal
+            
+            if SessionLocal is not None:
+                project_db = SessionLocal()
+                try:
+                    project = project_service.get_project(project_db, project_id, user_id)
+                    if project and project.default_agent_id:
+                        effective_agent_name = project.default_agent_id
+                        include_agent_defaults = True
+                        log.info(
+                            "%s Project has default agent '%s', will include default artifacts.",
+                            log_prefix,
+                            effective_agent_name,
+                        )
+                    else:
+                        log.debug(
+                            "%s Project has no default_agent_id set (project=%s).",
+                            log_prefix,
+                            project,
+                        )
+                except Exception as project_err:
+                    log.warning(
+                        "%s Could not retrieve project agent info: %s",
+                        log_prefix,
+                        project_err,
+                    )
+                finally:
+                    project_db.close()
         else:
             log.debug(
                 "%s Skipping agent defaults lookup: context_type=%s, session_service=%s, db=%s",
@@ -696,7 +763,7 @@ async def list_artifacts(
             user_id=storage_user_id,
             session_id=storage_session_id,
             include_agent_defaults=include_agent_defaults,
-            agent_name=agent_name,
+            agent_name=effective_agent_name,
         )
 
         log.info("%s Returning %d artifact details.", log_prefix, len(artifact_info_list))
@@ -760,7 +827,7 @@ async def get_latest_artifact(
         log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
                 log_prefix, context_type, storage_user_id, storage_session_id)
 
-        # Try to get the agent_id for the session to enable fallback to default artifacts
+        # Try to get the agent_id for the session/project to enable fallback to default artifacts
         agent_name: Optional[str] = None
         if context_type == "session" and session_service and db:
             try:
@@ -778,6 +845,29 @@ async def get_latest_artifact(
                     log_prefix,
                     session_err,
                 )
+        elif context_type == "project" and project_service and project_id:
+            # For project context, look up the project's default_agent_id
+            from ....gateway.http_sse.dependencies import SessionLocal
+            
+            if SessionLocal is not None:
+                project_db = SessionLocal()
+                try:
+                    project = project_service.get_project(project_db, project_id, user_id)
+                    if project and project.default_agent_id:
+                        agent_name = project.default_agent_id
+                        log.debug(
+                            "%s Project has default agent '%s', will try fallback if needed.",
+                            log_prefix,
+                            agent_name,
+                        )
+                except Exception as project_err:
+                    log.warning(
+                        "%s Could not retrieve project agent info: %s",
+                        log_prefix,
+                        project_err,
+                    )
+                finally:
+                    project_db.close()
 
         # Use the fallback function to load artifact (tries user session first, then agent defaults)
         artifact_part = await load_artifact_with_fallback_to_defaults(
@@ -951,7 +1041,7 @@ async def get_specific_artifact_version(
         log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
                 log_prefix, context_type, storage_user_id, storage_session_id)
 
-        # Try to get the agent_id for the session to enable fallback to default artifacts
+        # Try to get the agent_id for the session/project to enable fallback to default artifacts
         agent_name: Optional[str] = None
         if context_type == "session" and session_service and db:
             try:
@@ -969,6 +1059,29 @@ async def get_specific_artifact_version(
                     log_prefix,
                     session_err,
                 )
+        elif context_type == "project" and project_service and project_id:
+            # For project context, look up the project's default_agent_id
+            from ....gateway.http_sse.dependencies import SessionLocal
+            
+            if SessionLocal is not None:
+                project_db = SessionLocal()
+                try:
+                    project = project_service.get_project(project_db, project_id, user_id)
+                    if project and project.default_agent_id:
+                        agent_name = project.default_agent_id
+                        log.debug(
+                            "%s Project has default agent '%s', will try fallback if needed.",
+                            log_prefix,
+                            agent_name,
+                        )
+                except Exception as project_err:
+                    log.warning(
+                        "%s Could not retrieve project agent info: %s",
+                        log_prefix,
+                        project_err,
+                    )
+                finally:
+                    project_db.close()
 
         load_result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,

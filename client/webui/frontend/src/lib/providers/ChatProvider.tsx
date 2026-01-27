@@ -113,7 +113,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
 
     // Chat Side Panel State
-    const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts } = useArtifacts(sessionId);
+    // Pass selectedAgentName to include agent's default artifacts when agent changes
+    const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts } = useArtifacts(sessionId, selectedAgentName);
 
     // Title Generation
     const { generateTitle } = useTitleGeneration();
