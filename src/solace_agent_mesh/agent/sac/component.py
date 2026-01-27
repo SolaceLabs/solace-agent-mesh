@@ -3199,6 +3199,9 @@ class SamAgentComponent(SamComponentBase):
             )
             self.runner = initialize_adk_runner(self)
 
+            # Load default artifacts if configured
+            await self._load_default_artifacts()
+
             log.info("%s Populating agent card tool manifest...", self.log_identifier)
             tool_manifest = []
             for tool in loaded_tools:
@@ -3310,6 +3313,195 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                 )
             raise e
+
+    async def _load_default_artifacts(self):
+        """
+        Loads default artifacts configured for this agent into the artifact service.
+        
+        Default artifacts are stored with a special user_id marker (AGENT_DEFAULTS_USER_ID)
+        so they can be accessed by all users of this agent as a fallback when the user
+        doesn't have their own version of the artifact.
+        
+        This method is called during async initialization and reads files from the
+        configured paths, storing them in the artifact service.
+        """
+        from .app import DefaultArtifactConfig
+        from ...agent.adk.services import AGENT_DEFAULTS_USER_ID
+        from ...agent.utils.artifact_helpers import save_artifact_with_metadata
+        from datetime import datetime, timezone
+        import mimetypes
+        import os
+        
+        log.info(
+            "%s Checking for default artifacts configuration...",
+            self.log_identifier,
+        )
+        
+        default_artifacts_config = self.get_config("default_artifacts", [])
+        
+        log.info(
+            "%s default_artifacts_config = %s (type: %s)",
+            self.log_identifier,
+            default_artifacts_config,
+            type(default_artifacts_config).__name__,
+        )
+        
+        if not default_artifacts_config:
+            log.info(
+                "%s No default artifacts configured for this agent.",
+                self.log_identifier,
+            )
+            return
+        
+        if not self.artifact_service:
+            log.warning(
+                "%s Artifact service not available. Cannot load default artifacts.",
+                self.log_identifier,
+            )
+            return
+        
+        log.info(
+            "%s Loading %d default artifact(s) for agent '%s'...",
+            self.log_identifier,
+            len(default_artifacts_config),
+            self.agent_name,
+        )
+        
+        loaded_count = 0
+        for artifact_config in default_artifacts_config:
+            try:
+                # Extract configuration
+                if isinstance(artifact_config, dict):
+                    file_path = artifact_config.get("path")
+                    filename = artifact_config.get("filename")
+                    mime_type = artifact_config.get("mime_type")
+                    description = artifact_config.get("description")
+                else:
+                    # Pydantic model
+                    file_path = artifact_config.path
+                    filename = artifact_config.filename
+                    mime_type = artifact_config.mime_type
+                    description = artifact_config.description
+                
+                if not file_path:
+                    log.warning(
+                        "%s Default artifact config missing 'path'. Skipping.",
+                        self.log_identifier,
+                    )
+                    continue
+                
+                # Resolve the file path (support relative paths from config directory)
+                if not os.path.isabs(file_path):
+                    # Try to resolve relative to the config file location
+                    base_path = self.get_config("base_path", ".")
+                    file_path = os.path.join(base_path, file_path)
+                
+                if not os.path.exists(file_path):
+                    log.error(
+                        "%s Default artifact file not found: %s",
+                        self.log_identifier,
+                        file_path,
+                    )
+                    continue
+                
+                # Use the filename from config or derive from path
+                if not filename:
+                    filename = os.path.basename(file_path)
+                
+                # Detect MIME type if not specified
+                if not mime_type:
+                    mime_type, _ = mimetypes.guess_type(file_path)
+                    if not mime_type:
+                        mime_type = "application/octet-stream"
+                
+                # Read the file content
+                with open(file_path, "rb") as f:
+                    file_content = f.read()
+                
+                # Check if this artifact already exists to avoid creating duplicate versions on restart
+                try:
+                    existing_versions = await self.artifact_service.list_versions(
+                        app_name=self.agent_name,
+                        user_id=AGENT_DEFAULTS_USER_ID,
+                        session_id=self.agent_name,
+                        filename=filename,
+                    )
+                    if existing_versions:
+                        log.info(
+                            "%s Default artifact '%s' already exists (v%s), skipping to avoid duplicate versions.",
+                            self.log_identifier,
+                            filename,
+                            existing_versions[-1] if existing_versions else "?",
+                        )
+                        loaded_count += 1  # Count as loaded since it exists
+                        continue
+                except Exception as e:
+                    # If list_versions fails (e.g., artifact doesn't exist), proceed with saving
+                    log.debug(
+                        "%s Could not check existing versions for '%s': %s. Proceeding with save.",
+                        self.log_identifier,
+                        filename,
+                        e,
+                    )
+                
+                # Build metadata dictionary for the default artifact
+                metadata_dict = {
+                    "source": "agent_default",  # Mark as agent default
+                }
+                if description:
+                    metadata_dict["description"] = description
+                
+                # Save the artifact WITH metadata using save_artifact_with_metadata
+                # This ensures the .metadata.json file is also created, which is required
+                # for the artifact to be properly listed and loaded later
+                save_result = await save_artifact_with_metadata(
+                    artifact_service=self.artifact_service,
+                    app_name=self.agent_name,
+                    user_id=AGENT_DEFAULTS_USER_ID,
+                    session_id=self.agent_name,  # Use agent name as session for defaults
+                    filename=filename,
+                    content_bytes=file_content,
+                    mime_type=mime_type,
+                    metadata_dict=metadata_dict,
+                    timestamp=datetime.now(timezone.utc),
+                    suppress_visualization_signal=True,  # Don't send signals during init
+                )
+                
+                if save_result.get("status") in ["success", "partial_success"]:
+                    version = save_result.get("data_version")
+                    loaded_count += 1
+                    log.info(
+                        "%s Loaded default artifact '%s' (v%s) from '%s' [%s]%s",
+                        self.log_identifier,
+                        filename,
+                        version,
+                        file_path,
+                        mime_type,
+                        f" - {description}" if description else "",
+                    )
+                else:
+                    log.error(
+                        "%s Failed to save default artifact '%s': %s",
+                        self.log_identifier,
+                        filename,
+                        save_result.get("message", "Unknown error"),
+                    )
+                
+            except Exception as e:
+                log.exception(
+                    "%s Error loading default artifact from config %s: %s",
+                    self.log_identifier,
+                    artifact_config,
+                    e,
+                )
+        
+        log.info(
+            "%s Successfully loaded %d/%d default artifact(s) for agent '%s'.",
+            self.log_identifier,
+            loaded_count,
+            len(default_artifacts_config),
+            self.agent_name,
+        )
 
     def cleanup(self):
         """Clean up resources on component shutdown."""

@@ -65,6 +65,7 @@ from sqlalchemy.orm import Session
 from ....agent.utils.artifact_helpers import (
     get_artifact_info_list,
     load_artifact_content_or_metadata,
+    load_artifact_with_fallback_to_defaults,
     process_artifact_upload,
 )
 
@@ -475,11 +476,16 @@ async def list_artifact_versions(
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     project_service: ProjectService | None = Depends(get_project_service_optional),
+    session_service: SessionService | None = Depends(
+        get_session_business_service_optional
+    ),
+    db: Session | None = Depends(get_db_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
 ):
     """
     Lists the available integer versions for a given artifact filename
     associated with the specified context (session or project).
+    Falls back to agent default artifacts if not found in user session.
     """
 
     log_prefix = f"[ArtifactRouter:ListVersions:{filename}] User={user_id}, Session={session_id} -"
@@ -511,8 +517,27 @@ async def list_artifact_versions(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
-        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s", 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
                 log_prefix, context_type, storage_user_id, storage_session_id)
+
+        # Try to get the agent_id for the session to enable fallback to default artifacts
+        agent_name: Optional[str] = None
+        if context_type == "session" and session_service and db:
+            try:
+                session_domain = session_service.get_session_details(db, session_id, user_id)
+                if session_domain and session_domain.agent_id:
+                    agent_name = session_domain.agent_id
+                    log.debug(
+                        "%s Session is associated with agent '%s', will try fallback if needed.",
+                        log_prefix,
+                        agent_name,
+                    )
+            except Exception as session_err:
+                log.warning(
+                    "%s Could not retrieve session agent info: %s",
+                    log_prefix,
+                    session_err,
+                )
 
         versions = await artifact_service.list_versions(
             app_name=app_name,
@@ -520,6 +545,29 @@ async def list_artifact_versions(
             session_id=storage_session_id,
             filename=filename,
         )
+        
+        # If no versions found and we have an agent name, try agent defaults
+        if not versions and agent_name:
+            log.debug(
+                "%s No versions found in user session, trying agent defaults for agent '%s'.",
+                log_prefix,
+                agent_name,
+            )
+            from ....agent.utils.artifact_helpers import AGENT_DEFAULTS_USER_ID
+            versions = await artifact_service.list_versions(
+                app_name=agent_name,  # Default artifacts use agent_name as app_name
+                user_id=AGENT_DEFAULTS_USER_ID,
+                session_id=agent_name,
+                filename=filename,
+            )
+            if versions:
+                log.info(
+                    "%s Found versions in agent defaults for agent '%s': %s",
+                    log_prefix,
+                    agent_name,
+                    versions,
+                )
+        
         log.info("%s Found versions: %s", log_prefix, versions)
         return versions
     except FileNotFoundError:
@@ -558,11 +606,16 @@ async def list_artifacts(
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     project_service: ProjectService | None = Depends(get_project_service_optional),
+    session_service: SessionService | None = Depends(
+        get_session_business_service_optional
+    ),
+    db: Session | None = Depends(get_db_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
 ):
     """
     Lists detailed information (filename, size, type, modified date, uri)
     for all artifacts associated with the specified context (session or project).
+    Includes agent-level default artifacts if the session is associated with an agent.
     """
 
     log_prefix = f"[ArtifactRouter:ListInfo] User={user_id}, Session={session_id} -"
@@ -588,14 +641,62 @@ async def list_artifacts(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
-        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s", 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
                 log_prefix, context_type, storage_user_id, storage_session_id)
+
+        # Try to get the agent_id for the session to include default artifacts
+        agent_name: Optional[str] = None
+        include_agent_defaults = False
+        
+        log.debug(
+            "%s Checking for agent defaults: context_type=%s, session_service=%s, db=%s",
+            log_prefix,
+            context_type,
+            "available" if session_service else "None",
+            "available" if db else "None",
+        )
+        
+        if context_type == "session" and session_service and db:
+            try:
+                log.debug("%s Looking up session details for session_id=%s, user_id=%s", log_prefix, session_id, user_id)
+                session_domain = session_service.get_session_details(db, session_id, user_id)
+                log.debug("%s Session domain result: %s, agent_id=%s", log_prefix, session_domain, session_domain.agent_id if session_domain else "N/A")
+                if session_domain and session_domain.agent_id:
+                    agent_name = session_domain.agent_id
+                    include_agent_defaults = True
+                    log.info(
+                        "%s Session is associated with agent '%s', will include default artifacts.",
+                        log_prefix,
+                        agent_name,
+                    )
+                else:
+                    log.debug(
+                        "%s Session has no agent_id set yet (session_domain=%s).",
+                        log_prefix,
+                        session_domain,
+                    )
+            except Exception as session_err:
+                log.warning(
+                    "%s Could not retrieve session agent info: %s",
+                    log_prefix,
+                    session_err,
+                )
+        else:
+            log.debug(
+                "%s Skipping agent defaults lookup: context_type=%s, session_service=%s, db=%s",
+                log_prefix,
+                context_type,
+                "available" if session_service else "None",
+                "available" if db else "None",
+            )
 
         artifact_info_list = await get_artifact_info_list(
             artifact_service=artifact_service,
             app_name=app_name,
             user_id=storage_user_id,
             session_id=storage_session_id,
+            include_agent_defaults=include_agent_defaults,
+            agent_name=agent_name,
         )
 
         log.info("%s Returning %d artifact details.", log_prefix, len(artifact_info_list))
@@ -625,11 +726,16 @@ async def get_latest_artifact(
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     project_service: ProjectService | None = Depends(get_project_service_optional),
+    session_service: SessionService | None = Depends(
+        get_session_business_service_optional
+    ),
+    db: Session | None = Depends(get_db_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
 ):
     """
     Retrieves the content of the latest version of the specified artifact
     associated with the specified context (session or project).
+    Falls back to agent default artifacts if not found in user session.
     """
     log_prefix = (
         f"[ArtifactRouter:GetLatest:{filename}] User={user_id}, Session={session_id} -"
@@ -651,14 +757,36 @@ async def get_latest_artifact(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
-        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s", 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
                 log_prefix, context_type, storage_user_id, storage_session_id)
 
-        artifact_part = await artifact_service.load_artifact(
+        # Try to get the agent_id for the session to enable fallback to default artifacts
+        agent_name: Optional[str] = None
+        if context_type == "session" and session_service and db:
+            try:
+                session_domain = session_service.get_session_details(db, session_id, user_id)
+                if session_domain and session_domain.agent_id:
+                    agent_name = session_domain.agent_id
+                    log.debug(
+                        "%s Session is associated with agent '%s', will try fallback if needed.",
+                        log_prefix,
+                        agent_name,
+                    )
+            except Exception as session_err:
+                log.warning(
+                    "%s Could not retrieve session agent info: %s",
+                    log_prefix,
+                    session_err,
+                )
+
+        # Use the fallback function to load artifact (tries user session first, then agent defaults)
+        artifact_part = await load_artifact_with_fallback_to_defaults(
+            artifact_service=artifact_service,
             app_name=app_name,
             user_id=storage_user_id,
             session_id=storage_session_id,
             filename=filename,
+            agent_name=agent_name,
         )
 
         if artifact_part is None or artifact_part.inline_data is None:
@@ -791,11 +919,16 @@ async def get_specific_artifact_version(
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     project_service: ProjectService | None = Depends(get_project_service_optional),
+    session_service: SessionService | None = Depends(
+        get_session_business_service_optional
+    ),
+    db: Session | None = Depends(get_db_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
 ):
     """
     Retrieves the content of a specific version of the specified artifact
     associated with the specified context (session or project).
+    Falls back to agent default artifacts if not found in user session.
     """
     log_prefix = f"[ArtifactRouter:GetVersion:{filename} v{version}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
@@ -815,8 +948,27 @@ async def get_specific_artifact_version(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
-        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s", 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
                 log_prefix, context_type, storage_user_id, storage_session_id)
+
+        # Try to get the agent_id for the session to enable fallback to default artifacts
+        agent_name: Optional[str] = None
+        if context_type == "session" and session_service and db:
+            try:
+                session_domain = session_service.get_session_details(db, session_id, user_id)
+                if session_domain and session_domain.agent_id:
+                    agent_name = session_domain.agent_id
+                    log.debug(
+                        "%s Session is associated with agent '%s', will try fallback if needed.",
+                        log_prefix,
+                        agent_name,
+                    )
+            except Exception as session_err:
+                log.warning(
+                    "%s Could not retrieve session agent info: %s",
+                    log_prefix,
+                    session_err,
+                )
 
         load_result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,
@@ -829,6 +981,33 @@ async def get_specific_artifact_version(
             return_raw_bytes=True,
             log_identifier_prefix="[ArtifactRouter:GetVersion]",
         )
+
+        # If not found and we have an agent name, try agent defaults
+        if load_result.get("status") == "not_found" and agent_name:
+            log.debug(
+                "%s Artifact not found in user session, trying agent defaults for agent '%s'.",
+                log_prefix,
+                agent_name,
+            )
+            from ....agent.utils.artifact_helpers import AGENT_DEFAULTS_USER_ID
+            load_result = await load_artifact_content_or_metadata(
+                artifact_service=artifact_service,
+                app_name=agent_name,  # Default artifacts use agent_name as app_name
+                user_id=AGENT_DEFAULTS_USER_ID,
+                session_id=agent_name,
+                filename=filename,
+                version=version,
+                load_metadata_only=False,
+                return_raw_bytes=True,
+                log_identifier_prefix="[ArtifactRouter:GetVersion:agent_default]",
+            )
+            if load_result.get("status") == "success":
+                log.info(
+                    "%s Loaded artifact '%s' from agent defaults for agent '%s'.",
+                    log_prefix,
+                    filename,
+                    agent_name,
+                )
 
         if load_result.get("status") != "success":
             error_message = load_result.get(

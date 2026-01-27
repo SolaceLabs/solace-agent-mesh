@@ -197,6 +197,36 @@ class McpProcessingConfig(SamConfigBase):
     )
 
 
+class DefaultArtifactConfig(SamConfigBase):
+    """Configuration for a default artifact to be pre-loaded when the agent starts.
+    
+    Default artifacts are loaded at agent startup and made available to all users
+    with access to the agent. They are read-only for users and stored in a special
+    agent-level scope that is accessible from all sessions.
+    """
+
+    path: str = Field(
+        ...,
+        description="Path to the artifact file. Supports local filesystem paths, "
+        "environment variable substitution (e.g., ${SAM_PROJECT_ROOT}/data/file.pdf), "
+        "and remote sources (s3://, https://).",
+    )
+    filename: str = Field(
+        ...,
+        description="Filename to use when storing the artifact. This is the name "
+        "that will be used to reference the artifact in tools and prompts.",
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Human-readable description of the artifact's purpose and contents.",
+    )
+    mime_type: Optional[str] = Field(
+        default=None,
+        description="MIME type of the artifact. If not specified, it will be "
+        "auto-detected from the file extension.",
+    )
+
+
 class ArtifactServiceConfig(SamConfigBase):
     """Configuration for the ADK Artifact Service."""
 
@@ -456,6 +486,13 @@ class SamAgentAppConfig(SamConfigBase):
     mcp_intelligent_processing: McpProcessingConfig = Field(
         default_factory=McpProcessingConfig,
         description="Configuration for intelligent processing of MCP tool responses.",
+    )
+    default_artifacts: List[DefaultArtifactConfig] = Field(
+        default_factory=list,
+        description="List of artifacts to pre-load when the agent starts. "
+        "These artifacts are available to all users with access to the agent "
+        "and are read-only. They are stored in a special agent-level scope "
+        "that is accessible from all sessions.",
     )
 
 
