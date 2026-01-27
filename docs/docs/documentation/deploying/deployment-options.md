@@ -38,10 +38,16 @@ sam run <agent or workflow config file path>
 sam run <agent config file path> <workflow config file path>
 ```
 
-This flexibility allows you to test individual components in isolation or verify how agents and workflows interact within your mesh. Workflows often invoke multiple standalone agents, which must be loaded via the command. For example, if workflow X requires agents Y and Z, the command below runs them all together.
+This flexibility allows you to test individual components in isolation or verify how agents and workflows interact within your mesh. Workflows often invoke multiple standalone agents, which must be loaded via the command. For example, if workflow W1 requires agents A1 and A2, the command below runs them all together.
 
 ```bash
-sam run <agent Y config file path> <agent Z config file path> <workflow X config file path>
+sam run <agent A1 config file path> <agent A2 config file path> <workflow W1 config file path>
+```
+
+Even if workflow W1 depends on workflow W2, the command still supports the following:
+
+```bash
+sam run <agent A1 config file path> <agent A2 config file path> <workflow W2 config file path> <workflow W1 config file path>
 ```
 
 ## Production Environment
@@ -73,10 +79,18 @@ COPY . /app
 
 CMD ["run", "--system-env"]
 
-# To run one specific agent or workflow, use:
+# To run one specific agent use:
 # CMD ["run", "--system-env", "configs/agents/main_orchestrator.yaml"]
-# CMD ["run", "--system-env", "configs/agents/YOUR-WORKFLOW.yaml"]
 
+# To run one specific workflow, use:
+# CMD ["run", "--system-env", "YOUR-WORKFLOW.yaml"]
+
+```
+
+A workflow’s dependees (agents and other workflows) can be deployed in the same container, as shown below, or they can be deployed in separate containers.
+
+```
+CMD ["run", "--system-env", "YOUR-AGENT.yaml", "YOUR-WORKFLOW.yaml"]
 ```
 
 To optimize build performance and security, create a `.dockerignore` file that excludes unnecessary files from the Docker build context:
