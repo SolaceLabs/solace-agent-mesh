@@ -87,7 +87,7 @@ CMD ["run", "--system-env"]
 
 ```
 
-A workflow’s dependees (agents and other workflows) can be deployed in the same container, as shown below, or they can be deployed in separate containers.
+You can deploy your workflow’s dependencies (agents and other workflows) in the same container, as shown below, or in separate containers.
 
 ```
 CMD ["run", "--system-env", "YOUR-AGENT.yaml", "YOUR-WORKFLOW.yaml"]
