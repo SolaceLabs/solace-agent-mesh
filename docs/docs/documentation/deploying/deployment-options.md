@@ -132,7 +132,7 @@ For example, you might run your main orchestrator in one deployment while scalin
 When deploying multiple containers, shared storage becomes critical for maintaining consistency across your Agent Mesh deployment. All container instances must access the same storage location with identical configurations to ensure proper operation.
 
 :::warning Shared Storage Requirement
-If using multiple containers, ensure all instances access the same storage with identical configurations. Inconsistent storage configurations can lead to data synchronization issues and unpredictable behavior.
+If you are using multiple containers, ensure all instances access the same storage with identical configurations. Inconsistent storage configurations can lead to data synchronization issues and unpredictable behavior.
 :::
 
 Consider using persistent volumes in Kubernetes or shared file systems in Docker deployments to meet this requirement.
