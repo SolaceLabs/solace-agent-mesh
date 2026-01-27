@@ -140,6 +140,9 @@
     * {
         @apply border-border focus-visible:outline-ring focus-visible:border-0 focus-visible:ring-0 focus-visible:outline-1;
     }
+    html {
+        overflow: hidden;
+    }
     body {
         @apply bg-background text-foreground;
         font-family: "Rubik", sans-serif;
