@@ -40,7 +40,7 @@ jobs:
   # ----------------------------------------------------
   prepare-metadata:
     name: Prepare Build Metadata
-    runs-on: ubuntu-latestq
+    runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_version.outputs.version }}
       short_sha: ${{ steps.get_commit_hash.outputs.short_sha }}
