@@ -47,6 +47,7 @@ from a2a.types import (
     JSONRPCResponse,
     Task,
     TaskArtifactUpdateEvent,
+    TaskState,
     TaskStatusUpdateEvent,
 )
 
@@ -1739,6 +1740,20 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             if result.metadata
                             else None
                         )
+                        task_status = a2a.get_task_status(result)
+                        # Guard against task_status being an Enum (TaskState) instead of TaskStatus object
+                        if (
+                            task_status
+                            and not isinstance(task_status, TaskState)
+                            and hasattr(task_status, "message")
+                        ):
+                            data_parts = a2a.get_data_parts_from_message(
+                                task_status.message
+                            )
+                            if data_parts:
+                                details["debug_type"] = data_parts[0].data.get(
+                                    "type", "task_result"
+                                )
                     elif isinstance(result, TaskArtifactUpdateEvent):
                         artifact = a2a.get_artifact_from_artifact_update(result)
                         if artifact:
@@ -1774,6 +1789,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             if message.metadata
                             else None
                         )
+                        data_parts = a2a.get_data_parts_from_message(message)
+                        if data_parts:
+                            details["debug_type"] = data_parts[0].data.get(
+                                "type", method
+                            )
                 elif method == "tasks/cancel":
                     details["task_id"] = a2a.get_task_id_from_cancel_request(
                         rpc_request
