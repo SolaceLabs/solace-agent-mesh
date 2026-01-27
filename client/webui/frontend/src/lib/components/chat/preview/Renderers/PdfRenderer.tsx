@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
-import { ZoomIn, ZoomOut, ScanLine } from "lucide-react";
+import { ZoomIn, ZoomOut, ScanLine, Hand } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 
 // Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
@@ -22,6 +23,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [pageWidth, setPageWidth] = useState<number | null>(null);
+    const [isPanMode, setIsPanMode] = useState(false);
     const viewerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -64,18 +66,25 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
     }, [pageWidth]);
 
     const handleMouseDown = (e: React.MouseEvent) => {
-        if (e.button !== 0) return;
+        // Only enable dragging in pan mode
+        if (!isPanMode || e.button !== 0) return;
         setIsDragging(true);
         setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
-        if (isDragging) {
+        if (isPanMode && isDragging) {
             setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
         }
     };
 
-    const handleMouseUp = () => setIsDragging(false);
+    const handleMouseUp = () => {
+        if (isPanMode) {
+            setIsDragging(false);
+        }
+    };
+
+    const togglePanMode = () => setIsPanMode(prev => !prev);
 
     const handleWheel = (e: React.WheelEvent) => {
         // Only zoom when Ctrl/Cmd key is pressed, otherwise allow normal scrolling
@@ -106,26 +115,50 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
         <div className="flex h-full flex-col overflow-auto bg-gray-100 p-4 dark:bg-gray-800">
             <div className="mb-2 flex items-center justify-center">
                 <div className="flex items-center gap-2 rounded-lg bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm dark:bg-gray-700/80">
-                    <button onClick={zoomOut} title="Zoom Out" className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
-                        <ZoomOut className="h-4 w-4" />
-                    </button>
-                    <button onClick={zoomIn} title="Zoom In" className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
-                        <ZoomIn className="h-4 w-4" />
-                    </button>
-                    <button onClick={fitToPage} title="Fit to Width" className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
-                        <ScanLine className="h-4 w-4" />
-                    </button>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button onClick={zoomOut} className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
+                                <ZoomOut className="h-4 w-4" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Zoom Out</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button onClick={zoomIn} className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
+                                <ZoomIn className="h-4 w-4" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Zoom In</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button onClick={fitToPage} className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600">
+                                <ScanLine className="h-4 w-4" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Fit to Width</TooltipContent>
+                    </Tooltip>
+                    <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button onClick={togglePanMode} className={`rounded p-1 ${isPanMode ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}>
+                                <Hand className="h-4 w-4" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{isPanMode ? "Switch to Text Selection Mode" : "Switch to Pan Mode"}</TooltipContent>
+                    </Tooltip>
                 </div>
             </div>
             <div
                 ref={viewerRef}
-                className="w-full flex-grow overflow-auto rounded border border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900"
+                className={`w-full flex-grow overflow-auto rounded border border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 ${!isPanMode ? "select-text" : ""}`}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
                 onWheel={handleWheel}
-                style={{ cursor: isDragging ? "grabbing" : "grab" }}
+                style={{ cursor: isPanMode ? (isDragging ? "grabbing" : "grab") : "auto" }}
             >
                 <Document
                     options={pdfOptions}
@@ -147,7 +180,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                                                 setPageWidth(page.width);
                                             }
                                         }}
-                                        renderTextLayer={true}
+                                        renderTextLayer={!isPanMode}
                                         renderAnnotationLayer={true}
                                         className="shadow-lg"
                                     />
