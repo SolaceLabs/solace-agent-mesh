@@ -3,7 +3,7 @@ import { userEvent, within } from "storybook/test";
 import { AgentMeshPage } from "@/lib";
 
 const meta = {
-    title: "Pages/AgentsPage",
+    title: "Pages/Agents/AgentsPage",
     component: AgentMeshPage,
     parameters: {
         layout: "fullscreen",
