@@ -1,0 +1,275 @@
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: level6_workflow_composition.log
+
+!include ../../shared_config.yaml
+
+apps:
+  # ============================================================================
+  # LEVEL 6: WORKFLOW COMPOSITION
+  # ============================================================================
+  # Tests workflow-to-workflow invocation (sub-workflows)
+  # Complexity: High
+  # Node types: agent (2), workflow (1)
+  # Features: Sub-workflow invocation, data flow between workflows, session hierarchy
+  # ============================================================================
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Data Transformer
+  # Transforms data by adding 10
+  # ----------------------------------------------------------------------------
+  - name: data_transformer_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "DataTransformer"
+      model: *planning_model
+
+      instruction: |
+        You transform data by adding 10 to the input value.
+        1. Read 'value' from input
+        2. Calculate: transformed = value + 10
+        3. Create a JSON artifact with: {"original": <value>, "transformed": <transformed>}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          value: {type: number}
+        required: [value]
+
+      output_schema:
+        type: object
+        properties:
+          original: {type: number}
+          transformed: {type: number}
+        required: [original, transformed]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Transforms data by adding 10"
+        skills: [{id: "transform_data", name: "Transform Data", description: "Adds 10 to values", tags: ["transformation"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Summary Generator
+  # Creates summary from transformation results
+  # ----------------------------------------------------------------------------
+  - name: summary_generator_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "SummaryGenerator"
+      model: *planning_model
+
+      instruction: |
+        You create summaries from transformation results.
+        1. Read 'original' and 'transformed' from input
+        2. Calculate: difference = transformed - original
+        3. Create a JSON artifact with: {"summary": "Value <original> transformed to <transformed> (difference: <diff>)", "original": <original>, "transformed": <transformed>, "difference": <diff>}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          original: {type: number}
+          transformed: {type: number}
+        required: [original, transformed]
+
+      output_schema:
+        type: object
+        properties:
+          summary: {type: string}
+          original: {type: number}
+          transformed: {type: number}
+          difference: {type: number}
+        required: [summary, original, transformed, difference]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Generates summaries from transformations"
+        skills: [{id: "generate_summary", name: "Generate Summary", description: "Summarizes transformations", tags: ["summary"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ============================================================================
+  # SUB-WORKFLOW: Data Processing
+  # ============================================================================
+  - name: data_processing_subworkflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "DataProcessingSubWorkflow"
+      display_name: "Data Processing Sub-Workflow"
+
+      # Timeout configurations
+      max_workflow_execution_time_seconds: 300
+      default_node_timeout_seconds: 60
+
+      workflow:
+        version: "1.0.0"
+        description: |
+          A sub-workflow that transforms data.
+          This is invoked by the parent workflow.
+
+        max_call_depth: 5
+
+        input_schema:
+          type: object
+          properties:
+            value: {type: number}
+          required: [value]
+
+        output_schema:
+          type: object
+          properties:
+            original: {type: number}
+            transformed: {type: number}
+          required: [original, transformed]
+
+        nodes:
+          - id: transform
+            type: agent
+            agent_name: "DataTransformer"
+            instruction: "Transform the data by adding 10."
+            input:
+              value: "{{workflow.input.value}}"
+
+        output_mapping:
+          original: "{{transform.output.original}}"
+          transformed: "{{transform.output.transformed}}"
+
+        skills:
+          - id: "process_data"
+            name: "Process Data"
+            description: "Transforms data (sub-workflow)"
+            tags: ["processing", "sub-workflow"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ============================================================================
+  # PARENT WORKFLOW: Workflow Composition
+  # ============================================================================
+  - name: workflow_composition_parent
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "WorkflowCompositionParent"
+      display_name: "Workflow Composition Parent"
+
+      # Timeout configurations
+      max_workflow_execution_time_seconds: 600  # 10 minutes
+      default_node_timeout_seconds: 120         # 2 minutes
+
+      workflow:
+        version: "1.0.0"
+        description: |
+          A parent workflow that invokes sub-workflows.
+
+          This workflow:
+          1. Invokes DataProcessingSubWorkflow to transform data
+          2. Uses the sub-workflow output to generate a summary
+
+          Tests: Workflow node, sub-workflow invocation, data flow between workflows
+
+        max_call_depth: 10
+
+        input_schema:
+          type: object
+          properties:
+            value:
+              type: number
+              description: "The value to process"
+          required: [value]
+
+        output_schema:
+          type: object
+          properties:
+            summary: {type: string}
+            original: {type: number}
+            transformed: {type: number}
+            difference: {type: number}
+          required: [summary, original, transformed, difference]
+
+        nodes:
+          # Step 1: Invoke sub-workflow to process data
+          - id: process_data
+            type: workflow
+            workflow_name: "DataProcessingSubWorkflow"
+            instruction: "Process the data using the sub-workflow."
+            input:
+              value: "{{workflow.input.value}}"
+
+          # Step 2: Generate summary from sub-workflow results
+          - id: generate_summary
+            type: agent
+            agent_name: "SummaryGenerator"
+            depends_on: [process_data]
+            instruction: "Generate a summary of the transformation."
+            input:
+              original: "{{process_data.output.original}}"
+              transformed: "{{process_data.output.transformed}}"
+
+        output_mapping:
+          summary: "{{generate_summary.output.summary}}"
+          original: "{{generate_summary.output.original}}"
+          transformed: "{{generate_summary.output.transformed}}"
+          difference: "{{generate_summary.output.difference}}"
+
+        skills:
+          - id: "workflow_composition"
+            name: "Workflow Composition"
+            description: "Demonstrates parent-child workflow invocation"
+            tags: ["eval", "level6", "composition", "sub-workflow"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
