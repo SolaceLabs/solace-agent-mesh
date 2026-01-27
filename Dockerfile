@@ -56,11 +56,11 @@ RUN apt-get update && \
     curl \
     ffmpeg=7:7.1.3-0+deb13u1  \
     git && \
-    python3 -m pip install --upgrade pip>=25.3 && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/* && \
     python3 -m venv /opt/venv && \
+    /opt/venv/bin/python -m pip install --upgrade "pip>=25.3" && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
@@ -121,12 +121,11 @@ ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install minimal runtime dependencies (no uv for licensing compliance)
-# Upgrade pip to >=25.3 to fix CVE-2025-8869
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    curl \
     ffmpeg=7:7.1.3-0+deb13u1 \
     git && \
-    python3 -m pip install --upgrade pip>=25.3 && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
