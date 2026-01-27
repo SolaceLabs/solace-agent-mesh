@@ -16,6 +16,11 @@ class SharingRole(Enum):
 class ResourceSharingService(ABC):
     """Abstract base class for resource sharing functionality."""
 
+    @property
+    def is_resource_sharing_available(self) -> bool:
+        """Returns True if resource sharing functionality is available."""
+        return False
+
     @abstractmethod
     def share_resource(
         self,
