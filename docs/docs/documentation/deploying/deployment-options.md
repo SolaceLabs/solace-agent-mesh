@@ -8,6 +8,9 @@ sidebar_position: 10
 Agent Mesh offers flexible deployment options designed to meet different operational requirements. Understanding these options helps you choose the right approach for your specific environment and scale needs.
 
 Agent and workflow deployments follow identical processes in Solace Agent Mesh. Both agents and workflows are configured using YAML files and deployed using the same commands and infrastructure. From a deployment perspective, workflows are treated as specialized agents that orchestrate other agents through defined steps.
+:::note
+Workflows cannot run independently. They must be triggered by an LLM agent, such as the Orchestrator. Therefore, at least one LLM agent must be deployed alongside the workflows. This requirement may change in the future.
+:::
 
 ## Development Environment
 
@@ -35,7 +38,11 @@ sam run <agent or workflow config file path>
 sam run <agent config file path> <workflow config file path>
 ```
 
-This flexibility allows you to test individual components in isolation or verify how agents and workflows interact within your mesh.
+This flexibility allows you to test individual components in isolation or verify how agents and workflows interact within your mesh. Workflows often invoke multiple standalone agents, which must be loaded via the command. For example, if workflow X requires agents Y and Z, the command below runs them all together.
+
+```bash
+sam run <agent Y config file path> <agent Z config file path> <workflow X config file path>
+```
 
 ## Production Environment
 
@@ -68,6 +75,7 @@ CMD ["run", "--system-env"]
 
 # To run one specific agent or workflow, use:
 # CMD ["run", "--system-env", "configs/agents/main_orchestrator.yaml"]
+# CMD ["run", "--system-env", "configs/agents/YOUR-WORKFLOW.yaml"]
 
 ```
 
@@ -114,6 +122,10 @@ If using multiple containers, ensure all instances access the same storage with 
 :::
 
 Consider using persistent volumes in Kubernetes or shared file systems in Docker deployments to meet this requirement.
+
+:::note 
+Workflow deployment requires special attention, especially when workflows call agents running in separate containers. Agents must be discoverable and accessible for the workflow to function correctly.
+:::
 
 ### Implementing Security Best Practices
 
