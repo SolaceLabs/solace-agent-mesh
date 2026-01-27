@@ -3,7 +3,7 @@ import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vit
 import { expect, screen, within } from "storybook/test";
 
 const meta = {
-    title: "Common/Toast",
+    title: "Components/Toast",
     component: Toast,
     parameters: {
         layout: "fullscreen",

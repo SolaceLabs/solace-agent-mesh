@@ -3,7 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/lib/components/ui/pop
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 
 const meta = {
-    title: "Common/Menu",
+    title: "Components/Menu",
     component: Menu,
     parameters: {
         layout: "fullscreen",

@@ -2,7 +2,7 @@ import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vit
 import { Button } from "@/lib";
 
 const meta = {
-    title: "Common/Button",
+    title: "Components/Button",
     component: Button,
     parameters: {
         layout: "fullscreen",
