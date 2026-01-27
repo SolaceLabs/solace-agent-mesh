@@ -38,7 +38,7 @@ sam run <agent or workflow config file path>
 sam run <agent config file path> <workflow config file path>
 ```
 
-This flexibility allows you to test individual components in isolation or verify how agents and workflows interact within your agent mesh. Workflows often invoke multiple standalone agents, which must be loaded via the command. For example, if workflow W1 requires agents A1 and A2, the command below runs them all together.
+This flexibility allows you to test individual components in isolation or verify how agents and workflows interact within your agent mesh. Workflows often invoke multiple standalone agents, which must be loaded via the `run` command. For example, if workflow W1 requires agents A1 and A2, the following command runs them all together.
 
 ```bash
 sam run <agent A1 config file path> <agent A2 config file path> <workflow W1 config file path>
