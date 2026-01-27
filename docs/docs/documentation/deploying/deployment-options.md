@@ -23,10 +23,10 @@ sam run
 
 This command starts all configured components together, providing immediate feedback and allowing you to see how different agents interact within your mesh.
 
-**Run a specific agent/workflow:**
+**Run a specific agent or workflow:**
 
 ```bash
-sam run <agent/workflow config file path>
+sam run <agent or workflow config file path>
 ```
 
 **Run multiple components together:**
@@ -66,7 +66,7 @@ COPY . /app
 
 CMD ["run", "--system-env"]
 
-# To run one specific agent/workflow, use:
+# To run one specific agent or workflow, use:
 # CMD ["run", "--system-env", "configs/agents/main_orchestrator.yaml"]
 
 ```
