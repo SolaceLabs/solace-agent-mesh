@@ -293,8 +293,16 @@ class ProjectService:
         """
         self.logger.debug(f"Retrieving accessible projects for user {user_id}")
         project_repository = self._get_repositories(db)
-        # Use single query with JOIN instead of N+1 queries
-        return project_repository.get_accessible_projects(user_id)
+
+        if not self._resource_sharing_service.is_resource_sharing_available:
+            return project_repository.get_user_projects(user_id)
+        
+        shared_resources = self._resource_sharing_service.get_shared_resources(
+            session=db, user_email=user_id, resource_type=ResourceType.PROJECT
+        )
+        shared_project_ids = [r['resource_id'] for r in shared_resources]
+
+        return project_repository.get_owned_or_shared(user_id, shared_project_ids)
 
     def get_user_projects(self, db, user_id: str) -> List[Project]:
         """

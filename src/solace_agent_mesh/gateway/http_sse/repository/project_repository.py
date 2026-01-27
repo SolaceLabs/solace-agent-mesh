@@ -98,8 +98,28 @@ class ProjectRepository(IProjectRepository):
             ProjectModel.id == project_id,
             ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
         ).first()
-        
         return self._model_to_entity(model) if model else None
+
+    def get_owned_or_shared(self, user_id: str, shared_ids: List[str]) -> List[Project]:
+        """
+        Get projects owned by user OR in the shared IDs list.
+        Single query using OR condition for optimal performance.
+        """
+        query = self.db.query(ProjectModel).filter(
+            ProjectModel.deleted_at.is_(None)
+        )
+
+        if shared_ids:
+            query = query.filter(
+                or_(
+                    ProjectModel.user_id == user_id,
+                    ProjectModel.id.in_(shared_ids)
+                )
+            )
+        else:
+            query = query.filter(ProjectModel.user_id == user_id)
+
+        return [self._model_to_entity(model) for model in query.all()]
 
     def update(self, project_id: str, update_data: dict) -> Optional[Project]:
         """Update a project with the given data."""
