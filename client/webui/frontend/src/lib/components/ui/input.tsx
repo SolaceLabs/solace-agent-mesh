@@ -23,7 +23,7 @@ function Input({ className, type, ...props }: ComponentProps<"input">) {
                 "shadow-xs transition-[color,box-shadow] outline-none",
 
                 // Placeholder & Selection
-                "placeholder:text-muted-foreground",
+                "placeholder:text-placeholder",
 
                 // Focus State
                 "focus-visible:border-[var(--color-brand-wMain)]",

@@ -21,7 +21,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttribu
                 "shadow-xs transition-[color,box-shadow] outline-none",
 
                 // Placeholder
-                "placeholder:text-muted-foreground",
+                "placeholder:text-placeholder",
 
                 // Focus State
                 "focus-visible:border-[var(--color-brand-wMain)]",

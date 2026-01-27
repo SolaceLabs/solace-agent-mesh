@@ -72,7 +72,7 @@ export const Default: Story = {
             <div>
                 <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>Readonly Select</label>
                 <Select readonly defaultValue="option2">
-                    <SelectTrigger>
+                    <SelectTrigger readonly>
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

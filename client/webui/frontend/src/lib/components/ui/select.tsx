@@ -4,8 +4,8 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-function Select({ readonly, disabled, ...props }: React.ComponentProps<typeof SelectPrimitive.Root> & { readonly?: boolean }) {
-    return <SelectPrimitive.Root disabled={readonly || disabled} data-readonly={readonly} data-slot="select" {...props} />;
+function Select({ disabled, readonly, ...props }: React.ComponentProps<typeof SelectPrimitive.Root> & { readonly?: boolean }) {
+    return <SelectPrimitive.Root disabled={disabled || readonly} aria-readonly={readonly} data-slot="select" {...props} />;
 }
 
 function SelectGroup({ ...props }: React.ComponentProps<typeof SelectPrimitive.Group>) {
@@ -20,17 +20,20 @@ function SelectTrigger({
     className,
     size = "default",
     invalid,
+    readonly,
     children,
     ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
     size?: "sm" | "default";
     invalid?: boolean;
+    readonly?: boolean;
 }) {
     return (
         <SelectPrimitive.Trigger
             data-slot="select-trigger"
             data-size={size}
             aria-invalid={invalid}
+            aria-readonly={readonly}
             className={cn(
                 // Layout & Sizing
                 "flex w-fit items-center justify-between gap-2",
@@ -48,16 +51,13 @@ function SelectTrigger({
                 "shadow-xs transition-colors outline-none",
 
                 // Placeholder
-                "data-[placeholder]:text-muted-foreground",
+                "data-[placeholder]:text-placeholder",
 
                 // Focus State
                 "focus-visible:border-[var(--color-brand-wMain)]",
 
-                // Disabled State
-                "disabled:cursor-not-allowed disabled:opacity-50",
-
-                // Readonly State
-                "data-[readonly]:cursor-default data-[readonly]:opacity-80",
+                // Disabled/Readonly State
+                readonly ? "cursor-default opacity-80" : "disabled:cursor-not-allowed disabled:opacity-50",
 
                 // Invalid/Error State
                 "aria-invalid:border-[var(--color-error-w100)]",
