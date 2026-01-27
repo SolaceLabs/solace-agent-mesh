@@ -119,10 +119,14 @@ ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install minimal runtime dependencies (no uv for licensing compliance)
+# LibreOffice is installed for document conversion (DOCX/PPTX to PDF for preview)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     ffmpeg=7:7.1.3-0+deb13u1 \
-    git && \
+    git \
+    libreoffice-writer-nogui \
+    libreoffice-impress-nogui \
+    libreoffice-calc-nogui && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
