@@ -178,7 +178,15 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
     )
     agent_card_path: str = Field(
         default="/.well-known/agent-card.json",
-        description="Path to the agent card endpoint (relative to the base URL).",
+        description="Path to the agent card endpoint (relative to the base URL). "
+        "Only used when agent_card_data is not provided.",
+    )
+    agent_card_data: Optional[dict] = Field(
+        default=None,
+        description="Static agent card data embedded directly in configuration. "
+        "If provided, the agent card will be constructed from this data instead of "
+        "being fetched from the agent card endpoint. This allows proxying agents without "
+        "agent card endpoints.",
     )
     authentication: Optional[AuthenticationConfig] = Field(
         default=None,

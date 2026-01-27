@@ -249,6 +249,156 @@ class A2AProxyComponent(BaseProxyComponent):
         }
         return defaults.get(auth_type, "bearer")
 
+    def _construct_security_schemes_from_auth(
+        self, auth_config: Dict[str, Any]
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[List[Dict[str, List[str]]]]]:
+        """
+        Constructs securitySchemes and security arrays from authentication config.
+
+        This creates the security configuration that would normally be in an agent card,
+        based on the authentication settings in the proxy configuration.
+
+        Args:
+            auth_config: Authentication configuration from proxied_agent config.
+
+        Returns:
+            Tuple of (securitySchemes dict, security list), or (None, None) if no auth.
+        """
+        if not auth_config:
+            return None, None
+
+        # Determine auth type
+        auth_type = auth_config.get("type")
+        if not auth_type and auth_config.get("scheme"):
+            # Legacy config: infer type from scheme
+            scheme = auth_config.get("scheme", "bearer")
+            auth_type = "static_bearer" if scheme == "bearer" else "static_apikey"
+
+        if not auth_type:
+            return None, None
+
+        security_schemes = {}
+        security = []
+
+        if auth_type == "static_bearer":
+            # HTTP Bearer authentication
+            scheme_name = "bearer"
+            security_schemes[scheme_name] = {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "Static bearer token authentication",
+            }
+            security.append({scheme_name: []})
+
+        elif auth_type == "static_apikey":
+            # API Key authentication
+            scheme_name = "apikey"
+            security_schemes[scheme_name] = {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-API-Key",
+                "description": "API key authentication via X-API-Key header",
+            }
+            security.append({scheme_name: []})
+
+        elif auth_type == "oauth2_client_credentials":
+            # OAuth 2.0 Client Credentials flow
+            scheme_name = "oauth2ClientCredentials"
+            token_url = auth_config.get("token_url")
+            scope_string = auth_config.get("scope", "")
+
+            # Parse scope string into dict (e.g., "read write" -> {"read": "", "write": ""})
+            scopes_dict = {}
+            scopes_list = []
+            if scope_string:
+                scopes_list = scope_string.split()
+                scopes_dict = {scope: "" for scope in scopes_list}
+
+            security_schemes[scheme_name] = {
+                "type": "oauth2",
+                "description": "OAuth 2.0 client credentials flow",
+                "flows": {
+                    "clientCredentials": {
+                        "tokenUrl": token_url,
+                        "scopes": scopes_dict,
+                    }
+                },
+            }
+            security.append({scheme_name: scopes_list})
+
+        return security_schemes, security
+
+    def _construct_synthetic_agent_card(
+        self, agent_config: Dict[str, Any]
+    ) -> Optional[AgentCard]:
+        """
+        Constructs a synthetic AgentCard from embedded agent_card_data in config.
+
+        This allows proxying agents that don't have a live agent card endpoint.
+        The agent card data is embedded directly in the YAML configuration, and
+        security schemes are constructed from the authentication config.
+
+        Args:
+            agent_config: Agent configuration with agent_card_data, url, and authentication.
+
+        Returns:
+            A synthetic AgentCard constructed from the config, or None if invalid.
+        """
+        card_data = agent_config.get("agent_card_data")
+        if not card_data:
+            return None
+
+        agent_name = agent_config.get("name")
+        log_identifier = f"{self.log_identifier}[ConstructCard:{agent_name}]"
+
+        try:
+            # Start with a copy of the embedded card data
+            synthetic_card_dict = dict(card_data)
+
+            # Add URL from config
+            synthetic_card_dict["url"] = agent_config["url"]
+
+            # Add required capabilities field if not present
+            if "capabilities" not in synthetic_card_dict:
+                synthetic_card_dict["capabilities"] = {}
+
+            # Construct security schemes from authentication config
+            auth_config = agent_config.get("authentication")
+            if auth_config:
+                security_schemes, security = self._construct_security_schemes_from_auth(
+                    auth_config
+                )
+                if security_schemes:
+                    synthetic_card_dict["securitySchemes"] = security_schemes
+                    log.debug(
+                        "%s Added security schemes for auth type '%s': %s",
+                        log_identifier,
+                        auth_config.get("type"),
+                        list(security_schemes.keys()),
+                    )
+                if security:
+                    synthetic_card_dict["security"] = security
+
+            # Validate and construct AgentCard (same pattern as HTTP fetch)
+            agent_card = AgentCard.model_validate(synthetic_card_dict)
+
+            log.info(
+                "%s Successfully constructed synthetic agent card for '%s' with %d security scheme(s).",
+                log_identifier,
+                agent_card.name,
+                len(agent_card.security_schemes) if agent_card.security_schemes else 0,
+            )
+            return agent_card
+
+        except Exception as e:
+            log.exception(
+                "%s Failed to construct synthetic agent card for '%s': %s",
+                log_identifier,
+                agent_name,
+                e,
+            )
+            return None
+
     async def _ensure_credentials(
         self,
         agent_card: Optional[AgentCard],
