@@ -44,7 +44,7 @@ This flexibility allows you to test individual components in isolation or verify
 sam run <agent A1 config file path> <agent A2 config file path> <workflow W1 config file path>
 ```
 
-Even if workflow W1 depends on workflow W2, the command still supports the following:
+If workflow W1 depends on workflow W2, you can invoke them together by running the following command:
 
 ```bash
 sam run <agent A1 config file path> <agent A2 config file path> <workflow W2 config file path> <workflow W1 config file path>
