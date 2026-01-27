@@ -7,7 +7,7 @@ behavior that allows all operations.
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 log = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class ConfigResolver:
 
     @staticmethod
     async def resolve_user_config(
-        user_identity: Any, gateway_context: Dict[str, Any], base_config: Dict[str, Any]
+        user_identity: Any, gateway_context: Dict[str, Any], base_config: Dict[str, Any], user: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Resolve user-specific configuration settings.
@@ -34,6 +34,7 @@ class ConfigResolver:
             user_identity: Identifier for the user (username, email, ID, etc.)
             gateway_context: Context information from the gateway (gateway_id, etc.)
             base_config: Base configuration to start with
+            user:
 
         Returns:
             Dict containing user-specific configuration. Default implementation

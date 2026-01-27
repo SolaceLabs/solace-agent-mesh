@@ -34,6 +34,7 @@ from .repository.interfaces import ITaskRepository
 from .repository.project_repository import ProjectRepository
 from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService
+from ...shared.api import get_current_user
 
 log = logging.getLogger(__name__)
 
@@ -387,7 +388,7 @@ def get_app_config(
 
 async def get_user_config(
     request: Request,
-    user_id: str = Depends(get_user_id),
+    user: dict = Depends(get_current_user),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     app_config: dict[str, Any] = Depends(get_app_config),
@@ -405,14 +406,13 @@ async def get_user_config(
             "gateway_app_config": app_config,
             "request": request,
         }
-    return await config_resolver.resolve_user_config(
-        user_id, gateway_context, app_config
-    )
+    return await config_resolver.resolve_user_config(user, gateway_context, app_config)
 
 
 # DEPRECATED: Import from shared location
 # Re-export for backward compatibility
-from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig
+from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig, get_current_user
+
 
 # Note: ValidatedUserConfig implementation moved to:
 # src/solace_agent_mesh/shared/auth/dependencies.py
