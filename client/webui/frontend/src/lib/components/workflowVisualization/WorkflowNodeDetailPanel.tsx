@@ -260,7 +260,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                             onClick={handleShowDetails}
                             className={`flex items-center justify-center px-3 py-1.5 ${
                                 !showCodeView
-                                    ? "bg-(--color-brand-wMain)/10 text-gray-700 dark:text-gray-200"
+                                    ? "bg-[var(--color-brand-wMain)]/10 text-gray-700 dark:text-gray-200"
                                     : "bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
                             }`}
                             title="Details view"
@@ -271,7 +271,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                             onClick={handleInspectCode}
                             className={`flex items-center justify-center border-l border-gray-300 px-3 py-1.5 dark:border-gray-600 ${
                                 showCodeView
-                                    ? "bg-(--color-brand-wMain)/10 text-gray-700 dark:text-gray-200"
+                                    ? "bg-[var(--color-brand-wMain)]/10 text-gray-700 dark:text-gray-200"
                                     : "bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
                             }`}
                             title="Code view"

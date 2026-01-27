@@ -52,39 +52,34 @@ const EdgeLayer: FC<EdgeLayerProps> = ({ edges, width, height }) => {
                     orient="auto"
                     markerUnits="userSpaceOnUse"
                 >
-                    <path d="M 0 0 L 12 6 L 0 12 z" className="fill-(--color-secondary-w40) dark:fill-(--color-secondary-w80)" />
+                    <path d="M 0 0 L 12 6 L 0 12 z" className="fill-gray-400 dark:fill-gray-500" />
                 </marker>
             </defs>
 
             {/* Render each edge */}
-            {edges.map(edge => {
-                // Check if this edge connects to a condition pill (target starts with __condition_)
-                const isConditionPillEdge = edge.target.startsWith('__condition_');
+            {edges.map(edge => (
+                <g key={edge.id}>
+                    {/* Main edge path */}
+                    <path
+                        d={generatePath(edge)}
+                        className="fill-none stroke-gray-400 dark:stroke-gray-500"
+                        strokeWidth={2}
+                        markerEnd="url(#arrowhead)"
+                    />
 
-                return (
-                    <g key={edge.id}>
-                        {/* Main edge path */}
-                        <path
-                            d={generatePath(edge)}
-                            className="fill-none stroke-(--color-secondary-w40) dark:stroke-(--color-secondary-w80)"
-                            strokeWidth={2}
-                            markerEnd={isConditionPillEdge ? undefined : "url(#arrowhead)"}
-                        />
-
-                        {/* Edge label (if present) */}
-                        {edge.label && (
-                            <text
-                                x={(edge.sourceX + edge.targetX) / 2}
-                                y={(edge.sourceY + edge.targetY) / 2 - 8}
-                                textAnchor="middle"
-                                className="fill-gray-500 text-xs dark:fill-gray-400"
-                            >
-                                {edge.label}
-                            </text>
-                        )}
-                    </g>
-                );
-            })}
+                    {/* Edge label (if present) */}
+                    {edge.label && (
+                        <text
+                            x={(edge.sourceX + edge.targetX) / 2}
+                            y={(edge.sourceY + edge.targetY) / 2 - 8}
+                            textAnchor="middle"
+                            className="fill-gray-500 text-xs dark:fill-gray-400"
+                        >
+                            {edge.label}
+                        </text>
+                    )}
+                </g>
+            ))}
         </svg>
     );
 };

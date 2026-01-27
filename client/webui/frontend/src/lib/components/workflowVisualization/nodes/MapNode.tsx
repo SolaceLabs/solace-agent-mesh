@@ -1,9 +1,6 @@
 import type { FC, ReactNode, MouseEvent } from "react";
 import { Repeat2, Maximize2, Minimize2 } from "lucide-react";
-import { Button } from "@/lib/components/ui";
-import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, LAYOUT_CONSTANTS, type NodeProps } from "../utils/types";
-
-const { NODE_HEIGHTS } = LAYOUT_CONSTANTS;
+import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
 
 interface MapNodeProps extends NodeProps {
     renderChildren?: (children: NodeProps["node"]["children"]) => ReactNode;
@@ -33,8 +30,8 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, o
     if (isCollapsed || !hasChildren) {
         return (
             <div
-                className={`${NODE_BASE_STYLES.RECTANGULAR_COMPACT}  ${
-                    isSelected ? NODE_SELECTED_CLASS : ""
+                className={`group relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-indigo-500 bg-white px-3 py-2 shadow-sm transition-all duration-200 hover:shadow-md dark:border-indigo-400 dark:bg-gray-800 ${
+                    isSelected ? NODE_SELECTED_CLASSES.INDIGO : ""
                 } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 style={{
                     width: `${node.width}px`,
@@ -47,28 +44,32 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, o
             >
                 <div className="flex items-center gap-2">
                     <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                    <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">Map</span>
+                    <span className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Map</span>
                 </div>
 
                 {canHaveChildren && (
-                    <Button
+                    <button
                         onClick={handleToggle}
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        tooltip="Expand"
+                        className="rounded p-1 text-indigo-500 hover:bg-indigo-100 dark:text-indigo-400 dark:hover:bg-indigo-800/50"
+                        title="Expand"
                     >
                         <Maximize2 className="h-4 w-4" />
-                    </Button>
+                    </button>
                 )}
             </div>
         );
     }
 
+    // Calculate header height for straddling effect
+    // Header row: py-2 (16px) + icon line (~20px) ≈ 36px
+    // Dotted border starts closer to top for better visual balance
+    const headerHeightPx = 36;
+    const headerTopOffsetPx = headerHeightPx / 3;
+
     // When expanded with children, render with straddling header and dotted container
     return (
         <div
-            className="relative "
+            className="relative"
             style={{
                 width: `${node.width}px`,
                 height: `${node.height}px`,
@@ -76,8 +77,8 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, o
         >
             {/* Dotted Children Container */}
             <div
-                className="absolute inset-0 rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:bg-(--color-secondary-w100) dark:border-(--color-secondary-w80)"
-                style={{ top: `${NODE_HEIGHTS.CONTAINER_HEADER / 2}px` }}
+                className="absolute inset-0 rounded-lg border-2 border-dashed border-indigo-300 bg-indigo-50/30 dark:border-indigo-600/50 dark:bg-indigo-900/10"
+                style={{ top: `${headerTopOffsetPx}px` }}
             >
                 {/* Top padding clears the header portion below the dotted border plus gap */}
                 <div className="pt-12 pb-4 px-3">
@@ -89,30 +90,26 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, o
 
             {/* Solid Header Box - straddles the dotted container border */}
             <div
-                className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${
-                    isSelected ? NODE_SELECTED_CLASS : ""
+                className={`group relative mx-auto flex w-fit cursor-pointer items-center justify-between gap-4 rounded-lg border-2 border-indigo-500 bg-white px-3 py-2 shadow-sm transition-all duration-200 hover:shadow-md dark:border-indigo-400 dark:bg-gray-800 ${
+                    isSelected ? NODE_SELECTED_CLASSES.INDIGO : ""
                 } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 onClick={e => {
                     e.stopPropagation();
                     onClick?.(node);
                 }}
             >
-                <div className="flex items-center justify-between gap-4 px-4 py-2">
-                    <div className="flex items-center gap-2">
-                        <Repeat2 className="h-4 w-4 text-(--color-accent-n0-wMain)" />
-                        <span className="text-sm font-semibold">Map</span>
-                    </div>
-
-                    <Button
-                        onClick={handleToggle}
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        tooltip="Collapse"
-                    >
-                        <Minimize2 className="h-4 w-4" />
-                    </Button>
+                <div className="flex items-center gap-2">
+                    <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                    <span className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Map</span>
                 </div>
+
+                <button
+                    onClick={handleToggle}
+                    className="rounded p-1 text-indigo-500 hover:bg-indigo-100 dark:text-indigo-400 dark:hover:bg-indigo-800/50"
+                    title="Collapse"
+                >
+                    <Minimize2 className="h-4 w-4" />
+                </button>
             </div>
         </div>
     );
