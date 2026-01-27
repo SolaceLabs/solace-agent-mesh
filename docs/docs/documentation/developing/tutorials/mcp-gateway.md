@@ -5,7 +5,7 @@ sidebar_position: 17
 
 # MCP Gateway
 
-This tutorial walks you through setting up the MCP Gateway, which exposes Solace Agent Mesh (Solace Agent Mesh) agents as a Model Context Protocol (MCP) server. This allows any MCP-compatible client (such as Claude Desktop, MCP Inspector, or custom applications) to interact with Solace Agent Mesh agents through a standardized interface.
+This tutorial walks you through setting up the MCP Gateway, which exposes Solace Agent Mesh agents as a Model Context Protocol (MCP) server. This allows any MCP-compatible client (such as Claude Desktop, MCP Inspector, or custom applications) to interact with Solace Agent Mesh agents through a standardized interface.
 
 :::info[Learn about gateways]
 Read about [Gateways](../../components/gateways.md) before you start this tutorial.
