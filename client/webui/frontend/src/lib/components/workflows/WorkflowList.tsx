@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Workflow } from "lucide-react";
+import { Search, Workflow, ExternalLink } from "lucide-react";
 
 import type { AgentCardInfo } from "@/lib/types";
 import { getWorkflowConfig } from "@/lib/utils/agentUtils";
@@ -9,7 +9,7 @@ import { Button } from "@/lib/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/lib/components/ui/table";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/lib/components/ui/pagination";
 import { WorkflowDetailPanel } from "./WorkflowDetailPanel";
-import { WorkflowOnboardingBanner } from "./WorkflowOnboardingBanner";
+import { WorkflowOnboardingBanner, WORKFLOW_HEADER, WORKFLOW_DESCRIPTION, WORKFLOW_LEARN_MORE_TEXT } from "./WorkflowOnboardingBanner";
 
 const WorkflowImage = <Workflow className="text-muted-foreground" size={64} />;
 
@@ -24,6 +24,9 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
     const [screenHeight, setScreenHeight] = useState<number>(typeof window !== "undefined" ? window.innerHeight : 768);
     const [selectedWorkflow, setSelectedWorkflow] = useState<AgentCardInfo | null>(null);
     const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(false);
+    
+    workflows = []; // TEMPORARY: Force empty state preview
+
 
     // Responsive itemsPerPage based on screen height
     const itemsPerPage = screenHeight >= 900 ? 20 : 10;
@@ -80,14 +83,20 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
 
     const handleSelectWorkflow = (workflow: AgentCardInfo | null) => {
         if (workflow) {
-            setSelectedWorkflow(workflow);
-            setIsSidePanelOpen(true);
+            // If clicking the same workflow, close the panel
+            if (selectedWorkflow?.name === workflow.name && isSidePanelOpen) {
+                handleCloseSidePanel();
+            } else {
+                // Open panel for new workflow
+                setSelectedWorkflow(workflow);
+                setTimeout(() => setIsSidePanelOpen(true), 10);
+            }
         }
     };
 
     const handleCloseSidePanel = () => {
-        setSelectedWorkflow(null);
         setIsSidePanelOpen(false);
+        setTimeout(() => setSelectedWorkflow(null), 300);
     };
 
     const handleViewWorkflow = (workflow: AgentCardInfo) => {
@@ -135,7 +144,32 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
     };
 
     if (workflows.length === 0) {
-        return <EmptyState image={WorkflowImage} title="No workflows found" subtitle="No workflows discovered in the current namespace." />;
+        return (
+            <div className="flex h-full items-center justify-center p-12">
+                <div className="grid max-w-6xl grid-cols-2 gap-12">
+                    {/* Left column - Text and CTA */}
+                    <div className="flex flex-col justify-center">
+                        <h2 className="mb-4 text-xl font-semibold">
+                            {WORKFLOW_HEADER}
+                        </h2>
+                        <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">
+                            {WORKFLOW_DESCRIPTION}
+                        </p>
+                        <Button variant="link" className="w-fit hover:underline !p-0" asChild>
+                            <a href="#">
+                                {WORKFLOW_LEARN_MORE_TEXT}
+                                <ExternalLink size={14} />
+                            </a>
+                        </Button>
+                    </div>
+
+                    {/* Right column - Image placeholder */}
+                    <div className="flex items-center justify-center">
+                        <div className="h-[400px] w-full rounded-lg bg-gray-300 dark:bg-gray-700"></div>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     // Pagination controls component
@@ -204,7 +238,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
                 </div>
 
                 {/* Workflows table area */}
-                <div className="min-h-0 flex-1 overflow-y-auto pr-2 pl-6">
+                <div className="min-h-0 flex-1 overflow-y-auto pr-6 pl-6">
                     <div className="h-full">
                         {currentWorkflows.length > 0 ? (
                             <div className="rounded-xs border">
@@ -270,8 +304,8 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
 
             {/* Side panel wrapper */}
             {selectedWorkflow && (
-                <div className={`h-full overflow-hidden transition-all duration-500 ease-in-out ${isSidePanelOpen ? "w-1/4 min-w-[400px]" : "w-0"}`}>
-                    <div className={`h-full transition-opacity duration-500 ${isSidePanelOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+                <div className={`h-full overflow-hidden transition-[width] duration-300 ease-in-out ${isSidePanelOpen ? "w-[400px]" : "w-0"}`}>
+                    <div className={`h-full transition-opacity duration-300 ${isSidePanelOpen ? "opacity-100 delay-100" : "pointer-events-none opacity-0"}`}>
                         <WorkflowDetailPanel workflow={selectedWorkflow} onClose={handleCloseSidePanel} />
                     </div>
                 </div>

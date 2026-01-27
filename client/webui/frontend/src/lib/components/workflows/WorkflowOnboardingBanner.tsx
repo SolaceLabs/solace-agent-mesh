@@ -5,6 +5,10 @@ import { Button } from "@/lib/components/ui/button";
 
 const STORAGE_KEY = "workflow-onboarding-dismissed";
 
+export const WORKFLOW_HEADER = "Turn complex multi-agent tasks into streamlined workflows.";
+export const WORKFLOW_DESCRIPTION = "Define the sequence in YAML, deploy to Agent Mesh, and watch your workflow handle the coordination automatically. Great for building repeatable processes that need multiple agents working together in a specific order.";
+export const WORKFLOW_LEARN_MORE_TEXT = "Learn how to create workflows";
+
 export const WorkflowOnboardingBanner: React.FC = () => {
     const [isDismissed, setIsDismissed] = useState<boolean>(true);
 
@@ -23,20 +27,22 @@ export const WorkflowOnboardingBanner: React.FC = () => {
     }
 
     return (
-        <div className="relative mx-6 mt-6 rounded-lg border border-[var(--color-brand-wMain)]/30 bg-[var(--color-brand-wMain)]/10 p-4">
-            <Button variant="ghost" size="icon" onClick={handleDismiss} className="absolute top-2 right-2 h-6 w-6" aria-label="Dismiss banner">
+        <div className="relative mx-6 mt-6 rounded-lg border border-(--color-learning-w20) dark:border-(--color-learning-w90) bg-(--color-learning-w10) dark:bg-(--color-learning-wMain) p-4">
+            <Button variant="ghost" size="icon" onClick={handleDismiss} tooltip="Close" className="absolute top-2 right-2 h-6 w-6">
                 <X size={16} />
             </Button>
 
             <div className="pr-8">
                 <p className="text-sm">
-                    <span className="font-semibold">Workflows</span> can automate complex multi-agent tasks by orchestrating agents in a defined sequence. Define your workflows in YAML and deploy them to the Agent Mesh.
+                    <span className="font-semibold">{WORKFLOW_HEADER}</span> {WORKFLOW_DESCRIPTION}
                 </p>
 
-                <a href="#" className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-[var(--color-brand-wMain)] hover:underline">
-                    Learn how to create workflows
-                    <ExternalLink size={14} />
-                </a>
+                <Button variant="link" className="mt-2 h-auto !pl-0 !pr-0 !pb-0 text-sm hover:underline" asChild>
+                    <a href="#">
+                        {WORKFLOW_LEARN_MORE_TEXT}
+                        <ExternalLink size={14} />
+                    </a>
+                </Button>
             </div>
         </div>
     );
