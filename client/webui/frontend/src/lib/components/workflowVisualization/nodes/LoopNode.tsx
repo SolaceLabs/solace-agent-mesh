@@ -1,6 +1,7 @@
 import type { FC, ReactNode, MouseEvent } from "react";
 import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
-import { NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { Button } from "@/lib/components/ui";
+import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
 
 interface LoopNodeProps extends NodeProps {
     renderChildren?: (children: NodeProps["node"]["children"]) => ReactNode;
@@ -39,8 +40,8 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
     if (isCollapsed || !hasChildren) {
         return (
             <div
-                className={`group relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-teal-500 bg-white px-3 py-2 shadow-sm transition-all duration-200 hover:shadow-md dark:border-teal-400 dark:bg-gray-800 ${
-                    isSelected ? NODE_SELECTED_CLASSES.TEAL : ""
+                 className={`${NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${
+                    isSelected ? NODE_SELECTED_CLASS : ""
                 } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 style={{
                     width: `${node.width}px`,
@@ -53,17 +54,19 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
             >
                 <div className="flex items-center gap-2">
                     <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                    <span className="text-sm font-medium text-teal-900 dark:text-teal-100">Loop</span>
+                    <span className="text-sm font-semibold">Loop</span>
                 </div>
 
                 {canHaveChildren && (
-                    <button
+                    <Button
                         onClick={handleToggle}
-                        className="rounded p-1 text-teal-500 hover:bg-teal-100 dark:text-teal-400 dark:hover:bg-teal-800/50"
-                        title="Expand"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        tooltip="Expand"
                     >
                         <Maximize2 className="h-4 w-4" />
-                    </button>
+                    </Button>
                 )}
             </div>
         );
@@ -87,7 +90,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
         >
             {/* Dotted Children Container */}
             <div
-                className="absolute inset-0 rounded-lg border-2 border-dashed border-teal-300 bg-teal-50/30 dark:border-teal-600/50 dark:bg-teal-900/10"
+                className="absolute inset-0 rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:bg-(--color-secondary-w100) dark:border-(--color-secondary-w70)"
                 style={{ top: `${headerTopOffsetPx}px` }}
             >
                 {/* Top padding clears the header portion below the dotted border plus gap */}
@@ -100,8 +103,8 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
 
             {/* Solid Header Box - straddles the dotted container border */}
             <div
-                className={`group relative mx-auto w-fit cursor-pointer rounded-lg border-2 border-teal-500 bg-white shadow-sm transition-all duration-200 hover:shadow-md dark:border-teal-400 dark:bg-gray-800 ${
-                    isSelected ? NODE_SELECTED_CLASSES.TEAL : ""
+                className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${
+                    isSelected ? NODE_SELECTED_CLASS : ""
                 } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 onClick={e => {
                     e.stopPropagation();
@@ -109,19 +112,26 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
                 }}
             >
                 {/* Header row */}
-                <div className="flex items-center justify-between gap-4 px-3 py-2">
+                <div className="flex items-center justify-between gap-4 px-4 py-2">
                     <div className="flex items-center gap-2">
-                        <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                        <span className="text-sm font-medium text-teal-900 dark:text-teal-100">Loop</span>
+                        <RefreshCw className="h-4 w-4 text-(--color-accent-n0-wMain)" />
+                        <span className="text-sm font-semibold">Loop</span>
                     </div>
 
-                    <button
-                        onClick={handleToggle}
-                        className="rounded p-1 text-teal-500 hover:bg-teal-100 dark:text-teal-400 dark:hover:bg-teal-800/50"
-                        title="Collapse"
-                    >
-                        <Minimize2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {node.data.maxIterations && (
+                            <span className="text-sm text-gray-500 dark:text-gray-400">max: {node.data.maxIterations}</span>
+                        )}
+                        <Button
+                            onClick={handleToggle}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            tooltip="Collapse"
+                        >
+                            <Minimize2 className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Condition display */}

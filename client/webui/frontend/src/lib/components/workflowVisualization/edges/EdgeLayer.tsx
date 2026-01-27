@@ -52,7 +52,7 @@ const EdgeLayer: FC<EdgeLayerProps> = ({ edges, width, height }) => {
                     orient="auto"
                     markerUnits="userSpaceOnUse"
                 >
-                    <path d="M 0 0 L 12 6 L 0 12 z" className="fill-gray-400 dark:fill-gray-500" />
+                    <path d="M 0 0 L 12 6 L 0 12 z" className="fill-(--color-secondary-w40) dark:fill-(--color-secondary-w80)" />
                 </marker>
             </defs>
 
@@ -62,9 +62,9 @@ const EdgeLayer: FC<EdgeLayerProps> = ({ edges, width, height }) => {
                     {/* Main edge path */}
                     <path
                         d={generatePath(edge)}
-                        className="fill-none stroke-gray-400 dark:stroke-gray-500"
+                        className="fill-none stroke-(--color-secondary-w40) dark:stroke-(--color-secondary-w80)"
                         strokeWidth={2}
-                        markerEnd="url(#arrowhead)"
+                        markerEnd={edge.target.startsWith('__condition_') ? undefined : "url(#arrowhead)"}
                     />
 
                     {/* Edge label (if present) */}
