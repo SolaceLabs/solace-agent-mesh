@@ -121,11 +121,13 @@ ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install minimal runtime dependencies (no uv for licensing compliance)
+# Upgrade system pip to >=25.3 to fix CVE-2025-8869
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
     ffmpeg=7:7.1.3-0+deb13u1 \
     git && \
+    python3 -m pip install --upgrade "pip>=25.3" && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
@@ -137,7 +139,7 @@ RUN apt-get update && \
 # We'll use the playwright from the full venv at runtime
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/playwright \
-    python -m pip install playwright && \
+    python3 -m pip install playwright && \
     playwright install-deps chromium && \
     playwright install chromium
 
