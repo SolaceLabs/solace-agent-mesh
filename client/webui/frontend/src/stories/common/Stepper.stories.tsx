@@ -51,7 +51,7 @@ const StepperExample = ({ variant = "horizontal", labelOrientation = "horizontal
 };
 
 const meta = {
-    title: "Components/Stepper",
+    title: "Common/Stepper",
     component: StepperExample,
     parameters: {
         layout: "centered",

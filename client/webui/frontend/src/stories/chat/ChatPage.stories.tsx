@@ -1,9 +1,9 @@
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
-import { mockMessages, mockLoadingMessage } from "./mocks/data";
+import { mockMessages, mockLoadingMessage } from "../mocks/data";
 import { ChatPage } from "@/lib/components/pages/ChatPage";
 import { expect, screen, userEvent, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
-import { defaultPromptGroups } from "./Prompts/data";
+import { defaultPromptGroups } from "../data/prompts";
 
 const handlers = [
     http.get("*/api/v1/prompts/groups/all", () => {
@@ -12,7 +12,7 @@ const handlers = [
 ];
 
 const meta = {
-    title: "Pages/ChatPage",
+    title: "Pages/Chat/ChatPage",
     component: ChatPage,
     parameters: {
         layout: "fullscreen",
