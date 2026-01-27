@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
-import { ZoomIn, ZoomOut, ScanLine, Hand } from "lucide-react";
+import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 
 // Configure PDF.js worker
@@ -12,6 +12,15 @@ interface PdfRendererProps {
     url: string;
     filename: string;
 }
+
+interface SelectionRect {
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+}
+
+type InteractionMode = "text" | "pan" | "snip";
 
 const pdfOptions = { withCredentials: true };
 
@@ -23,8 +32,12 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [pageWidth, setPageWidth] = useState<number | null>(null);
-    const [isPanMode, setIsPanMode] = useState(false);
+    const [interactionMode, setInteractionMode] = useState<InteractionMode>("text");
+    const [selection, setSelection] = useState<SelectionRect | null>(null);
+    const [isSelecting, setIsSelecting] = useState(false);
+    const [copyStatus, setCopyStatus] = useState<"idle" | "copying" | "success" | "error">("idle");
     const viewerRef = useRef<HTMLDivElement>(null);
+    const documentContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (pageWidth && viewerRef.current) {
@@ -66,25 +79,187 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
     }, [pageWidth]);
 
     const handleMouseDown = (e: React.MouseEvent) => {
-        // Only enable dragging in pan mode
-        if (!isPanMode || e.button !== 0) return;
-        setIsDragging(true);
-        setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+        if (e.button !== 0) return;
+
+        if (interactionMode === "pan") {
+            setIsDragging(true);
+            setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+        } else if (interactionMode === "snip" && viewerRef.current) {
+            const rect = viewerRef.current.getBoundingClientRect();
+            const x = e.clientX - rect.left + viewerRef.current.scrollLeft;
+            const y = e.clientY - rect.top + viewerRef.current.scrollTop;
+            setSelection({ startX: x, startY: y, endX: x, endY: y });
+            setIsSelecting(true);
+        }
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
-        if (isPanMode && isDragging) {
+        if (interactionMode === "pan" && isDragging) {
             setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+        } else if (interactionMode === "snip" && isSelecting && viewerRef.current && selection) {
+            const rect = viewerRef.current.getBoundingClientRect();
+            const x = e.clientX - rect.left + viewerRef.current.scrollLeft;
+            const y = e.clientY - rect.top + viewerRef.current.scrollTop;
+            setSelection({ ...selection, endX: x, endY: y });
         }
     };
 
     const handleMouseUp = () => {
-        if (isPanMode) {
+        if (interactionMode === "pan") {
             setIsDragging(false);
+        } else if (interactionMode === "snip" && isSelecting) {
+            setIsSelecting(false);
+            // Auto-copy on mouse up if selection is valid
+            if (selection) {
+                const selWidth = Math.abs(selection.endX - selection.startX);
+                const selHeight = Math.abs(selection.endY - selection.startY);
+                if (selWidth >= 10 && selHeight >= 10) {
+                    // Trigger copy immediately - the mouse up event is a user gesture
+                    performSnipCopy();
+                }
+            }
         }
     };
 
-    const togglePanMode = () => setIsPanMode(prev => !prev);
+    // Separate function to perform the snip copy, called directly from mouse up
+    const performSnipCopy = async () => {
+        if (!selection || !viewerRef.current) return;
+
+        setCopyStatus("copying");
+
+        try {
+            // Calculate the normalized selection rectangle (in viewer scroll coordinates)
+            const selX = Math.min(selection.startX, selection.endX);
+            const selY = Math.min(selection.startY, selection.endY);
+            const selWidth = Math.abs(selection.endX - selection.startX);
+            const selHeight = Math.abs(selection.endY - selection.startY);
+
+            // Find all canvas elements within the viewer
+            const canvases = viewerRef.current.querySelectorAll("canvas");
+            if (canvases.length === 0) {
+                setCopyStatus("error");
+                setTimeout(() => setCopyStatus("idle"), 2000);
+                return;
+            }
+
+            // Create output canvas
+            const outputCanvas = document.createElement("canvas");
+            outputCanvas.width = selWidth;
+            outputCanvas.height = selHeight;
+            const ctx = outputCanvas.getContext("2d");
+
+            if (!ctx) {
+                setCopyStatus("error");
+                setTimeout(() => setCopyStatus("idle"), 2000);
+                return;
+            }
+
+            // Fill with white background
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, selWidth, selHeight);
+
+            const viewerRect = viewerRef.current.getBoundingClientRect();
+            const scrollLeft = viewerRef.current.scrollLeft;
+            const scrollTop = viewerRef.current.scrollTop;
+
+            // Process each canvas
+            canvases.forEach(sourceCanvas => {
+                const canvasRect = sourceCanvas.getBoundingClientRect();
+
+                // Position of canvas in scroll coordinates
+                const canvasScrollX = canvasRect.left - viewerRect.left + scrollLeft;
+                const canvasScrollY = canvasRect.top - viewerRect.top + scrollTop;
+
+                // Check intersection
+                if (canvasScrollX + canvasRect.width <= selX || canvasScrollX >= selX + selWidth || canvasScrollY + canvasRect.height <= selY || canvasScrollY >= selY + selHeight) {
+                    return; // No intersection
+                }
+
+                // Calculate the overlap region
+                const overlapX1 = Math.max(selX, canvasScrollX);
+                const overlapY1 = Math.max(selY, canvasScrollY);
+                const overlapX2 = Math.min(selX + selWidth, canvasScrollX + canvasRect.width);
+                const overlapY2 = Math.min(selY + selHeight, canvasScrollY + canvasRect.height);
+
+                // Source coordinates (in the source canvas's coordinate system)
+                const ratioX = sourceCanvas.width / canvasRect.width;
+                const ratioY = sourceCanvas.height / canvasRect.height;
+
+                const srcX = (overlapX1 - canvasScrollX) * ratioX;
+                const srcY = (overlapY1 - canvasScrollY) * ratioY;
+                const srcW = (overlapX2 - overlapX1) * ratioX;
+                const srcH = (overlapY2 - overlapY1) * ratioY;
+
+                // Destination coordinates (in the output canvas)
+                const destX = overlapX1 - selX;
+                const destY = overlapY1 - selY;
+                const destW = overlapX2 - overlapX1;
+                const destH = overlapY2 - overlapY1;
+
+                ctx.drawImage(sourceCanvas, srcX, srcY, srcW, srcH, destX, destY, destW, destH);
+            });
+
+            // Convert canvas to data URL synchronously
+            const dataUrl = outputCanvas.toDataURL("image/png");
+
+            // Convert data URL to blob synchronously
+            const arr = dataUrl.split(",");
+            const mime = arr[0].match(/:(.*?);/)?.[1] || "image/png";
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            const blob = new Blob([u8arr], { type: mime });
+
+            // Try to copy to clipboard
+            let copied = false;
+            try {
+                if (navigator.clipboard && typeof ClipboardItem !== "undefined") {
+                    const item = new ClipboardItem({ "image/png": blob });
+                    await navigator.clipboard.write([item]);
+                    copied = true;
+                }
+            } catch (clipboardErr) {
+                console.error("Clipboard write failed:", clipboardErr);
+                copied = false;
+            }
+
+            if (copied) {
+                setCopyStatus("success");
+                setTimeout(() => {
+                    setCopyStatus("idle");
+                    setSelection(null);
+                }, 1500);
+            } else {
+                // Fallback: download the image
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${filename}-snip.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                setCopyStatus("success");
+                setTimeout(() => {
+                    setCopyStatus("idle");
+                    setSelection(null);
+                }, 1500);
+            }
+        } catch (err) {
+            console.error("Error capturing selection:", err);
+            setCopyStatus("error");
+            setTimeout(() => setCopyStatus("idle"), 2000);
+        }
+    };
+
+    const setMode = (mode: InteractionMode) => {
+        setInteractionMode(mode);
+        setSelection(null);
+        setCopyStatus("idle");
+    };
 
     const handleWheel = (e: React.WheelEvent) => {
         // Only zoom when Ctrl/Cmd key is pressed, otherwise allow normal scrolling
@@ -96,6 +271,37 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                 zoomOut();
             }
         }
+    };
+
+    // Calculate selection rectangle for display
+    const getSelectionStyle = (): React.CSSProperties | null => {
+        if (!selection) return null;
+
+        const x = Math.min(selection.startX, selection.endX);
+        const y = Math.min(selection.startY, selection.endY);
+        const width = Math.abs(selection.endX - selection.startX);
+        const height = Math.abs(selection.endY - selection.startY);
+
+        return {
+            position: "absolute",
+            left: x,
+            top: y,
+            width,
+            height,
+            border: "2px dashed #3b82f6",
+            backgroundColor: "rgba(59, 130, 246, 0.1)",
+            pointerEvents: "none",
+            zIndex: 10,
+        };
+    };
+
+    const getCursor = (): string => {
+        if (interactionMode === "pan") {
+            return isDragging ? "grabbing" : "grab";
+        } else if (interactionMode === "snip") {
+            return "crosshair";
+        }
+        return "auto";
     };
 
     if (error) {
@@ -142,24 +348,55 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                     <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <button onClick={togglePanMode} className={`rounded p-1 ${isPanMode ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}>
+                            <button
+                                onClick={() => setMode(interactionMode === "pan" ? "text" : "pan")}
+                                className={`rounded p-1 ${interactionMode === "pan" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
+                            >
                                 <Hand className="h-4 w-4" />
                             </button>
                         </TooltipTrigger>
-                        <TooltipContent>{isPanMode ? "Switch to Text Selection Mode" : "Switch to Pan Mode"}</TooltipContent>
+                        <TooltipContent>{interactionMode === "pan" ? "Exit Pan Mode" : "Pan Mode"}</TooltipContent>
                     </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                onClick={() => setMode(interactionMode === "snip" ? "text" : "snip")}
+                                className={`rounded p-1 ${interactionMode === "snip" ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300" : "hover:bg-gray-200 dark:hover:bg-gray-600"}`}
+                            >
+                                <Scissors className="h-4 w-4" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{interactionMode === "snip" ? "Exit Snip Mode" : "Snip to Clipboard"}</TooltipContent>
+                    </Tooltip>
+                    {/* Show copy status indicator */}
+                    {interactionMode === "snip" && copyStatus !== "idle" && (
+                        <div
+                            className={`ml-2 rounded px-2 py-0.5 text-xs ${
+                                copyStatus === "copying"
+                                    ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
+                                    : copyStatus === "success"
+                                      ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300"
+                                      : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300"
+                            }`}
+                        >
+                            {copyStatus === "copying" ? "Copying..." : copyStatus === "success" ? "Copied!" : "Failed"}
+                        </div>
+                    )}
                 </div>
             </div>
             <div
                 ref={viewerRef}
-                className={`w-full flex-grow overflow-auto rounded border border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 ${!isPanMode ? "select-text" : ""}`}
+                className={`relative w-full flex-grow overflow-auto rounded border border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 ${interactionMode === "text" ? "select-text" : ""}`}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
                 onWheel={handleWheel}
-                style={{ cursor: isPanMode ? (isDragging ? "grabbing" : "grab") : "auto" }}
+                style={{ cursor: getCursor() }}
             >
+                {/* Selection overlay */}
+                {selection && getSelectionStyle() && <div style={getSelectionStyle()!} />}
+
                 <Document
                     options={pdfOptions}
                     file={url}
@@ -168,7 +405,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                     loading={<div className="p-4 text-center">Loading PDF...</div>}
                     error={<div className="p-4 text-center text-red-500">Failed to load PDF.</div>}
                 >
-                    <div style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}>
+                    <div ref={documentContainerRef} style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}>
                         {numPages &&
                             Array.from(new Array(numPages), (_, index) => (
                                 <div key={`page_${index + 1}`} className="flex justify-center p-2">
@@ -180,7 +417,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                                                 setPageWidth(page.width);
                                             }
                                         }}
-                                        renderTextLayer={!isPanMode}
+                                        renderTextLayer={interactionMode === "text"}
                                         renderAnnotationLayer={true}
                                         className="shadow-lg"
                                     />
