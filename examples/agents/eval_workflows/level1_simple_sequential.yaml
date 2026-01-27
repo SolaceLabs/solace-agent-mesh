@@ -1,0 +1,198 @@
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: level1_simple_sequential.log
+
+!include ../../shared_config.yaml
+
+apps:
+  # ============================================================================
+  # LEVEL 1: SIMPLE SEQUENTIAL WORKFLOW
+  # ============================================================================
+  # Tests basic sequential workflow execution with two agent nodes
+  # Complexity: Low
+  # Node types: agent (2)
+  # Features: Sequential execution, basic input/output mapping
+  # ============================================================================
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Data Doubler
+  # Doubles a numeric value
+  # ----------------------------------------------------------------------------
+  - name: data_doubler_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "DataDoubler"
+      model: *planning_model
+
+      instruction: |
+        You double numeric values.
+        1. Read 'value' from input
+        2. Calculate: doubled_value = value * 2
+        3. Create a JSON artifact with: {"doubled_value": <result>}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          value: {type: number}
+        required: [value]
+
+      output_schema:
+        type: object
+        properties:
+          doubled_value: {type: number}
+        required: [doubled_value]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Doubles numeric values"
+        skills: [{id: "double_value", name: "Double Value", description: "Doubles a number", tags: ["math"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Value Formatter
+  # Formats a value with a message
+  # ----------------------------------------------------------------------------
+  - name: value_formatter_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ValueFormatter"
+      model: *planning_model
+
+      instruction: |
+        You format values with a descriptive message.
+        1. Read 'value' from input
+        2. Create a formatted message: "The final result is: <value>"
+        3. Create a JSON artifact with: {"message": <formatted_message>}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          value: {type: number}
+        required: [value]
+
+      output_schema:
+        type: object
+        properties:
+          message: {type: string}
+        required: [message]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Formats values with messages"
+        skills: [{id: "format_value", name: "Format Value", description: "Formats a number", tags: ["formatting"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ============================================================================
+  # WORKFLOW: Simple Sequential
+  # ============================================================================
+  - name: simple_sequential_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "SimpleSequentialWorkflow"
+      display_name: "Simple Sequential Workflow"
+
+      # Timeout configurations
+      max_workflow_execution_time_seconds: 300  # 5 minutes
+      default_node_timeout_seconds: 60          # 1 minute
+
+      workflow:
+        version: "1.0.0"
+        description: |
+          A simple sequential workflow for evaluation testing.
+
+          This workflow:
+          1. Doubles an input value
+          2. Formats the result with a message
+
+          Tests: Basic sequential execution, input/output mapping
+
+        input_schema:
+          type: object
+          properties:
+            value:
+              type: number
+              description: "The value to process"
+          required: [value]
+
+        output_schema:
+          type: object
+          properties:
+            message: {type: string}
+            doubled_value: {type: number}
+          required: [message, doubled_value]
+
+        nodes:
+          # Step 1: Double the value
+          - id: double_value
+            type: agent
+            agent_name: "DataDoubler"
+            instruction: "Double the input value."
+            input:
+              value: "{{workflow.input.value}}"
+
+          # Step 2: Format the result
+          - id: format_result
+            type: agent
+            agent_name: "ValueFormatter"
+            depends_on: [double_value]
+            instruction: "Format the doubled value with a descriptive message."
+            input:
+              value: "{{double_value.output.doubled_value}}"
+
+        output_mapping:
+          message: "{{format_result.output.message}}"
+          doubled_value: "{{double_value.output.doubled_value}}"
+
+        skills:
+          - id: "double_and_format"
+            name: "Double and Format"
+            description: "Doubles a value and formats the result"
+            tags: ["eval", "level1", "sequential"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
