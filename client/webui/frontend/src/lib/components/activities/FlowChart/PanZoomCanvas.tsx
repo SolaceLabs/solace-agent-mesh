@@ -368,7 +368,7 @@ const PanZoomCanvas = React.forwardRef<PanZoomCanvasRef, PanZoomCanvasProps>(
                         const scaleRatio = newScale / prev.scale;
 
                         let newX = cursorX - (cursorX - prev.x) * scaleRatio;
-                        let newY = cursorY - (cursorY - prev.y) * scaleRatio;
+                        const newY = cursorY - (cursorY - prev.y) * scaleRatio;
                         newX -= dx;
 
                         return { scale: newScale, x: newX, y: newY };

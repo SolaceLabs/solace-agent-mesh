@@ -234,7 +234,6 @@ const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({
     onEdgeClick,
     showDetail = true,
 }) => {
-    const [_selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
     const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
 
     // Handle expand toggle for a node
@@ -278,7 +277,7 @@ const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({
         };
     }, [baseLayoutResult, showDetail, expandedNodeIds]);
 
-    const { nodes, edges: _edges, totalWidth: _totalWidth, totalHeight: _totalHeight } = layoutResult;
+    const { nodes } = layoutResult;
 
     // Handle node click
     const handleNodeClick = (node: LayoutNode) => {
@@ -286,9 +285,8 @@ const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({
     };
 
     // Handle edge click - currently unused but kept for future use
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     const handleEdgeClick = (edge: Edge) => {
-        setSelectedEdgeId(edge.id);
         onEdgeClick?.(edge);
     };
     void handleEdgeClick; // Suppress unused variable warning

@@ -83,7 +83,7 @@ export function processSteps(steps: VisualizerStep[], agentNameMap: Record<strin
     const nodes = calculateLayout(context.rootNodes);
 
     // Calculate edges between top-level nodes
-    const edges = calculateEdges(nodes, steps);
+    const edges = calculateEdges(nodes);
 
     // Calculate total canvas size
     const { totalWidth, totalHeight } = calculateCanvasSize(nodes);
@@ -1449,7 +1449,7 @@ function positionNode(node: LayoutNode): void {
 /**
  * Calculate edges between nodes
  */
-function calculateEdges(nodes: LayoutNode[], _steps: VisualizerStep[]): Edge[] {
+function calculateEdges(nodes: LayoutNode[]): Edge[] {
     const edges: Edge[] = [];
     const flatNodes = flattenNodes(nodes);
 

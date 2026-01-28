@@ -482,64 +482,56 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         );
     };
 
-    const renderFormattedArguments = (args: Record<string, any>) => {
+    const renderFormattedArguments = (args: Record<string, unknown>) => {
         const entries = Object.entries(args);
 
         if (entries.length === 0) {
-            return (
-                <div className="text-xs text-gray-500 dark:text-gray-400 italic">
-                    No arguments
-                </div>
-            );
+            return <div className="text-xs text-gray-500 italic dark:text-gray-400">No arguments</div>;
         }
 
         return (
             <div className="space-y-3">
                 {entries.map(([key, value]) => (
-                    <div key={key} className="bg-gray-50 dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-                        <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1">
-                            {key}
-                        </div>
-                        <div className="text-xs overflow-auto max-h-60">
-                            {renderArgumentValue(value)}
-                        </div>
+                    <div key={key} className="overflow-hidden rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
+                        <div className="mb-1 text-xs font-semibold text-blue-600 dark:text-blue-400">{key}</div>
+                        <div className="max-h-60 overflow-auto text-xs">{renderArgumentValue(value)}</div>
                     </div>
                 ))}
             </div>
         );
     };
 
-    const renderArgumentValue = (value: any): React.ReactNode => {
+    const renderArgumentValue = (value: unknown): React.ReactNode => {
         // Handle null/undefined
         if (value === null) {
-            return <span className="text-gray-500 dark:text-gray-400 italic">null</span>;
+            return <span className="text-gray-500 italic dark:text-gray-400">null</span>;
         }
         if (value === undefined) {
-            return <span className="text-gray-500 dark:text-gray-400 italic">undefined</span>;
+            return <span className="text-gray-500 italic dark:text-gray-400">undefined</span>;
         }
 
         // Handle primitives
-        if (typeof value === 'string') {
-            return <span className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">{value}</span>;
+        if (typeof value === "string") {
+            return <span className="break-words whitespace-pre-wrap text-gray-800 dark:text-gray-200">{value}</span>;
         }
-        if (typeof value === 'number') {
+        if (typeof value === "number") {
             return <span className="text-purple-600 dark:text-purple-400">{value}</span>;
         }
-        if (typeof value === 'boolean') {
+        if (typeof value === "boolean") {
             return <span className="text-green-600 dark:text-green-400">{value.toString()}</span>;
         }
 
         // Handle arrays
         if (Array.isArray(value)) {
             if (value.length === 0) {
-                return <span className="text-gray-500 dark:text-gray-400 italic">[]</span>;
+                return <span className="text-gray-500 italic dark:text-gray-400">[]</span>;
             }
             // For simple arrays of primitives, show inline
-            if (value.every(item => typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean')) {
+            if (value.every(item => typeof item === "string" || typeof item === "number" || typeof item === "boolean")) {
                 return (
                     <div className="space-y-1">
                         {value.map((item, idx) => (
-                            <div key={idx} className="pl-2 border-l-2 border-blue-300 dark:border-blue-700">
+                            <div key={idx} className="border-l-2 border-blue-300 pl-2 dark:border-blue-700">
                                 {renderArgumentValue(item)}
                             </div>
                         ))}
@@ -555,18 +547,16 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         }
 
         // Handle objects
-        if (typeof value === 'object') {
+        if (typeof value === "object") {
             const entries = Object.entries(value);
 
             // For small objects with simple values, render inline
-            if (entries.length <= 5 && entries.every(([_, v]) =>
-                typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null
-            )) {
+            if (entries.length <= 5 && entries.every(([, v]) => typeof v === "string" || typeof v === "number" || typeof v === "boolean" || v === null)) {
                 return (
                     <div className="space-y-1">
                         {entries.map(([k, v]) => (
-                            <div key={k} className="flex gap-2 min-w-0">
-                                <span className="font-semibold text-gray-600 dark:text-gray-400 flex-shrink-0">{k}:</span>
+                            <div key={k} className="flex min-w-0 gap-2">
+                                <span className="flex-shrink-0 font-semibold text-gray-600 dark:text-gray-400">{k}:</span>
                                 <span className="min-w-0 break-words">{renderArgumentValue(v)}</span>
                             </div>
                         ))}

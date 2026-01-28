@@ -537,9 +537,9 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                                             )}
                                                         </label>
                                                         <div className="max-h-48 overflow-auto rounded-lg border">
-                                                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                                            { }
                                                             <JSONViewer
-                                                                data={getInputSchema() as any}
+                                                                data={getInputSchema()}
                                                                 maxDepth={3}
                                                                 className="border-none text-xs"
                                                             />
@@ -566,9 +566,9 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({
                                                     )}
                                                 </label>
                                                 <div className="max-h-64 overflow-auto rounded-lg border">
-                                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                                    { }
                                                     <JSONViewer
-                                                        data={getOutputSchema() as any}
+                                                        data={getOutputSchema()}
                                                         maxDepth={3}
                                                         className="border-none text-xs"
                                                     />
