@@ -112,6 +112,9 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 // Extract auto title generation config from feature enablement
                 const autoTitleGenerationEnabled = data.frontend_feature_enablement?.auto_title_generation ?? false;
 
+                // Extract binary artifact preview config from feature enablement
+                const binaryArtifactPreviewEnabled = data.frontend_feature_enablement?.binaryArtifactPreview ?? false;
+
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
                     webuiServerUrl: data.frontend_server_url,
@@ -132,6 +135,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     backgroundTasksDefaultTimeoutMs,
                     platformConfigured,
                     autoTitleGenerationEnabled,
+                    binaryArtifactPreviewEnabled,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;

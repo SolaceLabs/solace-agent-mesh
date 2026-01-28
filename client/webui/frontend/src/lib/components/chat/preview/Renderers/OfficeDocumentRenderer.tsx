@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import { FileType, Loader2, Download } from "lucide-react";
 import PdfRenderer from "./PdfRenderer";
+import { ConfigContext } from "@/lib/contexts/ConfigContext";
 
 interface OfficeDocumentRendererProps {
     content: string;
@@ -38,10 +39,14 @@ const hashContent = (content: string, filename: string): string => {
  * If conversion is not available or fails, it shows a message to download the file.
  */
 export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ content, filename, documentType, setRenderError }) => {
+    const config = useContext(ConfigContext);
     const [isCheckingService, setIsCheckingService] = useState(true);
     const [isConverting, setIsConverting] = useState(false);
     const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    // Check if binary artifact preview is enabled via feature flag
+    const binaryArtifactPreviewEnabled = config?.binaryArtifactPreviewEnabled ?? false;
 
     // Check if document conversion service is available
     const checkConversionService = useCallback(async (): Promise<boolean> => {
@@ -109,6 +114,14 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
         let isMounted = true;
 
         const initializeRenderer = async () => {
+            // Check if feature is enabled first
+            if (!binaryArtifactPreviewEnabled) {
+                console.log("Binary artifact preview is disabled via feature flag");
+                setIsCheckingService(false);
+                setError("Document preview is not enabled on this server.");
+                return;
+            }
+
             // Check cache first
             const cacheKey = hashContent(content, filename);
             const cachedPdf = pdfConversionCache.get(cacheKey);
@@ -180,7 +193,7 @@ export const OfficeDocumentRenderer: React.FC<OfficeDocumentRendererProps> = ({ 
         return () => {
             isMounted = false;
         };
-    }, [content, filename, checkConversionService, convertToPdf]);
+    }, [content, filename, checkConversionService, convertToPdf, binaryArtifactPreviewEnabled]);
 
     // Propagate errors to parent
     useEffect(() => {
