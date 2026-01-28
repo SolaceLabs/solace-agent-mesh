@@ -6,13 +6,13 @@ import type { VisualizerStep } from "@/lib/types";
  */
 export interface LayoutNode {
     id: string;
-    type: 'agent' | 'tool' | 'llm' | 'user' | 'switch' | 'loop' | 'map' | 'group' | 'workflow' | 'parallelBlock';
+    type: "agent" | "tool" | "llm" | "user" | "switch" | "loop" | "map" | "group" | "workflow" | "parallelBlock";
     data: {
         label: string;
         visualizerStepId?: string;
         description?: string;
         status?: string;
-        variant?: 'default' | 'pill';
+        variant?: "default" | "pill";
         // Switch node fields
         condition?: string;
         cases?: { condition: string; node: string }[];
@@ -40,6 +40,7 @@ export interface LayoutNode {
         isTopNode?: boolean;
         isBottomNode?: boolean;
         isSkipped?: boolean;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         [key: string]: any;
     };
 

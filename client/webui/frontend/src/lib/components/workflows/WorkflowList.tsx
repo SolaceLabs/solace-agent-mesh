@@ -46,9 +46,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
     const filteredWorkflows = useMemo(() => {
         if (!workflows || workflows.length === 0) return [];
 
-        let result = searchTerm.trim()
-            ? workflows.filter(workflow => (workflow.displayName || workflow.name)?.toLowerCase().includes(searchTerm.toLowerCase()))
-            : workflows;
+        const result = searchTerm.trim() ? workflows.filter(workflow => (workflow.displayName || workflow.name)?.toLowerCase().includes(searchTerm.toLowerCase())) : workflows;
 
         return result.slice().sort((a, b) => (a.displayName || a.name).localeCompare(b.displayName || b.name));
     }, [workflows, searchTerm]);
@@ -149,10 +147,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                 <Pagination>
                     <PaginationContent>
                         <PaginationItem>
-                            <PaginationPrevious
-                                onClick={() => handlePageChange(effectiveCurrentPage - 1)}
-                                className={effectiveCurrentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                            />
+                            <PaginationPrevious onClick={() => handlePageChange(effectiveCurrentPage - 1)} className={effectiveCurrentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
                         </PaginationItem>
 
                         {getPageNumbers().map((page, index) => (
@@ -160,11 +155,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                                 {page === "ellipsis" ? (
                                     <PaginationEllipsis />
                                 ) : (
-                                    <PaginationLink
-                                        onClick={() => handlePageChange(page as number)}
-                                        isActive={effectiveCurrentPage === page}
-                                        className="cursor-pointer"
-                                    >
+                                    <PaginationLink onClick={() => handlePageChange(page as number)} isActive={effectiveCurrentPage === page} className="cursor-pointer">
                                         {page}
                                     </PaginationLink>
                                 )}
@@ -172,10 +163,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                         ))}
 
                         <PaginationItem>
-                            <PaginationNext
-                                onClick={() => handlePageChange(effectiveCurrentPage + 1)}
-                                className={effectiveCurrentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                            />
+                            <PaginationNext onClick={() => handlePageChange(effectiveCurrentPage + 1)} className={effectiveCurrentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} />
                         </PaginationItem>
                     </PaginationContent>
                 </Pagination>
@@ -223,12 +211,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                                     </TableHeader>
                                     <TableBody>
                                         {currentWorkflows.map(workflow => (
-                                            <TableRow
-                                                key={workflow.name}
-                                                onClick={() => handleSelectWorkflow(workflow)}
-                                                className="hover:bg-muted/50 cursor-pointer"
-                                                data-state={selectedWorkflow?.name === workflow.name ? "selected" : undefined}
-                                            >
+                                            <TableRow key={workflow.name} onClick={() => handleSelectWorkflow(workflow)} className="hover:bg-muted/50 cursor-pointer" data-state={selectedWorkflow?.name === workflow.name ? "selected" : undefined}>
                                                 <TableCell>
                                                     <Button
                                                         testid={`workflow-name-${workflow.name}`}
@@ -257,12 +240,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                             </div>
                         ) : (
                             <div className="flex h-full min-h-[300px] items-center justify-center">
-                                <EmptyState
-                                    variant="notFound"
-                                    title="No workflows found"
-                                    subtitle="Try adjusting your search terms"
-                                    buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchTerm("") }]}
-                                />
+                                <EmptyState variant="notFound" title="No workflows found" subtitle="Try adjusting your search terms" buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchTerm("") }]} />
                             </div>
                         )}
                     </div>
