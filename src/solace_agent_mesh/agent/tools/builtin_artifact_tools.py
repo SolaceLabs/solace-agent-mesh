@@ -26,6 +26,10 @@ from ...agent.utils.artifact_helpers import (
     is_filename_safe,
     METADATA_SUFFIX,
     DEFAULT_SCHEMA_MAX_KEYS,
+    AGENT_DEFAULTS_USER_ID,
+    _get_agent_default_artifacts,
+    get_latest_artifact_version,
+    load_artifact_with_fallback_to_defaults,
 )
 from ...common.utils.embeds import (
     evaluate_embed,
@@ -196,6 +200,7 @@ async def list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]:
     """
     Lists all available data artifact filenames and their versions for the current session.
     Includes a summary of the latest version's metadata for each artifact.
+    Also includes agent-level default artifacts if configured.
 
     Args:
         tool_context: The context provided by the ADK framework.
@@ -214,6 +219,12 @@ async def list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]:
         app_name = tool_context._invocation_context.app_name
         user_id = tool_context._invocation_context.user_id
         session_id = get_original_session_id(tool_context._invocation_context)
+        
+        # Get agent name for default artifacts lookup
+        agent = getattr(tool_context._invocation_context, "agent", None)
+        host_component = getattr(agent, "host_component", None) if agent else None
+        agent_name = host_component.agent_name if host_component else None
+        
         list_keys_method = getattr(artifact_service, "list_artifact_keys")
         all_keys = await list_keys_method(
             app_name=app_name, user_id=user_id, session_id=session_id
@@ -346,8 +357,78 @@ async def list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]:
                 }
             )
             processed_data_files.add(filename)
+        
+        # Include agent-level default artifacts if agent_name is available
+        if agent_name:
+            log.debug(
+                "%s Fetching agent default artifacts for agent '%s'.",
+                log_identifier,
+                agent_name,
+            )
+            try:
+                default_artifacts = await _get_agent_default_artifacts(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    agent_name=agent_name,
+                    exclude_filenames=processed_data_files,
+                    log_prefix=log_identifier,
+                )
+                
+                # Convert ArtifactInfo objects to the response format
+                for artifact_info in default_artifacts:
+                    # Get versions for the default artifact
+                    default_versions = []
+                    try:
+                        default_versions_list = await artifact_service.list_versions(
+                            app_name=agent_name,  # Default artifacts use agent_name as app_name
+                            user_id=AGENT_DEFAULTS_USER_ID,
+                            session_id=agent_name,
+                            filename=artifact_info.filename,
+                        )
+                        default_versions = list(default_versions_list) if default_versions_list else []
+                    except Exception as ver_err:
+                        log.warning(
+                            "%s Failed to list versions for default artifact '%s': %s",
+                            log_identifier,
+                            artifact_info.filename,
+                            ver_err,
+                        )
+                        default_versions = [artifact_info.version] if artifact_info.version is not None else [0]
+                    
+                    metadata_summary = {
+                        "description": artifact_info.description,
+                        "source": "agent_default",  # Mark as agent default
+                        "type": artifact_info.mime_type,
+                        "size": artifact_info.size,
+                    }
+                    # Remove None values
+                    metadata_summary = {k: v for k, v in metadata_summary.items() if v is not None}
+                    
+                    response_files.append(
+                        {
+                            "filename": artifact_info.filename,
+                            "versions": default_versions,
+                            "metadata_summary": metadata_summary,
+                            "is_agent_default": True,  # Flag to indicate this is a default artifact
+                        }
+                    )
+                    processed_data_files.add(artifact_info.filename)
+                
+                log.info(
+                    "%s Added %d agent default artifacts for agent '%s'.",
+                    log_identifier,
+                    len(default_artifacts),
+                    agent_name,
+                )
+            except Exception as default_err:
+                log.warning(
+                    "%s Failed to fetch agent default artifacts: %s",
+                    log_identifier,
+                    default_err,
+                )
+        
         log.info(
-            "%s Found %d data artifacts for session %s.",
+            "%s Found %d total artifacts for session %s (including defaults).",
             log_identifier,
             len(response_files),
             session_id,
@@ -369,6 +450,7 @@ async def load_artifact(
     """
     Loads the content or metadata of a specific artifact version.
     Early-stage embeds in the filename argument are resolved.
+    Falls back to agent-level default artifacts if not found in user session.
 
     If load_metadata_only is True, loads the full metadata dictionary.
     Otherwise, loads text content (potentially truncated) or binary metadata summary.
@@ -411,6 +493,9 @@ async def load_artifact(
         session_id = get_original_session_id(tool_context._invocation_context)
         agent = getattr(tool_context._invocation_context, "agent", None)
         host_component = getattr(agent, "host_component", None) if agent else None
+        agent_name = host_component.agent_name if host_component else None
+        
+        # First, try to load from user's session
         result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,
             app_name=app_name,
@@ -424,6 +509,37 @@ async def load_artifact(
             component=host_component,
             log_identifier_prefix="[BuiltinArtifactTool:load_artifact]",
         )
+        
+        # If not found and we have an agent name, try agent defaults
+        if result.get("status") == "not_found" and agent_name:
+            log.debug(
+                "%s Artifact not found in user session, trying agent defaults for agent '%s'.",
+                log_identifier,
+                agent_name,
+            )
+            result = await load_artifact_content_or_metadata(
+                artifact_service=artifact_service,
+                app_name=agent_name,  # Default artifacts use agent_name as app_name
+                user_id=AGENT_DEFAULTS_USER_ID,
+                session_id=agent_name,
+                filename=filename,
+                version=version,
+                load_metadata_only=load_metadata_only,
+                max_content_length=max_content_length,
+                include_line_numbers=include_line_numbers,
+                component=host_component,
+                log_identifier_prefix="[BuiltinArtifactTool:load_artifact:agent_default]",
+            )
+            if result.get("status") == "success":
+                # Mark as loaded from agent defaults
+                result["source"] = "agent_default"
+                log.info(
+                    "%s Loaded artifact '%s' from agent defaults for agent '%s'.",
+                    log_identifier,
+                    filename,
+                    agent_name,
+                )
+        
         return result
     except FileNotFoundError as fnf_err:
         log.warning(
