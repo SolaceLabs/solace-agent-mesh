@@ -25,9 +25,6 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
     const [selectedWorkflow, setSelectedWorkflow] = useState<AgentCardInfo | null>(null);
     const [isSidePanelOpen, setIsSidePanelOpen] = useState<boolean>(false);
     
-    // workflows = []; // TEMPORARY: Force empty state preview
-
-
     // Responsive itemsPerPage based on screen height
     const itemsPerPage = screenHeight >= 900 ? 20 : 10;
 
