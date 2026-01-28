@@ -864,6 +864,10 @@ class LiteLlm(BaseLlm):
             # Setting parallel_tool_calls without any tools causes an error from Anthropic.
             completion_args.pop("parallel_tool_calls")
 
+        # Remove stream_options when not streaming (Azure doesn't support it)
+        if not stream:
+            completion_args.pop("stream_options", None)
+
         if stream:
             text = ""
             function_calls = {}  # index -> {name, args, id}
