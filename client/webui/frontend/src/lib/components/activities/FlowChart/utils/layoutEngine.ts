@@ -575,24 +575,61 @@ function handleWorkflowStart(step: VisualizerStep, context: BuildContext): void 
     groupNode.children.push(startNode);
 
     // Check if this workflow is part of a parallel group
-    const functionCallId = step.functionCallId;
+
     let addedToParallelBlock = false;
 
-    if (functionCallId) {
-        // Search through all parallel groups to find if this functionCallId belongs to one
-        for (const [groupKey, functionCallIds] of context.parallelPeerGroupMap.entries()) {
-            if (functionCallIds.has(functionCallId)) {
-                // This workflow is part of a parallel group
-                const parallelBlock = context.parallelBlockMap.get(groupKey);
-                if (parallelBlock) {
-                    parallelBlock.children.push(groupNode);
-                    addedToParallelBlock = true;
+        // First, check if the calling agent (parent workflow node) stored a parallelGroupId from WORKFLOW_NODE_EXECUTION_START
+    const workflowNodeParallelGroupId = callingAgent?.data.workflowNodeParallelGroupId;
+    if (workflowNodeParallelGroupId) {
+        // This workflow node is part of an implicit parallel group
+        // Check if we already have a parallel block for this group
+        let implicitParallelBlock = context.parallelBlockMap.get(workflowNodeParallelGroupId);
+        if (!implicitParallelBlock) {
+            // Create a new parallel block container for this implicit fork
+            implicitParallelBlock = createNode(
+                context,
+                'parallelBlock',
+                {
+                    label: 'Parallel',
+                    visualizerStepId: step.id,
+                },
+                step.owningTaskId
+            );
+            context.parallelBlockMap.set(workflowNodeParallelGroupId, implicitParallelBlock);
+            // Add the parallel block to the calling agent
+            if (callingAgent) {
+                callingAgent.children.push(implicitParallelBlock);
+            } else {
+                context.rootNodes.push(implicitParallelBlock);
+            }
+        }
+        // Add this workflow group to the parallel block with its iteration index for correct positioning
+        // Retrieve the iteration index that was stored by subTaskId
+        const executionId = step.data.workflowExecutionStart?.executionId;
+        const owningTaskId = step.owningTaskId;
+        const workflowIterationIndices = callingAgent?.data.workflowNodeIterationIndices as Record<string, number> | undefined;
+        const iterationIndex = workflowIterationIndices && (owningTaskId || executionId) ? (workflowIterationIndices[owningTaskId || executionId || ''] ?? 0) : 0;
+        groupNode.data.iterationIndex = iterationIndex;
+        implicitParallelBlock.children.push(groupNode);
+        addedToParallelBlock = true;
+    } else {
+        const functionCallId = step.functionCallId;
+        if (functionCallId) {
+            // Search through all parallel groups to find if this functionCallId belongs to one
+            for (const [groupKey, functionCallIds] of context.parallelPeerGroupMap.entries()) {
+                if (functionCallIds.has(functionCallId)) {
+                    // This workflow is part of a parallel group
+                    const parallelBlock = context.parallelBlockMap.get(groupKey);
+                    if (parallelBlock) {
+                        parallelBlock.children.push(groupNode);
+                        addedToParallelBlock = true;
+                    }
+                    break;
                 }
-                break;
             }
         }
     }
-
+    
     // If not part of a parallel group, add to calling agent or root
     if (!addedToParallelBlock) {
         if (callingAgent) {
@@ -781,6 +818,8 @@ function handleWorkflowNodeStart(step: VisualizerStep, context: BuildContext): v
 function handleWorkflowNodeType(step: VisualizerStep, context: BuildContext): void {
     const workflowNodeData = step.data.workflowNodeExecutionStart;
     const subTaskId = workflowNodeData?.subTaskId;
+    const parallelGroupId = workflowNodeData?.parallelGroupId;
+    const iterationIndex = workflowNodeData?.iterationIndex;    
 
     console.log('[handleWorkflowNodeType] nodeType=workflow, subTaskId=', subTaskId, 'owningTaskId=', step.owningTaskId);
 
@@ -801,6 +840,20 @@ function handleWorkflowNodeType(step: VisualizerStep, context: BuildContext): vo
     // This allows the sub-workflow's WORKFLOW_EXECUTION_START to find the correct parent
     context.subWorkflowParentMap.set(subTaskId, parentGroup);
     console.log('[handleWorkflowNodeType] Recorded mapping:', subTaskId, '->', parentGroup.data.label);
+
+    // Also store the parallelGroupId on the parent if this workflow node is part of a parallel group
+    // This will be used in handleWorkflowStart to add the workflow group to the correct parallel block
+    if (parallelGroupId) {
+        parentGroup.data.workflowNodeParallelGroupId = parallelGroupId;
+        // Store the iteration index using a special key so each workflow can retrieve its own index
+        if (iterationIndex !== undefined) {
+            // Use a keyed format to store per-workflow iteration index
+            if (!parentGroup.data.workflowNodeIterationIndices) {
+                parentGroup.data.workflowNodeIterationIndices = {};
+            }
+            (parentGroup.data.workflowNodeIterationIndices as Record<string, number>)[subTaskId] = iterationIndex;
+        }
+    }    
 }
 
 /**
