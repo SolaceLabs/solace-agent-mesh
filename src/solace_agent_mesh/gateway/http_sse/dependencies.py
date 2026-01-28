@@ -396,6 +396,7 @@ async def get_user_config(
     """
     FastAPI dependency to get the user-specific configuration.
     """
+    user_id = user.get("id")
     log.debug(f"get_user_config called for user_id: {user_id}")
 
     # TODO: DATAGO-114659-split-cleanup

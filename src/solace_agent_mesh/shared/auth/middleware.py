@@ -147,6 +147,7 @@ async def _create_user_state(
 
     return {
         "id": final_user_id,
+        "user_id": final_user_id,
         "email": email_from_auth or final_user_id,
         "name": display_name or final_user_id,
         "authenticated": True,
@@ -261,17 +262,18 @@ def create_oauth_middleware(component):
                     claims = trust_manager.verify_user_claims_without_task_binding(access_token)
                     user_identifier = claims.get("sam_user_id")
                     # Success! It's a valid sam_access_token
-                    # Extract roles from token, resolve scopes at request time
+                    # Extract roles from token, resolve scopes at request
 
                     user_state = {
                         "id": user_identifier,
+                        "user_id": user_identifier,
                         "email": claims.get("email", user_identifier),
                         "name": claims.get("name", user_identifier),
                         "authenticated": True,
                         "auth_method": "sam_access_token",
                     }
 
-                    claim_roles = claims.get("roles", None)
+                    claim_roles = claims.get("roles")
                     if claim_roles:
                         user_state["roles"] = claim_roles
                     request.state.user  = user_state
@@ -285,6 +287,7 @@ def create_oauth_middleware(component):
                 except Exception as e:
                     # Not a sam_access_token or verification failed
                     # Fall through to IdP token validation below
+                    # TODO - distinguish invalid sam_access_token vs not a sam_access_token?
                     log.warning(f"AuthMiddleware: Token is not a valid sam_access_token: {e}")
 
             # EXISTING: Fall back to IdP token validation (unchanged logic)

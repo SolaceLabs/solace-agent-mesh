@@ -25,7 +25,7 @@ class ConfigResolver:
 
     @staticmethod
     async def resolve_user_config(
-        user_identity: Any, gateway_context: Dict[str, Any], base_config: Dict[str, Any], user: Optional[Dict[str, Any]] = None
+        user_identity: Any, gateway_context: Dict[str, Any], base_config: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Resolve user-specific configuration settings.
