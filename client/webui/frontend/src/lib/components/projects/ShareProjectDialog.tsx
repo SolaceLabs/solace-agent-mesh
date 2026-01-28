@@ -150,8 +150,8 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
 
     return (
         <Dialog open={isOpen} onOpenChange={open => !open && handleDiscard()}>
-            <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
+            <DialogContent className="flex max-h-[80vh] flex-col sm:max-w-[500px]">
+                <DialogHeader className="flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <DialogTitle>Share Project</DialogTitle>
                         <Button variant="outline" size="sm" onClick={handleAddTypeahead} disabled={isSaving} className="gap-1">
@@ -165,22 +165,23 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                 </DialogHeader>
 
                 {error && (
-                    <div className="py-2">
+                    <div className="flex-shrink-0 py-2">
                         <MessageBanner variant="error" message={error} />
                     </div>
                 )}
 
-                {/* Typeahead Inputs */}
-                {pendingTypeaheads.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                        {pendingTypeaheads.map(typeahead => (
-                            <UserTypeahead key={typeahead.id} id={typeahead.id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} selectedEmail={typeahead.email} disabled={isSaving} />
-                        ))}
-                    </div>
-                )}
+                {/* Scrollable Content Area */}
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                    {/* Typeahead Inputs */}
+                    {pendingTypeaheads.length > 0 && (
+                        <div className="flex flex-col gap-2 pb-2">
+                            {pendingTypeaheads.map(typeahead => (
+                                <UserTypeahead key={typeahead.id} id={typeahead.id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} selectedEmail={typeahead.email} disabled={isSaving} />
+                            ))}
+                        </div>
+                    )}
 
-                {/* User List */}
-                <div className="max-h-[300px] overflow-y-auto">
+                    {/* User List */}
                     {isLoadingShares ? (
                         <div className="flex items-center justify-center py-8">
                             <Loader2 className="h-6 w-6 animate-spin text-[var(--muted-foreground)]" />
@@ -214,7 +215,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                     )}
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="flex-shrink-0">
                     <Button variant="ghost" onClick={handleDiscard} disabled={isSaving}>
                         Discard Changes
                     </Button>
