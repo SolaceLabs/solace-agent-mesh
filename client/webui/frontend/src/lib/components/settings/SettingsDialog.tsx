@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Info, Settings, Type, Volume2 } from "lucide-react";
+import { Database, Info, Settings, Type, Volume2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useConfigContext } from "@/lib/hooks";
@@ -7,9 +7,10 @@ import { useConfigContext } from "@/lib/hooks";
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger, VisuallyHidden } from "@/lib/components/ui";
 import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
+import { SessionManagementSettings } from "./SessionManagementSettings";
 import { AboutProduct } from "@/lib/components/settings/AboutProduct";
 
-type SettingsSection = "general" | "speech" | "about";
+type SettingsSection = "general" | "speech" | "sessions" | "about";
 
 interface SidebarItemProps {
     icon: React.ReactNode;
@@ -34,7 +35,7 @@ interface SettingsDialogProps {
 }
 
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false, open: controlledOpen, onOpenChange }) => {
-    const { configFeatureEnablement } = useConfigContext();
+    const { configFeatureEnablement, persistenceEnabled } = useConfigContext();
     const [internalOpen, setInternalOpen] = useState(false);
     const [activeSection, setActiveSection] = useState<SettingsSection>("general");
 
@@ -56,6 +57,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                 return <GeneralSettings />;
             case "speech":
                 return <SpeechSettingsPanel />;
+            case "sessions":
+                return <SessionManagementSettings />;
             default:
                 return <GeneralSettings />;
         }
@@ -69,6 +72,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                 return "General";
             case "speech":
                 return "Speech";
+            case "sessions":
+                return "Session Management";
             default:
                 return "Settings";
         }
@@ -116,6 +121,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                             <div className="flex-1 space-y-1 overflow-y-auto">
                                 <SidebarItem icon={<Type className="size-4" />} label="General" active={activeSection === "general"} onClick={() => setActiveSection("general")} />
                                 {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} />}
+                                {persistenceEnabled && <SidebarItem icon={<Database className="size-4" />} label="Sessions" active={activeSection === "sessions"} onClick={() => setActiveSection("sessions")} />}
                             </div>
                             {/* Bottom items, static */}
                             <div className="space-y-1 pb-2">

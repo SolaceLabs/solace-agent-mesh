@@ -1,9 +1,9 @@
 import asyncio
 import json
 import logging
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from ..dependencies import get_session_business_service, get_db, get_title_generation_service
@@ -29,6 +29,143 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 SESSION_NOT_FOUND_MSG = "Session not found."
+
+
+# Bulk session deletion DTOs
+class BulkDeleteSessionsRequest(BaseModel):
+    """Request model for bulk session deletion."""
+    session_ids: Optional[List[str]] = Field(None, description="Specific session IDs to delete")
+    delete_all: bool = Field(default=False, description="Delete all sessions")
+    start_date: Optional[int] = Field(None, description="Start date (epoch ms) for date range deletion")
+    end_date: Optional[int] = Field(None, description="End date (epoch ms) for date range deletion")
+
+
+class BulkDeleteSessionsResponse(BaseModel):
+    """Response model for bulk session deletion."""
+    deleted_count: int = Field(alias="deletedCount")
+    failed_count: int = Field(alias="failedCount")
+    total_requested: int = Field(alias="totalRequested")
+    
+    class Config:
+        populate_by_name = True
+
+
+class SessionStatisticsResponse(BaseModel):
+    """Response model for session statistics."""
+    total: int
+    today: int
+    yesterday: int
+    this_week: int = Field(alias="thisWeek")
+    last_week: int = Field(alias="lastWeek")
+    previous_30_days: int = Field(alias="previous30Days")
+    older: int
+    
+    class Config:
+        populate_by_name = True
+
+
+# Bulk session endpoints - MUST be before /sessions/{session_id} to avoid path conflicts
+@router.get("/sessions/statistics", response_model=SessionStatisticsResponse)
+async def get_session_statistics(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """
+    Get statistics about user's sessions grouped by date.
+    
+    Returns counts for:
+    - Total sessions
+    - Today
+    - Yesterday
+    - This week
+    - Last week
+    - Previous 30 days
+    - Older than 30 days
+    """
+    user_id = user.get("id")
+    log.info("User %s requesting session statistics", user_id)
+    
+    try:
+        stats = session_service.get_session_statistics(db, user_id)
+        
+        return SessionStatisticsResponse(
+            total=stats["total"],
+            today=stats["today"],
+            yesterday=stats["yesterday"],
+            thisWeek=stats["this_week"],
+            lastWeek=stats["last_week"],
+            previous30Days=stats["previous_30_days"],
+            older=stats["older"],
+        )
+        
+    except ValueError as e:
+        log.warning("Validation error getting statistics for user %s: %s", user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) from e
+    except Exception as e:
+        log.error("Error getting statistics for user %s: %s", user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve session statistics",
+        ) from e
+
+
+@router.post("/sessions/bulk-delete", response_model=BulkDeleteSessionsResponse)
+async def bulk_delete_sessions(
+    request: BulkDeleteSessionsRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """
+    Delete multiple sessions based on various criteria.
+    
+    Supports:
+    - Deleting all sessions (delete_all=true)
+    - Deleting specific sessions (session_ids=[...])
+    - Deleting by date range (start_date, end_date)
+    """
+    user_id = user.get("id")
+    log.info("User %s attempting bulk session deletion", user_id)
+    
+    try:
+        result = session_service.bulk_delete_sessions(
+            db=db,
+            user_id=user_id,
+            session_ids=request.session_ids,
+            delete_all=request.delete_all,
+            start_date=request.start_date,
+            end_date=request.end_date,
+        )
+        
+        log.info(
+            "Bulk delete completed for user %s: %d deleted, %d failed",
+            user_id,
+            result["deleted_count"],
+            result["failed_count"],
+        )
+        
+        return BulkDeleteSessionsResponse(
+            deletedCount=result["deleted_count"],
+            failedCount=result["failed_count"],
+            totalRequested=result["total_requested"],
+        )
+        
+    except ValueError as e:
+        log.warning("Validation error in bulk delete for user %s: %s", user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) from e
+    except Exception as e:
+        log.error("Error in bulk delete for user %s: %s", user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete sessions",
+        ) from e
 
 
 @router.get("/sessions", response_model=PaginatedResponse[SessionResponse])
