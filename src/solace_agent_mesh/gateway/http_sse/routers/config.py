@@ -237,7 +237,6 @@ async def get_app_config(
         identity_service_config = component.get_config("identity_service", None)
         identity_service_type = identity_service_config.get("type") if identity_service_config else None
 
-
         # Manually check for the task_logging feature and add it
         task_logging_config = component.get_config("task_logging", {})
         if task_logging_config and task_logging_config.get("enabled", False):
