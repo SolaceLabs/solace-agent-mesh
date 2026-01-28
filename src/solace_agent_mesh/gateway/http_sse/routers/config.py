@@ -11,6 +11,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..routers.dto.requests.project_requests import CreateProjectRequest
 from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
+from ...constants import (
+    DEFAULT_MAX_UPLOAD_SIZE_BYTES,
+    DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES,
+    DEFAULT_MAX_TOTAL_UPLOAD_SIZE_BYTES,
+)
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
@@ -18,12 +23,6 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-# Default max upload size (50MB) - matches gateway_max_upload_size_bytes default
-DEFAULT_MAX_UPLOAD_SIZE_BYTES = 52428800
-# Default max ZIP upload size (100MB) - for project import ZIP files
-DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 104857600
 
 
 def _get_validation_limits(component: "WebUIBackendComponent" = None) -> Dict[str, Any]:
@@ -34,24 +33,31 @@ def _get_validation_limits(component: "WebUIBackendComponent" = None) -> Dict[st
     # Extract limits from CreateProjectRequest model
     create_fields = CreateProjectRequest.model_fields
     
-    # Get max upload size from component config, with fallback to default
+    # Get max upload size from component config
     max_upload_size_bytes = (
         component.get_config("gateway_max_upload_size_bytes", DEFAULT_MAX_UPLOAD_SIZE_BYTES)
         if component else DEFAULT_MAX_UPLOAD_SIZE_BYTES
     )
     
-    # Get max ZIP upload size from component config, with fallback to default (100MB)
+    # Get max ZIP upload size from component config
     max_zip_upload_size_bytes = (
         component.get_config("gateway_max_zip_upload_size_bytes", DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES)
         if component else DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES
     )
-    
+
+    # Get max total upload size per project from component config
+    max_total_upload_size_bytes = (
+        component.get_config("gateway_max_total_upload_size_bytes", DEFAULT_MAX_TOTAL_UPLOAD_SIZE_BYTES)
+        if component else DEFAULT_MAX_TOTAL_UPLOAD_SIZE_BYTES
+    )
+
     return {
         "projectNameMax": create_fields["name"].metadata[1].max_length if create_fields["name"].metadata else 255,
         "projectDescriptionMax": create_fields["description"].metadata[0].max_length if create_fields["description"].metadata else 1000,
         "projectInstructionsMax": create_fields["system_prompt"].metadata[0].max_length if create_fields["system_prompt"].metadata else 4000,
         "maxUploadSizeBytes": max_upload_size_bytes,
         "maxZipUploadSizeBytes": max_zip_upload_size_bytes,
+        "maxTotalUploadSizeBytes": max_total_upload_size_bytes,
     }
 
 

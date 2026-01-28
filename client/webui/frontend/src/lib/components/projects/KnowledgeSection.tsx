@@ -5,7 +5,7 @@ import { useConfigContext, useDownload } from "@/lib/hooks";
 import { useProjectArtifacts } from "@/lib/api/projects/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { ArtifactInfo, Project } from "@/lib/types";
-import { formatRelativeTime, validateFileSizes } from "@/lib/utils";
+import { formatRelativeTime, validateFileSizes, validateTotalUploadSize } from "@/lib/utils";
 
 import { ArtifactBar } from "../chat/artifact";
 import { FileDetails } from "../chat/file";
@@ -28,6 +28,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
 
     // Get max upload size from config - if not available, skip client-side validation
     const maxUploadSizeBytes = validationLimits?.maxUploadSizeBytes;
+    const maxTotalUploadSizeBytes = validationLimits?.maxTotalUploadSizeBytes;
 
     const [filesToUpload, setFilesToUpload] = useState<FileList | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,13 +48,30 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         });
     }, [artifacts]);
 
-    // Validate file sizes before showing upload dialog
-    // if maxUploadSizeBytes is not configured, validation is skipped and backend handles it
+    // Calculate current project size from artifacts
+    const currentProjectSize = React.useMemo(() => {
+        return artifacts.reduce((sum, artifact) => sum + (artifact.size || 0), 0);
+    }, [artifacts]);
+
+    // Validate file sizes and total upload limit before showing upload dialog
+    // if validation limits are not configured, validation is skipped and backend handles it
     const handleValidateFileSizes = useCallback(
         (files: FileList) => {
-            return validateFileSizes(files, { maxSizeBytes: maxUploadSizeBytes });
+            // 1. Validate individual file sizes (50MB per file)
+            const fileSizeResult = validateFileSizes(files, { maxSizeBytes: maxUploadSizeBytes });
+            if (!fileSizeResult.valid) {
+                return fileSizeResult;
+            }
+
+            // 2. Validate total upload limit (existing + new <= 500MB)
+            const totalUploadSizeResult = validateTotalUploadSize(currentProjectSize, files, maxTotalUploadSizeBytes);
+            if (!totalUploadSizeResult.valid) {
+                return { valid: false, error: totalUploadSizeResult.error };
+            }
+
+            return { valid: true };
         },
-        [maxUploadSizeBytes]
+        [maxUploadSizeBytes, maxTotalUploadSizeBytes, currentProjectSize]
     );
 
     const handleFileUploadChange = (files: FileList | null) => {
