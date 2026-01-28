@@ -129,6 +129,7 @@ FROM python:3.13.11-slim-trixie AS runtime
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 
+<<<<<<< HEAD
 # Copy Node.js 25 from the official node image
 COPY --from=node-binaries /usr/local/bin/node /usr/local/bin/node
 COPY --from=node-binaries /usr/local/bin/npm /usr/local/bin/npm
@@ -151,6 +152,33 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     libtasn1-6/unstable \
     libssl3t64=3.5.4-1~deb13u2 \
     openssl=3.5.4-1~deb13u2 && \
+=======
+# Build argument to control LibreOffice installation for binary artifact preview
+# LibreOffice is NOT installed by default to keep image size smaller
+# To enable binary artifact preview (DOCX/PPTX), set:
+#   docker build --build-arg INSTALL_LIBREOFFICE=true -t sam .
+# Or via environment variable:
+#   INSTALL_LIBREOFFICE=true docker build --build-arg INSTALL_LIBREOFFICE -t sam .
+ARG INSTALL_LIBREOFFICE
+
+# Install minimal runtime dependencies (no uv for licensing compliance)
+# LibreOffice is optionally installed for document conversion (DOCX/PPTX to PDF for preview)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ffmpeg=7:7.1.3-0+deb13u1 \
+    git && \
+    if [ "${INSTALL_LIBREOFFICE}" = "true" ]; then \
+        echo "Installing LibreOffice for binary artifact preview (INSTALL_LIBREOFFICE=true)..." && \
+        apt-get install -y --no-install-recommends \
+        libreoffice-writer-nogui \
+        libreoffice-impress-nogui \
+        libreoffice-calc-nogui; \
+    else \
+        echo "Skipping LibreOffice installation (set INSTALL_LIBREOFFICE=true to enable binary artifact preview)"; \
+    fi && \
+    curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+>>>>>>> a75a95774 (fix: add feature flag and default to false)
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/unstable.list /etc/apt/preferences.d/99pin-libtasn1
 
