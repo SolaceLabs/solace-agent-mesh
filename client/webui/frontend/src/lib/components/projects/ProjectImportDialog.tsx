@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { FileJson, AlertTriangle } from "lucide-react";
 import JSZip from "jszip";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
-import { MessageBanner, FileUpload } from "@/lib/components/common";
+
+import { Input, Label } from "@/lib/components/ui";
+import { MessageBanner, FileUpload, ConfirmationDialog } from "@/lib/components/common";
 import { useConfigContext } from "@/lib/hooks";
 import { formatBytes } from "@/lib/utils";
 
@@ -201,109 +202,117 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                 preserveName: false,
                 customName: customName.trim() || undefined,
             });
-            handleClose();
+            // Reset state on success - ConfirmationDialog will handle closing
+            setSelectedFiles(null);
+            setProjectPreview(null);
+            setCustomName("");
+            setError(null);
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : "Failed to import project";
             setError(errorMessage);
+            throw err; // Re-throw to prevent dialog from closing on import errors
         } finally {
             setIsImporting(false);
         }
     };
 
-    return (
-        <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                    <DialogTitle>Import Project</DialogTitle>
-                    <DialogDescription>Import a project from an exported project ZIP file.</DialogDescription>
-                </DialogHeader>
+    const handleCancel = () => {
+        if (!isImporting) {
+            handleClose();
+        }
+    };
 
-                <div className="space-y-4 py-4">
-                    {/* File Upload */}
-                    <div className="space-y-2">
-                        <FileUpload name="projectFile" accept=".zip" multiple={false} disabled={isImporting} value={selectedFiles} onChange={handleFileChange} onValidate={handleFileValidation} />
+    const dialogContent = (
+        <div className="space-y-4">
+            {/* File Upload */}
+            <div className="mt-2 py-2">
+                <FileUpload name="projectFile" accept=".zip" multiple={false} disabled={isImporting} value={selectedFiles} onChange={handleFileChange} onValidate={handleFileValidation} testid="projectImportFileInput" />
+            </div>
+
+            {/* Project Preview */}
+            {projectPreview && (
+                <div className="bg-muted/30 space-y-3 rounded-lg border p-4">
+                    <div>
+                        <Label className="text-muted-foreground text-xs">Original Name</Label>
+                        <p className="text-sm font-medium">{projectPreview.name}</p>
+                    </div>
+                    {projectPreview.description && (
+                        <div>
+                            <Label className="text-muted-foreground text-xs">Description</Label>
+                            <p className="text-sm">{projectPreview.description}</p>
+                        </div>
+                    )}
+                    {projectPreview.systemPrompt && (
+                        <div>
+                            <Label className="text-muted-foreground text-xs">Instructions</Label>
+                            <p className="line-clamp-3 text-sm">{projectPreview.systemPrompt}</p>
+                        </div>
+                    )}
+                    {projectPreview.defaultAgentId && (
+                        <div>
+                            <Label className="text-muted-foreground text-xs">Default Agent</Label>
+                            <p className="font-mono text-sm">{projectPreview.defaultAgentId}</p>
+                        </div>
+                    )}
+                    <div>
+                        <Label className="text-muted-foreground text-xs">
+                            Artifacts ({projectPreview.artifactCount} {projectPreview.artifactCount === 1 ? "file" : "files"})
+                        </Label>
+                        {projectPreview.artifacts.length > 0 && (
+                            <div className="mt-1 space-y-1">
+                                {projectPreview.artifacts.slice(0, 5).map((artifact, index) => (
+                                    <div key={index} className={`flex items-center gap-1.5 text-xs ${artifact.isOversized ? "text-destructive" : ""}`}>
+                                        {artifact.isOversized ? <AlertTriangle className="text-destructive h-3 w-3 flex-shrink-0" /> : <FileJson className="text-muted-foreground h-3 w-3 flex-shrink-0" />}
+                                        <span className="truncate">{artifact.name}</span>
+                                        <span className="text-muted-foreground flex-shrink-0">({formatBytes(artifact.size)})</span>
+                                    </div>
+                                ))}
+                                {projectPreview.artifacts.length > 5 && <p className="text-muted-foreground text-xs italic">+ {projectPreview.artifacts.length - 5} more files</p>}
+                            </div>
+                        )}
                     </div>
 
-                    {/* Project Preview */}
-                    {projectPreview && (
-                        <div className="bg-muted/30 space-y-3 rounded-lg border p-4">
-                            <div>
-                                <Label className="text-muted-foreground text-xs">Original Name</Label>
-                                <p className="text-sm font-medium">{projectPreview.name}</p>
-                            </div>
-                            {projectPreview.description && (
-                                <div>
-                                    <Label className="text-muted-foreground text-xs">Description</Label>
-                                    <p className="text-sm">{projectPreview.description}</p>
-                                </div>
-                            )}
-                            {projectPreview.systemPrompt && (
-                                <div>
-                                    <Label className="text-muted-foreground text-xs">Instructions</Label>
-                                    <p className="line-clamp-3 text-sm">{projectPreview.systemPrompt}</p>
-                                </div>
-                            )}
-                            {projectPreview.defaultAgentId && (
-                                <div>
-                                    <Label className="text-muted-foreground text-xs">Default Agent</Label>
-                                    <p className="font-mono text-sm">{projectPreview.defaultAgentId}</p>
-                                </div>
-                            )}
-                            <div>
-                                <Label className="text-muted-foreground text-xs">
-                                    Artifacts ({projectPreview.artifactCount} {projectPreview.artifactCount === 1 ? "file" : "files"})
-                                </Label>
-                                {projectPreview.artifacts.length > 0 && (
-                                    <div className="mt-1 space-y-1">
-                                        {projectPreview.artifacts.slice(0, 5).map((artifact, index) => (
-                                            <div key={index} className={`flex items-center gap-1.5 text-xs ${artifact.isOversized ? "text-destructive" : ""}`}>
-                                                {artifact.isOversized ? <AlertTriangle className="text-destructive h-3 w-3 flex-shrink-0" /> : <FileJson className="text-muted-foreground h-3 w-3 flex-shrink-0" />}
-                                                <span className="truncate">{artifact.name}</span>
-                                                <span className="text-muted-foreground flex-shrink-0">({formatBytes(artifact.size)})</span>
-                                            </div>
-                                        ))}
-                                        {projectPreview.artifacts.length > 5 && <p className="text-muted-foreground text-xs italic">+ {projectPreview.artifacts.length - 5} more files</p>}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Warning for oversized artifacts */}
-                            {projectPreview.oversizedArtifacts.length > 0 && maxUploadSizeBytes && (
-                                <div className="mt-2">
-                                    <MessageBanner
-                                        variant="warning"
-                                        message={`${projectPreview.oversizedArtifacts.length} ${projectPreview.oversizedArtifacts.length === 1 ? "file exceeds" : "files exceed"} the maximum size of ${formatBytes(maxUploadSizeBytes)} and will be skipped during import: ${projectPreview.oversizedArtifacts
-                                            .slice(0, 3)
-                                            .map(a => a.name)
-                                            .join(", ")}${projectPreview.oversizedArtifacts.length > 3 ? ` and ${projectPreview.oversizedArtifacts.length - 3} more` : ""}`}
-                                    />
-                                </div>
-                            )}
+                    {/* Warning for oversized artifacts */}
+                    {projectPreview.oversizedArtifacts.length > 0 && maxUploadSizeBytes && (
+                        <div className="mt-2">
+                            <MessageBanner
+                                variant="warning"
+                                message={`${projectPreview.oversizedArtifacts.length} ${projectPreview.oversizedArtifacts.length === 1 ? "file exceeds" : "files exceed"} the maximum size of ${formatBytes(maxUploadSizeBytes)} and will be skipped during import: ${projectPreview.oversizedArtifacts
+                                    .slice(0, 3)
+                                    .map(a => a.name)
+                                    .join(", ")}${projectPreview.oversizedArtifacts.length > 3 ? ` and ${projectPreview.oversizedArtifacts.length - 3} more` : ""}`}
+                            />
                         </div>
                     )}
-
-                    {/* Custom Name Input */}
-                    {projectPreview && (
-                        <div className="space-y-2">
-                            <Label htmlFor="customName">Project Name</Label>
-                            <Input id="customName" value={customName} onChange={e => setCustomName(e.target.value)} placeholder="Enter project name" disabled={isImporting} />
-                            <p className="text-muted-foreground text-xs">Name conflicts will be resolved automatically</p>
-                        </div>
-                    )}
-
-                    {/* Error Message */}
-                    {error && <MessageBanner variant="error" message={error} />}
                 </div>
+            )}
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={handleClose} disabled={isImporting}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleImport} disabled={isImporting || !projectPreview}>
-                        Import
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            {/* Custom Name Input */}
+            {projectPreview && (
+                <div className="space-y-2">
+                    <Label htmlFor="customName">Project Name</Label>
+                    <Input id="customName" value={customName} onChange={e => setCustomName(e.target.value)} placeholder="Enter project name" disabled={isImporting} />
+                    <p className="text-muted-foreground text-xs">Name conflicts will be resolved automatically</p>
+                </div>
+            )}
+
+            {/* Error Message */}
+            {error && <MessageBanner variant="error" message={error} />}
+        </div>
+    );
+
+    return (
+        <ConfirmationDialog
+            open={open}
+            onOpenChange={open => !open && handleClose()}
+            title="Import Project"
+            description="Import a project from an exported project ZIP file."
+            content={dialogContent}
+            actionLabels={{ confirm: "Import", cancel: "Cancel" }}
+            onConfirm={handleImport}
+            onCancel={handleCancel}
+            isLoading={isImporting}
+            isEnabled={!!projectPreview}
+        />
     );
 };

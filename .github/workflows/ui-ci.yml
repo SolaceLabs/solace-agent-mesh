@@ -5,14 +5,10 @@ on:
   push:
     branches:
       - "main"
-    paths:
-      - "client/webui/frontend/**"
   pull_request:
     types: [opened, synchronize]
     branches:
       - "main"
-    paths:
-      - "client/webui/frontend/**"
 
 permissions:
   contents: write
@@ -25,18 +21,35 @@ permissions:
   repository-projects: read
 
 jobs:
+  check-paths:
+    name: "Check if UI files changed"
+    runs-on: ubuntu-latest
+    outputs:
+      should-run: ${{ steps.filter.outputs.ui }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Check for UI changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            ui:
+              - 'client/webui/frontend/**'
+
   validate-conventional-commit:
     name: "Validate Conventional Commit"
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           fetch-depth: 0
 
       - name: Validate PR Title
-        uses: amannn/action-semantic-pull-request@v5
+        uses: amannn/action-semantic-pull-request@e32d7e603df1aa1ba07e981f2a23455dee596825 # v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -63,18 +76,20 @@ jobs:
 
   ui-build-and-test:
     name: "Build and Test UI"
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: client/webui/frontend
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: "npm"
@@ -95,7 +110,7 @@ jobs:
 
       - name: Restore Playwright Browser From Cache
         id: restore-playwright-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('client/webui/frontend/package-lock.json') }}
@@ -106,7 +121,7 @@ jobs:
 
       - name: Save Playwright cache
         if: steps.restore-playwright-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('client/webui/frontend/package-lock.json') }}
@@ -218,11 +233,30 @@ jobs:
             python whitesource_vulnerability_checker.py
             "
 
+  ui-ci-status:
+    name: "UI CI Status"
+    runs-on: ubuntu-latest
+    needs: [check-paths, ui-build-and-test]
+    if: always()
+    steps:
+      - name: Check build status
+        run: |
+          if [[ "${{ needs.check-paths.outputs.should-run }}" == "false" ]]; then
+            echo "UI files not changed, skipping UI build and tests"
+            exit 0
+          elif [[ "${{ needs.ui-build-and-test.result }}" == "success" ]]; then
+            echo "UI build/tests passed"
+            exit 0
+          else
+            echo "UI build/tests failed"
+            exit 1
+          fi
+
   bump-version:
-    needs: ui-build-and-test
+    needs: [check-paths, ui-build-and-test]
     name: "Bump UI Version"
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch && needs.check-paths.outputs.should-run == 'true'
     outputs:
       new-tag: ${{ steps.bump.outputs.newTag }}
     defaults:
@@ -230,7 +264,7 @@ jobs:
         working-directory: client/webui/frontend
     steps:
       - name: "Checkout source code"
-        uses: "actions/checkout@v4"
+        uses: "actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd" # v5.0.1
         with:
           ref: ${{ github.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -240,13 +274,13 @@ jobs:
         run: cat ./package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
 
       - name: "Automated Version Bump"
         id: bump
-        uses: "phips28/gh-action-bump-version@master"
+        uses: "phips28/gh-action-bump-version@71473b25295fe3907df2ff87cce295a0dce1b20b" # master
         with:
           minor-wording: "feat,minor"
           major-wording: "BREAKING CHANGE,major"
@@ -278,7 +312,7 @@ jobs:
 
       - name: Set up SSH agent
         if: steps.bump.outputs.newTag != ''
-        uses: webfactory/ssh-agent@v0.9.1
+        uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
         with:
           ssh-private-key: ${{ secrets.COMMIT_KEY }}
 

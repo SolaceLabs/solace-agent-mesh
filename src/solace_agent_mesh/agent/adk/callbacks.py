@@ -3,11 +3,12 @@ ADK Callbacks for the A2A Host Component.
 Includes dynamic instruction injection, artifact metadata injection,
 embed resolution, and logging.
 """
-
 import logging
 import json
 import asyncio
+import time
 import uuid
+import re
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 from collections import defaultdict
 
@@ -635,34 +636,50 @@ async def process_artifact_blocks_callback(
         final_parser_result = parser.finalize()
 
         for event in final_parser_result.events:
-            if isinstance(event, BlockCompletedEvent):
+            if isinstance(event, BlockInvalidatedEvent):
+                # This event is emitted when an unterminated block is detected at the end of a turn.
+                # The rolled_back_text contains the original opening line + buffered content.
+                # We need to:
+                # 1. Send a "cancelled" status to clean up any in-progress UI
+                # 2. Send the original text as a status update so the frontend can display it
                 log.warning(
-                    "%s Unterminated artifact block detected at end of turn.",
+                    "%s Unterminated artifact block detected at end of turn. Rolled back text length: %d",
                     log_identifier,
+                    len(event.rolled_back_text),
                 )
-                params = event.params
-                filename = params.get("filename", "unknown_artifact")
-                if filename == "unknown_artifact":
-                    log.warning(
-                        "%s Unterminated fenced artifact block is missing a valid 'filename'. Failing operation.",
-                        log_identifier,
+                
+                # Try to extract filename from the rolled back text for the cancelled status
+                # The format is: «««save_artifact: filename="test.md" ...\n...content...
+                filename = "unknown_artifact"
+                filename_match = re.search(r'filename="([^"]+)"', event.rolled_back_text)
+                if filename_match:
+                    filename = filename_match.group(1)
+                
+                # Send a "cancelled" status to clean up any in-progress UI that was created
+                # when the block started. This tells the frontend to remove the artifact bubble.
+                a2a_context = callback_context.state.get("a2a_context")
+                if a2a_context:
+                    cancelled_progress_data = ArtifactCreationProgressData(
+                        filename=filename,
+                        status="cancelled",  # Use "cancelled" instead of "failed" for unterminated blocks
+                        bytes_transferred=0,
+                        # Include the rolled back text so the frontend can display it
+                        # This is sent along with the cancelled status so the frontend
+                        # can show the original text that was incorrectly parsed as an artifact
+                        rolled_back_text=event.rolled_back_text,
                     )
-                if (
-                    "completed_artifact_blocks_list" not in session.state
-                    or session.state["completed_artifact_blocks_list"] is None
-                ):
-                    session.state["completed_artifact_blocks_list"] = []
-                session.state["completed_artifact_blocks_list"].append(
-                    {
-                        "filename": filename,
-                        "version": 0,
-                        "status": "error",
-                        "original_text": session.state.get(
-                            "artifact_block_original_text", ""
-                        )
-                        + event.content,
-                    }
-                )
+                    await _publish_data_part_status_update(
+                        host_component, a2a_context, cancelled_progress_data
+                    )
+                    log.debug(
+                        "%s Sent 'cancelled' status with rolled back text for unterminated artifact block: %s",
+                        log_identifier,
+                        filename,
+                    )
+                
+                # Note: We no longer need to store the original text in completed_artifact_blocks_list
+                # because we're sending it directly with the cancelled status.
+                # The frontend will handle displaying the text when it receives the cancelled status.
 
         # If there was any rolled-back text from finalization, append it
         if final_parser_result.user_facing_text:
@@ -2528,3 +2545,279 @@ def preregister_long_running_tools_callback(
     )
 
     return None  # Don't alter the response
+
+
+# ============================================================================
+# OpenAPI Tool Audit Logging Callbacks
+# ============================================================================
+
+
+def _is_openapi_tool(tool: BaseTool) -> bool:
+    """
+    Check if a tool is an OpenAPI-based RestApiTool.
+
+    Args:
+        tool: The tool to check
+
+    Returns:
+        True if the tool is OpenAPI-based, False otherwise
+    """
+    # Check the origin attribute set by SAM at initialization
+    return getattr(tool, "origin", None) == "openapi"
+
+
+def _extract_openapi_base_url(tool: BaseTool) -> Optional[str]:
+    """Extract base URL from an OpenAPI tool."""
+    try:
+        # Check for endpoint.base_url attribute (RestApiTool has this)
+        if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "base_url"):
+            return str(tool.endpoint.base_url)
+
+        if hasattr(tool, "base_url") and tool.base_url:
+            return str(tool.base_url)
+
+        if hasattr(tool, "_base_url") and tool._base_url:
+            return str(tool._base_url)
+
+        if hasattr(tool, "_config") and isinstance(tool._config, dict):
+            return tool._config.get("base_url")
+
+    except Exception as e:
+        log.debug("Could not extract base URL: %s", e)
+
+    return None
+
+
+def _extract_openapi_http_method(tool: BaseTool) -> Optional[str]:
+    """Extract HTTP method from OpenAPI tool."""
+    # Get from tool's endpoint (RestApiTool)
+    if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "method"):
+        return str(tool.endpoint.method).upper()
+    return None
+
+
+def _extract_openapi_operation_id(tool: BaseTool) -> Optional[str]:
+    """Extract operation ID from OpenAPI tool."""
+    # Get from tool's operation (RestApiTool)
+    if hasattr(tool, "operation") and hasattr(tool.operation, "operationId"):
+        return tool.operation.operationId
+    return None
+
+
+def _extract_openapi_metadata(tool: BaseTool) -> Dict[str, Optional[str]]:
+    """
+    Extract all OpenAPI metadata from tool in one pass.
+
+    Returns:
+        Dict with keys: operation_id, base_url, http_method, endpoint_path, tool_uri
+    """
+    operation_id = _extract_openapi_operation_id(tool)
+    base_url = _extract_openapi_base_url(tool)
+    http_method = _extract_openapi_http_method(tool)
+
+    # Extract endpoint path template (safe, non-sensitive)
+    endpoint_path = None
+    if hasattr(tool, "endpoint") and hasattr(tool.endpoint, "path"):
+        endpoint_path = tool.endpoint.path
+
+    # Construct URI from base URL + path template
+    tool_uri = base_url
+    if base_url and endpoint_path:
+        base_clean = base_url.rstrip('/')
+        path_clean = endpoint_path.lstrip('/') if endpoint_path.startswith('/') else endpoint_path
+        tool_uri = f"{base_clean}/{path_clean}"
+
+    return {
+        "operation_id": operation_id,
+        "base_url": base_url,
+        "http_method": http_method,
+        "endpoint_path": endpoint_path,
+        "tool_uri": tool_uri,
+    }
+
+
+def audit_log_openapi_tool_invocation_start(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    host_component: "SamAgentComponent",
+) -> None:
+    """
+    ADK before_tool_callback for OpenAPI tools - logs invocation start.
+
+    Args:
+        tool: The tool being invoked
+        args: Tool arguments (NOT logged)
+        tool_context: ADK tool context
+        host_component: The SamAgentComponent host
+    """
+    # Only process OpenAPI tools (RestApiTool instances created from OpenAPI specs)
+    if not _is_openapi_tool(tool):
+        return
+
+    # Extract context
+    invocation_context = tool_context._invocation_context
+    session_id = None
+    user_id = None
+
+    if invocation_context and invocation_context.session:
+        session_id = invocation_context.session.id
+        user_id = invocation_context.session.user_id
+
+    # Extract all OpenAPI metadata
+    metadata = _extract_openapi_metadata(tool)
+
+    # Build action field and correlation tag
+    action = f"{metadata['http_method']}: {metadata['operation_id']}" if metadata['http_method'] and metadata['operation_id'] else (metadata['operation_id'] or "unknown")
+    correlation_tag = f"corr:{session_id}" if session_id else "corr:unknown"
+
+    # Store start time for latency calculation
+    tool_context.state["audit_start_time_ms"] = int(time.time() * 1000)
+
+    # Log in MCP-style format: [openapi-tool] [corr:xxx] message
+    log.info(
+        "[openapi-tool] [%s] Tool call: %s - User: %s, Agent: %s, URI: %s",
+        correlation_tag,
+        action,
+        user_id,
+        host_component.agent_name,
+        metadata['tool_uri'],
+        extra={
+            "user_id": user_id,
+            "agent_id": host_component.agent_name,
+            "tool_name": tool.name,
+            "session_id": session_id,
+            "operation_id": metadata['operation_id'],
+            "tool_uri": metadata['tool_uri'],
+        },
+    )
+
+
+async def audit_log_openapi_tool_execution_result(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    tool_response: Any,
+    host_component: "SamAgentComponent",
+) -> Optional[Dict[str, Any]]:
+    """
+    ADK after_tool_callback for OpenAPI tools - logs execution result.
+
+    Args:
+        tool: The tool that was executed
+        args: Tool arguments (NOT logged)
+        tool_context: ADK tool context
+        tool_response: Tool response (NOT logged for sensitive data)
+        host_component: The SamAgentComponent host
+
+    Returns:
+        None (does not modify the response)
+    """
+    # Only process OpenAPI tools (RestApiTool instances created from OpenAPI specs)
+    if not _is_openapi_tool(tool):
+        return None
+
+    # Extract context
+    invocation_context = tool_context._invocation_context
+    session_id = None
+    user_id = None
+
+    if invocation_context and invocation_context.session:
+        session_id = invocation_context.session.id
+        user_id = invocation_context.session.user_id
+
+    # Extract all OpenAPI metadata
+    metadata = _extract_openapi_metadata(tool)
+
+    # Check if request failed or is pending auth
+    has_error = False
+    is_pending_auth = False
+    error_type = None
+
+    if isinstance(tool_response, dict):
+        has_error = "error" in tool_response
+        is_pending_auth = tool_response.get("pending") == True
+
+        # Extract error type if present (safe, non-sensitive)
+        if has_error:
+            error_data = tool_response.get("error", {})
+            if isinstance(error_data, dict):
+                error_type = error_data.get("type") or error_data.get("code")
+            elif isinstance(error_data, str):
+                # If error is just a string, try to classify it
+                error_lower = error_data.lower()
+                if "auth" in error_lower or "unauthorized" in error_lower:
+                    error_type = "auth_error"
+                elif "not found" in error_lower or "404" in error_lower:
+                    error_type = "not_found"
+                elif "timeout" in error_lower:
+                    error_type = "timeout"
+                elif "network" in error_lower or "connection" in error_lower:
+                    error_type = "network_error"
+
+    # Calculate latency
+    latency_ms = None
+    start_time = tool_context.state.get("audit_start_time_ms")
+    if start_time:
+        latency_ms = int(time.time() * 1000) - start_time
+
+    # Build action and correlation tag
+    action = f"{metadata['http_method']}: {metadata['operation_id']}" if metadata['http_method'] and metadata['operation_id'] else (metadata['operation_id'] or "unknown")
+    correlation_tag = f"corr:{session_id}" if session_id else "corr:unknown"
+
+    if has_error:
+        # Build error message with optional error type
+        error_msg = f"[openapi-tool] [{correlation_tag}] {action} failed - Path: {metadata['endpoint_path'] or 'unknown'}"
+        if error_type:
+            error_msg += f", Error Type: {error_type}"
+        error_msg += f", Latency: {latency_ms}ms, User: {user_id}"
+
+        log.error(
+            error_msg,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+                "endpoint_path": metadata['endpoint_path'],
+                "error_type": error_type,
+            },
+        )
+    elif is_pending_auth:
+        log.warning(
+            "[openapi-tool] [%s] %s pending auth - Latency: %sms, User: %s",
+            correlation_tag,
+            action,
+            latency_ms,
+            user_id,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+                "status": "pending_auth",
+            },
+        )
+    else:
+        # SUCCESS format
+        log.info(
+            "[openapi-tool] [%s] %s completed - Latency: %sms, User: %s",
+            correlation_tag,
+            action,
+            latency_ms,
+            user_id,
+            extra={
+                "user_id": user_id,
+                "agent_id": host_component.agent_name,
+                "tool_name": tool.name,
+                "session_id": session_id,
+                "operation_id": metadata['operation_id'],
+                "tool_uri": metadata['tool_uri'],
+            },
+        )
+
+    return None
