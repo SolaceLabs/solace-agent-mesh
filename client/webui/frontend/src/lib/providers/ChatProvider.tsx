@@ -9,7 +9,7 @@ const v4 = () => uuidv4({});
 
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
-import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations } from "@/lib/hooks";
+import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useAuthContext } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText } from "@/lib/utils";
 
@@ -47,6 +47,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, autoTitleGenerationEnabled } = useConfigContext();
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { ErrorDialog, setError } = useErrorDialog();
+    const { userInfo } = useAuthContext();
 
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
@@ -194,6 +195,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         closePreview,
     });
 
+    // Get the authenticated user's ID for background task monitoring
+    const authenticatedUserId = typeof userInfo?.username === "string" ? userInfo.username : null;
+
     const {
         backgroundTasks,
         notifications: backgroundNotifications,
@@ -203,7 +207,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isTaskRunningInBackground,
         checkTaskStatus,
     } = useBackgroundTaskMonitor({
-        userId: "sam_dev_user",
+        userId: authenticatedUserId,
         currentSessionId: sessionId,
         onTaskCompleted: useCallback(
             async (taskId: string, taskSessionId: string) => {
