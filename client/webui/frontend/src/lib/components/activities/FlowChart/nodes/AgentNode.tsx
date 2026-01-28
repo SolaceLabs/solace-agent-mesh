@@ -1,4 +1,4 @@
-import React from "react";
+import { Fragment, type FC } from "react";
 import { Bot, Maximize2, Minimize2 } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 import LLMNode from "./LLMNode";
@@ -17,7 +17,7 @@ interface AgentNodeProps {
     onCollapse?: (nodeId: string) => void;
 }
 
-const AgentNode: React.FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+const AgentNode: FC<AgentNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
     // Render a child node recursively
     const renderChild = (child: LayoutNode) => {
         const childProps = {
@@ -123,13 +123,13 @@ const AgentNode: React.FC<AgentNodeProps> = ({ node, isSelected, onClick, onChil
 
                     {/* Sequential children below */}
                     {node.children.map((child, index) => (
-                        <React.Fragment key={child.id}>
+                        <Fragment key={child.id}>
                             {renderChild(child)}
                             {/* Connector line to next child */}
                             {index < node.children.length - 1 && (
                                 <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
                             )}
-                        </React.Fragment>
+                        </Fragment>
                     ))}
                 </div>
             );
@@ -167,13 +167,13 @@ const AgentNode: React.FC<AgentNodeProps> = ({ node, isSelected, onClick, onChil
                         {node.parallelBranches!.map((branch, branchIndex) => (
                             <div key={branchIndex} className="flex flex-col items-center">
                                 {branch.map((child, index) => (
-                                    <React.Fragment key={child.id}>
+                                    <Fragment key={child.id}>
                                         {renderChild(child)}
                                         {/* Connector line to next child in branch */}
                                         {index < branch.length - 1 && (
                                             <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
                                         )}
-                                    </React.Fragment>
+                                    </Fragment>
                                 ))}
                             </div>
                         ))}
@@ -254,13 +254,13 @@ const AgentNode: React.FC<AgentNodeProps> = ({ node, isSelected, onClick, onChil
             {node.children.length > 0 && (
                 <div className={`p-4 flex flex-col items-center ${!node.parallelBranches || node.parallelBranches.length === 0 ? 'rounded-b-md' : ''}`}>
                     {node.children.map((child, index) => (
-                        <React.Fragment key={child.id}>
+                        <Fragment key={child.id}>
                             {renderChild(child)}
                             {/* Connector line to next child */}
                             {index < node.children.length - 1 && (
                                 <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
                             )}
-                        </React.Fragment>
+                        </Fragment>
                     ))}
                 </div>
             )}
@@ -272,13 +272,13 @@ const AgentNode: React.FC<AgentNodeProps> = ({ node, isSelected, onClick, onChil
                         {node.parallelBranches.map((branch, branchIndex) => (
                             <div key={branchIndex} className="flex flex-col items-center">
                                 {branch.map((child, index) => (
-                                    <React.Fragment key={child.id}>
+                                    <Fragment key={child.id}>
                                         {renderChild(child)}
                                         {/* Connector line to next child in branch */}
                                         {index < branch.length - 1 && (
                                             <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
                                         )}
-                                    </React.Fragment>
+                                    </Fragment>
                                 ))}
                             </div>
                         ))}

@@ -33,6 +33,12 @@ from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 from solace_agent_mesh.gateway.http_sse.session_manager import SessionManager
 from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
 
+# Check if enterprise package is available
+try:
+    from solace_agent_mesh_enterprise.gateway.auth.internal import oauth_utils
+    ENTERPRISE_AVAILABLE = True
+except ImportError:
+    ENTERPRISE_AVAILABLE = False
 
 # ============================================================================
 # Test Fixtures
@@ -113,6 +119,191 @@ def reset_dependencies():
 
 # ============================================================================
 # Authentication Middleware Tests
+# ============================================================================
+
+@pytest.mark.skipif(not ENTERPRISE_AVAILABLE, reason="Enterprise package required for OAuth tests")
+class TestTokenValidation:
+    """Test _validate_token function."""
+
+    @pytest.mark.asyncio
+    async def test_validate_token_success(self, mock_httpx_client):
+        """Test successful token validation."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_httpx_client.post.return_value = mock_response
+        
+        result = await main._validate_token(
+            "http://auth-service",
+            "azure",
+            "valid_token"
+        )
+        
+        assert result is True
+        mock_httpx_client.post.assert_called_once_with(
+            "http://auth-service/is_token_valid",
+            json={"provider": "azure"},
+            headers={"Authorization": "Bearer valid_token"}
+        )
+    
+    @pytest.mark.asyncio
+    async def test_validate_token_failure(self, mock_httpx_client):
+        """Test failed token validation."""
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_httpx_client.post.return_value = mock_response
+        
+        result = await main._validate_token(
+            "http://auth-service",
+            "azure",
+            "invalid_token"
+        )
+        
+        assert result is False
+    
+    @pytest.mark.asyncio
+    async def test_validate_token_with_different_providers(self, mock_httpx_client):
+        """Test token validation with different auth providers."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_httpx_client.post.return_value = mock_response
+        
+        providers = ["azure", "okta", "auth0", "keycloak"]
+        
+        for provider in providers:
+            await main._validate_token(
+                "http://auth-service",
+                provider,
+                "test_token"
+            )
+        
+        assert mock_httpx_client.post.call_count == len(providers)
+
+
+@pytest.mark.skipif(not ENTERPRISE_AVAILABLE, reason="Enterprise package required for OAuth tests")
+class TestUserInfoRetrieval:
+    """Test _get_user_info function."""
+
+    @pytest.mark.asyncio
+    async def test_get_user_info_success(self, mock_httpx_client):
+        """Test successful user info retrieval."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "sub": "user123",
+            "email": "user@example.com",
+            "name": "Test User"
+        }
+        mock_httpx_client.get.return_value = mock_response
+        
+        user_info = await main._get_user_info(
+            "http://auth-service",
+            "azure",
+            "valid_token"
+        )
+        
+        assert user_info == {
+            "sub": "user123",
+            "email": "user@example.com",
+            "name": "Test User"
+        }
+        mock_httpx_client.get.assert_called_once_with(
+            "http://auth-service/user_info",
+            headers={"Authorization": "Bearer valid_token"},
+            params={'provider': 'azure'},
+        )
+    
+    @pytest.mark.asyncio
+    async def test_get_user_info_failure(self, mock_httpx_client):
+        """Test failed user info retrieval."""
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_httpx_client.get.return_value = mock_response
+        
+        user_info = await main._get_user_info(
+            "http://auth-service",
+            "azure",
+            "invalid_token"
+        )
+        
+        assert user_info is None
+
+
+@pytest.mark.skipif(not ENTERPRISE_AVAILABLE, reason="Enterprise package required for OAuth tests")
+class TestUserIdentifierExtraction:
+    """Test _extract_user_identifier function."""
+
+    def test_extract_identifier_from_sub(self):
+        """Test extracting identifier from 'sub' claim."""
+        user_info = {"sub": "user123", "email": "user@example.com"}
+        
+        identifier = main._extract_user_identifier(user_info)
+        
+        assert identifier == "user123"
+    
+    def test_extract_identifier_from_client_id(self):
+        """Test extracting identifier from 'client_id' claim."""
+        user_info = {"client_id": "client456"}
+        
+        identifier = main._extract_user_identifier(user_info)
+        
+        assert identifier == "client456"
+    
+    def test_extract_identifier_from_oid(self):
+        """Test extracting identifier from 'oid' claim (Azure AD)."""
+        user_info = {"oid": "azure-oid-789"}
+        
+        identifier = main._extract_user_identifier(user_info)
+        
+        assert identifier == "azure-oid-789"
+    
+    def test_extract_identifier_from_email(self):
+        """Test extracting identifier from 'email' claim."""
+        user_info = {"email": "user@example.com"}
+        
+        identifier = main._extract_user_identifier(user_info)
+        
+        assert identifier == "user@example.com"
+    
+    def test_extract_identifier_from_user_id(self):
+        """Test extracting identifier from 'user_id' claim (internal format)."""
+        user_info = {"user_id": "internal_user_123"}
+        
+        identifier = main._extract_user_identifier(user_info)
+        
+        assert identifier == "internal_user_123"
+    
+    def test_extract_identifier_priority_order(self):
+        """Test that identifier extraction follows priority order."""
+        user_info = {
+            "sub": "sub_value",
+            "client_id": "client_value",
+            "email": "email_value"
+        }
+        
+        identifier = main._extract_user_identifier(user_info)
+        
+        # 'sub' should take priority
+        assert identifier == "sub_value"
+    
+    def test_extract_identifier_unknown_fallback(self):
+        """Test fallback when identifier is 'Unknown'."""
+        user_info = {"sub": "Unknown"}
+        
+        identifier = main._extract_user_identifier(user_info)
+        
+        assert identifier == "sam_dev_user"
+    
+    def test_extract_identifier_unknown_case_insensitive(self):
+        """Test fallback is case-insensitive."""
+        user_info = {"sub": "unknown"}
+        
+        identifier = main._extract_user_identifier(user_info)
+        
+        assert identifier == "sam_dev_user"
+
+
+# ============================================================================
+# Dependency Injection Tests
 # ============================================================================
 
 class TestConfigCreation:

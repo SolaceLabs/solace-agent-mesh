@@ -176,6 +176,10 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
         ...,
         description="The base URL of the downstream A2A agent's HTTP endpoint.",
     )
+    agent_card_path: str = Field(
+        default="/.well-known/agent-card.json",
+        description="Path to the agent card endpoint (relative to the base URL).",
+    )
     authentication: Optional[AuthenticationConfig] = Field(
         default=None,
         description="Authentication details for the downstream agent.",
@@ -199,10 +203,11 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
     task_headers: Optional[List[HttpHeaderConfig]] = Field(
         default=None,
         description="Custom HTTP headers to include when invoking A2A tasks. "
-        "These headers are added alongside authentication headers. Note: The A2A SDK's "
-        "AuthInterceptor applies authentication headers after these are set, so custom "
-        "headers cannot override authentication. For custom auth, omit the 'authentication' "
-        "config and use task_headers to set auth headers directly.",
+        "These headers are applied at the httpx client level and are supplementary to "
+        "authentication. The A2A SDK's AuthInterceptor applies authentication headers at "
+        "the middleware level using the security scheme name from the agent card, so "
+        "task_headers cannot override authentication headers. For custom authentication, "
+        "omit the 'authentication' config and use task_headers to set auth headers directly.",
     )
 
 

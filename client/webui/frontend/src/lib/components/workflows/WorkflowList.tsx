@@ -15,9 +15,11 @@ const WorkflowImage = <Workflow className="text-muted-foreground" size={64} />;
 
 interface WorkflowListProps {
     workflows: AgentCardInfo[];
+    /** Optional className to apply to the container (e.g., for background color) */
+    className?: string;
 }
 
-export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
+export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className }) => {
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [currentPage, setCurrentPage] = useState<number>(1);
@@ -182,7 +184,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
     };
 
     return (
-        <div className="flex h-full w-full overflow-hidden">
+        <div className={`flex h-full w-full overflow-hidden ${className ?? ""}`}>
             {/* Main content container */}
             <div className="flex flex-1 flex-col">
                 <WorkflowOnboardingBanner />

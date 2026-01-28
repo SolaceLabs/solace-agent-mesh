@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import type { LayoutNode } from "../utils/types";
 
@@ -8,7 +8,7 @@ interface LLMNodeProps {
     onClick?: (node: LayoutNode) => void;
 }
 
-const LLMNode: React.FC<LLMNodeProps> = ({ node, isSelected, onClick }) => {
+const LLMNode: FC<LLMNodeProps> = ({ node, isSelected, onClick }) => {
     const isProcessing = node.data.status === "in-progress";
     const haloClass = isProcessing ? 'processing-halo' : '';
 

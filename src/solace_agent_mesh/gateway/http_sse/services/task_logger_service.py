@@ -117,10 +117,11 @@ class TaskLoggerService:
                         
                         if message.metadata:
                             parent_task_id = message.metadata.get("parentTaskId")
-                            # Background tasks are disabled - always set to False
-                            # TODO: Re-enable when background task feature is fully tested
-                            background_execution_enabled = False
-                            max_execution_time_ms = None
+                            background_execution_enabled = message.metadata.get("backgroundExecutionEnabled", False)
+                            # Default to 1 hour (3600000ms) if background execution is enabled but no timeout specified
+                            max_execution_time_ms = message.metadata.get("maxExecutionTimeMs")
+                            if background_execution_enabled and max_execution_time_ms is None:
+                                max_execution_time_ms = 3600000  # 1 hour default
                         else:
                             log.warning(
                                 f"{self.log_identifier} Message has no metadata for task {task_id}"
@@ -218,7 +219,9 @@ class TaskLoggerService:
                     )
                     
                     # For background tasks, save chat messages when task completes
-                    if task_to_update.background_execution_enabled:
+                    # Only save for top-level tasks (no parent_task_id) to avoid duplicates
+                    # Sub-tasks (delegated by orchestrator) have parent_task_id set and contain system prompts
+                    if task_to_update.background_execution_enabled and not task_to_update.parent_task_id:
                         self._save_chat_messages_for_background_task(db, task_id, task_to_update, repo)
                         
                         # Note: The frontend will detect task completion through:
@@ -250,8 +253,8 @@ class TaskLoggerService:
         Safely parses a raw A2A message payload into a Pydantic model.
         Returns the parsed model or None if parsing fails or is not applicable.
         """
-        # Ignore discovery messages
-        if "/discovery/agentcards" in topic:
+        # Ignore discovery messages (agents and gateways)
+        if "/discovery/" in topic:
             return None
         # Ignore trust manager trust card messages
         if "/trust/" in topic:
@@ -412,7 +415,10 @@ class TaskLoggerService:
             
             # Parse events to extract session context and reconstruct messages
             message_bubbles = []
-            artifacts = []  # Track artifacts from artifact update events
+            artifacts = []  # Track artifacts - only from final task response to avoid duplicates
+            rag_data = []  # Track RAG metadata from tool results
+            accumulated_agent_text = []  # Accumulate text from all status updates
+            accumulated_agent_parts = []  # Accumulate parts from all status updates
             
             for event in events:
                 try:
@@ -455,26 +461,61 @@ class TaskLoggerService:
                                         "parts": filtered_parts,
                                     })
                     
-                    # Collect artifacts from status events that contain artifact info
+                    # Collect text content AND RAG metadata from status events
+                    # Text is accumulated to reconstruct the full agent response
                     elif event.direction == "status":
                         if "result" in payload:
                             result = payload["result"]
-                            # Check for artifact in the result (regardless of kind)
-                            if isinstance(result, dict):
-                                artifact = result.get("artifact", {})
-                                if isinstance(artifact, dict) and artifact.get("name"):
-                                    artifacts.append({
-                                        "kind": "artifact",
-                                        "status": "completed",
-                                        "name": artifact["name"],
-                                        "file": {
-                                            "name": artifact["name"],
-                                            "mime_type": artifact.get("mimeType"),
-                                            "uri": f"artifact://{session_id}/{artifact['name']}" if session_id else f"artifact://unknown/{artifact['name']}"
-                                        }
-                                    })
+                            
+                            # Extract text content from status updates
+                            status = result.get("status", {})
+                            if isinstance(status, dict):
+                                message = status.get("message", {})
+                                if isinstance(message, dict):
+                                    parts = message.get("parts", [])
+                                    for part in parts:
+                                        if isinstance(part, dict):
+                                            part_kind = part.get("kind")
+                                            if part_kind == "text":
+                                                text = part.get("text", "")
+                                                if text:
+                                                    accumulated_agent_text.append(text)
+                                                    accumulated_agent_parts.append(part)
+                                            elif part_kind == "data":
+                                                # Extract RAG metadata from tool_result data parts
+                                                data = part.get("data", {})
+                                                if isinstance(data, dict):
+                                                    data_type = data.get("type")
+                                                    
+                                                    if data_type == "tool_result":
+                                                        result_data = data.get("result_data", {})
+                                                        if isinstance(result_data, dict) and "rag_metadata" in result_data:
+                                                            rag_metadata = result_data["rag_metadata"]
+                                                            if isinstance(rag_metadata, dict):
+                                                                # Add taskId to the RAG metadata
+                                                                rag_metadata["taskId"] = task_id
+                                                                rag_data.append(rag_metadata)
+                                                                log.info(
+                                                                    f"{self.log_identifier} Extracted RAG metadata for task {task_id}: "
+                                                                    f"searchType={rag_metadata.get('searchType')}, "
+                                                                    f"sources_count={len(rag_metadata.get('sources', []))}"
+                                                                )
+                                                    elif data_type == "artifact_creation_progress":
+                                                        # Handle cancelled artifacts with rolled back text
+                                                        if data.get("status") == "cancelled":
+                                                            rolled_back_text = data.get("rolled_back_text")
+                                                            if rolled_back_text:
+                                                                accumulated_agent_text.append(rolled_back_text)
+                                                                log.info(
+                                                                    f"{self.log_identifier} Extracted rolled_back_text from cancelled artifact event for task {task_id}"
+                                                                )
+                                                
+                                                accumulated_agent_parts.append(part)
+                                            else:
+                                                # Accumulate other non-text, non-data parts
+                                                accumulated_agent_parts.append(part)
                     
-                    # Extract agent response messages - only from final task response
+                    # Extract artifacts and any additional text from final task response
                     elif event.direction == "response":
                         if "result" in payload:
                             result = payload["result"]
@@ -491,7 +532,8 @@ class TaskLoggerService:
                                             if isinstance(artifact_info, dict):
                                                 # Handle both 'name' and 'filename' keys
                                                 artifact_name = artifact_info.get("name") or artifact_info.get("filename")
-                                                if artifact_name:
+                                                # Skip web_content_ artifacts (temporary files from deep research)
+                                                if artifact_name and not artifact_name.startswith("web_content_"):
                                                     artifacts.append({
                                                         "kind": "artifact",
                                                         "status": "completed",
@@ -503,37 +545,87 @@ class TaskLoggerService:
                                                         }
                                                     })
                                 
-                                # Final task object - extract the complete message
+                                # Final task object - extract any additional text not in status updates
                                 status = result.get("status", {})
                                 if isinstance(status, dict):
                                     message = status.get("message", {})
                                     if isinstance(message, dict):
                                         parts = message.get("parts", [])
                                         
-                                        # Filter out data parts (status updates, tool invocations, etc.)
-                                        content_parts = [p for p in parts if p.get("kind") != "data"]
+                                        # Extract RAG metadata from tool_result data parts in final response
+                                        for part in parts:
+                                            if isinstance(part, dict) and part.get("kind") == "data":
+                                                data = part.get("data", {})
+                                                if isinstance(data, dict) and data.get("type") == "tool_result":
+                                                    result_data = data.get("result_data", {})
+                                                    if isinstance(result_data, dict) and "rag_metadata" in result_data:
+                                                        rag_metadata = result_data["rag_metadata"]
+                                                        if isinstance(rag_metadata, dict):
+                                                            # Add taskId to the RAG metadata
+                                                            rag_metadata["taskId"] = task_id
+                                                            # Avoid duplicates
+                                                            if rag_metadata not in rag_data:
+                                                                rag_data.append(rag_metadata)
+                                                                log.info(
+                                                                    f"{self.log_identifier} Extracted RAG metadata from final response for task {task_id}: "
+                                                                    f"searchType={rag_metadata.get('searchType')}, "
+                                                                    f"sources_count={len(rag_metadata.get('sources', []))}"
+                                                                )
                                         
-                                        if content_parts or artifacts:
-                                            text_parts = [p.get("text", "") for p in content_parts if p.get("kind") == "text"]
-                                            combined_text = "".join(text_parts).strip()
-                                            
-                                            # Add artifact markers to text (frontend will parse these)
-                                            # Don't add artifact parts to avoid duplicates - frontend creates them from markers
-                                            for artifact in artifacts:
-                                                combined_text += f"«artifact_return:{artifact['name']}»"
-                                            
-                                            message_bubbles.append({
-                                                "id": f"msg-{uuid.uuid4()}",
-                                                "type": "agent",
-                                                "text": combined_text,
-                                                "parts": content_parts,  # Only content parts, no artifacts
-                                            })
-                
+                                        
                 except Exception as e:
                     log.warning(
                         f"{self.log_identifier} Error parsing event for chat message reconstruction: {e}"
                     )
                     continue
+            
+            # After processing all events, create the agent message bubble from accumulated content
+            if accumulated_agent_text or artifacts:
+                combined_text = "".join(accumulated_agent_text).strip()
+                
+                # Check if artifact markers are already in the texts
+                import re
+                existing_markers = set()
+                marker_pattern = r'«artifact_return:([^»]+)»'
+                for match in re.finditer(marker_pattern, combined_text):
+                    # Normalize the artifact name (strip version suffix)
+                    artifact_ref = match.group(1)
+                    if ':' in artifact_ref:
+                        base_name = artifact_ref.rsplit(':', 1)[0]
+                        try:
+                            int(artifact_ref.rsplit(':', 1)[1])
+                            # Add the base name (without version) to existing markers
+                            # so we don't add a duplicate marker later
+                            existing_markers.add(base_name)
+                        except ValueError:
+                            # Not a version number, treat the whole thing as the artifact name
+                            existing_markers.add(artifact_ref)
+                    else:
+                        existing_markers.add(artifact_ref)
+                
+                # Only add artifact markers if they're not already present
+                for artifact in artifacts:
+                    artifact_name = artifact['name']
+                    if artifact_name not in existing_markers:
+                        combined_text += f"«artifact_return:{artifact_name}»"
+                        log.info(
+                            f"{self.log_identifier} Adding artifact marker for {artifact_name}"
+                        )
+                    else:
+                        log.info(
+                            f"{self.log_identifier} Skipping duplicate artifact marker for {artifact_name} (already in text)"
+                        )
+                
+                # Filter out data parts from accumulated parts
+                content_parts = [p for p in accumulated_agent_parts if p.get("kind") != "data"]
+                
+                message_bubbles.append({
+                    "id": f"msg-{uuid.uuid4()}",
+                    "type": "agent",
+                    "text": combined_text,
+                    "parts": content_parts,  # Only content parts, no artifacts
+                })
+                
             
             # Only save if we have a session_id and at least one message
             if not session_id:
@@ -562,6 +654,20 @@ class TaskLoggerService:
                 )
                 return
             
+            # Build task metadata including RAG data if present
+            task_metadata_dict = {
+                "schema_version": 1,
+                "status": task.status,
+                "agent_name": agent_name,
+            }
+            
+            # Include RAG data if we found any
+            if rag_data:
+                task_metadata_dict["rag_data"] = rag_data
+                log.info(
+                    f"{self.log_identifier} Including {len(rag_data)} RAG data entries in task metadata for {task_id}"
+                )
+            
             # Create and save the chat task
             chat_task = ChatTask(
                 id=task_id,
@@ -569,11 +675,7 @@ class TaskLoggerService:
                 user_id=user_id,
                 user_message=user_message_text,
                 message_bubbles=json.dumps(message_bubbles),
-                task_metadata=json.dumps({
-                    "schema_version": 1,
-                    "status": task.status,
-                    "agent_name": agent_name,
-                }),
+                task_metadata=json.dumps(task_metadata_dict),
                 created_time=task.start_time,
                 updated_time=task.end_time,
             )

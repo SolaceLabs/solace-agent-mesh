@@ -1,9 +1,10 @@
-import React from "react";
+import { useState, type FC, type ReactNode, type MouseEvent } from "react";
 
 import { CheckCircle, ExternalLink, FileText, GitCommit, GitMerge, HardDrive, Link, List, MessageSquare, Share2, Split, Terminal, User, Workflow, XCircle, Zap } from "lucide-react";
 
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
 import { useChatContext } from "@/lib/hooks";
+import { ImageSearchGrid } from "@/lib/components/research";
 import type {
     ArtifactNotificationData,
     LLMCallData,
@@ -17,6 +18,7 @@ import type {
     WorkflowNodeExecutionResultData,
     WorkflowNodeExecutionStartData,
 } from "@/lib/types";
+import { isString } from "@/lib/utils";
 
 interface VisualizerStepCardProps {
     step: VisualizerStep;
@@ -25,7 +27,7 @@ interface VisualizerStepCardProps {
     variant?: "list" | "popover";
 }
 
-const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlighted, onClick, variant = "list" }) => {
+const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, onClick, variant = "list" }) => {
     const { artifacts, setPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed, navigateArtifactVersion } = useChatContext();
 
     const getStepIcon = () => {
@@ -60,7 +62,7 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
             case "WORKFLOW_NODE_EXECUTION_START":
                 if (step.data.workflowNodeExecutionStart?.nodeType === "map") return <List className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
                 if (step.data.workflowNodeExecutionStart?.nodeType === "fork") return <Split className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
-                if (step.data.workflowNodeExecutionStart?.nodeType === "conditional") return <GitMerge className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
+                if (step.data.workflowNodeExecutionStart?.nodeType === "switch") return <GitMerge className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
                 return <GitCommit className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
             case "WORKFLOW_NODE_EXECUTION_RESULT":
                 return <GitCommit className="mr-2 text-green-500 dark:text-green-400" size={18} />;
@@ -91,10 +93,10 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         </div>
     );
 
-    const LLMResponseToAgentDetails: React.FC<{ data: LLMResponseToAgentData }> = ({ data }) => {
-        const [expanded, setExpanded] = React.useState(false);
+    const LLMResponseToAgentDetails: FC<{ data: LLMResponseToAgentData }> = ({ data }) => {
+        const [expanded, setExpanded] = useState(false);
 
-        const toggleExpand = (e: React.MouseEvent) => {
+        const toggleExpand = (e: MouseEvent) => {
             e.stopPropagation();
             setExpanded(!expanded);
         };
@@ -170,21 +172,73 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         </div>
     );
 
-    const renderToolResultData = (data: ToolResultData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-            <p>
-                <strong>Tool:</strong> {data.toolName}
-            </p>
-            <p className="mt-1">
-                <strong>Result:</strong>
-            </p>
-            <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
-                {typeof data.resultData === "object" ? <JSONViewer data={data.resultData} /> : <pre className="font-mono text-xs break-all whitespace-pre-wrap">{String(data.resultData)}</pre>}
+    /**
+     * Renders result data as either a JSON viewer (for objects) or a preformatted text block (for primitives).
+     * Abstracts the common pattern of displaying tool result data.
+     */
+    const renderResultData = (resultData: unknown): ReactNode => {
+        if (typeof resultData === "object") {
+            // Cast is safe here as JSONViewer handles null and object types
+            return <JSONViewer data={resultData as Parameters<typeof JSONViewer>[0]["data"]} />;
+        }
+        return <pre className="font-mono text-xs break-all whitespace-pre-wrap">{String(resultData)}</pre>;
+    };
+
+    const renderToolResultData = (data: ToolResultData) => {
+        // Check if this is a web search result with images
+        let parsedResult = null;
+        let hasImages = false;
+
+        try {
+            // Try to parse the result if it's a string
+            if (isString(data.resultData)) {
+                parsedResult = JSON.parse(data.resultData);
+            } else if (typeof data.resultData === "object") {
+                parsedResult = data.resultData;
+            }
+
+            // Check if the result has an images array (from web search tools)
+            if (parsedResult?.result) {
+                const innerResult = isString(parsedResult.result) ? JSON.parse(parsedResult.result) : parsedResult.result;
+
+                if (innerResult?.images && Array.isArray(innerResult.images) && innerResult.images.length > 0) {
+                    hasImages = true;
+                }
+            }
+        } catch {
+            // Not JSON or parsing failed, will display as normal
+        }
+
+        return (
+            <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                <p>
+                    <strong>Tool:</strong> {data.toolName}
+                </p>
+
+                {hasImages && parsedResult?.result ? (
+                    <>
+                        <p className="mt-1">
+                            <strong>Image Results:</strong>
+                        </p>
+                        <ImageSearchGrid images={isString(parsedResult.result) ? JSON.parse(parsedResult.result).images : parsedResult.result.images} />
+                        <details className="mt-2">
+                            <summary className="cursor-pointer text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">Show full result data</summary>
+                            <div className="mt-2 max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">{renderResultData(data.resultData)}</div>
+                        </details>
+                    </>
+                ) : (
+                    <>
+                        <p className="mt-1">
+                            <strong>Result:</strong>
+                        </p>
+                        <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">{renderResultData(data.resultData)}</div>
+                    </>
+                )}
             </div>
-        </div>
-    );
+        );
+    };
     const renderArtifactNotificationData = (data: ArtifactNotificationData) => {
-        const handleViewFile = async (e: React.MouseEvent) => {
+        const handleViewFile = async (e: MouseEvent) => {
             e.stopPropagation();
 
             // Find the artifact by filename

@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC, MouseEvent } from "react";
 import { Workflow, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
@@ -14,12 +14,12 @@ const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted,
     const navigate = useNavigate();
     const workflowName = node.data.workflowName || node.data.agentName || node.data.label;
 
-    const handleClick = (e: React.MouseEvent) => {
+    const handleClick = (e: MouseEvent) => {
         e.stopPropagation();
         onClick?.(node);
     };
 
-    const handleNavigate = (e: React.MouseEvent) => {
+    const handleNavigate = (e: MouseEvent) => {
         e.stopPropagation();
         if (workflowName) {
             // Build new parent path: current workflow becomes closest parent

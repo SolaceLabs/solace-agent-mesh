@@ -1,0 +1,162 @@
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: level4_map_iteration.log
+
+!include ../../shared_config.yaml
+
+apps:
+  # ============================================================================
+  # LEVEL 4: MAP ITERATION WORKFLOW
+  # ============================================================================
+  # Tests map node iterating over array items with parallel execution
+  # Complexity: Medium
+  # Node types: agent (1), map (1)
+  # Features: Map iteration, _map_item, _map_index, results aggregation
+  # ============================================================================
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Item Processor
+  # Processes a single item by doubling its value
+  # ----------------------------------------------------------------------------
+  - name: item_processor_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "ItemProcessor"
+      model: *planning_model
+
+      instruction: |
+        You process individual items by doubling their value.
+        1. Read 'item_id' and 'value' from input
+        2. Calculate: doubled_value = value * 2
+        3. Create a JSON artifact with: {"item_id": <id>, "original_value": <value>, "doubled_value": <doubled>}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          item_id: {type: string}
+          value: {type: number}
+        required: [item_id, value]
+
+      output_schema:
+        type: object
+        properties:
+          item_id: {type: string}
+          original_value: {type: number}
+          doubled_value: {type: number}
+        required: [item_id, original_value, doubled_value]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Processes items by doubling their values"
+        skills: [{id: "process_item", name: "Process Item", description: "Doubles item values", tags: ["processing"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ============================================================================
+  # WORKFLOW: Map Iteration
+  # ============================================================================
+  - name: map_iteration_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "MapIterationWorkflow"
+      display_name: "Map Iteration Workflow"
+
+      # Timeout configurations
+      max_workflow_execution_time_seconds: 600  # 10 minutes
+      default_node_timeout_seconds: 60          # 1 minute
+      default_max_map_items: 50                 # Safety limit
+
+      workflow:
+        version: "1.0.0"
+        description: |
+          A map iteration workflow for evaluation testing.
+
+          This workflow:
+          1. Processes an array of items in parallel using map node
+          2. Each item is doubled by the ItemProcessor agent
+          3. Results are aggregated into an array
+
+          Tests: Map node, _map_item, _map_index, parallel iteration, results aggregation
+
+        input_schema:
+          type: object
+          properties:
+            items:
+              type: array
+              description: "Array of items to process"
+              items:
+                type: object
+                properties:
+                  id: {type: string}
+                  value: {type: number}
+                required: [id, value]
+          required: [items]
+
+        output_schema:
+          type: object
+          properties:
+            results:
+              type: array
+              items:
+                type: object
+                properties:
+                  item_id: {type: string}
+                  original_value: {type: number}
+                  doubled_value: {type: number}
+          required: [results]
+
+        nodes:
+          # Map node: Process each item
+          - id: process_items
+            type: map
+            items: "{{workflow.input.items}}"
+            node: process_single_item
+            concurrency_limit: 5
+
+          # Inner node: Process single item
+          - id: process_single_item
+            type: agent
+            agent_name: "ItemProcessor"
+            instruction: "Process this item by doubling its value."
+            input:
+              item_id: "{{_map_item.id}}"
+              value: "{{_map_item.value}}"
+
+        output_mapping:
+          results: "{{process_items.output.results}}"
+
+        skills:
+          - id: "map_iteration"
+            name: "Map Iteration"
+            description: "Processes arrays of items in parallel"
+            tags: ["eval", "level4", "map", "iteration"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }

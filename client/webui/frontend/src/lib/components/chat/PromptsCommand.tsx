@@ -32,7 +32,7 @@ const RESERVED_COMMANDS: ReservedCommand[] = [
 interface PromptsCommandProps {
     isOpen: boolean;
     onClose: () => void;
-    textAreaRef: React.RefObject<HTMLTextAreaElement | null>;
+    textAreaRef: React.RefObject<HTMLDivElement | HTMLTextAreaElement | null>;
     onPromptSelect: (promptText: string) => void;
     messages?: MessageFE[];
     onReservedCommand?: (command: ChatCommand, context?: string) => void;
@@ -102,11 +102,13 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
             .filter(m => !m.isStatusBubble && !m.isError && !m.authenticationLink)
             .map(m => {
                 const role = m.isUser ? "User" : "Assistant";
+                // Join text parts with empty string to preserve streaming text continuity
+                // (streaming text is stored as multiple text parts, one per chunk)
                 const text =
                     m.parts
                         ?.filter(p => p.kind === "text")
                         .map(p => (p as { text: string }).text)
-                        .join("\n") || "";
+                        .join("") || "";
                 return `${role}: ${text}`;
             })
             .join("\n\n");

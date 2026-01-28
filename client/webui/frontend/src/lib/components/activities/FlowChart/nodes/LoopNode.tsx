@@ -1,4 +1,4 @@
-import React from "react";
+import { Fragment, type FC } from "react";
 import type { LayoutNode } from "../utils/types";
 import AgentNode from "./AgentNode";
 
@@ -11,7 +11,7 @@ interface LoopNodeProps {
     onCollapse?: (nodeId: string) => void;
 }
 
-const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
+const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, onExpand, onCollapse }) => {
     const getStatusColor = () => {
         switch (node.data.status) {
             case "completed":
@@ -89,7 +89,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildC
                 {/* Children (loop iterations) with inline connectors */}
                 <div className="p-4 pt-3 flex flex-col items-center">
                     {node.children.map((child, index) => (
-                        <React.Fragment key={child.id}>
+                        <Fragment key={child.id}>
                             {/* Iteration label */}
                             <div className="text-[10px] font-medium text-teal-600 dark:text-teal-400 mb-1">
                                 Iteration {index + 1}
@@ -99,7 +99,7 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildC
                             {index < node.children.length - 1 && (
                                 <div className="w-0.5 h-4 bg-teal-400 dark:bg-teal-600 my-1" />
                             )}
-                        </React.Fragment>
+                        </Fragment>
                     ))}
                 </div>
             </div>
