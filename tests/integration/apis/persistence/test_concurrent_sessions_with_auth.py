@@ -6,6 +6,7 @@ sessions from different users maintain proper isolation and don't interfere
 with each other.
 """
 
+import asyncio
 import pytest
 import uuid
 from fastapi.testclient import TestClient
@@ -25,10 +26,10 @@ async def test_concurrent_sessions_with_different_users(
     """
     Test that concurrent sessions from different users maintain proper isolation.
     
-    This test verifies that when multiple users make sequential requests,
+    This test verifies that when multiple users make CONCURRENT requests,
     each user receives their own response without cross-contamination.
     
-    Note: Uses gateway_adapter to directly create sessions and messages,
+    Note: Uses asyncio.gather() to create truly concurrent operations,
     simulating multiple users with proper database persistence.
     """
     scenario_id = "concurrent_sessions_with_auth_001"
@@ -49,39 +50,51 @@ async def test_concurrent_sessions_with_different_users(
     
     # Create 3 different user sessions (simulating different users)
     num_users = 3
-    user_sessions = []
     
-    # Create sessions for each user
-    for i in range(num_users):
-        user_id = f"test_user_{i}"
-        session = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
-        
-        # Send initial message
-        gateway_adapter.send_message(session.id, f"Initial message for user {i}")
-        
-        # Create a client for this specific user
+    # Create async function for session creation
+    async def create_user_session(user_id: str, user_index: int):
+        """Create session for a single user concurrently."""
+        session = await asyncio.to_thread(
+            gateway_adapter.create_session,
+            user_id=user_id,
+            agent_name="TestAgent"
+        )
+        await asyncio.to_thread(
+            gateway_adapter.send_message,
+            session.id,
+            f"Initial message for user {user_index}"
+        )
         user_client = HeaderBasedTestClient(api_client_factory.app, user_id)
-        
-        user_sessions.append({
-            "user_id": i,
+        print(f"Created session {session.id} for user {user_index}")
+        return {
+            "user_id": user_index,
             "user_id_str": user_id,
             "session_id": session.id,
             "client": user_client,
-        })
-        
-        print(f"Created session {session.id} for user {i}")
+        }
     
-    # Send follow-up messages from each user in rapid succession
-    # This tests session isolation without threading issues
-    print(f"\nSending follow-up messages from {num_users} users...")
+    # Create sessions CONCURRENTLY using asyncio.gather
+    print(f"Creating {num_users} sessions concurrently...")
+    user_sessions = await asyncio.gather(*[
+        create_user_session(f"test_user_{i}", i)
+        for i in range(num_users)
+    ])
     
-    for user_info in user_sessions:
+    # Send follow-up messages from each user CONCURRENTLY
+    print(f"\nSending follow-up messages from {num_users} users concurrently...")
+    
+    async def send_followup(user_info):
+        """Send follow-up message for a user concurrently."""
         user_id = user_info["user_id"]
         session_id = user_info["session_id"]
-        
-        # Send follow-up message
-        gateway_adapter.send_message(session_id, f"Follow-up message from user {user_id}")
+        await asyncio.to_thread(
+            gateway_adapter.send_message,
+            session_id,
+            f"Follow-up message from user {user_id}"
+        )
         print(f"✓ User {user_id} sent follow-up message to session {session_id}")
+    
+    await asyncio.gather(*[send_followup(user_info) for user_info in user_sessions])
     
     # Verify each session has the correct message history
     print(f"\nVerifying message history for each user...")
@@ -138,18 +151,18 @@ async def test_concurrent_sessions_with_different_users(
 @pytest.mark.gateway
 async def test_concurrent_session_creation(api_client: TestClient):
     """
-    Test that multiple users can create sessions in rapid succession without conflicts.
+    Test that multiple users can create sessions CONCURRENTLY without conflicts.
     
-    Note: TestClient is not thread-safe, so we test with rapid sequential requests.
+    Note: Uses asyncio.gather() to create truly concurrent session creation requests.
     """
     scenario_id = "concurrent_session_creation_001"
     print(f"\nRunning scenario: {scenario_id}")
     
     num_users = 5
-    results = []
     
-    # Create sessions in rapid succession
-    for i in range(num_users):
+    # Create async function for session creation
+    async def create_session_via_api(user_index: int):
+        """Create a session via API call concurrently."""
         task_payload = {
             "jsonrpc": "2.0",
             "id": str(uuid.uuid4()),
@@ -160,19 +173,30 @@ async def test_concurrent_session_creation(api_client: TestClient):
                     "messageId": str(uuid.uuid4()),
                     "kind": "message",
                     "parts": [
-                        {"kind": "text", "text": f"Session creation test user {i}"}
+                        {"kind": "text", "text": f"Session creation test user {user_index}"}
                     ],
                     "metadata": {"agent_name": "TestAgent"},
                 }
             },
         }
         
-        response = api_client.post("/api/v1/message:stream", json=task_payload)
-        results.append({
-            "user_index": i,
+        response = await asyncio.to_thread(
+            api_client.post,
+            "/api/v1/message:stream",
+            json=task_payload
+        )
+        return {
+            "user_index": user_index,
             "status_code": response.status_code,
             "session_id": response.json()["result"]["contextId"] if response.status_code == 200 else None,
-        })
+        }
+    
+    # Create sessions CONCURRENTLY using asyncio.gather
+    print(f"Creating {num_users} sessions concurrently...")
+    results = await asyncio.gather(*[
+        create_session_via_api(i)
+        for i in range(num_users)
+    ])
     
     # Verify all sessions were created successfully
     assert len(results) == num_users
@@ -201,12 +225,12 @@ async def test_concurrent_session_creation(api_client: TestClient):
 @pytest.mark.gateway
 async def test_session_isolation_under_load(api_client: TestClient, api_client_factory, gateway_adapter: GatewayAdapter):
     """
-    Test session isolation under load with rapid sequential requests.
+    Test session isolation under load with CONCURRENT requests.
     
-    This test creates multiple sessions and sends multiple rapid sequential
-    messages to verify that session state remains isolated.
+    This test creates multiple sessions and sends multiple CONCURRENT
+    messages to verify that session state remains isolated under true concurrent load.
     
-    Note: TestClient is not thread-safe, so we test with rapid sequential requests.
+    Note: Uses asyncio.gather() to create truly concurrent operations.
     """
     scenario_id = "session_isolation_under_load_001"
     print(f"\nRunning scenario: {scenario_id}")
@@ -227,36 +251,60 @@ async def test_session_isolation_under_load(api_client: TestClient, api_client_f
     num_users = 3
     messages_per_user = 5
     
-    # Create sessions for each user using gateway_adapter (direct DB access)
-    # This ensures sessions are properly created with the correct user_id
-    user_sessions = []
-    for i in range(num_users):
-        user_id = f"test_user_{i}"
+    # Create async function for session creation
+    async def create_user_session(user_index: int):
+        """Create session for a single user concurrently."""
+        user_id = f"test_user_{user_index}"
         user_client = HeaderBasedTestClient(api_client_factory.app, user_id)
         
         # Create session directly in database with correct user_id
-        session = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
+        session = await asyncio.to_thread(
+            gateway_adapter.create_session,
+            user_id=user_id,
+            agent_name="TestAgent"
+        )
         session_id = session.id
         
         # Send initial message via gateway_adapter to ensure it's in the database
-        gateway_adapter.send_message(session_id, f"Load test user {i} - initial")
+        await asyncio.to_thread(
+            gateway_adapter.send_message,
+            session_id,
+            f"Load test user {user_index} - initial"
+        )
         
-        user_sessions.append({"user_id": i, "user_id_str": user_id, "session_id": session_id, "client": user_client})
         print(f"Created session {session_id} for user {user_id}")
+        return {"user_id": user_index, "user_id_str": user_id, "session_id": session_id, "client": user_client}
     
-    # Send multiple messages from each user in rapid succession
-    print(f"Sending {num_users * messages_per_user} messages in rapid succession...")
+    # Create sessions CONCURRENTLY
+    print(f"Creating {num_users} sessions concurrently...")
+    user_sessions = await asyncio.gather(*[
+        create_user_session(i)
+        for i in range(num_users)
+    ])
     
-    # Interleave messages from different users to test isolation
+    # Send multiple messages from each user CONCURRENTLY
+    print(f"Sending {num_users * messages_per_user} messages concurrently...")
+    
+    async def send_message_async(user_info, msg_num: int):
+        """Send a message for a user concurrently."""
+        user_id = user_info["user_id"]
+        session_id = user_info["session_id"]
+        
+        await asyncio.to_thread(
+            gateway_adapter.send_message,
+            session_id,
+            f"User {user_id} message {msg_num}"
+        )
+        print(f"✓ User {user_id} sent message {msg_num} to session {session_id}")
+    
+    # Create all message sending tasks (interleaved from different users)
+    message_tasks = []
     for msg_num in range(messages_per_user):
         for user_info in user_sessions:
-            user_id = user_info["user_id"]
-            user_id_str = user_info["user_id_str"]
-            session_id = user_info["session_id"]
-            
-            # Send message directly via gateway_adapter to ensure it's persisted
-            gateway_adapter.send_message(session_id, f"User {user_id} message {msg_num}")
-            print(f"✓ User {user_id} sent message {msg_num} to session {session_id}")
+            message_tasks.append(send_message_async(user_info, msg_num))
+    
+    # Execute all message sends CONCURRENTLY
+    await asyncio.gather(*message_tasks)
     
     print(f"✓ All {num_users * messages_per_user} messages sent successfully")
     
