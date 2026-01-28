@@ -1,19 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { PanelLeftIcon } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
 import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
-import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { ChatInputArea, ChatMessage, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge } from "@/lib/components/chat";
+import { ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
-const PANEL_SIZES_CLOSED = {
+const PANEL_SIZES = {
     chatPanelSizes: {
         default: 50,
         min: 30,
@@ -24,10 +23,6 @@ const PANEL_SIZES_CLOSED = {
         min: 20,
         max: 70,
     },
-};
-const PANEL_SIZES_OPEN = {
-    chatPanelSizes: { ...PANEL_SIZES_CLOSED.chatPanelSizes, min: 50 },
-    sidePanelSizes: { ...PANEL_SIZES_CLOSED.sidePanelSizes, max: 50 },
 };
 
 export function ChatPage() {
@@ -52,7 +47,6 @@ export function ChatPage() {
         currentTaskId,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
-    const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
 
     // Refs for resizable panel state
@@ -83,9 +77,7 @@ export function ChatPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTaskId, taskMapVersion]);
 
-    const { chatPanelSizes, sidePanelSizes } = useMemo(() => {
-        return isSessionSidePanelCollapsed ? PANEL_SIZES_CLOSED : PANEL_SIZES_OPEN;
-    }, [isSessionSidePanelCollapsed]);
+    const { chatPanelSizes, sidePanelSizes } = PANEL_SIZES;
 
     const handleSidepanelToggle = useCallback(
         (collapsed: boolean) => {
@@ -117,10 +109,6 @@ export function ChatPage() {
             lastExpandedSizeRef.current = size;
         }
     }, []);
-
-    const handleSessionSidePanelToggle = useCallback(() => {
-        setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
-    }, [isSessionSidePanelCollapsed]);
 
     const breadcrumbs = undefined;
 
@@ -230,98 +218,81 @@ export function ChatPage() {
     }, [isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream]);
 
     return (
-        <div className="relative flex h-screen w-full flex-col overflow-hidden">
-            <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
-                <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
-            </div>
-            <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
-                <Header
-                    title={
-                        <div className="flex items-center gap-3">
-                            <Tooltip delayDuration={300}>
-                                <TooltipTrigger className={`font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit transition-opacity duration-300 hover:bg-transparent ${titleAnimationClass}`}>
-                                    {pageTitle}
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">
-                                    <p>{pageTitle}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                            {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[200px]" />}
-                        </div>
-                    }
-                    breadcrumbs={breadcrumbs}
-                    leadingAction={
-                        isSessionSidePanelCollapsed ? (
-                            <div className="flex items-center gap-2">
-                                <Button data-testid="showSessionsPanel" variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
-                                    <PanelLeftIcon className="size-5" />
-                                </Button>
-                                <div className="h-6 border-r"></div>
+        <div className="flex h-full w-full flex-col overflow-hidden">
+            <Header
+                title={
+                    <div className="flex items-center gap-3">
+                        <Tooltip delayDuration={300}>
+                            <TooltipTrigger className={`font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit transition-opacity duration-300 hover:bg-transparent ${titleAnimationClass}`}>
+                                {pageTitle}
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                                <p>{pageTitle}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[200px]" />}
+                    </div>
+                }
+                breadcrumbs={breadcrumbs}
+            />
 
-                                <ChatSessionDialog />
-                            </div>
-                        ) : null
-                    }
-                />
-            </div>
+            {/* Chat Content with Resizable Side Panel */}
             <div className="flex min-h-0 flex-1">
-                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
-                    <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
-                        <ResizablePanel
-                            defaultSize={chatPanelSizes.default}
-                            minSize={chatPanelSizes.min}
-                            maxSize={chatPanelSizes.max}
-                            id="chat-panel"
-                            style={{ backgroundColor: currentTheme === "dark" ? "var(--color-background-w100)" : "var(--color-background-w20)" }}
-                        >
-                            <div className="flex h-full w-full flex-col">
-                                <div className="flex min-h-0 flex-1 flex-col py-6">
-                                    {isLoadingSession ? (
-                                        <div className="flex h-full items-center justify-center">
-                                            <Spinner size="medium" variant="primary">
-                                                <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
-                                            </Spinner>
+                <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
+                    <ResizablePanel
+                        defaultSize={chatPanelSizes.default}
+                        minSize={chatPanelSizes.min}
+                        maxSize={chatPanelSizes.max}
+                        id="chat-panel"
+                        style={{ backgroundColor: currentTheme === "dark" ? "var(--color-background-w100)" : "var(--color-background-w20)" }}
+                    >
+                        <div className="flex h-full w-full flex-col">
+                            <div className="flex min-h-0 flex-1 flex-col py-6">
+                                {isLoadingSession ? (
+                                    <div className="flex h-full items-center justify-center">
+                                        <Spinner size="medium" variant="primary">
+                                            <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
+                                        </Spinner>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <ChatMessageList className="text-base" ref={chatMessageListRef}>
+                                            {messages.map((message, index) => {
+                                                const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
+                                                const messageKey = message.metadata?.messageId || `temp-${index}`;
+                                                const isLastMessage = index === messages.length - 1;
+                                                const shouldStream = isLastMessage && isResponding && !message.isUser;
+                                                return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />;
+                                            })}
+                                        </ChatMessageList>
+                                        <div style={CHAT_STYLES}>
+                                            {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
+                                            <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                         </div>
-                                    ) : (
-                                        <>
-                                            <ChatMessageList className="text-base" ref={chatMessageListRef}>
-                                                {messages.map((message, index) => {
-                                                    const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                                    const messageKey = message.metadata?.messageId || `temp-${index}`;
-                                                    const isLastMessage = index === messages.length - 1;
-                                                    const shouldStream = isLastMessage && isResponding && !message.isUser;
-                                                    return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />;
-                                                })}
-                                            </ChatMessageList>
-                                            <div style={CHAT_STYLES}>
-                                                {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
-                                                <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
+                                    </>
+                                )}
                             </div>
-                        </ResizablePanel>
-                        <ResizableHandle />
-                        <ResizablePanel
-                            ref={chatSidePanelRef}
-                            defaultSize={sidePanelSizes.default}
-                            minSize={sidePanelSizes.min}
-                            maxSize={sidePanelSizes.max}
-                            collapsedSize={COLLAPSED_SIZE}
-                            collapsible={true}
-                            onCollapse={handleSidepanelCollapse}
-                            onExpand={handleSidepanelExpand}
-                            onResize={handleSidepanelResize}
-                            id="chat-side-panel"
-                            className={isSidePanelTransitioning ? "transition-all duration-300 ease-in-out" : ""}
-                        >
-                            <div className="h-full">
-                                <ChatSidePanel onCollapsedToggle={handleSidepanelToggle} isSidePanelCollapsed={isSidePanelCollapsed} setIsSidePanelCollapsed={setIsSidePanelCollapsed} isSidePanelTransitioning={isSidePanelTransitioning} />
-                            </div>
-                        </ResizablePanel>
-                    </ResizablePanelGroup>
-                </div>
+                        </div>
+                    </ResizablePanel>
+                    <ResizableHandle />
+                    <ResizablePanel
+                        ref={chatSidePanelRef}
+                        defaultSize={sidePanelSizes.default}
+                        minSize={sidePanelSizes.min}
+                        maxSize={sidePanelSizes.max}
+                        collapsedSize={COLLAPSED_SIZE}
+                        collapsible={true}
+                        onCollapse={handleSidepanelCollapse}
+                        onExpand={handleSidepanelExpand}
+                        onResize={handleSidepanelResize}
+                        id="chat-side-panel"
+                        className={isSidePanelTransitioning ? "transition-all duration-300 ease-in-out" : ""}
+                    >
+                        <div className="h-full">
+                            <ChatSidePanel onCollapsedToggle={handleSidepanelToggle} isSidePanelCollapsed={isSidePanelCollapsed} setIsSidePanelCollapsed={setIsSidePanelCollapsed} isSidePanelTransitioning={isSidePanelTransitioning} />
+                        </div>
+                    </ResizablePanel>
+                </ResizablePanelGroup>
             </div>
             <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
         </div>
