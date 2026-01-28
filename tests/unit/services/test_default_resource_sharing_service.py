@@ -1,23 +1,3 @@
-"""
-Unit tests for DefaultResourceSharingService.
-
-Tests verify that the community edition stub implementation returns the expected
-values indicating that sharing is disabled:
-- share_resource() returns False (sharing not supported)
-- unshare_resource() returns False (no shares to remove)
-- can_access_resource() returns False (no shared access exists)
-- get_shared_resources() returns [] (no shared resources)
-- check_user_access() returns None (no access level)
-- get_resource_collaborators() returns [] (no collaborators)
-- delete_resource_shares() returns True (cleanup succeeds, nothing to clean)
-
-Why these tests matter:
-The DefaultResourceSharingService is a stub that ensures community edition
-gracefully handles sharing-related calls. The enterprise edition overrides
-this with a full implementation. These tests ensure the stub behaves correctly
-so that authorization checks fail-safe in community edition (owner-only access).
-"""
-
 from unittest.mock import Mock
 
 from solace_agent_mesh.common.services.default_resource_sharing_service import (
