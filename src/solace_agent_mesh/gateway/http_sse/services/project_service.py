@@ -6,6 +6,7 @@ from typing import List, Optional, TYPE_CHECKING
 import logging
 import json
 import zipfile
+import os
 from io import BytesIO
 from fastapi import UploadFile
 from datetime import datetime, timezone
@@ -15,6 +16,7 @@ from ...constants import (
     DEFAULT_MAX_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_TOTAL_UPLOAD_SIZE_BYTES,
+    ARTIFACTS_PREFIX
 )
 
 try:
@@ -193,14 +195,14 @@ class ProjectService:
                 f"Total upload size limit exceeded. "
                 f"Current: {current_mb:.2f} MB, "
                 f"New files: {new_mb:.2f} MB, "
-                f"Total: {total_mb:.2f} MB exceeds limit of {limit_mb:.0f} MB."
+                f"Total: {total_mb:.2f} MB exceeds limit of {limit_mb:.2f} MB."
             )
             self.logger.warning(f"{log_prefix} {error_msg}")
             raise ValueError(error_msg)
 
         self.logger.debug(
             f"{log_prefix} Project limit check passed: "
-            f"{total_mb:.2f} MB / {limit_mb:.0f} MB "
+            f"{total_mb:.2f} MB / {limit_mb:.2f} MB "
             f"({(total_size / self.max_total_upload_size_bytes * 100):.1f}% used)"
         )
 
@@ -463,7 +465,7 @@ class ProjectService:
         existing_artifacts = await self.get_project_artifacts(db, project_id, user_id)
         current_project_size = sum(
             artifact.size for artifact in existing_artifacts
-            if artifact.source == "project"  # Only count user-uploaded files
+            if artifact.source == "project" and artifact.size is not None  # Only count user-uploaded files
         )
         new_files_size = sum(len(content) for _, content in validated_files)
 
@@ -803,7 +805,7 @@ class ProjectService:
                         if artifact_part and artifact_part.inline_data:
                             # Add to ZIP under artifacts/ directory
                             zip_file.writestr(
-                                f'artifacts/{artifact.filename}',
+                                f'{ARTIFACTS_PREFIX}{artifact.filename}',
                                 artifact_part.inline_data.data
                             )
                     except Exception as e:
@@ -895,7 +897,7 @@ class ProjectService:
                 # Pre-calculate total artifacts size for limit validation
                 artifact_files = [
                     name for name in zip_ref.namelist()
-                    if name.startswith('artifacts/') and name != 'artifacts/'
+                    if name.startswith(ARTIFACTS_PREFIX) and name != ARTIFACTS_PREFIX
                 ]
 
                 total_artifacts_size = 0
@@ -907,8 +909,9 @@ class ProjectService:
 
                     # Track oversized files (will be skipped during import)
                     if uncompressed_size > self.max_upload_size_bytes:
+                        safe_filename = os.path.basename(artifact_path)
                         oversized_artifacts.append(
-                            (artifact_path.replace('artifacts/', ''), uncompressed_size)
+                            (safe_filename, uncompressed_size)
                         )
                         continue
 
@@ -956,12 +959,19 @@ class ProjectService:
                     storage_session_id = f"project-{project.id}"
                     artifact_files = [
                         name for name in zip_ref.namelist()
-                        if name.startswith('artifacts/') and name != 'artifacts/'
+                        if name.startswith(ARTIFACTS_PREFIX) and name != ARTIFACTS_PREFIX
                     ]
                     
                     for artifact_path in artifact_files:
                         try:
-                            filename = artifact_path.replace('artifacts/', '')
+                            filename = os.path.basename(artifact_path)
+
+                            # Validate filename is safe
+                            if not filename or filename in ('.', '..'):
+                                self.logger.warning(f"{log_prefix} Skipping invalid filename in ZIP: {artifact_path}")
+                                warnings.append(f"Skipped invalid filename: {artifact_path}")
+                                continue
+
                             content_bytes = zip_ref.read(artifact_path)
                             
                             # Skip oversized artifacts with a warning (don't fail the entire import)

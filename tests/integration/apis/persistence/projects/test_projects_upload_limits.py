@@ -1,13 +1,14 @@
 """
 Tests for project upload size limits.
 
-Tests the enforcement of upload size limits for projects:
+These tests run with reduced, test-specific upload size overrides and do not
+reflect the production defaults (which are higher, e.g. 50MB per file and
+100MB total at the time of writing; see application configuration for
+current values).
+
+Test-specific override values used here:
 - Per-file upload limit (DEFAULT_MAX_UPLOAD_SIZE_BYTES = 1MB)
 - Total project upload limit (DEFAULT_MAX_TOTAL_UPLOAD_SIZE_BYTES = 3MB)
-
-These tests use development overrides:
-- Max upload size: 1MB per file
-- Max total upload size: 3MB per project
 """
 
 import io

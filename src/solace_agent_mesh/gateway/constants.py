@@ -7,6 +7,9 @@ multiple components to avoid duplication and ensure consistency.
 
 # ===== ARTIFACT AND MESSAGE SIZE LIMITS =====
 
+# Artifact prefix
+ARTIFACTS_PREFIX = 'artifacts/'
+
 # Artifact content resolution limits
 DEFAULT_MAX_ARTIFACT_RESOLVE_SIZE_BYTES = 104857600  # 100MB - max size for artifact content embeds
 
