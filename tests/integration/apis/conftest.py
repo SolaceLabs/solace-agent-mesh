@@ -84,7 +84,17 @@ def _patch_mock_component_config(factory):
         elif key == "projects":
             return {"enabled": True}
         elif key == "gateway_max_upload_size_bytes":
-            return 100 * 1024 * 1024  # Default 100MB for tests
+            # Test override: Keep 100MB for artifact upload tests
+            # (test_tasks_api.py expects 101MB to be rejected)
+            return 100 * 1024 * 1024  # 100MB
+        elif key == "gateway_max_zip_upload_size_bytes":
+            # Test override: Use 10MB ZIP import limit
+            return 10485760  # 10MB
+        elif key == "gateway_max_total_upload_size_bytes":
+            # Test override: Use 3MB total project size limit
+            # (test_projects_upload_limits.py expects 3.6MB to be rejected)
+            # CRITICAL: Must override this because production default is 100MB!
+            return 3145728  # 3MB
 
         if callable(original_side_effect):
             return original_side_effect(key, default)
