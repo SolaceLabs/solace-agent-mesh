@@ -9,47 +9,10 @@ sidebar_position: 10
 
 This guide walks you through configuring Role-Based Access Control (RBAC) for Agent Mesh Enterprise. You will learn how to control access to Agent Mesh Enterprise features and resources based on user roles and permissions. This guide covers RBAC configuration for both Docker and Helm deployments.
 
-## Table of Contents
 
-- [Understanding RBAC in Agent Mesh Enterprise](#understanding-rbac-in-agent-mesh-enterprise)
-- [Planning Your RBAC Configuration](#planning-your-rbac-configuration)
-  - [Mapping Scopes to Features](#mapping-scopes-to-features)
-    - [Tool Scopes](#tool-scopes)
-    - [Agent Scopes](#agent-scopes)
-    - [Artifact Scopes](#artifact-scopes)
-    - [Monitoring Scopes](#monitoring-scopes)
-    - [The Wildcard Scope](#the-wildcard-scope)
-- [Setting Up RBAC in Docker](#setting-up-rbac-in-docker)
-- [Setting Up RBAC with Helm](#setting-up-rbac-with-helm)
-- [Understanding Configuration Files](#understanding-configuration-files)
-- [Advanced Configuration Options](#advanced-configuration-options)
-- [Best Practices](#best-practices)
-- [Troubleshooting](#troubleshooting)
-
-## Understanding RBAC in Agent Mesh Enterprise
+## Overview
 
 Before you configure RBAC, you need to understand how the system works. Agent Mesh Enterprise uses a three-tier authorization model that separates identity, roles, and permissions.
-
-### Authorization Types
-
-Agent Mesh Enterprise supports multiple authorization types, each suited for different use cases:
-
-**`deny_all` (Default)** - The secure default that denies all access. This type is automatically used when:
-- No `authorization_service` configuration block is present
-- The `authorization_service` block is empty
-- The `type` field is explicitly set to `deny_all`
-
-When this type is active, all user requests are denied and logged with WARNING messages. This ensures maximum security by default.
-
-**`default_rbac`** - Role-Based Access Control using configuration files. This type is the recommended type for production deployments where you need fine-grained control over user permissions. It requires both role definitions and user assignments files.
-
-**`custom`** - Custom authorization service implementation. Use this when you need to integrate with external authorization systems or implement custom authorization logic.
-
-**`none`** - Disables authorization entirely, granting wildcard `*` scope to all users. This type must be explicitly configured and should **only be used in development environments**. The system logs prominent security warnings when this type is active.
-
-:::danger Development Only
-The `type: none` authorization configuration grants full access to all users and should **never** be used in production environments. It is intended only for local development and testing.
-:::
 
 ### RBAC Concepts
 
@@ -72,6 +35,28 @@ When a user attempts an action in Agent Mesh Enterprise, the system follows this
 5. If a matching scope exists, the system allows the action; otherwise, it denies access
 
 This model implements the principle of least privilege: users receive only the permissions they need to perform their job functions.
+
+
+### Authorization Types
+
+Agent Mesh Enterprise supports multiple authorization types, each suited for different use cases:
+
+**`deny_all` (Default)** - The secure default that denies all access. This type is automatically used when:
+- No `authorization_service` configuration block is present
+- The `authorization_service` block is empty
+- The `type` field is explicitly set to `deny_all`
+
+When this type is active, all user requests are denied and logged with WARNING messages. This ensures maximum security by default.
+
+**`default_rbac`** - Role-Based Access Control using configuration files. This type is the recommended type for production deployments where you need fine-grained control over user permissions. It requires both role definitions and user assignments files.
+
+**`custom`** - Custom authorization service implementation. Use this when you need to integrate with external authorization systems or implement custom authorization logic.
+
+**`none`** - Disables authorization entirely, granting wildcard `*` scope to all users. This type must be explicitly configured and should **only be used in development environments**. The system logs prominent security warnings when this type is active.
+
+:::danger Development Only
+The `type: none` authorization configuration grants full access to all users and should **never** be used in production environments. It is intended only for local development and testing.
+:::
 
 ## Planning Your RBAC Configuration
 
