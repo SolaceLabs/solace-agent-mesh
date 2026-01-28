@@ -59,23 +59,10 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({
     useEffect(() => {
         if (descriptionRef.current && description) {
             const element = descriptionRef.current;
-            // Temporarily remove line clamp to get natural height
-            const hadClamp = element.classList.contains('line-clamp-5');
-            if (hadClamp) {
-                element.classList.remove('line-clamp-5');
-            }
-
-            // Check if content is taller than 5 lines
+            // Check if content is taller than 5 lines (approximately 5 * line-height)
             const lineHeight = parseInt(getComputedStyle(element).lineHeight) || 20;
             const maxHeight = lineHeight * 5;
-            const needsExpand = element.scrollHeight > maxHeight + 5; // +5 for tolerance
-
-            // Restore line clamp if it was there
-            if (hadClamp) {
-                element.classList.add('line-clamp-5');
-            }
-
-            setShowExpandButton(needsExpand);
+            setShowExpandButton(element.scrollHeight > maxHeight + 5); // +5 for tolerance
         }
     }, [description]);
 
