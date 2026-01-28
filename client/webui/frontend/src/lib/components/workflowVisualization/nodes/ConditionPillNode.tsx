@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { NODE_SELECTED_CLASSES, type NodeProps } from "../utils/types";
+import { NODE_BASE_STYLES, NODE_SELECTED_CLASS_COMPACT, type NodeProps } from "../utils/types";
 import { getValidNodeReferences } from "../utils/expressionParser";
 
 /**
@@ -32,13 +32,9 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
 
     return (
         <div
-            className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium shadow-sm transition-all duration-200 ${
-                isDefault
-                    ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500 dark:bg-amber-900/30 dark:text-amber-300"
-                    : "border-purple-400 bg-purple-50 text-purple-700 dark:border-purple-500 dark:bg-purple-900/30 dark:text-purple-300"
-            } ${isSelected ? NODE_SELECTED_CLASSES.BLUE_COMPACT : ""}`}
+            className={`${NODE_BASE_STYLES.CONDITION_PILL} border border-(--color-secondary-w20) bg-(--color-background-w10) text-(--color-secondary-text-wMain) ${isSelected ? NODE_SELECTED_CLASS_COMPACT : ""}`}
             style={{
-                width: `${node.width}px`,
+                width: isDefault ? 'auto' : `${node.width}px`,
                 height: `${node.height}px`,
             }}
             onClick={e => {
@@ -50,9 +46,12 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
             title={fullText}
         >
             {!isDefault && caseNumber && (
-                <span className="flex-shrink-0 font-semibold">{caseNumber}</span>
+                <>
+                    <span className="flex-shrink-0 font-medium">{caseNumber}</span>
+                    <div className="h-4 w-px bg-(--color-secondary-w20) dark:bg-(--color-secondary-w80)" />
+                </>
             )}
-            <span className="block flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+            <span className="block flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-secondary-foreground">
                 {displayText}
             </span>
         </div>

@@ -247,7 +247,7 @@ export function WorkflowVisualizationPage() {
                 <Header
                     title={
                         <div className="flex items-center gap-2">
-                            <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                            <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
                             <span>{workflowName || "Workflow"}</span>
                         </div>
                     }
@@ -265,7 +265,7 @@ export function WorkflowVisualizationPage() {
                 <Header
                     title={
                         <div className="flex items-center gap-2">
-                            <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                            <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
                             <span>{workflowName || "Workflow"}</span>
                         </div>
                     }
@@ -283,7 +283,7 @@ export function WorkflowVisualizationPage() {
                 <Header
                     title={
                         <div className="flex items-center gap-2">
-                            <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                            <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
                             <span>{workflowName || "Workflow"}</span>
                         </div>
                     }
@@ -299,14 +299,14 @@ export function WorkflowVisualizationPage() {
             <Header
                 title={
                     <div className="flex items-center gap-2">
-                        <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
+                        <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
                         <span>{workflow.displayName || workflow.name}</span>
                         {config.version && <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400">v{config.version}</span>}
                     </div>
                 }
                 breadcrumbs={breadcrumbs}
                 buttons={[
-                    <button key="details" onClick={handleOpenWorkflowDetails} className="text-sm text-[var(--color-brand-wMain)] hover:underline">
+                    <button key="details" onClick={handleOpenWorkflowDetails} className="text-sm text-(--color-brand-wMain) hover:underline">
                         Open Workflow Details
                     </button>,
                 ]}
