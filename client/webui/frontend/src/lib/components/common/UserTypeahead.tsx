@@ -14,13 +14,14 @@ import type { Person } from "@/lib/types";
 
 interface UserTypeaheadProps {
     id: string;
-    onSelect: (email: string) => void;
+    onSelect: (email: string, id: string) => void;
     onRemove: (id: string) => void;
     excludeEmails: string[];
+    selectedEmail?: string | null;
     disabled?: boolean;
 }
 
-export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, disabled = false }) => {
+export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, selectedEmail, disabled = false }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [isKeyboardMode, setIsKeyboardMode] = useState(false);
@@ -51,12 +52,10 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
     // Handle person selection - keep typeahead open
     const handleSelect = useCallback(
         (person: Person) => {
-            onSelect(person.email);
+            onSelect(person.email, id);
             setSearchQuery("");
-            // Keep focus on input for additional selections
-            inputRef.current?.focus();
         },
-        [onSelect]
+        [onSelect, id]
     );
 
     // Handle close/remove
@@ -97,6 +96,21 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
     }, [activeIndex, id]);
 
     const showResults = searchQuery.length > 0;
+
+    // If a user is already selected, show a locked state with their email
+    if (selectedEmail) {
+        return (
+            <div className="relative flex items-center gap-2">
+                <div className="flex h-9 flex-1 items-center rounded-md border border-[var(--border)] bg-[var(--muted)] px-3">
+                    <User className="mr-2 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
+                    <span className="truncate text-sm">{selectedEmail}</span>
+                </div>
+                <Button variant="ghost" size="sm" onClick={handleClose} disabled={disabled} className="h-9 w-9 flex-shrink-0 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                    <X className="h-4 w-4" />
+                </Button>
+            </div>
+        );
+    }
 
     return (
         <div className="relative flex items-center gap-2">

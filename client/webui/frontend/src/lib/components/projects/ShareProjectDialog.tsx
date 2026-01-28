@@ -15,10 +15,14 @@ interface ShareProjectDialogProps {
     project: Project;
 }
 
+interface PendingTypeahead {
+    id: string;
+    email: string | null;
+}
+
 export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, onClose, project }) => {
-    const [pendingAdds, setPendingAdds] = useState<string[]>([]);
+    const [pendingTypeaheads, setPendingTypeaheads] = useState<PendingTypeahead[]>([]);
     const [pendingRemoves, setPendingRemoves] = useState<string[]>([]);
-    const [typeaheadIds, setTypeaheadIds] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
 
     // Fetch current shares
@@ -33,53 +37,47 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
     // Reset state when dialog opens
     useEffect(() => {
         if (isOpen) {
-            setPendingAdds([]);
+            setPendingTypeaheads([]);
             setPendingRemoves([]);
-            setTypeaheadIds([]);
             setError(null);
         }
     }, [isOpen]);
 
-    // Compute the current list of viewers to display
+    // Compute the current list of viewers to display (only saved users, not pending)
     const displayedViewers = useMemo(() => {
-        const existingViewers = (sharesData?.shares || [])
+        return (sharesData?.shares || [])
             .filter(share => !pendingRemoves.includes(share.userEmail))
             .map(share => ({
                 email: share.userEmail,
                 isPending: false,
             }));
-
-        const pendingViewers = pendingAdds.map(email => ({
-            email,
-            isPending: true,
-        }));
-
-        return [...existingViewers, ...pendingViewers];
-    }, [sharesData?.shares, pendingAdds, pendingRemoves]);
+    }, [sharesData?.shares, pendingRemoves]);
 
     // All emails that should be excluded from the typeahead
     const excludeEmails = useMemo(() => {
         const ownerEmail = sharesData?.ownerEmail || "";
         const existingEmails = (sharesData?.shares || []).map(s => s.userEmail);
-        return [ownerEmail, ...existingEmails, ...pendingAdds].filter(Boolean);
-    }, [sharesData?.ownerEmail, sharesData?.shares, pendingAdds]);
+        const pendingEmails = pendingTypeaheads.map(t => t.email).filter((e): e is string => e !== null);
+        return [ownerEmail, ...existingEmails, ...pendingEmails].filter(Boolean);
+    }, [sharesData?.ownerEmail, sharesData?.shares, pendingTypeaheads]);
 
     // Check if there are any pending changes
+    const pendingAdds = pendingTypeaheads.filter(t => t.email !== null).map(t => t.email as string);
     const hasChanges = pendingAdds.length > 0 || pendingRemoves.length > 0;
 
     // Add a new typeahead instance
     const handleAddTypeahead = useCallback(() => {
         const newId = `typeahead-${Date.now()}`;
-        setTypeaheadIds(prev => [newId, ...prev]);
+        setPendingTypeaheads(prev => [{ id: newId, email: null }, ...prev]);
     }, []);
 
     // Remove a typeahead instance
     const handleRemoveTypeahead = useCallback((id: string) => {
-        setTypeaheadIds(prev => prev.filter(tid => tid !== id));
+        setPendingTypeaheads(prev => prev.filter(t => t.id !== id));
     }, []);
 
     const handleAddUser = useCallback(
-        (email: string) => {
+        (email: string, typeaheadId: string) => {
             // Don't add the owner
             if (email === sharesData?.ownerEmail) {
                 setError("Cannot add the project owner as a viewer");
@@ -89,27 +87,26 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
             // Check if trying to re-add a removed user
             if (pendingRemoves.includes(email)) {
                 setPendingRemoves(prev => prev.filter(e => e !== email));
-            } else if (!pendingAdds.includes(email)) {
-                setPendingAdds(prev => [...prev, email]);
+                // Remove the typeahead since the user was restored from pending removes
+                setPendingTypeaheads(prev => prev.filter(t => t.id !== typeaheadId));
+            } else {
+                // Update the typeahead with the selected email
+                setPendingTypeaheads(prev =>
+                    prev.map(t => (t.id === typeaheadId ? { ...t, email } : t))
+                );
             }
         },
-        [sharesData?.ownerEmail, pendingRemoves, pendingAdds]
+        [sharesData?.ownerEmail, pendingRemoves]
     );
 
-    const handleRemoveUser = (email: string, isPending: boolean) => {
-        if (isPending) {
-            // Remove from pending adds
-            setPendingAdds(prev => prev.filter(e => e !== email));
-        } else {
-            // Add to pending removes
-            setPendingRemoves(prev => [...prev, email]);
-        }
+    const handleRemoveUser = (email: string) => {
+        // Add to pending removes (only for saved users, pending ones are removed via typeahead)
+        setPendingRemoves(prev => [...prev, email]);
     };
 
     const handleDiscard = () => {
-        setPendingAdds([]);
+        setPendingTypeaheads([]);
         setPendingRemoves([]);
-        setTypeaheadIds([]);
         setError(null);
         onClose();
     };
@@ -142,9 +139,8 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
             }
 
             // Reset state and close
-            setPendingAdds([]);
+            setPendingTypeaheads([]);
             setPendingRemoves([]);
-            setTypeaheadIds([]);
             onClose();
         } catch (err) {
             console.error("Failed to save project shares:", err);
@@ -175,10 +171,10 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                 )}
 
                 {/* Typeahead Inputs */}
-                {typeaheadIds.length > 0 && (
+                {pendingTypeaheads.length > 0 && (
                     <div className="flex flex-col gap-2">
-                        {typeaheadIds.map(id => (
-                            <UserTypeahead key={id} id={id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} disabled={isSaving} />
+                        {pendingTypeaheads.map(typeahead => (
+                            <UserTypeahead key={typeahead.id} id={typeahead.id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} selectedEmail={typeahead.email} disabled={isSaving} />
                         ))}
                     </div>
                 )}
@@ -205,7 +201,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                                     <span className="text-sm">{viewer.email}</span>
                                     <div className="flex items-center gap-2">
                                         <Badge variant="outline">Viewer</Badge>
-                                        <Button variant="ghost" size="sm" onClick={() => handleRemoveUser(viewer.email, viewer.isPending)} disabled={isSaving} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                                        <Button variant="ghost" size="sm" onClick={() => handleRemoveUser(viewer.email)} disabled={isSaving} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
                                             <X className="h-4 w-4" />
                                         </Button>
                                     </div>
