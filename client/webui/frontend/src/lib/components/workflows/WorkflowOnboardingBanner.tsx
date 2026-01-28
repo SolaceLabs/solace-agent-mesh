@@ -5,7 +5,7 @@ import { Button } from "@/lib/components/ui/button";
 
 const STORAGE_KEY = "workflow-onboarding-dismissed";
 
-export const WORKFLOW_HEADER = "Workflows give enterprises production-ready, best-practice agent patterns that are predictable and reliable";
+export const WORKFLOW_HEADER = "Workflows give enterprises production-ready, best-practice agent patterns that are predictable and reliable.";
 export const WORKFLOW_DESCRIPTION = "Turn complex multi-agent tasks into streamlined workflows. Define the sequence in YAML, deploy to Agent Mesh, and watch your workflow handle the coordination automatically. Great for building repeatable processes that need multiple agents working together in a specific order.";
 export const WORKFLOW_LEARN_MORE_TEXT = "Learn how to create workflows";
 
