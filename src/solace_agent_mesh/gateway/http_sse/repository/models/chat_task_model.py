@@ -24,6 +24,7 @@ class ChatTaskModel(Base):
     user_message = Column(Text, nullable=True)
     message_bubbles = Column(Text, nullable=False)
     task_metadata = Column(Text, nullable=True)
+    gateway_type = Column(String(50), nullable=False, default="web")
     created_time = Column(BigInteger, nullable=False, index=True)
     updated_time = Column(BigInteger, nullable=True)
 

@@ -218,6 +218,8 @@ export interface Session {
     projectId?: string | null;
     projectName?: string | null;
     hasRunningBackgroundTask?: boolean;
+    gatewayType?: string; // "web", "slack", "teams", etc.
+    externalContextId?: string | null; // Original external context ID (e.g., Slack channel)
 }
 
 // RAG (Retrieval-Augmented Generation) Types

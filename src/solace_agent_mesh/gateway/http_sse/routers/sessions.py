@@ -59,6 +59,8 @@ async def get_all_sessions(
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
                 project_name=session_domain.project_name,
+                gateway_type=session_domain.gateway_type,
+                external_context_id=session_domain.external_context_id,
                 has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
@@ -112,6 +114,8 @@ async def search_sessions(
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
                 project_name=session_domain.project_name,
+                gateway_type=session_domain.gateway_type,
+                external_context_id=session_domain.external_context_id,
                 has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
@@ -171,6 +175,8 @@ async def get_session(
             name=session_domain.name,
             agent_id=session_domain.agent_id,
             project_id=session_domain.project_id,
+            gateway_type=session_domain.gateway_type,
+            external_context_id=session_domain.external_context_id,
             created_time=session_domain.created_time,
             updated_time=session_domain.updated_time,
         )
@@ -254,6 +260,7 @@ async def save_task(
             user_message=saved_task.user_message,
             message_bubbles=saved_task.message_bubbles,
             task_metadata=saved_task.task_metadata,
+            gateway_type=saved_task.gateway_type,
             created_time=saved_task.created_time,
             updated_time=saved_task.updated_time,
         )
@@ -328,6 +335,7 @@ async def get_session_tasks(
                 user_message=task.user_message,
                 message_bubbles=task.message_bubbles,
                 task_metadata=task.task_metadata,
+                gateway_type=task.gateway_type,
                 created_time=task.created_time,
                 updated_time=task.updated_time,
             )
@@ -476,6 +484,8 @@ async def update_session_name(
             name=updated_domain.name,
             agent_id=updated_domain.agent_id,
             project_id=updated_domain.project_id,
+            gateway_type=updated_domain.gateway_type,
+            external_context_id=updated_domain.external_context_id,
             created_time=updated_domain.created_time,
             updated_time=updated_domain.updated_time,
         )
@@ -613,6 +623,8 @@ async def move_session_to_project(
             name=updated_session.name,
             agent_id=updated_session.agent_id,
             project_id=updated_session.project_id,
+            gateway_type=updated_session.gateway_type,
+            external_context_id=updated_session.external_context_id,
             created_time=updated_session.created_time,
             updated_time=updated_session.updated_time,
         )

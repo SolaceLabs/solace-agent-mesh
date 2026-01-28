@@ -19,6 +19,8 @@ class Session(BaseModel):
     agent_id: AgentId | None = None
     project_id: str | None = None
     project_name: str | None = None
+    gateway_type: str = "web"
+    external_context_id: str | None = None
     has_running_background_task: bool = False  # Enriched field, not stored in DB
     created_time: int
     updated_time: int | None = None

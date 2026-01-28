@@ -60,7 +60,7 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId 
     return <span className={`truncate font-semibold transition-opacity duration-300 ${animationClass}`}>{animatedName}</span>;
 };
 import { formatTimestamp, getErrorMessage } from "@/lib/utils";
-import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
+import { GatewayBadge, MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
 import {
     Button,
     DropdownMenu,
@@ -495,7 +495,10 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     </div>
                                                     <span className="text-muted-foreground truncate text-xs">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
-                                                {session.projectName && <ProjectBadge text={session.projectName} />}
+                                                <div className="flex items-center gap-1">
+                                                    {session.gatewayType && session.gatewayType !== "web" && <GatewayBadge gatewayType={session.gatewayType} externalContextId={session.externalContextId} />}
+                                                    {session.projectName && <ProjectBadge text={session.projectName} />}
+                                                </div>
                                             </div>
                                         </button>
                                     )}

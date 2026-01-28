@@ -16,6 +16,7 @@ class TaskResponse(BaseTimestampResponse):
     user_message: Optional[str] = Field(None, alias="userMessage")
     message_bubbles: str = Field(..., alias="messageBubbles")  # JSON string (opaque)
     task_metadata: Optional[str] = Field(None, alias="taskMetadata")  # JSON string (opaque)
+    gateway_type: str = Field(default="web", alias="gatewayType")
     created_time: int = Field(..., alias="createdTime")
     updated_time: Optional[int] = Field(None, alias="updatedTime")
     

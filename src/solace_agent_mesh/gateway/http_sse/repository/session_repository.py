@@ -87,6 +87,8 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
                 name=session.name,
                 agent_id=session.agent_id,
                 project_id=session.project_id,
+                gateway_type=session.gateway_type,
+                external_context_id=session.external_context_id,
                 updated_time=session.updated_time,
             )
             return self.update(
@@ -99,10 +101,50 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
                 user_id=session.user_id,
                 agent_id=session.agent_id,
                 project_id=session.project_id,
+                gateway_type=session.gateway_type,
+                external_context_id=session.external_context_id,
                 created_time=session.created_time,
                 updated_time=session.updated_time,
             )
             return self.create(db_session, create_model.model_dump())
+
+    def find_by_id(self, db_session: DBSession, session_id: SessionId) -> Session | None:
+        """Find a session by ID (without user check)."""
+        model = (
+            db_session.query(SessionModel)
+            .filter(
+                SessionModel.id == session_id,
+                SessionModel.deleted_at.is_(None)
+            )
+            .first()
+        )
+        return Session.model_validate(model) if model else None
+
+    def find_by_external_context(
+        self, db_session: DBSession, external_context_id: str
+    ) -> Session | None:
+        """Find a session by its external context ID."""
+        model = (
+            db_session.query(SessionModel)
+            .filter(
+                SessionModel.external_context_id == external_context_id,
+                SessionModel.deleted_at.is_(None)
+            )
+            .first()
+        )
+        return Session.model_validate(model) if model else None
+
+    def exists(self, db_session: DBSession, session_id: SessionId) -> bool:
+        """Check if a session exists by ID."""
+        count = (
+            db_session.query(SessionModel)
+            .filter(
+                SessionModel.id == session_id,
+                SessionModel.deleted_at.is_(None)
+            )
+            .count()
+        )
+        return count > 0
 
     def delete(self, db_session: DBSession, session_id: SessionId, user_id: UserId) -> bool:
         """Delete a session belonging to a user."""

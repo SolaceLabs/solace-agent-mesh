@@ -27,6 +27,7 @@ class ChatTaskRepository(IChatTaskRepository):
             existing.user_message = task.user_message
             existing.message_bubbles = task.message_bubbles  # Already a string
             existing.task_metadata = task.task_metadata      # Already a string
+            existing.gateway_type = task.gateway_type
             existing.updated_time = now_epoch_ms()
         else:
             # Create new task - store strings directly
@@ -37,6 +38,7 @@ class ChatTaskRepository(IChatTaskRepository):
                 user_message=task.user_message,
                 message_bubbles=task.message_bubbles,  # Already a string
                 task_metadata=task.task_metadata,      # Already a string
+                gateway_type=task.gateway_type,
                 created_time=task.created_time,
                 updated_time=task.updated_time
             )
@@ -97,6 +99,7 @@ class ChatTaskRepository(IChatTaskRepository):
             user_message=model.user_message,
             message_bubbles=model.message_bubbles,  # String (opaque)
             task_metadata=model.task_metadata,      # String (opaque)
+            gateway_type=model.gateway_type or "web",
             created_time=model.created_time,
             updated_time=model.updated_time
         )

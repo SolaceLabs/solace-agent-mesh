@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { Search, X } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { ProjectBadge } from "@/lib/components/chat";
+import { GatewayBadge, ProjectBadge } from "@/lib/components/chat";
 import { Button, Input } from "@/lib/components/ui";
 import { useDebounce } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
@@ -98,7 +98,10 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
                                 <button key={session.id} onClick={() => handleSessionClick(session.id)} className="hover:bg-accent hover:text-accent-foreground w-full rounded-sm px-3 py-2 text-left text-sm">
                                     <div className="mb-1 flex items-center justify-between gap-2">
                                         <div className="flex-1 truncate font-medium">{session.name || "Untitled Session"}</div>
-                                        {session.projectName && <ProjectBadge text={session.projectName} />}
+                                        <div className="flex items-center gap-1">
+                                            {session.gatewayType && session.gatewayType !== "web" && <GatewayBadge gatewayType={session.gatewayType} externalContextId={session.externalContextId} />}
+                                            {session.projectName && <ProjectBadge text={session.projectName} />}
+                                        </div>
                                     </div>
                                     <div className="text-muted-foreground text-xs">{new Date(session.updatedTime).toLocaleDateString()}</div>
                                 </button>

@@ -644,21 +644,58 @@ class TaskLoggerService:
             from ..repository.chat_task_repository import ChatTaskRepository
             from ..repository.entities import ChatTask
             from ..repository.session_repository import SessionRepository
+            from .external_gateway_session_sync import ExternalGatewaySessionSync
+            
+            session_repo = SessionRepository()
+            external_sync = ExternalGatewaySessionSync()
+            
+            # Determine gateway type from session_id
+            gateway_info = external_sync.parse_external_context_id(session_id)
+            gateway_type = gateway_info["gateway_type"]
             
             # Check if the session exists in this database
-            session_repo = SessionRepository()
             if not session_repo.exists(db, session_id):
-                log.debug(
-                    f"{self.log_identifier} Session {session_id} not found in webui_gateway database "
-                    f"Skipping chat message save for task {task_id}"
-                )
-                return
+                # Check if this is an external gateway context
+                if external_sync.is_external_gateway_context(session_id):
+                    # Check if external gateway persistence is enabled
+                    if not self.config.get("persist_external_gateway_tasks", True):
+                        log.debug(
+                            f"{self.log_identifier} External gateway task persistence is disabled. "
+                            f"Skipping chat message save for task {task_id}"
+                        )
+                        return
+                    
+                    # Create session for external gateway
+                    log.info(
+                        f"{self.log_identifier} Creating session for external gateway {gateway_type} "
+                        f"(context: {session_id})"
+                    )
+                    session_obj, created = external_sync.get_or_create_session(
+                        db=db,
+                        external_context_id=session_id,
+                        user_id=user_id,
+                        gateway_type=gateway_type,
+                    )
+                    # Use the normalized session ID from the created session
+                    session_id = session_obj.id
+                    
+                    if created:
+                        log.info(
+                            f"{self.log_identifier} Created new session {session_id} for external gateway {gateway_type}"
+                        )
+                else:
+                    log.debug(
+                        f"{self.log_identifier} Session {session_id} not found in webui_gateway database "
+                        f"Skipping chat message save for task {task_id}"
+                    )
+                    return
             
             # Build task metadata including RAG data if present
             task_metadata_dict = {
                 "schema_version": 1,
                 "status": task.status,
                 "agent_name": agent_name,
+                "gateway_type": gateway_type,
             }
             
             # Include RAG data if we found any
@@ -676,6 +713,7 @@ class TaskLoggerService:
                 user_message=user_message_text,
                 message_bubbles=json.dumps(message_bubbles),
                 task_metadata=json.dumps(task_metadata_dict),
+                gateway_type=gateway_type,
                 created_time=task.start_time,
                 updated_time=task.end_time,
             )
@@ -685,7 +723,7 @@ class TaskLoggerService:
             
             log.info(
                 f"{self.log_identifier} Saved chat messages for background task {task_id} "
-                f"(session: {session_id}, {len(message_bubbles)} message bubbles)"
+                f"(session: {session_id}, gateway: {gateway_type}, {len(message_bubbles)} message bubbles)"
             )
             
         except Exception as e:

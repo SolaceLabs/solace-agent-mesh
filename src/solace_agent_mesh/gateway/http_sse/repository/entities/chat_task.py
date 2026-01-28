@@ -19,6 +19,7 @@ class ChatTask(BaseModel):
     user_message: Optional[str] = None
     message_bubbles: str  # JSON string (opaque to backend)
     task_metadata: Optional[str] = None  # JSON string (opaque to backend)
+    gateway_type: str = "web"
     created_time: int
     updated_time: Optional[int] = None
 

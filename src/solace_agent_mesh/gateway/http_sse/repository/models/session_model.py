@@ -20,6 +20,8 @@ class SessionModel(Base):
     user_id = Column(String, nullable=False)
     agent_id = Column(String, nullable=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=True)
+    gateway_type = Column(String(50), nullable=False, default="web")
+    external_context_id = Column(String(500), nullable=True)
     created_time = Column(BigInteger, nullable=False, default=now_epoch_ms)
     updated_time = Column(
         BigInteger, nullable=False, default=now_epoch_ms, onupdate=now_epoch_ms
@@ -41,6 +43,8 @@ class CreateSessionModel(BaseModel):
     user_id: str
     agent_id: str | None
     project_id: str | None = None
+    gateway_type: str = "web"
+    external_context_id: str | None = None
     created_time: int
     updated_time: int
 
@@ -50,4 +54,6 @@ class UpdateSessionModel(BaseModel):
     name: str | None = None
     agent_id: str | None = None
     project_id: str | None = None
+    gateway_type: str | None = None
+    external_context_id: str | None = None
     updated_time: int
