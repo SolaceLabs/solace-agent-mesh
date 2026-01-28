@@ -527,14 +527,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
         const cursorPosition = getCursorPosition();
         const textBeforeCursor = value.substring(0, cursorPosition);
-        const lastChar = textBeforeCursor[textBeforeCursor.length - 1];
-        const charBeforeLast = textBeforeCursor[textBeforeCursor.length - 2];
 
-        // Check if "/" is typed at start or after space
-        if (lastChar === "/" && (!charBeforeLast || charBeforeLast === " " || charBeforeLast === "\n")) {
+        // Check if "/" is typed as the first character (position 0)
+        // Only trigger prompt popover when "/" is at the very start of the input
+        if (textBeforeCursor === "/") {
             setShowPromptsCommand(true);
             setShowMentionsCommand(false); // Close mentions if open
-        } else if (showPromptsCommand && !textBeforeCursor.includes("/")) {
+        } else if (showPromptsCommand && !textBeforeCursor.startsWith("/")) {
             setShowPromptsCommand(false);
         }
 
@@ -903,6 +902,14 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 onPromptSelect={handlePromptSelect}
                 messages={messages}
                 onReservedCommand={handleChatCommand}
+                onBackspaceClose={() => {
+                    // Remove the "/" trigger character from the input
+                    // Since "/" only triggers at position 0, we just remove the first character
+                    if (inputValue.startsWith("/")) {
+                        setInputValue(inputValue.substring(1));
+                    }
+                    setShowPromptsCommand(false);
+                }}
             />
 
             {/* Mentions Command Popover */}

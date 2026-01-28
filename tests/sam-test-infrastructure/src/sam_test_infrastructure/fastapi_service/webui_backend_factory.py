@@ -370,6 +370,8 @@ class WebUIBackendFactory:
         # Multi-user auth overrides that read from test header
         async def override_get_current_user(request: Request) -> dict:
             user_id = request.headers.get(test_user_header, "sam_dev_user")
+            # Return user info based on the header value
+            # Support any user ID for flexible multi-user testing
             if user_id == "secondary_user":
                 return {
                     "id": "secondary_user",
@@ -378,11 +380,20 @@ class WebUIBackendFactory:
                     "authenticated": True,
                     "auth_method": "development",
                 }
-            else:
+            elif user_id == "sam_dev_user":
                 return {
                     "id": "sam_dev_user",
                     "name": "Sam Dev User",
                     "email": "sam@dev.local",
+                    "authenticated": True,
+                    "auth_method": "development",
+                }
+            else:
+                # For any other user ID (e.g., test_user_0, test_user_1, etc.)
+                return {
+                    "id": user_id,
+                    "name": f"Test User {user_id}",
+                    "email": f"{user_id}@test.local",
                     "authenticated": True,
                     "auth_method": "development",
                 }
