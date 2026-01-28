@@ -206,8 +206,8 @@ class ProjectService:
 
         project_repository = self._get_repositories(db)
 
-        # Check for duplicate project name for this user
-        existing_projects = project_repository.get_user_projects(user_id)
+        # Check for duplicate project name for this user (only owned projects)
+        existing_projects = project_repository.get_accessible_projects(user_id, shared_project_ids=[])
         if any(p.name.lower() == name.strip().lower() for p in existing_projects):
             raise ValueError(f"A project with the name '{name.strip()}' already exists")
 
@@ -280,60 +280,44 @@ class ProjectService:
         project_repository = self._get_repositories(db)
         return project_repository._model_to_entity(project_model)
 
-    def get_accessible_projects(self, db, user_id: str) -> List[Project]:
+    def get_user_projects(self, db, user_email: str) -> List[Project]:
         """
         Get all projects accessible by a specific user (owned + shared).
 
         Args:
             db: Database session
-            user_id: The user ID
+            user_email: The user's email
 
         Returns:
             List[Project]: List of user's accessible projects (owned + shared)
         """
-        self.logger.debug(f"Retrieving accessible projects for user {user_id}")
-        project_repository = self._get_repositories(db)
+        self.logger.debug(f"Retrieving accessible projects for user {user_email}")
 
-        if not self._resource_sharing_service.is_resource_sharing_available:
-            return project_repository.get_user_projects(user_id)
-        
-        shared_resources = self._resource_sharing_service.get_shared_resources(
-            session=db, user_email=user_id, resource_type=ResourceType.PROJECT
+        # Get shared project IDs from enterprise service (empty list for community)
+        shared_project_ids = self._resource_sharing_service.get_shared_resource_ids(
+            session=db,
+            user_email=user_email,
+            resource_type=ResourceType.PROJECT
         )
-        shared_project_ids = [r['resource_id'] for r in shared_resources]
 
-        return project_repository.get_owned_or_shared(user_id, shared_project_ids)
-
-    def get_user_projects(self, db, user_id: str) -> List[Project]:
-        """
-        Get all projects accessible by a specific user (owned + shared).
-
-        Args:
-            db: Database session
-            user_id: The user ID
-
-        Returns:
-            List[DomainProject]: List of user's accessible projects (owned + shared)
-        """
-        self.logger.debug(f"Retrieving accessible projects for user {user_id}")
+        # Get all accessible projects (owned + shared)
         project_repository = self._get_repositories(db)
-        db_projects = project_repository.get_accessible_projects(user_id)
-        return db_projects
+        return project_repository.get_accessible_projects(user_email, shared_project_ids)
 
-    async def get_user_projects_with_counts(self, db, user_id: str) -> List[tuple[Project, int]]:
+    async def get_user_projects_with_counts(self, db, user_email: str) -> List[tuple[Project, int]]:
         """
-        Get all projects owned by a specific user with artifact counts.
+        Get all projects accessible by a specific user with artifact counts.
         Uses batch counting for efficiency.
 
         Args:
             db: Database session
-            user_id: The user ID
-            
+            user_email: The user's email
+
         Returns:
             List[tuple[Project, int]]: List of tuples (project, artifact_count)
         """
-        self.logger.debug(f"Retrieving projects with artifact counts for user {user_id}")
-        projects = self.get_accessible_projects(db, user_id)
+        self.logger.debug(f"Retrieving projects with artifact counts for user {user_email}")
+        projects = self.get_user_projects(db, user_email)
         
         if not self.artifact_service or not projects:
             # If no artifact service or no projects, return projects with 0 counts
@@ -347,7 +331,7 @@ class ProjectService:
             counts_by_session = await get_artifact_counts_batch(
                 artifact_service=self.artifact_service,
                 app_name=self.app_name,
-                user_id=user_id,
+                user_id=user_email,
                 session_ids=session_ids,
             )
             
@@ -999,7 +983,8 @@ class ProjectService:
             str: A unique project name
         """
         project_repository = self._get_repositories(db)
-        existing_projects = project_repository.get_user_projects(user_id)
+        # Get only owned projects for name conflict checking
+        existing_projects = project_repository.get_accessible_projects(user_id, shared_project_ids=[])
         existing_names = {p.name.lower() for p in existing_projects}
         
         if desired_name.lower() not in existing_names:
@@ -1036,14 +1021,14 @@ class ProjectService:
         return project is not None
 
     def _get_shared_access_role(self, db, project_id: str, user_email: str) -> Optional[str]:
-        """Get user's shared access role for the project."""
-        shared_resources = self._resource_sharing_service.get_shared_resources(
-            session=db, user_email=user_email, resource_type=ResourceType.PROJECT
+        """Get user's shared access role for the project. Single query (no N+1)."""
+        sharing_role = self._resource_sharing_service.check_user_access(
+            session=db,
+            resource_id=project_id,
+            resource_type=ResourceType.PROJECT,
+            user_email=user_email
         )
-        for resource in shared_resources:
-            if resource['resource_id'] == project_id:
-                return resource.get('access_level') or resource.get('role')
-        return None
+        return sharing_role.value if sharing_role else None
 
     def _get_user_role(self, db, project_id: str, user_id: str) -> Optional[str]:
         """Get user's role on a project."""
