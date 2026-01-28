@@ -358,9 +358,37 @@ class A2AProxyComponent(BaseProxyComponent):
             # Add URL from config
             synthetic_card_dict["url"] = agent_config["url"]
 
-            # Add required capabilities field if not present
-            if "capabilities" not in synthetic_card_dict:
+            # Add reasonable defaults to required fields prior to AgentCard Pydantic validation
+            if not synthetic_card_dict.get("capabilities"):
                 synthetic_card_dict["capabilities"] = {}
+
+            if not synthetic_card_dict.get("defaultInputModes"):
+                synthetic_card_dict["defaultInputModes"] = []
+
+            if not synthetic_card_dict.get("defaultOutputModes"):
+                synthetic_card_dict["defaultOutputModes"] = []
+
+            if not synthetic_card_dict.get("name"):
+                synthetic_card_dict["name"] = agent_name
+
+            if not synthetic_card_dict.get("description"):
+                synthetic_card_dict["description"] = f"Agent: {agent_name}"
+
+            if not synthetic_card_dict.get("version"):
+                synthetic_card_dict["version"] = "1.0.0"
+
+            if synthetic_card_dict.get("skills"):
+                for i, skill in enumerate(synthetic_card_dict["skills"]):
+                    if not skill.get("name"):
+                        skill["name"] = f"skill_{i}"
+
+                    if not skill.get("description"):
+                        skill["description"] = f"Description for {skill['name']}"
+                    
+                    skill["id"] = skill["name"]
+                    
+                    if not skill.get("tags"):
+                        skill["tags"] = []
 
             # Construct security schemes from authentication config
             auth_config = agent_config.get("authentication")
@@ -390,6 +418,17 @@ class A2AProxyComponent(BaseProxyComponent):
             )
             return agent_card
 
+        except ValueError as e:
+            # Pydantic validation errors
+            log.error(
+                "%s Pydantic validation failed for synthetic agent card '%s': %s. "
+                "Agent card data: %s",
+                log_identifier,
+                agent_name,
+                e,
+                synthetic_card_dict if 'synthetic_card_dict' in locals() else card_data,
+            )
+            return None
         except Exception as e:
             log.exception(
                 "%s Failed to construct synthetic agent card for '%s': %s",
