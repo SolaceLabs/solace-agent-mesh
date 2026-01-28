@@ -29,13 +29,20 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
         }
     };
 
+    // Format condition for display (truncate if too long)
+    const formatCondition = (condition?: string) => {
+        if (!condition) return null;
+        const maxLen = 30;
+        return condition.length > maxLen ? `${condition.slice(0, maxLen)}...` : condition;
+    };
+
+    const hasConditionRow = node.data.condition || node.data.maxIterations;
+
     // When collapsed or no children, render as a simple node (like AgentNode)
     if (isCollapsed || !hasChildren) {
         return (
             <div
-                className={`${NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${
-                    isSelected ? NODE_SELECTED_CLASS : ""
-                } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
+                className={`${NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 style={{
                     width: `${node.width}px`,
                     height: `${node.height}px`,
@@ -51,17 +58,9 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {node.data.maxIterations && (
-                        <span className="text-sm text-gray-500 dark:text-gray-400">max: {node.data.maxIterations}</span>
-                    )}
+                    {node.data.maxIterations && <span className="text-sm text-gray-500 dark:text-gray-400">max: {node.data.maxIterations}</span>}
                     {canHaveChildren && (
-                        <Button
-                            onClick={handleToggle}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            tooltip="Expand"
-                        >
+                        <Button onClick={handleToggle} variant="ghost" size="icon" className="h-8 w-8" tooltip="Expand">
                             <Maximize2 className="h-4 w-4" />
                         </Button>
                     )}
@@ -86,22 +85,18 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
         >
             {/* Dotted Children Container */}
             <div
-                className="absolute inset-0 rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:bg-(--color-secondary-w100) dark:border-(--color-secondary-w70)"
+                className="absolute inset-0 rounded border-1 border-dashed border-(--color-secondary-w40) bg-(--color-secondary-w10) dark:border-(--color-secondary-w70) dark:bg-(--color-secondary-w100)"
                 style={{ top: `${totalHeaderHeightPx / 2}px` }}
             >
                 {/* Top padding clears the header portion below the dotted border plus gap */}
-                <div className={`pb-4 px-3 ${node.data.condition ? 'pt-16' : 'pt-12'}`}>
-                    <div className="flex flex-col items-center gap-2">
-                        {renderChildren ? renderChildren(node.children) : null}
-                    </div>
+                <div className={`px-3 pb-4 ${hasConditionRow ? "pt-16" : "pt-12"}`}>
+                    <div className="flex flex-col items-center gap-2">{renderChildren ? renderChildren(node.children) : null}</div>
                 </div>
             </div>
 
             {/* Solid Header Box - straddles the dotted container border */}
             <div
-                className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${
-                    isSelected ? NODE_SELECTED_CLASS : ""
-                } ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
+                className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 onClick={e => {
                     e.stopPropagation();
                     onClick?.(node);
@@ -115,29 +110,18 @@ const LoopNode: React.FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, on
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {node.data.maxIterations && (
-                            <span className="text-sm text-gray-500 dark:text-gray-400">max: {node.data.maxIterations}</span>
-                        )}
-                        <Button
-                            onClick={handleToggle}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            tooltip="Collapse"
-                        >
+                        {node.data.maxIterations && <span className="text-sm text-gray-500 dark:text-gray-400">max: {node.data.maxIterations}</span>}
+                        <Button onClick={handleToggle} variant="ghost" size="icon" className="h-8 w-8" tooltip="Collapse">
                             <Minimize2 className="h-4 w-4" />
                         </Button>
                     </div>
                 </div>
 
                 {/* Condition display */}
-                {node.data.condition && (
-                    <div className="px-4 pb-3 pt-0">
-                        <span
-                            className="block truncate rounded bg-(--color-secondary-w10) dark:bg-(--color-secondary-w80) px-2 py-1 text-sm text-secondary-foreground"
-                            title={node.data.condition}
-                        >
-                            {node.data.condition}
+                {hasConditionRow && (
+                    <div className="px-4 pt-0 pb-3">
+                        <span className="text-secondary-foreground block truncate rounded bg-(--color-secondary-w10) px-2 py-1 text-sm dark:bg-(--color-secondary-w80)" title={node.data.condition}>
+                            while: {formatCondition(node.data.condition)}
                         </span>
                     </div>
                 )}
