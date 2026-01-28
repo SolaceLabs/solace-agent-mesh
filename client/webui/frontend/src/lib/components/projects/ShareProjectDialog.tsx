@@ -150,7 +150,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
 
     return (
         <Dialog open={isOpen} onOpenChange={open => !open && handleDiscard()}>
-            <DialogContent className="flex max-h-[80vh] flex-col sm:max-w-[500px]">
+            <DialogContent className="flex max-h-[80vh] flex-col sm:max-w-xl">
                 <DialogHeader className="flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <DialogTitle>Share Project</DialogTitle>
@@ -179,17 +179,24 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                     ) : pendingTypeaheads.length === 0 && !sharesData?.ownerEmail && displayedViewers.length === 0 ? (
                         <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">No users have access to this project yet.</div>
                     ) : (
-                        <div className="flex flex-col divide-y divide-[var(--border)]">
+                        <div className="flex flex-col divide-[var(--border)]">
+                            {/* Header Row */}
+                            <div className="grid grid-cols-[1fr_85px_32px] items-center gap-x-3 pb-2">
+                                <span className="text-xs font-medium text-[var(--muted-foreground)]">Email</span>
+                                <span className="text-xs font-medium text-[var(--muted-foreground)]">Access Level</span>
+                                <div />
+                            </div>
+
                             {/* Pending Typeaheads */}
                             {pendingTypeaheads.map(typeahead => (
-                                <div key={typeahead.id} className="grid grid-cols-[1fr_70px_32px] items-center gap-x-3 py-3">
+                                <div key={typeahead.id} className="grid grid-cols-[1fr_85px_32px] items-center gap-x-3 py-3">
                                     <UserTypeahead id={typeahead.id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} selectedEmail={typeahead.email} disabled={isSaving} />
                                 </div>
                             ))}
 
                             {/* Owner Row - Always First */}
                             {sharesData?.ownerEmail && (
-                                <div className="grid grid-cols-[1fr_70px_32px] items-center gap-x-3 py-3">
+                                <div className="grid grid-cols-[1fr_85px_32px] items-center gap-x-3 py-3 border rounded-t-sm border-b-0 px-3">
                                     <span className="truncate text-sm">{sharesData.ownerEmail}</span>
                                     <Badge variant="secondary">Owner</Badge>
                                     <div className="h-8 w-8" />
@@ -198,7 +205,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
 
                             {/* Viewer Rows */}
                             {displayedViewers.map(viewer => (
-                                <div key={viewer.email} className="grid grid-cols-[1fr_70px_32px] items-center gap-x-3 py-3">
+                                <div key={viewer.email} className="grid grid-cols-[1fr_85px_32px] items-center gap-x-3 py-3 border rounded-b-sm px-3">
                                     <span className="truncate text-sm">{viewer.email}</span>
                                     <Badge variant="outline">Viewer</Badge>
                                     <Button variant="ghost" size="sm" onClick={() => handleRemoveUser(viewer.email)} disabled={isSaving} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
