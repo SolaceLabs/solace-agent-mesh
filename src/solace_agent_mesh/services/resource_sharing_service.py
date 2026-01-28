@@ -17,48 +17,18 @@ class ResourceSharingService(ABC):
     """Abstract base class for resource sharing functionality."""
 
     @abstractmethod
-    def share_resource(
-        self,
-        session,
-        resource_id: str,
-        resource_type: ResourceType,
-        shared_with_user_email: str,
-        access_level: SharingRole,
-        shared_by_user_email: str
-    ) -> bool:
-        """Share a resource with another user."""
-        pass
-
-    @abstractmethod
-    def get_shared_resources(
+    def get_shared_resource_ids(
         self,
         session,
         user_email: str,
-        resource_type: Optional[ResourceType] = None
-    ) -> List[Dict]:
-        """Get resources shared with a user."""
-        pass
+        resource_type: ResourceType
+    ) -> List[str]:
+        """
+        Get resource IDs that user has shared access to (any access level).
 
-    @abstractmethod
-    def can_access_resource(
-        self,
-        session,
-        resource_id: str,
-        resource_type: ResourceType,
-        user_email: str
-    ) -> bool:
-        """Check if user can access a resource."""
-        pass
-
-    @abstractmethod
-    def unshare_resource(
-        self,
-        session,
-        resource_id: str,
-        resource_type: ResourceType,
-        shared_with_user_email: str
-    ) -> bool:
-        """Remove sharing access for a user."""
+        Returns:
+            List of resource IDs. Empty list for community, actual IDs for enterprise.
+        """
         pass
 
     @abstractmethod
@@ -69,17 +39,12 @@ class ResourceSharingService(ABC):
         resource_type: ResourceType,
         user_email: str
     ) -> Optional[SharingRole]:
-        """Check user access and return their access level if they have access."""
-        pass
+        """
+        Check if user has access to a specific resource.
 
-    @abstractmethod
-    def get_resource_collaborators(
-        self,
-        session,
-        resource_id: str,
-        resource_type: ResourceType
-    ) -> List[Dict]:
-        """Get all users who have access to a resource."""
+        Returns:
+            SharingRole if user has access, None otherwise.
+        """
         pass
 
     @abstractmethod
@@ -89,5 +54,10 @@ class ResourceSharingService(ABC):
         resource_id: str,
         resource_type: ResourceType
     ) -> bool:
-        """Delete all sharing records for a resource (e.g., when resource is deleted)."""
+        """
+        Delete all sharing records for a resource (e.g., when resource is deleted).
+
+        Returns:
+            True if successful, False otherwise.
+        """
         pass

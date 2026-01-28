@@ -38,30 +38,58 @@ class ProjectRepository(IProjectRepository):
         self.db.refresh(model)
         return self._model_to_entity(model)
 
-    def get_user_projects(self, user_id: str) -> List[Project]:
-        """Get all projects owned by a specific user."""
-        models = self.db.query(ProjectModel).filter(
-            ProjectModel.user_id == user_id,
-            ProjectModel.deleted_at.is_(None)
-        ).all()
-        return [self._model_to_entity(model) for model in models]
-
-    def get_accessible_projects(self, user_id: str) -> List[Project]:
+    def get_accessible_projects(self, user_email: str, shared_project_ids: List[str] = None) -> List[Project]:
         """
         Get all accessible projects for a user (owned + shared).
-        Uses a single query with LEFT JOIN for optimal performance.
+
+        Args:
+            user_email: User's email (used for ownership check)
+            shared_project_ids: Optional list of project IDs user has shared access to
+
+        Returns:
+            List of accessible projects (owned + shared)
         """
-        # Query for projects where user is owner OR has shared access
-        models = self.db.query(ProjectModel).outerjoin(
-            ProjectUserModel,
-            ProjectModel.id == ProjectUserModel.project_id
-        ).filter(
-            or_(
-                ProjectModel.user_id == user_id,  # Projects owned by user
-                ProjectUserModel.user_id == user_id  # Projects shared with user
-            ),
-            ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
-        ).distinct().all()
+        query = self.db.query(ProjectModel).filter(ProjectModel.deleted_at.is_(None))
+
+        if not shared_project_ids:
+            # No shares: just owned projects
+            models = query.filter(ProjectModel.user_id == user_email).all()
+            return [self._model_to_entity(model) for model in models]
+
+        # Has shares: owned OR in shared list (with batching for safety)
+        # Conservative limits to avoid SQL parameter/query length issues
+        # SQLite parameter limit: 999, UUID ~40 chars, keep query under 100KB
+        MAX_IN_CLAUSE = 500
+
+        if len(shared_project_ids) <= MAX_IN_CLAUSE:
+            # Single query for normal case
+            models = query.filter(
+                or_(
+                    ProjectModel.user_id == user_email,
+                    ProjectModel.id.in_(shared_project_ids)
+                )
+            ).all()
+        else:
+            # Batch for large share lists (edge case)
+            all_models = []
+
+            # Get owned projects
+            owned_models = query.filter(ProjectModel.user_id == user_email).all()
+            all_models.extend(owned_models)
+
+            # Batch shared projects
+            for i in range(0, len(shared_project_ids), MAX_IN_CLAUSE):
+                batch = shared_project_ids[i:i + MAX_IN_CLAUSE]
+                shared_models = query.filter(ProjectModel.id.in_(batch)).all()
+                all_models.extend(shared_models)
+
+            # Deduplicate (user might own a project they also have shared access to)
+            seen = set()
+            models = []
+            for model in all_models:
+                if model.id not in seen:
+                    seen.add(model.id)
+                    models.append(model)
 
         return [self._model_to_entity(model) for model in models]
 
