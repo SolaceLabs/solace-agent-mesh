@@ -1,31 +1,18 @@
 import type { MouseEvent } from "react";
-import { Workflow, ExternalLink } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Workflow } from "lucide-react";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
-import { Button } from "@/lib/components/ui";
-import { buildWorkflowNavigationUrl } from "../WorkflowVisualizationPage";
 
 /**
  * Workflow reference node - Rectangle with workflow icon, name, and "Workflow" badge
  * Clicking navigates to the referenced workflow's visualization
  * Supports highlighting when referenced in expressions
  */
-const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick, currentWorkflowName, parentPath = [] }) => {
-    const navigate = useNavigate();
+const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) => {
     const workflowName = node.data.workflowName || node.data.agentName || node.data.label;
 
     const handleClick = (e: MouseEvent) => {
         e.stopPropagation();
         onClick?.(node);
-    };
-
-    const handleNavigate = (e: MouseEvent) => {
-        e.stopPropagation();
-        if (workflowName) {
-            // Build new parent path: current workflow becomes closest parent
-            const newParentPath = currentWorkflowName ? [currentWorkflowName, ...parentPath] : parentPath;
-            navigate(buildWorkflowNavigationUrl(workflowName, newParentPath));
-        }
     };
 
     return (
@@ -42,9 +29,6 @@ const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted,
                 <span className="truncate text-sm font-semibold">{workflowName}</span>
             </div>
             <span className="ml-2 flex-shrink-0 rounded px-2 py-0.5 text-sm font-medium text-[var(--color-secondary-text-wMain)]">Workflow</span>
-            <Button onClick={handleNavigate} variant="ghost" size="icon" className="h-8 w-8" tooltip="Open workflow">
-                <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
         </div>
     );
 };
