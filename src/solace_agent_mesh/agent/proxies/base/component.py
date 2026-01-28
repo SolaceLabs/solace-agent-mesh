@@ -405,6 +405,9 @@ class BaseProxyComponent(ComponentBase, ABC):
         """
         Synchronously fetches agent cards to populate the registry at startup.
         This method does NOT publish the cards to the mesh.
+
+        For agents with embedded agent_card_data, constructs synthetic agent cards
+        without fetching from a URL.
         """
         log.info(
             "%s Performing initial synchronous agent discovery...", self.log_identifier
@@ -412,6 +415,44 @@ class BaseProxyComponent(ComponentBase, ABC):
         with httpx.Client() as client:
             for agent_config in self.proxied_agents_config:
                 agent_alias = agent_config["name"]
+
+                # Check if this is a static agent with embedded card data
+                if agent_config.get("agent_card_data"):
+                    log.info(
+                        "%s Agent '%s' has embedded agent_card_data. Constructing synthetic card.",
+                        self.log_identifier,
+                        agent_alias,
+                    )
+                    try:
+                        # Delegate to subclass to construct synthetic card
+                        agent_card = self._construct_synthetic_agent_card(agent_config)
+                        if not agent_card:
+                            log.error(
+                                "%s Failed to construct synthetic agent card for '%s'.",
+                                self.log_identifier,
+                                agent_alias,
+                            )
+                            continue
+
+                        # Update the card for proxying
+                        card_for_proxy = self._update_agent_card_for_proxy(agent_card, agent_alias)
+                        self.agent_registry.add_or_update_agent(card_for_proxy)
+                        log.info(
+                            "%s Initial discovery successful for static agent '%s' (actual name: '%s').",
+                            self.log_identifier,
+                            agent_alias,
+                            agent_card.name,
+                        )
+                    except Exception as e:
+                        log.error(
+                            "%s Failed initial discovery for static agent '%s': %s",
+                            self.log_identifier,
+                            agent_alias,
+                            e,
+                        )
+                    continue  # Skip URL-based discovery for this agent
+
+                # Remote agent - fetch from URL
                 agent_url = agent_config.get("url")
                 agent_card_path = agent_config.get("agent_card_path", "/.well-known/agent-card.json")
                 log.debug(
@@ -498,15 +539,46 @@ class BaseProxyComponent(ComponentBase, ABC):
         """
         Asynchronously fetches agent cards, updates the registry, and publishes them.
         This is intended for the recurring timer.
+
+        Agents with embedded agent_card_data are skipped during polling since they
+        don't need to be fetched from a URL.
         """
         log.info("%s Starting recurring agent discovery cycle...", self.log_identifier)
         for agent_config in self.proxied_agents_config:
+            agent_alias = agent_config["name"]
+
+            # Skip agents with embedded agent_card_data - they don't need polling
+            if agent_config.get("agent_card_data"):
+                log.debug(
+                    "%s Skipping agent '%s' - static agent with embedded card data (no polling needed).",
+                    self.log_identifier,
+                    agent_alias,
+                )
+
+                # Still publish the card if it's in the registry
+                agent_card = self.agent_registry.get_agent(agent_alias)
+                if agent_card:
+                    card_to_publish = agent_card.model_copy(deep=True)
+                    card_to_publish.url = (
+                        f"solace:{a2a.get_agent_request_topic(self.namespace, agent_alias)}"
+                    )
+                    discovery_topic = a2a.get_agent_discovery_topic(self.namespace)
+                    self._publish_a2a_message(
+                        card_to_publish.model_dump(exclude_none=True), discovery_topic
+                    )
+                    log.debug(
+                        "%s Published card for static agent '%s'.",
+                        self.log_identifier,
+                        agent_alias,
+                    )
+                continue
+
+            # Remote agent - fetch and publish
             try:
                 modern_card = await self._fetch_agent_card(agent_config)
                 if not modern_card:
                     continue
 
-                agent_alias = agent_config["name"]
                 # Update the card for proxying (preserves display name)
                 card_for_registry = self._update_agent_card_for_proxy(modern_card, agent_alias)
                 self.agent_registry.add_or_update_agent(card_for_registry)
@@ -529,7 +601,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                 log.error(
                     "%s Failed to discover or publish card for agent '%s' in recurring cycle: %s",
                     self.log_identifier,
-                    agent_config.get("name", "unknown"),
+                    agent_alias,
                     e,
                 )
 
@@ -846,6 +918,25 @@ class BaseProxyComponent(ComponentBase, ABC):
 
         super().cleanup()
         log.info("%s Component cleanup finished.", self.log_identifier)
+
+    def _construct_synthetic_agent_card(
+        self, agent_config: dict
+    ) -> Optional[AgentCard]:
+        """
+        Constructs a synthetic AgentCard from embedded agent_card_data in config.
+
+        This allows proxying agents that don't have a live agent card endpoint.
+        Concrete proxy classes should override this method to support static agents.
+
+        Args:
+            agent_config: Agent configuration with agent_card_data.
+
+        Returns:
+            A synthetic AgentCard, or None if not supported or invalid.
+        """
+        # Default implementation returns None (static agents not supported)
+        # Subclasses can override to support static agents
+        return None
 
     @abstractmethod
     async def _fetch_agent_card(self, agent_config: dict) -> Optional[AgentCard]:
