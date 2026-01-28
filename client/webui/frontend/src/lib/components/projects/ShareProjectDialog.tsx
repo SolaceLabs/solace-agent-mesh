@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Plus, X, Loader2 } from "lucide-react";
 
 import { Button } from "@/lib/components/ui/button";
@@ -18,10 +18,8 @@ interface ShareProjectDialogProps {
 export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, onClose, project }) => {
     const [pendingAdds, setPendingAdds] = useState<string[]>([]);
     const [pendingRemoves, setPendingRemoves] = useState<string[]>([]);
-    const [isAddingUser, setIsAddingUser] = useState(false);
+    const [typeaheadIds, setTypeaheadIds] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
-
-    const addButtonRef = useRef<HTMLButtonElement>(null);
 
     // Fetch current shares
     const { data: sharesData, isLoading: isLoadingShares } = useProjectShares(project.id);
@@ -37,8 +35,8 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
         if (isOpen) {
             setPendingAdds([]);
             setPendingRemoves([]);
+            setTypeaheadIds([]);
             setError(null);
-            setIsAddingUser(false);
         }
     }, [isOpen]);
 
@@ -69,21 +67,34 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
     // Check if there are any pending changes
     const hasChanges = pendingAdds.length > 0 || pendingRemoves.length > 0;
 
-    const handleAddUser = (email: string) => {
-        // Don't add the owner
-        if (email === sharesData?.ownerEmail) {
-            setError("Cannot add the project owner as a viewer");
-            return;
-        }
+    // Add a new typeahead instance
+    const handleAddTypeahead = useCallback(() => {
+        const newId = `typeahead-${Date.now()}`;
+        setTypeaheadIds(prev => [newId, ...prev]);
+    }, []);
 
-        // Check if trying to re-add a removed user
-        if (pendingRemoves.includes(email)) {
-            setPendingRemoves(prev => prev.filter(e => e !== email));
-        } else {
-            setPendingAdds(prev => [...prev, email]);
-        }
-        setIsAddingUser(false);
-    };
+    // Remove a typeahead instance
+    const handleRemoveTypeahead = useCallback((id: string) => {
+        setTypeaheadIds(prev => prev.filter(tid => tid !== id));
+    }, []);
+
+    const handleAddUser = useCallback(
+        (email: string) => {
+            // Don't add the owner
+            if (email === sharesData?.ownerEmail) {
+                setError("Cannot add the project owner as a viewer");
+                return;
+            }
+
+            // Check if trying to re-add a removed user
+            if (pendingRemoves.includes(email)) {
+                setPendingRemoves(prev => prev.filter(e => e !== email));
+            } else if (!pendingAdds.includes(email)) {
+                setPendingAdds(prev => [...prev, email]);
+            }
+        },
+        [sharesData?.ownerEmail, pendingRemoves, pendingAdds]
+    );
 
     const handleRemoveUser = (email: string, isPending: boolean) => {
         if (isPending) {
@@ -98,6 +109,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
     const handleDiscard = () => {
         setPendingAdds([]);
         setPendingRemoves([]);
+        setTypeaheadIds([]);
         setError(null);
         onClose();
     };
@@ -132,6 +144,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
             // Reset state and close
             setPendingAdds([]);
             setPendingRemoves([]);
+            setTypeaheadIds([]);
             onClose();
         } catch (err) {
             console.error("Failed to save project shares:", err);
@@ -145,7 +158,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                 <DialogHeader>
                     <div className="flex items-center justify-between">
                         <DialogTitle>Share Project</DialogTitle>
-                        <Button ref={addButtonRef} variant="outline" size="sm" onClick={() => setIsAddingUser(true)} disabled={isSaving} className="gap-1">
+                        <Button variant="outline" size="sm" onClick={handleAddTypeahead} disabled={isSaving} className="gap-1">
                             <Plus className="h-4 w-4" />
                             Add
                         </Button>
@@ -158,6 +171,15 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                 {error && (
                     <div className="py-2">
                         <MessageBanner variant="error" message={error} />
+                    </div>
+                )}
+
+                {/* Typeahead Inputs */}
+                {typeaheadIds.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                        {typeaheadIds.map(id => (
+                            <UserTypeahead key={id} id={id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} disabled={isSaving} />
+                        ))}
                     </div>
                 )}
 
@@ -180,10 +202,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                             {/* Viewer Rows */}
                             {displayedViewers.map(viewer => (
                                 <div key={viewer.email} className="flex items-center justify-between py-3">
-                                    <span className="text-sm">
-                                        {viewer.email}
-                                        {viewer.isPending && <span className="ml-2 text-xs text-[var(--muted-foreground)]">(pending)</span>}
-                                    </span>
+                                    <span className="text-sm">{viewer.email}</span>
                                     <div className="flex items-center gap-2">
                                         <Badge variant="outline">Viewer</Badge>
                                         <Button variant="ghost" size="sm" onClick={() => handleRemoveUser(viewer.email, viewer.isPending)} disabled={isSaving} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
@@ -208,9 +227,6 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                         Save
                     </Button>
                 </DialogFooter>
-
-                {/* User Typeahead Popover */}
-                {isAddingUser && <UserTypeahead onSelect={handleAddUser} excludeEmails={excludeEmails} onClose={() => setIsAddingUser(false)} anchorRef={addButtonRef} />}
             </DialogContent>
         </Dialog>
     );

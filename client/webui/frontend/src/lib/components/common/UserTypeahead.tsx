@@ -1,35 +1,34 @@
 /**
- * Reusable typeahead component for searching and selecting users by email
+ * Inline typeahead component for searching and selecting users by email.
+ * Uses Popover-based implementation with search input and dropdown results.
  */
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Search, User } from "lucide-react";
+import { Search, User, X, Loader2 } from "lucide-react";
 import { Input } from "@/lib/components/ui/input";
-import { PopoverManual } from "@/lib/components/ui/popoverManual";
+import { Button } from "@/lib/components/ui/button";
+import { Popover, PopoverContent, PopoverAnchor } from "@/lib/components/ui/popover";
 import { usePeopleSearch } from "@/lib/api/people";
+import { useDebounce } from "@/lib/hooks/useDebounce";
 import type { Person } from "@/lib/types";
 
 interface UserTypeaheadProps {
+    id: string;
     onSelect: (email: string) => void;
+    onRemove: (id: string) => void;
     excludeEmails: string[];
-    onClose: () => void;
-    anchorRef: React.RefObject<HTMLElement | null>;
+    disabled?: boolean;
 }
 
-export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ onSelect, excludeEmails, onClose, anchorRef }) => {
+export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, disabled = false }) => {
     const [searchQuery, setSearchQuery] = useState("");
-    const [debouncedQuery, setDebouncedQuery] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [isKeyboardMode, setIsKeyboardMode] = useState(false);
+    const [isOpen, setIsOpen] = useState(true);
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Debounce search query
-    useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            setDebouncedQuery(searchQuery);
-        }, 200);
-        return () => clearTimeout(timeoutId);
-    }, [searchQuery]);
+    const debouncedQuery = useDebounce(searchQuery, 200);
 
     // Fetch people using the hook
     const { data: searchResults, isLoading } = usePeopleSearch(debouncedQuery, {
@@ -37,7 +36,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ onSelect, excludeE
     });
 
     // Filter out already-added users
-    const filteredPeople = (searchResults?.data || []).filter(person => !excludeEmails.includes(person.workEmail));
+    const filteredPeople = (searchResults?.data || []).filter(person => !excludeEmails.includes(person.email));
 
     // Focus input on mount
     useEffect(() => {
@@ -49,21 +48,28 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ onSelect, excludeE
         setActiveIndex(0);
     }, [filteredPeople.length]);
 
-    // Handle person selection
+    // Handle person selection - keep typeahead open
     const handleSelect = useCallback(
         (person: Person) => {
-            onSelect(person.workEmail);
-            onClose();
+            onSelect(person.email);
+            setSearchQuery("");
+            // Keep focus on input for additional selections
+            inputRef.current?.focus();
         },
-        [onSelect, onClose]
+        [onSelect]
     );
+
+    // Handle close/remove
+    const handleClose = useCallback(() => {
+        onRemove(id);
+    }, [id, onRemove]);
 
     // Keyboard navigation
     const handleKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
             if (e.key === "Escape") {
                 e.preventDefault();
-                onClose();
+                handleClose();
             } else if (e.key === "ArrowDown") {
                 e.preventDefault();
                 setIsKeyboardMode(true);
@@ -79,67 +85,78 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ onSelect, excludeE
                 }
             }
         },
-        [filteredPeople, activeIndex, handleSelect, onClose]
+        [filteredPeople, activeIndex, handleSelect, handleClose]
     );
 
     // Scroll active item into view
     useEffect(() => {
-        const activeElement = document.getElementById(`user-typeahead-item-${activeIndex}`);
+        const activeElement = document.getElementById(`user-typeahead-${id}-item-${activeIndex}`);
         if (activeElement) {
             activeElement.scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
-    }, [activeIndex]);
+    }, [activeIndex, id]);
+
+    const showResults = searchQuery.length > 0;
 
     return (
-        <PopoverManual isOpen={true} onClose={onClose} anchorRef={anchorRef} placement="bottom-start" className="w-[350px] rounded-lg">
-            <div className="flex flex-col">
-                {/* Search Input */}
-                <div className="border-b border-[var(--border)] p-3">
-                    <div className="flex items-center gap-2">
-                        <Search className="size-4 text-[var(--muted-foreground)]" />
-                        <Input ref={inputRef} type="text" placeholder="Search by email..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={handleKeyDown} className="h-8 border-0 p-0 shadow-none focus-visible:ring-0" />
+        <div className="relative flex items-center gap-2">
+            <Popover open={isOpen && showResults} onOpenChange={setIsOpen}>
+                <PopoverAnchor asChild>
+                    <div className="relative flex-1">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                        <Input
+                            ref={inputRef}
+                            type="text"
+                            placeholder="Search by email..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            onFocus={() => setIsOpen(true)}
+                            disabled={disabled}
+                            className="h-9 pl-9 pr-9"
+                        />
+                        {isLoading && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-[var(--muted-foreground)]" />}
                     </div>
-                </div>
+                </PopoverAnchor>
 
-                {/* Results List */}
-                <div className="max-h-[250px] overflow-y-auto">
-                    {isLoading ? (
-                        <div className="flex items-center justify-center p-6">
-                            <div className="size-5 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
-                        </div>
-                    ) : searchQuery.length === 0 ? (
-                        <div className="p-6 text-center text-sm text-[var(--muted-foreground)]">Type to search for users...</div>
-                    ) : filteredPeople.length === 0 ? (
-                        <div className="p-6 text-center text-sm text-[var(--muted-foreground)]">No users found</div>
-                    ) : (
-                        <div className="flex flex-col p-2">
-                            {filteredPeople.map((person, index) => (
-                                <button
-                                    key={person.id}
-                                    id={`user-typeahead-item-${index}`}
-                                    onClick={() => handleSelect(person)}
-                                    onMouseEnter={() => {
-                                        setIsKeyboardMode(false);
-                                        setActiveIndex(index);
-                                    }}
-                                    className={`w-full rounded-md p-3 text-left transition-colors ${index === activeIndex ? "bg-[var(--accent)]" : !isKeyboardMode ? "hover:bg-[var(--accent)]" : ""}`}
-                                >
-                                    <div className="flex items-start gap-3">
-                                        <User className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <span className="text-sm font-medium">{person.displayName}</span>
-                                                {person.jobTitle && <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">{person.jobTitle}</span>}
+                <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-[350px] p-0" onOpenAutoFocus={e => e.preventDefault()}>
+                    <div className="max-h-[250px] overflow-y-auto">
+                        {filteredPeople.length === 0 ? (
+                            <div className="p-4 text-center text-sm text-[var(--muted-foreground)]">No users found</div>
+                        ) : (
+                            <div className="flex flex-col p-1">
+                                {filteredPeople.map((person, index) => (
+                                    <button
+                                        key={person.id}
+                                        id={`user-typeahead-${id}-item-${index}`}
+                                        onClick={() => handleSelect(person)}
+                                        onMouseEnter={() => {
+                                            setIsKeyboardMode(false);
+                                            setActiveIndex(index);
+                                        }}
+                                        className={`w-full rounded-md p-3 text-left transition-colors ${index === activeIndex ? "bg-[var(--accent)]" : !isKeyboardMode ? "hover:bg-[var(--accent)]" : ""}`}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <User className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="text-sm font-medium">{person.displayName}</span>
+                                                    {person.jobTitle && <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">{person.jobTitle}</span>}
+                                                </div>
+                                                <p className="mt-1 truncate text-xs text-[var(--muted-foreground)]">{person.email}</p>
                                             </div>
-                                            <p className="mt-1 truncate text-xs text-[var(--muted-foreground)]">{person.workEmail}</p>
                                         </div>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-        </PopoverManual>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </PopoverContent>
+            </Popover>
+
+            <Button variant="ghost" size="sm" onClick={handleClose} disabled={disabled} className="h-9 w-9 flex-shrink-0 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                <X className="h-4 w-4" />
+            </Button>
+        </div>
     );
 };
