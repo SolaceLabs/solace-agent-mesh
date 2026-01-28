@@ -86,14 +86,14 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows }) => {
             } else {
                 // Open panel for new workflow
                 setSelectedWorkflow(workflow);
-                setTimeout(() => setIsSidePanelOpen(true), 10);
+                setIsSidePanelOpen(true);
             }
         }
     };
 
     const handleCloseSidePanel = () => {
         setIsSidePanelOpen(false);
-        setTimeout(() => setSelectedWorkflow(null), 300);
+        setSelectedWorkflow(null);
     };
 
     const handleViewWorkflow = (workflow: AgentCardInfo) => {
