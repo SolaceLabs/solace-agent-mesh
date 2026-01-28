@@ -18,6 +18,7 @@ from ...constants import (
     DEFAULT_MAX_TOTAL_UPLOAD_SIZE_BYTES,
     ARTIFACTS_PREFIX
 )
+from ..utils.helpers import bytes_to_mb, sanitize_log_input
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -34,9 +35,6 @@ from ..repository.entities.project import Project
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
 
-
-def bytes_to_mb(size_bytes: int) -> float:
-    return size_bytes / (1024 * 1024)
 
 class ProjectService:
     """Service layer for project business logic."""
@@ -182,6 +180,9 @@ class ProjectService:
         Raises:
             ValueError: If combined size would exceed limit
         """
+        # Sanitize log_prefix to prevent log injection
+        safe_log_prefix = sanitize_log_input(log_prefix)
+
         total_size = current_project_size + new_files_size
 
         # Calculate MB values for logging
@@ -197,11 +198,11 @@ class ProjectService:
                 f"New files: {new_mb:.2f} MB, "
                 f"Total: {total_mb:.2f} MB exceeds limit of {limit_mb:.2f} MB."
             )
-            self.logger.warning(f"{log_prefix} {error_msg}")
+            self.logger.warning(f"{safe_log_prefix} {error_msg}")
             raise ValueError(error_msg)
 
         self.logger.debug(
-            f"{log_prefix} Project limit check passed: "
+            f"{safe_log_prefix} Project limit check passed: "
             f"{total_mb:.2f} MB / {limit_mb:.2f} MB "
             f"({(total_size / self.max_total_upload_size_bytes * 100):.1f}% used)"
         )
@@ -398,12 +399,15 @@ class ProjectService:
         Raises:
             ValueError: If project not found or access denied
         """
+        # Sanitize user input for logging to prevent log injection
+        safe_project_id = sanitize_log_input(project_id)
+
         project = self.get_project(db, project_id, user_id)
         if not project:
             raise ValueError("Project not found or access denied")
 
         if not self.artifact_service:
-            self.logger.warning(f"Attempted to get artifacts for project {project_id} but no artifact service is configured.")
+            self.logger.warning(f"Attempted to get artifacts for project {safe_project_id} but no artifact service is configured.")
             return []
 
         storage_user_id = project.user_id
