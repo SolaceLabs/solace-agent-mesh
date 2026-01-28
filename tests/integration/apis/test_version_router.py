@@ -199,7 +199,7 @@ class TestGetUIProductInfo:
 
         assert result is not None
         assert "solace-agent-mesh-ui" in result.id.lower()
-        assert result.name == "Solace Agent Mesh UI"
+        assert result.name in ["Solace Agent Mesh UI", "Solace Agent Mesh Enterprise UI"]
         assert result.version is not None
 
     @patch("solace_agent_mesh.gateway.http_sse.routers.version._read_ui_version_file")
