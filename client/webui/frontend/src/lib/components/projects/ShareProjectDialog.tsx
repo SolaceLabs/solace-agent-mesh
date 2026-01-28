@@ -172,45 +172,40 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
 
                 {/* Scrollable Content Area */}
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                    {/* Typeahead Inputs */}
-                    {pendingTypeaheads.length > 0 && (
-                        <div className="flex flex-col gap-2 pb-2">
-                            {pendingTypeaheads.map(typeahead => (
-                                <UserTypeahead key={typeahead.id} id={typeahead.id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} selectedEmail={typeahead.email} disabled={isSaving} />
-                            ))}
-                        </div>
-                    )}
-
-                    {/* User List */}
                     {isLoadingShares ? (
                         <div className="flex items-center justify-center py-8">
                             <Loader2 className="h-6 w-6 animate-spin text-[var(--muted-foreground)]" />
                         </div>
+                    ) : pendingTypeaheads.length === 0 && !sharesData?.ownerEmail && displayedViewers.length === 0 ? (
+                        <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">No users have access to this project yet.</div>
                     ) : (
-                        <div className="divide-y divide-[var(--border)]">
+                        <div className="flex flex-col divide-y divide-[var(--border)]">
+                            {/* Pending Typeaheads */}
+                            {pendingTypeaheads.map(typeahead => (
+                                <div key={typeahead.id} className="grid grid-cols-[1fr_70px_32px] items-center gap-x-3 py-3">
+                                    <UserTypeahead id={typeahead.id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} selectedEmail={typeahead.email} disabled={isSaving} />
+                                </div>
+                            ))}
+
                             {/* Owner Row - Always First */}
                             {sharesData?.ownerEmail && (
-                                <div className="flex items-center justify-between py-3">
-                                    <span className="text-sm">{sharesData.ownerEmail}</span>
+                                <div className="grid grid-cols-[1fr_70px_32px] items-center gap-x-3 py-3">
+                                    <span className="truncate text-sm">{sharesData.ownerEmail}</span>
                                     <Badge variant="secondary">Owner</Badge>
+                                    <div className="h-8 w-8" />
                                 </div>
                             )}
 
                             {/* Viewer Rows */}
                             {displayedViewers.map(viewer => (
-                                <div key={viewer.email} className="flex items-center justify-between py-3">
-                                    <span className="text-sm">{viewer.email}</span>
-                                    <div className="flex items-center gap-2">
-                                        <Badge variant="outline">Viewer</Badge>
-                                        <Button variant="ghost" size="sm" onClick={() => handleRemoveUser(viewer.email)} disabled={isSaving} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
-                                            <X className="h-4 w-4" />
-                                        </Button>
-                                    </div>
+                                <div key={viewer.email} className="grid grid-cols-[1fr_70px_32px] items-center gap-x-3 py-3">
+                                    <span className="truncate text-sm">{viewer.email}</span>
+                                    <Badge variant="outline">Viewer</Badge>
+                                    <Button variant="ghost" size="sm" onClick={() => handleRemoveUser(viewer.email)} disabled={isSaving} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                                        <X className="h-4 w-4" />
+                                    </Button>
                                 </div>
                             ))}
-
-                            {/* Empty State */}
-                            {!sharesData?.ownerEmail && displayedViewers.length === 0 && <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">No users have access to this project yet.</div>}
                         </div>
                     )}
                 </div>
