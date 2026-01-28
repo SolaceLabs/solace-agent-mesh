@@ -46,7 +46,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
     const filteredWorkflows = useMemo(() => {
         if (!workflows || workflows.length === 0) return [];
 
-        let result = searchTerm.trim()
+        const result = searchTerm.trim()
             ? workflows.filter(workflow => (workflow.displayName || workflow.name)?.toLowerCase().includes(searchTerm.toLowerCase()))
             : workflows;
 

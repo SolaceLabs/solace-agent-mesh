@@ -364,7 +364,7 @@ function createLayoutNode(
             baseNode.height = NODE_HEIGHTS.AGENT;
             break;
 
-        case "switch":
+        case "switch": {
             baseNode.data.cases = config.cases;
             baseNode.data.defaultCase = config.default;
             baseNode.branches = createSwitchBranches(config);
@@ -380,6 +380,7 @@ function createLayoutNode(
                 ? switchHeaderHeight + casesSectionPadding + (numCases * caseRowHeight) - 6 // -6 for last row gap
                 : NODE_HEIGHTS.AGENT;
             break;
+        }
 
         case "map":
             baseNode.data.items = config.items;
@@ -404,7 +405,7 @@ function createLayoutNode(
                 : NODE_HEIGHTS.CONTAINER_HEADER + calculateContainerContentHeight(baseNode.children);
             break;
 
-        case "loop":
+        case "loop": {
             baseNode.data.condition = config.condition;
             baseNode.data.maxIterations = config.max_iterations;
             baseNode.data.childNodeId = config.node;
@@ -431,6 +432,7 @@ function createLayoutNode(
                 ? loopHeaderHeight
                 : loopHeaderHeight + calculateContainerContentHeight(baseNode.children);
             break;
+        }
     }
 
     return baseNode;
@@ -695,7 +697,7 @@ function calculatePositions(nodes: LayoutNode[], nodeMap: Map<string, ProcessedN
             const { siblings, idealCenterX, totalWidth } = groupInfo;
 
             // Calculate the ideal start position (centered below parents)
-            let idealStartX = idealCenterX - totalWidth / 2;
+            const idealStartX = idealCenterX - totalWidth / 2;
 
             // Ensure this group doesn't overlap with the previous group
             const actualStartX = Math.max(idealStartX, nextAvailableX);

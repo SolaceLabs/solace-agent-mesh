@@ -40,7 +40,7 @@ export interface LayoutNode {
         isTopNode?: boolean;
         isBottomNode?: boolean;
         isSkipped?: boolean;
-        [key: string]: any;
+        [key: string]: unknown;
     };
 
     // Layout properties
