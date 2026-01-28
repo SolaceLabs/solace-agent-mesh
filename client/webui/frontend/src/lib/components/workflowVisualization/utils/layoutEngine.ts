@@ -27,11 +27,7 @@ interface ProcessedNode {
 /**
  * Main entry point: process workflow config into visual layout
  */
-export function processWorkflowConfig(
-    config: WorkflowConfig,
-    collapsedNodes: Set<string> = new Set(),
-    knownWorkflows: Set<string> = new Set()
-): LayoutResult {
+export function processWorkflowConfig(config: WorkflowConfig, collapsedNodes: Set<string> = new Set(), knownWorkflows: Set<string> = new Set()): LayoutResult {
     if (!config.nodes || config.nodes.length === 0) {
         return createEmptyLayout();
     }
@@ -259,12 +255,7 @@ function groupByLevel(nodeMap: Map<string, ProcessedNode>): Map<number, Processe
 /**
  * Create layout nodes from processed nodes
  */
-function createLayoutNodes(
-    nodeMap: Map<string, ProcessedNode>,
-    levelGroups: Map<number, ProcessedNode[]>,
-    collapsedNodes: Set<string>,
-    knownWorkflows: Set<string>
-): LayoutNode[] {
+function createLayoutNodes(nodeMap: Map<string, ProcessedNode>, levelGroups: Map<number, ProcessedNode[]>, collapsedNodes: Set<string>, knownWorkflows: Set<string>): LayoutNode[] {
     const layoutNodes: LayoutNode[] = [];
 
     // Add start node at level -1
@@ -315,25 +306,16 @@ function createLayoutNodes(
 /**
  * Create a single layout node from processed node
  */
-function createLayoutNode(
-    procNode: ProcessedNode,
-    nodeMap: Map<string, ProcessedNode>,
-    collapsedNodes: Set<string>,
-    knownWorkflows: Set<string>
-): LayoutNode {
+function createLayoutNode(procNode: ProcessedNode, nodeMap: Map<string, ProcessedNode>, collapsedNodes: Set<string>, knownWorkflows: Set<string>): LayoutNode {
     const config = procNode.config;
     const isCollapsed = collapsedNodes.has(procNode.id);
 
     // Determine if this is a workflow node
     // Either explicit type: "workflow" or an agent that's a known workflow
-    const isWorkflowRef =
-        config.type === "workflow" ||
-        (config.type === "agent" && !!config.agent_name && knownWorkflows.has(config.agent_name));
+    const isWorkflowRef = config.type === "workflow" || (config.type === "agent" && !!config.agent_name && knownWorkflows.has(config.agent_name));
 
     // Get the workflow name from either workflow_name or agent_name
-    const workflowName = config.type === "workflow"
-        ? config.workflow_name
-        : (isWorkflowRef ? config.agent_name : undefined);
+    const workflowName = config.type === "workflow" ? config.workflow_name : isWorkflowRef ? config.agent_name : undefined;
 
     const baseNode: LayoutNode = {
         id: procNode.id,
@@ -364,7 +346,7 @@ function createLayoutNode(
             baseNode.height = NODE_HEIGHTS.AGENT;
             break;
 
-        case "switch":
+        case "switch": {
             baseNode.data.cases = config.cases;
             baseNode.data.defaultCase = config.default;
             baseNode.branches = createSwitchBranches(config);
@@ -376,10 +358,12 @@ function createLayoutNode(
             const casesSectionPadding = 16; // py-2 top and bottom padding for cases section
 
             baseNode.width = NODE_WIDTHS.SWITCH_COLLAPSED;
-            baseNode.height = numCases > 0
-                ? switchHeaderHeight + casesSectionPadding + (numCases * caseRowHeight) - 6 // -6 for last row gap
-                : NODE_HEIGHTS.AGENT;
+            baseNode.height =
+                numCases > 0
+                    ? switchHeaderHeight + casesSectionPadding + numCases * caseRowHeight - 6 // -6 for last row gap
+                    : NODE_HEIGHTS.AGENT;
             break;
+        }
 
         case "map":
             baseNode.data.items = config.items;
@@ -399,37 +383,35 @@ function createLayoutNode(
             baseNode.width = isCollapsed
                 ? NODE_WIDTHS.SWITCH_COLLAPSED // Use standard node width when collapsed
                 : Math.max(NODE_WIDTHS.MAP_MIN, calculateContainerWidth(baseNode.children));
-            baseNode.height = isCollapsed
-                ? NODE_HEIGHTS.CONTAINER_HEADER
-                : NODE_HEIGHTS.CONTAINER_HEADER + calculateContainerContentHeight(baseNode.children);
+            baseNode.height = isCollapsed ? NODE_HEIGHTS.CONTAINER_HEADER : NODE_HEIGHTS.CONTAINER_HEADER + calculateContainerContentHeight(baseNode.children);
             break;
 
         case "loop":
-            baseNode.data.condition = config.condition;
-            baseNode.data.maxIterations = config.max_iterations;
-            baseNode.data.childNodeId = config.node;
+            {
+                baseNode.data.condition = config.condition;
+                baseNode.data.maxIterations = config.max_iterations;
+                baseNode.data.childNodeId = config.node;
 
-            // Get child node if exists
-            if (config.node && !isCollapsed) {
-                const childProc = nodeMap.get(config.node);
-                if (childProc) {
-                    const childLayout = createLayoutNode(childProc, nodeMap, collapsedNodes, knownWorkflows);
-                    baseNode.children = [childLayout];
+                // Get child node if exists
+                if (config.node && !isCollapsed) {
+                    const childProc = nodeMap.get(config.node);
+                    if (childProc) {
+                        const childLayout = createLayoutNode(childProc, nodeMap, collapsedNodes, knownWorkflows);
+                        baseNode.children = [childLayout];
+                    }
                 }
+
+                // Calculate container dimensions
+                // When collapsed, only the header is shown (no dotted container)
+                // When expanded and has condition/max_iterations, include extra row height
+                const hasConditionRow = !!(config.condition || config.max_iterations);
+                const loopHeaderHeight = NODE_HEIGHTS.CONTAINER_HEADER + (hasConditionRow && !isCollapsed ? NODE_HEIGHTS.LOOP_CONDITION_ROW : 0);
+
+                baseNode.width = isCollapsed
+                    ? NODE_WIDTHS.SWITCH_COLLAPSED // Use standard node width when collapsed
+                    : Math.max(NODE_WIDTHS.LOOP_MIN, calculateContainerWidth(baseNode.children));
+                baseNode.height = isCollapsed ? NODE_HEIGHTS.CONTAINER_HEADER : loopHeaderHeight + calculateContainerContentHeight(baseNode.children);
             }
-
-            // Calculate container dimensions
-            // When collapsed, only the header is shown (no dotted container)
-            // When expanded and has condition/max_iterations, include extra row height
-            const hasConditionRow = !!(config.condition || config.max_iterations);
-            const loopHeaderHeight = NODE_HEIGHTS.CONTAINER_HEADER + (hasConditionRow && !isCollapsed ? NODE_HEIGHTS.LOOP_CONDITION_ROW : 0);
-
-            baseNode.width = isCollapsed
-                ? NODE_WIDTHS.SWITCH_COLLAPSED // Use standard node width when collapsed
-                : Math.max(NODE_WIDTHS.LOOP_MIN, calculateContainerWidth(baseNode.children));
-            baseNode.height = isCollapsed
-                ? NODE_HEIGHTS.CONTAINER_HEADER
-                : loopHeaderHeight + calculateContainerContentHeight(baseNode.children);
             break;
     }
 
@@ -581,8 +563,7 @@ function calculatePositions(nodes: LayoutNode[], nodeMap: Map<string, ProcessedN
     // Calculate total width needed for the first level of regular nodes
     const firstRegularLevel = sortedLevels.find(l => l >= 0) ?? 0;
     const firstLevelNodes = levelMap.get(firstRegularLevel) || [];
-    const firstLevelWidth = firstLevelNodes.reduce((sum, n) => sum + n.width, 0) +
-        Math.max(0, firstLevelNodes.length - 1) * SPACING.HORIZONTAL;
+    const firstLevelWidth = firstLevelNodes.reduce((sum, n) => sum + n.width, 0) + Math.max(0, firstLevelNodes.length - 1) * SPACING.HORIZONTAL;
 
     // Position start node centered
     const startNode = nodeById.get("__start__");
@@ -661,9 +642,7 @@ function calculatePositions(nodes: LayoutNode[], nodeMap: Map<string, ProcessedN
 
         for (const [parentKey, siblings] of siblingGroups) {
             const parentIds = parentKey.split(",").filter(id => id.length > 0);
-            const parents = parentIds
-                .map(id => nodeById.get(id))
-                .filter((n): n is LayoutNode => n !== undefined);
+            const parents = parentIds.map(id => nodeById.get(id)).filter((n): n is LayoutNode => n !== undefined);
 
             // Calculate the ideal center point based on parent(s)
             let idealCenterX: number;
@@ -695,7 +674,7 @@ function calculatePositions(nodes: LayoutNode[], nodeMap: Map<string, ProcessedN
             const { siblings, idealCenterX, totalWidth } = groupInfo;
 
             // Calculate the ideal start position (centered below parents)
-            let idealStartX = idealCenterX - totalWidth / 2;
+            const idealStartX = idealCenterX - totalWidth / 2;
 
             // Ensure this group doesn't overlap with the previous group
             const actualStartX = Math.max(idealStartX, nextAvailableX);
@@ -743,7 +722,7 @@ function calculatePositions(nodes: LayoutNode[], nodeMap: Map<string, ProcessedN
             const prev = nodesAtLevel[i - 1];
             const curr = nodesAtLevel[i];
             const minGap = SPACING.HORIZONTAL;
-            const overlap = (prev.x + prev.width + minGap) - curr.x;
+            const overlap = prev.x + prev.width + minGap - curr.x;
 
             if (overlap > 0) {
                 // Push current node to the right
@@ -909,10 +888,7 @@ function insertConditionPills(nodes: LayoutNode[], nodeMap: Map<string, Processe
 /**
  * Find nodes that connect to the end node (leaf nodes)
  */
-function findEndNodeDependencies(
-    nodeMap: Map<string, ProcessedNode>,
-    nodeById: Map<string, LayoutNode>
-): LayoutNode[] {
+function findEndNodeDependencies(nodeMap: Map<string, ProcessedNode>, nodeById: Map<string, LayoutNode>): LayoutNode[] {
     const leafNodes: LayoutNode[] = [];
 
     for (const procNode of nodeMap.values()) {
@@ -1051,13 +1027,7 @@ function generateEdges(nodes: LayoutNode[], nodeMap: Map<string, ProcessedNode>)
 /**
  * Create an edge between two positioned nodes
  */
-function createEdge(
-    sourceId: string,
-    targetId: string,
-    source: LayoutNode,
-    target: LayoutNode,
-    isStraight: boolean = false
-): Edge {
+function createEdge(sourceId: string, targetId: string, source: LayoutNode, target: LayoutNode, isStraight: boolean = false): Edge {
     return {
         id: `${sourceId}-${targetId}`,
         source: sourceId,

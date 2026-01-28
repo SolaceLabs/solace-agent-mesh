@@ -1,4 +1,4 @@
-import type { FC, MouseEvent } from "react";
+import type { MouseEvent } from "react";
 import { Workflow, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";

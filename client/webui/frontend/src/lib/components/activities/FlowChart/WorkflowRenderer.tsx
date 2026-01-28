@@ -11,7 +11,7 @@ import WorkflowGroup from "./nodes/WorkflowGroup";
  * Check if a node or any of its descendants has status 'in-progress'
  */
 function hasProcessingDescendant(node: LayoutNode): boolean {
-    if (node.data.status === 'in-progress') {
+    if (node.data.status === "in-progress") {
         return true;
     }
     for (const child of node.children) {
@@ -40,7 +40,7 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number, expandedNo
 
     // Special handling for Map/Fork nodes (pill variant with parallel branches)
     // Don't collapse these - instead, flatten their parallel branches
-    if (node.type === 'agent' && node.data.variant === 'pill' && node.parallelBranches && node.parallelBranches.length > 0) {
+    if (node.type === "agent" && node.data.variant === "pill" && node.parallelBranches && node.parallelBranches.length > 0) {
         // Flatten all branches into a single array of children
         const flattenedChildren: LayoutNode[] = [];
         for (const branch of node.parallelBranches) {
@@ -69,7 +69,7 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number, expandedNo
     }
 
     // For regular agents at level > 0, collapse them (unless manually expanded)
-    if (node.type === 'agent' && nestingLevel > 0) {
+    if (node.type === "agent" && nestingLevel > 0) {
         if (isManuallyExpanded) {
             // Node is manually expanded - process children but mark as expanded
             const expandedChildren = node.children.map(child => collapseNestedAgents(child, nestingLevel + 1, expandedNodeIds));
@@ -117,7 +117,7 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number, expandedNo
     }
 
     // For workflow groups, collapse them entirely (unless manually expanded)
-    if (node.type === 'group') {
+    if (node.type === "group") {
         if (isManuallyExpanded) {
             // Node is manually expanded - process children but mark as expanded
             const expandedChildren = node.children.map(child => collapseNestedAgents(child, nestingLevel + 1, expandedNodeIds));
@@ -168,8 +168,8 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number, expandedNo
         const collapsedChildren = node.children.map(child => collapseNestedAgents(child, nestingLevel + 1, expandedNodeIds));
 
         // Recalculate height
-        const headerHeight = node.type === 'agent' ? 50 : 0;
-        const padding = node.type === 'agent' ? 16 : ((node.type as string) === 'group' ? 24 : 0);
+        const headerHeight = node.type === "agent" ? 50 : 0;
+        const padding = node.type === "agent" ? 16 : (node.type as string) === "group" ? 24 : 0;
         const gap = 16;
 
         const childrenHeight = collapsedChildren.reduce((sum, child, idx) => {
@@ -196,8 +196,8 @@ function collapseNestedAgents(node: LayoutNode, nestingLevel: number, expandedNo
         }
 
         // Recalculate height based on flattened children
-        const headerHeight = node.type === 'agent' ? 50 : 0;
-        const padding = node.type === 'agent' ? 16 : ((node.type as string) === 'group' ? 24 : 0);
+        const headerHeight = node.type === "agent" ? 50 : 0;
+        const padding = node.type === "agent" ? 16 : (node.type as string) === "group" ? 24 : 0;
         const gap = 16;
 
         const childrenHeight = flattenedChildren.reduce((sum, child, idx) => {
@@ -226,15 +226,7 @@ interface WorkflowRendererProps {
     showDetail?: boolean;
 }
 
-const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({
-    processedSteps,
-    agentNameMap,
-    selectedStepId,
-    onNodeClick,
-    onEdgeClick,
-    showDetail = true,
-}) => {
-    const [_selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({ processedSteps, agentNameMap, selectedStepId, onNodeClick, onEdgeClick, showDetail = true }) => {
     const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
 
     // Handle expand toggle for a node
@@ -278,7 +270,7 @@ const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({
         };
     }, [baseLayoutResult, showDetail, expandedNodeIds]);
 
-    const { nodes, edges: _edges, totalWidth: _totalWidth, totalHeight: _totalHeight } = layoutResult;
+    const { nodes } = layoutResult;
 
     // Handle node click
     const handleNodeClick = (node: LayoutNode) => {
@@ -286,9 +278,7 @@ const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({
     };
 
     // Handle edge click - currently unused but kept for future use
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleEdgeClick = (edge: Edge) => {
-        setSelectedEdgeId(edge.id);
         onEdgeClick?.(edge);
     };
     void handleEdgeClick; // Suppress unused variable warning
@@ -309,13 +299,13 @@ const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({
         let component: React.ReactNode;
 
         switch (node.type) {
-            case 'agent':
+            case "agent":
                 component = <AgentNode {...nodeProps} />;
                 break;
-            case 'user':
+            case "user":
                 component = <UserNode {...nodeProps} />;
                 break;
-            case 'group':
+            case "group":
                 component = <WorkflowGroup {...nodeProps} />;
                 break;
             default:
@@ -326,19 +316,13 @@ const WorkflowRenderer: React.FC<WorkflowRendererProps> = ({
             <React.Fragment key={node.id}>
                 {component}
                 {/* Add connector line between nodes */}
-                {index < nodes.length - 1 && (
-                    <div className="w-0.5 h-4 bg-gray-400 dark:bg-gray-600 my-0" />
-                )}
+                {index < nodes.length - 1 && <div className="my-0 h-4 w-0.5 bg-gray-400 dark:bg-gray-600" />}
             </React.Fragment>
         );
     };
 
     if (nodes.length === 0) {
-        return (
-            <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
-                {processedSteps.length > 0 ? "Processing flow data..." : "No steps to display in flow chart."}
-            </div>
-        );
+        return <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">{processedSteps.length > 0 ? "Processing flow data..." : "No steps to display in flow chart."}</div>;
     }
 
     return (
