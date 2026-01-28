@@ -91,9 +91,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                 setPendingTypeaheads(prev => prev.filter(t => t.id !== typeaheadId));
             } else {
                 // Update the typeahead with the selected email
-                setPendingTypeaheads(prev =>
-                    prev.map(t => (t.id === typeaheadId ? { ...t, email } : t))
-                );
+                setPendingTypeaheads(prev => prev.map(t => (t.id === typeaheadId ? { ...t, email } : t)));
             }
         },
         [sharesData?.ownerEmail, pendingRemoves]
@@ -196,7 +194,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
 
                             {/* Owner Row - Always First */}
                             {sharesData?.ownerEmail && (
-                                <div className="grid grid-cols-[1fr_85px_32px] items-center gap-x-3 py-3 border rounded-t-sm border-b-0 px-3">
+                                <div className={`grid grid-cols-[1fr_85px_32px] items-center gap-x-3 border py-3 ${displayedViewers.length === 0 ? "rounded-sm" : "rounded-t-sm border-b-0"} px-3`}>
                                     <span className="truncate text-sm">{sharesData.ownerEmail}</span>
                                     <Badge variant="secondary">Owner</Badge>
                                     <div className="h-8 w-8" />
@@ -204,8 +202,8 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                             )}
 
                             {/* Viewer Rows */}
-                            {displayedViewers.map(viewer => (
-                                <div key={viewer.email} className="grid grid-cols-[1fr_85px_32px] items-center gap-x-3 py-3 border rounded-b-sm px-3">
+                            {displayedViewers.map((viewer, index) => (
+                                <div key={viewer.email} className={`grid grid-cols-[1fr_85px_32px] items-center gap-x-3 border px-3 py-3 ${index === displayedViewers.length - 1 ? "rounded-b-sm" : "border-b-0"}`}>
                                     <span className="truncate text-sm">{viewer.email}</span>
                                     <Badge variant="outline">Viewer</Badge>
                                     <Button variant="ghost" size="sm" onClick={() => handleRemoveUser(viewer.email)} disabled={isSaving} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">

@@ -38,7 +38,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
     });
 
     // Filter out already-added users
-    const filteredPeople = (searchResults?.data || []).filter(person => !excludeEmails.includes(person.email));
+    const filteredPeople = (searchResults?.data || []).filter(person => !excludeEmails.includes(person.workEmail));
 
     // Focus input on mount
     useEffect(() => {
@@ -53,7 +53,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
     // Handle person selection - keep typeahead open
     const handleSelect = useCallback(
         (person: Person) => {
-            onSelect(person.email, id);
+            onSelect(person.workEmail, id);
             setSearchQuery("");
         },
         [onSelect, id]
@@ -117,7 +117,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
             <Popover open={isOpen && showResults} onOpenChange={setIsOpen}>
                 <PopoverAnchor asChild>
                     <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
                         <Input
                             ref={inputRef}
                             type="text"
@@ -127,9 +127,9 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
                             onKeyDown={handleKeyDown}
                             onFocus={() => setIsOpen(true)}
                             disabled={disabled}
-                            className="h-9 pl-9 pr-9"
+                            className="h-9 pr-9 pl-9"
                         />
-                        {isLoading && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-[var(--muted-foreground)]" />}
+                        {isLoading && <Loader2 className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-[var(--muted-foreground)]" />}
                     </div>
                 </PopoverAnchor>
 
@@ -157,7 +157,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
                                                     <span className="text-sm font-medium">{person.displayName}</span>
                                                     {person.jobTitle && <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">{person.jobTitle}</span>}
                                                 </div>
-                                                <p className="mt-1 truncate text-xs text-[var(--muted-foreground)]">{person.email}</p>
+                                                <p className="mt-1 truncate text-xs text-[var(--muted-foreground)]">{person.workEmail}</p>
                                             </div>
                                         </div>
                                     </button>
