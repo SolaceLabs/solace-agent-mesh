@@ -234,7 +234,8 @@ async def get_app_config(
         # Start with explicitly defined feature flags
         feature_enablement = component.get_config("frontend_feature_enablement", {})
 
-        identity_service = component.get_config("identity_service", None)
+        identity_service_config = component.get_config("identity_service", None)
+        identity_service_type = identity_service_config.get("type") if identity_service_config else None
 
 
         # Manually check for the task_logging feature and add it
@@ -458,7 +459,7 @@ async def get_app_config(
             "tool_config_status": tool_config_status,
             "tts_settings": tts_settings,
             "background_tasks_config": _get_background_tasks_config(component, log_prefix),
-            "identity_service": identity_service
+            "identity_service_type": identity_service_type
         }
         log.debug("%sReturning frontend configuration.", log_prefix)
         return config_data
