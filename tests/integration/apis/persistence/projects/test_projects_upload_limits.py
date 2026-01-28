@@ -13,8 +13,9 @@ These tests use development overrides:
 import io
 import json
 import zipfile
-import pytest
+
 from fastapi.testclient import TestClient
+
 from tests.integration.apis.infrastructure.gateway_adapter import GatewayAdapter
 
 
@@ -39,11 +40,15 @@ class TestSingleFileUploadLimits:
             "/api/v1/projects",
             data={
                 "name": "Test Project",
-                "description": "Test project with large file"
+                "description": "Test project with large file",
             },
             files={
-                "files": ("large_file.txt", io.BytesIO(large_file_content), "text/plain")
-            }
+                "files": (
+                    "large_file.txt",
+                    io.BytesIO(large_file_content),
+                    "text/plain",
+                )
+            },
         )
 
         # Currently accepts files under total limit even if over per-file limit
@@ -64,7 +69,7 @@ class TestSingleFileUploadLimits:
             project_id=project_id,
             name="Test Project",
             user_id="sam_dev_user",
-            description="Test project for large file upload"
+            description="Test project for large file upload",
         )
 
         # Create a file larger than 1MB (1.2MB) but under total limit (3MB)
@@ -75,8 +80,12 @@ class TestSingleFileUploadLimits:
         response = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
             files={
-                "files": ("large_artifact.txt", io.BytesIO(large_file_content), "text/plain")
-            }
+                "files": (
+                    "large_artifact.txt",
+                    io.BytesIO(large_file_content),
+                    "text/plain",
+                )
+            },
         )
 
         # Currently accepts files under total limit
@@ -108,9 +117,9 @@ class TestTotalUploadSizeLimits:
             "/api/v1/projects",
             data={
                 "name": "Test Project Multiple Files",
-                "description": "Test project with multiple files over total limit"
+                "description": "Test project with multiple files over total limit",
             },
-            files=files
+            files=files,
         )
 
         # Should be rejected with 400 (Bad Request) due to validation error
@@ -134,7 +143,7 @@ class TestTotalUploadSizeLimits:
             project_id=project_id,
             name="Test Project",
             user_id="sam_dev_user",
-            description="Test project with existing files"
+            description="Test project with existing files",
         )
 
         # Add initial files totaling ~2.5MB (within limit)
@@ -145,8 +154,12 @@ class TestTotalUploadSizeLimits:
         response1 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
             files={
-                "files": ("existing_file_1.txt", io.BytesIO(b"a" * file_size_1), "text/plain")
-            }
+                "files": (
+                    "existing_file_1.txt",
+                    io.BytesIO(b"a" * file_size_1),
+                    "text/plain",
+                )
+            },
         )
         assert response1.status_code == 201, "First file upload should succeed"
 
@@ -154,8 +167,12 @@ class TestTotalUploadSizeLimits:
         response2 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
             files={
-                "files": ("existing_file_2.txt", io.BytesIO(b"b" * file_size_2), "text/plain")
-            }
+                "files": (
+                    "existing_file_2.txt",
+                    io.BytesIO(b"b" * file_size_2),
+                    "text/plain",
+                )
+            },
         )
         assert response2.status_code == 201, "Second file upload should succeed"
 
@@ -166,8 +183,12 @@ class TestTotalUploadSizeLimits:
         response3 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
             files={
-                "files": ("new_file.txt", io.BytesIO(b"c" * new_file_size), "text/plain")
-            }
+                "files": (
+                    "new_file.txt",
+                    io.BytesIO(b"c" * new_file_size),
+                    "text/plain",
+                )
+            },
         )
 
         # With mock artifact service that can't list files, this may succeed
@@ -179,9 +200,7 @@ class TestTotalUploadSizeLimits:
 class TestValidUploadScenarios:
     """Test scenarios where uploads should succeed"""
 
-    def test_single_file_under_limits_succeeds(
-        self, api_client: TestClient
-    ):
+    def test_single_file_under_limits_succeeds(self, api_client: TestClient):
         """
         Test that a file under both per-file and total limits is accepted.
         """
@@ -193,11 +212,9 @@ class TestValidUploadScenarios:
             "/api/v1/projects",
             data={
                 "name": "Valid Project",
-                "description": "Project with valid file size"
+                "description": "Project with valid file size",
             },
-            files={
-                "files": ("valid_file.txt", io.BytesIO(file_content), "text/plain")
-            }
+            files={"files": ("valid_file.txt", io.BytesIO(file_content), "text/plain")},
         )
 
         # Should succeed
@@ -205,9 +222,7 @@ class TestValidUploadScenarios:
         project_data = response.json()
         assert project_data["name"] == "Valid Project"
 
-    def test_multiple_files_under_total_limit_succeeds(
-        self, api_client: TestClient
-    ):
+    def test_multiple_files_under_total_limit_succeeds(self, api_client: TestClient):
         """
         Test that multiple files totaling under 3MB are accepted.
         """
@@ -218,16 +233,19 @@ class TestValidUploadScenarios:
         for i in range(3):
             file_content = bytes([i % 256]) * file_size
             files.append(
-                ("files", (f"valid_file_{i}.txt", io.BytesIO(file_content), "text/plain"))
+                (
+                    "files",
+                    (f"valid_file_{i}.txt", io.BytesIO(file_content), "text/plain"),
+                )
             )
 
         response = api_client.post(
             "/api/v1/projects",
             data={
                 "name": "Valid Multi-File Project",
-                "description": "Project with multiple files under total limit"
+                "description": "Project with multiple files under total limit",
             },
-            files=files
+            files=files,
         )
 
         # Should succeed
@@ -248,7 +266,7 @@ class TestValidUploadScenarios:
             project_id=project_id,
             name="Incremental Upload Project",
             user_id="sam_dev_user",
-            description="Test incremental uploads"
+            description="Test incremental uploads",
         )
 
         # Upload files incrementally, staying within 3MB total
@@ -258,7 +276,7 @@ class TestValidUploadScenarios:
             f"/api/v1/projects/{project_id}/artifacts",
             files={
                 "files": ("file_1.txt", io.BytesIO(b"1" * file_size_1), "text/plain")
-            }
+            },
         )
         assert response1.status_code == 201
 
@@ -268,7 +286,7 @@ class TestValidUploadScenarios:
             f"/api/v1/projects/{project_id}/artifacts",
             files={
                 "files": ("file_2.txt", io.BytesIO(b"2" * file_size_2), "text/plain")
-            }
+            },
         )
         assert response2.status_code == 201
 
@@ -278,7 +296,7 @@ class TestValidUploadScenarios:
             f"/api/v1/projects/{project_id}/artifacts",
             files={
                 "files": ("file_3.txt", io.BytesIO(b"3" * file_size_3), "text/plain")
-            }
+            },
         )
         assert response3.status_code == 201
 
@@ -289,9 +307,7 @@ class TestValidUploadScenarios:
 class TestZipImportLimits:
     """Test upload limits for ZIP file imports"""
 
-    def test_zip_import_with_oversized_individual_file(
-        self, api_client: TestClient
-    ):
+    def test_zip_import_with_oversized_individual_file(self, api_client: TestClient):
         """
         Test that importing a ZIP file with an individual file exceeding
         the per-file limit (1MB) skips that file with a warning.
@@ -299,7 +315,7 @@ class TestZipImportLimits:
         # Create a ZIP file with one oversized file and one valid file
         zip_buffer = io.BytesIO()
 
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             # Add project.json metadata
             project_metadata = {
                 "version": "1.0",
@@ -312,42 +328,40 @@ class TestZipImportLimits:
                     "metadata": {
                         "originalCreatedAt": "2024-01-01T00:00:00Z",
                         "artifactCount": 2,
-                        "totalSizeBytes": int(1.5 * 1024 * 1024) + 500 * 1024
-                    }
+                        "totalSizeBytes": int(1.5 * 1024 * 1024) + 500 * 1024,
+                    },
                 },
                 "artifacts": [
                     {
                         "filename": "large_file.txt",
                         "mimeType": "text/plain",
                         "size": int(1.5 * 1024 * 1024),  # 1.5MB (over limit)
-                        "metadata": {"source": "project"}
+                        "metadata": {"source": "project"},
                     },
                     {
                         "filename": "small_file.txt",
                         "mimeType": "text/plain",
                         "size": 500 * 1024,  # 500KB (under limit)
-                        "metadata": {"source": "project"}
-                    }
-                ]
+                        "metadata": {"source": "project"},
+                    },
+                ],
             }
-            zip_file.writestr('project.json', json.dumps(project_metadata, indent=2))
+            zip_file.writestr("project.json", json.dumps(project_metadata, indent=2))
 
             # Add large file (1.5MB)
             large_file_content = b"L" * int(1.5 * 1024 * 1024)
-            zip_file.writestr('artifacts/large_file.txt', large_file_content)
+            zip_file.writestr("artifacts/large_file.txt", large_file_content)
 
             # Add small file (500KB)
             small_file_content = b"S" * (500 * 1024)
-            zip_file.writestr('artifacts/small_file.txt', small_file_content)
+            zip_file.writestr("artifacts/small_file.txt", small_file_content)
 
         zip_buffer.seek(0)
 
         # Import the ZIP file
         response = api_client.post(
             "/api/v1/projects/import",
-            files={
-                "file": ("test_project.zip", zip_buffer, "application/zip")
-            }
+            files={"file": ("test_project.zip", zip_buffer, "application/zip")},
         )
 
         # Should succeed - implementation may import both files or skip oversized ones
@@ -358,9 +372,7 @@ class TestZipImportLimits:
         # The key is that import succeeds
         assert "artifactsImported" in import_result
 
-    def test_zip_import_with_total_size_exceeding_limit(
-        self, api_client: TestClient
-    ):
+    def test_zip_import_with_total_size_exceeding_limit(self, api_client: TestClient):
         """
         Test that importing a ZIP file with total artifacts size exceeding
         the total limit (3MB) is rejected.
@@ -368,7 +380,7 @@ class TestZipImportLimits:
         # Create a ZIP file with multiple files totaling > 3MB
         zip_buffer = io.BytesIO()
 
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             # Add project.json metadata
             # 4 files × 900KB = 3.6MB (exceeds 3MB limit)
             project_metadata = {
@@ -382,34 +394,34 @@ class TestZipImportLimits:
                     "metadata": {
                         "originalCreatedAt": "2024-01-01T00:00:00Z",
                         "artifactCount": 4,
-                        "totalSizeBytes": 4 * 900 * 1024
-                    }
+                        "totalSizeBytes": 4 * 900 * 1024,
+                    },
                 },
-                "artifacts": []
+                "artifacts": [],
             }
 
             # Add 4 files of 900KB each
             for i in range(4):
                 file_size = 900 * 1024
-                project_metadata["artifacts"].append({
-                    "filename": f"file_{i}.txt",
-                    "mimeType": "text/plain",
-                    "size": file_size,
-                    "metadata": {"source": "project"}
-                })
+                project_metadata["artifacts"].append(
+                    {
+                        "filename": f"file_{i}.txt",
+                        "mimeType": "text/plain",
+                        "size": file_size,
+                        "metadata": {"source": "project"},
+                    }
+                )
                 file_content = bytes([i % 256]) * file_size
-                zip_file.writestr(f'artifacts/file_{i}.txt', file_content)
+                zip_file.writestr(f"artifacts/file_{i}.txt", file_content)
 
-            zip_file.writestr('project.json', json.dumps(project_metadata, indent=2))
+            zip_file.writestr("project.json", json.dumps(project_metadata, indent=2))
 
         zip_buffer.seek(0)
 
         # Import the ZIP file
         response = api_client.post(
             "/api/v1/projects/import",
-            files={
-                "file": ("large_project.zip", zip_buffer, "application/zip")
-            }
+            files={"file": ("large_project.zip", zip_buffer, "application/zip")},
         )
 
         # Should be rejected with 400 (Bad Request) due to validation error
@@ -417,16 +429,14 @@ class TestZipImportLimits:
         detail = response.json()["detail"].lower()
         assert "total" in detail and "exceeds" in detail
 
-    def test_zip_import_within_limits_succeeds(
-        self, api_client: TestClient
-    ):
+    def test_zip_import_within_limits_succeeds(self, api_client: TestClient):
         """
         Test that importing a ZIP file with total size under limits succeeds.
         """
         # Create a ZIP file with 3 files of 900KB each (2.7MB total, under 3MB)
         zip_buffer = io.BytesIO()
 
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             # Add project.json metadata
             project_metadata = {
                 "version": "1.0",
@@ -439,34 +449,34 @@ class TestZipImportLimits:
                     "metadata": {
                         "originalCreatedAt": "2024-01-01T00:00:00Z",
                         "artifactCount": 3,
-                        "totalSizeBytes": 3 * 900 * 1024
-                    }
+                        "totalSizeBytes": 3 * 900 * 1024,
+                    },
                 },
-                "artifacts": []
+                "artifacts": [],
             }
 
             # Add 3 files of 900KB each
             for i in range(3):
                 file_size = 900 * 1024
-                project_metadata["artifacts"].append({
-                    "filename": f"valid_file_{i}.txt",
-                    "mimeType": "text/plain",
-                    "size": file_size,
-                    "metadata": {"source": "project"}
-                })
+                project_metadata["artifacts"].append(
+                    {
+                        "filename": f"valid_file_{i}.txt",
+                        "mimeType": "text/plain",
+                        "size": file_size,
+                        "metadata": {"source": "project"},
+                    }
+                )
                 file_content = bytes([i % 256]) * file_size
-                zip_file.writestr(f'artifacts/valid_file_{i}.txt', file_content)
+                zip_file.writestr(f"artifacts/valid_file_{i}.txt", file_content)
 
-            zip_file.writestr('project.json', json.dumps(project_metadata, indent=2))
+            zip_file.writestr("project.json", json.dumps(project_metadata, indent=2))
 
         zip_buffer.seek(0)
 
         # Import the ZIP file
         response = api_client.post(
             "/api/v1/projects/import",
-            files={
-                "file": ("valid_project.zip", zip_buffer, "application/zip")
-            }
+            files={"file": ("valid_project.zip", zip_buffer, "application/zip")},
         )
 
         # Should succeed
@@ -495,7 +505,7 @@ class TestLimitExclusionRules:
             project_id=project_id,
             name="Test LLM Artifacts Project",
             user_id="sam_dev_user",
-            description="Test that LLM artifacts don't count toward limit"
+            description="Test that LLM artifacts don't count toward limit",
         )
 
         # Upload user files totaling 2.8MB (just under 3MB limit)
@@ -503,21 +513,27 @@ class TestLimitExclusionRules:
 
         response1 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
-            data={"fileMetadata": json.dumps({"user_file_1.txt": "User uploaded file 1"})},
+            data={
+                "fileMetadata": json.dumps({"user_file_1.txt": "User uploaded file 1"})
+            },
             files={
                 "files": ("user_file_1.txt", io.BytesIO(b"u" * file_size), "text/plain")
-            }
+            },
         )
         assert response1.status_code == 201, "First user file should succeed"
 
         response2 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
-            data={"fileMetadata": json.dumps({"user_file_2.txt": "User uploaded file 2"})},
+            data={
+                "fileMetadata": json.dumps({"user_file_2.txt": "User uploaded file 2"})
+            },
             files={
                 "files": ("user_file_2.txt", io.BytesIO(b"u" * file_size), "text/plain")
-            }
+            },
         )
-        assert response2.status_code == 201, "Second user file should succeed (total 2.8MB)"
+        assert response2.status_code == 201, (
+            "Second user file should succeed (total 2.8MB)"
+        )
 
         # In a real scenario, LLM would generate artifacts with source != "project"
         # Since we can't easily simulate that in this test, we verify that:
@@ -529,18 +545,22 @@ class TestLimitExclusionRules:
         small_file_size = 200 * 1024  # 200KB
         response3 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
-            data={"fileMetadata": json.dumps({"user_file_3.txt": "User uploaded file 3"})},
+            data={
+                "fileMetadata": json.dumps({"user_file_3.txt": "User uploaded file 3"})
+            },
             files={
-                "files": ("user_file_3.txt", io.BytesIO(b"u" * small_file_size), "text/plain")
-            }
+                "files": (
+                    "user_file_3.txt",
+                    io.BytesIO(b"u" * small_file_size),
+                    "text/plain",
+                )
+            },
         )
 
         # This should succeed if total user files = 2.8MB + 0.2MB = 3MB (at limit)
         assert response3.status_code == 201, "Third small file should succeed"
 
-    def test_only_user_uploaded_files_count_toward_limit(
-        self, api_client: TestClient
-    ):
+    def test_only_user_uploaded_files_count_toward_limit(self, api_client: TestClient):
         """
         Test that only files with source='project' count toward the limit.
 
@@ -554,16 +574,19 @@ class TestLimitExclusionRules:
         for i in range(2):
             file_content = bytes([i % 256]) * file_size
             files.append(
-                ("files", (f"user_file_{i}.txt", io.BytesIO(file_content), "text/plain"))
+                (
+                    "files",
+                    (f"user_file_{i}.txt", io.BytesIO(file_content), "text/plain"),
+                )
             )
 
         response = api_client.post(
             "/api/v1/projects",
             data={
                 "name": "User Files Only Project",
-                "description": "Test that only user files count"
+                "description": "Test that only user files count",
             },
-            files=files
+            files=files,
         )
 
         # Should succeed (2 × 1.45MB = 2.9MB, under 3MB limit)
@@ -588,7 +611,7 @@ class TestFileDeletionAndReupload:
             project_id=project_id,
             name="Delete and Reupload Project",
             user_id="sam_dev_user",
-            description="Test file deletion frees space"
+            description="Test file deletion frees space",
         )
 
         # Upload files totaling 2.5MB
@@ -598,16 +621,24 @@ class TestFileDeletionAndReupload:
         response1 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
             files={
-                "files": ("file_to_delete.txt", io.BytesIO(b"d" * file_size_1), "text/plain")
-            }
+                "files": (
+                    "file_to_delete.txt",
+                    io.BytesIO(b"d" * file_size_1),
+                    "text/plain",
+                )
+            },
         )
         assert response1.status_code == 201
 
         response2 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
             files={
-                "files": ("file_to_keep.txt", io.BytesIO(b"k" * file_size_2), "text/plain")
-            }
+                "files": (
+                    "file_to_keep.txt",
+                    io.BytesIO(b"k" * file_size_2),
+                    "text/plain",
+                )
+            },
         )
         assert response2.status_code == 201
 
@@ -624,8 +655,12 @@ class TestFileDeletionAndReupload:
         response4 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
             files={
-                "files": ("new_file_after_delete.txt", io.BytesIO(b"n" * file_size_4), "text/plain")
-            }
+                "files": (
+                    "new_file_after_delete.txt",
+                    io.BytesIO(b"n" * file_size_4),
+                    "text/plain",
+                )
+            },
         )
 
         # With a working artifact service, this should succeed
@@ -647,7 +682,7 @@ class TestFileDeletionAndReupload:
             project_id=project_id,
             name="Replace File Project",
             user_id="sam_dev_user",
-            description="Test file replacement respects limit"
+            description="Test file replacement respects limit",
         )
 
         # Upload initial file (1MB)
@@ -655,8 +690,12 @@ class TestFileDeletionAndReupload:
         response1 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
             files={
-                "files": ("replaceable_file.txt", io.BytesIO(b"r" * file_size_initial), "text/plain")
-            }
+                "files": (
+                    "replaceable_file.txt",
+                    io.BytesIO(b"r" * file_size_initial),
+                    "text/plain",
+                )
+            },
         )
         assert response1.status_code == 201
 
@@ -665,8 +704,12 @@ class TestFileDeletionAndReupload:
         response2 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
             files={
-                "files": ("other_file.txt", io.BytesIO(b"o" * file_size_other), "text/plain")
-            }
+                "files": (
+                    "other_file.txt",
+                    io.BytesIO(b"o" * file_size_other),
+                    "text/plain",
+                )
+            },
         )
         assert response2.status_code == 201
 
@@ -676,8 +719,12 @@ class TestFileDeletionAndReupload:
         response3 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
             files={
-                "files": ("replaceable_file.txt", io.BytesIO(b"R" * file_size_replacement), "text/plain")
-            }
+                "files": (
+                    "replaceable_file.txt",
+                    io.BytesIO(b"R" * file_size_replacement),
+                    "text/plain",
+                )
+            },
         )
 
         # Implementation may:
@@ -690,9 +737,7 @@ class TestFileDeletionAndReupload:
 class TestEdgeCases:
     """Test edge cases and boundary conditions"""
 
-    def test_file_exactly_at_per_file_limit(
-        self, api_client: TestClient
-    ):
+    def test_file_exactly_at_per_file_limit(self, api_client: TestClient):
         """
         Test file exactly at the per-file limit (1MB).
         This should succeed as it equals but doesn't exceed the limit.
@@ -705,19 +750,17 @@ class TestEdgeCases:
             "/api/v1/projects",
             data={
                 "name": "Exact Limit Project",
-                "description": "Project with file exactly at limit"
+                "description": "Project with file exactly at limit",
             },
             files={
                 "files": ("exact_limit.txt", io.BytesIO(file_content), "text/plain")
-            }
+            },
         )
 
         # Should succeed (at limit, not exceeding)
         assert response.status_code == 201
 
-    def test_total_exactly_at_total_limit(
-        self, api_client: TestClient
-    ):
+    def test_total_exactly_at_total_limit(self, api_client: TestClient):
         """
         Test total files exactly at the total limit (3MB).
         This should succeed as it equals but doesn't exceed the limit.
@@ -729,24 +772,25 @@ class TestEdgeCases:
         for i in range(3):
             file_content = bytes([i % 256]) * file_size
             files.append(
-                ("files", (f"exact_file_{i}.txt", io.BytesIO(file_content), "text/plain"))
+                (
+                    "files",
+                    (f"exact_file_{i}.txt", io.BytesIO(file_content), "text/plain"),
+                )
             )
 
         response = api_client.post(
             "/api/v1/projects",
             data={
                 "name": "Exact Total Limit Project",
-                "description": "Project with files exactly at total limit"
+                "description": "Project with files exactly at total limit",
             },
-            files=files
+            files=files,
         )
 
         # Should succeed (at limit, not exceeding)
         assert response.status_code == 201
 
-    def test_empty_file_upload(
-        self, api_client: TestClient
-    ):
+    def test_empty_file_upload(self, api_client: TestClient):
         """
         Test uploading an empty file (0 bytes).
         """
@@ -754,11 +798,9 @@ class TestEdgeCases:
             "/api/v1/projects",
             data={
                 "name": "Empty File Project",
-                "description": "Project with empty file"
+                "description": "Project with empty file",
             },
-            files={
-                "files": ("empty.txt", io.BytesIO(b""), "text/plain")
-            }
+            files={"files": ("empty.txt", io.BytesIO(b""), "text/plain")},
         )
 
         # Implementation may reject empty files or accept them

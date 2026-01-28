@@ -57,13 +57,13 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     // if validation limits are not configured, validation is skipped and backend handles it
     const handleValidateFileSizes = useCallback(
         (files: FileList) => {
-            // 1. Validate individual file sizes (50MB per file)
+            // 1. Validate individual file sizes
             const fileSizeResult = validateFileSizes(files, { maxSizeBytes: maxUploadSizeBytes });
             if (!fileSizeResult.valid) {
                 return fileSizeResult;
             }
 
-            // 2. Validate total upload limit (existing + new <= 500MB)
+            // 2. Validate total upload limit
             const totalUploadSizeResult = validateTotalUploadSize(currentProjectSize, files, maxTotalUploadSizeBytes);
             if (!totalUploadSizeResult.valid) {
                 return { valid: false, error: totalUploadSizeResult.error };
