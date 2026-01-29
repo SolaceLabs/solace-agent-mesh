@@ -385,7 +385,8 @@ class A2AProxyComponent(BaseProxyComponent):
                     if not skill.get("description"):
                         skill["description"] = f"Description for {skill['name']}"
                     
-                    skill["id"] = skill["name"]
+                    if not skill.get("id"):
+                        skill["id"] = skill["name"]
                     
                     if not skill.get("tags"):
                         skill["tags"] = []
@@ -420,7 +421,7 @@ class A2AProxyComponent(BaseProxyComponent):
 
         except ValueError as e:
             # Pydantic validation errors
-            log.error(
+            log.exception(
                 "%s Pydantic validation failed for synthetic agent card '%s': %s. "
                 "Agent card data: %s",
                 log_identifier,
