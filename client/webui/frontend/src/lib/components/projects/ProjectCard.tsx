@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FileText, FolderOpen, MoreHorizontal, Download, Trash2 } from "lucide-react";
+import { FileText, FolderOpen, MoreHorizontal, Download, Trash2, Share2 } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger, Menu } from "@/lib/components/ui";
@@ -12,12 +12,30 @@ interface ProjectCardProps {
     onClick?: () => void;
     onDelete?: (project: Project) => void;
     onExport?: (project: Project) => void;
+    currentUsername?: string;
+    isSharingEnabled?: boolean;
+    onShare?: (project: Project) => void;
 }
 
-export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport }) => {
+export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport, currentUsername, isSharingEnabled, onShare }) => {
     const [menuOpen, setMenuOpen] = useState(false);
 
+    const isOwner = currentUsername ? project.userId === currentUsername : true;
+
     const menuActions: MenuAction[] = [
+        ...(isOwner && isSharingEnabled && onShare
+            ? [
+                  {
+                      id: "share",
+                      label: "Share",
+                      icon: <Share2 size={14} />,
+                      onClick: () => {
+                          setMenuOpen(false);
+                          onShare(project);
+                      },
+                  },
+              ]
+            : []),
         ...(onExport
             ? [
                   {
@@ -53,7 +71,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                         <div className="text-foreground max-w-[250px] min-w-0 truncate text-lg font-semibold">{project.name}</div>
                     </CardTitle>
                     <div className="flex shrink-0 items-center gap-1">
-                        {onDelete && (
+                        {isOwner && onDelete && (
                             <Popover open={menuOpen} onOpenChange={setMenuOpen}>
                                 <PopoverTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8" tooltip="More options" onClick={e => e.stopPropagation()}>

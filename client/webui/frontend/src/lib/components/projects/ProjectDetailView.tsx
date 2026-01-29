@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
+import { Pencil, Trash2, MoreHorizontal, Share2 } from "lucide-react";
 
 import { Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea } from "@/lib/components/ui";
 import { FieldFooter } from "@/lib/components/ui/fieldFooter";
@@ -21,9 +21,12 @@ interface ProjectDetailViewProps {
     onBack: () => void;
     onStartNewChat?: () => void;
     onChatClick?: (sessionId: string) => void;
+    isOwner?: boolean;
+    isSharingEnabled?: boolean;
+    onShare?: () => void;
 }
 
-export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
+export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick, isOwner = true, isSharingEnabled = false, onShare }) => {
     const { updateProject, projects, deleteProject } = useProjectContext();
     const { validationLimits } = useConfigContext();
     const [isSaving, setIsSaving] = useState(false);
@@ -132,23 +135,35 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 title={project.name}
                 breadcrumbs={[{ label: "Projects", onClick: onBack }, { label: project.name }]}
                 buttons={[
-                    <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} testid="editDetailsButton" className="gap-2">
-                        <Pencil className="h-4 w-4" />
-                        Edit Details
-                    </Button>,
-                    <DropdownMenu key="more">
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={handleDeleteClick}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>,
+                    ...(isOwner && isSharingEnabled && onShare
+                        ? [
+                              <Button key="share" variant="ghost" size="sm" onClick={onShare} testid="shareButton" className="gap-2">
+                                  <Share2 className="h-4 w-4" />
+                                  Share
+                              </Button>,
+                          ]
+                        : []),
+                    ...(isOwner
+                        ? [
+                              <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} testid="editDetailsButton" className="gap-2">
+                                  <Pencil className="h-4 w-4" />
+                                  Edit Details
+                              </Button>,
+                              <DropdownMenu key="more">
+                                  <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                          <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={handleDeleteClick}>
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Delete
+                                      </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                              </DropdownMenu>,
+                          ]
+                        : []),
                 ]}
             />
 
@@ -167,11 +182,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
 
                 {/* Right Panel - Metadata Sidebar */}
                 <div className="flex min-h-0 w-[40%] flex-col">
-                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
+                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} isOwner={isOwner} />
 
-                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />
+                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} isOwner={isOwner} />
 
-                    <KnowledgeSection project={project} />
+                    <KnowledgeSection project={project} isOwner={isOwner} />
                 </div>
             </div>
 

@@ -18,9 +18,10 @@ import { DeleteProjectFileDialog } from "./DeleteProjectFileDialog";
 
 interface KnowledgeSectionProps {
     project: Project;
+    isOwner?: boolean;
 }
 
-export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) => {
+export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project, isOwner = true }) => {
     const { data: artifacts = [], isLoading, error, refetch } = useProjectArtifacts(project.id);
     const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
     const { onDownload } = useDownload(project.id);
@@ -168,7 +169,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
 
                 {!isLoading && !error && (
                     <>
-                        {filesToUpload ? null : <FileUpload name="project-files" accept="*" multiple value={filesToUpload} onChange={handleFileUploadChange} onValidate={handleValidateFileSizes} />}
+                        {isOwner && (filesToUpload ? null : <FileUpload name="project-files" accept="*" multiple value={filesToUpload} onChange={handleFileUploadChange} onValidate={handleValidateFileSizes} />)}
                         {artifacts.length > 0 && (
                             <div className="mt-4 min-h-0 flex-1 overflow-y-auto border-t">
                                 {sortedArtifacts.map(artifact => {
@@ -190,10 +191,12 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                                                 expandedContent={expandedContent}
                                                 actions={{
                                                     onInfo: () => handleToggleExpand(artifact.filename),
-                                                    onEdit: () => handleEditDescription(artifact),
-                                                    onDownload: () => onDownload(artifact),
-                                                    onDelete: () => handleDeleteClick(artifact),
                                                     onPreview: () => handleFileClick(artifact), // preview opens the details for projects instead of seeing the content
+                                                    ...(isOwner && {
+                                                        onEdit: () => handleEditDescription(artifact),
+                                                        onDownload: () => onDownload(artifact),
+                                                        onDelete: () => handleDeleteClick(artifact),
+                                                    }),
                                                 }}
                                             />
                                         </div>
@@ -205,10 +208,10 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                 )}
             </div>
 
-            <AddProjectFilesDialog isOpen={!!filesToUpload} files={filesToUpload} onClose={handleCloseUploadDialog} onConfirm={handleConfirmUpload} isSubmitting={isSubmitting} error={uploadError} onClearError={handleClearUploadError} />
-            <FileDetailsDialog isOpen={showDetailsDialog} artifact={selectedArtifact} onClose={handleCloseDetailsDialog} onEdit={handleEditFromDetails} />
-            <EditFileDescriptionDialog isOpen={showEditDialog} artifact={selectedArtifact} onClose={handleCloseEditDialog} onSave={handleSaveDescription} isSaving={isSavingMetadata} />
-            <DeleteProjectFileDialog isOpen={!!fileToDelete} fileToDelete={fileToDelete} handleConfirmDelete={handleConfirmDelete} setFileToDelete={setFileToDelete} />
+            {isOwner && <AddProjectFilesDialog isOpen={!!filesToUpload} files={filesToUpload} onClose={handleCloseUploadDialog} onConfirm={handleConfirmUpload} isSubmitting={isSubmitting} error={uploadError} onClearError={handleClearUploadError} />}
+            <FileDetailsDialog isOpen={showDetailsDialog} artifact={selectedArtifact} onClose={handleCloseDetailsDialog} onEdit={isOwner ? handleEditFromDetails : undefined} />
+            {isOwner && <EditFileDescriptionDialog isOpen={showEditDialog} artifact={selectedArtifact} onClose={handleCloseEditDialog} onSave={handleSaveDescription} isSaving={isSavingMetadata} />}
+            {isOwner && <DeleteProjectFileDialog isOpen={!!fileToDelete} fileToDelete={fileToDelete} handleConfirmDelete={handleConfirmDelete} setFileToDelete={setFileToDelete} />}
         </div>
     );
 };

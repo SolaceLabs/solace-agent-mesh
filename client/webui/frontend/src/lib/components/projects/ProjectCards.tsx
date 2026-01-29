@@ -28,9 +28,12 @@ interface ProjectCardsProps {
     onDelete: (project: Project) => void;
     onExport?: (project: Project) => void;
     isLoading?: boolean;
+    currentUsername?: string;
+    isSharingEnabled?: boolean;
+    onShare?: (project: Project) => void;
 }
 
-export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, onExport, isLoading = false }) => {
+export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, onExport, isLoading = false, currentUsername, isSharingEnabled, onShare }) => {
     return (
         <div className="bg-card-background flex h-full flex-col">
             <div className="flex h-full flex-col pt-6 pb-6 pl-6">
@@ -49,7 +52,7 @@ export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuer
                         <div className="flex flex-wrap gap-6">
                             <CreateProjectCard onClick={onCreateNew} />
                             {projects.map(project => (
-                                <ProjectCard key={project.id} project={project} onClick={() => onProjectClick(project)} onDelete={onDelete} onExport={onExport} />
+                                <ProjectCard key={project.id} project={project} onClick={() => onProjectClick(project)} onDelete={onDelete} onExport={onExport} currentUsername={currentUsername} isSharingEnabled={isSharingEnabled} onShare={onShare} />
                             ))}
                         </div>
                     </div>
