@@ -38,6 +38,7 @@ import { STTSettingsDialog } from "@/lib/components/settings/STTSettingsDialog";
 import { TTSSettingsDialog } from "@/lib/components/settings/TTSSettingsDialog";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import type { Session } from "@/lib/types";
 
 import { RecentChatsList } from "./RecentChatsList";
@@ -506,7 +507,7 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, is
 
                         {/* Recent Chats List - fills available space until Notifications */}
                         <div className="flex-1 px-2">
-                            <RecentChatsList maxItems={10} />
+                            <RecentChatsList maxItems={MAX_RECENT_CHATS} />
                         </div>
                     </div>
 

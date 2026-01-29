@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { MessageCircle, Loader2 } from "lucide-react";
 
 import { api } from "@/lib/api";
+import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { useChatContext, useConfigContext, useTitleAnimation } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
@@ -59,7 +60,7 @@ interface RecentChatsListProps {
     maxItems?: number;
 }
 
-export const RecentChatsList: React.FC<RecentChatsListProps> = ({ maxItems = 10 }) => {
+export const RecentChatsList: React.FC<RecentChatsListProps> = ({ maxItems = MAX_RECENT_CHATS }) => {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, currentTaskId } = useChatContext();
     const { persistenceEnabled } = useConfigContext();

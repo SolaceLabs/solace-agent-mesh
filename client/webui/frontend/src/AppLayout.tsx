@@ -1,20 +1,19 @@
 import { useEffect, useState, useCallback } from "react";
 import { Outlet } from "react-router-dom";
 
-import { ToastContainer, EmptyState } from "@/lib/components";
+import { ToastContainer, EmptyState, NavigationSidebar } from "@/lib/components";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
-import { SessionSidePanel } from "@/lib/components/chat";
 import { ChatProvider } from "@/lib/providers";
 import { useAuthContext, useBeforeUnload } from "@/lib/hooks";
 
 function AppLayoutContent() {
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
     const { isMenuOpen, menuPosition, selectedText, clearSelection } = useTextSelection();
-    const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
+    const [isNavCollapsed, setIsNavCollapsed] = useState(true);
 
-    const handleSessionSidePanelToggle = useCallback(() => {
-        setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
-    }, [isSessionSidePanelCollapsed]);
+    const handleNavToggle = useCallback(() => {
+        setIsNavCollapsed(!isNavCollapsed);
+    }, [isNavCollapsed]);
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {
@@ -63,8 +62,8 @@ function AppLayoutContent() {
 
     return (
         <div className="relative flex h-screen">
-            {/* Session Side Panel - Persistent across all pages */}
-            <SessionSidePanel onToggle={handleSessionSidePanelToggle} isCollapsed={isSessionSidePanelCollapsed} />
+            {/* Navigation Sidebar - Persistent across all pages */}
+            <NavigationSidebar onToggle={handleNavToggle} isCollapsed={isNavCollapsed} />
             <main className="h-full w-full flex-1 overflow-auto">
                 <Outlet />
             </main>
