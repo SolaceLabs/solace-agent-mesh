@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, X, Loader2 } from "lucide-react";
 
 import { Button } from "@/lib/components/ui/button";
@@ -7,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { MessageBanner } from "@/lib/components/common";
 import { UserTypeahead } from "@/lib/components/common/UserTypeahead";
 import { useProjectShares, useCreateProjectShares, useDeleteProjectShares } from "@/lib/api/projects/hooks";
+import { shareProjectFormSchema, type ShareProjectFormData } from "@/lib/schemas";
 import type { Project } from "@/lib/types/projects";
 
 interface ShareProjectDialogProps {
@@ -15,16 +18,19 @@ interface ShareProjectDialogProps {
     project: Project;
 }
 
-interface PendingTypeahead {
-    id: string;
-    email: string | null;
-}
-
 export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, onClose, project }) => {
-    const [pendingTypeaheads, setPendingTypeaheads] = useState<PendingTypeahead[]>([]);
-    const [pendingRemoves, setPendingRemoves] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
-    const [showValidationErrors, setShowValidationErrors] = useState(false);
+
+    // React Hook Form setup
+    const { control, handleSubmit, reset, setValue, watch, trigger } = useForm<ShareProjectFormData>({
+        resolver: zodResolver(shareProjectFormSchema),
+        defaultValues: { viewers: [], pendingRemoves: [] },
+        mode: "onChange",
+    });
+
+    const { fields, append, remove } = useFieldArray({ control, name: "viewers" });
+    const viewers = watch("viewers");
+    const pendingRemoves = watch("pendingRemoves");
 
     // Fetch current shares
     const { data: sharesData, isLoading: isLoadingShares } = useProjectShares(project.id);
@@ -38,12 +44,10 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
     // Reset state when dialog opens
     useEffect(() => {
         if (isOpen) {
-            setPendingTypeaheads([]);
-            setPendingRemoves([]);
+            reset({ viewers: [], pendingRemoves: [] });
             setError(null);
-            setShowValidationErrors(false);
         }
-    }, [isOpen]);
+    }, [isOpen, reset]);
 
     // Compute the current list of viewers to display (only saved users, not pending)
     const displayedViewers = useMemo(() => {
@@ -59,30 +63,39 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
     const excludeEmails = useMemo(() => {
         const ownerEmail = sharesData?.ownerEmail || "";
         const existingEmails = (sharesData?.shares || []).map(s => s.userEmail);
-        const pendingEmails = pendingTypeaheads.map(t => t.email).filter((e): e is string => e !== null);
+        const pendingEmails = viewers.map(v => v.email).filter((e): e is string => e !== null);
         return [ownerEmail, ...existingEmails, ...pendingEmails].filter(Boolean);
-    }, [sharesData?.ownerEmail, sharesData?.shares, pendingTypeaheads]);
+    }, [sharesData?.ownerEmail, sharesData?.shares, viewers]);
 
-    // Check if there are any pending changes
-    const pendingAdds = pendingTypeaheads.filter(t => t.email !== null).map(t => t.email as string);
+    // Check if there are any pending changes (use watched viewers for current values)
+    const pendingAdds = viewers.filter(v => v.email !== null).map(v => v.email as string);
     const hasChanges = pendingAdds.length > 0 || pendingRemoves.length > 0;
+
+    // Check if any typeaheads have incomplete selections
+    const hasIncompleteTypeaheads = viewers.some(v => v.email === null);
 
     // Add a new typeahead instance
     const handleAddTypeahead = useCallback(() => {
         const newId = `typeahead-${Date.now()}`;
-        setPendingTypeaheads(prev => [{ id: newId, email: null }, ...prev]);
-    }, []);
+        append({ id: newId, email: null });
+    }, [append]);
 
     // Remove a typeahead instance
-    const handleRemoveTypeahead = useCallback((id: string) => {
-        setPendingTypeaheads(prev => prev.filter(t => t.id !== id));
-    }, []);
+    const handleRemoveTypeahead = useCallback(
+        (id: string) => {
+            const index = fields.findIndex(f => f.id === id);
+            if (index !== -1) {
+                remove(index);
+            }
+        },
+        [fields, remove]
+    );
 
     const handleAddUser = useCallback(
-        (email: string, typeaheadId: string) => {
+        (email: string, _typeaheadId: string, fieldIndex: number, onChange: (value: string | null) => void) => {
             // Clear selection if empty email (user is re-editing)
             if (!email) {
-                setPendingTypeaheads(prev => prev.map(t => (t.id === typeaheadId ? { ...t, email: null } : t)));
+                onChange(null);
                 return;
             }
 
@@ -92,51 +105,53 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                 return;
             }
 
-            // Check if trying to re-add a removed user
+            // Check if trying to re-add a removed user (restore behavior)
             if (pendingRemoves.includes(email)) {
-                setPendingRemoves(prev => prev.filter(e => e !== email));
+                // Remove from pendingRemoves and remove the typeahead field
+                setValue(
+                    "pendingRemoves",
+                    pendingRemoves.filter(e => e !== email)
+                );
                 // Remove the typeahead since the user was restored from pending removes
-                setPendingTypeaheads(prev => prev.filter(t => t.id !== typeaheadId));
+                remove(fieldIndex);
             } else {
-                // Update the typeahead with the selected email
-                setPendingTypeaheads(prev => prev.map(t => (t.id === typeaheadId ? { ...t, email } : t)));
+                // Update the field with the selected email
+                onChange(email);
             }
-
-            // Clear validation errors when user makes a selection
-            setShowValidationErrors(false);
         },
-        [sharesData?.ownerEmail, pendingRemoves]
+        [sharesData?.ownerEmail, pendingRemoves, setValue, remove]
     );
 
     const handleRemoveUser = (email: string) => {
         // Add to pending removes (only for saved users, pending ones are removed via typeahead)
-        setPendingRemoves(prev => [...prev, email]);
+        setValue("pendingRemoves", [...pendingRemoves, email]);
     };
 
     const handleDiscard = () => {
-        setPendingTypeaheads([]);
-        setPendingRemoves([]);
+        reset({ viewers: [], pendingRemoves: [] });
         setError(null);
         onClose();
     };
 
-    const handleSave = async () => {
+    const onSubmit = async (data: ShareProjectFormData) => {
         setError(null);
 
         // Validate all typeaheads have selections
-        const hasIncompleteTypeaheads = pendingTypeaheads.some(t => !t.email);
-        if (hasIncompleteTypeaheads) {
-            setShowValidationErrors(true);
+        const hasIncomplete = data.viewers.some(v => !v.email);
+        if (hasIncomplete) {
+            // Form will show errors via formState.errors
             return;
         }
 
         try {
+            const emailsToAdd = data.viewers.filter(v => v.email !== null).map(v => v.email as string);
+
             // Process additions
-            if (pendingAdds.length > 0) {
+            if (emailsToAdd.length > 0) {
                 await createSharesMutation.mutateAsync({
                     projectId: project.id,
                     data: {
-                        shares: pendingAdds.map(email => ({
+                        shares: emailsToAdd.map(email => ({
                             userEmail: email,
                             accessLevel: "RESOURCE_VIEWER" as const,
                         })),
@@ -145,23 +160,30 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
             }
 
             // Process removals
-            if (pendingRemoves.length > 0) {
+            if (data.pendingRemoves.length > 0) {
                 await deleteSharesMutation.mutateAsync({
                     projectId: project.id,
                     data: {
-                        userEmails: pendingRemoves,
+                        userEmails: data.pendingRemoves,
                     },
                 });
             }
 
             // Reset state and close
-            setPendingTypeaheads([]);
-            setPendingRemoves([]);
+            reset({ viewers: [], pendingRemoves: [] });
             onClose();
         } catch (err) {
             console.error("Failed to save project shares:", err);
             setError(err instanceof Error ? err.message : "Failed to save changes");
         }
+    };
+
+    const handleSave = async () => {
+        const isValid = await trigger();
+        if (!isValid) {
+            return;
+        }
+        handleSubmit(onSubmit)();
     };
 
     return (
@@ -173,7 +195,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                         <DialogDescription>
                             Invite others to collaborate on <strong>{project.name}</strong>.
                         </DialogDescription>
-                        <Button variant="outline" size="default" onClick={handleAddTypeahead} disabled={isSaving || pendingTypeaheads.some(t => !t.email)} className="gap-1">
+                        <Button variant="outline" size="default" onClick={handleAddTypeahead} disabled={isSaving || hasIncompleteTypeaheads} className="gap-1">
                             <Plus className="h-4 w-4" />
                             Add
                         </Button>
@@ -192,7 +214,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                         <div className="flex items-center justify-center py-8">
                             <Loader2 className="h-6 w-6 animate-spin text-[var(--muted-foreground)]" />
                         </div>
-                    ) : pendingTypeaheads.length === 0 && !sharesData?.ownerEmail && displayedViewers.length === 0 ? (
+                    ) : fields.length === 0 && !sharesData?.ownerEmail && displayedViewers.length === 0 ? (
                         <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">No users have access to this project yet.</div>
                     ) : (
                         <div className="flex flex-col divide-[var(--border)]">
@@ -203,14 +225,31 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                                 <div />
                             </div>
 
-                            {/* Pending Typeaheads */}
-                            {pendingTypeaheads.map(typeahead => (
-                                <div key={typeahead.id} className="py-3 pr-3">
-                                    <div className="grid grid-cols-[1fr_85px_32px] items-center gap-x-1">
-                                        <UserTypeahead id={typeahead.id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} selectedEmail={typeahead.email} error={showValidationErrors && !typeahead.email} />
-                                    </div>
-                                    {showValidationErrors && !typeahead.email && <p className="mt-1 text-xs text-[var(--destructive)]">Required. Enter an email.</p>}
-                                </div>
+                            {/* Pending Typeaheads with Controller */}
+                            {fields.map((field, index) => (
+                                <Controller
+                                    key={field.id}
+                                    control={control}
+                                    name={`viewers.${index}.email`}
+                                    rules={{
+                                        validate: value => value !== null || "Required. Enter an email.",
+                                    }}
+                                    render={({ field: { value, onChange }, fieldState: { error: fieldError } }) => (
+                                        <div className="py-3 pr-3">
+                                            <div className="grid grid-cols-[1fr_85px_32px] items-center gap-x-1">
+                                                <UserTypeahead
+                                                    id={field.id}
+                                                    onSelect={(email: string) => handleAddUser(email, field.id, index, onChange)}
+                                                    onRemove={() => handleRemoveTypeahead(field.id)}
+                                                    excludeEmails={excludeEmails}
+                                                    selectedEmail={value}
+                                                    error={!!fieldError}
+                                                />
+                                            </div>
+                                            {fieldError && <p className="mt-1 text-xs text-[var(--destructive)]">{fieldError.message}</p>}
+                                        </div>
+                                    )}
+                                />
                             ))}
 
                             {/* Owner Row - Always First */}
