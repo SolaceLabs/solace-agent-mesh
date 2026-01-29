@@ -40,7 +40,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Session } from "@/lib/types";
 
-import { ChatSessions } from "./ChatSessions";
+import { RecentChatsList } from "./RecentChatsList";
 
 interface NavItem {
     id: string;
@@ -95,7 +95,6 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, is
     const navigate = useNavigate();
     const location = useLocation();
     const [activeItem, setActiveItem] = useState<string>("chats");
-    const [showAllChats, setShowAllChats] = useState(false);
     const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
         assets: false,
         systemManagement: false,
@@ -387,7 +386,7 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, is
                                         Help & Documentation
                                     </DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent>
-                                        <DropdownMenuItem className="cursor-pointer">
+                                        <DropdownMenuItem className="cursor-pointer" onClick={() => window.open("https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/", "_blank")}>
                                             <FileText className="mr-2 size-4" />
                                             Documentation
                                         </DropdownMenuItem>
@@ -395,7 +394,7 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, is
                                             <GraduationCap className="mr-2 size-4" />
                                             Tutorials
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem className="cursor-pointer">
+                                        <DropdownMenuItem className="cursor-pointer" onClick={() => window.open("https://github.com/SolaceLabs/solace-agent-mesh", "_blank")}>
                                             <Github className="mr-2 size-4" />
                                             Github
                                         </DropdownMenuItem>
@@ -475,17 +474,15 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, is
 
                         {/* Recent Chats Section */}
                         <div className="mb-2 flex items-center justify-between px-2">
-                            <button onClick={() => setShowAllChats(false)} className={cn("text-sm font-normal", !showAllChats ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-w70)] hover:text-[var(--color-primary-text-w10)]")}>
-                                Recent Chats
-                            </button>
-                            <button onClick={() => setShowAllChats(true)} className={cn("text-sm font-normal", showAllChats ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-w70)] hover:text-[var(--color-primary-text-w10)]")}>
+                            <span className="text-sm font-normal text-[var(--color-primary-text-w10)]">Recent Chats</span>
+                            <button onClick={() => navigate("/chats")} className="text-sm font-normal text-[var(--color-secondary-w70)] hover:text-[var(--color-primary-text-w10)]">
                                 View All
                             </button>
                         </div>
 
-                        {/* Chat Sessions List - SessionList handles its own scrolling */}
-                        <div className={cn("px-2", showAllChats ? "min-h-0 flex-1" : "max-h-[300px]")}>
-                            <ChatSessions />
+                        {/* Recent Chats List - fills available space until Notifications */}
+                        <div className="flex-1 px-2">
+                            <RecentChatsList maxItems={10} />
                         </div>
                     </div>
 
@@ -553,7 +550,7 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, is
                                         Help & Documentation
                                     </DropdownMenuSubTrigger>
                                     <DropdownMenuSubContent>
-                                        <DropdownMenuItem className="cursor-pointer">
+                                        <DropdownMenuItem className="cursor-pointer" onClick={() => window.open("https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/", "_blank")}>
                                             <FileText className="mr-2 size-4" />
                                             Documentation
                                         </DropdownMenuItem>
@@ -561,7 +558,7 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, is
                                             <GraduationCap className="mr-2 size-4" />
                                             Tutorials
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem className="cursor-pointer">
+                                        <DropdownMenuItem className="cursor-pointer" onClick={() => window.open("https://github.com/SolaceLabs/solace-agent-mesh", "_blank")}>
                                             <Github className="mr-2 size-4" />
                                             Github
                                         </DropdownMenuItem>

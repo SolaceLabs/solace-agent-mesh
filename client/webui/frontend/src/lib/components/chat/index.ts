@@ -6,6 +6,7 @@ export { ChatSessionDialog } from "./ChatSessionDialog";
 export { ChatSessions } from "./ChatSessions";
 export { ChatSidePanel } from "./ChatSidePanel";
 export { LoadingMessageRow } from "./LoadingMessageRow";
+export { RecentChatsList } from "./RecentChatsList";
 export { SessionSidePanel } from "./SessionSidePanel";
 export { MoveSessionDialog } from "./MoveSessionDialog";
 export { VariableDialog } from "./VariableDialog";
