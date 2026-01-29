@@ -33,7 +33,7 @@ export const WorkflowOnboardingBanner: React.FC = () => {
                     <span className="font-semibold">Workflows</span> can automate complex multi-agent tasks by orchestrating agents in a defined sequence. Define your workflows in YAML and deploy them to the Agent Mesh.
                 </p>
 
-                <a href="#" className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-[var(--color-brand-wMain)] hover:underline">
+                <a href="https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/workflows" target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-[var(--color-brand-wMain)] hover:underline">
                     Learn how to create workflows
                     <ExternalLink size={14} />
                 </a>
