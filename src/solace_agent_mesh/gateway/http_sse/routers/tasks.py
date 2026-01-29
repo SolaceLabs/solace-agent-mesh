@@ -1018,9 +1018,11 @@ async def cancel_agent_task(
     session_manager: SessionManager = Depends(get_session_manager),
     task_service: TaskService = Depends(get_task_service),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    db: DBSession = Depends(get_db),
 ):
     """
     Sends a cancellation request for a specific task to the specified agent.
+    Also sends cancellation requests to all active child tasks (e.g., workflows).
     Returns 202 Accepted, as cancellation is asynchronous.
     Returns 404 if the task context is not found.
     """
@@ -1064,9 +1066,66 @@ async def cancel_agent_task(
 
         log.info("%sUsing ClientID: %s", log_prefix, client_id)
 
+        # Send cancel to the original target agent
         await task_service.cancel_task(agent_name, taskId, client_id, client_id)
+        log.info("%sCancellation request sent to original target '%s'", log_prefix, agent_name)
 
-        log.info("%sCancellation request published successfully.", log_prefix)
+        # Also send cancel requests to all active child tasks (e.g., workflows)
+        # This ensures that when an orchestrator delegates to a workflow, the workflow
+        # also receives the cancellation request
+        if db:
+            try:
+                repo = TaskRepository()
+                log.info("%sLooking up active child tasks for parent task '%s'", log_prefix, taskId)
+                
+                # Find children by parent_task_id column
+                active_children = repo.find_active_children(db, taskId)
+                log.info("%sfind_active_children returned %d children: %s", log_prefix, len(active_children), active_children)
+                
+                if active_children:
+                    log.info(
+                        "%sFound %d active child task(s) to cancel: %s",
+                        log_prefix,
+                        len(active_children),
+                        [child_id for child_id, _ in active_children],
+                    )
+                    
+                    for child_task_id, child_agent_name in active_children:
+                        if child_agent_name:
+                            try:
+                                await task_service.cancel_task(
+                                    child_agent_name, child_task_id, client_id, client_id
+                                )
+                                log.info(
+                                    "%sCancellation request sent to child task '%s' (agent: '%s')",
+                                    log_prefix,
+                                    child_task_id,
+                                    child_agent_name,
+                                )
+                            except Exception as child_err:
+                                log.warning(
+                                    "%sFailed to send cancellation to child task '%s': %s",
+                                    log_prefix,
+                                    child_task_id,
+                                    child_err,
+                                )
+                        else:
+                            log.warning(
+                                "%sCould not determine target agent for child task '%s', skipping",
+                                log_prefix,
+                                child_task_id,
+                            )
+                else:
+                    log.debug("%sNo active child tasks found", log_prefix)
+            except Exception as db_err:
+                # Don't fail the main cancellation if child lookup fails
+                log.warning(
+                    "%sFailed to look up child tasks for cancellation: %s",
+                    log_prefix,
+                    db_err,
+                )
+
+        log.info("%sCancellation request(s) published successfully.", log_prefix)
 
         return {"message": "Cancellation request sent"}
 
