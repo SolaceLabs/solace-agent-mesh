@@ -7,7 +7,7 @@ on:
         required: true
         description: "Git ref to release from"
         default: "main"
-      version:
+      version_bump_type:
         type: choice
         required: true
         description: "Version bump type for PyPI package & Git tag"
@@ -16,11 +16,23 @@ on:
           - minor
           - major
         default: patch
-      exact_version:
+      version:
         type: string
         required: false
-        description: "Exact version to release (e.g., 1.13.2). Overrides 'version' input if provided."
+        description: "Exact version to release (e.g., 1.13.2). Overrides 'version_bump_type' input if provided."
         default: ""
+
+      skip_docker_push:
+        type: boolean
+        required: false
+        description: "Skip Docker push"
+        default: false
+
+      tag_as_latest:
+        type: boolean
+        required: false
+        description: "Tag the image as 'latest' in DockerHub"
+        default: true
       skip_security_checks:
         type: boolean
         required: false
@@ -40,11 +52,15 @@ permissions:
   pull-requests: read
 
 jobs:
-  # Verify the current version has passed RC testing
-  verify-rc:
-    name: Verify RC Status
-    if: ${{ github.event.inputs.skip_rc_check != 'true' }}
+  # Prepare release metadata (commit SHA, version, image tags)
+  prepare-release-metadata:
+    name: Prepare Release Metadata
     runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.find-commit.outputs.commit_sha }}
+      short_sha: ${{ steps.find-commit.outputs.short_sha }}
+      current_version: ${{ steps.get-version.outputs.current_version }}
+      prisma_image_tag: ${{ steps.construct-image-tag.outputs.prisma_image_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -52,10 +68,10 @@ jobs:
           fetch-depth: 0 # Need enough history to find last non-skip-ci commit
           ref: ${{ github.event.inputs.ref }}
 
-      - name: Find Last RC-Tested Commit
+      - name: Find Last Non-Skip-CI Commit
         id: find-commit
         run: |
-          echo "Finding the last commit that triggered RC tests..."
+          echo "Finding the last commit that did not have [skip ci] or [ci skip]..."
 
           # Find the most recent commit without [skip ci] or [ci skip]
           COMMIT_SHA=$(git log --invert-grep --grep='\[skip ci\]' --grep='\[ci skip\]' -i -1 --format='%H')
@@ -65,61 +81,157 @@ jobs:
             exit 1
           fi
 
-          echo "Found RC-tested commit: $COMMIT_SHA"
+          SHORT_SHA="${COMMIT_SHA:0:10}"
+
+          echo "Found commit: $COMMIT_SHA"
+          echo "  Short SHA: $SHORT_SHA"
           echo "  Message: $(git log -1 --format='%s' $COMMIT_SHA)"
           echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+      - name: Get Current Version
+        id: get-version
+        run: |
+          # Install uv and hatch to get version
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.cargo/bin:$PATH"
+          uv tool install hatch
+          CURRENT_VERSION=$(hatch version)
+          echo "Current version: $CURRENT_VERSION"
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Construct Prisma Image Tag
+        id: construct-image-tag
+        run: |
+          VERSION="${{ steps.get-version.outputs.current_version }}"
+          SHORT_SHA="${{ steps.find-commit.outputs.short_sha }}"
+          ECR_REGISTRY="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
+
+          PRISMA_IMAGE_TAG="${ECR_REGISTRY}/solace-agent-mesh:${VERSION}-${SHORT_SHA}"
+          echo "Constructed Prisma image tag: $PRISMA_IMAGE_TAG"
+          echo "prisma_image_tag=$PRISMA_IMAGE_TAG" >> $GITHUB_OUTPUT
+
+  # Verify the current version has passed RC testing
+  verify-rc:
+    name: Verify RC Status
+    needs: prepare-release-metadata
+    if: ${{ !fromJSON(github.event.inputs.skip_rc_check) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Check GitHub Status Check
+        id: check-status
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const commitSha = '${{ needs.prepare-release-metadata.outputs.commit_sha }}';
+            const statusContext = 'RC / Integration Tests (Community)';
+
+            console.log(`Checking status check "${statusContext}" for commit ${commitSha}...`);
+
+            try {
+              const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: commitSha,
+              });
+              
+              const rcStatus = statuses.find(status => status.context === statusContext);
+              
+              if (!rcStatus) {
+                console.log(`Status check "${statusContext}" not found. Will check ECR as fallback...`);
+                return { found: false, state: null };
+              }
+              
+              console.log(`Found status check: ${rcStatus.state} - ${rcStatus.description}`);
+              console.log(`Target URL: ${rcStatus.target_url}`);
+              
+              return {
+                found: true,
+                state: rcStatus.state,
+                description: rcStatus.description,
+                target_url: rcStatus.target_url
+              };
+            } catch (error) {
+              console.log(`Error checking status: ${error.message}`);
+              return { found: false, state: null, error: error.message };
+            }
+        continue-on-error: true
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
-          aws-access-key-id: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
-      - name: Get RC SHA from DynamoDB
-        id: get-rc-sha
-        uses: SolaceDev/solace-public-workflows/.github/actions/cicd-helper@main
-        with:
-          rc_step: get_item_value_from_dynamodb
-          ddb_query_json: '{"squad": "ai", "repository": "solace-agent-mesh"}'
-          ddb_table_name: solace-cloud-manifest
-          ddb_partition_key: squad
-          ddb_field_path: rc.sha
-          ddb_output_name: RC_SHA
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
-      - name: Verify RC SHA
+      - name: Verify RC Status
         run: |
-          EXPECTED_SHA="${{ steps.find-commit.outputs.commit_sha }}"
-          RC_SHA="${{ steps.get-rc-sha.outputs.RC_SHA }}"
+          COMMIT_SHA="${{ needs.prepare-release-metadata.outputs.commit_sha }}"
+          STATUS_RESULT="${{ steps.check-status.outputs.result }}"
+          ECR_REGISTRY="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
+          VERSION="${{ needs.prepare-release-metadata.outputs.current_version }}"
+          SHORT_SHA="${{ needs.prepare-release-metadata.outputs.short_sha }}"
+          IMAGE_TAG="${VERSION}-${SHORT_SHA}"
+          IMAGE_URI="${ECR_REGISTRY}/solace-agent-mesh:${IMAGE_TAG}"
 
-          echo "Expected SHA (last RC-tested commit): $EXPECTED_SHA"
-          echo "RC SHA from DynamoDB: $RC_SHA"
+          # Try to parse status check result
+          if [ -n "$STATUS_RESULT" ] && [ "$STATUS_RESULT" != "null" ]; then
+            STATUS_FOUND=$(echo "$STATUS_RESULT" | jq -r '.found // false')
+            STATUS_STATE=$(echo "$STATUS_RESULT" | jq -r '.state // "unknown"')
+            
+            if [ "$STATUS_FOUND" = "true" ]; then
+              echo "Found GitHub status check for commit $COMMIT_SHA"
+              echo "Status state: $STATUS_STATE"
+              
+              if [ "$STATUS_STATE" = "success" ]; then
+                echo "✅ RC verification passed - Status check shows success"
+                exit 0
+              elif [ "$STATUS_STATE" = "pending" ]; then
+                echo "::error::RC status check is still pending. Please wait for RC tests to complete."
+                exit 1
+              elif [ "$STATUS_STATE" = "failure" ] || [ "$STATUS_STATE" = "error" ]; then
+                echo "::error::RC status check shows failure. RC tests did not pass."
+                exit 1
+              else
+                echo "::warning::RC status check found but state is unknown: $STATUS_STATE"
+                echo "Falling back to ECR verification..."
+              fi
+            fi
+          fi
 
-          if [ "$RC_SHA" = "NOT_FOUND" ] || [ "$RC_SHA" = "FIELD_NOT_FOUND" ]; then
-            echo "::error::No RC entry found in DynamoDB for solace-agent-mesh"
-            echo "Please run the RC pipeline first by pushing to main."
+          # Fallback to ECR verification
+          echo "Using ECR fallback verification..."
+          echo "Checking if RC image exists in ECR: ${IMAGE_URI}"
+
+          REPO_NAME="solace-agent-mesh"
+
+          # Check if image exists using AWS CLI
+          if aws ecr describe-images \
+            --repository-name "${REPO_NAME}" \
+            --image-ids imageTag="${IMAGE_TAG}" \
+            --region "${{ secrets.AWS_DEFAULT_REGION }}" \
+            > /dev/null 2>&1; then
+            echo "✅ RC verification passed - Image exists in ECR: ${IMAGE_URI}"
+            exit 0
+          else
+            echo "::error::RC image not found in ECR: ${IMAGE_URI}"
+            echo "Please ensure the RC pipeline has completed and the image has been pushed to ECR."
             exit 1
           fi
 
-          if [ "$RC_SHA" != "$EXPECTED_SHA" ]; then
-            echo "::error::RC SHA mismatch!"
-            echo "  Expected: $EXPECTED_SHA"
-            echo "  Found in DynamoDB: $RC_SHA"
-            echo ""
-            echo "The commit that passed RC testing does not match the expected release commit."
-            echo "This could mean new commits were added without running RC tests."
-            exit 1
-          fi
-
-          echo "✅ RC verification passed - SHA matches: $RC_SHA"
-
-  # Run security checks first via reusable workflow (conditionally)
+  # Run security checks via reusable workflow (conditionally)
   security-checks:
-    needs: verify-rc
-    if: |
-      always() &&
-      (needs.verify-rc.result == 'success' || needs.verify-rc.result == 'skipped') &&
-      github.event.inputs.skip_security_checks != 'true'
+    needs: prepare-release-metadata
+    if: ${{ !fromJSON(github.event.inputs.skip_security_checks) }}
     uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
     with:
       whitesource_project_name: "solace-agent-mesh"
@@ -128,7 +240,7 @@ jobs:
       sonarqube_hotspot_check: true
       fossa_check: true
     secrets:
-      PRISMA_DOCKER_IMAGE_TO_CHECK: ${{ secrets.DOCKER_IMAGE_TO_CHECK }}
+      PRISMA_DOCKER_IMAGE_TO_CHECK: ${{ needs.prepare-release-metadata.outputs.prisma_image_tag }}
       PRISMA_ACCESS_KEY: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
       PRISMA_ACCESS_KEY_SECRET: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
       FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
@@ -148,7 +260,7 @@ jobs:
     # GitHub Actions would by default skip ALL dependent jobs. The always() forces evaluation of our
     # condition, allowing the release to proceed when checks were either successful OR skipped.
     # This enables emergency releases when checks need to be bypassed.
-    needs: [verify-rc, security-checks]
+    needs: [prepare-release-metadata, verify-rc, security-checks]
     if: |
       always() && 
       (needs.verify-rc.result == 'success' || needs.verify-rc.result == 'skipped') &&
@@ -184,12 +296,12 @@ jobs:
         id: prep
         uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-prep@main
         with:
-          version: ${{ github.event.inputs.exact_version || github.event.inputs.version }}
+          version: ${{ github.event.inputs.version || github.event.inputs.version_bump_type }}
 
       # Publish using Trusted Publishing - must be directly in workflow, not in composite action
       # See: https://docs.pypi.org/trusted-publishers/using-a-publisher/
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
         with:
           verbose: true
 
@@ -204,12 +316,12 @@ jobs:
   build_and_push_docker:
     name: Build and Push to DockerHub
     needs: release
-    if: always() && (needs.release.result == 'success')
+    if: always() && (needs.release.result == 'success') && !fromJSON(github.event.inputs.skip_docker_push)
     uses: SolaceLabs/solace-agent-mesh/.github/workflows/build-push-dockerhub.yml@main
     with:
       version: ${{ needs.release.outputs.new_version }}
       commit_hash: ${{ needs.release.outputs.commit_hash }}
-      push_latest: true
+      push_latest: ${{ fromJSON(github.event.inputs.tag_as_latest)}}
     secrets:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}

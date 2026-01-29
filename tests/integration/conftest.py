@@ -813,7 +813,8 @@ def shared_solace_connector(
             "tool_type": "builtin",
             "tool_name": "edit_image_with_gemini",
             "tool_config": {
-                "model": "gemini-2.0-flash-preview-image-generation",
+                "model": "gemini-2.5-flash-image",  
+                "pro_model": "gemini-3-pro-image-preview",  # Nano Banana Pro - for complex tasks
                 "gemini_api_key": "fake-gemini-api-key",
             },
         },
