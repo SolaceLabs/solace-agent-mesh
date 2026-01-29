@@ -122,6 +122,10 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, is
             setActiveItem("prompts");
             // Auto-expand Assets menu when on prompts page
             setExpandedMenus(prev => ({ ...prev, assets: true }));
+        } else if (path.startsWith("/artifacts")) {
+            setActiveItem("artifacts");
+            // Auto-expand Assets menu when on artifacts page
+            setExpandedMenus(prev => ({ ...prev, assets: true }));
         } else {
             setActiveItem("chats");
         }
@@ -187,6 +191,10 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, is
             case "prompts":
                 onNavigate?.("prompts");
                 navigate("/prompts");
+                break;
+            case "artifacts":
+                onNavigate?.("artifacts");
+                navigate("/artifacts");
                 break;
         }
     };

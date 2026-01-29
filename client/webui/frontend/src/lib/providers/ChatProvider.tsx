@@ -2365,6 +2365,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [sessionId, projects, setActiveProject]);
 
     useEffect(() => {
+        // Listen for open-artifact-preview events from ArtifactsPage
+        const handleOpenArtifactPreview = (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const { artifact } = customEvent.detail;
+
+            if (artifact && artifact.filename) {
+                console.log(`[ChatProvider] Opening artifact preview for: ${artifact.filename}`);
+                // Open the side panel on the files tab
+                openSidePanelTab("files");
+                // Open the artifact preview
+                openPreview(artifact.filename);
+            }
+        };
+
+        window.addEventListener("open-artifact-preview", handleOpenArtifactPreview);
+        return () => {
+            window.removeEventListener("open-artifact-preview", handleOpenArtifactPreview);
+        };
+    }, [openPreview, openSidePanelTab]);
+
+    useEffect(() => {
         // Listen for background task completion events
         // When a background task completes, reload ANY session it belongs to (not just current)
         // This ensures we get the latest data even if the task completed while we were in a different session
