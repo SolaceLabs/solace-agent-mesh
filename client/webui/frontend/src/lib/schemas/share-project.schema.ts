@@ -6,7 +6,17 @@ const viewerEntrySchema = z.object({
 });
 
 export const shareProjectFormSchema = z.object({
-    viewers: z.array(viewerEntrySchema),
+    viewers: z.array(viewerEntrySchema).superRefine((viewers, ctx) => {
+        viewers.forEach((viewer, index) => {
+            if (viewer.email === null) {
+                ctx.addIssue({
+                    code: "custom",
+                    message: "Required. Enter an email.",
+                    path: [index, "email"],
+                });
+            }
+        });
+    }),
     pendingRemoves: z.array(z.string()),
 });
 

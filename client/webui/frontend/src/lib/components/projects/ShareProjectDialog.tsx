@@ -231,9 +231,6 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                                     key={field.id}
                                     control={control}
                                     name={`viewers.${index}.email`}
-                                    rules={{
-                                        validate: value => value !== null || "Required. Enter an email.",
-                                    }}
                                     render={({ field: { value, onChange }, fieldState: { error: fieldError } }) => (
                                         <div className="py-3 pr-3">
                                             <div className="grid grid-cols-[1fr_85px_32px] items-center gap-x-1">
