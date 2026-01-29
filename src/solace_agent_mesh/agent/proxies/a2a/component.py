@@ -335,7 +335,7 @@ class A2AProxyComponent(BaseProxyComponent):
             log.error("%s No URL configured for agent.", log_identifier)
             return None
 
-        # Strip trailing slash from URL to avoid double slashes when concatenating with agent_card_path
+        # Strip trailing slash from URL to avoid double slashes when concatenating
         agent_url = agent_url.rstrip("/")
 
         try:
@@ -978,7 +978,7 @@ class A2AProxyComponent(BaseProxyComponent):
         if not use_agent_card_url:
             # Override the agent card URL with the configured URL
             configured_url = agent_config.get("url")
-            # Strip trailing slash from URL to avoid double slashes when the A2A SDK appends paths
+            # Strip trailing slash from URL to avoid double slashes when concatenating
             configured_url = configured_url.rstrip("/")
             log.info(
                 "%s Overriding agent card URL with configured URL for agent '%s': %s",
