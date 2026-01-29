@@ -16,6 +16,14 @@ const mockProject: Project = {
     updatedAt: "2024-01-01T00:00:00Z",
 };
 
+const mockEmptyProject: Project = {
+    id: "project-empty",
+    name: "Empty Project",
+    userId: "user-1",
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T00:00:00Z",
+};
+
 const mockSharesResponse: ProjectSharesResponse = {
     projectId: "project-1",
     ownerEmail: "owner@example.com",
@@ -33,7 +41,7 @@ const mockSharesResponse: ProjectSharesResponse = {
 };
 
 const mockEmptySharesResponse: ProjectSharesResponse = {
-    projectId: "project-1",
+    projectId: "project-empty",
     ownerEmail: "owner@example.com",
     shares: [],
 };
@@ -57,7 +65,7 @@ const defaultHandlers = [
 ];
 
 const emptySharesHandlers = [
-    http.get("*/api/v1/projects/*/shares", () => {
+    http.get("*/api/v1/projects/project-empty/shares", () => {
         return HttpResponse.json(mockEmptySharesResponse);
     }),
 ];
@@ -207,13 +215,14 @@ export const WithExistingShares: Story = {
 };
 
 /**
- * Empty state - no existing shares, only owner displayed
+ * Empty state - no existing shares, only owner displayed.
+ * Uses a separate project ID to avoid React Query cache conflicts with other stories.
  */
 export const EmptyState: Story = {
     args: {
         isOpen: true,
         onClose: () => alert("Dialog will close"),
-        project: mockProject,
+        project: mockEmptyProject,
     },
     parameters: {
         msw: { handlers: emptySharesHandlers },
