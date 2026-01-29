@@ -19,7 +19,7 @@ import { useConfigContext } from "@/lib/hooks";
 
 const getRowPosition = (index: number, total: number): "only" | "first" | "middle" | "last" => {
     if (total === 0) return "only";
-    if (index === -1) return total === 0 ? "only" : "first"; // Owner row
+    if (index === -1) return total === 0 ? "only" : "first";
     if (index === total - 1) return "last";
     return "middle";
 };
