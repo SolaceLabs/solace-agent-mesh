@@ -29,7 +29,7 @@ import {
     Info,
 } from "lucide-react";
 
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/lib/components/ui";
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { useChatContext, useConfigContext, useThemeContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
@@ -48,6 +48,7 @@ interface NavItem {
     icon: React.ElementType;
     onClick?: () => void;
     badge?: string;
+    tooltip?: string;
     hasSubmenu?: boolean;
     children?: NavItem[];
 }
@@ -62,28 +63,43 @@ const NavItemButton: React.FC<{
     className?: string;
     indent?: boolean;
     hasActiveChild?: boolean;
-}> = ({ item, isActive, onClick, isExpanded, onToggleExpand, className, indent, hasActiveChild }) => (
-    <Button
-        variant="ghost"
-        onClick={item.hasSubmenu ? onToggleExpand : onClick}
-        className={cn("h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]", indent && "pl-4", indent && isActive && "bg-[var(--color-background-w200)]", className)}
-    >
-        {indent ? (
-            // Subitem - no icon wrapper, just text
-            <span className={cn(isActive ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
-        ) : (
-            // Main item - with icon wrapper
-            <>
-                <div className={cn("mr-2 flex size-8 items-center justify-center rounded", (isActive || hasActiveChild) && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]")}>
-                    <item.icon className={cn("size-6", isActive || hasActiveChild ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
-                </div>
-                <span className={cn(isActive || hasActiveChild ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
-            </>
-        )}
-        {item.hasSubmenu && <span className="ml-auto text-[var(--color-primary-text-w10)]">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
-        {item.badge && <span className="ml-auto rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-600">{item.badge}</span>}
-    </Button>
-);
+}> = ({ item, isActive, onClick, isExpanded, onToggleExpand, className, indent, hasActiveChild }) => {
+    const buttonContent = (
+        <Button
+            variant="ghost"
+            onClick={item.hasSubmenu ? onToggleExpand : onClick}
+            className={cn("h-10 w-full justify-start px-2 text-sm font-normal hover:bg-[var(--color-background-w100)]", indent && "pl-4", indent && isActive && "bg-[var(--color-background-w200)]", className)}
+        >
+            {indent ? (
+                // Subitem - no icon wrapper, just text
+                <span className={cn(isActive ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
+            ) : (
+                // Main item - with icon wrapper
+                <>
+                    <div className={cn("mr-2 flex size-8 items-center justify-center rounded", (isActive || hasActiveChild) && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]")}>
+                        <item.icon className={cn("size-6", isActive || hasActiveChild ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
+                    </div>
+                    <span className={cn(isActive || hasActiveChild ? "text-[var(--color-primary-text-w10)]" : "text-[var(--color-secondary-text-w50)]")}>{item.label}</span>
+                </>
+            )}
+            {item.hasSubmenu && <span className="ml-auto text-[var(--color-primary-text-w10)]">{isExpanded ? <ChevronUp className="size-6" /> : <ChevronDown className="size-6" />}</span>}
+            {item.badge && <span className="ml-auto rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-600">{item.badge}</span>}
+        </Button>
+    );
+
+    if (item.tooltip) {
+        return (
+            <Tooltip>
+                <TooltipTrigger asChild>{buttonContent}</TooltipTrigger>
+                <TooltipContent side="right">
+                    <p>{item.tooltip}</p>
+                </TooltipContent>
+            </Tooltip>
+        );
+    }
+
+    return buttonContent;
+};
 
 interface SessionSidePanelProps {
     onToggle: () => void;
@@ -233,7 +249,7 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle, is
             hasSubmenu: true,
             children: [
                 { id: "artifacts", label: "Artifacts", icon: BookOpenText },
-                { id: "prompts", label: "Prompts", icon: BookOpenText },
+                { id: "prompts", label: "Prompts", icon: BookOpenText, tooltip: "Experimental Feature" },
             ],
         });
 
