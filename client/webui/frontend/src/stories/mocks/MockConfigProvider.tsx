@@ -15,6 +15,7 @@ const defaultMockConfigContext: ConfigContextValue = {
     configLogoUrl: "",
     frontend_use_authorization: false,
     platformConfigured: true,
+    identityServiceType: null,
 };
 
 interface MockConfigProviderProps {

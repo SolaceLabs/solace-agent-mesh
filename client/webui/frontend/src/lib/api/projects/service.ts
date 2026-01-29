@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { ArtifactInfo, CreateProjectRequest, Project, UpdateProjectData } from "@/lib";
+import type { ArtifactInfo, CreateProjectRequest, Project, UpdateProjectData, ProjectSharesResponse, BatchShareRequest, BatchShareResponse, BatchDeleteRequest, BatchDeleteResponse, UpdateShareRequest, ShareResponse } from "@/lib";
 import type { PaginatedSessionsResponse } from "@/lib/components/chat/SessionList";
 
 export const getProjects = async () => {
@@ -78,4 +78,39 @@ export const importProject = async (file: File, options: { preserveName: boolean
 
     const result = await api.webui.post("/api/v1/projects/import", formData);
     return result;
+};
+
+// Project Sharing APIs
+
+export const getProjectShares = async (projectId: string) => {
+    const response = await api.webui.get<ProjectSharesResponse>(`/api/v1/projects/${projectId}/shares`);
+    return response;
+};
+
+export const createProjectShares = async (projectId: string, data: BatchShareRequest) => {
+    const response = await api.webui.post<BatchShareResponse>(`/api/v1/projects/${projectId}/shares`, data);
+    return response;
+};
+
+export const deleteProjectShares = async (projectId: string, data: BatchDeleteRequest) => {
+    // Using a custom fetch approach since api.webui.delete doesn't support body parameter
+    const response = await fetch(api.webui.getFullUrl(`/api/v1/projects/${projectId}/shares`), {
+        method: "DELETE",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+        },
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to delete project shares: ${response.statusText}`);
+    }
+
+    return (await response.json()) as BatchDeleteResponse;
+};
+
+export const updateProjectShare = async (projectId: string, shareId: string, data: UpdateShareRequest) => {
+    const response = await api.webui.put<ShareResponse>(`/api/v1/projects/${projectId}/shares/${shareId}`, data);
+    return response;
 };

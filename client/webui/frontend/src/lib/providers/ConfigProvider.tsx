@@ -16,6 +16,7 @@ interface BackendConfig {
     frontend_logo_url: string;
     frontend_feature_enablement?: Record<string, boolean>;
     persistence_enabled?: boolean;
+    identity_service_type: string | null;
     validation_limits?: {
         projectNameMax?: number;
         projectDescriptionMax?: number;
@@ -132,6 +133,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     backgroundTasksDefaultTimeoutMs,
                     platformConfigured,
                     autoTitleGenerationEnabled,
+                    identityServiceType: data.identity_service_type,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;
