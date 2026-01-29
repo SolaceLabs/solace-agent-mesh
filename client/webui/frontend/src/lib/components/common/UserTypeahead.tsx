@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { User, X, Loader2 } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 import { Input } from "@/lib/components/ui/input";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
@@ -127,7 +127,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
                         {filteredPeople.length === 0 ? (
                             <div className="p-4 text-center text-sm text-[var(--muted-foreground)]">No users found</div>
                         ) : (
-                            <div className="flex flex-col p-1">
+                            <div className="flex flex-col">
                                 {filteredPeople.map((person, index) => (
                                     <button
                                         key={person.id}
@@ -137,16 +137,13 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
                                             setIsKeyboardMode(false);
                                             setActiveIndex(index);
                                         }}
-                                        className={`w-full rounded-md p-3 text-left transition-colors ${index === activeIndex ? "bg-[var(--accent)]" : !isKeyboardMode ? "hover:bg-[var(--accent)]" : ""}`}
+                                        className={`w-full px-3 py-2 text-left transition-colors ${index === activeIndex ? "bg-[var(--accent)]" : !isKeyboardMode ? "hover:bg-[var(--accent)]" : ""}`}
                                     >
                                         <div className="flex items-start gap-3">
-                                            <User className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex flex-wrap items-center gap-2">
-                                                    <span className="text-sm font-medium">{person.displayName}</span>
-                                                    {person.jobTitle && <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">{person.jobTitle}</span>}
+                                                    <span className="text-sm font-medium">{person.workEmail}</span>
                                                 </div>
-                                                <p className="mt-1 truncate text-xs text-[var(--muted-foreground)]">{person.workEmail}</p>
                                             </div>
                                         </div>
                                     </button>
