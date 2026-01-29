@@ -399,15 +399,12 @@ class ProjectService:
         Raises:
             ValueError: If project not found or access denied
         """
-        # Sanitize user input for logging to prevent log injection
-        safe_project_id = sanitize_log_input(project_id)
-
         project = self.get_project(db, project_id, user_id)
         if not project:
             raise ValueError("Project not found or access denied")
 
         if not self.artifact_service:
-            self.logger.warning(f"Attempted to get artifacts for project {safe_project_id} but no artifact service is configured.")
+            self.logger.warning("Attempted to get artifacts for project but no artifact service is configured.")
             return []
 
         storage_user_id = project.user_id
