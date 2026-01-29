@@ -353,15 +353,13 @@ function createLayoutNode(procNode: ProcessedNode, nodeMap: Map<string, Processe
 
             // Calculate switch node height based on number of cases
             const numCases = (config.cases?.length || 0) + (config.default ? 1 : 0);
-            const switchHeaderHeight = 44; // Header row height
-            const caseRowHeight = 28; // Height per case row including gap
-            const casesSectionPadding = 16; // py-2 top and bottom padding for cases section
+            const switchHeaderHeight = 44; // Header row height (SwitchNode.tsx line 29: px-4 py-3)
+            const caseRowHeight = 28; // Height per case row (max of h-5 badge 20px or text with py-1 = 28px)
+            const caseRowGap = 6; // Gap between rows (SwitchNode.tsx line 42: gap-1.5)
+            const casesSectionPadding = 12; // Cases section padding (SwitchNode.tsx line 41: pb-3 bottom only)
 
             baseNode.width = NODE_WIDTHS.SWITCH_COLLAPSED;
-            baseNode.height =
-                numCases > 0
-                    ? switchHeaderHeight + casesSectionPadding + numCases * caseRowHeight - 6 // -6 for last row gap
-                    : NODE_HEIGHTS.AGENT;
+            baseNode.height = numCases > 0 ? switchHeaderHeight + casesSectionPadding + numCases * caseRowHeight + (numCases - 1) * caseRowGap : NODE_HEIGHTS.AGENT;
             break;
         }
 
