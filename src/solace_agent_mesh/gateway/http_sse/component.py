@@ -308,27 +308,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Data retention is disabled via configuration.", self.log_identifier
             )
 
-        # Initialize enterprise features if available (must happen before migrations
-        # so that enterprise migration hooks can be registered)
-        try:
-            from solace_agent_mesh_enterprise.init_enterprise import (
-                initialize_enterprise_features,
-            )
-            app_config = self.get_config("app_config", {})
-            initialize_enterprise_features(app_config)
-            log.info("%s Enterprise features initialized", self.log_identifier)
-        except ImportError:
-            # Community edition - no enterprise features
-            log.debug("%s Enterprise features not available (Community edition)", self.log_identifier)
-        except Exception as e:
-            log.error(
-                "%s Failed to initialize enterprise features: %s",
-                self.log_identifier,
-                e,
-                exc_info=True
-            )
+        # Initialize system (including any installed plugins/enterprise features)
+        # This must happen before migrations so plugins can register migration hooks
+        from ...common.utils.initializer import initialize
+        initialize()
+        log.info("%s System initialization completed", self.log_identifier)
 
-        # Run database migrations after enterprise init (so hooks are registered)
+        # Run database migrations (any registered hooks will execute automatically)
         if self.database_url:
             log.info("%s Running database migrations...", self.log_identifier)
             self._run_database_migrations()

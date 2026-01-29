@@ -103,18 +103,25 @@ class MiddlewareRegistry:
         )
 
     @classmethod
-    def initialize_middleware(cls):
+    def initialize_middleware(cls, app_config: Optional[Dict[str, Any]] = None):
         """
         Initialize all registered middleware components.
 
         This should be called during system startup to initialize any
         bound middleware implementations.
+
+        Args:
+            app_config: Optional application configuration to pass to callbacks
         """
         log.info("%s Initializing middleware components...", LOG_IDENTIFIER)
 
         for callback in cls._initialization_callbacks:
             try:
-                callback()
+                # Try calling with app_config, fall back to no args for backwards compatibility
+                try:
+                    callback(app_config)
+                except TypeError:
+                    callback()
                 log.debug(
                     "%s Executed initialization callback: %s",
                     LOG_IDENTIFIER,
