@@ -79,7 +79,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         Initialize workflow executor component.
         """
         if "component_config" in kwargs and "app_config" in kwargs["component_config"]:
-            name = kwargs["component_config"]["app_config"].get("agent_name")
+            name = kwargs["component_config"]["app_config"].get("name")
             if name:
                 kwargs.setdefault("name", name)
 
