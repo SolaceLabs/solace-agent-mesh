@@ -28,7 +28,20 @@ export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "./popove
 export { PopoverManual } from "./popoverManual";
 export { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectScrollDownButton, SelectScrollUpButton, SelectTrigger, SelectValue } from "./select";
 export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
-export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel, DropdownMenuSeparator } from "./dropdown-menu";
+export {
+    DropdownMenu,
+    DropdownMenuTrigger,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuCheckboxItem,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuSub,
+    DropdownMenuSubTrigger,
+    DropdownMenuSubContent,
+} from "./dropdown-menu";
 export { Tooltip, TooltipTrigger, TooltipContent } from "./tooltip";
 export { Separator } from "./separator";
 export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table";

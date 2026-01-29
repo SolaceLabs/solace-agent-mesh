@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Info, Settings, Type, Volume2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -9,7 +9,7 @@ import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { AboutProduct } from "@/lib/components/settings/AboutProduct";
 
-type SettingsSection = "general" | "speech" | "about";
+export type SettingsSection = "general" | "speech" | "about";
 
 interface SidebarItemProps {
     icon: React.ReactNode;
@@ -31,17 +31,25 @@ interface SettingsDialogProps {
     iconOnly?: boolean;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
+    initialSection?: SettingsSection;
 }
 
-export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false, open: controlledOpen, onOpenChange }) => {
+export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false, open: controlledOpen, onOpenChange, initialSection = "general" }) => {
     const { configFeatureEnablement } = useConfigContext();
     const [internalOpen, setInternalOpen] = useState(false);
-    const [activeSection, setActiveSection] = useState<SettingsSection>("general");
+    const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
 
     // Use controlled state if provided, otherwise use internal state
     const isControlled = controlledOpen !== undefined;
     const open = isControlled ? controlledOpen : internalOpen;
     const setOpen = onOpenChange || setInternalOpen;
+
+    // Update active section when dialog opens with a different initial section
+    useEffect(() => {
+        if (open) {
+            setActiveSection(initialSection);
+        }
+    }, [open, initialSection]);
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
