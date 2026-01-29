@@ -5,6 +5,14 @@ import "react-pdf/dist/esm/Page/TextLayer.css";
 import { ZoomIn, ZoomOut, ScanLine, Hand, Scissors } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 
+// Custom event for snip-to-chat functionality
+export const SNIP_TO_CHAT_EVENT = "snip-to-chat";
+
+export interface SnipToChatEventDetail {
+    file: File;
+    filename: string;
+}
+
 // Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
@@ -35,7 +43,7 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
     const [interactionMode, setInteractionMode] = useState<InteractionMode>("text");
     const [selection, setSelection] = useState<SelectionRect | null>(null);
     const [isSelecting, setIsSelecting] = useState(false);
-    const [copyStatus, setCopyStatus] = useState<"idle" | "copying" | "success" | "error">("idle");
+    const [snipStatus, setSnipStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
     const viewerRef = useRef<HTMLDivElement>(null);
     const documentContainerRef = useRef<HTMLDivElement>(null);
 
@@ -109,23 +117,23 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
             setIsDragging(false);
         } else if (interactionMode === "snip" && isSelecting) {
             setIsSelecting(false);
-            // Auto-copy on mouse up if selection is valid
+            // Capture the snip if selection is valid
             if (selection) {
                 const selWidth = Math.abs(selection.endX - selection.startX);
                 const selHeight = Math.abs(selection.endY - selection.startY);
                 if (selWidth >= 10 && selHeight >= 10) {
-                    // Trigger copy immediately - the mouse up event is a user gesture
-                    performSnipCopy();
+                    // Capture the snip and show action buttons
+                    captureSnip();
                 }
             }
         }
     };
 
-    // Separate function to perform the snip copy, called directly from mouse up
-    const performSnipCopy = async () => {
+    // Capture the snip as a blob and auto send to chat
+    const captureSnip = async () => {
         if (!selection || !viewerRef.current) return;
 
-        setCopyStatus("copying");
+        setSnipStatus("processing");
 
         try {
             // Calculate the normalized selection rectangle (in viewer scroll coordinates)
@@ -137,8 +145,8 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
             // Find all canvas elements within the viewer
             const canvases = viewerRef.current.querySelectorAll("canvas");
             if (canvases.length === 0) {
-                setCopyStatus("error");
-                setTimeout(() => setCopyStatus("idle"), 2000);
+                setSnipStatus("error");
+                setTimeout(() => setSnipStatus("idle"), 2000);
                 return;
             }
 
@@ -149,8 +157,8 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
             const ctx = outputCanvas.getContext("2d");
 
             if (!ctx) {
-                setCopyStatus("error");
-                setTimeout(() => setCopyStatus("idle"), 2000);
+                setSnipStatus("error");
+                setTimeout(() => setSnipStatus("idle"), 2000);
                 return;
             }
 
@@ -213,52 +221,49 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
             }
             const blob = new Blob([u8arr], { type: mime });
 
-            // Try to copy to clipboard
-            let copied = false;
-            try {
-                if (navigator.clipboard && typeof ClipboardItem !== "undefined") {
-                    const item = new ClipboardItem({ "image/png": blob });
-                    await navigator.clipboard.write([item]);
-                    copied = true;
-                }
-            } catch (clipboardErr) {
-                console.error("Clipboard write failed:", clipboardErr);
-                copied = false;
-            }
-
-            if (copied) {
-                setCopyStatus("success");
-                setTimeout(() => {
-                    setCopyStatus("idle");
-                    setSelection(null);
-                }, 1500);
-            } else {
-                // Fallback: download the image
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `${filename}-snip.png`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                setCopyStatus("success");
-                setTimeout(() => {
-                    setCopyStatus("idle");
-                    setSelection(null);
-                }, 1500);
-            }
+            // Automatically send to chat
+            sendToChat(blob);
         } catch (err) {
             console.error("Error capturing selection:", err);
-            setCopyStatus("error");
-            setTimeout(() => setCopyStatus("idle"), 2000);
+            setSnipStatus("error");
+            setTimeout(() => setSnipStatus("idle"), 2000);
         }
+    };
+
+    // Send the snip to chat input
+    const sendToChat = (blob: Blob) => {
+        console.info("[PdfRenderer] sendToChat called, snipBlob:", blob ? "exists" : "null");
+
+        if (!blob) {
+            console.info("[PdfRenderer] No snipBlob available");
+            return;
+        }
+
+        // Create a File object from the blob
+        const snipFilename = `${filename.replace(/\.[^/.]+$/, "")}-snip.png`;
+        const file = new File([blob], snipFilename, { type: "image/png" });
+
+        console.info("[PdfRenderer] Dispatching snip-to-chat event with file:", snipFilename, "size:", file.size);
+
+        // Dispatch custom event to send the file to chat input
+        const event = new CustomEvent<SnipToChatEventDetail>(SNIP_TO_CHAT_EVENT, {
+            detail: { file, filename: snipFilename },
+            bubbles: true,
+        });
+        window.dispatchEvent(event);
+
+        // Clear the selection and show success
+        setSnipStatus("success");
+        setTimeout(() => {
+            setSnipStatus("idle");
+            setSelection(null);
+        }, 1500);
     };
 
     const setMode = (mode: InteractionMode) => {
         setInteractionMode(mode);
         setSelection(null);
-        setCopyStatus("idle");
+        setSnipStatus("idle");
     };
 
     const handleWheel = (e: React.WheelEvent) => {
@@ -366,20 +371,20 @@ const PdfRenderer: React.FC<PdfRendererProps> = ({ url, filename }) => {
                                 <Scissors className="h-4 w-4" />
                             </button>
                         </TooltipTrigger>
-                        <TooltipContent>{interactionMode === "snip" ? "Exit Snip Mode" : "Snip to Clipboard"}</TooltipContent>
+                        <TooltipContent>{interactionMode === "snip" ? "Exit Snip Mode" : "Snip Selection"}</TooltipContent>
                     </Tooltip>
-                    {/* Show copy status indicator */}
-                    {interactionMode === "snip" && copyStatus !== "idle" && (
+                    {/* Show status indicator */}
+                    {interactionMode === "snip" && snipStatus !== "idle" && (
                         <div
                             className={`ml-2 rounded px-2 py-0.5 text-xs ${
-                                copyStatus === "copying"
+                                snipStatus === "processing"
                                     ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
-                                    : copyStatus === "success"
+                                    : snipStatus === "success"
                                       ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300"
                                       : "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300"
                             }`}
                         >
-                            {copyStatus === "copying" ? "Copying..." : copyStatus === "success" ? "Copied!" : "Failed"}
+                            {snipStatus === "processing" ? "Processing..." : snipStatus === "success" ? "Done!" : "Failed"}
                         </div>
                     )}
                 </div>
