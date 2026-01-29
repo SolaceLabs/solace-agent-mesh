@@ -558,6 +558,107 @@ async def save_artifact_with_metadata(
         "message": status_message,
     }
 
+async def delete_artifact_with_metadata(
+    artifact_service: BaseArtifactService,
+    app_name: str,
+    user_id: str,
+    session_id: str,
+    filename: str,
+) -> dict[str, Any]:
+    log_identifier = f"[ArtifactHelper:delete:{filename}]"
+    status = "error"
+    status_message = ""
+    metadata_filename = f"{filename}{METADATA_SUFFIX}"
+    
+    log.debug("%s Deleting artifact and metadata (async)...", log_identifier)
+
+    try:
+        log.debug(
+            f"{log_identifier} artifact_service object type: {type(artifact_service)}"
+        )
+        log.debug(
+            f"{log_identifier} artifact_service object dir: {dir(artifact_service)}"
+        )
+
+        # delete data artifact
+        data_deleted = False
+        try:
+            delete_data_method = getattr(artifact_service, "delete_artifact")
+            await delete_data_method(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+            )
+            log.info("%s Successfully deleted data artifact '%s'.", log_identifier, filename)
+            data_deleted = True
+            status = "partial success"
+            status_message = f"Data artifact '{filename}' deleted successfully."
+        except FileNotFoundError as e:
+            log.exception("%s Data artifact not found for deletion: %s", log_identifier, e)
+            status = "error"
+            status_message = f"Data artifact '{filename}' not found for deletion."
+        except Exception as data_delete_err:
+            log.exception(
+                "%s Failed to delete data artifact '%s': %s",
+                log_identifier,
+                filename,
+                data_delete_err,
+            )
+            status = "error"
+            status_message = f"Failed to delete data artifact '{filename}': {data_delete_err}"
+        
+        # delete metadata artifact (should always attempt, regardless of data artifact result)
+        try:
+            delete_metadata_method = getattr(artifact_service, "delete_artifact")
+            await delete_metadata_method(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=metadata_filename,
+            )
+            log.info("%s Successfully deleted metadata artifact '%s'.", log_identifier, metadata_filename)
+            if data_deleted:
+                status = "success"
+                status_message = f"Both data artifact '{filename}' and metadata artifact '{metadata_filename}' deleted successfully."
+            else:
+                status = "partial success"
+                status_message = f"Metadata artifact '{metadata_filename}' deleted, but data artifact '{filename}' failed."
+        except FileNotFoundError as e:
+            log.exception("%s Metadata artifact not found for deletion: %s", log_identifier, e)
+            # Don't change status if data was deleted successfully
+            if not data_deleted:
+                status = "error"
+                status_message = f"Neither data artifact '{filename}' nor metadata artifact '{metadata_filename}' found."
+        except Exception as metadata_delete_err:
+            log.exception(
+                "%s Failed to delete metadata artifact '%s': %s",
+                log_identifier,
+                metadata_filename,
+                metadata_delete_err,
+            )
+            if data_deleted:
+                status = "partial success"
+                status_message = f"Data artifact '{filename}' deleted, but failed to delete metadata artifact '{metadata_filename}': {metadata_delete_err}"
+            else:
+                status = "error"
+                status_message = f"Failed to delete both artifacts: {status_message}; Metadata error: {metadata_delete_err}"
+    except Exception as artifact_delete_err:
+        log.exception(
+            "%s Failed to delete data artifact '%s' or metadata artifact '%s': %s",
+            log_identifier,
+            filename,
+            metadata_filename,
+            artifact_delete_err,
+        )
+        status = "error"
+        status_message = f"Failed to delete data artifact '{filename}' or metadata artifact '{metadata_filename}': {artifact_delete_err}"
+    return {
+        "status": status,
+        "data_filename": filename,
+        "metadata_filename": metadata_filename,
+        "message": status_message,
+    }
 
 async def process_artifact_upload(
     artifact_service: BaseArtifactService,

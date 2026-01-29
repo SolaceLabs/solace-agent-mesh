@@ -465,29 +465,30 @@ async def delete_project_artifact(
 ):
     """
     Delete an artifact from a project.
+    
     """
     user_id = user.get("id")
-    log.info(f"User {user_id} attempting to delete artifact '{filename}' from project {project_id}")
+    log.info(
+        f"User {user_id} attempting to delete artifact '{filename}' "
+        f"from project {project_id}"
+    )
 
     try:
-        success = await project_service.delete_artifact_from_project(
+        await project_service.delete_artifact_from_project(
             db=db,
             project_id=project_id,
             user_id=user_id,
             filename=filename,
         )
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found or access denied."
-            )
-        
-        return
     except ValueError as e:
-        log.warning(f"Validation error deleting artifact from project {project_id}: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except HTTPException:
-        raise
+        log.warning(
+            f"Validation error deleting artifact '{filename}' "
+            f"from project {project_id}: {e}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
     except Exception as e:
         log.error(
             "Error deleting artifact '%s' from project %s for user %s: %s",
@@ -498,7 +499,7 @@ async def delete_project_artifact(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete artifact from project"
+            detail="Failed to delete project artifact"
         )
 
 
