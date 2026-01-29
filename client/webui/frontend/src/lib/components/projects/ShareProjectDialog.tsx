@@ -8,12 +8,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
-import { MessageBanner } from "@/lib/components/common";
+import { MessageBanner, EmailInput } from "@/lib/components/common";
 import { UserTypeahead } from "@/lib/components/common/UserTypeahead";
 import { classForIconButton, classForEmptyMessage } from "@/lib/components/common/projectShareVariants";
 import { useProjectShares, useCreateProjectShares, useDeleteProjectShares } from "@/lib/api/projects/hooks";
-import { shareProjectFormSchema, type ShareProjectFormData } from "@/lib/schemas";
+import { createShareProjectFormSchema, type ShareProjectFormData } from "@/lib/schemas";
 import type { Project } from "@/lib/types/projects";
+import { useConfigContext } from "@/lib/hooks";
 
 const getRowPosition = (index: number, total: number): "only" | "first" | "middle" | "last" => {
     if (total === 0) return "only";
@@ -28,11 +29,15 @@ interface ShareProjectDialogProps {
 }
 
 export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, onClose, project }) => {
+    const { identityServiceType } = useConfigContext();
     const [error, setError] = useState<string | null>(null);
+
+    // Create schema dynamically based on identity service configuration
+    const schema = useMemo(() => createShareProjectFormSchema(identityServiceType), [identityServiceType]);
 
     // React Hook Form setup
     const { control, handleSubmit, reset, setValue, watch, trigger } = useForm<ShareProjectFormData>({
-        resolver: zodResolver(shareProjectFormSchema),
+        resolver: zodResolver(schema),
         defaultValues: { viewers: [], pendingRemoves: [] },
         mode: "onChange",
     });
@@ -231,14 +236,25 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                                     render={({ field: { value, onChange }, fieldState: { error: fieldError } }) => (
                                         <div className="py-3 pr-3">
                                             <div className={classForShareRow({ type: "typeahead" })}>
-                                                <UserTypeahead
-                                                    id={field.id}
-                                                    onSelect={(email: string) => handleAddUser(email, field.id, index, onChange)}
-                                                    onRemove={() => handleRemoveTypeahead(field.id)}
-                                                    excludeEmails={excludeEmails}
-                                                    selectedEmail={value}
-                                                    error={!!fieldError}
-                                                />
+                                                {identityServiceType !== null ? (
+                                                    <UserTypeahead
+                                                        id={field.id}
+                                                        onSelect={(email: string) => handleAddUser(email, field.id, index, onChange)}
+                                                        onRemove={() => handleRemoveTypeahead(field.id)}
+                                                        excludeEmails={excludeEmails}
+                                                        selectedEmail={value}
+                                                        error={!!fieldError}
+                                                    />
+                                                ) : (
+                                                    <EmailInput
+                                                        id={field.id}
+                                                        onSelect={(email: string) => handleAddUser(email, field.id, index, onChange)}
+                                                        onRemove={() => handleRemoveTypeahead(field.id)}
+                                                        excludeEmails={excludeEmails}
+                                                        selectedEmail={value}
+                                                        error={!!fieldError}
+                                                    />
+                                                )}
                                             </div>
                                             {fieldError && <p className="mt-1 text-xs text-[var(--destructive)]">{fieldError.message}</p>}
                                         </div>

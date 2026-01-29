@@ -1,4 +1,5 @@
 export { ConfirmationDialog } from "./ConfirmationDialog";
+export { EmailInput } from "./EmailInput";
 export { EmptyState } from "./EmptyState";
 export { ErrorDialog } from "./ErrorDialog";
 export { ErrorLabel } from "./ErrorLabel";
