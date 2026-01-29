@@ -19,6 +19,14 @@ export interface FileSizeValidationOptions {
     maxFilesToList?: number;
 }
 
+export interface TotalUploadSizeValidationResult {
+    valid: boolean;
+    error?: string;
+    currentSize: number;
+    newSize: number;
+    totalSize: number;
+}
+
 /**
  * Validates file sizes against a maximum limit.
  *
@@ -56,25 +64,25 @@ export function validateFileSizes(files: FileList | File[], options: FileSizeVal
     }
 
     // Build error message
-    const maxSizeMB = (maxSizeBytes / (1024 * 1024)).toFixed(0);
+    const maxSizeWithUnit = formatFileSize(maxSizeBytes, 0);
     let errorMsg: string;
 
     if (oversizedFiles.length === 1) {
         const file = oversizedFiles[0];
         if (includeFileSizes) {
-            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-            errorMsg = `File "${file.name}" (${fileSizeMB} MB) exceeds the maximum size of ${maxSizeMB} MB.`;
+            const fileSizeWithUnit = formatFileSize(file.size, 2);
+            errorMsg = `File "${file.name}" (${fileSizeWithUnit}) exceeds the maximum size of ${maxSizeWithUnit}.`;
         } else {
-            errorMsg = `File "${file.name}" exceeds the maximum size of ${maxSizeMB} MB.`;
+            errorMsg = `File "${file.name}" exceeds the maximum size of ${maxSizeWithUnit}.`;
         }
     } else {
         const fileList = oversizedFiles.slice(0, maxFilesToList);
-        const fileNames = includeFileSizes ? fileList.map(f => `${f.name} (${(f.size / (1024 * 1024)).toFixed(2)} MB)`) : fileList.map(f => f.name);
+        const fileNames = includeFileSizes ? fileList.map(f => `${f.name} (${formatFileSize(f.size, 2)})`) : fileList.map(f => f.name);
 
         const remaining = oversizedFiles.length - maxFilesToList;
         const suffix = remaining > 0 ? ` and ${remaining} more` : "";
 
-        errorMsg = `${oversizedFiles.length} files exceed the maximum size of ${maxSizeMB} MB: ${fileNames.join(", ")}${suffix}`;
+        errorMsg = `${oversizedFiles.length} files exceed the maximum size of ${maxSizeWithUnit}: ${fileNames.join(", ")}${suffix}`;
     }
 
     return {
@@ -123,7 +131,43 @@ export function isFileSizeValid(file: File, maxSizeBytes?: number): boolean {
  * @returns Formatted error message
  */
 export function createFileSizeErrorMessage(filename: string, actualSize: number, maxSize: number): string {
-    const actualSizeMB = (actualSize / (1024 * 1024)).toFixed(2);
-    const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(2);
-    return `File "${filename}" is too large: ${actualSizeMB} MB exceeds the maximum allowed size of ${maxSizeMB} MB.`;
+    const actualSizeWithUnit = formatFileSize(actualSize, 2);
+    const maxSizeWithUnit = formatFileSize(maxSize, 2);
+    return `File "${filename}" is too large: ${actualSizeWithUnit} exceeds the maximum allowed size of ${maxSizeWithUnit}.`;
+}
+
+/**
+ * Validates total upload size: existing files + new files <= maxTotalUploadSizeBytes
+ * This enforces a project-level storage limit, not a per-request limit.
+ *
+ * @param currentProjectSizeBytes - Current total size of project artifacts in bytes
+ * @param newFiles - FileList or array of Files to be uploaded
+ * @param maxTotalUploadSizeBytes - Maximum total upload size limit per project
+ * @returns Validation result with error message if limit would be exceeded
+ */
+export function validateTotalUploadSize(currentProjectSizeBytes: number, newFiles: FileList | File[], maxTotalUploadSizeBytes?: number): TotalUploadSizeValidationResult {
+    const fileArray = Array.from(newFiles);
+    const newSize = fileArray.reduce((sum, file) => sum + file.size, 0);
+    const totalSize = currentProjectSizeBytes + newSize;
+
+    if (!maxTotalUploadSizeBytes) {
+        return { valid: true, currentSize: currentProjectSizeBytes, newSize, totalSize };
+    }
+
+    if (totalSize <= maxTotalUploadSizeBytes) {
+        return { valid: true, currentSize: currentProjectSizeBytes, newSize, totalSize };
+    }
+
+    const currentWithUnit = formatFileSize(currentProjectSizeBytes, 2);
+    const newWithUnit = formatFileSize(newSize, 2);
+    const totalWithUnit = formatFileSize(totalSize, 2);
+    const limitWithUnit = formatFileSize(maxTotalUploadSizeBytes, 0);
+
+    return {
+        valid: false,
+        currentSize: currentProjectSizeBytes,
+        newSize,
+        totalSize,
+        error: `Total upload size limit exceeded. Current: ${currentWithUnit}, New files: ${newWithUnit}, Total: ${totalWithUnit} exceeds limit of ${limitWithUnit}.`,
+    };
 }

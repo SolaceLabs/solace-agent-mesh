@@ -6,6 +6,7 @@ export interface ValidationLimits {
     projectInstructionsMax?: number;
     maxUploadSizeBytes?: number;
     maxZipUploadSizeBytes?: number;
+    maxTotalUploadSizeBytes?: number;
 }
 
 export interface ConfigContextValue {
