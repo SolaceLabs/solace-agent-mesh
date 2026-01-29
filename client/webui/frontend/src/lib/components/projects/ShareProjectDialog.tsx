@@ -7,8 +7,9 @@ import { Plus, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
+import { Input } from "@/lib/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
-import { MessageBanner, EmailInput } from "@/lib/components/common";
+import { MessageBanner } from "@/lib/components/common";
 import { UserTypeahead } from "@/lib/components/common/UserTypeahead";
 import { classForIconButton, classForEmptyMessage } from "@/lib/components/common/projectShareVariants";
 import { useProjectShares, useCreateProjectShares, useDeleteProjectShares } from "@/lib/api/projects/hooks";
@@ -39,7 +40,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
     const { control, handleSubmit, reset, setValue, watch, trigger } = useForm<ShareProjectFormData>({
         resolver: zodResolver(schema),
         defaultValues: { viewers: [], pendingRemoves: [] },
-        mode: "onChange",
+        mode: "onBlur",
     });
 
     const { fields, append, remove } = useFieldArray({ control, name: "viewers" });
@@ -246,14 +247,22 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                                                         error={!!fieldError}
                                                     />
                                                 ) : (
-                                                    <EmailInput
-                                                        id={field.id}
-                                                        onSelect={(email: string) => handleAddUser(email, field.id, index, onChange)}
-                                                        onRemove={() => handleRemoveTypeahead(field.id)}
-                                                        excludeEmails={excludeEmails}
-                                                        selectedEmail={value}
-                                                        error={!!fieldError}
-                                                    />
+                                                    <>
+                                                        <Input
+                                                            type="email"
+                                                            autoComplete="email"
+                                                            placeholder="Enter email address..."
+                                                            value={value || ""}
+                                                            onChange={e => onChange(e.target.value || null)}
+                                                            className={`h-9 pr-3 ${fieldError ? "border-[var(--destructive)]" : ""}`}
+                                                        />
+                                                        <Badge variant="secondary" className="justify-self-center">
+                                                            Viewer
+                                                        </Badge>
+                                                        <Button variant="ghost" size="sm" onClick={() => handleRemoveTypeahead(field.id)} className={classForIconButton()}>
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </>
                                                 )}
                                             </div>
                                             {fieldError && <p className="mt-1 text-xs text-[var(--destructive)]">{fieldError.message}</p>}
