@@ -352,7 +352,7 @@ export function WorkflowVisualizationPage() {
 
                 {/* Workflow Details / Raw Code Side Panel */}
                 {workflowPanelView && (
-                    <div className={`absolute top-0 right-0 bottom-0 z-10 flex border ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`} style={{ width: panelWidth }}>
+                    <div className={`absolute top-0 right-0 bottom-0 z-10 flex ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`} style={{ width: panelWidth }}>
                         {/* Resize handle - matches ResizableHandle styling */}
                         <div className="bg-border relative flex w-px cursor-col-resize items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2" onMouseDown={handleResizeStart} />
                         {/* Panel content */}
