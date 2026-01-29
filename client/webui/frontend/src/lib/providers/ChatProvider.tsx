@@ -1719,6 +1719,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 await loadSessionTasks(newSessionId);
 
+                // Emit session-loaded event for components waiting on session data
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(
+                        new CustomEvent("session-loaded", {
+                            detail: { sessionId: newSessionId },
+                        })
+                    );
+                }
+
                 // Check for running background tasks in this session and reconnect
                 const sessionBackgroundTasks = backgroundTasks.filter(t => t.sessionId === newSessionId);
                 if (sessionBackgroundTasks.length > 0) {

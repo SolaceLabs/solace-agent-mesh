@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Download, Trash2, FileText, FileImage, FileCode, File, FileSpreadsheet, FileArchive, MoreHorizontal, MessageCircle } from "lucide-react";
-import { Button, Input, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, Spinner } from "@/lib/components/ui";
+import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode } from "lucide-react";
+import { Button, Input, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, Spinner, Card, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { useAllArtifacts, useChatContext } from "@/lib/hooks";
 import { api } from "@/lib/api";
-import { formatTimestamp } from "@/lib/utils";
+import { formatTimestamp, cn } from "@/lib/utils";
 
 // Extended artifact type with session info
 interface ArtifactWithSession {
@@ -20,28 +20,6 @@ interface ArtifactWithSession {
     sessionId: string;
     sessionName: string | null;
 }
-
-/**
- * Get the appropriate icon for a file based on its MIME type
- */
-const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith("image/")) {
-        return FileImage;
-    }
-    if (mimeType.startsWith("text/") || mimeType.includes("json") || mimeType.includes("xml")) {
-        return FileCode;
-    }
-    if (mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("csv")) {
-        return FileSpreadsheet;
-    }
-    if (mimeType.includes("zip") || mimeType.includes("tar") || mimeType.includes("gzip") || mimeType.includes("compressed")) {
-        return FileArchive;
-    }
-    if (mimeType.includes("pdf") || mimeType.includes("document") || mimeType.includes("word")) {
-        return FileText;
-    }
-    return File;
-};
 
 /**
  * Format file size in human-readable format
@@ -74,79 +52,307 @@ const getArtifactOrigin = (artifact: ArtifactWithSession): { label: string; colo
     return null;
 };
 
-interface ArtifactCardProps {
+/**
+ * Get file extension from filename
+ */
+const getFileExtension = (filename: string): string => {
+    const parts = filename.split(".");
+    return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
+};
+
+/**
+ * Get colorful badge style based on file extension/mime type
+ */
+const getExtensionBadgeStyle = (filename: string): string => {
+    const ext = getFileExtension(filename).toLowerCase();
+
+    // Color mapping based on file type
+    switch (ext) {
+        case "html":
+        case "htm":
+            return "bg-[#e34c26] text-white";
+        case "json":
+            return "bg-[#fbc02d] text-[#333]";
+        case "yaml":
+        case "yml":
+            return "bg-[#cb171e] text-white";
+        case "md":
+        case "markdown":
+            return "bg-[#6c757d] text-white";
+        case "txt":
+            return "bg-[#5c6bc0] text-white";
+        case "js":
+        case "jsx":
+            return "bg-[#f7df1e] text-[#333]";
+        case "ts":
+        case "tsx":
+            return "bg-[#3178c6] text-white";
+        case "py":
+            return "bg-[#3776ab] text-white";
+        case "css":
+            return "bg-[#264de4] text-white";
+        case "scss":
+        case "sass":
+            return "bg-[#cc6699] text-white";
+        case "xml":
+            return "bg-[#f16529] text-white";
+        case "pdf":
+            return "bg-[#ff0000] text-white";
+        case "doc":
+        case "docx":
+            return "bg-[#2b579a] text-white";
+        case "xls":
+        case "xlsx":
+        case "csv":
+            return "bg-[#217346] text-white";
+        case "ppt":
+        case "pptx":
+            return "bg-[#d24726] text-white";
+        case "zip":
+        case "rar":
+        case "7z":
+        case "tar":
+        case "gz":
+            return "bg-[#f9a825] text-[#333]";
+        case "jpg":
+        case "jpeg":
+        case "png":
+        case "gif":
+        case "svg":
+        case "webp":
+            return "bg-[#4caf50] text-white";
+        case "mp4":
+        case "avi":
+        case "mov":
+        case "webm":
+            return "bg-[#9c27b0] text-white";
+        case "mp3":
+        case "wav":
+        case "flac":
+            return "bg-[#ff5722] text-white";
+        default:
+            return "bg-gray-500 text-white";
+    }
+};
+
+/**
+ * Check if a MIME type supports text preview
+ */
+const supportsTextPreview = (mimeType: string): boolean => {
+    return (
+        mimeType.startsWith("text/") ||
+        mimeType.includes("json") ||
+        mimeType.includes("xml") ||
+        mimeType.includes("javascript") ||
+        mimeType.includes("typescript") ||
+        mimeType.includes("markdown") ||
+        mimeType.includes("yaml") ||
+        mimeType.includes("yml")
+    );
+};
+
+/**
+ * Check if a MIME type is an image
+ */
+const isImageType = (mimeType: string): boolean => {
+    return mimeType.startsWith("image/");
+};
+
+interface ArtifactGridCardProps {
     artifact: ArtifactWithSession;
     onDownload: (artifact: ArtifactWithSession) => void;
     onDelete: (artifact: ArtifactWithSession) => void;
     onPreview: (artifact: ArtifactWithSession) => void;
     onGoToChat: (artifact: ArtifactWithSession) => void;
+    isSelected?: boolean;
 }
 
-const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, onDownload, onDelete, onPreview, onGoToChat }) => {
-    const IconComponent = getFileIcon(artifact.mime_type);
+const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownload, onDelete, onPreview, onGoToChat, isSelected }) => {
     const origin = getArtifactOrigin(artifact);
+    const [contentPreview, setContentPreview] = useState<string | null>(null);
+    const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+    const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+
+    // Load content preview for text files or image thumbnail
+    useEffect(() => {
+        const loadPreview = async () => {
+            if (isImageType(artifact.mime_type)) {
+                // For images, create a thumbnail URL
+                try {
+                    const url = api.webui.getFullUrl(`/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`);
+                    setImagePreviewUrl(url);
+                } catch (error) {
+                    console.error("Error creating image preview URL:", error);
+                }
+            } else if (supportsTextPreview(artifact.mime_type) && artifact.size < 50000) {
+                // Only load preview for text files under 50KB
+                setIsLoadingPreview(true);
+                try {
+                    const response = await api.webui.get(`/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`, { fullResponse: true });
+                    const text = await response.text();
+                    // Get first 8 lines for preview (increased from 4), max 60 chars per line
+                    const lines = text.split("\n").slice(0, 8);
+                    const preview = lines
+                        .map(line => {
+                            const trimmed = line.trim();
+                            return trimmed.length > 60 ? trimmed.substring(0, 57) + "..." : trimmed;
+                        })
+                        .join("\n");
+                    setContentPreview(preview);
+                } catch (error) {
+                    console.error("Error loading content preview:", error);
+                    setContentPreview(null);
+                } finally {
+                    setIsLoadingPreview(false);
+                }
+            }
+        };
+
+        loadPreview();
+    }, [artifact.sessionId, artifact.filename, artifact.mime_type, artifact.size]);
+
+    const handleCardClick = () => {
+        onPreview(artifact);
+    };
 
     return (
-        <div className="hover:bg-accent/50 flex items-center gap-3 rounded-md border p-3 shadow-sm transition-colors">
-            <button onClick={() => onPreview(artifact)} className="min-w-0 flex-1 cursor-pointer text-left">
-                <div className="flex items-center gap-3">
-                    <div className="bg-muted flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md">
-                        <IconComponent className="text-muted-foreground h-5 w-5" />
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                            <span className="truncate font-semibold">{artifact.filename}</span>
-                            {origin && <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${origin.color}`}>{origin.label}</span>}
-                        </div>
-                        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-                            <span>{formatFileSize(artifact.size)}</span>
-                            <span>•</span>
-                            <span>{formatTimestamp(artifact.last_modified)}</span>
-                        </div>
-                    </div>
-                </div>
-            </button>
-            <div className="flex flex-shrink-0 items-center">
-                <DropdownMenu>
+        <Card
+            className={cn(
+                "group relative flex h-[220px] w-[280px] flex-shrink-0 cursor-pointer flex-col overflow-hidden transition-all",
+                "hover:bg-[var(--color-primary-w10)] dark:hover:bg-[var(--color-primary-wMain)]",
+                "focus-visible:border-[var(--color-brand-w100)] focus-visible:outline-none",
+                isSelected && "border-[var(--color-brand-w100)]"
+            )}
+            onClick={handleCardClick}
+            onKeyDown={e => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleCardClick();
+                }
+            }}
+            role="button"
+            tabIndex={0}
+            noPadding
+        >
+            {/* Header with filename and menu */}
+            <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+                <h3 className="min-w-0 flex-1 truncate text-sm font-semibold" title={artifact.filename}>
+                    {artifact.filename}
+                </h3>
+                <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => e.stopPropagation()}>
-                            <MoreHorizontal size={16} />
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 flex-shrink-0 p-0"
+                            onClick={e => {
+                                e.stopPropagation();
+                                setDropdownOpen(!dropdownOpen);
+                            }}
+                        >
+                            <MoreHorizontal size={14} />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuContent align="end" className="w-48" onClick={e => e.stopPropagation()}>
                         <DropdownMenuItem
                             onClick={e => {
                                 e.stopPropagation();
+                                setDropdownOpen(false);
                                 onGoToChat(artifact);
                             }}
                         >
-                            <MessageCircle size={16} className="mr-2" />
+                            <MessageCircle size={14} className="mr-2" />
                             Go to Chat
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                             onClick={e => {
                                 e.stopPropagation();
+                                setDropdownOpen(false);
                                 onDownload(artifact);
                             }}
                         >
-                            <Download size={16} className="mr-2" />
+                            <Download size={14} className="mr-2" />
                             Download
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onClick={e => {
                                 e.stopPropagation();
+                                setDropdownOpen(false);
                                 onDelete(artifact);
                             }}
                             className="text-red-600 focus:text-red-600 dark:text-red-500 dark:focus:text-red-500"
                         >
-                            <Trash2 size={16} className="mr-2" />
+                            <Trash2 size={14} className="mr-2" />
                             Delete
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
-        </div>
+
+            {/* Content Preview Area - takes most of the space */}
+            <div className="bg-muted/30 relative flex flex-1 items-center justify-center overflow-hidden">
+                {imagePreviewUrl ? (
+                    <img src={imagePreviewUrl} alt={artifact.filename} className="h-full w-full object-cover" onError={() => setImagePreviewUrl(null)} />
+                ) : contentPreview ? (
+                    <div className="text-muted-foreground h-full w-full overflow-hidden px-3 py-2 font-mono text-[11px] leading-relaxed">
+                        {contentPreview.split("\n").map((line, index) => (
+                            <div key={index} className="truncate">
+                                {line || "\u00A0"}
+                            </div>
+                        ))}
+                    </div>
+                ) : isLoadingPreview ? (
+                    <Spinner size="small" variant="muted" />
+                ) : (
+                    <div className="flex flex-col items-center justify-center gap-2">
+                        {isImageType(artifact.mime_type) ? (
+                            <FileImage className="text-muted-foreground h-12 w-12" />
+                        ) : supportsTextPreview(artifact.mime_type) ? (
+                            <FileCode className="text-muted-foreground h-12 w-12" />
+                        ) : (
+                            <File className="text-muted-foreground h-12 w-12" />
+                        )}
+                        {artifact.description && <span className="text-muted-foreground px-4 text-center text-xs">{artifact.description}</span>}
+                    </div>
+                )}
+
+                {/* Hover overlay with preview button */}
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="h-8 w-8 rounded-full p-0"
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    onPreview(artifact);
+                                }}
+                            >
+                                <Eye className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Preview</TooltipContent>
+                    </Tooltip>
+                </div>
+            </div>
+
+            {/* Footer with metadata and extension badge */}
+            <div className="flex items-center justify-between border-t px-3 py-2">
+                <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs">{formatFileSize(artifact.size)}</span>
+                    <span className="text-muted-foreground text-xs">•</span>
+                    <span className="text-muted-foreground text-xs">{formatTimestamp(artifact.last_modified)}</span>
+                    {origin && <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${origin.color}`}>{origin.label}</span>}
+                </div>
+                {/* Extension badge */}
+                <span className={cn("rounded px-2 py-0.5 text-[10px] font-bold", getExtensionBadgeStyle(artifact.filename))}>
+                    {getFileExtension(artifact.filename).length > 4 ? getFileExtension(artifact.filename).substring(0, 4) : getFileExtension(artifact.filename)}
+                </span>
+            </div>
+        </Card>
     );
 };
 
@@ -221,15 +427,42 @@ export const ArtifactsPage: React.FC = () => {
             // Switch to the artifact's session first, then navigate
             await handleSwitchSession(artifact.sessionId);
             navigate("/chat");
-            // Dispatch event to open artifact preview after a short delay to allow navigation to complete
+
+            // Robust event-driven coordination:
+            // 1. Set up a one-time listener for session-loaded event
+            // 2. Dispatch the preview request with the artifact data
+            // 3. ChatProvider will emit session-loaded when ready, then we open preview
+            // 4. Fallback timeout ensures we don't wait forever
             if (typeof window !== "undefined") {
-                setTimeout(() => {
+                const timeoutMs = 3000; // Max wait time
+                let resolved = false;
+
+                const openPreviewNow = () => {
+                    if (resolved) return;
+                    resolved = true;
                     window.dispatchEvent(
                         new CustomEvent("open-artifact-preview", {
                             detail: { artifact },
                         })
                     );
-                }, 100);
+                };
+
+                // Listen for session-loaded event (emitted by ChatProvider after loadSessionTasks)
+                const handleSessionLoaded = (event: Event) => {
+                    const customEvent = event as CustomEvent;
+                    if (customEvent.detail?.sessionId === artifact.sessionId) {
+                        window.removeEventListener("session-loaded", handleSessionLoaded);
+                        openPreviewNow();
+                    }
+                };
+
+                window.addEventListener("session-loaded", handleSessionLoaded);
+
+                // Fallback: if session-loaded doesn't fire within timeout, try anyway
+                setTimeout(() => {
+                    window.removeEventListener("session-loaded", handleSessionLoaded);
+                    openPreviewNow();
+                }, timeoutMs);
             }
         },
         [navigate, handleSwitchSession]
@@ -262,12 +495,13 @@ export const ArtifactsPage: React.FC = () => {
                     </div>
                     {!isLoading && artifacts.length > 0 && (
                         <span className="text-muted-foreground text-sm">
-                            {artifacts.length} artifact{artifacts.length !== 1 ? "s" : ""}
+                            {filteredArtifacts.length} artifact{filteredArtifacts.length !== 1 ? "s" : ""}
+                            {searchQuery && filteredArtifacts.length !== artifacts.length && ` (of ${artifacts.length})`}
                         </span>
                     )}
                 </div>
 
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto pr-4">
                     {isLoading && (
                         <div className="flex h-full items-center justify-center">
                             <Spinner size="large" variant="muted" />
@@ -275,13 +509,18 @@ export const ArtifactsPage: React.FC = () => {
                     )}
 
                     {!isLoading && filteredArtifacts.length > 0 && (
-                        <ul className="space-y-2">
+                        <div className="flex flex-wrap gap-4">
                             {filteredArtifacts.map(artifact => (
-                                <li key={`${artifact.sessionId}-${artifact.filename}-${artifact.version || 0}`} className="pr-4">
-                                    <ArtifactCard artifact={artifact} onDownload={handleDownload} onDelete={handleDelete} onPreview={handlePreview} onGoToChat={handleGoToChat} />
-                                </li>
+                                <ArtifactGridCard
+                                    key={`${artifact.sessionId}-${artifact.filename}-${artifact.version || 0}`}
+                                    artifact={artifact}
+                                    onDownload={handleDownload}
+                                    onDelete={handleDelete}
+                                    onPreview={handlePreview}
+                                    onGoToChat={handleGoToChat}
+                                />
                             ))}
-                        </ul>
+                        </div>
                     )}
 
                     {!isLoading && filteredArtifacts.length === 0 && artifacts.length > 0 && (

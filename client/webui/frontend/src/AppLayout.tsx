@@ -6,14 +6,32 @@ import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/se
 import { ChatProvider } from "@/lib/providers";
 import { useAuthContext, useBeforeUnload } from "@/lib/hooks";
 
+const NAV_COLLAPSED_STORAGE_KEY = "sam-nav-collapsed";
+
 function AppLayoutContent() {
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
     const { isMenuOpen, menuPosition, selectedText, clearSelection } = useTextSelection();
-    const [isNavCollapsed, setIsNavCollapsed] = useState(true);
+
+    // Initialize from localStorage, default to expanded (false)
+    const [isNavCollapsed, setIsNavCollapsed] = useState(() => {
+        if (typeof window !== "undefined") {
+            const stored = localStorage.getItem(NAV_COLLAPSED_STORAGE_KEY);
+            // If stored value exists, use it; otherwise default to expanded (false)
+            return stored !== null ? stored === "true" : false;
+        }
+        return false; // Default to expanded
+    });
 
     const handleNavToggle = useCallback(() => {
-        setIsNavCollapsed(!isNavCollapsed);
-    }, [isNavCollapsed]);
+        setIsNavCollapsed(prev => {
+            const newValue = !prev;
+            // Persist to localStorage
+            if (typeof window !== "undefined") {
+                localStorage.setItem(NAV_COLLAPSED_STORAGE_KEY, String(newValue));
+            }
+            return newValue;
+        });
+    }, []);
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {

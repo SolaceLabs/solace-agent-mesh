@@ -106,13 +106,15 @@ interface NavigationSidebarProps {
     onToggle?: () => void;
     isCollapsed?: boolean;
     onNavigate?: (page: string) => void;
-    /** Additional items to add to the System Management submenu (for enterprise extensions) */
+    /**
+     * Items for the System Management submenu (enterprise-only feature).
+     */
     additionalSystemManagementItems?: Array<{ id: string; label: string; icon?: React.ElementType }>;
     /** Additional top-level navigation items (for enterprise extensions like Gateways) */
     additionalNavItems?: Array<{ id: string; label: string; icon: React.ElementType; position?: "before-agents" | "after-agents" | "after-system-management" }>;
 }
 
-export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, isCollapsed = false, onNavigate, additionalSystemManagementItems = [], additionalNavItems = [] }) => {
+export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, isCollapsed = false, onNavigate, additionalSystemManagementItems, additionalNavItems = [] }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [activeItem, setActiveItem] = useState<string>("chats");
@@ -297,25 +299,28 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, 
                 });
             });
 
-        // System Management with submenu
-        const systemManagementChildren: NavItem[] = [{ id: "agentManagement", label: "Agent Management", icon: Settings }];
+        // System Management with submenu (enterprise-only)
+        // Only shown when additionalSystemManagementItems is provided
+        if (additionalSystemManagementItems && additionalSystemManagementItems.length > 0) {
+            const systemManagementChildren: NavItem[] = [{ id: "agentManagement", label: "Agent Management", icon: Settings }];
 
-        // Add any additional items passed from enterprise (e.g., Activities)
-        additionalSystemManagementItems.forEach(item => {
-            systemManagementChildren.push({
-                id: item.id,
-                label: item.label,
-                icon: item.icon || Settings,
+            // Add any additional items passed from enterprise (e.g., Activities)
+            additionalSystemManagementItems.forEach(item => {
+                systemManagementChildren.push({
+                    id: item.id,
+                    label: item.label,
+                    icon: item.icon || Settings,
+                });
             });
-        });
 
-        items.push({
-            id: "systemManagement",
-            label: "System Management",
-            icon: LayoutGrid,
-            hasSubmenu: true,
-            children: systemManagementChildren,
-        });
+            items.push({
+                id: "systemManagement",
+                label: "System Management",
+                icon: LayoutGrid,
+                hasSubmenu: true,
+                children: systemManagementChildren,
+            });
+        }
 
         // Add additional nav items positioned "after-system-management" or with no position specified
         additionalNavItems
@@ -387,26 +392,30 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ onToggle, 
                                 <Bot className={cn("size-6", activeItem === "agents" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
                             </div>
                         </Button>
-                        <Button
-                            variant="ghost"
-                            onClick={() => {
-                                // Expand sidebar, open System Management submenu, and select parent
-                                setActiveItem("systemManagement");
-                                setExpandedMenus(prev => ({ ...prev, systemManagement: true }));
-                                handleToggle();
-                            }}
-                            className="h-10 w-10 p-0 hover:bg-[var(--color-background-w100)]"
-                            tooltip="System Management"
-                        >
-                            <div
-                                className={cn(
-                                    "flex size-8 items-center justify-center rounded",
-                                    (activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities") && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]"
-                                )}
+                        {additionalSystemManagementItems && additionalSystemManagementItems.length > 0 && (
+                            <Button
+                                variant="ghost"
+                                onClick={() => {
+                                    // Expand sidebar, open System Management submenu, and select parent
+                                    setActiveItem("systemManagement");
+                                    setExpandedMenus(prev => ({ ...prev, systemManagement: true }));
+                                    handleToggle();
+                                }}
+                                className="h-10 w-10 p-0 hover:bg-[var(--color-background-w100)]"
+                                tooltip="System Management"
                             >
-                                <LayoutGrid className={cn("size-6", activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")} />
-                            </div>
-                        </Button>
+                                <div
+                                    className={cn(
+                                        "flex size-8 items-center justify-center rounded",
+                                        (activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities") && "border border-[var(--color-brand-w60)] bg-[var(--color-background-w200)]"
+                                    )}
+                                >
+                                    <LayoutGrid
+                                        className={cn("size-6", activeItem === "systemManagement" || activeItem === "agentManagement" || activeItem === "activities" ? "text-[var(--color-brand-w60)]" : "text-[var(--color-secondary-wMain)]")}
+                                    />
+                                </div>
+                            </Button>
+                        )}
                     </div>
 
                     {/* Bottom items */}
