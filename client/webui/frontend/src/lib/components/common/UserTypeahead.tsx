@@ -19,9 +19,10 @@ interface UserTypeaheadProps {
     onRemove: (id: string) => void;
     excludeEmails: string[];
     selectedEmail?: string | null;
+    error?: boolean;
 }
 
-export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, selectedEmail }) => {
+export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, selectedEmail, error }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [isKeyboardMode, setIsKeyboardMode] = useState(false);
@@ -117,7 +118,16 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
             <Popover open={isOpen && showResults} onOpenChange={setIsOpen}>
                 <PopoverAnchor asChild>
                     <div className="relative">
-                        <Input ref={inputRef} type="text" placeholder="Search by email..." value={selectedEmail || searchQuery} onChange={handleInputChange} onKeyDown={handleKeyDown} onFocus={() => setIsOpen(true)} className="h-9 pr-9" />
+                        <Input
+                            ref={inputRef}
+                            type="text"
+                            placeholder="Search by email..."
+                            value={selectedEmail || searchQuery}
+                            onChange={handleInputChange}
+                            onKeyDown={handleKeyDown}
+                            onFocus={() => setIsOpen(true)}
+                            className={`h-9 pr-9 ${error ? "border-[var(--destructive)]" : ""}`}
+                        />
                         {isLoading && <Loader2 className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-[var(--muted-foreground)]" />}
                     </div>
                 </PopoverAnchor>

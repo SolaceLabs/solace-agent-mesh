@@ -24,6 +24,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
     const [pendingTypeaheads, setPendingTypeaheads] = useState<PendingTypeahead[]>([]);
     const [pendingRemoves, setPendingRemoves] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [showValidationErrors, setShowValidationErrors] = useState(false);
 
     // Fetch current shares
     const { data: sharesData, isLoading: isLoadingShares } = useProjectShares(project.id);
@@ -40,6 +41,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
             setPendingTypeaheads([]);
             setPendingRemoves([]);
             setError(null);
+            setShowValidationErrors(false);
         }
     }, [isOpen]);
 
@@ -99,6 +101,9 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                 // Update the typeahead with the selected email
                 setPendingTypeaheads(prev => prev.map(t => (t.id === typeaheadId ? { ...t, email } : t)));
             }
+
+            // Clear validation errors when user makes a selection
+            setShowValidationErrors(false);
         },
         [sharesData?.ownerEmail, pendingRemoves]
     );
@@ -117,6 +122,13 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
 
     const handleSave = async () => {
         setError(null);
+
+        // Validate all typeaheads have selections
+        const hasIncompleteTypeaheads = pendingTypeaheads.some(t => !t.email);
+        if (hasIncompleteTypeaheads) {
+            setShowValidationErrors(true);
+            return;
+        }
 
         try {
             // Process additions
@@ -193,8 +205,11 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
 
                             {/* Pending Typeaheads */}
                             {pendingTypeaheads.map(typeahead => (
-                                <div key={typeahead.id} className="grid grid-cols-[1fr_85px_32px] items-center gap-x-1 py-3 pr-3">
-                                    <UserTypeahead id={typeahead.id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} selectedEmail={typeahead.email} />
+                                <div key={typeahead.id} className="py-3 pr-3">
+                                    <div className="grid grid-cols-[1fr_85px_32px] items-center gap-x-1">
+                                        <UserTypeahead id={typeahead.id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} selectedEmail={typeahead.email} error={showValidationErrors && !typeahead.email} />
+                                    </div>
+                                    {showValidationErrors && !typeahead.email && <p className="mt-1 text-xs text-[var(--destructive)]">Required. Enter an email.</p>}
                                 </div>
                             ))}
 
