@@ -112,6 +112,19 @@ async def handle_task_request(
                 "This may indicate infinite recursion in workflow/agent calls."
             )
 
+        # Check if this is a structured invocation request
+        # (from gateway or another workflow/agent)
+        is_structured_invocation = False
+        data_parts = a2a.get_data_parts_from_message(a2a_message)
+        for data_part in data_parts:
+            if (isinstance(data_part.data, dict) and
+                    data_part.data.get("type") == "structured_invocation_request"):
+                is_structured_invocation = True
+                log.debug(
+                    f"{component.log_identifier} Detected StructuredInvocationRequest in incoming message"
+                )
+                break
+
         # Create A2A context
         # The gateway/client is the source of truth for the task ID.
         # The workflow adopts the ID from the JSON-RPC request envelope.
@@ -129,6 +142,7 @@ async def handle_task_request(
             "jsonrpc_request_id": request_id,
             "replyToTopic": reply_to,
             "call_depth": call_depth,
+            "is_structured_invocation": is_structured_invocation,
         }
         # Note: original_solace_message is NOT stored in a2a_context to avoid
         # serialization issues when a2a_context is stored in ADK session state.
