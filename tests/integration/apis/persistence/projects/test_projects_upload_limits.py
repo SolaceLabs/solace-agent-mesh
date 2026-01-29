@@ -133,10 +133,15 @@ class TestTotalUploadSizeLimits:
     ):
         """
         Test that adding a new file to a project with existing files,
-        where the combined size exceeds the total limit (3MB), is rejected.
+        where the combined size exceeds the total limit (3MB), is rejected with 400.
 
-        NOTE: This test requires artifact service to list existing files.
-        With mock artifact service, validation may not work as expected.
+        Test scenario:
+        1. Upload file 1: 1.2MB (total: 1.2MB) → should succeed
+        2. Upload file 2: 1.3MB (total: 2.5MB) → should succeed
+        3. Upload file 3: 0.8MB (total: 3.3MB) → should fail with 400
+
+        This validates that the API correctly tracks cumulative upload size
+        across multiple files and enforces the total project size limit.
         """
         # Setup: Create a project with existing files (2.5MB total)
         project_id = "test-project-existing-files"
@@ -177,7 +182,7 @@ class TestTotalUploadSizeLimits:
         )
         assert response2.status_code == 201, "Second file upload should succeed"
 
-        # Now attempt to add a new file that would push total over 3MB limit
+        # Attempt to add a new file that pushes total over 3MB limit
         # New file: 800KB (2.5MB + 0.8MB = 3.3MB, exceeds 3MB limit)
         new_file_size = 800 * 1024  # 800KB
 
@@ -192,10 +197,11 @@ class TestTotalUploadSizeLimits:
             },
         )
 
-        # With mock artifact service that can't list files, this may succeed
-        # In production with real artifact service, this would be rejected with 400
-        # Accept either outcome for now
-        assert response3.status_code in [201, 400, 413]
+        # Should be rejected with 400 Bad Request
+        assert response3.status_code == 400, (
+            f"Expected 400 Bad Request when total size exceeds limit, "
+            f"got {response3.status_code}"
+        )
 
 
 class TestValidUploadScenarios:
@@ -648,10 +654,12 @@ class TestFileDeletionAndReupload:
         delete_response = api_client.delete(
             f"/api/v1/projects/{project_id}/artifacts/file_to_delete.txt"
         )
-        # May be 204 (success), 404 (not found), or 500 (mock artifact service error)
-        assert delete_response.status_code in [204, 404, 500]
+        assert delete_response.status_code == 204, (
+            f"File deletion should succeed with 204 No Content, got {delete_response.status_code}"
+        )
 
         # Now try to upload a 1.4MB file (should succeed: 1MB + 1.4MB = 2.4MB < 3MB)
+        # This validates that deletion properly frees up space
         file_size_4 = int(1.4 * 1024 * 1024)  # 1.4MB
         response4 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
@@ -664,9 +672,11 @@ class TestFileDeletionAndReupload:
             },
         )
 
-        # With a working artifact service, this should succeed
-        # With mock that can't track deletions, may still succeed
-        assert response4.status_code in [201, 400]
+        assert response4.status_code == 201, (
+            f"Upload should succeed after deleting file. "
+            f"Space freed: 1.5MB, remaining: 1MB, new file: 1.4MB = 2.4MB < 3MB limit. "
+            f"Got status {response4.status_code}"
+        )
 
     def test_replace_file_with_larger_version_respects_limit(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
@@ -674,8 +684,17 @@ class TestFileDeletionAndReupload:
         """
         Test that replacing a file with a larger version is validated against total limit.
 
-        If you have a 1MB file and 2MB of other files (3MB total at limit),
-        you should NOT be able to replace the 1MB file with a 2MB file.
+        Test scenario:
+        1. Upload replaceable_file.txt: 1MB
+        2. Upload other_file.txt: 2MB (total: 3MB at limit)
+        3. Replace replaceable_file.txt with 1.5MB version
+           → Total would be: 2MB (other) + 1.5MB (replacement) = 3.5MB
+           → Should fail with 400
+
+        This validates that replacement operations are properly validated
+        against the total size limit, treating the replacement as adding
+        the new file size to the existing total (artifact service versioning
+        means both versions exist until cleanup).
         """
         # Setup: Create a project
         project_id = "test-project-replace-file"
@@ -715,7 +734,8 @@ class TestFileDeletionAndReupload:
         assert response2.status_code == 201
 
         # Try to replace the 1MB file with a 1.5MB version
-        # This would make total = 2MB + 1.5MB = 3.5MB (exceeds limit)
+        # This would make total = 2MB (other) + 1MB (v1) + 1.5MB (v2) = 4.5MB (exceeds limit)
+        # Note: Artifact versioning means both versions exist, so total includes both
         file_size_replacement = int(1.5 * 1024 * 1024)  # 1.5MB
         response3 = api_client.post(
             f"/api/v1/projects/{project_id}/artifacts",
@@ -728,11 +748,12 @@ class TestFileDeletionAndReupload:
             },
         )
 
-        # Implementation may:
-        # 1. Accept it (if it doesn't properly handle replacements)
-        # 2. Reject it (if it properly validates total size)
-        # With mock artifact service, hard to predict behavior
-        assert response3.status_code in [201, 400, 413]
+        # Should be rejected with 400 Bad Request
+        assert response3.status_code == 400, (
+            f"Expected 400 Bad Request when file replacement would exceed total limit. "
+            f"Current: 3MB (1MB + 2MB), Adding: 1.5MB, Total: 4.5MB > 3MB limit. "
+            f"Got status {response3.status_code}"
+        )
 
 
 class TestEdgeCases:
@@ -794,6 +815,8 @@ class TestEdgeCases:
     def test_empty_file_upload(self, api_client: TestClient):
         """
         Test uploading an empty file (0 bytes).
+
+        Empty files are currently allowed by the system.
         """
         response = api_client.post(
             "/api/v1/projects",
@@ -804,6 +827,7 @@ class TestEdgeCases:
             files={"files": ("empty.txt", io.BytesIO(b""), "text/plain")},
         )
 
-        # Implementation may reject empty files or accept them
-        # Just verify we get a proper response (not 500)
-        assert response.status_code in [201, 400, 413]
+        # Empty files are allowed
+        assert response.status_code == 201, (
+            f"Expected 201 Created for empty file upload, got {response.status_code}"
+        )
