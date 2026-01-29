@@ -149,17 +149,17 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
     return (
         <Dialog open={isOpen} onOpenChange={open => !open && handleDiscard()}>
             <DialogContent className="flex max-h-[80vh] flex-col sm:max-w-xl">
-                <DialogHeader className="flex-shrink-0">
+                <DialogHeader className="mb-6 flex-shrink-0">
+                    <DialogTitle>Share Project</DialogTitle>
                     <div className="flex items-center justify-between">
-                        <DialogTitle>Share Project</DialogTitle>
-                        <Button variant="outline" size="sm" onClick={handleAddTypeahead} disabled={isSaving} className="gap-1">
+                        <DialogDescription>
+                            Invite others to collaborate on <strong>{project.name}</strong>.
+                        </DialogDescription>
+                        <Button variant="outline" size="default" onClick={handleAddTypeahead} disabled={isSaving} className="gap-1">
                             <Plus className="h-4 w-4" />
                             Add
                         </Button>
                     </div>
-                    <DialogDescription>
-                        Invite others to collaborate on <strong>{project.name}</strong>.
-                    </DialogDescription>
                 </DialogHeader>
 
                 {error && (
@@ -207,7 +207,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                             {displayedViewers.map((viewer, index) => (
                                 <div key={viewer.email} className={`grid grid-cols-[1fr_85px_32px] items-center border px-3 py-3 ${index === displayedViewers.length - 1 ? "rounded-b-sm" : "border-b-0"}`}>
                                     <span className="truncate text-sm">{viewer.email}</span>
-                                    <Badge variant="outline" className="justify-self-center">
+                                    <Badge title="Can view the items in the prompt" variant="outline" className="justify-self-center">
                                         Viewer
                                     </Badge>
                                     <Button variant="ghost" size="sm" onClick={() => handleRemoveUser(viewer.email)} disabled={isSaving} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
