@@ -161,7 +161,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                         <DialogDescription>
                             Invite others to collaborate on <strong>{project.name}</strong>.
                         </DialogDescription>
-                        <Button variant="outline" size="default" onClick={handleAddTypeahead} disabled={isSaving} className="gap-1">
+                        <Button variant="outline" size="default" onClick={handleAddTypeahead} disabled={isSaving || pendingTypeaheads.some(t => !t.email)} className="gap-1">
                             <Plus className="h-4 w-4" />
                             Add
                         </Button>
