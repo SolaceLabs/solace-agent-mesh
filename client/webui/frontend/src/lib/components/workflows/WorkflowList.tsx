@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Search, Workflow } from "lucide-react";
 
 import type { AgentCardInfo } from "@/lib/types";
-import { getWorkflowConfig } from "@/lib/utils/agentUtils";
 import { EmptyState } from "@/lib/components/common";
 import { Button } from "@/lib/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/lib/components/ui/table";
@@ -94,11 +93,6 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
         navigate(`/agents/workflows/${encodeURIComponent(workflow.name)}`);
     };
 
-    const getWorkflowDescription = (workflow: AgentCardInfo): string => {
-        const config = getWorkflowConfig(workflow);
-        return config?.description || workflow.description || "No description";
-    };
-
     const getPageNumbers = () => {
         const pages: (number | string)[] = [];
         const maxVisiblePages = 5;
@@ -172,9 +166,9 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
     };
 
     return (
-        <div className={`flex h-full w-full overflow-hidden ${className ?? ""}`}>
+        <div className={`flex h-full w-full ${className ?? ""}`}>
             {/* Main content container */}
-            <div className="flex flex-1 flex-col">
+            <div className="flex flex-1 flex-col pb-6">
                 <WorkflowOnboardingBanner />
                 {/* Search Bar */}
                 <div className="mb-4 flex items-center justify-between p-6">
@@ -204,9 +198,8 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                                             <TableHead className="font-semibold">
                                                 <div className="pl-4">Name</div>
                                             </TableHead>
-                                            <TableHead className="w-[100px] font-semibold">Version</TableHead>
-                                            <TableHead className="w-[100px] font-semibold">Status</TableHead>
-                                            <TableHead className="font-semibold">Description</TableHead>
+                                            <TableHead className="w-1/4 font-semibold">Version</TableHead>
+                                            <TableHead className="w-1/4 font-semibold">Status</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -232,7 +225,6 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
                                                         <span>Running</span>
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="max-w-md truncate">{getWorkflowDescription(workflow)}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
