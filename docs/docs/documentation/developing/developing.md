@@ -7,6 +7,10 @@ sidebar_position: 400
 
 Agent Mesh provides a framework for creating distributed AI applications using an event-driven architecture. You can build agents that communicate through the A2A (Agent-to-Agent) protocol, extend them with custom tools, integrate external systems through gateways, and create reusable components as plugins.
 
+:::tip
+Vibe coding is recommended for faster development of agents, plugins, tools, and gateways. For more details, see the [Vibe Coding guide](../vibe_coding.md).
+:::
+
 ## Understanding the Project Structure
 
 The framework uses YAML configuration files to define agents, gateways, and plugins, although you can extend functionality with custom Python components when needed. For a complete overview of project organization and component relationships, see [Project Structure](structure.md).

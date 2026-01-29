@@ -1,10 +1,10 @@
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
-import { mockMessages } from "./mocks/data";
+import { mockMessages } from "../mocks/data";
 import { ChatPage } from "@/lib/components/pages/ChatPage";
 import { within } from "storybook/test";
 
 const meta = {
-    title: "Views/ArtifactPanel",
+    title: "Pages/Chat/ArtifactPanel",
     component: ChatPage,
     parameters: {
         layout: "fullscreen",

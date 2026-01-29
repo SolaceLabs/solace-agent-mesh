@@ -20,7 +20,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ items, bot
     const filteredBottomItems = bottomItems?.filter(item => item.id !== "theme-toggle");
 
     return (
-        <aside className="flex h-screen w-[100px] flex-col border-r border-[var(--color-secondary-w70)] bg-[var(--color-primary-w100)]">
+        <aside className="flex h-screen w-[100px] flex-col overflow-y-auto border-r border-[var(--color-secondary-w70)] bg-[var(--color-primary-w100)]">
             <NavigationHeader onClick={onHeaderClick} />
             <NavigationList items={items} bottomItems={filteredBottomItems} activeItem={activeItem} onItemClick={handleItemClick} />
         </aside>

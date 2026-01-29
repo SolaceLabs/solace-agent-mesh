@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10.16"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -401,16 +401,15 @@ wheels = [
 
 [[package]]
 name = "azure-core"
-version = "1.35.0"
+version = "1.38.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "requests" },
-    { name = "six" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ce/89/f53968635b1b2e53e4aad2dd641488929fef4ca9dfb0b97927fa7697ddf3/azure_core-1.35.0.tar.gz", hash = "sha256:c0be528489485e9ede59b6971eb63c1eaacf83ef53001bfe3904e475e972be5c", size = 339689, upload-time = "2025-07-03T00:55:23.496Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/dc/1b/e503e08e755ea94e7d3419c9242315f888fc664211c90d032e40479022bf/azure_core-1.38.0.tar.gz", hash = "sha256:8194d2682245a3e4e3151a667c686464c3786fed7918b394d035bdcd61bb5993", size = 363033, upload-time = "2026-01-12T17:03:05.535Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d4/78/bf94897361fdd650850f0f2e405b2293e2f12808239046232bdedf554301/azure_core-1.35.0-py3-none-any.whl", hash = "sha256:8db78c72868a58f3de8991eb4d22c4d368fae226dac1002998d6c50437e7dad1", size = 210708, upload-time = "2025-07-03T00:55:25.238Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/d8/b8fcba9464f02b121f39de2db2bf57f0b216fe11d014513d666e8634380d/azure_core-1.38.0-py3-none-any.whl", hash = "sha256:ab0c9b2cd71fecb1842d52c965c95285d3cfb38902f6766e4a471f1cd8905335", size = 217825, upload-time = "2026-01-12T17:03:07.291Z" },
 ]
 
 [[package]]
@@ -3746,11 +3745,11 @@ wheels = [
 
 [[package]]
 name = "pyasn1"
-version = "0.6.1"
+version = "0.6.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ba/e9/01f1a64245b89f039897cb0130016d79f77d52669aae6ee7b159a6c4c018/pyasn1-0.6.1.tar.gz", hash = "sha256:6f580d2bdd84365380830acf45550f2511469f673cb4a5ae3857a3170128b034", size = 145322, upload-time = "2024-09-10T22:41:42.55Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fe/b6/6e630dff89739fcd427e3f72b3d905ce0acb85a45d4ec3e2678718a3487f/pyasn1-0.6.2.tar.gz", hash = "sha256:9b59a2b25ba7e4f8197db7686c09fb33e658b98339fadb826e9512629017833b", size = 146586, upload-time = "2026-01-16T18:04:18.534Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/f1/d6a797abb14f6283c0ddff96bbdd46937f64122b8c925cab503dd37f8214/pyasn1-0.6.1-py3-none-any.whl", hash = "sha256:0d632f46f2ba09143da3a8afe9e33fb6f92fa2320ab7e886e2d0f7672af84629", size = 83135, upload-time = "2024-09-11T16:00:36.122Z" },
+    { url = "https://files.pythonhosted.org/packages/44/b5/a96872e5184f354da9c84ae119971a0a4c221fe9b27a4d94bd43f2596727/pyasn1-0.6.2-py3-none-any.whl", hash = "sha256:1eb26d860996a18e9b6ed05e7aae0e9fc21619fcee6af91cca9bad4fbea224bf", size = 83371, upload-time = "2026-01-16T18:04:17.174Z" },
 ]
 
 [[package]]
@@ -4778,7 +4777,7 @@ requires-dist = [
     { name = "rich", specifier = "==13.9.4" },
     { name = "rouge", specifier = "==1.0.1" },
     { name = "ruff", marker = "extra == 'test'" },
-    { name = "solace-ai-connector", specifier = "==3.2.1" },
+    { name = "solace-ai-connector", specifier = "==3.3.0" },
     { name = "sqlalchemy", specifier = "==2.0.40" },
     { name = "sse-starlette", specifier = "==3.0.2" },
     { name = "starlette", specifier = "==0.49.1" },
@@ -4790,7 +4789,7 @@ provides-extras = ["employee-tools", "gcs", "test", "vertex"]
 
 [[package]]
 name = "solace-ai-connector"
-version = "3.2.1"
+version = "3.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gevent" },
@@ -4803,9 +4802,9 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/23/cc/5489be98eae7429c7a9d1953a0102956033b9471e58d800dd898fea6ec4d/solace_ai_connector-3.2.1.tar.gz", hash = "sha256:c2f7a54b36ede3f9ffc35c06b0f9fff2773de3949ef74a80394b216f34c0e313", size = 376320, upload-time = "2026-01-12T21:43:47.058Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fe/29/f8f810f95c8f1f584bb723c4b88e8c791402aa174e0995cb6f9fd4228083/solace_ai_connector-3.3.0.tar.gz", hash = "sha256:8aa5a63a08fe08b9d32a0918b1ff9a87aaa8107c79b13d0afe0691f98f3511cd", size = 386560, upload-time = "2026-01-22T20:44:59.506Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3e/f2/413641edc94a7cf61aaea7b49fb8f29002efa6389e911b756c3b19d8f6e6/solace_ai_connector-3.2.1-py3-none-any.whl", hash = "sha256:b7d9829712fa5e481cac341dbebe9fcf11df1d3ba8502f88675f003b903ac76a", size = 186328, upload-time = "2026-01-12T21:43:45.068Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/35/ad67558fcfb57627eef44044fea3b93ba418e63a72682a24422b16fe1331/solace_ai_connector-3.3.0-py3-none-any.whl", hash = "sha256:a6f266cd8913a145b25fc1387f3a687b7d92f892fb86fce428b08a5fba5ca00c", size = 189367, upload-time = "2026-01-22T20:44:56.307Z" },
 ]
 
 [[package]]
