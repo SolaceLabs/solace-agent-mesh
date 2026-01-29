@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2 } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2, Search } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
@@ -60,7 +60,8 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId 
     return <span className={`truncate font-semibold transition-opacity duration-300 ${animationClass}`}>{animatedName}</span>;
 };
 import { formatTimestamp, getErrorMessage } from "@/lib/utils";
-import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
+import { MoveSessionDialog, ProjectBadge } from "@/lib/components/chat";
+import { Input } from "@/lib/components/ui";
 import {
     Button,
     DropdownMenu,
@@ -133,6 +134,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [hasMore, setHasMore] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedProject, setSelectedProject] = useState<string>("all");
+    const [searchQuery, setSearchQuery] = useState<string>("");
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
     const [regeneratingTitleForSession, setRegeneratingTitleForSession] = useState<string | null>(null);
@@ -246,9 +248,11 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         }
     }, [editingSessionId]);
 
-    const handleSessionClick = async (sessionId: string) => {
-        if (editingSessionId !== sessionId) {
-            await handleSwitchSession(sessionId);
+    const handleSessionClick = async (clickedSessionId: string) => {
+        if (editingSessionId !== clickedSessionId) {
+            // Navigate to chat page first, then switch session
+            navigate("/chat");
+            await handleSwitchSession(clickedSessionId);
         }
     };
 
@@ -411,38 +415,47 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         return sortedNames;
     }, [sessions]);
 
-    // Filter sessions by selected project
+    // Filter sessions by selected project and search query
     const filteredSessions = useMemo(() => {
-        if (selectedProject === "all") {
-            return sessions;
-        }
-        if (selectedProject === "(No Project)") {
-            return sessions.filter(session => !session.projectName);
-        }
-        return sessions.filter(session => session.projectName === selectedProject);
-    }, [sessions, selectedProject]);
+        let filtered = sessions;
 
-    // Get the project ID for the selected project name (for search filtering)
-    const selectedProjectId = useMemo(() => {
-        if (selectedProject === "all") return null;
-        const project = projects.find(p => p.name === selectedProject);
-        return project?.id || null;
-    }, [selectedProject, projects]);
+        // Filter by project
+        if (selectedProject !== "all") {
+            if (selectedProject === "(No Project)") {
+                filtered = filtered.filter(session => !session.projectName);
+            } else {
+                filtered = filtered.filter(session => session.projectName === selectedProject);
+            }
+        }
+
+        // Filter by search query
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            filtered = filtered.filter(session => {
+                const name = session.name?.toLowerCase() || "new chat";
+                return name.includes(query);
+            });
+        }
+
+        return filtered;
+    }, [sessions, selectedProject, searchQuery]);
 
     return (
         <div className="flex h-full flex-col gap-4 py-6 pl-6">
-            <div className="flex flex-col gap-4">
-                {/* Session Search */}
-                <div className="pr-4">
-                    <SessionSearch onSessionSelect={handleSwitchSession} projectId={selectedProjectId} />
+            {/* Search and Project Filter on same line */}
+            <div className="flex items-center gap-4 pr-4">
+                {/* Search Input */}
+                <div className="relative w-64">
+                    <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+                    <Input type="text" placeholder="Search chats..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
                 </div>
 
                 {/* Project Filter - Only show when persistence is enabled */}
                 {persistenceEnabled && projectNames.length > 0 && (
-                    <div className="flex items-center gap-2 pr-4">
-                        <label className="text-sm font-medium">Project:</label>
+                    <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium whitespace-nowrap">Project:</label>
                         <Select value={selectedProject} onValueChange={setSelectedProject}>
-                            <SelectTrigger className="flex-1 rounded-md">
+                            <SelectTrigger className="w-40 rounded-md">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -460,10 +473,10 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
             <div className="flex-1 overflow-y-auto">
                 {filteredSessions.length > 0 && (
-                    <ul>
+                    <ul className="space-y-2">
                         {filteredSessions.map(session => (
-                            <li key={session.id} className="group my-2 pr-4">
-                                <div className={`flex items-center gap-2 rounded-sm px-2 py-2 ${session.id === sessionId ? "bg-muted dark:bg-muted/50" : ""}`}>
+                            <li key={session.id} className="group pr-4">
+                                <div className={`hover:bg-accent/50 flex items-center gap-2 rounded-md border p-3 shadow-sm transition-colors ${session.id === sessionId ? "bg-muted border-primary/30 dark:bg-muted/50" : ""}`}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}
