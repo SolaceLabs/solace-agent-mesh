@@ -308,12 +308,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Data retention is disabled via configuration.", self.log_identifier
             )
 
-        if self.database_url:
-            log.info("%s Running database migrations...", self.log_identifier)
-            self._run_database_migrations()
-            log.info("%s Database migrations completed", self.log_identifier)
-
-        # Initialize enterprise features if available
+        # Initialize enterprise features if available (must happen before migrations
+        # so that enterprise migration hooks can be registered)
         try:
             from solace_agent_mesh_enterprise.init_enterprise import (
                 initialize_enterprise_features,
@@ -331,6 +327,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 e,
                 exc_info=True
             )
+
+        # Run database migrations after enterprise init (so hooks are registered)
+        if self.database_url:
+            log.info("%s Running database migrations...", self.log_identifier)
+            self._run_database_migrations()
+            log.info("%s Database migrations completed", self.log_identifier)
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
