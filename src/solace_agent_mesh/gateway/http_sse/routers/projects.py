@@ -86,6 +86,25 @@ def check_projects_enabled(
                 detail="Projects feature is disabled via feature flag."
             )
 
+def check_project_indexing_enabled(
+    component: "WebUIBackendComponent" = Depends(get_sac_component)
+) -> bool:
+    """
+    Dependency to check if project indexing feature is enabled.
+    Raises HTTPException if project indexing is disabled.
+    """
+
+    # Check explicit project_indexing config
+    project_indexing_config = component.get_config("project_indexing", {})
+    if isinstance(project_indexing_config, dict):
+        indexing_explicitly_enabled = project_indexing_config.get("enabled", False)
+        if not indexing_explicitly_enabled:
+            log.info("Project indexing is explicitly disabled in config")
+            return False
+        else:
+            log.info("Project indexing is explicitly enabled in config")
+            return True
+    return False
 
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
@@ -358,7 +377,9 @@ async def add_project_artifacts(
     project_service: ProjectService = Depends(get_project_service),
     db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
+    indexing_enabled: bool = Depends(check_project_indexing_enabled)
 ):
+    log.info(f"Project indexing enabled: {indexing_enabled}")
     """
     Add one or more artifacts to a project.
     """
