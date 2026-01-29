@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Search, User, X, Loader2 } from "lucide-react";
+import { User, X, Loader2 } from "lucide-react";
 import { Input } from "@/lib/components/ui/input";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
@@ -19,10 +19,9 @@ interface UserTypeaheadProps {
     onRemove: (id: string) => void;
     excludeEmails: string[];
     selectedEmail?: string | null;
-    disabled?: boolean;
 }
 
-export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, selectedEmail, disabled = false }) => {
+export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, selectedEmail }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [isKeyboardMode, setIsKeyboardMode] = useState(false);
@@ -96,41 +95,29 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
         }
     }, [activeIndex, id]);
 
-    const showResults = searchQuery.length > 0;
+    const showResults = searchQuery.length > 0 && !selectedEmail;
 
-    // If a user is already selected, show in grid row format with badge
-    if (selectedEmail) {
-        return (
-            <>
-                <span className="truncate text-sm">{selectedEmail}</span>
-                <Badge variant="outline" className="justify-self-center">
-                    Viewer
-                </Badge>
-                <Button variant="ghost" size="sm" onClick={handleClose} disabled={disabled} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
-                    <X className="h-4 w-4" />
-                </Button>
-            </>
-        );
-    }
+    // Handle input change - clear selection if user starts typing
+    const handleInputChange = useCallback(
+        (e: React.ChangeEvent<HTMLInputElement>) => {
+            const newValue = e.target.value;
+            if (selectedEmail) {
+                // Clear selection and start fresh search
+                onSelect("", id);
+                setSearchQuery(newValue);
+            } else {
+                setSearchQuery(newValue);
+            }
+        },
+        [selectedEmail, onSelect, id]
+    );
 
-    // Search mode - show search input, Viewer badge, and X button
     return (
         <>
             <Popover open={isOpen && showResults} onOpenChange={setIsOpen}>
                 <PopoverAnchor asChild>
                     <div className="relative">
-                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                        <Input
-                            ref={inputRef}
-                            type="text"
-                            placeholder="Search by email..."
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            onFocus={() => setIsOpen(true)}
-                            disabled={disabled}
-                            className="h-9 pr-9 pl-9"
-                        />
+                        <Input ref={inputRef} type="text" placeholder="Search by email..." value={selectedEmail || searchQuery} onChange={handleInputChange} onKeyDown={handleKeyDown} onFocus={() => setIsOpen(true)} className="h-9 pr-9" />
                         {isLoading && <Loader2 className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-[var(--muted-foreground)]" />}
                     </div>
                 </PopoverAnchor>
@@ -172,7 +159,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
             <Badge variant="outline" className="justify-self-center">
                 Viewer
             </Badge>
-            <Button variant="ghost" size="sm" onClick={handleClose} disabled={disabled} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+            <Button variant="ghost" size="sm" onClick={handleClose} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
                 <X className="h-4 w-4" />
             </Button>
         </>

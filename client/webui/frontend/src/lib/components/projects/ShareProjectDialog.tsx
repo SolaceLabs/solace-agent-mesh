@@ -78,6 +78,12 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
 
     const handleAddUser = useCallback(
         (email: string, typeaheadId: string) => {
+            // Clear selection if empty email (user is re-editing)
+            if (!email) {
+                setPendingTypeaheads(prev => prev.map(t => (t.id === typeaheadId ? { ...t, email: null } : t)));
+                return;
+            }
+
             // Don't add the owner
             if (email === sharesData?.ownerEmail) {
                 setError("Cannot add the project owner as a viewer");
@@ -188,7 +194,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                             {/* Pending Typeaheads */}
                             {pendingTypeaheads.map(typeahead => (
                                 <div key={typeahead.id} className="grid grid-cols-[1fr_85px_32px] items-center gap-x-1 py-3 pr-3">
-                                    <UserTypeahead id={typeahead.id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} selectedEmail={typeahead.email} disabled={isSaving} />
+                                    <UserTypeahead id={typeahead.id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} selectedEmail={typeahead.email} />
                                 </div>
                             ))}
 
