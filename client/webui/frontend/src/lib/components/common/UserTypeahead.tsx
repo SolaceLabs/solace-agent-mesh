@@ -103,7 +103,9 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
         return (
             <>
                 <span className="truncate text-sm">{selectedEmail}</span>
-                <Badge variant="outline">Viewer</Badge>
+                <Badge variant="outline" className="justify-self-center">
+                    Viewer
+                </Badge>
                 <Button variant="ghost" size="sm" onClick={handleClose} disabled={disabled} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
                     <X className="h-4 w-4" />
                 </Button>
@@ -167,7 +169,9 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
                     </div>
                 </PopoverContent>
             </Popover>
-            <Badge variant="outline">Viewer</Badge>
+            <Badge variant="outline" className="justify-self-center">
+                Viewer
+            </Badge>
             <Button variant="ghost" size="sm" onClick={handleClose} disabled={disabled} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
                 <X className="h-4 w-4" />
             </Button>

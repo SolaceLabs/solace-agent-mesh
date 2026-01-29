@@ -181,31 +181,35 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                             {/* Header Row */}
                             <div className="grid grid-cols-[1fr_85px_32px] items-center gap-x-3 pb-2">
                                 <span className="text-xs font-medium text-[var(--muted-foreground)]">Email</span>
-                                <span className="text-xs font-medium text-[var(--muted-foreground)]">Access Level</span>
+                                <span className="text-center text-xs font-medium text-[var(--muted-foreground)]">Access Level</span>
                                 <div />
                             </div>
 
                             {/* Pending Typeaheads */}
                             {pendingTypeaheads.map(typeahead => (
-                                <div key={typeahead.id} className="grid grid-cols-[1fr_85px_32px] items-center gap-x-3 py-3">
+                                <div key={typeahead.id} className="grid grid-cols-[1fr_85px_32px] items-center gap-x-1 py-3 pr-3">
                                     <UserTypeahead id={typeahead.id} onSelect={handleAddUser} onRemove={handleRemoveTypeahead} excludeEmails={excludeEmails} selectedEmail={typeahead.email} disabled={isSaving} />
                                 </div>
                             ))}
 
                             {/* Owner Row - Always First */}
                             {sharesData?.ownerEmail && (
-                                <div className={`grid grid-cols-[1fr_85px_32px] items-center gap-x-3 border py-3 ${displayedViewers.length === 0 ? "rounded-sm" : "rounded-t-sm border-b-0"} px-3`}>
+                                <div className={`grid grid-cols-[1fr_85px_32px] items-center border py-3 ${displayedViewers.length === 0 ? "rounded-sm" : "rounded-t-sm border-b-0"} px-3`}>
                                     <span className="truncate text-sm">{sharesData.ownerEmail}</span>
-                                    <Badge variant="secondary">Owner</Badge>
+                                    <Badge variant="secondary" className="justify-self-center">
+                                        Owner
+                                    </Badge>
                                     <div className="h-8 w-8" />
                                 </div>
                             )}
 
                             {/* Viewer Rows */}
                             {displayedViewers.map((viewer, index) => (
-                                <div key={viewer.email} className={`grid grid-cols-[1fr_85px_32px] items-center gap-x-3 border px-3 py-3 ${index === displayedViewers.length - 1 ? "rounded-b-sm" : "border-b-0"}`}>
+                                <div key={viewer.email} className={`grid grid-cols-[1fr_85px_32px] items-center border px-3 py-3 ${index === displayedViewers.length - 1 ? "rounded-b-sm" : "border-b-0"}`}>
                                     <span className="truncate text-sm">{viewer.email}</span>
-                                    <Badge variant="outline">Viewer</Badge>
+                                    <Badge variant="outline" className="justify-self-center">
+                                        Viewer
+                                    </Badge>
                                     <Button variant="ghost" size="sm" onClick={() => handleRemoveUser(viewer.email)} disabled={isSaving} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
                                         <X className="h-4 w-4" />
                                     </Button>
