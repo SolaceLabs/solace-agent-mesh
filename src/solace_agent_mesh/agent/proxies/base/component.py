@@ -427,6 +427,9 @@ class BaseProxyComponent(ComponentBase, ABC):
                         agent_alias,
                     )
                     continue
+
+                # Strip trailing slash from URL to avoid double slashes when concatenating with agent_card_path
+                agent_url = agent_url.rstrip("/")
                 try:
                     # Build headers using common utility (sync context - OAuth2 not supported)
                     use_auth = agent_config.get("use_auth_for_agent_card", False)
