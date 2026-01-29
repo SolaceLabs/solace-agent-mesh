@@ -213,7 +213,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                             {displayedViewers.map((viewer, index) => (
                                 <div key={viewer.email} className={`grid grid-cols-[1fr_85px_32px] items-center border px-3 py-3 ${index === displayedViewers.length - 1 ? "rounded-b-sm" : "border-b-0"}`}>
                                     <span className="truncate text-sm">{viewer.email}</span>
-                                    <Badge title="Can view the items in the prompt" variant="outline" className="justify-self-center">
+                                    <Badge title="Can view the items in the project" variant="secondary" className="justify-self-center">
                                         Viewer
                                     </Badge>
                                     <Button variant="ghost" size="sm" onClick={() => handleRemoveUser(viewer.email)} disabled={isSaving} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">

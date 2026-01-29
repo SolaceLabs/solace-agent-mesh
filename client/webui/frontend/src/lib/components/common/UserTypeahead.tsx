@@ -153,7 +153,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
                     </div>
                 </PopoverContent>
             </Popover>
-            <Badge variant="outline" className="justify-self-center">
+            <Badge variant="secondary" className="justify-self-center">
                 Viewer
             </Badge>
             <Button variant="ghost" size="sm" onClick={handleClose} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
