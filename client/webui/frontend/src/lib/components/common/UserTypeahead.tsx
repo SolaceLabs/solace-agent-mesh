@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { cva } from "class-variance-authority";
 import { X, Loader2 } from "lucide-react";
 import { Input } from "@/lib/components/ui/input";
 import { Button } from "@/lib/components/ui/button";
@@ -11,6 +12,7 @@ import { Badge } from "@/lib/components/ui/badge";
 import { Popover, PopoverContent, PopoverAnchor } from "@/lib/components/ui/popover";
 import { usePeopleSearch } from "@/lib/api/people";
 import { useDebounce } from "@/lib/hooks/useDebounce";
+import { classForIconButton, classForEmptyMessage } from "./projectShareVariants";
 import type { Person } from "@/lib/types";
 
 interface UserTypeaheadProps {
@@ -29,28 +31,22 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
     const [isOpen, setIsOpen] = useState(true);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Debounce search query
     const debouncedQuery = useDebounce(searchQuery, 200);
 
-    // Fetch people using the hook
     const { data: searchResults, isLoading } = usePeopleSearch(debouncedQuery, {
         enabled: debouncedQuery.length > 0,
     });
 
-    // Filter out already-added users
     const filteredPeople = (searchResults?.data || []).filter(person => !excludeEmails.includes(person.workEmail));
 
-    // Focus input on mount
     useEffect(() => {
         inputRef.current?.focus();
     }, []);
 
-    // Reset active index when results change
     useEffect(() => {
         setActiveIndex(0);
     }, [filteredPeople.length]);
 
-    // Handle person selection - keep typeahead open
     const handleSelect = useCallback(
         (person: Person) => {
             onSelect(person.workEmail, id);
@@ -59,12 +55,10 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
         [onSelect, id]
     );
 
-    // Handle close/remove
     const handleClose = useCallback(() => {
         onRemove(id);
     }, [id, onRemove]);
 
-    // Keyboard navigation
     const handleKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
             if (e.key === "Escape") {
@@ -88,7 +82,6 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
         [filteredPeople, activeIndex, handleSelect, handleClose]
     );
 
-    // Scroll active item into view
     useEffect(() => {
         const activeElement = document.getElementById(`user-typeahead-${id}-item-${activeIndex}`);
         if (activeElement) {
@@ -126,16 +119,16 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
                             onChange={handleInputChange}
                             onKeyDown={handleKeyDown}
                             onFocus={() => setIsOpen(true)}
-                            className={`h-9 pr-9 ${error ? "border-[var(--destructive)]" : ""}`}
+                            className={classForTypeaheadInput({ error })}
                         />
-                        {isLoading && <Loader2 className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-[var(--muted-foreground)]" />}
+                        {isLoading && <Loader2 className={classForInputSpinner()} />}
                     </div>
                 </PopoverAnchor>
 
                 <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-[350px] p-0" onOpenAutoFocus={e => e.preventDefault()}>
                     <div className="max-h-[250px] overflow-y-auto">
                         {filteredPeople.length === 0 ? (
-                            <div className="p-4 text-center text-sm text-[var(--muted-foreground)]">No users found</div>
+                            <div className={classForEmptyMessage({ size: "compact" })}>No users found</div>
                         ) : (
                             <div className="flex flex-col">
                                 {filteredPeople.map((person, index) => (
@@ -147,7 +140,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
                                             setIsKeyboardMode(false);
                                             setActiveIndex(index);
                                         }}
-                                        className={`w-full px-3 py-2 text-left transition-colors ${index === activeIndex ? "bg-[var(--accent)]" : !isKeyboardMode ? "hover:bg-[var(--accent)]" : ""}`}
+                                        className={classForTypeaheadItem({ active: index === activeIndex, hoverEnabled: !isKeyboardMode })}
                                     >
                                         <div className="flex items-start gap-3">
                                             <div className="min-w-0 flex-1">
@@ -166,9 +159,35 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
             <Badge variant="secondary" className="justify-self-center">
                 Viewer
             </Badge>
-            <Button variant="ghost" size="sm" onClick={handleClose} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+            <Button variant="ghost" size="sm" onClick={handleClose} className={classForIconButton()}>
                 <X className="h-4 w-4" />
             </Button>
         </>
     );
 };
+
+const classForTypeaheadItem = cva(["w-full", "px-3", "py-2", "text-left", "transition-colors"], {
+    variants: {
+        active: {
+            true: "bg-[var(--accent)]",
+            false: "",
+        },
+        hoverEnabled: {
+            true: "hover:bg-[var(--accent)]",
+            false: "",
+        },
+    },
+    defaultVariants: { active: false, hoverEnabled: true },
+});
+
+const classForInputSpinner = cva(["absolute", "top-1/2", "right-3", "size-4", "-translate-y-1/2", "animate-spin", "text-[var(--muted-foreground)]"]);
+
+const classForTypeaheadInput = cva(["h-9", "pr-9"], {
+    variants: {
+        error: {
+            true: "border-[var(--destructive)]",
+            false: "",
+        },
+    },
+    defaultVariants: { error: false },
+});

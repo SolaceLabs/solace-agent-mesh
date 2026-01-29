@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { cva } from "class-variance-authority";
 import { Plus, X, Loader2 } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
 import { MessageBanner } from "@/lib/components/common";
 import { UserTypeahead } from "@/lib/components/common/UserTypeahead";
+import { classForIconButton, classForEmptyMessage } from "@/lib/components/common/projectShareVariants";
 import { useProjectShares, useCreateProjectShares, useDeleteProjectShares } from "@/lib/api/projects/hooks";
 import { shareProjectFormSchema, type ShareProjectFormData } from "@/lib/schemas";
 import type { Project } from "@/lib/types/projects";
@@ -17,6 +20,12 @@ interface ShareProjectDialogProps {
     onClose: () => void;
     project: Project;
 }
+const getRowPosition = (index: number, total: number): "only" | "first" | "middle" | "last" => {
+    if (total === 0) return "only";
+    if (index === -1) return total === 0 ? "only" : "first"; // Owner row
+    if (index === total - 1) return "last";
+    return "middle";
+};
 
 export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, onClose, project }) => {
     const [error, setError] = useState<string | null>(null);
@@ -41,7 +50,6 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
 
     const isSaving = createSharesMutation.isPending || deleteSharesMutation.isPending;
 
-    // Reset state when dialog opens
     useEffect(() => {
         if (isOpen) {
             reset({ viewers: [], pendingRemoves: [] });
@@ -49,7 +57,6 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
         }
     }, [isOpen, reset]);
 
-    // Compute the current list of viewers to display (only saved users, not pending)
     const displayedViewers = useMemo(() => {
         return (sharesData?.shares || [])
             .filter(share => !pendingRemoves.includes(share.userEmail))
@@ -59,7 +66,6 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
             }));
     }, [sharesData?.shares, pendingRemoves]);
 
-    // All emails that should be excluded from the typeahead
     const excludeEmails = useMemo(() => {
         const ownerEmail = sharesData?.ownerEmail || "";
         const existingEmails = (sharesData?.shares || []).map(s => s.userEmail);
@@ -67,14 +73,11 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
         return [ownerEmail, ...existingEmails, ...pendingEmails].filter(Boolean);
     }, [sharesData?.ownerEmail, sharesData?.shares, viewers]);
 
-    // Check if there are any pending changes (use watched viewers for current values)
     const pendingAdds = viewers.filter(v => v.email !== null).map(v => v.email as string);
     const hasChanges = pendingAdds.length > 0 || pendingRemoves.length > 0;
 
-    // Check if any typeaheads have incomplete selections
     const hasIncompleteTypeaheads = viewers.some(v => v.email === null);
 
-    // Add a new typeahead instance
     const handleAddTypeahead = useCallback(() => {
         const newId = `typeahead-${Date.now()}`;
         append({ id: newId, email: null });
@@ -208,24 +211,21 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                     </div>
                 )}
 
-                {/* Scrollable Content Area */}
                 <div className="min-h-0 flex-1 overflow-y-auto">
                     {isLoadingShares ? (
                         <div className="flex items-center justify-center py-8">
                             <Loader2 className="h-6 w-6 animate-spin text-[var(--muted-foreground)]" />
                         </div>
                     ) : fields.length === 0 && !sharesData?.ownerEmail && displayedViewers.length === 0 ? (
-                        <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">No users have access to this project yet.</div>
+                        <div className={classForEmptyMessage()}>No users have access to this project yet.</div>
                     ) : (
                         <div className="flex flex-col divide-[var(--border)]">
-                            {/* Header Row */}
-                            <div className="grid grid-cols-[1fr_85px_32px] items-center gap-x-3 pb-2">
-                                <span className="text-xs font-medium text-[var(--muted-foreground)]">Email</span>
-                                <span className="text-center text-xs font-medium text-[var(--muted-foreground)]">Access Level</span>
+                            <div className={classForShareRow({ type: "header" })}>
+                                <span className={classForHeaderText()}>Email</span>
+                                <span className={cn(classForHeaderText(), "text-center")}>Access Level</span>
                                 <div />
                             </div>
 
-                            {/* Pending Typeaheads with Controller */}
                             {fields.map((field, index) => (
                                 <Controller
                                     key={field.id}
@@ -233,7 +233,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                                     name={`viewers.${index}.email`}
                                     render={({ field: { value, onChange }, fieldState: { error: fieldError } }) => (
                                         <div className="py-3 pr-3">
-                                            <div className="grid grid-cols-[1fr_85px_32px] items-center gap-x-1">
+                                            <div className={classForShareRow({ type: "typeahead" })}>
                                                 <UserTypeahead
                                                     id={field.id}
                                                     onSelect={(email: string) => handleAddUser(email, field.id, index, onChange)}
@@ -249,9 +249,8 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                                 />
                             ))}
 
-                            {/* Owner Row - Always First */}
                             {sharesData?.ownerEmail && (
-                                <div className={`grid grid-cols-[1fr_85px_32px] items-center border py-3 ${displayedViewers.length === 0 ? "rounded-sm" : "rounded-t-sm border-b-0"} px-3`}>
+                                <div className={cn(classForShareRow({ type: "data", position: getRowPosition(-1, displayedViewers.length) }))}>
                                     <span className="truncate text-sm">{sharesData.ownerEmail}</span>
                                     <Badge variant="secondary" className="justify-self-center">
                                         Owner
@@ -262,12 +261,12 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
 
                             {/* Viewer Rows */}
                             {displayedViewers.map((viewer, index) => (
-                                <div key={viewer.email} className={`grid grid-cols-[1fr_85px_32px] items-center border px-3 py-3 ${index === displayedViewers.length - 1 ? "rounded-b-sm" : "border-b-0"}`}>
+                                <div key={viewer.email} className={cn(classForShareRow({ type: "data", position: getRowPosition(index, displayedViewers.length) }))}>
                                     <span className="truncate text-sm">{viewer.email}</span>
                                     <Badge title="Can view the items in the project" variant="secondary" className="justify-self-center">
                                         Viewer
                                     </Badge>
-                                    <Button variant="ghost" size="sm" onClick={() => handleRemoveUser(viewer.email)} disabled={isSaving} className="h-8 w-8 p-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                                    <Button variant="ghost" size="sm" onClick={() => handleRemoveUser(viewer.email)} disabled={isSaving} className={classForIconButton()}>
                                         <X className="h-4 w-4" />
                                     </Button>
                                 </div>
@@ -289,3 +288,22 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
         </Dialog>
     );
 };
+
+const classForShareRow = cva(["grid", "grid-cols-[1fr_85px_32px]", "items-center"], {
+    variants: {
+        type: {
+            header: "gap-x-3 pb-2",
+            typeahead: "gap-x-1",
+            data: "border px-3 py-3",
+        },
+        position: {
+            only: "rounded-sm",
+            first: "rounded-t-sm border-b-0",
+            middle: "border-b-0",
+            last: "rounded-b-sm",
+        },
+    },
+    defaultVariants: { type: "data" },
+});
+
+const classForHeaderText = cva(["text-xs", "font-medium", "text-[var(--muted-foreground)]"]);
