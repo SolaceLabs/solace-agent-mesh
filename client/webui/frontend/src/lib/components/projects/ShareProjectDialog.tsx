@@ -15,17 +15,17 @@ import { useProjectShares, useCreateProjectShares, useDeleteProjectShares } from
 import { shareProjectFormSchema, type ShareProjectFormData } from "@/lib/schemas";
 import type { Project } from "@/lib/types/projects";
 
-interface ShareProjectDialogProps {
-    isOpen: boolean;
-    onClose: () => void;
-    project: Project;
-}
 const getRowPosition = (index: number, total: number): "only" | "first" | "middle" | "last" => {
     if (total === 0) return "only";
     if (index === -1) return total === 0 ? "only" : "first"; // Owner row
     if (index === total - 1) return "last";
     return "middle";
 };
+interface ShareProjectDialogProps {
+    isOpen: boolean;
+    onClose: () => void;
+    project: Project;
+}
 
 export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, onClose, project }) => {
     const [error, setError] = useState<string | null>(null);
@@ -41,10 +41,8 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
     const viewers = watch("viewers");
     const pendingRemoves = watch("pendingRemoves");
 
-    // Fetch current shares
     const { data: sharesData, isLoading: isLoadingShares } = useProjectShares(project.id);
 
-    // Mutations
     const createSharesMutation = useCreateProjectShares();
     const deleteSharesMutation = useDeleteProjectShares();
 
@@ -83,7 +81,6 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
         append({ id: newId, email: null });
     }, [append]);
 
-    // Remove a typeahead instance
     const handleRemoveTypeahead = useCallback(
         (id: string) => {
             const index = fields.findIndex(f => f.id === id);
@@ -259,7 +256,6 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                                 </div>
                             )}
 
-                            {/* Viewer Rows */}
                             {displayedViewers.map((viewer, index) => (
                                 <div key={viewer.email} className={cn(classForShareRow({ type: "data", position: getRowPosition(index, displayedViewers.length) }))}>
                                     <span className="truncate text-sm">{viewer.email}</span>
