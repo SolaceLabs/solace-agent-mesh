@@ -86,7 +86,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         super().__init__(info, **kwargs)
 
         # Configuration
-        self.workflow_name = self.get_config("agent_name")
+        self.workflow_name = self.get_config("name")
         self.namespace = self.get_config("namespace")
         workflow_config = self.get_config("workflow")
 

@@ -36,7 +36,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "MyWorkflow"
+      name: "MyWorkflow"
 
       workflow:
         description: "Process incoming orders"

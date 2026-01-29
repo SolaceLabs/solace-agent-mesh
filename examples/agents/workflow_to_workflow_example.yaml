@@ -408,7 +408,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "StatisticalAnalysisWorkflow"
+      name: "StatisticalAnalysisWorkflow"
       display_name: "Statistical Analysis Workflow"
 
       workflow:
@@ -507,7 +507,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "ReportGenerationWorkflow"
+      name: "ReportGenerationWorkflow"
       display_name: "Report Generation Workflow"
 
       workflow:
@@ -612,7 +612,7 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      agent_name: "DataAnalysisPipeline"
+      name: "DataAnalysisPipeline"
       display_name: "Data Analysis Pipeline"
 
       workflow:
