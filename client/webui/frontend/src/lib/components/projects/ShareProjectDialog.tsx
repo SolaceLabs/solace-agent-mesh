@@ -33,10 +33,8 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
     const { identityServiceType } = useConfigContext();
     const [error, setError] = useState<string | null>(null);
 
-    // Create schema dynamically based on identity service configuration
     const schema = useMemo(() => createShareProjectFormSchema(identityServiceType), [identityServiceType]);
 
-    // React Hook Form setup
     const { control, handleSubmit, reset, setValue, watch, trigger } = useForm<ShareProjectFormData>({
         resolver: zodResolver(schema),
         defaultValues: { viewers: [], pendingRemoves: [] },
@@ -99,29 +97,23 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
 
     const handleAddUser = useCallback(
         (email: string, _typeaheadId: string, fieldIndex: number, onChange: (value: string | null) => void) => {
-            // Clear selection if empty email (user is re-editing)
             if (!email) {
                 onChange(null);
                 return;
             }
 
-            // Don't add the owner
             if (email === sharesData?.ownerEmail) {
                 setError("Cannot add the project owner as a viewer");
                 return;
             }
 
-            // Check if trying to re-add a removed user (restore behavior)
             if (pendingRemoves.includes(email)) {
-                // Remove from pendingRemoves and remove the typeahead field
                 setValue(
                     "pendingRemoves",
                     pendingRemoves.filter(e => e !== email)
                 );
-                // Remove the typeahead since the user was restored from pending removes
                 remove(fieldIndex);
             } else {
-                // Update the field with the selected email
                 onChange(email);
             }
         },
@@ -129,7 +121,6 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
     );
 
     const handleRemoveUser = (email: string) => {
-        // Add to pending removes (only for saved users, pending ones are removed via typeahead)
         setValue("pendingRemoves", [...pendingRemoves, email]);
     };
 
@@ -142,17 +133,14 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
     const onSubmit = async (data: ShareProjectFormData) => {
         setError(null);
 
-        // Validate all typeaheads have selections
         const hasIncomplete = data.viewers.some(v => !v.email);
         if (hasIncomplete) {
-            // Form will show errors via formState.errors
             return;
         }
 
         try {
             const emailsToAdd = data.viewers.filter(v => v.email !== null).map(v => v.email as string);
 
-            // Process additions
             if (emailsToAdd.length > 0) {
                 await createSharesMutation.mutateAsync({
                     projectId: project.id,
@@ -165,7 +153,6 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                 });
             }
 
-            // Process removals
             if (data.pendingRemoves.length > 0) {
                 await deleteSharesMutation.mutateAsync({
                     projectId: project.id,
@@ -175,7 +162,6 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                 });
             }
 
-            // Reset state and close
             reset({ viewers: [], pendingRemoves: [] });
             onClose();
         } catch (err) {
