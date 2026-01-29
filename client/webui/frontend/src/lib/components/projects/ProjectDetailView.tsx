@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { Pencil, Trash2, MoreHorizontal, Share } from "lucide-react";
+import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
 
 import { Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea } from "@/lib/components/ui";
 import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
-import { useConfigContext, useAuthContext } from "@/lib/hooks";
+import { useConfigContext } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 
@@ -15,7 +15,6 @@ import { DefaultAgentSection } from "./DefaultAgentSection";
 import { KnowledgeSection } from "./KnowledgeSection";
 import { ProjectChatsSection } from "./ProjectChatsSection";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
-import { ShareProjectDialog } from "./ShareProjectDialog";
 
 interface ProjectDetailViewProps {
     project: Project;
@@ -27,7 +26,6 @@ interface ProjectDetailViewProps {
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
     const { updateProject, projects, deleteProject } = useProjectContext();
     const { validationLimits } = useConfigContext();
-    const { userInfo } = useAuthContext();
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -36,10 +34,6 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     const [nameError, setNameError] = useState<string | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-
-    // Check if current user is the project owner
-    const isOwner = project.userId === (userInfo?.username as string | undefined);
 
     const MAX_DESCRIPTION_LENGTH = validationLimits?.projectDescriptionMax ?? DEFAULT_MAX_DESCRIPTION_LENGTH;
     const isDescriptionOverLimit = editedDescription.length > MAX_DESCRIPTION_LENGTH;
@@ -138,14 +132,6 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 title={project.name}
                 breadcrumbs={[{ label: "Projects", onClick: onBack }, { label: project.name }]}
                 buttons={[
-                    ...(isOwner
-                        ? [
-                              <Button key="share" variant="ghost" size="sm" onClick={() => setIsShareDialogOpen(true)} className="gap-2">
-                                  <Share className="h-4 w-4" />
-                                  Share
-                              </Button>,
-                          ]
-                        : []),
                     <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} testid="editDetailsButton" className="gap-2">
                         <Pencil className="h-4 w-4" />
                         Edit Details
@@ -236,9 +222,6 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
 
             {/* Delete Project Dialog */}
             <DeleteProjectDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={handleDeleteConfirm} project={project} isDeleting={isDeleting} />
-
-            {/* Share Project Dialog */}
-            <ShareProjectDialog isOpen={isShareDialogOpen} onClose={() => setIsShareDialogOpen(false)} project={project} />
         </div>
     );
 };
