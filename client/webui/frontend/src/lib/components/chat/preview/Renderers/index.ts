@@ -16,6 +16,6 @@ export { ImageRenderer } from "./ImageRenderer";
 export { MarkdownRenderer } from "./MarkdownRenderer";
 export { MermaidRenderer } from "./MermaidRenderer";
 export { OfficeDocumentRenderer } from "./OfficeDocumentRenderer";
-export { default as PdfRenderer } from "./PdfRenderer";
+export { default as PdfRenderer, SNIP_TO_CHAT_EVENT, type SnipToChatEventDetail } from "./PdfRenderer";
 export { StructuredDataRenderer } from "./StructuredDataRenderer";
 export { TextRenderer } from "./TextRenderer";
