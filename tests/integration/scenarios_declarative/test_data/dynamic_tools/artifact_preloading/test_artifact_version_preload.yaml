@@ -1,0 +1,87 @@
+test_case_id: "artifact_preload_version_001"
+description: |
+  Verifies that the filename:version format works correctly for artifact pre-loading.
+  When the LLM provides "filename:version", the framework should load that specific
+  version of the artifact instead of the latest version.
+skip_intermediate_events: true
+tags: ["all", "agent", "tools", "dynamic_tools", "artifact_preloading"]
+
+setup_artifacts:
+  # Create version 0 of the artifact
+  - filename: "versioned_data.txt"
+    mime_type: "text/plain"
+    content: "This is version 0 (original) content."
+    metadata:
+      description: "Original version"
+  # Create version 1 of the same artifact
+  - filename: "versioned_data.txt"
+    mime_type: "text/plain"
+    content: "This is version 1 (updated) content."
+    metadata:
+      description: "Updated version"
+
+gateway_input:
+  target_agent_name: "ArtifactContentAgent"
+  user_identity: "artifact_test_user@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Process the original version (v0) of versioned_data.txt"
+  external_context:
+    a2a_session_id: "session_artifact_preload_version_001"
+
+llm_interactions:
+  - step_id: "llm_calls_with_version_0"
+    expected_request:
+      expected_tool_declarations_contain:
+        - name: "process_single_artifact"
+    static_response:
+      id: "chatcmpl-artifact-version-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_version_1"
+                type: "function"
+                function:
+                  name: "process_single_artifact"
+                  # Using filename:version format to request version 0
+                  arguments: '{"input_content": "versioned_data.txt:0", "input_filename": "versioned_data.txt:0"}'
+          finish_reason: "tool_calls"
+
+  - step_id: "llm_sees_version_0_content"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "success"
+            # The tool received version 0 content, NOT version 1
+            received_content: "This is version 0 (original) content."
+            received_filename: "versioned_data.txt:0"
+    static_response:
+      id: "chatcmpl-artifact-version-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Successfully loaded version 0 of the artifact. The original content was retrieved."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: "*"
+    contextId: "session_artifact_preload_version_001"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: "*"
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "Successfully loaded"
+              - "version 0"

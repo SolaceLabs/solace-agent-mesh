@@ -18,14 +18,9 @@ from bs4 import BeautifulSoup
 
 from google.adk.tools import ToolContext
 
-from ...agent.utils.artifact_helpers import (
-    save_artifact_with_metadata,
-    DEFAULT_SCHEMA_MAX_KEYS,
-)
-from ...agent.utils.context_helpers import get_original_session_id
-
 from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
+from .tool_result import ToolResult, DataObject, DataDisposition
 from .registry import tool_registry
 
 log = logging.getLogger(__name__)
@@ -76,7 +71,7 @@ async def web_request(
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
     max_retries: int = 2,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Makes an HTTP request to the specified URL with retry logic, processes the content (e.g., HTML to Markdown),
     and saves the result as an artifact.
@@ -94,12 +89,12 @@ async def web_request(
         max_retries: Maximum number of retry attempts for failed requests. Defaults to 2.
 
     Returns:
-        A dictionary with status, message, and artifact details if successful.
+        ToolResult with artifact details if successful.
     """
     log_identifier = f"[WebTools:web_request:{method}:{url}]"
     if not tool_context:
         log.error(f"{log_identifier} ToolContext is missing.")
-        return {"status": "error", "message": "ToolContext is missing."}
+        return ToolResult.error("ToolContext is missing.")
 
     # Check if loopback URLs are allowed (for testing)
     allow_loopback = False
@@ -112,10 +107,10 @@ async def web_request(
         if configured_size is not None:
             max_response_size = min(int(configured_size), ABSOLUTE_MAX_RESPONSE_SIZE)
             log.debug(f"{log_identifier} Using configured max_response_size: {max_response_size} bytes")
-    
+
     if not allow_loopback and not _is_safe_url(url):
         log.error(f"{log_identifier} URL is not safe to request: {url}")
-        return {"status": "error", "message": "URL is not safe to request."}
+        return ToolResult.error("URL is not safe to request.")
 
     if headers is None:
         headers = {}
@@ -126,31 +121,7 @@ async def web_request(
         )
 
     try:
-        inv_context = tool_context._invocation_context
-        if not inv_context:
-            raise ValueError("InvocationContext is not available.")
-
-        app_name = getattr(inv_context, "app_name", None)
-        user_id = getattr(inv_context, "user_id", None)
-        session_id = get_original_session_id(inv_context)
-        artifact_service = getattr(inv_context, "artifact_service", None)
-
-        if not all([app_name, user_id, session_id, artifact_service]):
-            missing_parts = [
-                part
-                for part, val in [
-                    ("app_name", app_name),
-                    ("user_id", user_id),
-                    ("session_id", session_id),
-                    ("artifact_service", artifact_service),
-                ]
-                if not val
-            ]
-            raise ValueError(
-                f"Missing required context parts: {', '.join(missing_parts)}"
-            )
-
-        log.info(f"{log_identifier} Processing request for session {session_id}.")
+        log.info(f"{log_identifier} Processing request.")
 
         request_body_bytes = None
         if body:
@@ -182,11 +153,10 @@ async def web_request(
                                     f"{log_identifier} Response Content-Length ({content_length_int} bytes) exceeds "
                                     f"max_response_size ({max_response_size} bytes). Rejecting request."
                                 )
-                                return {
-                                    "status": "error",
-                                    "message": f"Response too large: {content_length_int} bytes exceeds limit of {max_response_size} bytes ({max_response_size // (1024*1024)} MB). "
-                                               f"Consider using a more specific URL or a different approach."
-                                }
+                                return ToolResult.error(
+                                    f"Response too large: {content_length_int} bytes exceeds limit of {max_response_size} bytes ({max_response_size // (1024*1024)} MB). "
+                                    f"Consider using a more specific URL or a different approach."
+                                )
                         
                         # Read response with size limit using streaming
                         chunks = []
@@ -235,12 +205,9 @@ async def web_request(
                     await asyncio.sleep(delay)
                 else:
                     # Final attempt failed
-                    error_message = f"Request timed out after {max_retries} attempts (30s timeout per attempt)"
+                    error_message = f"Request timed out after {max_retries} attempts (30s timeout per attempt). The website may be slow or blocking automated requests."
                     log.error(f"{log_identifier} {error_message}")
-                    return {
-                        "status": "error",
-                        "message": f"{error_message}. The website may be slow or blocking automated requests."
-                    }
+                    return ToolResult.error(error_message)
                     
             except httpx.RequestError as req_error:
                 last_error = req_error
@@ -340,7 +307,7 @@ async def web_request(
         else:
             final_artifact_filename = f"web_content_{uuid.uuid4()}{file_extension}"
 
-        metadata_dict = {
+        metadata = {
             "url": url,
             "method": method.upper(),
             "request_headers": json.dumps(
@@ -350,111 +317,79 @@ async def web_request(
             "response_headers": json.dumps(dict(response.headers)),
             "original_content_type": original_content_type,
             "processed_content_type": processed_content_type,
+            "generation_tool": "web_request",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-        log.info(
-            f"{log_identifier} Saving artifact '{final_artifact_filename}' with mime_type '{processed_content_type}'."
-        )
-        save_result = await save_artifact_with_metadata(
-            artifact_service=artifact_service,
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=final_artifact_filename,
-            content_bytes=final_content_to_save_bytes,
-            mime_type=processed_content_type,
-            metadata_dict=metadata_dict,
-            timestamp=datetime.now(timezone.utc),
-            schema_max_keys=DEFAULT_SCHEMA_MAX_KEYS,
-            tool_context=tool_context,
-        )
-
-        if save_result.get("status") == "error":
-            raise IOError(
-                f"Failed to save web content artifact: {save_result.get('message', 'Unknown error')}"
-            )
-
-        log.info(
-            f"{log_identifier} Artifact '{final_artifact_filename}' v{save_result['data_version']} saved successfully."
-        )
-
-        preview_text = f"Content from {url} (status: {response_status_code}) saved as '{final_artifact_filename}' v{save_result['data_version']}."
+        preview_text = ""
         if final_content_to_save_str:
-            preview_text += (
-                f"\nPreview (first 200 chars): {final_content_to_save_str[:200]}"
-            )
-            if len(final_content_to_save_str) > 200:
+            preview_text = final_content_to_save_str[:500]
+            if len(final_content_to_save_str) > 500:
                 preview_text += "..."
         elif response_status_code >= 400:
-            preview_text += f"\nError response content (first 200 chars): {response_content_bytes[:200].decode('utf-8', errors='replace')}"
-            if len(response_content_bytes) > 200:
+            preview_text = response_content_bytes[:500].decode('utf-8', errors='replace')
+            if len(response_content_bytes) > 500:
                 preview_text += "..."
 
-        return {
-            "status": "success",
-            "message": f"Successfully fetched content from {url} (status: {response_status_code}). "
-            f"Saved as artifact '{final_artifact_filename}' v{save_result['data_version']}. "
-            f"Analyze the content of '{final_artifact_filename}' before providing a final answer to the user.",
-            "output_filename": final_artifact_filename,
-            "output_version": save_result["data_version"],
-            "response_status_code": response_status_code,
-            "original_content_type": original_content_type,
-            "processed_content_type": processed_content_type,
-            "result_preview": preview_text,
-        }
+        log.info(f"{log_identifier} Returning web content as DataObject for artifact storage")
+
+        return ToolResult.ok(
+            f"Successfully fetched content from {url} (status: {response_status_code}). "
+            f"Analyze the content before providing a final answer to the user.",
+            data={
+                "response_status_code": response_status_code,
+                "original_content_type": original_content_type,
+                "processed_content_type": processed_content_type,
+            },
+            data_objects=[
+                DataObject(
+                    name=final_artifact_filename,
+                    content=final_content_to_save_bytes,
+                    mime_type=processed_content_type,
+                    disposition=DataDisposition.ARTIFACT_WITH_PREVIEW,
+                    description=f"Web content from {url} (status: {response_status_code})",
+                    metadata=metadata,
+                    preview=preview_text if preview_text else None,
+                )
+            ],
+        )
 
     except httpx.HTTPStatusError as hse:
         error_message = f"HTTP error {hse.response.status_code} while fetching {url}: {hse.response.text[:500]}"
         log.error(f"{log_identifier} {error_message}", exc_info=True)
-        try:
-            error_filename = f"error_response_{uuid.uuid4()}.txt"
-            error_metadata = {
-                "url": url,
-                "method": method.upper(),
-                "error_type": "HTTPStatusError",
-                "status_code": hse.response.status_code,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            await save_artifact_with_metadata(
-                artifact_service,
-                app_name,
-                user_id,
-                session_id,
-                error_filename,
-                hse.response.text.encode("utf-8", errors="replace"),
-                "text/plain",
-                error_metadata,
-                datetime.now(timezone.utc),
-                tool_context=tool_context,
-            )
-            return {
-                "status": "error",
-                "message": error_message,
-                "error_artifact": error_filename,
-            }
-        except Exception as e_save:
-            log.error(
-                f"{log_identifier} Could not save HTTPStatusError response: {e_save}"
-            )
-            return {"status": "error", "message": error_message}
+        error_filename = f"error_response_{uuid.uuid4()}.txt"
+        error_metadata = {
+            "url": url,
+            "method": method.upper(),
+            "error_type": "HTTPStatusError",
+            "status_code": hse.response.status_code,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        return ToolResult.error(
+            error_message,
+            data={"error_artifact": error_filename},
+            data_objects=[
+                DataObject(
+                    name=error_filename,
+                    content=hse.response.text.encode("utf-8", errors="replace"),
+                    mime_type="text/plain",
+                    disposition=DataDisposition.ARTIFACT,
+                    description=f"Error response from {url} (HTTP {hse.response.status_code})",
+                    metadata=error_metadata,
+                )
+            ],
+        )
 
     except httpx.RequestError as re:
-        error_message = f"Request error while fetching {url} after {max_retries} attempts: {re}"
+        error_message = f"Request error while fetching {url} after {max_retries} attempts: {re}. The website may be unreachable or blocking requests."
         log.error(f"{log_identifier} {error_message}", exc_info=True)
-        return {
-            "status": "error",
-            "message": f"{error_message}. The website may be unreachable or blocking requests."
-        }
+        return ToolResult.error(error_message)
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}", exc_info=True)
-        return {"status": "error", "message": str(ve)}
-    except IOError as ioe:
-        log.error(f"{log_identifier} IO error: {ioe}", exc_info=True)
-        return {"status": "error", "message": str(ioe)}
+        return ToolResult.error(str(ve))
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in web_request: {e}")
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return ToolResult.error(f"An unexpected error occurred: {e}")
 
 
 web_request_tool_def = BuiltinTool(

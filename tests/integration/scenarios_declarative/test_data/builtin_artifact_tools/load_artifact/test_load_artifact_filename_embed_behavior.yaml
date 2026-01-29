@@ -51,10 +51,8 @@ llm_interactions:
     expected_request: # After load_artifact tool call
       expected_tool_responses_in_llm_messages:
         - tool_call_id_matches_prior_request_index: 0
-          response_json_matches:
-            status: "not_found" # Expecting "not_found" as the literal filename "«state_var».txt" won't exist
-          # The actual message from the tool when file/version is not found or has no data.
-          response_contains: "Artifact '«state_var».txt' version 0 not found or has no data."
+          response_json_contains:
+            status: "error"
     static_response:
       id: "chatcmpl-load-embed-fname-2"
       object: "chat.completion"
