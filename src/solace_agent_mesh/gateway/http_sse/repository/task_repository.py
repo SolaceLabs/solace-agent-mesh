@@ -2,7 +2,11 @@
 Task repository implementation using SQLAlchemy.
 """
 
+import logging
+
 from sqlalchemy.orm import Session as DBSession
+
+log = logging.getLogger(__name__)
 
 from solace_agent_mesh.shared.api.pagination import PaginationParams
 from solace_agent_mesh.shared.utils.types import UserId
@@ -210,7 +214,12 @@ class TaskRepository(ITaskRepository):
 
         return list(all_task_ids)
 
-    def find_active_children(self, session: DBSession, parent_task_id: str) -> list[tuple[str, str | None]]:
+    # Maximum recursion depth for child task traversal to prevent infinite loops
+    MAX_CHILD_TASK_DEPTH = 50
+
+    def find_active_children(
+        self, session: DBSession, parent_task_id: str, _depth: int = 0
+    ) -> list[tuple[str, str | None]]:
         """
         Find all active (running/pending) child tasks of a given parent task.
         Returns a list of tuples: (task_id, target_agent_name).
@@ -221,11 +230,22 @@ class TaskRepository(ITaskRepository):
         Args:
             session: Database session
             parent_task_id: The parent task ID to find children for
+            _depth: Internal recursion depth counter (do not set manually)
             
         Returns:
             List of (task_id, target_agent_name) tuples for active child tasks
         """
         from sqlalchemy import or_
+        
+        # Prevent infinite recursion with a sanity check on depth
+        if _depth >= self.MAX_CHILD_TASK_DEPTH:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Max recursion depth ({self.MAX_CHILD_TASK_DEPTH}) reached while "
+                f"finding child tasks for parent {parent_task_id}. "
+                "This may indicate a circular parent-child relationship."
+            )
+            return []
         
         # Find all direct children that are still running
         # Use OR to properly handle NULL status (SQL NULL doesn't work with IN clause)
@@ -248,7 +268,7 @@ class TaskRepository(ITaskRepository):
             results.append((child.id, target_agent))
             
             # Recursively find children of this child
-            results.extend(self.find_active_children(session, child.id))
+            results.extend(self.find_active_children(session, child.id, _depth + 1))
         
         return results
     
@@ -278,25 +298,32 @@ class TaskRepository(ITaskRepository):
             return None
         
         try:
-            payload = event.payload
-            # Extract from params.message.metadata.agent_name (standard A2A request)
-            if "params" in payload:
-                params = payload["params"]
-                if isinstance(params, dict) and "message" in params:
-                    message = params["message"]
-                    if isinstance(message, dict) and "metadata" in message:
-                        metadata = message["metadata"]
-                        if isinstance(metadata, dict):
-                            # Check for workflow_name first (for workflow invocations)
-                            workflow_name = metadata.get("workflow_name")
-                            if workflow_name:
-                                return workflow_name
-                            # Fall back to agent_name
-                            return metadata.get("agent_name")
-        except Exception:
-            pass
-        
-        return None
+            # Navigate the expected A2A request structure
+            # Structure: payload["params"]["message"]["metadata"]["agent_name" | "workflow_name"]
+            metadata = (
+                event.payload
+                .get("params", {})
+                .get("message", {})
+                .get("metadata", {})
+            )
+
+            # Prefer workflow_name for workflow invocations
+            return metadata.get("workflow_name") or metadata.get("agent_name")
+
+        except AttributeError as e:
+            # Payload structure doesn't match expected dict structure
+            log.debug(
+                f"Failed to extract agent from task {task_id}: "
+                f"unexpected payload structure - {e}"
+            )
+            return None
+        except Exception as e:
+            # Unexpected error - log at warning level
+            log.warning(
+                f"Unexpected error extracting agent from task {task_id}: {e}",
+                exc_info=True
+            )
+            return None
 
     def find_background_tasks_by_status(
         self, session: DBSession, status: str | None = None
