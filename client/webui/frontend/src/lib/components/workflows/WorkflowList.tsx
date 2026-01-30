@@ -138,15 +138,7 @@ export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
     };
 
     if (workflows.length === 0) {
-        return (
-            <OnboardingView
-                title={WORKFLOW_HEADER}
-                description={WORKFLOW_DESCRIPTION}
-                learnMoreText={WORKFLOW_LEARN_MORE_TEXT}
-                learnMoreHref="https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/workflows"
-                image={<Workflow className={"text-(--color-brand-wMain)"} size={128} />}
-            />
-        );
+        return <OnboardingView title={WORKFLOW_HEADER} description={WORKFLOW_DESCRIPTION} learnMoreText={WORKFLOW_LEARN_MORE_TEXT} learnMoreHref={WORKFLOW_URL} image={<Workflow className={"text-(--color-brand-wMain)"} size={128} />} />;
     }
 
     // Pagination controls component
