@@ -25,7 +25,7 @@ export const OnboardingBanner = ({ storageKey, header, description, learnMoreTex
 
     return (
         <div className={cn("relative rounded-lg border border-[var(--color-learning-w20)] bg-[var(--color-learning-w10)] p-4 dark:border-[var(--color-learning-w90)] dark:bg-[var(--color-learning-wMain)]", className)}>
-            <Button variant="ghost" size="icon" onClick={handleDismiss} tooltip="Close" className="absolute top-2 right-2 h-6 w-6">
+            <Button variant="ghost" size="icon" onClick={handleDismiss} tooltip="Close" className="absolute top-2 right-2">
                 <X size={16} />
             </Button>
 
@@ -34,7 +34,7 @@ export const OnboardingBanner = ({ storageKey, header, description, learnMoreTex
                     <span className="font-semibold">{header}</span> {description}
                 </p>
 
-                <Button variant="link" onClick={() => window.open(learnMoreUrl, "_blank")} className="p-0!">
+                <Button variant="link" onClick={() => window.open(learnMoreUrl, "_blank")} className="mt-1 !p-0">
                     {learnMoreText}
                     <ExternalLink size={14} />
                 </Button>

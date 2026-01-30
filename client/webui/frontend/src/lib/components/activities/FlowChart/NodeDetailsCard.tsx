@@ -113,7 +113,7 @@ const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContent
     }
 
     if (error) {
-        return <div className="text-xs text-red-500 dark:text-red-400">{error}</div>;
+        return <div className="text-destructive text-xs">{error}</div>;
     }
 
     if (!content) {
@@ -137,7 +137,7 @@ interface NodeDetailsCardProps {
 /**
  * Component to display detailed request and result information for a clicked node
  */
-const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose }) => {
+const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
     const { artifacts, setPreviewArtifact: setSidePanelPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed, navigateArtifactVersion } = useChatContext();
 
     const getNodeIcon = () => {

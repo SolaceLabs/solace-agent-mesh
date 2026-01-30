@@ -9,7 +9,7 @@ import { WorkflowDetailPanel } from "./WorkflowDetailPanel";
 import { SearchInput } from "..";
 import { Workflow } from "lucide-react";
 
-const WORKFLOW_STORAGE_KEY = "workflow-onboarding-dismissed";
+const WORKFLOW_STORAGE_KEY = "sam-workflow-onboarding-dismissed";
 const WORKFLOW_URL = "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/workflows";
 const WORKFLOW_HEADER = "Workflows give enterprises production-ready, best-practice agent patterns that are predictable and reliable.";
 const WORKFLOW_DESCRIPTION =
