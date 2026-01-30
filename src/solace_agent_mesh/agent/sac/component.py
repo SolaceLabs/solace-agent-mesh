@@ -2564,6 +2564,7 @@ class SamAgentComponent(SamComponentBase):
         log_identifier = f"{self.log_identifier}[HistoryRepair]"
         try:
             from ...agent.adk.callbacks import create_dangling_tool_call_repair_content
+            from ...agent.adk.services import append_event_with_retry
 
             session_id = a2a_context.get("effective_session_id")
             user_id = a2a_context.get("user_id")
@@ -2611,7 +2612,16 @@ class SamAgentComponent(SamComponentBase):
                 content=repair_content,
             )
 
-            await self.session_service.append_event(session=session, event=repair_event)
+            # Use retry helper to handle stale session race conditions
+            await append_event_with_retry(
+                session_service=self.session_service,
+                session=session,
+                event=repair_event,
+                app_name=agent_name,
+                user_id=user_id,
+                session_id=session_id,
+                log_identifier=log_identifier,
+            )
             log.info(
                 "%s Session history repaired successfully with an error function_response.",
                 log_identifier,
