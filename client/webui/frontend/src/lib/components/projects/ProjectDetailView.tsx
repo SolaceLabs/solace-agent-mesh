@@ -135,20 +135,20 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 title={project.name}
                 breadcrumbs={[{ label: "Projects", onClick: onBack }, { label: project.name }]}
                 buttons={[
-                    ...(isOwner && isSharingEnabled && onShare
-                        ? [
-                              <Button key="share" variant="ghost" size="sm" onClick={onShare} testid="shareButton" className="gap-2">
-                                  <Share2 className="h-4 w-4" />
-                                  Share
-                              </Button>,
-                          ]
-                        : []),
                     ...(isOwner
                         ? [
                               <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} testid="editDetailsButton" className="gap-2">
                                   <Pencil className="h-4 w-4" />
                                   Edit Details
                               </Button>,
+                              ...(isSharingEnabled && onShare
+                                  ? [
+                                        <Button key="share" variant="ghost" size="sm" onClick={onShare} testid="shareButton" className="gap-2">
+                                            <Share2 className="h-4 w-4" />
+                                            Share
+                                        </Button>,
+                                    ]
+                                  : []),
                               <DropdownMenu key="more">
                                   <DropdownMenuTrigger asChild>
                                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
