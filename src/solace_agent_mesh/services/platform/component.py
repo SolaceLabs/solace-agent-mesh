@@ -211,6 +211,9 @@ class PlatformServiceComponent(SamComponentBase):
         - Direct message publisher (for deployer commands)
         - Agent health check timer (for removing expired agents from registry)
         """
+        # Initialize base class (sets up trust_manager if enterprise feature enabled)
+        super()._late_init()
+
         log.info("%s Starting late initialization (broker-dependent services)...", self.log_identifier)
 
         # Initialize direct message publisher for deployer commands
@@ -401,7 +404,20 @@ class PlatformServiceComponent(SamComponentBase):
         processed_successfully = False
 
         try:
-            if a2a.topic_matches_subscription(
+            # Handle trust card messages first (like gateway component pattern)
+            if (
+                hasattr(self, "trust_manager")
+                and self.trust_manager
+                and self.trust_manager.is_trust_card_topic(topic)
+            ):
+                payload = message.get_payload()
+                if isinstance(payload, bytes):
+                    payload = json.loads(payload.decode('utf-8'))
+                elif isinstance(payload, str):
+                    payload = json.loads(payload)
+                await self.trust_manager.handle_trust_card_message(payload, topic)
+                processed_successfully = True
+            elif a2a.topic_matches_subscription(
                 topic, a2a.get_discovery_subscription_topic(self.namespace)
             ):
                 payload = message.get_payload()
