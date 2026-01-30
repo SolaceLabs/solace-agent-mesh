@@ -60,6 +60,7 @@ export interface AgentCardInfo extends AgentInfo {
     displayName?: string;
     peerAgents?: string[];
     tools?: AgentSkill[];
+    isWorkflow?: boolean;
 }
 
 // This is a UI-specific type for managing artifacts in the side panel.
@@ -116,13 +117,6 @@ export interface ArtifactPart {
 export type PartFE = Part | ArtifactPart;
 
 /**
- * State for managing artifact rendering preferences and expanded state
- */
-export interface ArtifactRenderingState {
-    expandedArtifacts: Set<string>;
-}
-
-/**
  * Represents a single message in the chat conversation.
  */
 export interface MessageFE {
@@ -136,6 +130,7 @@ export interface MessageFE {
     isError?: boolean; // ADDED: True if this message represents an error/failure
     uploadedFiles?: File[]; // Array of files uploaded by the user with this message
     toolEvents?: ToolEvent[]; // --- NEW: Array to hold tool call results ---
+    displayHtml?: string; // HTML for displaying user messages with mention chips (user messages only)
     authenticationLink?: {
         url: string;
         text: string;
@@ -224,4 +219,49 @@ export interface Session {
     projectId?: string | null;
     projectName?: string | null;
     hasRunningBackgroundTask?: boolean;
+}
+
+// RAG (Retrieval-Augmented Generation) Types
+export interface RAGSource {
+    citationId: string; // Unique citation ID (e.g., "turn1file0", "research0")
+    fileId?: string; // Optional for deep_research
+    filename?: string; // Optional for deep_research
+    title?: string; // For deep_research sources
+    sourceType?: string; // For deep_research (web, kb)
+    sourceUrl?: string; // Source URL for kb_search and deep_research results
+    url?: string; // Alternative URL field for deep_research
+    contentPreview: string;
+    relevanceScore: number;
+    retrievedAt?: string; // For deep_research timestamp
+    metadata: Record<string, any>;
+}
+
+export interface RAGSearchResult {
+    query: string;
+    title?: string; // LLM-generated human-readable title for deep research
+    searchType: "file_search" | "kb_search" | "deep_research" | "web_search";
+    turnNumber?: number; // Turn number for citation tracking
+    timestamp: string;
+    sources: RAGSource[];
+    taskId?: string;
+    metadata?: {
+        queries?: Array<{
+            query: string;
+            timestamp: string;
+            sourceCitationIds: string[];
+        }>;
+        [key: string]: any;
+    };
+}
+
+export interface RAGSearchResultEvent {
+    type: "rag_search_result";
+    data: {
+        ragMetadata: {
+            query: string;
+            searchType: string;
+            timestamp: string;
+            sources: RAGSource[];
+        };
+    };
 }

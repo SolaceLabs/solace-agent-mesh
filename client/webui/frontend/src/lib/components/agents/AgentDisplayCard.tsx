@@ -94,12 +94,8 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
             <div className={`transform-style-preserve-3d relative h-full w-full transition-transform duration-700 ${isExpanded ? "rotate-y-180" : ""}`} style={{ transformStyle: "preserve-3d" }}>
                 <div className="absolute flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl" style={{ backfaceVisibility: "hidden", transform: "rotateY(0deg)" }}>
                     <div className="flex items-center p-4">
-                        <div className="flex min-w-0 items-center flex-1">
-                            {isWorkflow ? (
-                                <Workflow className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" />
-                            ) : (
-                                <Bot className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" />
-                            )}
+                        <div className="flex min-w-0 flex-1 items-center">
+                            {isWorkflow ? <Workflow className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" /> : <Bot className="mr-3 h-8 w-8 flex-shrink-0 text-[var(--color-brand-wMain)]" />}
                             <div className="min-w-0">
                                 <h2 className="truncate text-xl font-semibold" title={agent.name}>
                                     {agent.displayName || agent.name}
@@ -107,7 +103,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                             </div>
                         </div>
                     </div>
-                    <div className="scrollbar-themed flex-grow space-y-3 overflow-y-auto p-4">
+                    <div className="flex-grow space-y-3 overflow-y-auto p-4">
                         <div className="mb-2 line-clamp-4 text-base">{agent.description || "No description provided."}</div>
                         <DetailItem label="Version" value={agent.version} icon={<GitMerge size={14} />} />
                         {agent.capabilities && Object.keys(agent.capabilities).length > 0 && <DetailItem label="Key Capabilities" value={renderCapabilities(agent.capabilities as { [key: string]: unknown })} icon={<Key size={14} />} fullWidthValue />}
@@ -124,7 +120,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                             Details: {agent.displayName || agent.name}
                         </h3>
                     </div>
-                    <div className="scrollbar-themed flex-grow space-y-1.5 overflow-y-auto p-3 text-xs">
+                    <div className="flex-grow space-y-1.5 overflow-y-auto p-3 text-xs">
                         <DetailItem label="Name" value={agent.name} icon={<Info size={14} />} />
                         <DetailItem label="Description" value={agent.description} icon={<Book size={14} />} fullWidthValue />
                         <DetailItem label="Version" value={agent.version} icon={<GitMerge size={14} />} />

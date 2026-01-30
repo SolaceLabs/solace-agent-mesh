@@ -4,7 +4,7 @@ import { MockAuthProvider } from "./MockAuthProvider";
 import { MockTaskProvider } from "./MockTaskProvider";
 import { MockConfigProvider } from "./MockConfigProvider";
 import type { AuthContextValue } from "@/lib/contexts/AuthContext";
-import { ThemeProvider, type AudioSettingsContextValue, type ChatContextValue, type ConfigContextValue, type SelectionContextValue, type TaskContextValue } from "@/lib";
+import { ThemeProvider, QueryProvider, type AudioSettingsContextValue, type ChatContextValue, type ConfigContextValue, type SelectionContextValue, type TaskContextValue } from "@/lib";
 import { MockChatProvider } from "./MockChatProvider";
 import { MockProjectProvider } from "./MockProjectProvider";
 import type { ProjectContextValue } from "@/lib/types/projects";
@@ -58,20 +58,22 @@ export const StoryProvider: React.FC<StoryProviderProps> = ({
     configContextValues = {},
 }) => {
     return (
-        <ThemeProvider>
-            <MockConfigProvider mockValues={configContextValues}>
-                <MockAuthProvider mockValues={authContextValues}>
-                    <MockAudioSettingsProvider mockValues={audioSettingsContextValues}>
-                        <MockProjectProvider mockValues={projectContextValues}>
-                            <MockTextSelectionProvider mockValues={textSelectionContextValues}>
-                                <MockTaskProvider mockValues={taskContextValues}>
-                                    <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
-                                </MockTaskProvider>
-                            </MockTextSelectionProvider>
-                        </MockProjectProvider>
-                    </MockAudioSettingsProvider>
-                </MockAuthProvider>
-            </MockConfigProvider>
-        </ThemeProvider>
+        <QueryProvider>
+            <ThemeProvider>
+                <MockConfigProvider mockValues={configContextValues}>
+                    <MockAuthProvider mockValues={authContextValues}>
+                        <MockAudioSettingsProvider mockValues={audioSettingsContextValues}>
+                            <MockProjectProvider mockValues={projectContextValues}>
+                                <MockTextSelectionProvider mockValues={textSelectionContextValues}>
+                                    <MockTaskProvider mockValues={taskContextValues}>
+                                        <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
+                                    </MockTaskProvider>
+                                </MockTextSelectionProvider>
+                            </MockProjectProvider>
+                        </MockAudioSettingsProvider>
+                    </MockAuthProvider>
+                </MockConfigProvider>
+            </ThemeProvider>
+        </QueryProvider>
     );
 };

@@ -4,20 +4,12 @@ import { PanelLeftIcon } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
-import type { TextPart } from "@/lib/types";
-import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui";
-import { Spinner } from "@/lib/components/ui/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useChatContext, useTaskContext, useThemeContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
-
-import { ChatSidePanel } from "../chat/ChatSidePanel";
-import { ChatSessionDialog } from "../chat/ChatSessionDialog";
-import { SessionSidePanel } from "../chat/SessionSidePanel";
-import { ChatSessionDeleteDialog } from "../chat/ChatSessionDeleteDialog";
-import type { ChatMessageListRef } from "../ui/chat/chat-message-list";
+import type { TextPart } from "@/lib/types";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
+import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -41,8 +33,10 @@ const PANEL_SIZES_OPEN = {
 export function ChatPage() {
     const { activeProject } = useProjectContext();
     const { currentTheme } = useThemeContext();
+    const { autoTitleGenerationEnabled } = useConfigContext();
     const {
         agents,
+        sessionId,
         sessionName,
         messages,
         isSidePanelCollapsed,
@@ -65,6 +59,29 @@ export function ChatPage() {
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
     const chatSidePanelRef = useRef<ImperativePanelHandle>(null);
     const lastExpandedSizeRef = useRef<number | null>(null);
+
+    // Track which session started the response to avoid pulsing when switching to old sessions
+    // We use a Map to track task ID -> session ID relationships, plus a version counter to trigger re-renders
+    const taskToSessionRef = useRef<Map<string, string>>(new Map());
+    const [taskMapVersion, setTaskMapVersion] = useState(0);
+
+    // When a new task starts, remember which session it belongs to
+    // Don't rely on currentTaskId changes during session switches
+    useEffect(() => {
+        if (currentTaskId && !taskToSessionRef.current.has(currentTaskId)) {
+            // This is a genuinely new task - capture which session it started in
+            taskToSessionRef.current.set(currentTaskId, sessionId);
+            // Trigger a re-render so respondingSessionId useMemo recomputes
+            setTaskMapVersion(v => v + 1);
+        }
+    }, [currentTaskId, sessionId]);
+
+    // Derive respondingSessionId from the current task's owning session
+    const respondingSessionId = useMemo(() => {
+        if (!currentTaskId) return null;
+        return taskToSessionRef.current.get(currentTaskId) || null;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentTaskId, taskMapVersion]);
 
     const { chatPanelSizes, sidePanelSizes } = useMemo(() => {
         return isSessionSidePanelCollapsed ? PANEL_SIZES_CLOSED : PANEL_SIZES_OPEN;
@@ -107,10 +124,36 @@ export function ChatPage() {
 
     const breadcrumbs = undefined;
 
-    // Determine the page title
-    const pageTitle = useMemo(() => {
+    // Determine the page title with pulse/fade effect
+    const rawPageTitle = useMemo(() => {
         return sessionName || "New Chat";
     }, [sessionName]);
+
+    const { text: pageTitle, isAnimating: isTitleAnimating, isGenerating: isTitleGenerating } = useTitleAnimation(rawPageTitle, sessionId);
+
+    const isWaitingForTitle = useMemo(() => {
+        if (!autoTitleGenerationEnabled) {
+            return false;
+        }
+        const isNewChat = !sessionName || sessionName === "New Chat";
+        // Only pulse if THIS session started the response (prevents pulsing when viewing old sessions)
+        const isThisSessionResponding = respondingSessionId === sessionId;
+        return (isNewChat && isThisSessionResponding) || isTitleGenerating;
+    }, [sessionName, sessionId, respondingSessionId, isTitleGenerating, autoTitleGenerationEnabled]);
+
+    // Determine the appropriate animation class
+    const titleAnimationClass = useMemo(() => {
+        if (!autoTitleGenerationEnabled) {
+            return "opacity-100"; // No animation when disabled
+        }
+        if (isWaitingForTitle) {
+            return "animate-pulse-slow";
+        }
+        if (isTitleAnimating) {
+            return "animate-pulse opacity-50";
+        }
+        return "opacity-100";
+    }, [isWaitingForTitle, isTitleAnimating, autoTitleGenerationEnabled]);
 
     useEffect(() => {
         if (chatSidePanelRef.current && isSidePanelCollapsed) {
@@ -196,16 +239,14 @@ export function ChatPage() {
                     title={
                         <div className="flex items-center gap-3">
                             <Tooltip delayDuration={300}>
-                                <TooltipTrigger className="font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit hover:bg-transparent">{pageTitle}</TooltipTrigger>
+                                <TooltipTrigger className={`font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit transition-opacity duration-300 hover:bg-transparent ${titleAnimationClass}`}>
+                                    {pageTitle}
+                                </TooltipTrigger>
                                 <TooltipContent side="bottom">
                                     <p>{pageTitle}</p>
                                 </TooltipContent>
                             </Tooltip>
-                            {activeProject && (
-                                <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary max-w-[200px] px-2 py-0.5 text-xs font-semibold shadow-sm" title={activeProject.name}>
-                                    <span className="block truncate text-left">{activeProject.name}</span>
-                                </Badge>
-                            )}
+                            {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[200px]" />}
                         </div>
                     }
                     breadcrumbs={breadcrumbs}
@@ -247,7 +288,9 @@ export function ChatPage() {
                                                 {messages.map((message, index) => {
                                                     const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                                     const messageKey = message.metadata?.messageId || `temp-${index}`;
-                                                    return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} />;
+                                                    const isLastMessage = index === messages.length - 1;
+                                                    const shouldStream = isLastMessage && isResponding && !message.isUser;
+                                                    return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />;
                                                 })}
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>

@@ -111,9 +111,17 @@ const AgentReviewSubmitStep: React.FC<StepProps> = ({
       if (Array.isArray(processedConfig.tools)) {
         processedConfig.tools = processedConfig.tools
           .map((toolInstance) => {
-            const cleanTool: Partial<Tool> = {};
-            if (toolInstance.tool_type)
-              cleanTool.tool_type = toolInstance.tool_type;
+            if (!toolInstance.tool_type) {
+              console.error("Tool is missing tool_type:", toolInstance);
+              return null;
+            }
+
+            // Build tool with explicit field ordering - tool_type MUST be first
+            const cleanTool: Record<string, any> = {
+              tool_type: toolInstance.tool_type,
+            };
+
+            // Add other fields in a specific order after tool_type
             if (toolInstance.tool_name)
               cleanTool.tool_name = toolInstance.tool_name;
             if (toolInstance.tool_description)
@@ -128,6 +136,8 @@ const AgentReviewSubmitStep: React.FC<StepProps> = ({
               cleanTool.component_base_path = toolInstance.component_base_path;
             if (toolInstance.connection_params)
               cleanTool.connection_params = toolInstance.connection_params;
+            if (toolInstance.auth)
+              cleanTool.auth = toolInstance.auth;
             if (toolInstance.environment_variables)
               cleanTool.environment_variables =
                 toolInstance.environment_variables;
@@ -139,10 +149,6 @@ const AgentReviewSubmitStep: React.FC<StepProps> = ({
             if (toolInstance.tool_config)
               cleanTool.tool_config = toolInstance.tool_config;
 
-            if (!cleanTool.tool_type) {
-              console.error("Tool is missing tool_type:", toolInstance);
-              return null;
-            }
             return cleanTool as Tool;
           })
           .filter((tool) => tool !== null) as Tool[];

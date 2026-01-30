@@ -324,6 +324,17 @@ async def handle_agent_response(
                 await component.dag_executor.handle_node_completion(
                     workflow_context, sub_task_id, failure_result
                 )
+            elif result.status.state == TaskState.canceled:
+                # Sub-task was cancelled - this is expected when workflow is being cancelled
+                # Remove the cache entry since we received a response
+                component.cache_service.remove_data(sub_task_id)
+                
+                log.info(
+                    f"{component.log_identifier} Sub-task {sub_task_id} was cancelled"
+                )
+                
+                # Don't call handle_node_completion for cancelled tasks
+                # The workflow cancellation handler will finalize the workflow
             else:
                 log.error(f"{component.log_identifier} Received Task response without StructuredInvocationResult")
                 
@@ -385,28 +396,64 @@ async def handle_cancel_request(
                 continue
 
             # Get the target agent for this node
+            # For map/loop iteration nodes (e.g., "map_node_0"), we need to find the
+            # original node definition. Iteration node IDs follow the pattern:
+            # - Map iterations: "{map_node_id}_{index}" (e.g., "generate_data_0")
+            # - Loop iterations: "{loop_node_id}_iter_{iteration}" (e.g., "poll_status_iter_0")
             node = component.dag_executor.get_node_by_id(node_id)
-            if node and hasattr(node, 'agent_name'):
-                try:
-                    from ...common import a2a
-                    cancel_request = a2a.create_cancel_task_request(task_id=sub_task_id)
-                    target_topic = a2a.get_agent_request_topic(
-                        component.namespace, node.agent_name
-                    )
-                    component.publish_a2a_message(
-                        payload=cancel_request.model_dump(exclude_none=True),
-                        topic=target_topic,
-                        user_properties={"clientId": component.workflow_name},
-                    )
-                    log.info(
-                        f"{log_id} Sent CancelTaskRequest to agent '{node.agent_name}' "
-                        f"for sub-task {sub_task_id}"
-                    )
-                except Exception as e:
-                    log.error(
-                        f"{log_id} Failed to send CancelTaskRequest to agent "
-                        f"'{node.agent_name}': {e}"
-                    )
+            
+            if not node:
+                # Try to find the original node for iteration nodes
+                # Check for map iteration pattern: "{parent_id}_{index}"
+                # Check for loop iteration pattern: "{parent_id}_iter_{iteration}"
+                original_node_id = None
+                if "_iter_" in node_id:
+                    # Loop iteration: extract parent node ID
+                    original_node_id = node_id.rsplit("_iter_", 1)[0]
+                elif "_" in node_id:
+                    # Map iteration: extract parent node ID (everything before last underscore that's a number)
+                    parts = node_id.rsplit("_", 1)
+                    if len(parts) == 2 and parts[1].isdigit():
+                        original_node_id = parts[0]
+                
+                if original_node_id:
+                    # Get the parent control node (map or loop)
+                    parent_node = component.dag_executor.get_node_by_id(original_node_id)
+                    if parent_node:
+                        # Get the inner node that the map/loop executes
+                        inner_node_id = getattr(parent_node, 'node', None)
+                        if inner_node_id:
+                            node = component.dag_executor.get_node_by_id(inner_node_id)
+            
+            if node:
+                # Get agent_name or workflow_name depending on node type
+                target_name = getattr(node, 'agent_name', None) or getattr(node, 'workflow_name', None)
+                if target_name:
+                    try:
+                        from ...common import a2a
+                        cancel_request = a2a.create_cancel_task_request(task_id=sub_task_id)
+                        target_topic = a2a.get_agent_request_topic(
+                            component.namespace, target_name
+                        )
+                        component.publish_a2a_message(
+                            payload=cancel_request.model_dump(exclude_none=True),
+                            topic=target_topic,
+                            user_properties={"clientId": component.workflow_name},
+                        )
+                        log.info(
+                            f"{log_id} Sent CancelTaskRequest to '{target_name}' "
+                            f"for sub-task {sub_task_id}"
+                        )
+                    except Exception as e:
+                        log.error(
+                            f"{log_id} Failed to send CancelTaskRequest to "
+                            f"'{target_name}': {e}"
+                        )
+            else:
+                log.warning(
+                    f"{log_id} Could not find node definition for node_id '{node_id}', "
+                    f"cannot send cancel request for sub-task {sub_task_id}"
+                )
 
     # Finalize the workflow as cancelled
     try:

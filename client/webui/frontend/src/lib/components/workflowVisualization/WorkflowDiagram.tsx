@@ -133,13 +133,16 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     const highlightedNodeIds = controlledHighlightedNodeIds ?? internalHighlightedNodeIds;
 
     // Handle highlighting nodes when hovering over expressions
-    const handleHighlightNodes = useCallback((nodeIds: string[]) => {
-        if (controlledOnHighlightNodes) {
-            controlledOnHighlightNodes(nodeIds);
-        } else {
-            setInternalHighlightedNodeIds(new Set(nodeIds));
-        }
-    }, [controlledOnHighlightNodes]);
+    const handleHighlightNodes = useCallback(
+        (nodeIds: string[]) => {
+            if (controlledOnHighlightNodes) {
+                controlledOnHighlightNodes(nodeIds);
+            } else {
+                setInternalHighlightedNodeIds(new Set(nodeIds));
+            }
+        },
+        [controlledOnHighlightNodes]
+    );
 
     // Calculate edges from layout positions (not DOM measurements)
     // This avoids issues with pan/zoom transforms affecting edge positions
@@ -246,21 +249,8 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     }, [onNodeSelect]);
 
     return (
-        <div
-            className="relative h-full w-full bg-gray-50 dark:bg-gray-900"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onClick={handleBackgroundClick}
-        >
-            <PanZoomCanvas
-                ref={canvasRef}
-                initialScale={1}
-                minScale={0.25}
-                maxScale={2}
-                sidePanelWidth={sidePanelWidth}
-                onUserInteraction={handleUserInteraction}
-                onTransformChange={onTransformChange}
-            >
+        <div className="bg-card-background relative h-full w-full" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onClick={handleBackgroundClick}>
+            <PanZoomCanvas ref={canvasRef} initialScale={1} minScale={0.25} maxScale={2} sidePanelWidth={sidePanelWidth} onUserInteraction={handleUserInteraction} onTransformChange={onTransformChange}>
                 <div
                     ref={containerRef}
                     className="relative"

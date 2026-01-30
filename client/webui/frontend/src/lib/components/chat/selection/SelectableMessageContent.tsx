@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef } from "react";
 
-import { useTextSelection } from "./TextSelectionProvider";
-import { getSelectedText, getSelectionRange, getSelectionBoundingRect, calculateMenuPosition, isValidSelection } from "./selectionUtils";
+import { useTextSelection } from "./useTextSelection";
+import { getSelectedText, getSelectionRange, getSelectionBoundingRect, calculateMenuPosition, isValidSelection, isSelectionContainedInElement } from "./selectionUtils";
 import type { SelectableMessageContentProps } from "./types";
 
 export const SelectableMessageContent: React.FC<SelectableMessageContentProps> = ({ messageId, children, isAIMessage }) => {
@@ -31,8 +31,9 @@ export const SelectableMessageContent: React.FC<SelectableMessageContentProps> =
                 return;
             }
 
-            // Verify the selection intersects with our container
-            if (!range.intersectsNode(container)) {
+            // Verify the selection is fully contained within this message container
+            // This prevents selections that span across multiple messages
+            if (!isSelectionContainedInElement(range, container)) {
                 return;
             }
 

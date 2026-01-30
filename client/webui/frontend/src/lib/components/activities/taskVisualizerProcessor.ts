@@ -26,6 +26,19 @@ import type {
 } from "@/lib/types";
 
 /**
+ * Checks if an artifact is an intermediate web content artifact from deep research.
+ * These are temporary files that should not be shown in the workflow visualization.
+ *
+ * @param artifactName The name of the artifact to check.
+ * @returns True if the artifact is an intermediate web content artifact.
+ */
+const isIntermediateWebContentArtifact = (artifactName: string | undefined): boolean => {
+    if (!artifactName) return false;
+    // Skip web_content_ artifacts (temporary files from deep research)
+    return artifactName.startsWith("web_content_");
+};
+
+/**
  * Helper function to get parentTaskId from a TaskFE object.
  * It first checks the direct `parentTaskId` field. If not present,
  * it attempts to infer it from the task's first event metadata.
@@ -60,13 +73,7 @@ const getEventTimestamp = (event: A2AEventSSEPayload): string => {
  * @param visitedTaskIds A set of task IDs that have already been visited to prevent cycles/duplication.
  * @returns An array of A2AEventSSEPayload objects from the task and its descendants.
  */
-const collectAllDescendantEvents = (
-    currentTaskId: string,
-    allMonitoredTasks: Record<string, TaskFE>,
-    taskNestingLevels: Map<string, number>,
-    currentLevel: number,
-    visitedTaskIds: Set<string> = new Set()
-): A2AEventSSEPayload[] => {
+const collectAllDescendantEvents = (currentTaskId: string, allMonitoredTasks: Record<string, TaskFE>, taskNestingLevels: Map<string, number>, currentLevel: number, visitedTaskIds: Set<string> = new Set()): A2AEventSSEPayload[] => {
     if (visitedTaskIds.has(currentTaskId)) {
         return [];
     }
@@ -365,9 +372,7 @@ export const processTaskForVisualization = (
 
                 if (params?.message?.parts) {
                     // Extract structured_invocation_request data part
-                    const structuredInvocationPart = params.message.parts.find((p: any) =>
-                        p.kind === "data" && p.data?.type === "structured_invocation_request"
-                    );
+                    const structuredInvocationPart = params.message.parts.find((p: any) => p.kind === "data" && p.data?.type === "structured_invocation_request");
                     if (structuredInvocationPart) {
                         const invocationData = structuredInvocationPart.data;
                         inputSchema = invocationData.input_schema;
@@ -377,18 +382,14 @@ export const processTaskForVisualization = (
 
                     // Extract text parts (skip the reminder text)
                     // The first non-reminder text part is the instruction if present
-                    const textParts = params.message.parts.filter((p: any) =>
-                        p.kind === "text" && p.text && !p.text.includes("REMINDER:")
-                    );
+                    const textParts = params.message.parts.filter((p: any) => p.kind === "text" && p.text && !p.text.includes("REMINDER:"));
                     if (textParts.length > 0) {
                         // First text part is the instruction
                         instruction = textParts[0].text;
                     }
 
                     // Extract file parts (artifact references) - this is the structured input
-                    const fileParts = params.message.parts.filter((p: any) =>
-                        p.kind === "file" && p.file
-                    );
+                    const fileParts = params.message.parts.filter((p: any) => p.kind === "file" && p.file);
                     if (fileParts.length > 0) {
                         const file = fileParts[0].file;
                         inputArtifactRef = {
@@ -455,9 +456,7 @@ export const processTaskForVisualization = (
                 // Filter out gateway timestamp parts (they appear like "Request received by gateway at: 2025-12-19T22:46:16.994017+00:00")
                 // The gateway prepends this as the first part, so we can skip parts that match this pattern
                 const gatewayTimestampPattern = /^Request received by gateway at:/;
-                const filteredParts = textParts.filter(
-                    (p: any) => !gatewayTimestampPattern.test(p.text.trim())
-                );
+                const filteredParts = textParts.filter((p: any) => !gatewayTimestampPattern.test(p.text.trim()));
                 if (filteredParts.length > 0) {
                     // Join remaining text parts
                     userText = filteredParts.map((p: any) => p.text).join("\n");
@@ -465,9 +464,9 @@ export const processTaskForVisualization = (
                     // Fallback: if all parts were filtered, use the last part but strip the gateway prefix
                     const lastPart = textParts[textParts.length - 1].text;
                     // Try to extract text after the timestamp line
-                    const lines = lastPart.split('\n');
+                    const lines = lastPart.split("\n");
                     const nonGatewayLines = lines.filter((line: string) => !gatewayTimestampPattern.test(line.trim()));
-                    userText = nonGatewayLines.length > 0 ? nonGatewayLines.join('\n') : lastPart;
+                    userText = nonGatewayLines.length > 0 ? nonGatewayLines.join("\n") : lastPart;
                 }
             }
             visualizerSteps.push({
@@ -717,10 +716,7 @@ export const processTaskForVisualization = (
 
                                     // Check if this LLM call is following tool results
                                     // Tool results can be: role="tool", role="function", or parts with function_response
-                                    const toolResultContents = llmData.contents.filter((c: any) =>
-                                        c.role === "tool" || c.role === "function" ||
-                                        (c.parts && c.parts.some((p: any) => p.function_response))
-                                    );
+                                    const toolResultContents = llmData.contents.filter((c: any) => c.role === "tool" || c.role === "function" || (c.parts && c.parts.some((p: any) => p.function_response)));
                                     const hasToolResults = toolResultContents.length > 0;
 
                                     if (hasToolResults && lastRole !== "user") {
@@ -769,10 +765,11 @@ export const processTaskForVisualization = (
 
                                         // Find the LAST user message (which is the current turn's request)
                                         const lastUserContent = [...llmData.contents].reverse().find((c: any) => c.role === "user");
-                                        const userPromptFull = lastUserContent?.parts
-                                            ?.map((p: any) => p.text || "")
-                                            .join(" ")
-                                            .trim() || "";
+                                        const userPromptFull =
+                                            lastUserContent?.parts
+                                                ?.map((p: any) => p.text || "")
+                                                .join(" ")
+                                                .trim() || "";
                                         const userPromptSnippet = userPromptFull.substring(0, 5000);
 
                                         // Build prompt text with tool result summaries
@@ -879,7 +876,7 @@ export const processTaskForVisualization = (
                                         }
                                     });
 
-                                        const toolDecisionStep: VisualizerStep = {
+                                    const toolDecisionStep: VisualizerStep = {
                                         id: `vstep-tooldecision-${visualizerSteps.length}-${eventId}`,
                                         type: "AGENT_LLM_RESPONSE_TOOL_DECISION",
                                         timestamp: eventTimestamp,
@@ -1030,7 +1027,8 @@ export const processTaskForVisualization = (
                                 // Check if this is _notify_artifact_save and we have a pending artifact
                                 if (signalData.tool_name === "_notify_artifact_save" && functionCallId) {
                                     const pendingArtifact = pendingArtifacts.get(functionCallId);
-                                    if (pendingArtifact) {
+                                    // Skip intermediate web content artifacts from deep research
+                                    if (pendingArtifact && !isIntermediateWebContentArtifact(pendingArtifact.filename)) {
                                         const artifactNotification: ArtifactNotificationData = {
                                             artifactName: pendingArtifact.filename,
                                             version: pendingArtifact.version,
@@ -1051,8 +1049,8 @@ export const processTaskForVisualization = (
                                             owningTaskId: pendingArtifact.taskId,
                                             functionCallId: functionCallId,
                                         });
-                                        pendingArtifacts.delete(functionCallId);
                                     }
+                                    pendingArtifacts.delete(functionCallId);
                                 }
                                 break;
                             }
@@ -1063,13 +1061,20 @@ export const processTaskForVisualization = (
                                 // Handle new artifact_saved event type
                                 flushAggregatedTextStep(currentEventOwningTaskId);
 
+                                const artifactFilename = signalData.filename || "Unnamed Artifact";
+
+                                // Skip intermediate web content artifacts from deep research
+                                if (isIntermediateWebContentArtifact(artifactFilename)) {
+                                    break;
+                                }
+
                                 // Check if this has a function_call_id (from fenced blocks with _notify_artifact_save)
                                 const isSyntheticToolCall = signalData.function_call_id && signalData.function_call_id.startsWith("host-notify-");
 
                                 if (isSyntheticToolCall) {
                                     // Queue this artifact - will be created when we see the _notify_artifact_save tool result
                                     pendingArtifacts.set(signalData.function_call_id, {
-                                        filename: signalData.filename || "Unnamed Artifact",
+                                        filename: artifactFilename,
                                         version: signalData.version,
                                         description: signalData.description,
                                         mimeType: signalData.mime_type,
@@ -1082,7 +1087,7 @@ export const processTaskForVisualization = (
                                 } else {
                                     // Regular tool call - create node immediately
                                     const artifactNotification: ArtifactNotificationData = {
-                                        artifactName: signalData.filename || "Unnamed Artifact",
+                                        artifactName: artifactFilename,
                                         version: signalData.version,
                                         description: signalData.description,
                                         mimeType: signalData.mime_type,
@@ -1130,6 +1135,13 @@ export const processTaskForVisualization = (
         if (event.direction === "artifact_update" && payload?.result?.artifact) {
             flushAggregatedTextStep(currentEventOwningTaskId);
             const artifactData = payload.result.artifact as Artifact;
+            const artifactName = artifactData.name || "Unnamed Artifact";
+
+            // Skip intermediate web content artifacts from deep research
+            if (isIntermediateWebContentArtifact(artifactName)) {
+                return;
+            }
+
             const artifactAgentName = (artifactData.metadata?.agent_name as string) || event.source_entity || "Agent";
             let mimeType: string | undefined = undefined;
             if (artifactData.parts && artifactData.parts.length > 0) {
@@ -1141,7 +1153,7 @@ export const processTaskForVisualization = (
                 }
             }
             const artifactNotification: ArtifactNotificationData = {
-                artifactName: artifactData.name || "Unnamed Artifact",
+                artifactName: artifactName,
                 version: typeof artifactData.metadata?.version === "number" ? artifactData.metadata.version : undefined,
                 description: artifactData.description || undefined,
                 mimeType,

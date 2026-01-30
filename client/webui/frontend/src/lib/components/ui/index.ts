@@ -13,6 +13,8 @@ export { Spinner } from "./spinner";
 export * from "./dialog";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
 export { Switch } from "./switch";
+export { Progress } from "./progress";
+export { Checkbox } from "./checkbox";
 export { Pagination, PaginationContent, PaginationLink, PaginationItem, PaginationPrevious, PaginationNext, PaginationEllipsis } from "./pagination";
 
 // Layout Components
@@ -30,6 +32,7 @@ export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 export { Tooltip, TooltipTrigger, TooltipContent } from "./tooltip";
 export { Separator } from "./separator";
 export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table";
+export { type StepperConfigProps, type StepperDefineProps, type CircleStepIndicatorProps, type StepperVariant, type StepperLabelOrientation, defineStepper } from "./stepper";
 
 // Chat Components
 export { ChatInput } from "./chat/chat-input";

@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { ZoomIn, ZoomOut, Home } from "lucide-react";
 
 export interface CanvasControlsProps {
@@ -20,14 +20,7 @@ export interface CanvasControlsProps {
  * CanvasControls - Control bar for pan/zoom canvas operations
  * Displays zoom level and provides zoom in/out and fit-to-view buttons
  */
-export const CanvasControls: React.FC<CanvasControlsProps> = ({
-    zoomLevel,
-    onZoomIn,
-    onZoomOut,
-    onFitToView,
-    minZoom = 0.25,
-    maxZoom = 2,
-}) => {
+export const CanvasControls: FC<CanvasControlsProps> = ({ zoomLevel, onZoomIn, onZoomOut, onFitToView, minZoom = 0.25, maxZoom = 2 }) => {
     // Format zoom level as percentage
     const zoomPercentage = Math.round(zoomLevel * 100);
 
@@ -62,9 +55,7 @@ export const CanvasControls: React.FC<CanvasControlsProps> = ({
                 </button>
 
                 {/* Zoom level display */}
-                <span className="min-w-[3.5rem] text-center text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {zoomPercentage}%
-                </span>
+                <span className="min-w-[3.5rem] text-center text-sm font-medium text-gray-700 dark:text-gray-300">{zoomPercentage}%</span>
 
                 {/* Zoom in button */}
                 <button

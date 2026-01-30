@@ -23,7 +23,7 @@ interface PromptTemplateBuilderProps {
 export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ onBack, onSuccess, initialMessage, editingGroup, isEditing = false, initialMode }) => {
     const { config, updateConfig, saveTemplate, updateTemplate, resetConfig, validationErrors, isLoading } = usePromptTemplateBuilder(editingGroup);
 
-    const [builderMode, setBuilderMode] = useState<"manual" | "ai-assisted">(initialMode || (isEditing ? "manual" : "ai-assisted"));
+    const [builderMode, setBuilderMode] = useState<"manual" | "ai-assisted">(initialMode || "ai-assisted");
     const [isReadyToSave, setIsReadyToSave] = useState(false);
     const [highlightedFields, setHighlightedFields] = useState<string[]>([]);
 
@@ -339,7 +339,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                 <NavigationBlocker />
                 {/* Footer Actions */}
                 <div className="flex justify-end gap-2 border-t p-4">
-                    <Button variant="ghost" onClick={() => handleClose()} disabled={isLoading}>
+                    <Button variant="ghost" onClick={() => handleClose(isEditing)} disabled={isLoading}>
                         {isEditing ? "Discard Changes" : "Cancel"}
                     </Button>
                     {isEditing && (

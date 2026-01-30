@@ -2,13 +2,13 @@ import React, { type ReactNode, useState, useRef, useEffect, useCallback } from 
 
 import type { A2AEventSSEPayload, TaskFE } from "@/lib/types";
 import { TaskContext, type TaskContextValue } from "@/lib/contexts/TaskContext";
-import { getAccessToken } from "@/lib/utils/api";
+import { getApiBearerToken } from "@/lib/utils/api";
 import { api } from "@/lib/api";
 
 // Helper to strip gateway timestamp prefix from request text
 const stripGatewayTimestamp = (text: string): string => {
     const gatewayTimestampPattern = /^Request received by gateway at:[^\n]*\n?/;
-    return text.replace(gatewayTimestampPattern, '').trim();
+    return text.replace(gatewayTimestampPattern, "").trim();
 };
 
 interface SubscriptionResponse {
@@ -164,7 +164,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             const sseUrl = subscriptionData.sse_endpoint_url.startsWith("/") ? api.webui.getFullUrl(subscriptionData.sse_endpoint_url) : subscriptionData.sse_endpoint_url;
 
             if (taskMonitorEventSourceRef.current) taskMonitorEventSourceRef.current.close();
-            const accessToken = getAccessToken();
+            const accessToken = getApiBearerToken();
             const finalSseUrl = `${sseUrl}${accessToken ? `?token=${accessToken}` : ""}`;
             const newEventSource = new EventSource(finalSseUrl, { withCredentials: true });
             taskMonitorEventSourceRef.current = newEventSource;
