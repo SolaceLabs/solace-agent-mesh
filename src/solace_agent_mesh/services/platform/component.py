@@ -538,11 +538,16 @@ class PlatformServiceComponent(SamComponentBase):
     def _pre_async_cleanup(self) -> None:
         """
         Cleanup before async operations stop (required by SamComponentBase).
-
-        Platform Service doesn't have async-specific resources to clean up here.
-        Main cleanup happens in cleanup() method.
         """
-        pass
+        if self.trust_manager:
+            try:
+                log.info("%s Cleaning up Trust Manager...", self.log_identifier)
+                self.trust_manager.cleanup(self.cancel_timer)
+                log.info("%s Trust Manager cleanup complete", self.log_identifier)
+            except Exception as e:
+                log.error(
+                    "%s Error during Trust Manager cleanup: %s", self.log_identifier, e
+                )
 
     def cleanup(self):
         """
