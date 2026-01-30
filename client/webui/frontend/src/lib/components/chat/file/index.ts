@@ -1,4 +1,5 @@
 export * from "./ArtifactMessage";
+export * from "./DocumentThumbnail";
 export * from "./FileBadge";
 export * from "./FileDetails";
 export * from "./FileIcon";

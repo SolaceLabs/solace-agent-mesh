@@ -38,6 +38,16 @@ export interface ArtifactBarProps {
     isDeleted?: boolean; // If true, show as deleted
     version?: number; // Version number to display (e.g., 1, 2, 3)
     source?: string; // Source of the artifact (e.g., "project")
+    /** Base64-encoded content for thumbnail preview (optional) */
+    content?: string;
+    /** Whether to show thumbnail preview for supported documents */
+    showThumbnail?: boolean;
+    /** Artifact URI for fetching content for thumbnails */
+    uri?: string;
+    /** Session ID for API calls when fetching thumbnail content */
+    sessionId?: string;
+    /** Project ID for API calls when fetching thumbnail content */
+    projectId?: string;
 }
 
 export const ArtifactBar: React.FC<ArtifactBarProps> = ({
@@ -57,6 +67,11 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     isDeleted = false,
     version,
     source,
+    content,
+    showThumbnail = true,
+    uri,
+    sessionId,
+    projectId,
 }) => {
     const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
     const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
@@ -202,8 +217,18 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
             onClick={isDeleted ? undefined : handleBarClick}
         >
             <div className="flex min-h-[60px] items-center gap-3 p-3">
-                {/* File Icon */}
-                <FileIcon filename={filename} mimeType={mimeType} size={size} className="flex-shrink-0" />
+                {/* File Icon with optional thumbnail preview */}
+                <FileIcon
+                    filename={filename}
+                    mimeType={mimeType}
+                    size={size}
+                    className="flex-shrink-0"
+                    content={content}
+                    showThumbnail={showThumbnail && context === "list" && status === "completed"}
+                    uri={uri}
+                    sessionId={sessionId}
+                    projectId={projectId}
+                />
 
                 {/* File Info Section */}
                 <div className="min-w-0 flex-1 py-1">

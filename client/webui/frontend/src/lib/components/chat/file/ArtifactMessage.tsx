@@ -483,6 +483,11 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             isDeleted={isDeleted}
             version={version}
             source={artifact?.source}
+            content={contentToRender}
+            showThumbnail={true}
+            uri={artifact?.uri || fileAttachment?.uri}
+            sessionId={sessionId}
+            projectId={activeProject?.id}
         />
     );
 };

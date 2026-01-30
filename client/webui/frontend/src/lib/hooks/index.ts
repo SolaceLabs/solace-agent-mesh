@@ -29,5 +29,6 @@ export * from "./useSessionStorage";
 export * from "./useMap";
 export * from "./useLocalStorage";
 export * from "./useToggle";
+export * from "./useThumbnailContent";
 export * from "./useTitleGeneration";
 export * from "./useTitleAnimation";

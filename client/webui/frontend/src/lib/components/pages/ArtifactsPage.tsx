@@ -1,10 +1,12 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode } from "lucide-react";
+import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, FileImage, FileCode, FileText, Presentation } from "lucide-react";
 import { Button, Input, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, Spinner, Card, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { useAllArtifacts, useChatContext } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import { formatTimestamp, cn } from "@/lib/utils";
+import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
+import { ConfigContext } from "@/lib/contexts/ConfigContext";
 
 // Extended artifact type with session info
 interface ArtifactWithSession {
@@ -169,12 +171,25 @@ interface ArtifactGridCardProps {
 
 const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownload, onDelete, onPreview, onGoToChat, isSelected }) => {
     const origin = getArtifactOrigin(artifact);
+    const config = useContext(ConfigContext);
     const [contentPreview, setContentPreview] = useState<string | null>(null);
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+    const [documentContent, setDocumentContent] = useState<string | null>(null);
     const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+    const [documentThumbnailFailed, setDocumentThumbnailFailed] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
-    // Load content preview for text files or image thumbnail
+    // Check if this file supports document thumbnail
+    const isDocumentThumbnailSupported = supportsThumbnail(artifact.filename, artifact.mime_type);
+    const binaryArtifactPreviewEnabled = config?.binaryArtifactPreviewEnabled ?? false;
+
+    // Check if file is a PDF (doesn't need conversion service)
+    const isPdfFile = artifact.mime_type === "application/pdf" || artifact.filename.toLowerCase().endsWith(".pdf");
+
+    // Only enable document thumbnail if: it's a PDF (always works) OR it's an Office doc and conversion is enabled
+    const canAttemptDocumentThumbnail = isDocumentThumbnailSupported && (isPdfFile || binaryArtifactPreviewEnabled);
+
+    // Load content preview for text files, image thumbnail, or document thumbnail
     useEffect(() => {
         const loadPreview = async () => {
             if (isImageType(artifact.mime_type)) {
@@ -184,6 +199,33 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                     setImagePreviewUrl(url);
                 } catch (error) {
                     console.error("Error creating image preview URL:", error);
+                }
+            } else if (canAttemptDocumentThumbnail && !documentThumbnailFailed) {
+                // For PDF, DOCX, PPTX, etc. - fetch content for thumbnail
+                setIsLoadingPreview(true);
+                try {
+                    const response = await api.webui.get(`/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`, { fullResponse: true });
+                    const blob = await response.blob();
+                    const base64data = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            if (typeof reader.result === "string") {
+                                resolve(reader.result.split(",")[1]);
+                            } else {
+                                reject(new Error("Failed to read content as data URL"));
+                            }
+                        };
+                        reader.onerror = () => {
+                            reject(reader.error || new Error("Unknown error reading file"));
+                        };
+                        reader.readAsDataURL(blob);
+                    });
+                    setDocumentContent(base64data);
+                } catch (error) {
+                    console.error("Error loading document content for thumbnail:", error);
+                    setDocumentContent(null);
+                } finally {
+                    setIsLoadingPreview(false);
                 }
             } else if (supportsTextPreview(artifact.mime_type) && artifact.size < 50000) {
                 // Only load preview for text files under 50KB
@@ -210,7 +252,15 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
         };
 
         loadPreview();
-    }, [artifact.sessionId, artifact.filename, artifact.mime_type, artifact.size]);
+    }, [artifact.sessionId, artifact.filename, artifact.mime_type, artifact.size, canAttemptDocumentThumbnail, documentThumbnailFailed]);
+
+    // Handle document thumbnail error - fall back to icon
+    const handleDocumentThumbnailError = useCallback(() => {
+        setDocumentThumbnailFailed(true);
+    }, []);
+
+    // Check if we can show document thumbnail
+    const canShowDocumentThumbnail = canAttemptDocumentThumbnail && documentContent && !documentThumbnailFailed;
 
     const handleCardClick = () => {
         onPreview(artifact);
@@ -219,7 +269,7 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
     return (
         <Card
             className={cn(
-                "group relative flex h-[220px] w-[280px] flex-shrink-0 cursor-pointer flex-col overflow-hidden transition-all",
+                "group relative flex h-[220px] w-[280px] flex-shrink-0 cursor-pointer flex-col gap-0 overflow-hidden transition-all",
                 "hover:bg-[var(--color-primary-w10)] dark:hover:bg-[var(--color-primary-wMain)]",
                 "focus-visible:border-[var(--color-brand-w100)] focus-visible:outline-none",
                 isSelected && "border-[var(--color-brand-w100)]"
@@ -295,6 +345,8 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
             <div className="bg-muted/30 relative flex flex-1 items-center justify-center overflow-hidden">
                 {imagePreviewUrl ? (
                     <img src={imagePreviewUrl} alt={artifact.filename} className="h-full w-full object-cover" onError={() => setImagePreviewUrl(null)} />
+                ) : canShowDocumentThumbnail && documentContent ? (
+                    <DocumentThumbnail content={documentContent} filename={artifact.filename} mimeType={artifact.mime_type} width={280} height={130} onError={handleDocumentThumbnailError} className="absolute inset-0 h-full w-full" />
                 ) : contentPreview ? (
                     <div className="text-muted-foreground h-full w-full overflow-hidden px-3 py-2 font-mono text-[11px] leading-relaxed">
                         {contentPreview.split("\n").map((line, index) => (
@@ -311,6 +363,15 @@ const ArtifactGridCard: React.FC<ArtifactGridCardProps> = ({ artifact, onDownloa
                             <FileImage className="text-muted-foreground h-12 w-12" />
                         ) : supportsTextPreview(artifact.mime_type) ? (
                             <FileCode className="text-muted-foreground h-12 w-12" />
+                        ) : isDocumentThumbnailSupported ? (
+                            // Show appropriate icon for document types while loading or if thumbnail failed
+                            artifact.mime_type.includes("pdf") ? (
+                                <FileText className="text-muted-foreground h-12 w-12" />
+                            ) : artifact.mime_type.includes("presentation") || artifact.filename.toLowerCase().endsWith(".pptx") || artifact.filename.toLowerCase().endsWith(".ppt") ? (
+                                <Presentation className="text-muted-foreground h-12 w-12" />
+                            ) : (
+                                <FileText className="text-muted-foreground h-12 w-12" />
+                            )
                         ) : (
                             <File className="text-muted-foreground h-12 w-12" />
                         )}

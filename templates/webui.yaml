@@ -76,6 +76,10 @@ apps:
       #   projects: true
       #   promptLibrary: true
         background_tasks: true  # NOTE: task_logging must also be enabled for background tasks to work
+        # Binary artifact preview (DOCX, PPTX files):
+        # Requires LibreOffice to be installed (build with INSTALL_LIBREOFFICE=true)
+        # Set to true only if LibreOffice is available on the server
+        binaryArtifactPreview: false
 
       # --- Background Tasks Configuration ---
       background_tasks:

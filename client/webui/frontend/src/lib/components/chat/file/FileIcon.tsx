@@ -1,12 +1,24 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { FileImage, FileVideo, FileAudio, FileText, Archive, FileSpreadsheet, Presentation, Settings, Type, File, FileCode } from "lucide-react";
+import { DocumentThumbnail, supportsThumbnail } from "./DocumentThumbnail";
+import { useThumbnailContent } from "@/lib/hooks";
 
 interface FileIconProps {
     filename: string;
     mimeType?: string;
     size?: number;
     className?: string;
+    /** Base64-encoded content for thumbnail generation (optional) */
+    content?: string;
+    /** Whether to show thumbnail preview for supported documents */
+    showThumbnail?: boolean;
+    /** Artifact URI for fetching content (used when content is not provided) */
+    uri?: string;
+    /** Session ID for API calls when fetching content */
+    sessionId?: string;
+    /** Project ID for API calls when fetching content */
+    projectId?: string;
 }
 
 const getFileExtension = (filename: string): string => {
@@ -182,7 +194,28 @@ const getFileTypeColor = (mimeType?: string, filename?: string): string => {
     }
 };
 
-export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, className }) => {
+export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, className, content, showThumbnail = true, uri, sessionId, projectId }) => {
+    // State to track if thumbnail failed to load
+    const [thumbnailFailed, setThumbnailFailed] = useState(false);
+
+    // Determine if we should try to fetch content for thumbnail
+    const shouldFetchContent = showThumbnail && !content && !!uri && supportsThumbnail(filename, mimeType) && !thumbnailFailed;
+
+    // Use the thumbnail content hook to fetch content when needed
+    const { content: fetchedContent } = useThumbnailContent({
+        uri,
+        filename,
+        mimeType,
+        sessionId,
+        projectId,
+        enabled: shouldFetchContent,
+    });
+
+    // Handle thumbnail error - fall back to generic icon
+    const handleThumbnailError = useCallback(() => {
+        setThumbnailFailed(true);
+    }, []);
+
     // Validate required props
     if (!filename || typeof filename !== "string") {
         console.warn("FileIcon: filename is required and must be a string");
@@ -193,13 +226,21 @@ export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, classNam
     const typeColor = getFileTypeColor(mimeType, filename);
     const fileIcon = getFileTypeIcon(mimeType, filename);
 
+    // Use provided content or fetched content
+    const thumbnailContent = content || fetchedContent;
+
+    // Check if we should show a document thumbnail
+    const canShowThumbnail = showThumbnail && thumbnailContent && supportsThumbnail(filename, mimeType) && !thumbnailFailed;
+
     return (
         <div className={cn("relative flex-shrink-0", className)}>
             {/* Main document icon with square corners */}
-            <div className="bg-muted/50 relative h-[75px] w-[60px] border">
-                {/* Icon */}
+            <div className="bg-muted/50 relative h-[75px] w-[60px] overflow-hidden border">
+                {/* Document Thumbnail or Icon */}
                 <div className="absolute top-[4px] right-[4px] bottom-[24px] left-[4px] overflow-hidden font-mono text-[3.5px] leading-[1.4]">
-                    {fileIcon ? (
+                    {canShowThumbnail ? (
+                        <DocumentThumbnail content={thumbnailContent} filename={filename} mimeType={mimeType} width={52} height={47} onError={handleThumbnailError} className="rounded-sm" />
+                    ) : fileIcon ? (
                         <div className="flex h-full items-center justify-center">{fileIcon}</div>
                     ) : (
                         <div className="text-secondary-foreground flex h-full text-[8px] select-none">

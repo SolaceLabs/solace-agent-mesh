@@ -65,6 +65,13 @@ export interface ConfigContextValue {
      * Requires persistence to be enabled.
      */
     autoTitleGenerationEnabled?: boolean;
+
+    /**
+     * Whether binary artifact preview is enabled.
+     * When true, Office documents can be previewed in the browser via PDF conversion.
+     * Requires LibreOffice to be installed on the server.
+     */
+    binaryArtifactPreviewEnabled?: boolean;
 }
 
 export const ConfigContext = createContext<ConfigContextValue | null>(null);
