@@ -38,7 +38,6 @@ const MappingValue: React.FC<{
         return /\{\{[^}]+\}\}/.test(str);
     };
 
-
     // Render based on value type
     if (value === null) {
         return <span className="text-gray-400 dark:text-gray-500">null</span>;
@@ -62,20 +61,11 @@ const MappingValue: React.FC<{
         };
 
         return (
-            <span className="inline-flex items-end gap-1">
-                <span className="font-mono text-(--color-error-w100)">
-                    "{value}"
-                </span>
+            <span className="flex gap-1">
+                <span className="flex-1 font-mono text-(--color-error-w100)">"{value}"</span>
                 {hasNodeRefs && onNavigateToNode && (
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleNavigate}
-                        onMouseEnter={() => onHighlightNodes?.([nodeRefs[0]])}
-                        onMouseLeave={() => onHighlightNodes?.([])}
-                        tooltip={`Navigate to ${nodeRefs[0]}`}
-                    >
-                        <Search className="h-6 w-6" />
+                    <Button variant="ghost" onClick={handleNavigate} onMouseEnter={() => onHighlightNodes?.([nodeRefs[0]])} onMouseLeave={() => onHighlightNodes?.([])} tooltip={`Navigate to ${nodeRefs[0]}`} className="bg-red-100">
+                        <Search />
                     </Button>
                 )}
             </span>
@@ -99,13 +89,7 @@ const MappingValue: React.FC<{
                 <span className="text-gray-500">[</span>
                 {value.map((item, index) => (
                     <div key={index} className="ml-3">
-                        <MappingValue
-                            value={item}
-                            onHighlightNodes={onHighlightNodes}
-                            knownNodeIds={knownNodeIds}
-                            onNavigateToNode={onNavigateToNode}
-                            depth={depth + 1}
-                        />
+                        <MappingValue value={item} onHighlightNodes={onHighlightNodes} knownNodeIds={knownNodeIds} onNavigateToNode={onNavigateToNode} depth={depth + 1} />
                         {index < value.length - 1 && <span className="text-gray-500">,</span>}
                     </div>
                 ))}
@@ -126,13 +110,7 @@ const MappingValue: React.FC<{
                     <div key={key} className="ml-3">
                         <span className="text-gray-700 dark:text-gray-300">{key}</span>
                         <span className="text-gray-500">: </span>
-                        <MappingValue
-                            value={val}
-                            onHighlightNodes={onHighlightNodes}
-                            knownNodeIds={knownNodeIds}
-                            onNavigateToNode={onNavigateToNode}
-                            depth={depth + 1}
-                        />
+                        <MappingValue value={val} onHighlightNodes={onHighlightNodes} knownNodeIds={knownNodeIds} onNavigateToNode={onNavigateToNode} depth={depth + 1} />
                         {index < entries.length - 1 && <span className="text-gray-500">,</span>}
                     </div>
                 ))}
@@ -145,22 +123,13 @@ const MappingValue: React.FC<{
 };
 
 /**
- * InputMappingViewer - Displays input mapping 
+ * InputMappingViewer - Displays input mapping
  */
-const InputMappingViewer: React.FC<InputMappingViewerProps> = ({
-    mapping,
-    onHighlightNodes,
-    knownNodeIds,
-    onNavigateToNode,
-}) => {
+const InputMappingViewer: React.FC<InputMappingViewerProps> = ({ mapping, onHighlightNodes, knownNodeIds, onNavigateToNode }) => {
     const entries = Object.entries(mapping);
 
     if (entries.length === 0) {
-        return (
-            <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">
-                No input mapping defined
-            </div>
-        );
+        return <div className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">No input mapping defined</div>;
     }
 
     // Helper to check if value has node references
@@ -180,26 +149,13 @@ const InputMappingViewer: React.FC<InputMappingViewerProps> = ({
                 return (
                     <div key={key} className="space-y-1">
                         <div className="font-mono text-sm">{key}</div>
-                        <div className="flex items-start gap-2">
-                            <div className="flex-1 break-words overflow-auto bg-card-background dark:border px-2.5 py-1">
-                                <MappingValue
-                                    value={value}
-                                    onHighlightNodes={onHighlightNodes}
-                                    knownNodeIds={knownNodeIds}
-                                    onNavigateToNode={undefined}
-                                />
+                        <div className="flex items-center gap-2">
+                            <div className="bg-card-background flex-1 overflow-auto px-2.5 py-1 break-words dark:border">
+                                <MappingValue value={value} onHighlightNodes={onHighlightNodes} knownNodeIds={knownNodeIds} onNavigateToNode={undefined} />
                             </div>
                             {hasNodeRefs && onNavigateToNode && (
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => onNavigateToNode(nodeRefs[0])}
-                                    onMouseEnter={() => onHighlightNodes?.([nodeRefs[0]])}
-                                    onMouseLeave={() => onHighlightNodes?.([])}
-                                    tooltip={`Navigate to ${nodeRefs[0]}`}
-                                    className="h-6 w-6"
-                                >
-                                    <Search className="h-6 w-6" />
+                                <Button variant="ghost" onClick={() => onNavigateToNode(nodeRefs[0])} onMouseEnter={() => onHighlightNodes?.([nodeRefs[0]])} onMouseLeave={() => onHighlightNodes?.([])} tooltip={`Navigate to ${nodeRefs[0]}`}>
+                                    <Search />
                                 </Button>
                             )}
                         </div>

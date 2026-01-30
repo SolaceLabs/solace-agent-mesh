@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback, useRef, useEffect } from "react"
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Workflow } from "lucide-react";
 
-import { EmptyState } from "@/lib/components";
+import { Button, EmptyState } from "@/lib/components";
 import { Header, type BreadcrumbItem } from "@/lib/components/header";
 import { useChatContext } from "@/lib/hooks";
 import { isWorkflowAgent, getWorkflowConfig } from "@/lib/utils/agentUtils";
@@ -306,9 +306,9 @@ export function WorkflowVisualizationPage() {
                 }
                 breadcrumbs={breadcrumbs}
                 buttons={[
-                    <button key="details" onClick={handleOpenWorkflowDetails} className="text-sm text-(--color-brand-wMain) hover:underline">
+                    <Button variant="ghost" key="details" onClick={handleOpenWorkflowDetails}>
                         Open Workflow Details
-                    </button>,
+                    </Button>,
                 ]}
             />
 

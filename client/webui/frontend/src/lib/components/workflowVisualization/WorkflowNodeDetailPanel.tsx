@@ -282,16 +282,6 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                             </div>
                         )}
 
-                        {/* Open Agent button (for agent nodes) */}
-                        {node.type === "agent" && node.data.agentName && (
-                            <div className="mb-4">
-                                <Button variant="outline" size="sm" onClick={() => navigate(`/agents/${encodeURIComponent(node.data.agentName!)}`)} className="w-full">
-                                    Open Agent
-                                    <ExternalLink className="ml-2 h-4 w-4" />
-                                </Button>
-                            </div>
-                        )}
-                        <div></div>
                         {/* Open Workflow button (for workflow ref nodes) */}
                         {node.type === "workflow" && node.data.workflowName && (
                             <div className="mb-4">
