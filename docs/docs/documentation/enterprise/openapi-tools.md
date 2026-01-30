@@ -40,7 +40,7 @@ Agent Mesh Enterprise's OpenAPI tool integration supports:
 - **Multiple specification sources**: local files, remote URLs, or inline specs
 - **Server URL overrides**: Point specs to different environments (development, staging, production)
 - **Tool filtering**: Include or exclude specific API operations using allow/deny lists
-- **Authentication**: API key, and service account authentication
+- **Authentication**: API key, HTTP (bearer token and basic auth), OAuth2/OIDC, and service account authentication
 - **Automatic name conversion**: Handles camelCase operation IDs correctly
 
 ## Understanding OpenAPI Tools
@@ -86,6 +86,9 @@ Most modern REST APIs provide OpenAPI specifications. Check the API provider's d
 Depending on the API's authentication requirements, you may need:
 
 - **API Keys**: For APIs using API key authentication
+- **Bearer Tokens**: For APIs using HTTP bearer token authentication
+- **Username and Password**: For APIs using HTTP basic authentication
+- **OAuth2/OIDC Credentials**: Client ID, client secret, and token endpoint URLs for OAuth2/OIDC authentication
 - **Service Account**: For Google Cloud and similar services
 - **Network Access**: Ensure your Agent Mesh Enterprise deployment can reach the API endpoints
 
@@ -318,7 +321,7 @@ tools:
 
 ## Authentication
 
-OpenAPI tools support two authentication methods: API key, and service account authentication.
+OpenAPI tools support multiple authentication methods: API key, HTTP authentication (bearer token and basic auth), OAuth2/OIDC, and service account authentication.
 
 ### API Key Authentication
 
@@ -357,6 +360,114 @@ auth:
   in: query
   name: apikey
   value: ${MY_API_KEY}
+```
+
+### HTTP Authentication
+
+HTTP authentication supports two schemes: bearer token and basic authentication.
+
+#### Bearer Token Authentication
+
+Bearer token authentication sends a token in the `Authorization` header using the Bearer scheme.
+
+```yaml
+auth:
+  type: bearer
+  token: ${BEARER_TOKEN}
+```
+
+**Parameters**:
+
+- `type`: Must be `"bearer"`
+- `token`: The bearer token value (use environment variables for security)
+
+**Example**:
+
+```yaml
+tools:
+  - tool_type: openapi
+    specification_url: "https://api.example.com/openapi.json"
+    base_url: "https://api.example.com"
+    auth:
+      type: bearer
+      token: ${API_BEARER_TOKEN}
+```
+
+#### Basic Authentication
+
+Basic authentication sends credentials in the `Authorization` header using the Basic scheme (base64-encoded username and password).
+
+```yaml
+auth:
+  type: basic
+  username: ${USERNAME}
+  password: ${PASSWORD}
+```
+
+**Parameters**:
+
+- `type`: Must be `"basic"`
+- `username`: The username for authentication (use environment variables for security)
+- `password`: The password for authentication (use environment variables for security)
+
+**Example**:
+
+```yaml
+tools:
+  - tool_type: openapi
+    specification_url: "https://api.example.com/openapi.json"
+    base_url: "https://api.example.com"
+    auth:
+      type: basic
+      username: ${API_USERNAME}
+      password: ${API_PASSWORD}
+```
+
+### OAuth2/OIDC Authentication
+
+OAuth2/OIDC authentication obtains access tokens using the OAuth 2.0 or OpenID Connect protocol. This method supports the client credentials flow.
+
+```yaml
+auth:
+  type: oauth2
+  authorization_url: "https://auth.example.com/oauth/authorize"
+  token_url: "https://auth.example.com/oauth/token"
+  client_id: ${OAUTH_CLIENT_ID}
+  client_secret: ${OAUTH_CLIENT_SECRET}
+  scopes:
+    - "read"
+    - "write"
+  token_endpoint_auth_method: "client_secret_post"
+```
+
+**Parameters**:
+
+- `type`: Must be `"oauth2"`
+- `authorization_url`: The OAuth2 authorization endpoint URL
+- `token_url`: The OAuth2 token endpoint URL
+- `client_id`: The OAuth2 client ID (use environment variables for security)
+- `client_secret`: The OAuth2 client secret (use environment variables for security)
+- `scopes`: List of OAuth2 scopes to request
+- `token_endpoint_auth_method`: Method for authenticating at the token endpoint. Options include `"client_secret_post"` (credentials in request body) or `"client_secret_basic"` (credentials in Authorization header)
+
+**Example**:
+
+```yaml
+tools:
+  - tool_type: openapi
+    specification_url: "https://api.example.com/openapi.json"
+    base_url: "https://api.example.com"
+    auth:
+      type: oauth2
+      authorization_url: "https://api.example.com/oauth/authorize"
+      token_url: "https://api.example.com/oauth/token"
+      scopes:
+        - "employees:read"
+        - "employees:write"
+        - "departments:read"
+      token_endpoint_auth_method: "client_secret_post"
+      client_id: ${OAUTH_CLIENT_ID}
+      client_secret: ${OAUTH_CLIENT_SECRET}
 ```
 
 ### Service Account Authentication
