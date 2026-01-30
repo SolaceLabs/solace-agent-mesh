@@ -1,11 +1,23 @@
-import React from "react";
+import { useState, type FC, type ReactNode, type MouseEvent } from "react";
 
-import { CheckCircle, FileText, HardDrive, Link, MessageSquare, Share2, Terminal, User, XCircle, Zap, ExternalLink } from "lucide-react";
+import { CheckCircle, ExternalLink, FileText, GitCommit, GitMerge, HardDrive, Link, List, MessageSquare, Share2, Split, Terminal, User, Workflow, XCircle, Zap } from "lucide-react";
 
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
 import { useChatContext } from "@/lib/hooks";
 import { ImageSearchGrid } from "@/lib/components/research";
-import type { ArtifactNotificationData, LLMCallData, LLMResponseToAgentData, ToolDecisionData, ToolInvocationStartData, ToolResultData, VisualizerStep } from "@/lib/types";
+import type {
+    ArtifactNotificationData,
+    LLMCallData,
+    LLMResponseToAgentData,
+    ToolDecisionData,
+    ToolInvocationStartData,
+    ToolResultData,
+    VisualizerStep,
+    WorkflowExecutionResultData,
+    WorkflowExecutionStartData,
+    WorkflowNodeExecutionResultData,
+    WorkflowNodeExecutionStartData,
+} from "@/lib/types";
 import { isString } from "@/lib/utils";
 
 interface VisualizerStepCardProps {
@@ -15,7 +27,7 @@ interface VisualizerStepCardProps {
     variant?: "list" | "popover";
 }
 
-const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlighted, onClick, variant = "list" }) => {
+const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, onClick, variant = "list" }) => {
     const { artifacts, setPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed, navigateArtifactVersion } = useChatContext();
 
     const getStepIcon = () => {
@@ -44,6 +56,18 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
                 return <HardDrive className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
             case "AGENT_ARTIFACT_NOTIFICATION":
                 return <FileText className="mr-2 text-indigo-500 dark:text-indigo-400" size={18} />;
+            case "WORKFLOW_EXECUTION_START":
+            case "WORKFLOW_EXECUTION_RESULT":
+                return <Workflow className="mr-2 text-purple-500 dark:text-purple-400" size={18} />;
+            case "WORKFLOW_NODE_EXECUTION_START":
+                if (step.data.workflowNodeExecutionStart?.nodeType === "map") return <List className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
+                if (step.data.workflowNodeExecutionStart?.nodeType === "fork") return <Split className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
+                if (step.data.workflowNodeExecutionStart?.nodeType === "switch") return <GitMerge className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
+                return <GitCommit className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
+            case "WORKFLOW_NODE_EXECUTION_RESULT":
+                return <GitCommit className="mr-2 text-green-500 dark:text-green-400" size={18} />;
+            case "WORKFLOW_MAP_PROGRESS":
+                return <List className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
             default:
                 return <MessageSquare className="mr-2 text-gray-500 dark:text-gray-400" size={18} />;
         }
@@ -69,10 +93,10 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         </div>
     );
 
-    const LLMResponseToAgentDetails: React.FC<{ data: LLMResponseToAgentData }> = ({ data }) => {
-        const [expanded, setExpanded] = React.useState(false);
+    const LLMResponseToAgentDetails: FC<{ data: LLMResponseToAgentData }> = ({ data }) => {
+        const [expanded, setExpanded] = useState(false);
 
-        const toggleExpand = (e: React.MouseEvent) => {
+        const toggleExpand = (e: MouseEvent) => {
             e.stopPropagation();
             setExpanded(!expanded);
         };
@@ -152,7 +176,7 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
      * Renders result data as either a JSON viewer (for objects) or a preformatted text block (for primitives).
      * Abstracts the common pattern of displaying tool result data.
      */
-    const renderResultData = (resultData: unknown): React.ReactNode => {
+    const renderResultData = (resultData: unknown): ReactNode => {
         if (typeof resultData === "object") {
             // Cast is safe here as JSONViewer handles null and object types
             return <JSONViewer data={resultData as Parameters<typeof JSONViewer>[0]["data"]} />;
@@ -214,7 +238,7 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         );
     };
     const renderArtifactNotificationData = (data: ArtifactNotificationData) => {
-        const handleViewFile = async (e: React.MouseEvent) => {
+        const handleViewFile = async (e: MouseEvent) => {
             e.stopPropagation();
 
             // Find the artifact by filename
@@ -266,6 +290,102 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
             </div>
         );
     };
+
+    const renderWorkflowNodeStartData = (data: WorkflowNodeExecutionStartData) => (
+        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <div className="mb-1 flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400">{data.nodeType} Node</span>
+                {(data.iterationIndex !== undefined && data.iterationIndex !== null && typeof data.iterationIndex === 'number') && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-800 dark:bg-blue-900 dark:text-blue-200">Iter #{data.iterationIndex}</span>}
+            </div>
+
+            {data.condition && (
+                <div className="mt-1">
+                    <p className="mb-0.5 font-semibold">Condition:</p>
+                    <code className="block break-all rounded border border-gray-200 bg-gray-100 p-1.5 font-mono text-xs dark:border-gray-600 dark:bg-gray-800">{data.condition}</code>
+                </div>
+            )}
+            {data.trueBranch && (
+                <p className="mt-1">
+                    <strong>True Branch:</strong> {data.trueBranch}
+                </p>
+            )}
+            {data.falseBranch && (
+                <p>
+                    <strong>False Branch:</strong> {data.falseBranch}
+                </p>
+            )}
+        </div>
+    );
+
+    const renderWorkflowNodeResultData = (data: WorkflowNodeExecutionResultData) => (
+        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <p>
+                <strong>Status:</strong> {data.status}
+            </p>
+            {data.metadata?.condition && (
+                <div className="mt-1 mb-1">
+                    <p className="mb-0.5 font-semibold">Condition:</p>
+                    <code className="block break-all rounded border border-gray-200 bg-gray-100 p-1.5 font-mono text-xs dark:border-gray-600 dark:bg-gray-800">{data.metadata.condition}</code>
+                </div>
+            )}
+            {data.metadata?.condition_result !== undefined && (
+                <p className="mt-1">
+                    <strong>Condition Result:</strong> <span className={data.metadata.condition_result ? "font-bold text-green-600 dark:text-green-400" : "font-bold text-orange-600 dark:text-orange-400"}>{data.metadata.condition_result ? "True" : "False"}</span>
+                </p>
+            )}
+            {data.outputArtifactRef && (
+                <p className="mt-1">
+                    <strong>Output:</strong> {data.outputArtifactRef.name} (v{data.outputArtifactRef.version})
+                </p>
+            )}
+            {data.errorMessage && (
+                <p className="mt-1 text-red-600">
+                    <strong>Error:</strong> {data.errorMessage}
+                </p>
+            )}
+        </div>
+    );
+
+    const renderWorkflowExecutionStartData = (data: WorkflowExecutionStartData) => (
+        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <p>
+                <strong>Workflow:</strong> {data.workflowName}
+            </p>
+            {data.workflowInput && (
+                <div className="mt-1">
+                    <p>
+                        <strong>Input:</strong>
+                    </p>
+                    <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-800">
+                        <JSONViewer data={data.workflowInput} />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
+    const renderWorkflowExecutionResultData = (data: WorkflowExecutionResultData) => (
+        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <p>
+                <strong>Status:</strong> {data.status}
+            </p>
+            {data.workflowOutput && (
+                <div className="mt-1">
+                    <p>
+                        <strong>Output:</strong>
+                    </p>
+                    <div className="max-h-60 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-800">
+                        <JSONViewer data={data.workflowOutput} />
+                    </div>
+                </div>
+            )}
+            {data.errorMessage && (
+                <p className="text-red-600">
+                    <strong>Error:</strong> {data.errorMessage}
+                </p>
+            )}
+        </div>
+    );
 
     // Calculate indentation based on nesting level - only apply in list variant
     const indentationStyle =
@@ -356,6 +476,10 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
             {step.data.toolInvocationStart && renderToolInvocationStartData(step.data.toolInvocationStart)}
             {step.data.toolResult && renderToolResultData(step.data.toolResult)}
             {step.data.artifactNotification && renderArtifactNotificationData(step.data.artifactNotification)}
+            {step.data.workflowExecutionStart && renderWorkflowExecutionStartData(step.data.workflowExecutionStart)}
+            {step.data.workflowNodeExecutionStart && renderWorkflowNodeStartData(step.data.workflowNodeExecutionStart)}
+            {step.data.workflowNodeExecutionResult && renderWorkflowNodeResultData(step.data.workflowNodeExecutionResult)}
+            {step.data.workflowExecutionResult && renderWorkflowExecutionResultData(step.data.workflowExecutionResult)}
         </div>
     );
 };

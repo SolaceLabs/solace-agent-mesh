@@ -1,0 +1,153 @@
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: level5_loop_polling.log
+
+!include ../../shared_config.yaml
+
+apps:
+  # ============================================================================
+  # LEVEL 5: LOOP POLLING WORKFLOW
+  # ============================================================================
+  # Tests loop node with condition-based iteration
+  # Complexity: Medium
+  # Node types: agent (1), loop (1)
+  # Features: Loop iteration, _loop_iteration, condition evaluation, max_iterations
+  # ============================================================================
+
+  # ----------------------------------------------------------------------------
+  # AGENT: Status Checker
+  # Simulates polling by checking iteration count
+  # ----------------------------------------------------------------------------
+  - name: status_checker_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "StatusChecker"
+      model: *planning_model
+
+      instruction: |
+        You simulate a status check for polling scenarios.
+        1. Read 'iteration' and 'max_iterations' from input
+        2. Determine if ready: ready = (iteration >= max_iterations - 1)
+        3. Create a JSON artifact with: {"iteration": <iteration>, "ready": <true/false>, "status": "checking"}
+        4. End with: «result:artifact=<artifact_name> status=success»
+
+        IMPORTANT: When invoked by a workflow, use the exact output filename specified in the workflow instructions.
+
+      input_schema:
+        type: object
+        properties:
+          iteration: {type: number}
+          max_iterations: {type: number}
+        required: [iteration]
+
+      output_schema:
+        type: object
+        properties:
+          iteration: {type: number}
+          ready: {type: boolean}
+          status: {type: string}
+        required: [iteration, ready, status]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card:
+        description: "Checks status for polling scenarios"
+        skills: [{id: "check_status", name: "Check Status", description: "Simulates status polling", tags: ["polling"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+
+  # ============================================================================
+  # WORKFLOW: Loop Polling
+  # ============================================================================
+  - name: loop_polling_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "LoopPollingWorkflow"
+      display_name: "Loop Polling Workflow"
+
+      # Timeout configurations
+      max_workflow_execution_time_seconds: 300  # 5 minutes
+      default_node_timeout_seconds: 60          # 1 minute
+
+      workflow:
+        version: "1.0.0"
+        description: |
+          A loop polling workflow for evaluation testing.
+
+          This workflow:
+          1. Polls status repeatedly until ready
+          2. Uses loop node with condition
+          3. Tracks iteration count
+
+          Tests: Loop node, _loop_iteration, condition evaluation, max_iterations
+
+        input_schema:
+          type: object
+          properties:
+            max_iterations:
+              type: number
+              description: "Number of iterations before becoming ready"
+          required: [max_iterations]
+
+        output_schema:
+          type: object
+          properties:
+            final_iteration: {type: number}
+            final_status: {type: string}
+            ready: {type: boolean}
+          required: [final_iteration, ready]
+
+        nodes:
+          # Loop node: Poll until ready
+          - id: poll_status
+            type: loop
+            node: check_status
+            condition: "{{check_status.output.ready}} == false"
+            max_iterations: 10
+            delay: "1s"
+
+          # Inner node: Check status
+          - id: check_status
+            type: agent
+            agent_name: "StatusChecker"
+            instruction: "Check the status. Return ready=true when iteration count reaches the target."
+            input:
+              iteration: "{{_loop_iteration}}"
+              max_iterations: "{{workflow.input.max_iterations}}"
+
+        output_mapping:
+          final_iteration: "{{check_status.output.iteration}}"
+          final_status: "{{check_status.output.status}}"
+          ready: "{{check_status.output.ready}}"
+
+        skills:
+          - id: "loop_polling"
+            name: "Loop Polling"
+            description: "Polls status until ready using loop iteration"
+            tags: ["eval", "level5", "loop", "polling"]
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }

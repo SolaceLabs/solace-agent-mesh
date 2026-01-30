@@ -68,6 +68,7 @@ from ...agent.tools.peer_agent_tool import (
     PEER_TOOL_PREFIX,
     PeerAgentTool,
 )
+from ...agent.tools.workflow_tool import WorkflowAgentTool
 from ...agent.tools.registry import tool_registry
 from ...agent.utils.config_parser import resolve_instruction_provider
 from ...common import a2a
@@ -77,12 +78,15 @@ from ...common.constants import (
     DEFAULT_COMMUNICATION_TIMEOUT,
     HEALTH_CHECK_INTERVAL_SECONDS,
     HEALTH_CHECK_TTL_SECONDS,
+    EXTENSION_URI_AGENT_TYPE,
+    EXTENSION_URI_SCHEMAS,
 )
 from ...common.a2a.types import ArtifactInfo
 from ...common.data_parts import AgentProgressUpdateData, ArtifactSavedData
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
 from ...common.utils.rbac_utils import validate_agent_access
+from .structured_invocation.handler import StructuredInvocationHandler
 
 log = logging.getLogger(__name__)
 
@@ -266,6 +270,10 @@ class SamAgentComponent(SamComponentBase):
             Callable[[CallbackContext, LlmRequest], Optional[str]]
         ] = None
         self._active_background_tasks = set()
+
+        # Initialize structured invocation support
+        self.structured_invocation_handler = StructuredInvocationHandler(self)
+
         try:
             self.agent_specific_state: Dict[str, Any] = {}
             init_func_details = self.get_config("agent_init_function")
@@ -992,22 +1000,60 @@ class SamAgentComponent(SamComponentBase):
                 continue
 
             try:
-                peer_tool_instance = PeerAgentTool(
-                    target_agent_name=peer_name, host_component=self
-                )
-                if peer_tool_instance.name not in llm_request.tools_dict:
-                    peer_tools_to_add.append(peer_tool_instance)
+                # Determine agent type and schemas
+                agent_type = "standard"
+                input_schema = None
+
+                if agent_card.capabilities and agent_card.capabilities.extensions:
+                    for ext in agent_card.capabilities.extensions:
+                        if ext.uri == EXTENSION_URI_AGENT_TYPE:
+                            agent_type = ext.params.get("type", "standard")
+                        elif ext.uri == EXTENSION_URI_SCHEMAS:
+                            input_schema = ext.params.get("input_schema")
+
+                tool_instance = None
+                tool_description_line = ""
+
+                if agent_type == "workflow":
+                    # Default schema if none provided
+                    if not input_schema:
+                        input_schema = {
+                            "type": "object",
+                            "properties": {"text": {"type": "string"}},
+                            "required": ["text"],
+                        }
+
+                    tool_instance = WorkflowAgentTool(
+                        target_agent_name=peer_name,
+                        input_schema=input_schema,
+                        host_component=self,
+                    )
+
+                    desc = (
+                        getattr(agent_card, "description", "No description")
+                        or "No description"
+                    )
+                    tool_description_line = f"- `{tool_instance.name}`: {desc}"
+
+                else:
+                    # Standard Peer Agent
+                    tool_instance = PeerAgentTool(
+                        target_agent_name=peer_name, host_component=self
+                    )
                     # Get enhanced description from the tool instance
                     # which includes capabilities, skills, and tools
-                    enhanced_desc = peer_tool_instance._build_enhanced_description(
+                    enhanced_desc = tool_instance._build_enhanced_description(
                         agent_card
                     )
-                    allowed_peer_descriptions.append(
-                        f"\n### `peer_{peer_name}`\n{enhanced_desc}"
-                    )
+                    tool_description_line = f"\n### `peer_{peer_name}`\n{enhanced_desc}"
+
+                if tool_instance.name not in llm_request.tools_dict:
+                    peer_tools_to_add.append(tool_instance)
+                    allowed_peer_descriptions.append(tool_description_line)
+
             except Exception as e:
                 log.error(
-                    "%s Failed to create PeerAgentTool for '%s': %s",
+                    "%s Failed to create tool for '%s': %s",
                     self.log_identifier,
                     peer_name,
                     e,
@@ -1016,18 +1062,22 @@ class SamAgentComponent(SamComponentBase):
         if allowed_peer_descriptions:
             peer_list_str = "\n".join(allowed_peer_descriptions)
             instruction_text = (
-                "## Peer Agent Delegation\n\n"
-                "You can delegate tasks to other specialized agents if they are better suited.\n\n"
-                "**How to delegate:**\n"
+                "## Peer Agent and Workflow Delegation\n\n"
+                "You can delegate tasks to other specialized agents or workflows if they are better suited.\n\n"
+                "**How to delegate to peer agents:**\n"
                 "- Use the `peer_<agent_name>(task_description: str)` tool for delegation\n"
                 "- Replace `<agent_name>` with the actual name of the target agent\n"
                 "- Provide a clear and detailed `task_description` for the peer agent\n"
                 "- **Important:** The peer agent does not have access to your session history, "
                 "so you must provide all required context necessary to fulfill the request\n\n"
+                "**How to delegate to workflows:**\n"
+                "- Use the `workflow_<agent_name>` tool for workflow delegation\n"
+                "- Follow the specific parameter requirements defined in the tool schema\n"
+                "- Workflows also do not have access to your session history\n\n"
                 "IMPORTANT: When a peer agent's response contains citation markers like [[cite:search0]], [[cite:file1]], etc., "
                 "you MUST preserve these markers in your response to the user. These markers link to source references and are "
                 "essential for proper attribution. Include them exactly as they appear in the peer's response. DO NOT repeat them without markers.\n\n"
-                "## Available Peer Agents\n"
+                "## Available Peer Agents and Workflows\n"
                 f"{peer_list_str}"
             )
             callback_context.state["peer_tool_instructions"] = instruction_text
@@ -1043,8 +1093,9 @@ class SamAgentComponent(SamComponentBase):
                 if len(llm_request.config.tools) > 0:
                     for tool in peer_tools_to_add:
                         llm_request.tools_dict[tool.name] = tool
+                        declaration = tool._get_declaration()
                         llm_request.config.tools[0].function_declarations.append(
-                            tool._get_declaration()
+                            declaration
                         )
                 else:
                     llm_request.append_tools(peer_tools_to_add)
@@ -1058,6 +1109,7 @@ class SamAgentComponent(SamComponentBase):
                     "%s Failed to append dynamic peer tools to LLM request: %s",
                     self.log_identifier,
                     e,
+                    exc_info=True,
                 )
         return None
 
@@ -3070,6 +3122,7 @@ class SamAgentComponent(SamComponentBase):
             f"{self.log_identifier}[SubmitA2ATask:{target_agent_name}]"
         )
         main_task_id = a2a_message.metadata.get("parentTaskId", "unknown_parent")
+
         log.debug(
             "%s Submitting non-blocking task for main task %s",
             log_identifier_helper,
@@ -3112,13 +3165,17 @@ class SamAgentComponent(SamComponentBase):
         if isinstance(user_config, dict):
             user_properties["a2aUserConfig"] = user_config
 
-        # Retrieve and propagate authentication token from parent task context
+        # Retrieve call depth and auth token from parent task context
         parent_task_id = a2a_message.metadata.get("parentTaskId")
+        current_depth = 0
         if parent_task_id:
             with self.active_tasks_lock:
                 parent_task_context = self.active_tasks.get(parent_task_id)
 
             if parent_task_context:
+                # Get current call depth from parent context
+                current_depth = parent_task_context.a2a_context.get("call_depth", 0)
+
                 auth_token = parent_task_context.get_security_data("auth_token")
                 if auth_token:
                     user_properties["authToken"] = auth_token
@@ -3140,6 +3197,9 @@ class SamAgentComponent(SamComponentBase):
                     log_identifier_helper,
                     parent_task_id,
                 )
+
+        # Add call depth to user properties (increment for outgoing call)
+        user_properties["callDepth"] = current_depth + 1
 
         self.publish_a2a_message(
             payload=a2a_request.model_dump(by_alias=True, exclude_none=True),
@@ -3540,13 +3600,15 @@ class SamAgentComponent(SamComponentBase):
 
     def set_agent_system_instruction_callback(
         self,
-        callback_function: Callable[[CallbackContext, LlmRequest], Optional[str]],
+        callback_function: Optional[
+            Callable[[CallbackContext, LlmRequest], Optional[str]]
+        ],
     ) -> None:
         """
         Sets a callback function to dynamically generate system prompt injections.
         Called by the agent's init_function.
         """
-        if not callable(callback_function):
+        if callback_function is not None and not callable(callback_function):
             log.error(
                 "%s Invalid type for callback_function: %s. Must be callable.",
                 self.log_identifier,

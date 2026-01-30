@@ -50,6 +50,10 @@ from ...common.a2a import (
     topic_matches_subscription,
     translate_a2a_to_adk_content,
 )
+from ...common.constants import (
+    EXTENSION_URI_AGENT_TYPE,
+    EXTENSION_URI_SCHEMAS,
+)
 from ...common.a2a.types import ToolsExtensionParams
 from ...common.data_parts import ToolResultData
 from ..sac.task_execution_context import TaskExecutionContext
@@ -330,6 +334,17 @@ async def handle_a2a_request(component, message: SolaceMessage):
             log.warning("a2aUserConfig is not a dict, using empty dict instead")
             a2a_user_config = {}
 
+        # Extract and validate call depth
+        call_depth = message.get_user_properties().get("callDepth", 0)
+        max_call_depth = component.get_config("max_call_depth", 10)
+        if call_depth > max_call_depth:
+            error_msg = (
+                f"Call depth {call_depth} exceeds maximum allowed depth of {max_call_depth}. "
+                "This may indicate infinite recursion in workflow/agent calls."
+            )
+            log.error("%s %s", component.log_identifier, error_msg)
+            raise ValueError(error_msg)
+
         # The concept of logical_task_id changes. For Cancel, it's in params.id.
         # For Send, we will generate it.
         logical_task_id = None
@@ -417,6 +432,62 @@ async def handle_a2a_request(component, message: SolaceMessage):
                             ack_e,
                         )
                     return None
+
+        # Check for structured invocation mode
+        if method in ["message/send", "message/stream"]:
+            a2a_message = a2a.get_message_from_send_request(a2a_request)
+            invocation_data = component.structured_invocation_handler.extract_structured_invocation_context(
+                a2a_message
+            )
+
+            if invocation_data:
+                log.info(
+                    "%s Detected structured invocation request for node '%s' in context '%s'. Delegating to StructuredInvocationHandler.",
+                    component.log_identifier,
+                    invocation_data.node_id,
+                    invocation_data.workflow_name,
+                )
+
+                # Extract context needed for handler
+                logical_task_id = str(a2a.get_request_id(a2a_request))
+                original_session_id = a2a_message.context_id
+                user_id = message.get_user_properties().get("userId", "default_user")
+
+                # For structured invocations, we use the original session ID as the effective session ID
+                # because the caller manages the session scope.
+
+                a2a_context = {
+                    "logical_task_id": logical_task_id,
+                    "session_id": original_session_id,
+                    "effective_session_id": original_session_id,
+                    "user_id": user_id,
+                    "jsonrpc_request_id": jsonrpc_request_id,
+                    "contextId": original_session_id,
+                    "messageId": a2a_message.message_id,
+                    "replyToTopic": reply_topic_from_peer,
+                    "a2a_user_config": a2a_user_config,
+                    "statusTopic": status_topic_from_peer,
+                    "call_depth": call_depth,
+                }
+                # Note: original_solace_message is NOT stored in a2a_context to avoid
+                # serialization issues when a2a_context is stored in ADK session state.
+                # It is stored in TaskExecutionContext by the structured invocation handler.
+
+                # Execute as structured invocation
+                loop = component.get_async_loop()
+                if loop and loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        component.structured_invocation_handler.execute_structured_invocation(
+                            a2a_message, invocation_data, a2a_context, message
+                        ),
+                        loop,
+                    )
+                else:
+                    log.error(
+                        "%s Async loop not available. Cannot execute structured invocation.",
+                        component.log_identifier,
+                    )
+                return
 
         if method == "tasks/cancel":
             logical_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
@@ -516,7 +587,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                                     is_paused=False,
                                     exception=TaskCancelledError(
                                         f"Task {logical_task_id} cancelled while paused."
-                                    )
+                                    ),
                                 ),
                                 loop,
                             )
@@ -778,6 +849,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 "system_purpose": system_purpose,
                 "response_format": response_format,
                 "host_agent_name": agent_name,
+                "call_depth": call_depth,
                 "original_message_metadata": task_metadata,  # Store original message metadata for tools
             }
 
@@ -1429,11 +1501,21 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                 has_deep_research_report = False
                                 for data_part in data_parts:
                                     if isinstance(data_part.data, dict):
-                                        data_type = data_part.data.get("type")
+                                        data_type = data_part.data.get("type", "")
                                         if data_type == "artifact_creation_progress":
                                             log.debug(
                                                 "%s Filtered out artifact_creation_progress DataPart from peer sub-task %s. Not forwarding to user.",
                                                 component.log_identifier,
+                                                sub_task_id,
+                                            )
+                                            continue
+                                        # Filter out workflow status updates to prevent duplication in the gateway
+                                        # The gateway already sees these events via subscription to the peer agent
+                                        if data_type.startswith("workflow_"):
+                                            log.debug(
+                                                "%s Skipping forwarding of workflow status update '%s' from peer for sub-task %s.",
+                                                component.log_identifier,
+                                                data_type,
                                                 sub_task_id,
                                             )
                                             continue
@@ -1948,6 +2030,21 @@ def publish_agent_card(component):
 
         extensions_list = []
 
+        # Create the extension object for agent type.
+        agent_type = component.get_config("agent_type", "standard")
+        if agent_type != "standard":
+            agent_type_extension = AgentExtension(
+                uri=EXTENSION_URI_AGENT_TYPE,
+                description="Specifies the type of agent (e.g., 'workflow').",
+                params={"type": agent_type},
+            )
+            extensions_list.append(agent_type_extension)
+            log.debug(
+                "%s Added agent_type extension: %s",
+                component.log_identifier,
+                agent_type,
+            )
+
         # Create the extension object for deployment tracking.
         deployment_config = component.get_config("deployment", {})
         deployment_id = deployment_config.get("id")
@@ -1957,13 +2054,13 @@ def publish_agent_card(component):
                 uri=DEPLOYMENT_EXTENSION_URI,
                 description="SAM deployment tracking for rolling updates",
                 required=False,
-                params={"id": deployment_id}
+                params={"id": deployment_id},
             )
             extensions_list.append(deployment_extension)
             log.debug(
                 "%s Added deployment extension with ID: %s",
                 component.log_identifier,
-                deployment_id
+                deployment_id,
             )
 
         # Create the extension object for peer agents.
@@ -2007,6 +2104,30 @@ def publish_agent_card(component):
             )
             extensions_list.append(tools_extension)
 
+        # Create the extension object for the agent's input/output schemas.
+        input_schema = component.get_config("input_schema")
+        output_schema = component.get_config("output_schema")
+
+        if input_schema or output_schema:
+            schema_params = {}
+            if input_schema:
+                schema_params["input_schema"] = input_schema
+            if output_schema:
+                schema_params["output_schema"] = output_schema
+
+            schemas_extension = AgentExtension(
+                uri=EXTENSION_URI_SCHEMAS,
+                description="Input and output JSON schemas for the agent.",
+                params=schema_params,
+            )
+            extensions_list.append(schemas_extension)
+            log.debug(
+                "%s Added schemas extension (input: %s, output: %s)",
+                component.log_identifier,
+                "present" if input_schema else "none",
+                "present" if output_schema else "none",
+            )
+
         # Build the capabilities object, including our custom extensions.
         capabilities = AgentCapabilities(
             streaming=supports_streaming,
@@ -2019,11 +2140,13 @@ def publish_agent_card(component):
         # The 'tools' field is not part of the official AgentCard spec.
         # The tools are now included as an extension.
 
-        # Ensure all skills have a 'tags' field to prevent validation errors.
+        # Ensure all skills have 'tags' and 'description' fields to prevent validation errors.
         processed_skills = []
         for skill in skills_from_config:
             if "tags" not in skill:
                 skill["tags"] = []
+            if "description" not in skill:
+                skill["description"] = "No description provided."
             processed_skills.append(skill)
 
         agent_card = AgentCard(
