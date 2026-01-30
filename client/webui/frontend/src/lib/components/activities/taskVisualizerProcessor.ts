@@ -73,13 +73,7 @@ const getEventTimestamp = (event: A2AEventSSEPayload): string => {
  * @param visitedTaskIds A set of task IDs that have already been visited to prevent cycles/duplication.
  * @returns An array of A2AEventSSEPayload objects from the task and its descendants.
  */
-const collectAllDescendantEvents = (
-    currentTaskId: string,
-    allMonitoredTasks: Record<string, TaskFE>,
-    taskNestingLevels: Map<string, number>,
-    currentLevel: number,
-    visitedTaskIds: Set<string> = new Set()
-): A2AEventSSEPayload[] => {
+const collectAllDescendantEvents = (currentTaskId: string, allMonitoredTasks: Record<string, TaskFE>, taskNestingLevels: Map<string, number>, currentLevel: number, visitedTaskIds: Set<string> = new Set()): A2AEventSSEPayload[] => {
     if (visitedTaskIds.has(currentTaskId)) {
         return [];
     }
@@ -378,9 +372,7 @@ export const processTaskForVisualization = (
 
                 if (params?.message?.parts) {
                     // Extract structured_invocation_request data part
-                    const structuredInvocationPart = params.message.parts.find((p: any) =>
-                        p.kind === "data" && p.data?.type === "structured_invocation_request"
-                    );
+                    const structuredInvocationPart = params.message.parts.find((p: any) => p.kind === "data" && p.data?.type === "structured_invocation_request");
                     if (structuredInvocationPart) {
                         const invocationData = structuredInvocationPart.data;
                         inputSchema = invocationData.input_schema;
@@ -390,18 +382,14 @@ export const processTaskForVisualization = (
 
                     // Extract text parts (skip the reminder text)
                     // The first non-reminder text part is the instruction if present
-                    const textParts = params.message.parts.filter((p: any) =>
-                        p.kind === "text" && p.text && !p.text.includes("REMINDER:")
-                    );
+                    const textParts = params.message.parts.filter((p: any) => p.kind === "text" && p.text && !p.text.includes("REMINDER:"));
                     if (textParts.length > 0) {
                         // First text part is the instruction
                         instruction = textParts[0].text;
                     }
 
                     // Extract file parts (artifact references) - this is the structured input
-                    const fileParts = params.message.parts.filter((p: any) =>
-                        p.kind === "file" && p.file
-                    );
+                    const fileParts = params.message.parts.filter((p: any) => p.kind === "file" && p.file);
                     if (fileParts.length > 0) {
                         const file = fileParts[0].file;
                         inputArtifactRef = {
@@ -468,9 +456,7 @@ export const processTaskForVisualization = (
                 // Filter out gateway timestamp parts (they appear like "Request received by gateway at: 2025-12-19T22:46:16.994017+00:00")
                 // The gateway prepends this as the first part, so we can skip parts that match this pattern
                 const gatewayTimestampPattern = /^Request received by gateway at:/;
-                const filteredParts = textParts.filter(
-                    (p: any) => !gatewayTimestampPattern.test(p.text.trim())
-                );
+                const filteredParts = textParts.filter((p: any) => !gatewayTimestampPattern.test(p.text.trim()));
                 if (filteredParts.length > 0) {
                     // Join remaining text parts
                     userText = filteredParts.map((p: any) => p.text).join("\n");
@@ -478,9 +464,9 @@ export const processTaskForVisualization = (
                     // Fallback: if all parts were filtered, use the last part but strip the gateway prefix
                     const lastPart = textParts[textParts.length - 1].text;
                     // Try to extract text after the timestamp line
-                    const lines = lastPart.split('\n');
+                    const lines = lastPart.split("\n");
                     const nonGatewayLines = lines.filter((line: string) => !gatewayTimestampPattern.test(line.trim()));
-                    userText = nonGatewayLines.length > 0 ? nonGatewayLines.join('\n') : lastPart;
+                    userText = nonGatewayLines.length > 0 ? nonGatewayLines.join("\n") : lastPart;
                 }
             }
             visualizerSteps.push({
@@ -528,7 +514,7 @@ export const processTaskForVisualization = (
                         if (data.type === "agent_progress_update") {
                             lastStatusText = data.status_text;
                         } else if (data.type === "artifact_creation_progress") {
-                            lastStatusText = `Saving artifact: ${data.filename} (${data.bytes_saved} bytes)`;
+                            lastStatusText = `Saving artifact: ${data.filename} (${data.bytes_transferred} bytes)`;
                         }
                     }
                     if (part.kind === "data") {
@@ -730,10 +716,7 @@ export const processTaskForVisualization = (
 
                                     // Check if this LLM call is following tool results
                                     // Tool results can be: role="tool", role="function", or parts with function_response
-                                    const toolResultContents = llmData.contents.filter((c: any) =>
-                                        c.role === "tool" || c.role === "function" ||
-                                        (c.parts && c.parts.some((p: any) => p.function_response))
-                                    );
+                                    const toolResultContents = llmData.contents.filter((c: any) => c.role === "tool" || c.role === "function" || (c.parts && c.parts.some((p: any) => p.function_response)));
                                     const hasToolResults = toolResultContents.length > 0;
 
                                     if (hasToolResults && lastRole !== "user") {
@@ -782,10 +765,11 @@ export const processTaskForVisualization = (
 
                                         // Find the LAST user message (which is the current turn's request)
                                         const lastUserContent = [...llmData.contents].reverse().find((c: any) => c.role === "user");
-                                        const userPromptFull = lastUserContent?.parts
-                                            ?.map((p: any) => p.text || "")
-                                            .join(" ")
-                                            .trim() || "";
+                                        const userPromptFull =
+                                            lastUserContent?.parts
+                                                ?.map((p: any) => p.text || "")
+                                                .join(" ")
+                                                .trim() || "";
                                         const userPromptSnippet = userPromptFull.substring(0, 5000);
 
                                         // Build prompt text with tool result summaries
@@ -892,7 +876,7 @@ export const processTaskForVisualization = (
                                         }
                                     });
 
-                                        const toolDecisionStep: VisualizerStep = {
+                                    const toolDecisionStep: VisualizerStep = {
                                         id: `vstep-tooldecision-${visualizerSteps.length}-${eventId}`,
                                         type: "AGENT_LLM_RESPONSE_TOOL_DECISION",
                                         timestamp: eventTimestamp,

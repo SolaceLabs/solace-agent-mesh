@@ -1322,7 +1322,18 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
-        # 2. Fenced Artifact Block Processing (must run before auto-continue)
+        # 2. Sanitize tool names (catch hallucinated placeholders like $FUNCTION_NAME)
+        # Must run early to prevent invalid tool names from reaching the provider
+        sanitize_tool_names_cb = functools.partial(
+            adk_callbacks.sanitize_tool_names_callback, host_component=component
+        )
+        callbacks_in_order_for_after_model.append(sanitize_tool_names_cb)
+        log.debug(
+            "%s Added sanitize_tool_names_callback to after_model chain.",
+            component.log_identifier,
+        )
+
+        # 3. Fenced Artifact Block Processing (must run before auto-continue)
         artifact_block_cb = functools.partial(
             adk_callbacks.process_artifact_blocks_callback, host_component=component
         )
