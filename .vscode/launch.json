@@ -255,6 +255,18 @@
             }
         },
         {
+            "name": "EM Gateway + Workflow",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cli.main",
+            "console": "integratedTerminal",
+            "args": "run examples/gateways/event_mesh_gateway_example.yaml examples/gateways/test_gateway_workflow.yaml examples/agents/all_node_types_workflow.yaml examples/agents/simple_nested_test.yaml examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
+            }
+        },
+        {
             "name": "CLI",
             "type": "debugpy",
             "request": "launch",

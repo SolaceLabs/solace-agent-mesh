@@ -87,30 +87,36 @@ class StructuredInvocationHandler:
     ) -> Optional[StructuredInvocationRequest]:
         """
         Extract structured invocation context from message if present.
-        Structured invocation messages contain StructuredInvocationRequest as first DataPart.
+        Structured invocation messages contain StructuredInvocationRequest in a DataPart.
+
+        Note: The DataPart may not be first in the message - the base gateway prepends
+        a timestamp TextPart. We scan all DataParts to find the request.
         """
         if not message.parts:
             return None
 
-        # Check first part for structured invocation data
-        # Note: A2AMessage parts are wrapped in Part(root=...)
-        first_part_wrapper = message.parts[0]
-        first_part = first_part_wrapper.root
+        # Scan all DataParts for structured invocation request
+        # The base gateway may prepend other parts (e.g., timestamp), so we can't assume position
+        data_parts = a2a.get_data_parts_from_message(message)
 
-        if not hasattr(first_part, "data") or not first_part.data:
-            return None
+        for data_part in data_parts:
+            # Check if this DataPart contains a structured_invocation_request
+            data = data_part.data if hasattr(data_part, "data") else None
+            if not data or not isinstance(data, dict):
+                continue
 
-        # Check for structured_invocation_request type
-        if first_part.data.get("type") != "structured_invocation_request":
-            return None
+            if data.get("type") != "structured_invocation_request":
+                continue
 
-        # Parse structured invocation request data
-        try:
-            invocation_data = StructuredInvocationRequest.model_validate(first_part.data)
-            return invocation_data
-        except ValidationError as e:
-            log.error(f"{self.host.log_identifier} Invalid structured invocation request data: {e}")
-            return None
+            # Found it - parse and return
+            try:
+                invocation_data = StructuredInvocationRequest.model_validate(data)
+                return invocation_data
+            except ValidationError as e:
+                log.error(f"{self.host.log_identifier} Invalid structured invocation request data: {e}")
+                return None
+
+        return None
 
     async def execute_structured_invocation(
         self,
