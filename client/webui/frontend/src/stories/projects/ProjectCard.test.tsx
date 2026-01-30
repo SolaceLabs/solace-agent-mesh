@@ -41,11 +41,11 @@ describe("ProjectCard", () => {
             const ownerIcon = document.querySelector(".lucide-user-cog");
             expect(ownerIcon).toBeInTheDocument();
 
-            const viewerIcon = document.querySelector(".lucide-user-round");
+            const viewerIcon = document.querySelector(".lucide-user-search");
             expect(viewerIcon).not.toBeInTheDocument();
         });
 
-        test("shows UserRound icon for viewer when sharing enabled", async () => {
+        test("shows UserSearch icon for viewer when sharing enabled", async () => {
             const ViewerWithSharing = composeStory(
                 {
                     args: {
@@ -62,7 +62,7 @@ describe("ProjectCard", () => {
 
             expect(await screen.findByText(mockProject.name)).toBeInTheDocument();
 
-            const viewerIcon = document.querySelector(".lucide-user-round");
+            const viewerIcon = document.querySelector(".lucide-user-search");
             expect(viewerIcon).toBeInTheDocument();
 
             const ownerIcon = document.querySelector(".lucide-user-cog");
