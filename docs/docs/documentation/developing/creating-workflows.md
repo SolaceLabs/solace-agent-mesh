@@ -942,8 +942,8 @@ Test workflows incrementally:
 
 The repository includes complete example workflows:
 
-- [`examples/agents/all_node_types_workflow.yaml`](https://github.com/SolaceDev/solace-agent-mesh/blob/main/examples/agents/all_node_types_workflow.yaml) - Comprehensive example demonstrating all node types in an order processing pipeline
-- [`examples/agents/jira_bug_triage_workflow.yaml`](https://github.com/SolaceDev/solace-agent-mesh/blob/main/examples/agents/jira_bug_triage_workflow.yaml) - Real-world example of a bug triage workflow with conditional branching
+- [`examples/agents/all_node_types_workflow.yaml`](https://github.com/SolaceLabs/solace-agent-mesh/blob/main/examples/agents/all_node_types_workflow.yaml) - Comprehensive example demonstrating all node types in an order processing pipeline
+- [`examples/agents/jira_bug_triage_workflow.yaml`](https://github.com/SolaceLabs/solace-agent-mesh/blob/main/examples/agents/jira_bug_triage_workflow.yaml) - Real-world example of a bug triage workflow with conditional branching
 
 ## Reference
 
