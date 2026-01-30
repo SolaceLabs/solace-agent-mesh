@@ -371,6 +371,11 @@ class DAGExecutor:
         """Execute a single workflow node."""
         log_id = f"{self.host.log_identifier}[Node:{node_id}]"
 
+        # Check for cancellation before executing node
+        if workflow_context.is_cancelled():
+            log.info(f"{log_id} Workflow cancelled, not executing node")
+            return
+
         try:
             node = self.nodes[node_id]
 
@@ -634,6 +639,11 @@ class DAGExecutor:
         """Execute loop node for while-loop iteration."""
         log_id = f"{self.host.log_identifier}[Loop:{node.id}]"
 
+        # Check for cancellation before starting loop iteration
+        if workflow_context.is_cancelled():
+            log.info(f"{log_id} Workflow cancelled, not starting loop iteration")
+            return
+
         from .flow_control.conditional import evaluate_condition
         from .utils import parse_duration
 
@@ -851,6 +861,11 @@ class DAGExecutor:
         workflow_context: WorkflowExecutionContext,
     ):
         """Launch pending map iterations up to concurrency limit."""
+        # Check for cancellation before launching new iterations
+        if workflow_context.is_cancelled():
+            log.info(f"{self.host.log_identifier}[Map:{map_node_id}] Workflow cancelled, not launching new iterations")
+            return
+
         map_state = workflow_state.metadata.get(f"map_state_{map_node_id}")
         if not map_state:
             return
@@ -1152,6 +1167,12 @@ class DAGExecutor:
     ):
         """Handle completion of a child task within a Fork or Map."""
         log_id = f"{self.host.log_identifier}[ControlNode:{control_node_id}]"
+
+        # Check for cancellation - don't continue processing if workflow is cancelled
+        if workflow_context.is_cancelled():
+            log.info(f"{log_id} Workflow cancelled, not processing child completion for sub-task {sub_task_id}")
+            return
+
         branches = workflow_state.active_branches.get(control_node_id, [])
 
         # Find the specific branch/iteration
