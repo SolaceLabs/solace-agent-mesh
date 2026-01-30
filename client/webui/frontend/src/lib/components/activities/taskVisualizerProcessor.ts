@@ -400,7 +400,7 @@ export const processTaskForVisualization = (
                         if (data.type === "agent_progress_update") {
                             lastStatusText = data.status_text;
                         } else if (data.type === "artifact_creation_progress") {
-                            lastStatusText = `Saving artifact: ${data.filename} (${data.bytes_saved} bytes)`;
+                            lastStatusText = `Saving artifact: ${data.filename} (${data.bytes_transferred} bytes)`;
                         }
                     }
                     if (part.kind === "data") {
