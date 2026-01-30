@@ -2548,6 +2548,175 @@ def preregister_long_running_tools_callback(
 
 
 # ============================================================================
+# Tool Name Sanitization Callback
+# ============================================================================
+
+# Bedrock tool name validation pattern: must start with letter or underscore, then alphanumeric/underscore/hyphen
+# Note: We allow underscore prefix for internal tools like _notify_artifact_save
+VALID_TOOL_NAME_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_-]*$')
+
+
+def sanitize_tool_names_callback(
+    callback_context: CallbackContext,
+    llm_response: LlmResponse,
+    host_component: "SamAgentComponent",
+) -> Optional[LlmResponse]:
+    """
+    ADK after_model_callback to sanitize and validate tool names in LLM responses.
+    
+    This callback catches hallucinated tool names that would cause 
+    errors when sent back to the LLM provider. 
+    
+    When an invalid tool name is detected:
+    1. The invalid function_call is removed from the response
+    2. A synthetic error message is injected to inform the LLM
+    3. The response is modified to continue the conversation gracefully
+    
+    This prevents the entire request from failing with a provider error.
+    """
+    log_identifier = "[Callback:SanitizeToolNames]"
+    
+    # Only process non-partial responses with function calls
+    if llm_response.partial:
+        return None
+    
+    if not llm_response.content or not llm_response.content.parts:
+        return None
+    
+    # Find all function calls and check for invalid tool names
+    invalid_calls = []
+    valid_parts = []
+    
+    for part in llm_response.content.parts:
+        if part.function_call:
+            tool_name = part.function_call.name
+            
+            # Check for placeholder patterns (tool names starting with $)
+            # This catches $FUNCTION_NAME, $ARTIFACT_TOOL, $TOOL_NAME, etc.
+            is_placeholder = tool_name.startswith('$')
+            
+            # Check against Bedrock's validation pattern
+            is_valid_format = VALID_TOOL_NAME_PATTERN.match(tool_name) is not None
+            
+            if is_placeholder:
+                log.warning(
+                    "%s Detected hallucinated placeholder tool name: '%s'. "
+                    "This is a known LLM hallucination from training data examples.",
+                    log_identifier,
+                    tool_name,
+                )
+                invalid_calls.append((part.function_call, "placeholder_hallucination"))
+            elif not is_valid_format:
+                log.warning(
+                    "%s Detected invalid tool name format: '%s'. "
+                    "Tool names must match pattern: ^[a-zA-Z][a-zA-Z0-9_-]*$",
+                    log_identifier,
+                    tool_name,
+                )
+                invalid_calls.append((part.function_call, "invalid_format"))
+            else:
+                # Valid tool call, keep it
+                valid_parts.append(part)
+        else:
+            # Non-function-call parts (text, etc.) are always kept
+            valid_parts.append(part)
+    
+    if not invalid_calls:
+        # All tool names are valid, no modification needed
+        return None
+    
+    # Log the invalid calls for debugging
+    for fc, reason in invalid_calls:
+        log.error(
+            "%s Removing invalid tool call: name='%s', reason='%s', args=%s",
+            log_identifier,
+            fc.name,
+            reason,
+            fc.args,
+        )
+    
+    # Create synthetic error responses for the invalid calls
+    # This informs the LLM that its tool call was invalid
+    error_response_parts = []
+    for fc, reason in invalid_calls:
+        if reason == "placeholder_hallucination":
+            error_message = (
+                f"ERROR: '{fc.name}' is not a valid tool name. "
+                "You appear to have hallucinated a placeholder. "
+                "Please use only the actual tools available to you. "
+                "Review the available tools and try again with a real tool name."
+            )
+        else:
+            error_message = (
+                f"ERROR: '{fc.name}' is not a valid tool name format. "
+                "Tool names must start with a letter and contain only letters, numbers, underscores, and hyphens. "
+                "Please use only the actual tools available to you."
+            )
+        
+        error_response_part = adk_types.Part.from_function_response(
+            name=fc.name,
+            response={"status": "error", "message": error_message},
+        )
+        # Preserve the function call ID for proper pairing
+        if fc.id:
+            error_response_part.function_response.id = fc.id
+        error_response_parts.append(error_response_part)
+    
+    # If there are still valid parts, keep them and add error responses
+    if valid_parts or error_response_parts:
+        # Reconstruct the response with valid parts
+        # The error responses will be added as a follow-up content
+        modified_response = LlmResponse(
+            content=adk_types.Content(
+                role="model",
+                parts=valid_parts if valid_parts else [adk_types.Part(text=" ")],
+            ),
+            partial=False,
+            turn_complete=False,  # Force another turn to handle the error
+        )
+        
+        # Store the error responses in callback state for the framework to handle
+        # The ADK will automatically pair these with the function calls
+        if error_response_parts:
+            # Create a synthetic tool response content to inject
+            error_content = adk_types.Content(
+                role="tool",
+                parts=error_response_parts,
+            )
+            # Store in callback state for potential use by other callbacks
+            callback_context.state["sanitized_tool_error_content"] = error_content
+            
+            log.info(
+                "%s Sanitized %d invalid tool call(s). Response modified to continue gracefully.",
+                log_identifier,
+                len(invalid_calls),
+            )
+        
+        return modified_response
+    
+    # Edge case: all parts were invalid function calls
+    # Return a response asking the LLM to try again
+    log.warning(
+        "%s All function calls in response were invalid. Returning error guidance.",
+        log_identifier,
+    )
+    
+    return LlmResponse(
+        content=adk_types.Content(
+            role="model",
+            parts=[
+                adk_types.Part(
+                    text="I apologize, but I made an error in my tool usage. "
+                    "Let me review the available tools and try again with the correct tool names."
+                )
+            ],
+        ),
+        partial=False,
+        turn_complete=True,
+    )
+
+
+# ============================================================================
 # OpenAPI Tool Audit Logging Callbacks
 # ============================================================================
 
