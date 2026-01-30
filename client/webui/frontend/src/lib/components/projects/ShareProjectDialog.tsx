@@ -42,7 +42,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
         mode: "onBlur",
     });
 
-    const { fields, append, remove } = useFieldArray({ control, name: "viewers" });
+    const { fields, prepend, remove } = useFieldArray({ control, name: "viewers" });
     const viewers = watch("viewers");
     const pendingRemoves = watch("pendingRemoves");
 
@@ -83,8 +83,8 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
 
     const handleAddTypeahead = useCallback(() => {
         const newId = `typeahead-${Date.now()}`;
-        append({ id: newId, email: null });
-    }, [append]);
+        prepend({ id: newId, email: null });
+    }, [prepend]);
 
     const handleRemoveTypeahead = useCallback(
         (id: string) => {
