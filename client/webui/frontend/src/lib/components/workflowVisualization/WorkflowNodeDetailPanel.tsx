@@ -147,7 +147,9 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
 
     // Render YAML code view
     const renderCodeView = () => {
-        if (!nodeConfig) return null;
+        if (!nodeConfig) {
+            return <div className="bg-card-background flex h-full items-center justify-center">There is no code associated with this node.</div>;
+        }
         try {
             const yamlStr = yaml.dump(nodeConfig, { indent: 2, lineWidth: -1 });
             return (
