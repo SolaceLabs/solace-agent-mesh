@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
 import { Workflow, GitMerge, FileJson, X, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 
 import type { AgentCardInfo } from "@/lib/types";
@@ -15,8 +14,7 @@ interface WorkflowDetailPanelProps {
     showOpenButton?: boolean;
 }
 
-export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workflow, config: providedConfig, onClose, showOpenButton = true }) => {
-    const navigate = useNavigate();
+export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose, showOpenButton = true }: WorkflowDetailPanelProps) => {
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
     const [showExpandButton, setShowExpandButton] = useState(false);
     const descriptionRef = useRef<HTMLDivElement>(null);
@@ -42,7 +40,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
     }, [description]);
 
     const handleOpenWorkflow = () => {
-        navigate(`/agents/workflows/${encodeURIComponent(workflow.name)}`);
+        window.open(`/#/agents/workflows/${encodeURIComponent(workflow.name)}`, "_blank");
     };
 
     return (
