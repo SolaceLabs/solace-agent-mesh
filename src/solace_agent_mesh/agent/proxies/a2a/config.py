@@ -213,7 +213,7 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
         default=True,
         description="If true, converts TextPart messages in intermediate TaskStatusUpdateEvents "
         "to AgentProgressUpdateData (shown as status updates in the UI). If false, passes TextPart "
-        "messages through unchanged, enabling true streaming text responses in the chat area. "
+        "messages through unchanged."
     )
 
 
