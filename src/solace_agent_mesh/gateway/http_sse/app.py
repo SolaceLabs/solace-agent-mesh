@@ -205,6 +205,17 @@ class WebUIBackendApp(BaseGatewayApp):
                         "Example: postgresql://user:pass@host:5432/platform_db"
                     ),
                 },
+                "ai_assistant_min_prompt_tokens": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 0,
+                    "description": (
+                        "Minimum token count for AI Assistant system prompts. "
+                        "When set to a positive value, prompts below this threshold will be padded "
+                        "for LLM caching compatibility. Default is 0 (disabled). "
+                        "Common values: 1024 (Gemini Flash), 4096 (Gemini Pro)."
+                    ),
+                },
             },
         },
         {
