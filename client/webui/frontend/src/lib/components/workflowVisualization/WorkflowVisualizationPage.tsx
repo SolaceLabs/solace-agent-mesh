@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback, useRef, useEffect } from "react"
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Workflow } from "lucide-react";
 
-import { EmptyState } from "@/lib/components";
+import { Button, EmptyState } from "@/lib/components";
 import { Header, type BreadcrumbItem } from "@/lib/components/header";
 import { useChatContext } from "@/lib/hooks";
 import { isWorkflowAgent, getWorkflowConfig } from "@/lib/utils/agentUtils";
@@ -306,9 +306,9 @@ export function WorkflowVisualizationPage() {
                 }
                 breadcrumbs={breadcrumbs}
                 buttons={[
-                    <button key="details" onClick={handleOpenWorkflowDetails} className="text-sm text-(--color-brand-wMain) hover:underline">
+                    <Button variant="ghost" key="details" onClick={handleOpenWorkflowDetails}>
                         Open Workflow Details
-                    </button>,
+                    </Button>,
                 ]}
             />
 
@@ -333,10 +333,7 @@ export function WorkflowVisualizationPage() {
 
                 {/* Floating node detail popover (shown when node selected) */}
                 {selectedNode && (
-                    <div
-                        className={`absolute top-4 right-4 z-10 max-h-[calc(100%-32px)] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`}
-                        style={{ width: panelWidth }}
-                    >
+                    <div className={`absolute top-4 right-4 bottom-4 z-10 overflow-hidden rounded-lg border shadow-lg ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`} style={{ width: panelWidth }}>
                         <WorkflowNodeDetailPanel
                             node={selectedNode}
                             workflowConfig={config}

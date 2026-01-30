@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from "react";
-import { ArrowRight, Bot, CheckCircle, Eye, FileText, GitBranch, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, X, Zap } from "lucide-react";
-import type { NodeDetails } from "./utils/nodeDetailsHelper";
+import { useState, useEffect } from "react";
+import { ArrowRight, Bot, CheckCircle, FileText, GitBranch, Loader2, RefreshCw, Terminal, User, Workflow, Wrench, Zap } from "lucide-react";
+
+import { api } from "@/lib/api";
+import { useChatContext } from "@/lib/hooks";
 import { type JSONValue, JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
 import type { VisualizerStep, ToolDecision } from "@/lib/types";
-import { useChatContext } from "@/lib/hooks";
-import { parseArtifactUri } from "@/lib/utils/download";
-import { api } from "@/lib/api";
+import { parseArtifactUri } from "@/lib/utils";
+
+import type { NodeDetails } from "./utils/nodeDetailsHelper";
 
 const MAX_ARTIFACT_DISPLAY_LENGTH = 5000;
 
@@ -19,7 +21,7 @@ interface ArtifactContentViewerProps {
 /**
  * Component to fetch and display artifact content inline
  */
-const ArtifactContentViewer: React.FC<ArtifactContentViewerProps> = ({ uri, name, version, mimeType }) => {
+const ArtifactContentViewer = ({ uri, name, version, mimeType }: ArtifactContentViewerProps) => {
     const { sessionId } = useChatContext();
     const [content, setContent] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -111,7 +113,7 @@ const ArtifactContentViewer: React.FC<ArtifactContentViewerProps> = ({ uri, name
     }
 
     if (error) {
-        return <div className="text-xs text-red-500 dark:text-red-400">{error}</div>;
+        return <div className="text-destructive text-xs">{error}</div>;
     }
 
     if (!content) {
@@ -135,16 +137,8 @@ interface NodeDetailsCardProps {
 /**
  * Component to display detailed request and result information for a clicked node
  */
-const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose, onWidthChange }) => {
+const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
     const { artifacts, setPreviewArtifact: setSidePanelPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed, navigateArtifactVersion } = useChatContext();
-
-    // Local state for inline artifact preview (NP-3)
-    const [inlinePreviewArtifact, setInlinePreviewArtifact] = useState<{ name: string; version?: number; mimeType?: string } | null>(null);
-
-    // Notify parent when expansion state changes
-    useEffect(() => {
-        onWidthChange?.(inlinePreviewArtifact !== null);
-    }, [inlinePreviewArtifact, onWidthChange]);
 
     const getNodeIcon = () => {
         switch (nodeDetails.nodeType) {
@@ -877,21 +871,7 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
                                 >
                                     {artifact.filename}
                                 </button>
-                                <div className="flex flex-shrink-0 items-center gap-2">
-                                    {/* Inline preview button (NP-3) */}
-                                    <button
-                                        onClick={() =>
-                                            setInlinePreviewArtifact({
-                                                name: artifact.filename,
-                                                version: artifact.version,
-                                                mimeType: artifact.mimeType,
-                                            })
-                                        }
-                                        className="rounded p-1 transition-colors hover:bg-indigo-200 dark:hover:bg-indigo-800"
-                                        title="Preview inline"
-                                    >
-                                        <Eye className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-                                    </button>
+                                <div className="flex flex-shrink-0 items-center">
                                     {artifact.version !== undefined && <span className="rounded bg-indigo-200 px-1.5 py-0.5 text-xs text-indigo-700 dark:bg-indigo-800 dark:text-indigo-300">v{artifact.version}</span>}
                                 </div>
                             </div>
@@ -986,43 +966,10 @@ const NodeDetailsCard: React.FC<NodeDetailsCardProps> = ({ nodeDetails, onClose,
         </div>
     );
 
-    // Render the inline artifact preview panel (NP-3)
-    const renderArtifactPreviewPanel = () => {
-        if (!inlinePreviewArtifact) return null;
-
-        return (
-            <div className="flex h-full w-[500px] flex-col overflow-hidden border-l border-gray-200 dark:border-gray-700">
-                {/* Preview Header */}
-                <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-purple-50 p-4 dark:border-gray-700 dark:bg-purple-900/30">
-                    <div className="flex min-w-0 items-center gap-2">
-                        <FileText className="h-5 w-5 flex-shrink-0 text-purple-500 dark:text-purple-400" />
-                        <div className="min-w-0">
-                            <h3 className="truncate text-sm font-bold text-gray-800 dark:text-gray-100" title={inlinePreviewArtifact.name}>
-                                {inlinePreviewArtifact.name}
-                            </h3>
-                            {inlinePreviewArtifact.version !== undefined && <p className="text-xs text-purple-600 dark:text-purple-400">Version {inlinePreviewArtifact.version}</p>}
-                        </div>
-                    </div>
-                    <button onClick={() => setInlinePreviewArtifact(null)} className="flex-shrink-0 rounded-md p-1.5 transition-colors hover:bg-purple-100 dark:hover:bg-purple-800/50" title="Close preview">
-                        <X className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                    </button>
-                </div>
-
-                {/* Preview Content */}
-                <div className="flex-1 overflow-y-auto p-4">
-                    <ArtifactContentViewer name={inlinePreviewArtifact.name} version={inlinePreviewArtifact.version} mimeType={inlinePreviewArtifact.mimeType} />
-                </div>
-            </div>
-        );
-    };
-
     return (
-        <div className="flex h-full flex-row">
+        <div className="flex h-full">
             {/* Main content */}
             <div className="min-w-0 flex-1">{renderMainContent()}</div>
-
-            {/* Artifact preview panel (NP-3) */}
-            {renderArtifactPreviewPanel()}
         </div>
     );
 };

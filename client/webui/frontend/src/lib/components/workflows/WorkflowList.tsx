@@ -1,24 +1,27 @@
-import React, { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Workflow } from "lucide-react";
 
 import type { AgentCardInfo } from "@/lib/types";
-import { EmptyState } from "@/lib/components/common";
-import { Button } from "@/lib/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/lib/components/ui/table";
+import { EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
+import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/lib/components/ui";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/lib/components/ui/pagination";
 import { WorkflowDetailPanel } from "./WorkflowDetailPanel";
-import { WorkflowOnboardingBanner } from "./WorkflowOnboardingBanner";
+import { SearchInput } from "..";
+import { Workflow } from "lucide-react";
 
-const WorkflowImage = <Workflow className="text-muted-foreground" size={64} />;
+const WORKFLOW_STORAGE_KEY = "sam-workflow-onboarding-dismissed";
+const WORKFLOW_URL = "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/workflows";
+const WORKFLOW_HEADER = "Workflows give enterprises production-ready, best-practice agent patterns that are predictable and reliable.";
+const WORKFLOW_DESCRIPTION =
+    "Turn complex multi-agent tasks into streamlined workflows. Define the sequence in YAML, deploy to Agent Mesh, and watch your workflow handle the coordination automatically. Great for building repeatable processes that need multiple agents working together in a specific order.";
+const WORKFLOW_LEARN_MORE_TEXT = "Learn how to create workflows";
 
 interface WorkflowListProps {
     workflows: AgentCardInfo[];
-    /** Optional className to apply to the container (e.g., for background color) */
     className?: string;
 }
 
-export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className }) => {
+export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [currentPage, setCurrentPage] = useState<number>(1);
@@ -79,14 +82,20 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
 
     const handleSelectWorkflow = (workflow: AgentCardInfo | null) => {
         if (workflow) {
-            setSelectedWorkflow(workflow);
-            setIsSidePanelOpen(true);
+            // If clicking the same workflow, close the panel
+            if (selectedWorkflow?.name === workflow.name && isSidePanelOpen) {
+                handleCloseSidePanel();
+            } else {
+                // Open panel for new workflow
+                setSelectedWorkflow(workflow);
+                setIsSidePanelOpen(true);
+            }
         }
     };
 
     const handleCloseSidePanel = () => {
-        setSelectedWorkflow(null);
         setIsSidePanelOpen(false);
+        setSelectedWorkflow(null);
     };
 
     const handleViewWorkflow = (workflow: AgentCardInfo) => {
@@ -129,7 +138,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
     };
 
     if (workflows.length === 0) {
-        return <EmptyState image={WorkflowImage} title="No workflows found" subtitle="No workflows discovered in the current namespace." />;
+        return <OnboardingView title={WORKFLOW_HEADER} description={WORKFLOW_DESCRIPTION} learnMoreText={WORKFLOW_LEARN_MORE_TEXT} learnMoreHref={WORKFLOW_URL} image={<Workflow className={"text-(--color-brand-wMain)"} size={128} />} />;
     }
 
     // Pagination controls component
@@ -168,27 +177,11 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
     return (
         <div className={`flex h-full w-full ${className ?? ""}`}>
             {/* Main content container */}
-            <div className="flex flex-1 flex-col pb-6">
-                <WorkflowOnboardingBanner />
-                {/* Search Bar */}
-                <div className="mb-4 flex items-center justify-between p-6">
-                    <div className="flex w-full max-w-md flex-shrink-0 items-center gap-4">
-                        <div className="relative flex-1">
-                            <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Filter by name..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                data-testid="workflowSearchInput"
-                                className="border-input bg-background placeholder:text-muted-foreground focus:border-ring w-full rounded-sm border px-10 py-2 text-sm focus:outline-none"
-                            />
-                        </div>
-                    </div>
-                </div>
+            <div className="flex flex-1 flex-col py-6 pl-6">
+                <OnboardingBanner storageKey={WORKFLOW_STORAGE_KEY} header={WORKFLOW_HEADER} description={WORKFLOW_DESCRIPTION} learnMoreText={WORKFLOW_LEARN_MORE_TEXT} learnMoreUrl={WORKFLOW_URL} className="mr-6 mb-6" />
+                <SearchInput value={searchTerm} onChange={value => setSearchTerm(value)} />
 
-                {/* Workflows table area */}
-                <div className="min-h-0 flex-1 overflow-y-auto pr-2 pl-6">
+                <div className="min-h-0 flex-1 overflow-y-auto pt-6 pr-6">
                     <div className="h-full">
                         {currentWorkflows.length > 0 ? (
                             <div className="rounded-xs border">
@@ -242,8 +235,8 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ workflows, className
 
             {/* Side panel wrapper */}
             {selectedWorkflow && (
-                <div className={`h-full overflow-hidden transition-all duration-500 ease-in-out ${isSidePanelOpen ? "w-1/4 min-w-[400px]" : "w-0"}`}>
-                    <div className={`h-full transition-opacity duration-500 ${isSidePanelOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+                <div className={`h-full overflow-hidden transition-[width] duration-300 ease-in-out ${isSidePanelOpen ? "w-[400px]" : "w-0"}`}>
+                    <div className={`h-full transition-opacity duration-300 ${isSidePanelOpen ? "opacity-100 delay-100" : "pointer-events-none opacity-0"}`}>
                         <WorkflowDetailPanel workflow={selectedWorkflow} onClose={handleCloseSidePanel} />
                     </div>
                 </div>
