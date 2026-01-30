@@ -1,10 +1,8 @@
 import { cva } from "class-variance-authority";
 
-// Icon button for remove/close actions
-export const classForIconButton = cva(["h-8", "w-8", "p-0", "text-[var(--muted-foreground)]", "hover:text-[var(--foreground)]"]);
+export const classForIconButton = cva(["h-8", "w-8", "p-0", "text-muted-foreground", "hover:text-foreground"]);
 
-// Empty state / no results message
-export const classForEmptyMessage = cva(["text-center", "text-sm", "text-[var(--muted-foreground)]"], {
+export const classForEmptyMessage = cva(["text-center", "text-sm", "text-muted-foreground"], {
     variants: {
         size: {
             default: "py-8",

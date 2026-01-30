@@ -2,13 +2,14 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cva } from "class-variance-authority";
-import { Plus, X, Loader2 } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
 import { Input } from "@/lib/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
+import { Spinner } from "@/lib/components/ui/spinner";
 import { MessageBanner } from "@/lib/components/common";
 import { UserTypeahead } from "@/lib/components/common/UserTypeahead";
 import { classForIconButton, classForEmptyMessage } from "@/lib/components/common/projectShareVariants";
@@ -203,7 +204,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                 <div className="min-h-0 flex-1 overflow-y-auto">
                     {isLoadingShares ? (
                         <div className="flex items-center justify-center py-8">
-                            <Loader2 className="h-6 w-6 animate-spin text-[var(--muted-foreground)]" />
+                            <Spinner size="medium" variant="muted" />
                         </div>
                     ) : fields.length === 0 && !sharesData?.ownerEmail && displayedViewers.length === 0 ? (
                         <div className={classForEmptyMessage()}>No users have access to this project yet.</div>
@@ -287,7 +288,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                         Discard Changes
                     </Button>
                     <Button onClick={handleSave} disabled={isSaving || !hasChanges}>
-                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isSaving && <Spinner size="small" className="mr-2" />}
                         Save
                     </Button>
                 </DialogFooter>
