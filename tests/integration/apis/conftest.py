@@ -5,13 +5,11 @@ Provides FastAPI TestClient and HTTP-based testing infrastructure.
 """
 
 import logging
+from unittest.mock import AsyncMock
 
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
-from sam_test_infrastructure.artifact_service.service import (
-    TestInMemoryArtifactService,
-)
 from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
     WebUIBackendFactory,
 )
@@ -86,17 +84,7 @@ def _patch_mock_component_config(factory):
         elif key == "projects":
             return {"enabled": True}
         elif key == "gateway_max_upload_size_bytes":
-            # Test override: Keep 100MB for artifact upload tests
-            # (test_tasks_api.py expects 101MB to be rejected)
-            return 100 * 1024 * 1024  # 100MB
-        elif key == "gateway_max_zip_upload_size_bytes":
-            # Test override: Use 10MB ZIP import limit
-            return 10485760  # 10MB
-        elif key == "gateway_max_total_upload_size_bytes":
-            # Test override: Use 3MB total project size limit
-            # (test_projects_upload_limits.py expects 3.6MB to be rejected)
-            # CRITICAL: Must override this because production default is 100MB!
-            return 3145728  # 3MB
+            return 100 * 1024 * 1024  # Default 100MB for tests
 
         if callable(original_side_effect):
             return original_side_effect(key, default)
@@ -108,61 +96,15 @@ def _patch_mock_component_config(factory):
 
 
 def _patch_mock_artifact_service(factory):
-    """
-    Configures a fully-functional in-memory artifact service for integration testing.
-
-    Replaces the default mock stub with TestInMemoryArtifactService, which provides:
-    - Complete artifact CRUD operations (save, load, list, delete)
-    - Version tracking and management
-    - Proper size tracking for upload limit validation
-    - Session and user isolation
-
-    This enables comprehensive testing of:
-    - File upload limits (per-file and total project size)
-    - Artifact retrieval and listing
-    - Multi-user artifact isolation
-    - Version management
-
-    Args:
-        factory: WebUIBackendFactory instance with mock_component attribute
-
-    Raises:
-        RuntimeError: If artifact service initialization fails
-    """
+    """Patches the mock artifact service to make save_artifact awaitable."""
     if not hasattr(factory, "mock_component"):
-        log.warning("Factory missing mock_component attribute - skipping artifact service patch")
         return
 
-    try:
-        # Initialize the in-memory artifact service
-        artifact_service = TestInMemoryArtifactService()
-
-        # Validate the service was created successfully
-        if not hasattr(artifact_service, 'save_artifact'):
-            raise RuntimeError("TestInMemoryArtifactService missing required save_artifact method")
-        if not hasattr(artifact_service, 'list_artifact_keys'):
-            raise RuntimeError("TestInMemoryArtifactService missing required list_artifact_keys method")
-
-        # Replace the mock's get_shared_artifact_service to return our real service
-        factory.mock_component.get_shared_artifact_service = lambda: artifact_service
-
-        # Store reference for potential cleanup or inspection
-        factory._test_artifact_service = artifact_service
-
-        log.info(
-            "Artifact service configured: TestInMemoryArtifactService initialized successfully. "
-            "All artifact operations (save, load, list, delete) are now fully functional."
-        )
-
-    except Exception as e:
-        log.error(
-            "Failed to initialize TestInMemoryArtifactService: %s. "
-            "Tests requiring artifact functionality may fail.",
-            e
-        )
-        raise RuntimeError(
-            f"Critical failure initializing test artifact service: {e}"
-        ) from e
+    artifact_service_mock = factory.mock_component.get_shared_artifact_service()
+    if artifact_service_mock:
+        # The save_artifact method is awaited, so it must be an AsyncMock in tests.
+        # It should return a version number.
+        artifact_service_mock.save_artifact = AsyncMock(return_value=1)
 
 
 @pytest.fixture(scope="session")
