@@ -5,6 +5,7 @@ import yaml from "js-yaml";
 import type { AgentCardInfo } from "@/lib/types";
 import { getWorkflowConfig, getWorkflowNodeCount } from "@/lib/utils/agentUtils";
 import { Button } from "@/lib/components/ui/button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui/tooltip";
 import { MarkdownHTMLConverter } from "@/lib/components/common";
 import { JSONViewer } from "@/lib/components/jsonViewer";
 import { Workflow, GitMerge, FileJson, X, ExternalLink, ChevronDown, ChevronUp, FileText, Code, Copy, Check } from "lucide-react";
@@ -50,7 +51,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
 
     // Check if description needs truncation (more than 5 lines)
     useEffect(() => {
-        if (descriptionRef.current) {
+        if (descriptionRef.current && description) {
             const element = descriptionRef.current;
             // Check if content is taller than 5 lines (approximately 5 * line-height)
             const lineHeight = parseInt(getComputedStyle(element).lineHeight) || 20;
@@ -66,10 +67,15 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
     return (
         <div className="flex h-full flex-col border-l">
             {/* Header */}
-            <div className="flex items-center justify-between border-b px-4 py-3">
-                <div className="flex items-center gap-2">
-                    <Workflow className="h-5 w-5 text-[var(--color-brand-wMain)]" />
-                    <span className="font-medium">{workflow.displayName || workflow.name}</span>
+            <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                <div className="flex min-w-0 items-center gap-2">
+                    <Workflow className="h-5 w-5 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="truncate text-xl font-semibold">{workflow.displayName || workflow.name}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>{workflow.displayName || workflow.name}</TooltipContent>
+                    </Tooltip>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* View toggle */}
@@ -81,9 +87,9 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
                             <Code className="h-4 w-4" />
                         </button>
                     </div>
-                    <button onClick={onClose} className="text-muted-foreground hover:bg-muted rounded p-1">
+                    <Button variant="ghost" size="icon" onClick={onClose} tooltip="Close">
                         <X className="h-5 w-5" />
-                    </button>
+                    </Button>
                 </div>
             </div>
 
@@ -91,7 +97,7 @@ export const WorkflowDetailPanel: React.FC<WorkflowDetailPanelProps> = ({ workfl
             {showCodeView && (
                 <div className="flex items-center justify-end gap-1 border-b px-3 py-2">
                     <Button onClick={handleCopy} tooltip="Copy YAML" variant="ghost">
-                        {isCopied ? <Check className="h-4 w-4 text-(--color-brand-wMain)" /> : <Copy className="h-4 w-4" />}
+                        {isCopied ? <Check className="h-4 w-4 text-[var(--color-brand-wMain)]" /> : <Copy className="h-4 w-4" />}
                     </Button>
                 </div>
             )}
